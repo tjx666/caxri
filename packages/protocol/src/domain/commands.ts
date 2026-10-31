@@ -106,6 +106,7 @@ export const commandIds = [
     'view.resetZoom',
     'view.toggleZenMode',
     'settings.open',
+    'settings.close',
     'usage.open',
     'environment.open',
     'benchmark.open',

@@ -16,7 +16,7 @@ import {
     sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 import { expectDisabledTerminalCopy } from './support/terminal-links.ts';
 
 type LinkProbeName = 'caxriExternalLinkProbe' | 'caxriKeyboardLinkProbe' | 'caxriReferenceProbe';
@@ -459,7 +459,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        const settings = await openSettingsTab(running.page);
+        const settings = await openSettingsPage(running.page);
         await settings.getByLabel('Search settings').fill('reference links');
         const editor = settings.getByRole('region', {
             name: 'Terminal Reference Links editor',
@@ -486,7 +486,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
                 return result.value['terminal.referenceLinks'].map(({ prefix }) => prefix);
             })
             .toEqual(['TASK-']);
-        await running.page.keyboard.press('Meta+w'); // closes the Settings tab (issue caxri#1289)
+        await running.page.keyboard.press('Meta+w'); // closes the Settings page (issue caxri#2369)
 
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {

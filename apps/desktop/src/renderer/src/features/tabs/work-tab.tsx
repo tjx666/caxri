@@ -99,10 +99,9 @@ interface WorkTabProperties {
      */
     gitDecoration?: GitDecoration;
     /**
-     * `'file'` resolves a file type icon from `fileIconName`; `'settings'` is the Settings tab's own glyph, matching VS
-     * Code, whose Settings editor tab shows a settings icon rather than the JSON file it is stored in. `'agent-task'`
-     * and `'shell-task'` mark an Agent Chat's subagent and background shell tabs with the glyphs their timeline rows
-     * use.
+     * `'file'` resolves a file type icon from `fileIconName`; the built-in glyphs mark virtual pages such as Usage and
+     * Environment. `'agent-task'` and `'shell-task'` mark an Agent Chat's subagent and background shell tabs with the
+     * glyphs their timeline rows use.
      */
     icon: 'file' | WorkTabGlyph | AgentIconIdentity;
     label: string;

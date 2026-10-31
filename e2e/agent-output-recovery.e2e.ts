@@ -7,7 +7,7 @@ import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 interface RecoverySettingsSnapshot {
     enabled: boolean;
@@ -88,7 +88,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Claude');
         await settingsTab.getByRole('switch', { name: 'Claude network error recovery' }).check();
         const patterns = settingsTab.getByLabel('Claude additional ending output patterns');
@@ -127,8 +127,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 settleDelayMs: 250,
                 continueDelayMs: 250,
             });
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright; there is no "Close" button to click anymore.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
 
         await createProjectSession(running.page, 'claude');
@@ -181,7 +180,7 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Claude');
         await settingsTab.getByRole('switch', { name: 'Claude network error recovery' }).check();
         await expect(
@@ -205,8 +204,7 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
                 settleDelayMs: 250,
                 continueDelayMs: 250,
             });
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright; there is no "Close" button to click anymore.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
 
         await createProjectSession(running.page, 'claude');

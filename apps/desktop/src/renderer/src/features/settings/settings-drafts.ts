@@ -12,7 +12,7 @@ import { parse, printParseErrorCode } from 'jsonc-parser';
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import type { ConfigKind } from './config-edit';
-import { CONFIG_FILE_NAMES } from './config-edit';
+import { CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
 
 export interface ConfigState {
     settings: { value: AppSettings | undefined; source: string; appliedSource: string };
@@ -381,4 +381,17 @@ export function parseConfigSource<Kind extends ConfigKind>(
         ok: false,
         error: `${CONFIG_FILE_NAMES[kind]}: ${path}${issue?.message ?? translate('settings.source.invalidConfiguration')}`,
     };
+}
+
+/**
+ * The first configuration file whose Source draft differs from what was applied and does not parse, so it can never be
+ * written. Settings stays mounted while hidden, so such a draft survives closing the page; this is what the close
+ * warning names and where the next untargeted open lands, instead of the edit silently sitting behind the UI view.
+ */
+export function invalidSourceDraft(state: ConfigState): ConfigKind | undefined {
+    return CONFIG_KINDS.find(
+        (kind) =>
+            state[kind].source !== state[kind].appliedSource &&
+            !parseConfigSource(kind, state[kind].source).ok,
+    );
 }

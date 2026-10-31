@@ -80,14 +80,16 @@ function openHardwareAccelerationSettings(t: Translate): TerminalRendererSetting
 
 /**
  * The status bar only speaks up while a Terminal is degraded: a WebGL renderer is the healthy default and says nothing,
- * so the chip appears exactly when scrolling and output are running on xterm's slower DOM renderer.
+ * so the chip appears exactly when scrolling and output are running on xterm's slower DOM renderer. A suspended pane is
+ * not degraded, only off screen: the selected Session's Terminal is suspended while the Settings page covers it.
  */
 export function terminalRendererIndicator(
     status: TerminalRendererStatus | undefined,
     options: TerminalRendererIndicatorOptions,
     t: Translate,
 ): TerminalRendererIndicator | undefined {
-    if (status?.mode !== 'dom' || status.reason === 'disposed') return undefined;
+    if (status?.mode !== 'dom' || status.reason === 'disposed' || status.reason === 'suspended')
+        return undefined;
     const isBootDisabled = status.reason === 'unsupported' && options.isHardwareAccelerationOff;
     const detail = terminalRendererDetail(status, Boolean(isBootDisabled), t);
     const isRetrying = ['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState);

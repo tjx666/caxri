@@ -3,14 +3,20 @@ import { useState } from 'react';
 
 import type { AppSettings, SystemColorScheme } from '@caxri/protocol';
 import { resolveEffectiveTheme } from '@caxri/protocol';
-import { Braces, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Braces, SlidersHorizontal } from 'lucide-react';
 
 import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
+import { Button } from '../../components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useSystemColorScheme } from '../../hooks/use-system-color-scheme';
 import { useTranslation } from '../../i18n';
+import { useCommandShortcut } from '../../lib/keybindings';
+import { cn } from '../../lib/utilities';
+import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
+import { closeSettings } from '../../stores/dialogs';
 import { useIsLocalOnlyAvailable } from '../../stores/environment';
+import { useIsFullScreen } from '../../stores/selectors';
 import { ConfigSourceView } from './config-source-view';
 import type { SettingsPageController } from './hooks/use-settings-page-controller';
 import { useSettingsPageController } from './hooks/use-settings-page-controller';
@@ -44,14 +50,41 @@ function setPreferredTheme(
 }
 
 /**
- * Same header copy and classes as the former `DialogHeader`/`DialogTitle`/`DialogDescription` trio, reproduced as plain
- * markup: a Workbench tab has no popup chrome to draw them from. A surface that needs its own close control passes it
- * as `headerAction`, which sits in the header after the view toggle instead of floating over it.
+ * The page's header takes the place of the Workbench's root tab bar, so it is the window's title bar too: the same
+ * fill, drag region, and windowed traffic-light inset. It leads with Back, the way the full-page settings of comparable
+ * apps return to where the user was, and names the page visibly: with no tab above it, nothing else on screen says
+ * "Settings".
  */
-function SettingsWorkbenchView({
-    headerAction,
-    ...controller
-}: SettingsPageController & { headerAction?: ReactNode }) {
+function SettingsPageTitleBar({ children }: { children: ReactNode }) {
+    const { t } = useTranslation();
+    const closeShortcut = useCommandShortcut('settings.close');
+    const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
+    const isFullScreen = useIsFullScreen();
+    return (
+        <div
+            className={cn(
+                'flex h-9 items-center gap-3 bg-title-bar-active-background pr-2 pl-2 text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
+                !isPrimarySidebarVisible && !isFullScreen && 'pl-(--traffic-light-clearance)',
+            )}
+        >
+            <Tooltip content={t('settings.page.backTooltip')} shortcut={closeShortcut}>
+                <Button
+                    className="[-webkit-app-region:no-drag]"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => closeSettings({ restoreFocus: true })}
+                >
+                    <ArrowLeft size={14} />
+                    {t('settings.page.back')}
+                </Button>
+            </Tooltip>
+            <h1 className="m-0 shrink-0 text-[13px] font-semibold">{t('settings.page.heading')}</h1>
+            {children}
+        </div>
+    );
+}
+
+function SettingsWorkbenchView(controller: SettingsPageController) {
     const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
     const { t } = useTranslation();
     const canImportTheme = useIsLocalOnlyAvailable();
@@ -153,29 +186,25 @@ function SettingsWorkbenchView({
         );
 
     return (
-        // `data-settings-page`: the former `role="dialog"` gave E2E a stable scope to query within; a Workbench tab
-        // has no such role, so this attribute is the replacement scoping hook (`openSettingsTab` in
-        // `e2e/support/settings.ts`).
+        // `data-settings-page`: the page has no dialog role, so this attribute is the scope E2E queries within
+        // (`openSettingsPage` in `e2e/support/settings.ts`) and the boundary `settings.close` reads to decide whether
+        // `Escape` belongs to the page.
         //
-        // The page keeps a minimum width and scrolls sideways below it. Squeezed into a narrow split group, the 168px
-        // navigation left the content a sliver and zh-CN labels wrapped one character per line.
+        // The page keeps a minimum width and scrolls sideways below it, so a narrow window never squeezes the 168px
+        // navigation's content into a sliver where zh-CN labels wrap one character per line.
         <div className="h-full overflow-x-auto overflow-y-hidden">
             <div
                 data-settings-page
                 className="grid h-full min-w-[30rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
             >
-                {/*
-                 * One `bg-surface` header band over the `bg-background` content: a background step, not a hairline
-                 * (see `renderer-design-contract.test.ts`). The Workbench tab already says "Settings", so the heading
-                 * stays for assistive tech alone.
-                 */}
-                <div className="flex items-center gap-3 bg-surface py-2 pr-2 pl-4">
-                    <h1 className="sr-only">{t('settings.page.heading')}</h1>
-                    <p className="m-0 min-w-0 flex-1 text-[11px] leading-[1.45] text-muted">
+                {/* A background step over the `bg-background` content, not a hairline (see `renderer-design-contract.test.ts`). */}
+                <SettingsPageTitleBar>
+                    <p className="m-0 min-w-0 flex-1 truncate text-[11px] leading-[1.45] text-muted">
                         {t('settings.page.intro')}
                     </p>
                     <ToggleGroup
                         aria-label={t('settings.page.viewToggle')}
+                        className="[-webkit-app-region:no-drag]"
                         value={[view]}
                         onValueChange={(next: Array<'ui' | 'source'>) => {
                             // Base UI reports re-activating the selected segment as an empty
@@ -206,8 +235,7 @@ function SettingsWorkbenchView({
                             </ToggleGroupItem>
                         </Tooltip>
                     </ToggleGroup>
-                    {headerAction}
-                </div>
+                </SettingsPageTitleBar>
                 <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
                     <SettingsNavigation
                         activeAnchor={navigationState?.activeAnchor}
@@ -230,20 +258,14 @@ function SettingsWorkbenchView({
 }
 
 /**
- * The Settings surface as a Workbench document tab (`caxri-settings://workbench`) instead of a fixed-size modal, so a
- * wide window can show a whole section without scrolling the container itself: only a section's own content scrolls.
- * Mounted only while its tab is the active one in its pane, exactly like every other document tab, which is also why
- * every load below runs unconditionally rather than behind an `isOpen` gate: rendering this component at all already
- * means Settings is open.
+ * The Settings surface: a window-level page over the Workbench (`SettingsPageHost`), so a wide window can show a whole
+ * section without scrolling the container itself: only a section's own content scrolls.
  *
- * Deliberately NOT registered with `useModalRegistration` (issue caxri#1289): Settings opens into the selected
- * Session's own pane layout now, so it must behave exactly like any other document tab, including standing aside for a
- * Session-switch gesture the same way a Terminal or editor tab would. Registering it as a modal was tried and reverted:
- * `useDialogStore.isModalOpen()` also gates every keyboard shortcut in `use-command-shortcuts.ts` (checked before a
- * command ever reaches `runCommand`), so it would have blocked `Cmd+W` itself while this tab was active: an open
- * Settings tab could never be closed from the keyboard again.
+ * Deliberately NOT registered with `useModalRegistration` (issue caxri#1289): `useDialogStore.isModalOpen()` gates
+ * every keyboard shortcut in `use-command-shortcuts.ts` before a command reaches `runCommand`, so a modal Settings
+ * would swallow `Escape`, `Cmd+W`, and the Session-switch gestures that are supposed to leave it.
  */
-export function SettingsWorkbenchPage({ headerAction }: { headerAction?: ReactNode } = {}) {
+export function SettingsWorkbenchPage() {
     const controller = useSettingsPageController();
-    return <SettingsWorkbenchView {...controller} headerAction={headerAction} />;
+    return <SettingsWorkbenchView {...controller} />;
 }

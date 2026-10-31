@@ -9,7 +9,7 @@ import type { AppSettings } from '@caxri/protocol';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 async function openEnvironmentFromCommandPalette(page: Page): Promise<void> {
     await page.keyboard.press('Meta+Shift+P');
@@ -60,7 +60,7 @@ test('Environment monitoring keeps optional signals off and reports configured e
         testRootPath: root,
     });
     try {
-        const settings = await openSettingsTab(running.page);
+        const settings = await openSettingsPage(running.page);
         await revealSettingsSection(settings, 'Notifications');
 
         await expect(settings.getByRole('switch', { name: 'Public IP changes' })).toBeChecked();

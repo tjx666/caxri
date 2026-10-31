@@ -2,13 +2,11 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 /**
- * Presses `Cmd+,` and returns the Settings surface, scoped by `data-settings-page`. Settings is a Workbench document
- * tab (`caxri-settings://workbench`), not a modal, so there is no `role="dialog"` left to query within: this attribute
- * is the replacement scope every Settings-touching test should use in its place. Reissuing `Cmd+,` while the tab is
- * already open focuses it rather than duplicating it, so this is also the right call for "come back to Settings" after
- * navigating elsewhere in the Workbench.
+ * Presses `Cmd+,` and returns the Settings page, scoped by `data-settings-page`. Settings is a window-level page that
+ * covers the Workbench, not a modal and not a pane tab, so this attribute is the scope every Settings-touching test
+ * should query within. The page stays mounted (hidden) after it closes, so assert a closed page with `toBeHidden()`.
  */
-export async function openSettingsTab(page: Page): Promise<Locator> {
+export async function openSettingsPage(page: Page): Promise<Locator> {
     await page.keyboard.press('Meta+,');
     const panel = page.locator('[data-settings-page]');
     await expect(panel).toBeVisible();

@@ -6,7 +6,6 @@ import {
     externalEditorTabPath,
     filePreviewTabPath,
     gitFileDiffTabPath,
-    settingsTabPath,
     usageTabPath,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
@@ -31,7 +30,6 @@ describe('activeFileStatusTier', () => {
             agentTaskTabPath('terminal-1', 'task-1'),
             agentStatusTabPath('terminal-1'),
             environmentTabPath(),
-            settingsTabPath(),
             usageTabPath(),
             gitFileDiffTabPath('repo-1', 'src/index.ts'),
         ];

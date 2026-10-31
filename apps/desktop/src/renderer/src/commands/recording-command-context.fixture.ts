@@ -130,6 +130,8 @@ export function recordingContext(): { calls: string[]; context: CommandContext }
             },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),
+                canCloseSettings: () => true,
+                closeSettings: record('dialogs.closeSettings'),
                 openPalette: record('dialogs.openPalette'),
                 openUsage: record('dialogs.openUsage'),
                 openEnvironment: record('dialogs.openEnvironment'),

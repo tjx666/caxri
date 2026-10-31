@@ -126,7 +126,6 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
             .getByPlaceholder('Search projects, sessions, and commands…')
             .fill('Manage Trusted Domains');
         await palette.getByRole('option').filter({ hasText: 'Manage Trusted Domains' }).click();
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289).
         const settings = running.page.locator('[data-settings-page]');
         const ruleInput = settings.getByRole('textbox', {
             name: 'Trusted domain rule',
@@ -157,11 +156,10 @@ test('Trusted Domains persists, bypasses repeat prompts, and can be revoked in S
                 return result.value['security.trustedDomains'];
             })
             .toEqual(['https://*.example.org']);
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies
-        // the same pane the Terminal does: close it outright so the Terminal below is mounted
-        // again for `typeTerminal` to find below.
+        // The Settings page covers the Workbench (issue caxri#2369): close it so the Terminal
+        // below is visible again for `typeTerminal`.
         await running.page.keyboard.press('Meta+w');
-        await expect(settings).toHaveCount(0);
+        await expect(settings).toBeHidden();
 
         await running.app.evaluate(() => {
             const target = globalThis as typeof globalThis & {

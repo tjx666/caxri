@@ -42,6 +42,8 @@ export function useSessionFocusHandoff(selectedSessionId: string | undefined): v
          * Terminal and then immediately lose it again to that restore.
          */
         const frame = requestAnimationFrame(() => {
+            // The selection moved under an open Settings page (its Session was deleted): the Terminal is still hidden.
+            if (useDialogStore.getState().settingsPageOpen) return;
             const tab = getActivePaneTab();
             if (tab?.resource.kind !== 'terminal') return;
             if (

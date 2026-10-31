@@ -122,6 +122,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.benchmark.open':
         '用同一个提示词对比多个 Agent 和模型的质量、耗时、Token 和费用',
     'commands.description.settings.open': '打开 Caxri 设置',
+    'commands.description.settings.close': '关闭设置页，回到它遮住的会话',
     'commands.description.settings.openSource': '在 Caxri 源码编辑器中打开 settings.jsonc',
     'commands.description.settings.openKeybindings': '编辑 Caxri 快捷键',
     'commands.description.settings.openNotifications': '管理通知偏好并恢复已静音的提醒',

@@ -32,6 +32,7 @@ import { tryCommand } from '../../stores/toasts';
 import { patchSessionState } from '../../stores/workbench';
 import { recordClosedTabs } from '../closed-items/recording';
 import { previewOnlyTabPath } from '../preview/preview-registry';
+import { revealSelectedSessionWorkbench } from '../settings/settings-page-commands';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import {
@@ -157,13 +158,13 @@ export function didOpenEditorTabForSession(
 /**
  * Opens an editor tab in the currently selected Session, in `paneId` when given, else the active pane.
  *
- * The tab activates synchronously, so it supersedes any file open still awaiting `files.read`: otherwise a Settings
- * shortcut pressed right after a File Explorer click opens Settings, then the late read re-activates the file on top of
- * it.
+ * The tab activates synchronously, so it supersedes any file open still awaiting `files.read`: otherwise a late read
+ * would re-activate an earlier file on top of the tab the user opened last.
  */
 export function openEditorTab(path: string, options: { paneId?: string; preview?: boolean } = {}) {
     const session = getSelectedSession();
     if (!session) return;
+    revealSelectedSessionWorkbench(session.id);
     supersedePendingFileOpens();
     didOpenEditorTabForSession(session.id, path, options);
 }
@@ -274,6 +275,7 @@ export async function openFileForSession(
     if (isVirtualEditorTabPath(path)) return false;
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return false;
+    revealSelectedSessionWorkbench(session.id);
     /**
      * A format with no text form (a PDF) opens as its preview tab: a text read could only fail on the binary content.
      * Routing here covers every open path at once (Files, Quick Open, project search, Terminal links).

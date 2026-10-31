@@ -19,7 +19,7 @@ import {
 } from './support/helpers.ts';
 import { dismissContextMenu, waitForContextMenu } from './support/native-context-menu.ts';
 import { projectNewSessionButton } from './support/project-new-session-menu.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 
 test('primarySidebar titlebar is logo-free, holds only history and the Activity toggle, and stays draggable', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
@@ -481,7 +481,7 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         // Named after the hovered button: Base UI points the popup's `aria-labelledby` at its active trigger.
         const agentMenu = running.page.getByRole('menu', { name: 'New Terminal' });
         await expect(agentMenu).toBeVisible();
-        const agents = [/^Claude/, /^Codex/, /^Grok Build/, 'Shell'];
+        const agents = [/^Claude/, /^Codex/, /^Grok Build/, /^Antigravity/, 'Shell'];
         await expect(agentMenu.getByRole('menuitem')).toHaveText(agents);
         await running.page.keyboard.press('Escape');
         await newTerminal.focus();
@@ -527,12 +527,11 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
             })),
         ).toEqual({ clientWidth: 800, scrollWidth: 800 });
 
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await expect(settingsTab).toContainText('Settings');
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright; there is no "Close" button to click anymore.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         const paletteSearch = running.page.getByPlaceholder(

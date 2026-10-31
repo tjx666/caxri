@@ -78,6 +78,7 @@ describe('isCommandVisibleInPalette', () => {
         agentChatWaiting: false,
         agentChatApproval: false,
         pinnedSessions: false,
+        settingsPageOpen: false,
     };
     const localWindow = {
         botHandOverAvailable: true,
@@ -220,6 +221,7 @@ describe('botPaletteWhenContext', () => {
             agentChatApproval: false,
             localMachine: true,
             pinnedSessions: false,
+            settingsPageOpen: false,
             sessionHasDetachedAgent: false,
             sessionHasLiveAgent: false,
             sessionHasPullRequest: false,

@@ -8,7 +8,6 @@ import { isUntitledEditorTabPath } from './editor/untitled.js';
 import { isExternalEditorTabPath } from './external-editor-tab.js';
 import { isFilePreviewTabPath } from './file-preview.js';
 import { isGitDiffTabPath } from './git-diff.js';
-import { isSettingsTabPath } from './settings-tab.js';
 import { isUsageTabPath } from './usage-tab.js';
 
 const ENVIRONMENT_TAB_PATH = 'caxri-environment://workbench';
@@ -40,7 +39,6 @@ const virtualEditorTabMatchers = {
     environment: isEnvironmentTabPath,
     external: isExternalEditorTabPath,
     filePreview: isFilePreviewTabPath,
-    settings: isSettingsTabPath,
     untitled: isUntitledEditorTabPath,
     usage: isUsageTabPath,
 } as const satisfies Record<string, (path: string) => boolean>;

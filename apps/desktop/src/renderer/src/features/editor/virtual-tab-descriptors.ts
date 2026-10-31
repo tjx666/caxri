@@ -257,12 +257,6 @@ export const virtualTabDescriptors: Record<VirtualEditorTabScheme, VirtualTabDes
         loading: { labelKey: PREVIEW_LOADING_LABEL_KEY, variant: 'document' },
         statusBar: 'hidden',
     },
-    // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
-    settings: {
-        present: (_path, _options, t) => glyphPresentation(t('editor.tab.settings'), 'settings'),
-        loading: { labelKey: 'editor.load.loadingSettings', variant: 'page' },
-        statusBar: 'hidden',
-    },
     usage: {
         present: (_path, _options, t) => glyphPresentation(t('editor.tab.usage'), 'usage'),
         loading: { labelKey: 'editor.load.loadingUsage', variant: 'page' },

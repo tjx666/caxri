@@ -11,7 +11,7 @@ import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts'
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const cliPath = join(projectRoot, 'apps', 'cli', 'dist', 'caxri.cjs');
@@ -381,7 +381,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
         });
         await createShellSession(running.page);
         // Settings rows are virtualized, so reveal the Terminal section before querying its switch.
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Terminal');
         const clipboardSetting = settingsTab.getByRole('switch', {
             name: 'Let programs in the Terminal copy to your clipboard',

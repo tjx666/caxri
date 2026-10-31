@@ -4,6 +4,9 @@ import type { settingsPage as source } from '../en/settings-page';
 
 export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.page.heading': '设置',
+    'settings.page.back': '返回',
+    'settings.page.backTooltip': '关闭设置',
+    'settings.page.unsavedSource': '{{file}} 有错误，未保存。重新打开设置即可修正或还原。',
     'settings.page.intro': '更改会立即生效，并保存为可编辑的文件。',
     'settings.page.tab.keybindings': '快捷键',
     'settings.page.tab.theme': '主题',

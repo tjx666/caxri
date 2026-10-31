@@ -8,7 +8,7 @@ import type { AgentHookHealthMap } from '@caxri/protocol';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 test('Active Agent hook health keeps its informational Settings tone', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-health-tone-e2e-'));
@@ -51,7 +51,7 @@ process.stdin.resume();
                 return health.claude.kind;
             })
             .toBe('active');
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Claude');
         const caption = settingsTab
             .locator('[data-setting-row="agents.claude.hooks"]')

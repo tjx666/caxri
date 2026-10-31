@@ -8,7 +8,7 @@ import {
     filePreviewTabPath,
     gitChangesDiffTabPath,
     gitFileDiffTabPath,
-    settingsTabPath,
+    usageTabPath,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -121,12 +121,12 @@ describe('documentTabPresentation', () => {
                 .fileIconName,
         ).toBe('file.ts');
     });
-    it('labels the Settings tab with its own icon, without exposing its opaque scheme', () => {
-        expect(documentTabPresentation(settingsTabPath(), {}, translate)).toEqual({
+    it('labels the Usage tab with its own icon, without exposing its opaque scheme', () => {
+        expect(documentTabPresentation(usageTabPath(), {}, translate)).toEqual({
             fileIconName: undefined,
-            icon: 'settings',
-            label: 'Settings',
-            labelTooltip: 'Settings',
+            icon: 'usage',
+            label: 'Usage',
+            labelTooltip: 'Usage',
         });
     });
     it('labels Agent Chat task tabs by their task, with the glyph of its kind', () => {

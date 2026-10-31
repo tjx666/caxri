@@ -4,7 +4,6 @@ export const workbench = {
     'workbench.welcome.commandPalette': 'Command Palette',
     'workbench.welcome.keyboardShortcuts': 'Keyboard Shortcuts',
     'workbench.welcome.documentation': 'Documentation',
-    'workbench.closeSettings': 'Close Settings',
     'workbench.closeEnvironment': 'Close Environment',
     'workbench.exitZenMode': 'Exit Zen Mode',
     'workbench.resizePanel': 'Resize Panel',

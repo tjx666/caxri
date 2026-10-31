@@ -15,7 +15,7 @@ import {
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 interface CharacterBounds {
     height: number;
@@ -343,7 +343,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
          * An ordinary input is the fourth focus surface in the #264 priority contract. A background Terminal selection
          * must not replace the input's selected text when the user presses Cmd+C.
          */
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         const settingsSearch = settingsTab.getByLabel('Search settings');
         const inputCopyText = 'INPUT_COPY_TARGET';
         await settingsSearch.fill(inputCopyText);
@@ -352,10 +352,9 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await settingsSearch.press('Meta+C');
         await expect.poll(() => running.clipboard.textEquals(inputCopyText)).toBe(true);
         await running.clipboard.claimText(inputCopyText);
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright, the tab-appropriate replacement for the old "Escape to dismiss the dialog" step.
+        // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
-        await expect(settingsTab).toHaveCount(0);
+        await expect(settingsTab).toBeHidden();
 
         const keybindings = await pageRequest<{
             value: Array<{ command: string; key: string; when?: 'terminalFocus' }>;
@@ -373,7 +372,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
                 label: 'Copy Selection [⇧⌘C]',
             });
 
-        const keybindingsTab = await openSettingsTab(running.page);
+        const keybindingsTab = await openSettingsPage(running.page);
         await openSettingsSection(keybindingsTab, 'Keybindings');
         const keybindingsSearch = keybindingsTab.getByLabel('Search keyboard shortcuts');
         await keybindingsSearch.fill('terminal.copy');
@@ -384,7 +383,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await expect.poll(() => running.clipboard.textEquals('terminal.copy')).toBe(true);
         await running.clipboard.claimText('terminal.copy');
         await running.page.keyboard.press('Meta+w');
-        await expect(keybindingsTab).toHaveCount(0);
+        await expect(keybindingsTab).toBeHidden();
 
         await running.page
             .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)

@@ -15,7 +15,7 @@ import {
     VISIBLE_SESSION,
     VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 type Page = Parameters<typeof selectedSessionId>[0];
 
@@ -321,13 +321,12 @@ test('Session MRU custom binding ignores ordinary and composing input and commit
             ),
         });
 
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await openSettingsSection(settingsTab, 'Keybindings');
         await settingsTab.getByLabel('Search keyboard shortcuts').fill('session.switchMru');
         await expect(settingsTab.locator('[data-shortcut="ctrl+alt+m"]')).toBeVisible();
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies
-        // the same pane a Terminal would: `Cmd+W` closes it outright so the Terminal below is
-        // actually mounted again for `terminalInput.focus()` to find.
+        // The Settings page covers the Workbench (issue caxri#2369): `Cmd+W` closes it so the
+        // Terminal below is visible again for `terminalInput.focus()`.
         await running.page.keyboard.press('Meta+w');
 
         const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();

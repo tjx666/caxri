@@ -10,7 +10,6 @@ import {
     externalEditorTabPath,
     filePreviewTabPath,
     gitFileDiffTabPath,
-    settingsTabPath,
     untitledEditorTabPath,
     usageTabPath,
     virtualEditorTabScheme,
@@ -35,7 +34,6 @@ const samplePaths: Record<VirtualEditorTabScheme, string> = {
     environment: environmentTabPath(),
     external: externalEditorTabPath('document-1', 'notes.md'),
     filePreview: filePreviewTabPath('/project/a.md'),
-    settings: settingsTabPath(),
     usage: usageTabPath(),
     untitled: untitledEditorTabPath(1),
 };

@@ -209,6 +209,13 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+=', command: 'view.zoomIn' },
     { key: 'cmd+-', command: 'view.zoomOut' },
     { key: 'cmd+,', command: 'settings.open' },
+    /**
+     * Settings is a page over the whole Workbench, and `Escape` is how the full-page settings of comparable apps
+     * return. The command only exists while the page is up and stays out of text fields (but the empty Settings search)
+     * and Monaco, so everywhere else `Escape` still reaches the Terminal, the Chat composer, or the popup that owns
+     * it.
+     */
+    { key: 'escape', command: 'settings.close' },
     { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
     /**
      * `Cmd+K Cmd+R` is VS Code's "Keyboard Shortcuts Reference" chord, next to its `Cmd+K Cmd+S` editor above. Claude
@@ -467,5 +474,9 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+k z', command: 'view.toggleZenMode' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'escape', command: 'settings.close' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

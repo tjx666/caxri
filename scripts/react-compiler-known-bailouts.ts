@@ -37,7 +37,6 @@ export const knownReactCompilerBailouts: Record<string, readonly string[]> = {
     // lazy ref initialisation with `??=`; an expanded `if` and a `useState` initializer both fail with "Cannot access refs during render".
     'apps/desktop/src/renderer/src/features/settings/hooks/use-settings-page-controller.ts': [
         '(BuildHIR::lowerExpression) Handle ??= operators in AssignmentExpression',
-        '(BuildHIR::lowerExpression) Handle ??= operators in AssignmentExpression',
     ],
     // the PTY attach effect omits unstable search/size callbacks from its deps on purpose, so its exhaustive-deps suppression stays.
     'apps/desktop/src/renderer/src/features/terminal/hooks/use-terminal-pane-runtime.ts': [

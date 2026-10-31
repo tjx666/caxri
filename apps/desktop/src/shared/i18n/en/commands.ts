@@ -121,6 +121,7 @@ export const commands = {
     'commands.environment.open': 'Open Environment',
     'commands.benchmark.open': 'Open Benchmark',
     'commands.settings.open': 'Open Settings',
+    'commands.settings.close': 'Close Settings',
     'commands.settings.openSource': 'Open Settings (JSON)',
     'commands.settings.openKeybindings': 'Edit Keyboard Shortcuts',
     'commands.settings.openNotifications': 'Open Notification Settings',

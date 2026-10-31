@@ -14,7 +14,7 @@ import {
     waitForCreatedSession,
     waitForRuntimeReady,
 } from './support/helpers.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -129,7 +129,7 @@ test('Agent identities stay consistent across every shared surface', async () =>
          * its settings shortcut a deterministic non-editable focus target.
          */
         await infoTab.focus();
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await expect(settingsTab.locator('[data-agent-icon="unknown"]')).toBeVisible();
         await settingsTab.getByLabel('Default Agent').click();
         await running.page.getByRole('option', { name: 'Codex', exact: true }).click();

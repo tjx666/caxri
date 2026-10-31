@@ -4,6 +4,10 @@
  */
 export const settingsPage = {
     'settings.page.heading': 'Settings',
+    'settings.page.back': 'Back',
+    'settings.page.backTooltip': 'Close Settings',
+    'settings.page.unsavedSource':
+        '{{file}} was not saved because it has an error. Reopen Settings to fix or revert it.',
     'settings.page.intro': 'Changes apply immediately and are stored as editable files.',
     'settings.page.tab.keybindings': 'Keybindings',
     'settings.page.tab.theme': 'Theme',

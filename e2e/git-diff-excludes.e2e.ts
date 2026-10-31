@@ -7,7 +7,7 @@ import { execFileAsync } from '@caxri/system';
 import { e2eSettingsPath } from './support/e2e-profile.ts';
 import { expect, test } from './support/fixtures.ts';
 import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 
 const OPTED_IN_EXCLUSIONS = {
     '**/*.test.*': true,
@@ -111,7 +111,7 @@ test('Opted-in Git diff exclusions hide changes, reveal on demand, and refresh f
         await expect(repo.getByText('1 excluded file hidden.', { exact: true })).toBeVisible();
         await expect(repo.getByText('Working tree clean.', { exact: true })).toHaveCount(0);
 
-        const firstSettingsTab = await openSettingsTab(running.page);
+        const firstSettingsTab = await openSettingsPage(running.page);
         await firstSettingsTab.getByLabel('Search settings').fill('Excluded Git diff files');
         const firstSettingRow = firstSettingsTab.locator('[data-setting-row="git.diffExclude"]');
         await expect(
@@ -129,17 +129,16 @@ test('Opted-in Git diff exclusions hide changes, reveal on demand, and refresh f
                 .click();
         }
         await expect(patterns.locator('li')).toHaveCount(0);
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright, forcing the fresh mount this test needs below; otherwise reopening would just
-        // re-show the same still-mounted, already-empty list, proving nothing about whether the
-        // removals actually persisted rather than only updating local UI state.
+        // `Cmd+W` closes the Settings page (issue caxri#2369). The page stays mounted while closed,
+        // so the excluded file reappearing in the Git panel below is what proves the removals
+        // persisted rather than only updating local UI state.
         await running.page.keyboard.press('Meta+w');
-        await expect(firstSettingsTab).toHaveCount(0);
+        await expect(firstSettingsTab).toBeHidden();
 
         await expect(excludedFile).toBeVisible();
         await expect(gitPanel.getByRole('button', { name: /^Show excluded files/ })).toHaveCount(0);
 
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await settingsTab.getByLabel('Search settings').fill('Excluded Git diff files');
         const settingRow = settingsTab.locator('[data-setting-row="git.diffExclude"]');
         await expect(

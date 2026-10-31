@@ -5,7 +5,11 @@ import process from 'node:process';
 
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest } from './support/helpers.ts';
-import { openSettingsSection, openSettingsTab, revealSettingsSection } from './support/settings.ts';
+import {
+    openSettingsPage,
+    openSettingsSection,
+    revealSettingsSection,
+} from './support/settings.ts';
 
 test('Mobile Access loading spinner stops when reduced motion is enabled', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-spinner-motion-'));
@@ -18,11 +22,11 @@ test('Mobile Access loading spinner stops when reduced motion is enabled', async
     let serverPid: number | undefined;
 
     try {
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         await revealSettingsSection(settingsTab, 'Mobile');
         await expect(settingsTab.getByTestId('mobile-access-form')).toBeVisible();
-        // Leave the Settings section so the Mobile Access form unmounts. Closing the whole Settings tab (issue
-        // caxri#1289) would also drop the loaded configuration and make the reopened tab wait on the frozen Server.
+        // Leave the Settings section so the Mobile Access form unmounts. Closing the Settings page would not: the page
+        // stays mounted while hidden (issue caxri#2369).
         await openSettingsSection(settingsTab, 'Keybindings');
         await expect(settingsTab.getByTestId('mobile-access-form')).toHaveCount(0);
         serverPid = (await pageRequest<{ pid: number }>(running.page, 'host.status')).pid;

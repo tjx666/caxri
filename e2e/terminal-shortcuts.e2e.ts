@@ -24,7 +24,7 @@ import {
     waitForNewTerminalId,
 } from './support/helpers.ts';
 import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
-import { openSettingsSection, openSettingsTab } from './support/settings.ts';
+import { openSettingsPage, openSettingsSection } from './support/settings.ts';
 
 async function terminalIds(page: Page): Promise<string[]> {
     const state = await pageRequest<{ terminals: Array<{ id: string }> }>(page, 'app.bootstrap');
@@ -395,14 +395,13 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
                 2,
             ),
         });
-        const keybindingsTab = await openSettingsTab(running.page);
+        const keybindingsTab = await openSettingsPage(running.page);
         await openSettingsSection(keybindingsTab, 'Keybindings');
         await keybindingsTab.getByLabel('Search keyboard shortcuts').fill('send sequence');
         await expect(keybindingsTab.locator('[data-shortcut="cmd+enter"]')).toBeVisible();
         await expect(keybindingsTab.locator('[data-shortcut="cmd+shift+enter"]')).toBeVisible();
-        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies
-        // the same pane the Terminal does: close it outright so the Terminal below is mounted
-        // again for `input.focus()` to find.
+        // The Settings page covers the Workbench (issue caxri#2369): close it so the Terminal
+        // below is visible again for `input.focus()` to reach.
         await running.page.keyboard.press('Meta+w');
         await input.focus();
 

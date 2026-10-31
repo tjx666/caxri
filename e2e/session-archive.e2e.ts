@@ -16,7 +16,7 @@ import {
     sessionCard,
 } from './support/helpers.ts';
 import { runningWork } from './support/running-work.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
 
@@ -132,13 +132,12 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await archivedSourceRow.getByRole('button', { name: /^Archive / }).click();
         await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
 
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         // The Settings list is virtualized, so search to render the row before clicking it.
         await settingsTab.getByLabel('Search settings').fill('archived sessions');
         await settingsTab.locator('.archived-sessions-entry').click();
-        // The manager is its own dialog, floating over the Settings tab like any other modal
-        // opened over a document (issue caxri#1289): Settings is a Workbench tab now, not a
-        // dialog, so there is no modal layer for it to close first; it stays open underneath.
+        // The manager is its own dialog, floating over the Settings page: Settings is a page, not
+        // a dialog, so there is no modal layer for it to close first; it stays open underneath.
         await expect(settingsTab).toBeVisible();
         const dialog = running.page.getByRole('dialog');
         const archivedRow = dialog.locator('.archived-manager-row');

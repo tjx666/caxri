@@ -409,6 +409,15 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
     }),
+    /**
+     * `allowInEditable` only so an empty Settings search field, which takes focus on every plain open, can still close
+     * the page; `canCloseSettings` turns every other text control and the Source view's Monaco editor away, so their
+     * `Escape` (clearing a query, closing Monaco's Find widget) stays theirs.
+     */
+    fromCatalog('settings.close', (context) => context.dialogs.closeSettings(), {
+        allowInEditable: true,
+        when: (context) => context.dialogs.canCloseSettings(),
+    }),
     fromCatalog(
         'settings.openNotifications',
         (context) => context.dialogs.openSettings('notifications'),

@@ -186,6 +186,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Mobile computer status sort**: CPU and memory sort toggle for top processes; poll only while the view is visible. Reference: Superset (also cmux). Evidence: `apps/mobile/src/features/host-status/host-status-model.ts`.
 - **Background work header**: A visible section label with its running count (`Background work 3`), and folded a one-line summary after it. Reference: Superset (work drawer; also Grok Build's `Tasks 3` dock and Claude Code's `3 background tasks`). Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer/strip/agent-chat-background-work-section.tsx`.
 - **Ended background work row**: Ended tasks behind one quiet row at the foot of the list instead of a header control. Reference: Synara (also Claude Code's `Completed` group). Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer/strip/agent-chat-background-work-section.tsx`.
+- **Window-level Settings page**: Settings replaces the center workspace as a full page instead of a modal or pane tab, with a Back return. Reference: Superset (also Orca, T3 Code). Evidence: `DESIGN.md` (Settings); `apps/desktop/src/renderer/src/features/settings/settings-page-host.tsx`.
 
 ## LibreChat (MIT)
 

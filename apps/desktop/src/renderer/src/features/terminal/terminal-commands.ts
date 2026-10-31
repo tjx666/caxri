@@ -18,6 +18,7 @@ import {
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { closeSettings } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
@@ -75,6 +76,8 @@ export async function createTerminal(
 ): Promise<void> {
     const session = getSelectedSession();
     if (!session) return;
+    // A new Terminal in the selected Session is one the user wants to see, so the Settings page covering it closes.
+    closeSettings({ restoreFocus: false });
     await createTerminalForSession(session.id, kind, options);
 }
 

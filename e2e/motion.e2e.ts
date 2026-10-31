@@ -15,7 +15,7 @@ import {
     sessionCard,
 } from './support/helpers.ts';
 import { pollUntil } from './support/polling.ts';
-import { openSettingsTab } from './support/settings.ts';
+import { openSettingsPage } from './support/settings.ts';
 
 /**
  * Mirrors `lib/motion.ts`'s `motionDurationMs` parsing so a `--motion-*` token and a computed CSS duration (which the
@@ -308,13 +308,12 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         const enterMs = await motionTokenMs(running.page, '--motion-overlay-enter');
         const exitMs = await motionTokenMs(running.page, '--motion-overlay-exit');
 
-        // Settings itself stopped being an animated overlay Dialog (issue caxri#1289): it is
-        // a persistent Workbench tab now, with no `data-open`/`data-closed` popup lifecycle to
-        // probe. The Archived Sessions manager, opened from a row inside Settings, is still a real
+        // Settings itself is not an animated overlay Dialog (issue caxri#2369): it is a
+        // window-level page, with no `data-open`/`data-closed` popup lifecycle to probe. The Archived Sessions manager, opened from a row inside Settings, is still a real
         // Dialog built on the same shared overlay primitive and motion tokens, so it stands in here
         // for the generic `--motion-overlay-enter`/`-exit` contract; nothing below depends on what
         // the dialog's own content is.
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         // The Settings list is virtualized, so search to render the row before clicking it.
         await settingsTab.getByLabel('Search settings').fill('archived sessions');
         await settingsTab.locator('.archived-sessions-entry').click();
@@ -473,10 +472,10 @@ test('prefers-reduced-motion disables the overlay keyframe animation', async () 
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
         await settleMediaPreference(running.page);
 
-        // Settings itself stopped being an animated overlay Dialog (issue caxri#1289); see the
+        // Settings itself is not an animated overlay Dialog (issue caxri#2369); see the
         // comment on the equivalent step above for why the Archived Sessions manager, opened from a
         // row inside Settings, stands in here for the generic overlay keyframe contract instead.
-        const settingsTab = await openSettingsTab(running.page);
+        const settingsTab = await openSettingsPage(running.page);
         // The Settings list is virtualized, so search to render the row before clicking it.
         await settingsTab.getByLabel('Search settings').fill('archived sessions');
         await settingsTab.locator('.archived-sessions-entry').click();

@@ -15,6 +15,7 @@ import { focusEditor } from '../editor/editor-reveal';
 import { sessionStateOf } from '../editor/session-pane-state';
 import { restoreArchivedSession } from '../session/session-archive-commands';
 import { didSelectSession } from '../session/session-commands';
+import { revealSelectedSessionWorkbench } from '../settings/settings-page-commands';
 import { movePaneTab } from '../workbench/pane-actions';
 import { isReopenableFile } from './reopen-client';
 import type { ClosedItem, ClosedSessionItem, ClosedTabItem } from './stack';
@@ -66,6 +67,7 @@ async function didReopenTab(item: ClosedTabItem): Promise<boolean> {
                 { ...item.document, dirty: false },
                 before.workbenchRootProjectId,
             );
+    if (isVirtualEditorTabPath(item.path)) revealSelectedSessionWorkbench(item.sessionId);
     const isOpened = isVirtualEditorTabPath(item.path)
         ? didOpenEditorTabForSession(item.sessionId, item.path, { paneId })
         : (await openFileForSession(item.sessionId, item.path, { paneId })) !== false;

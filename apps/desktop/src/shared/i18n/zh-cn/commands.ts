@@ -118,6 +118,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.environment.open': '打开环境信息',
     'commands.benchmark.open': '打开 Benchmark',
     'commands.settings.open': '打开设置',
+    'commands.settings.close': '关闭设置',
     'commands.settings.openSource': '打开设置 (JSON)',
     'commands.settings.openKeybindings': '编辑快捷键',
     'commands.settings.openNotifications': '打开通知设置',

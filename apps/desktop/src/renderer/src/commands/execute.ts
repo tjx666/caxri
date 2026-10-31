@@ -99,6 +99,10 @@ import {
 } from '../features/session/session-rename-commands';
 import { openPinnedSessionAtPosition } from '../features/session/session-window-commands';
 import {
+    canCloseSettingsPage,
+    didCloseSettingsForTabClose,
+} from '../features/settings/settings-page-commands';
+import {
     installShellCommand,
     uninstallShellCommand,
 } from '../features/shell-command/shell-command-commands';
@@ -340,13 +344,14 @@ const commandContext: CommandContext = {
     },
     workbench: {
         closeActiveTab: () => {
+            if (didCloseSettingsForTabClose()) return;
             const tab = getActivePaneTab();
             if (tab?.resource.kind === 'terminal') {
                 closeTerminal(tab.resource.terminalId);
             } else if (tab) void closeDocumentTabs([tab.id]);
-            // With no Session there is no tab, only a global page rendered in place of Welcome.
+            // With no Session there is no tab, only the Environment page rendered in place of Welcome.
             else if (!getSelectedSession())
-                useDialogStore.getState().dismissSessionlessWorkbenchPage();
+                useDialogStore.getState().dismissSessionlessEnvironment();
         },
         canCloseOtherTabs: () => {
             const layout = getPaneLayout();
@@ -443,6 +448,8 @@ const commandContext: CommandContext = {
     },
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
+        canCloseSettings: canCloseSettingsPage,
+        closeSettings: () => useDialogStore.getState().closeSettings({ restoreFocus: true }),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
         openUsage: () => {
             // Usage is a Session pane tab; before the first Project exists there is no pane to open it into.

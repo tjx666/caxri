@@ -9,6 +9,7 @@ import {
     useSessionViewStore,
 } from '../../../stores/session-view';
 import { pushToast } from '../../../stores/toasts';
+import { revealSelectedSessionWorkbench } from '../../settings/settings-page-commands';
 import { didOpenEditorTabForSession } from '../document-commands';
 import { layoutDocumentPaths } from '../document-layout-paths';
 import { focusEditor } from '../editor-reveal';
@@ -24,6 +25,7 @@ export function openUntitledEditor(): void {
     const session = getSelectedSession();
     const state = session ? sessionStateOf(session.id) : undefined;
     if (!session || !state) return;
+    revealSelectedSessionWorkbench(session.id);
     const workbenchRootProjectId = state.workbenchRootProjectId;
     const cachedPaths = Object.keys(getSessionDocuments(session.id, workbenchRootProjectId) ?? {});
     const path = untitledEditorTabPath(
