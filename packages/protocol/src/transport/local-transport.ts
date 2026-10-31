@@ -228,6 +228,17 @@ export const desktopOperationSchema = z.discriminatedUnion('kind', [
         kind: z.literal('confirmGitDiscard'),
         target: desktopGitDiscardTargetSchema,
     }),
+    /**
+     * Drives Main's app update for a paired phone (`mobile.desktopUpdate.*`). `read` answers the current state; `check`
+     * and `download` start that step and answer at once, since a download outlives the 15s Desktop command timeout;
+     * `install` restarts into the staged `version` without the computer's confirmation prompts, which the phone already
+     * showed, and answers before Main starts quitting.
+     */
+    z.object({
+        kind: z.literal('update'),
+        action: z.enum(['read', 'check', 'download', 'install']),
+        version: z.string().min(1).max(64).optional(),
+    }),
 ]);
 
 export type DesktopOperation = z.infer<typeof desktopOperationSchema>;

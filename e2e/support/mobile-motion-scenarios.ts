@@ -33,7 +33,8 @@ import {
     readRecordingBand,
     readRecordingRedShares,
 } from './mobile-motion-analysis.ts';
-import { assertStaysAbsent, swipeRowBoundsLeft } from './mobile-ui-audit-scenarios.ts';
+import { swipeRowBoundsLeft } from './mobile-ui-audit-scenarios.ts';
+import { assertStaysAbsent } from './mobile-ui-audit-support.ts';
 
 type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
 

@@ -56,9 +56,9 @@ export interface UpdateServiceOptions {
     prepareInstall?(input: { dmgPath: string; version: string }): Promise<PreparedInstall>;
     /**
      * Runs the quit flow that ends with {@link UpdateServiceOptions.launchInstall}; resolves only when the user
-     * cancelled, because a confirmed restart exits Main.
+     * cancelled, because a confirmed restart exits Main. `remote` marks a restart a paired phone already confirmed.
      */
-    restartToUpdate?(): Promise<void>;
+    restartToUpdate?(options?: { remote?: boolean }): Promise<void>;
     /**
      * Keeps an installed no-map build on its explicit release channel. Builds without a marker default to `include`.
      */

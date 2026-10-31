@@ -355,68 +355,87 @@ export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOp
         }
         return bridge;
     };
+    const decideFor = (
+        purpose: UnsavedEditorsPurpose | 'remoteUpdate',
+        windowKey: string | undefined,
+        confirm: UnsavedEditorsDecisionOptions['confirm'],
+    ) => {
+        const keys = windowKey ? [windowKey] : options.windows().map((entry) => entry.key);
+        const dirty = new Set<string>();
+        return decideUnsavedEditors({
+            confirm,
+            inspect: async () => {
+                const settled = await Promise.allSettled(
+                    keys.map(async (key) => ({ key, summary: await bridgeFor(key).inspect() })),
+                );
+                const answers = settled.flatMap((result) =>
+                    result.status === 'fulfilled' ? [result.value] : [],
+                );
+                // One unresponsive window must not hide another window's dirty buffers; fail open only when none answered.
+                if (answers.length === 0 && settled[0]?.status === 'rejected')
+                    throw settled[0].reason;
+                dirty.clear();
+                for (const { key, summary } of answers) if (summary.count > 0) dirty.add(key);
+                const dirtyAnswers = answers.filter(({ summary }) => summary.count > 0);
+                return {
+                    kind: 'summary',
+                    count: answers.reduce((total, { summary }) => total + summary.count, 0),
+                    names: answers.flatMap(({ summary }) => summary.names),
+                    // Settings are shared, so the windows agree; requiring all keeps a prompt if one disagrees.
+                    autoSave:
+                        dirtyAnswers.length > 0 &&
+                        dirtyAnswers.every(({ summary }) => summary.autoSave),
+                };
+            },
+            log: (outcome, count, error) =>
+                options
+                    .logger()
+                    ?.write(
+                        outcome === 'readFailed' || outcome === 'promptFailed' ? 'warn' : 'info',
+                        logEventCatalog.app.unsavedEditorsDecided,
+                        { fields: { purpose, outcome, count, ...(error && { error }) } },
+                    ),
+            discardAll: async () => {
+                await Promise.allSettled([...dirty].map((key) => bridgeFor(key).discardAll()));
+            },
+            reveal: () => {
+                for (const key of dirty) bridgeFor(key).reveal();
+            },
+            saveAll: async (mode) => {
+                const results = await Promise.all(
+                    [...dirty].map((key) => bridgeFor(key).saveAll(mode)),
+                );
+                return results.find((result) => result.kind !== 'saved') ?? { kind: 'saved' };
+            },
+        });
+    };
     return {
         /**
          * Decides for one window, or for every live window when `windowKey` is omitted (quit, and closing the primary
          * window, which takes the torn-off windows with it).
          */
-        decide: (purpose: UnsavedEditorsPurpose, windowKey?: string) => {
-            const keys = windowKey ? [windowKey] : options.windows().map((entry) => entry.key);
-            const dirty = new Set<string>();
-            return decideUnsavedEditors({
-                confirm: (summary) =>
-                    confirmUnsavedEditors(
-                        options.dialog,
-                        windowOf(windowKey ?? PRIMARY_WINDOW_KEY) ?? options.windows()[0]?.window,
-                        summary,
-                        purpose,
-                    ),
-                inspect: async () => {
-                    const settled = await Promise.allSettled(
-                        keys.map(async (key) => ({ key, summary: await bridgeFor(key).inspect() })),
-                    );
-                    const answers = settled.flatMap((result) =>
-                        result.status === 'fulfilled' ? [result.value] : [],
-                    );
-                    // One unresponsive window must not hide another window's dirty buffers; fail open only when none answered.
-                    if (answers.length === 0 && settled[0]?.status === 'rejected')
-                        throw settled[0].reason;
-                    dirty.clear();
-                    for (const { key, summary } of answers) if (summary.count > 0) dirty.add(key);
-                    const dirtyAnswers = answers.filter(({ summary }) => summary.count > 0);
-                    return {
-                        kind: 'summary',
-                        count: answers.reduce((total, { summary }) => total + summary.count, 0),
-                        names: answers.flatMap(({ summary }) => summary.names),
-                        // Settings are shared, so the windows agree; requiring all keeps a prompt if one disagrees.
-                        autoSave:
-                            dirtyAnswers.length > 0 &&
-                            dirtyAnswers.every(({ summary }) => summary.autoSave),
-                    };
-                },
-                log: (outcome, count, error) =>
-                    options
-                        .logger()
-                        ?.write(
-                            outcome === 'readFailed' || outcome === 'promptFailed'
-                                ? 'warn'
-                                : 'info',
-                            logEventCatalog.app.unsavedEditorsDecided,
-                            { fields: { purpose, outcome, count, ...(error && { error }) } },
-                        ),
-                discardAll: async () => {
-                    await Promise.allSettled([...dirty].map((key) => bridgeFor(key).discardAll()));
-                },
-                reveal: () => {
-                    for (const key of dirty) bridgeFor(key).reveal();
-                },
-                saveAll: async (mode) => {
-                    const results = await Promise.all(
-                        [...dirty].map((key) => bridgeFor(key).saveAll(mode)),
-                    );
-                    return results.find((result) => result.kind !== 'saved') ?? { kind: 'saved' };
-                },
+        decide: (purpose: UnsavedEditorsPurpose, windowKey?: string) =>
+            decideFor(purpose, windowKey, (summary) =>
+                confirmUnsavedEditors(
+                    options.dialog,
+                    windowOf(windowKey ?? PRIMARY_WINDOW_KEY) ?? options.windows()[0]?.window,
+                    summary,
+                    purpose,
+                ),
+            ),
+        /**
+         * For a restart a paired phone asked for: nobody may be at the computer to answer a prompt, so after auto save
+         * the buffers still unsaved are counted (and revealed in their windows) instead, and any of them blocks the
+         * restart. Fails open like {@link decideUnsavedEditors}: a Renderer that cannot answer counts as nothing
+         * unsaved.
+         */
+        countForRemoteUpdate: async (): Promise<number> => {
+            let count = 0;
+            const decision = await decideFor('remoteUpdate', undefined, (summary) => {
+                count = summary.count;
+                return Promise.resolve('cancel');
             });
+            return decision === 'cancel' ? Math.max(1, count) : 0;
         },
         reply: (parameters: UnsavedEditorsReplyParameters) => {
             for (const bridge of bridges.values()) bridge.reply(parameters);

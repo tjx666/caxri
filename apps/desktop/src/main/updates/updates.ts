@@ -366,7 +366,7 @@ export class UpdateService {
         return prepared;
     }
 
-    private isRestartReady(): boolean {
+    isRestartReady(): boolean {
         return (
             this.state.status === 'ready' &&
             this.state.installMode === 'restart' &&
@@ -597,10 +597,10 @@ export class UpdateService {
     }
 
     /**
-     * `updates.install`: restarts into the staged update through the ordinary quit confirmations. Resolves with the
-     * unchanged state when the user cancels; a confirmed restart exits Main before this settles.
+     * `updates.install`: restarts into the staged update through the ordinary quit confirmations, or without them for a
+     * phone's `remote` restart. Resolves with the unchanged state on a cancel; a confirmed restart exits Main first.
      */
-    async install(): Promise<UpdateState> {
+    async install(restart?: { remote?: boolean }): Promise<UpdateState> {
         const release = this.release;
         if (!release || !this.isRestartReady() || !this.options.restartToUpdate)
             return this.publish({
@@ -615,7 +615,7 @@ export class UpdateService {
             if (!(await this.options.confirmDataReset?.(release.version))) return this.state;
             this.dataResetConfirmedFor = release.version;
         }
-        await this.options.restartToUpdate();
+        await this.options.restartToUpdate(restart);
         // Resolving means the restart was cancelled; a later ordinary quit must ask again.
         this.dataResetConfirmedFor = undefined;
         return this.state;

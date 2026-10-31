@@ -125,6 +125,43 @@ export const updateStateSchema = z.discriminatedUnion('status', [
 
 export type UpdateState = z.infer<typeof updateStateSchema>;
 
+/**
+ * Why Desktop Main refused an update restart a paired phone asked for. `not-ready`: nothing verified is staged yet;
+ * `version-changed`: the staged version is not the one the phone confirmed; `manual-install`: this install can only be
+ * replaced by opening the DMG on the computer; `resets-data`: installing clears the Project and Session list, which
+ * only the computer may confirm after offering an export; `unsaved-editors`: Editor buffers that auto save could not
+ * write are still open; `unsupported`: this Desktop (an SSH Host window) does not own the app update;
+ * `desktop-offline`: no Desktop Main is attached to Server Core.
+ */
+const remoteUpdateBlockReasonSchema = z.enum([
+    'desktop-offline',
+    'manual-install',
+    'not-ready',
+    'resets-data',
+    'unsaved-editors',
+    'unsupported',
+    'version-changed',
+]);
+
+/**
+ * The answer to a remote install. `restarting` is sent before Main starts quitting, so the phone hears it before Server
+ * Core stops and the connection drops.
+ */
+export const remoteUpdateInstallResultSchema = z.discriminatedUnion('outcome', [
+    z.object({ outcome: z.literal('restarting'), version: updateVersionFields.version }),
+    z.object({
+        outcome: z.literal('blocked'),
+        reason: remoteUpdateBlockReasonSchema,
+        /**
+         * Set with `unsaved-editors`: how many buffers are still unsaved on the computer.
+         */
+        unsavedEditorCount: z.number().int().positive().max(10_000).optional(),
+    }),
+]);
+
+export type RemoteUpdateBlockReason = z.infer<typeof remoteUpdateBlockReasonSchema>;
+export type RemoteUpdateInstallResult = z.infer<typeof remoteUpdateInstallResultSchema>;
+
 const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');

@@ -9,6 +9,7 @@ import { openMobileAccessController } from './mobile';
 import type { MobileAccessController } from './mobile/access-controller-contract';
 
 type MobileAccessOptions = Omit<Parameters<typeof openMobileAccessController>[0], 'store'>;
+type MobileDesktopAccess = Pick<MobileAccessOptions, 'desktopRouter'>;
 
 /**
  * Builds before the single-baseline schema kept these credentials as private JSON files in the profile directory. Their
@@ -19,9 +20,10 @@ const LEGACY_CREDENTIAL_FILES = ['mobile-devices.json', 'delegation-clients.json
 /**
  * Holds Server Core's paired-phone and delegation-client authority. Both registries live on the Server database, which
  * opens with the domain service, so they open after `domainService.start()`. Until then no listener accepts a
- * connection that could reach them, and the hooks the domain calls answer as if no phone were connected.
+ * connection that could reach them, and the hooks the domain calls answer as if no phone were connected. `desktop`
+ * reaches the Desktop a paired phone may drive, such as for its app update.
  */
-export function createServerCredentialAccess() {
+export function createServerCredentialAccess(desktop: MobileDesktopAccess = {}) {
     let mobile: MobileAccessController | undefined;
     let delegation: DelegationAccessRegistry | undefined;
     const unavailable = () => new CaxriError('UNAVAILABLE', 'Server credentials are not open yet');
@@ -29,11 +31,15 @@ export function createServerCredentialAccess() {
         async open(
             domainService: ServerDomainService,
             directory: string,
-            options: MobileAccessOptions,
+            options: Omit<MobileAccessOptions, keyof MobileDesktopAccess>,
         ): Promise<void> {
             const stores = await domainService.credentialStores();
             delegation = DelegationAccessRegistry.open(stores.delegationClients);
-            mobile = openMobileAccessController({ ...options, store: stores.mobileDevices });
+            mobile = openMobileAccessController({
+                ...desktop,
+                ...options,
+                store: stores.mobileDevices,
+            });
             await Promise.all(
                 LEGACY_CREDENTIAL_FILES.map((name) => rm(join(directory, name), { force: true })),
             );

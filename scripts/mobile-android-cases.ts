@@ -384,6 +384,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'ui-audit-settings',
     },
+    'MOB-UI-DESKTOP-UPDATE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-desktop-update',
+    },
     'MOB-UI-08': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

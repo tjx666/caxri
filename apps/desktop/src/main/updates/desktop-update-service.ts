@@ -6,7 +6,7 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { MessageBoxOptions } from 'electron';
-import { app, BrowserWindow, dialog, shell } from 'electron';
+import { app, BrowserWindow, dialog, powerMonitor, shell } from 'electron';
 
 import { createAcceptanceUpdateFixture } from '../acceptance/update';
 import type { DesktopServerConnection } from '../connection/server-connection';
@@ -14,6 +14,7 @@ import { translateMain } from '../locale';
 import type { createMainQuitHandler, createQuitIntent } from '../main-quit-wiring';
 import { exportProjectsAndSessions } from '../native-file-dialogs';
 import { packagedSourceMapFlavor } from '../source-map-flavor';
+import { offerMoveToApps } from './move-to-apps';
 import type { InPlaceInstallTarget } from './update-install';
 import {
     collectInPlaceInstallReport,
@@ -194,10 +195,11 @@ export function createDesktopUpdateService(options: {
                 updatesDirectory: downloadDirectory,
             });
         },
-        restartToUpdate: async () => {
-            options.quitIntent.set('update');
+        restartToUpdate: async (restart) => {
+            const intent = restart?.remote ? 'remote-update' : 'update';
+            options.quitIntent.set(intent);
             const outcome = await options.requestAppQuit(); // A pending ordinary quit may answer instead.
-            if (outcome !== 'stopped' && options.quitIntent.current() === 'update')
+            if (outcome !== 'stopped' && options.quitIntent.current() === intent)
                 options.quitIntent.set('user');
         },
         sourceMapFlavor: packagedSourceMapFlavor(),
@@ -236,4 +238,23 @@ export function createDesktopUpdateService(options: {
             });
     }
     return service;
+}
+
+/**
+ * Runs once the primary window first shows: starts the automatic update check and offers to move Caxri into
+ * Applications, so neither competes with the startup window.
+ */
+export function startAppUpdates(
+    service: UpdateService,
+    options: { quitIntent: ReturnType<typeof createQuitIntent>; userDataPath: string },
+): void {
+    service.startAutomaticCheck({
+        isE2E: process.env.CAXRI_E2E === '1',
+        subscribeResume: (onResume) => powerMonitor.on('resume', onResume),
+    });
+    void offerMoveToApps({
+        prepareRelaunch: () => options.quitIntent.set('relaunch'),
+        restoreQuitIntent: () => options.quitIntent.set('user'),
+        userDataPath: options.userDataPath,
+    });
 }

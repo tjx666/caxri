@@ -177,4 +177,24 @@ describe('createDesktopOperationHandler', () => {
         expect(injected.open).not.toHaveBeenCalled();
         expect(injected.openWithDefaultApp).not.toHaveBeenCalled();
     });
+
+    it('hands an update operation to the update handler', async () => {
+        const update = vi.fn(() => Promise.resolve({ status: 'idle', currentVersion: '1.0.0' }));
+        const handle = createDesktopOperationHandler({ ...handlers(), update });
+        const operation: DesktopOperation = { kind: 'update', action: 'read' };
+
+        await expect(handle(operation, vi.fn())).resolves.toEqual({
+            status: 'idle',
+            currentVersion: '1.0.0',
+        });
+        expect(update).toHaveBeenCalledWith(operation);
+    });
+
+    it('answers unsupported for an update where Desktop owns no app update', async () => {
+        const handle = createDesktopOperationHandler(handlers());
+
+        await expect(handle({ kind: 'update', action: 'read' }, vi.fn())).resolves.toEqual({
+            unsupported: true,
+        });
+    });
 });

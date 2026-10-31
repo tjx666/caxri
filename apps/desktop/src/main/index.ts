@@ -63,8 +63,8 @@ import { createStartupFailureWiring } from './startup/startup-failure-wiring';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
 import { createWorkbenchUnsavedEditors } from './unsaved-editors';
-import { createDesktopUpdateService } from './updates/desktop-update-service';
-import { offerMoveToApps as offerMoveToApps } from './updates/move-to-apps';
+import { createDesktopUpdateService, startAppUpdates } from './updates/desktop-update-service';
+import { createRemoteUpdateControl } from './updates/remote-update';
 import type { UpdateService } from './updates/updates';
 import { createWindowZoomController } from './window-chrome';
 import { bringWindowForward, resolveE2EWindowMode } from './window-mode';
@@ -304,17 +304,11 @@ if (ownsProfileInstance) {
             // Closing the Workbench detaches every Terminal view, Caxri Bot's included.
             caxriBot?.close();
         },
-        onPrimaryReadyToShow: () => {
-            updateService.startAutomaticCheck({
-                isE2E: process.env.CAXRI_E2E === '1',
-                subscribeResume: (onResume) => powerMonitor.on('resume', onResume),
-            });
-            void offerMoveToApps({
-                prepareRelaunch: () => quitIntent.set('relaunch'),
-                restoreQuitIntent: () => quitIntent.set('user'),
+        onPrimaryReadyToShow: () =>
+            startAppUpdates(updateService, {
+                quitIntent,
                 userDataPath: desktopProfile.userDataPath,
-            });
-        },
+            }),
         rendererReadiness,
         sendEvent,
         startupProfile,
@@ -403,13 +397,18 @@ if (ownsProfileInstance) {
         }),
     );
 
-    const handleServerDesktopOperation = createDesktopOperationHandler(
-        createDesktopActions({
+    const handleServerDesktopOperation = createDesktopOperationHandler({
+        ...createDesktopActions({
             focusMainWindow,
             getMainWindow: () => requestWorkbenchWindow(),
             sendEvent,
         }),
-    );
+        update: createRemoteUpdateControl({
+            logger: () => mainLogger,
+            service: () => updateService,
+            unsavedEditors,
+        }),
+    });
 
     function installIpc(): void {
         const dispatchCommand = createWorkbenchCommandAdapter({

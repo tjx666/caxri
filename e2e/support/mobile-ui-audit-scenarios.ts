@@ -1,84 +1,17 @@
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-
-import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { pageRequest } from './helpers';
 import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
     androidBounds,
-    captureMobileFramebuffer,
     mobileSemantics,
     setMobileNetworkAvailable,
     tapMobileCheck,
-    waitForMobile,
 } from './mobile-android';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
-
-interface UiAuditScenarioEnvironment {
-    artifactManifestPath: string;
-    assetsDirectory: string;
-    caseId: string;
-    scenarioReceiptPath: string;
-    serial: string;
-}
-
-type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
-
-const hasCheck = (nodes: SemanticNodes, id: string): boolean =>
-    nodes.some(({ checkId }) => checkId === id);
-
-const waitFor = (serial: string, isReady: (nodes: SemanticNodes) => boolean) =>
-    waitForMobile(() => mobileSemantics(serial), isReady);
-
-/**
- * A missing control is only proven by repeated observations after the screen has settled, not by one early read.
- */
-export async function assertStaysAbsent(serial: string, ids: readonly string[]): Promise<void> {
-    for (let sample = 0; sample < 5; sample += 1) {
-        // eslint-disable-next-line no-await-in-loop -- each sample is one timed observation of the same screen.
-        const nodes = await mobileSemantics(serial);
-        const present = ids.filter((id) => hasCheck(nodes, id));
-        if (present.length > 0) throw new Error(`UI audit expected no ${present.join(', ')}`);
-        // eslint-disable-next-line no-await-in-loop -- samples are spaced so a late render is caught.
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-}
-
-/**
- * Terminal frames need the fixture preflight before capture, so these scenarios refuse to screenshot one.
- */
-async function capture(
-    environment: UiAuditScenarioEnvironment,
-    label: string,
-    artifacts: string[],
-    requiredId: string,
-): Promise<void> {
-    const nodes = await mobileSemantics(environment.serial);
-    if (hasCheck(nodes, 'terminal-live-webview'))
-        throw new Error('UI audit Acceptance cannot capture a Terminal frame');
-    if (!hasCheck(nodes, requiredId))
-        throw new Error(`UI audit Acceptance did not reach ${requiredId}`);
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
-}
-
-async function finish(
-    environment: UiAuditScenarioEnvironment,
-    artifacts: string[],
-    receipt: Record<string, unknown>,
-): Promise<void> {
-    await Promise.all([
-        writeJsonAtomic(environment.artifactManifestPath, { artifacts, schemaVersion: 1 }),
-        writeFile(
-            environment.scenarioReceiptPath,
-            `${JSON.stringify({ ...receipt, caseId: environment.caseId, schemaVersion: 1 }, null, 2)}\n`,
-            'utf8',
-        ),
-    ]);
-}
+import { executeMobileDesktopUpdateSettings } from './mobile-desktop-update-scenario';
+import type { UiAuditScenarioEnvironment } from './mobile-ui-audit-support';
+import { assertStaysAbsent, capture, finish, hasCheck, waitFor } from './mobile-ui-audit-support';
 
 async function openSession(serial: string, sessionId: string): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
@@ -549,6 +482,12 @@ export async function executeMobileUiAuditScenario(
         mode: 'conversation',
         seedProject: (root) => seedMobileChangesFixture(root, 'standard'),
         serial: environment.serial,
+        ...(environment.caseId === 'MOB-UI-DESKTOP-UPDATE-01' && {
+            env: {
+                CAXRI_ACCEPTANCE: '1',
+                CAXRI_ACCEPTANCE_UPDATE: `available:${environment.caseId}`,
+            },
+        }),
     });
     try {
         await fixture.pair();
@@ -577,6 +516,9 @@ export async function executeMobileUiAuditScenario(
                 break;
             case 'MOB-UI-07':
                 await settingsPage(environment, artifacts);
+                break;
+            case 'MOB-UI-DESKTOP-UPDATE-01':
+                await executeMobileDesktopUpdateSettings(environment, artifacts);
                 break;
             case 'MOB-UI-08':
                 await renameKeyboardAvoidance(environment, artifacts, sessionId);

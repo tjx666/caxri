@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,7 +14,11 @@ import { mobileSpace } from '../../theme/scale';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useConfirmForgetComputer } from '../connection/use-confirm-forget-computer';
+import { desktopUpdateView } from '../desktop-update/desktop-update-model';
+import { DesktopUpdateRows } from '../desktop-update/desktop-update-rows';
+import { useDesktopUpdate } from '../desktop-update/use-desktop-update';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
+import { allMobileSessions } from '../sessions/hooks/use-session-polling';
 import { SettingsAboutSection } from './settings-about-section';
 import { connectionStatusLabel, deviceRoleDetails } from './settings-model';
 import { SettingsRow, SettingsSection } from './settings-rows';
@@ -30,6 +35,17 @@ export const SettingsScreen = () => {
     const { sessions } = useHostSessions();
     const role = sessions.deviceRole ? deviceRoleDetails(sessions.deviceRole, t) : null;
     const forget = useConfirmForgetComputer();
+    const desktopUpdate = useDesktopUpdate(sessions.deviceRole === 'control');
+    const desktopUpdateRows = desktopUpdate.isObservable
+        ? desktopUpdateView(desktopUpdate.result, desktopUpdate.phase, t)
+        : null;
+    const workingSessionTitles = useMemo(
+        () =>
+            allMobileSessions(sessions.sections)
+                .filter((session) => session.group === 'working')
+                .map((session) => session.title),
+        [sessions.sections],
+    );
     return (
         <SafeAreaView
             edges={['top', 'right', 'bottom', 'left']}
@@ -53,13 +69,21 @@ export const SettingsScreen = () => {
                         value={sessions.hostDisplayName}
                     />
                     <SettingsRow
-                        isLast
+                        isLast={!desktopUpdateRows}
                         label={t('settings.status')}
                         testID="settings-connection-status"
                         theme={theme}
                         value={connectionStatusLabel(status, t)}
                         valueColor={status === 'connected' ? theme.success : theme.muted}
                     />
+                    {desktopUpdateRows ? (
+                        <DesktopUpdateRows
+                            desktopUpdate={desktopUpdate}
+                            theme={theme}
+                            view={desktopUpdateRows}
+                            workingSessionTitles={workingSessionTitles}
+                        />
+                    ) : null}
                 </SettingsSection>
                 <SettingsSection theme={theme} title={t('settings.section.thisDevice')}>
                     <SettingsRow

@@ -34,6 +34,7 @@ export const SettingsSection = ({
 export const SettingsRow = ({
     accessibilityHint,
     detail,
+    detailColor,
     isLast = false,
     label,
     onPress,
@@ -44,6 +45,7 @@ export const SettingsRow = ({
 }: {
     accessibilityHint?: string;
     detail?: string;
+    detailColor?: string;
     isLast?: boolean;
     label: string;
     onPress?: () => void;
@@ -70,7 +72,9 @@ export const SettingsRow = ({
                 {value}
             </Text>
         </View>
-        {detail ? <Text style={[styles.rowDetail, { color: theme.muted }]}>{detail}</Text> : null}
+        {detail ? (
+            <Text style={[styles.rowDetail, { color: detailColor ?? theme.muted }]}>{detail}</Text>
+        ) : null}
     </Pressable>
 );
 

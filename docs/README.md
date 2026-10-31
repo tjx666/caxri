@@ -83,6 +83,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [mobile/authorization.md](mobile/authorization.md)                 | Mobile device pairing and method authorization                      |
 | [mobile/changes.md](mobile/changes.md)                             | Mobile read-only Git Changes segment                                |
 | [mobile/conversation.md](mobile/conversation.md)                   | Mobile read-only Agent conversation timeline                        |
+| [mobile/desktop-update.md](mobile/desktop-update.md)               | Updating Caxri on the paired computer from the phone                |
 | [mobile/design.md](mobile/design.md)                               | Caxri Mobile design and interaction spec                            |
 | [mobile/host-status.md](mobile/host-status.md)                     | Mobile computer status: CPU, memory, Session load, processes        |
 | [mobile/performance.md](mobile/performance.md)                     | Mobile release performance budgets and Relay reconnect latency      |

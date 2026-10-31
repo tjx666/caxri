@@ -195,6 +195,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.chatWatch.watchInternal': 'ordered',
     'mobile.botInbox.reply': 'ordered',
     'mobile.botInbox.replyInternal': 'ordered',
+    'mobile.desktopUpdate.download': 'ordered',
+    'mobile.desktopUpdate.install': 'ordered',
     'mobile.device.revoke': 'ordered',
     'mobile.device.revoke.apply': 'ordered',
     'mobile.files.write': 'ordered',
