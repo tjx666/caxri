@@ -316,6 +316,30 @@ describe('ExecutableResolver Agent environment', () => {
         });
     });
 
+    // A stopped Server Core detaches its logger; a probe still running must not append into that Core's `logs/`.
+    it('drops the record of a probe that finishes after its logger detached, and keeps a newer logger', async () => {
+        const probe = Promise.withResolvers<{ stderr: string; stdout: string }>();
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: '/home/user', PATH: '/usr/bin', SHELL: '/bin/zsh' }),
+            () => probe.promise,
+        );
+        const stopped = vi.fn();
+        const next = vi.fn();
+        const detachStopped = resolver.attachLogger({ write: stopped });
+        const environment = resolver.agentEnvironment();
+        detachStopped();
+        probe.resolve({ stdout: loginShellOutput('/login/bin', {}), stderr: '' });
+        await environment;
+        expect(stopped).not.toHaveBeenCalled();
+
+        const detachNext = resolver.attachLogger({ write: next });
+        detachStopped();
+        resolver.clear();
+        await resolver.agentEnvironment();
+        expect(next).toHaveBeenCalledWith('info', 'login_shell.probe', expect.anything());
+        detachNext();
+    });
+
     it('logs each probe failure by cause and counts dropped variables without naming them', async () => {
         const write = vi.fn();
         const failures: Array<[unknown, string]> = [

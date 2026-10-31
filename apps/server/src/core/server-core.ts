@@ -77,8 +77,7 @@ export type { ServerCore, ServerCoreOptions } from './server-core-contract';
 export async function startServerCore(options: ServerCoreOptions): Promise<ServerCore> {
     const startedAt = Date.now();
     const { eventLoopMonitor, logger } = startServerObservability(options);
-    // Fired before any `await` so the login-shell PATH probe overlaps startup instead of blocking the first command.
-    warmServerExecutablePath(logger);
+    const detachExecutableLogger = warmServerExecutablePath(logger);
     const lease = await acquireServerProfile({
         logger,
         startedAt,
@@ -176,6 +175,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         extensionService?.markCoreStopping();
         stopPromise ??= (async () => {
             eventLoopMonitor.stop();
+            detachExecutableLogger();
             try {
                 // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
                 // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an

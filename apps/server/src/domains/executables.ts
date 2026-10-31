@@ -391,10 +391,14 @@ export class ExecutableResolver {
 
     /**
      * Records each login-shell probe's outcome. Server Core attaches its logger at startup; the resolver is created
-     * before any logger exists.
+     * before any logger exists. The returned detach only clears this logger, so a later Core's attach survives an
+     * earlier Core's stop.
      */
-    attachLogger(logger: Pick<StructuredLogger, 'write'>): void {
+    attachLogger(logger: Pick<StructuredLogger, 'write'>): () => void {
         this.logger = logger;
+        return () => {
+            if (this.logger === logger) this.logger = undefined;
+        };
     }
 
     clear(): void {
@@ -513,11 +517,17 @@ export function agentProcessEnvironment(variables?: NodeJS.ProcessEnv): Promise<
  * the in-flight request on the shared resolver, so the first real external command (often Git, from the Project Status
  * refresh moments after startup) reuses this request instead of paying its own login-shell spawn (~0.1s typically, up
  * to `LOGIN_SHELL_TIMEOUT_MS` on a slow shell profile) synchronously on the user's first action. `readLoginSnapshot`
- * already catches its own failures and resolves `undefined`, so this can never produce an unhandled rejection.
+ * already catches its own failures and resolves `undefined`, so this can never produce an unhandled rejection. Server
+ * Core calls it before its first startup `await`, so the probe overlaps startup instead of blocking the first command.
+ *
+ * Returns the detach a stopping Core calls: the probe can finish after `stop()` settled (a slow `$SHELL -lic` under
+ * load), and its record must not append into a stopped Core's `logs/` while the caller removes the profile (ENOTEMPTY,
+ * issue caxri#3261).
  */
-export function warmServerExecutablePath(logger: Pick<StructuredLogger, 'write'>): void {
-    serverExecutableResolver.attachLogger(logger);
+export function warmServerExecutablePath(logger: Pick<StructuredLogger, 'write'>): () => void {
+    const detach = serverExecutableResolver.attachLogger(logger);
     void serverProcessEnvironment();
+    return detach;
 }
 
 export interface ExternalCommandOptions {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
 import type { DomainHandlers, DomainServices } from '../../domains/domain-services';
+import * as executables from '../../domains/executables';
 import * as extensionServiceFactory from '../extensions/create-service';
 import type { ServerCore } from '../server-core';
 import { startServerCore } from '../server-core';
@@ -180,6 +181,17 @@ describe('Server Core stop settling', () => {
         await app.stop('SIGTERM');
 
         expect(await readEvents(userDataPath)).toContain('server_core.stopped');
+    });
+
+    // The startup login-shell probe can outlive a stop under load; its record would recreate `logs/` mid-removal.
+    it('detaches the login-shell probe logger before a failed stop rejects', async () => {
+        const detach = vi.fn();
+        vi.spyOn(executables, 'warmServerExecutablePath').mockReturnValue(detach);
+        const { app } = await startWith(() => Promise.reject(new Error('domain close failed')));
+
+        await expect(app.stop('SIGTERM')).rejects.toThrow('domain close failed');
+
+        expect(detach).toHaveBeenCalledOnce();
     });
 
     it('has written every stop record to disk by the time a failed stop rejects', async () => {
