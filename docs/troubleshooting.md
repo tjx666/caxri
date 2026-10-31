@@ -36,7 +36,7 @@ Terminal, then in **Settings → Agents** open the Agent and set **Executable** 
 example the output of `which claude`). Restart the Agent Terminal afterwards. The New Session and New
 Terminal menus mark such an Agent **Not installed**.
 
-## Agent reads "Sign in required"
+## Agent reads "Signed out"
 
 The Agent's CLI is installed but reported that it is signed out (Claude Code and Codex answer this;
 other Agents never show the mark). Sign in from a Terminal with `claude auth login` or

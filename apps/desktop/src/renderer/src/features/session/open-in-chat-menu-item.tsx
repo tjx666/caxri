@@ -64,7 +64,7 @@ export function OpenInChatSwitch() {
 
 /**
  * The one muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog: `Not
- * installed`, `Sign in required`, `Chat`, `Default`, or those joined (`agentChoiceMarker`).
+ * installed`, `Signed out`, `Chat`, `Default`, or those joined (`agentChoiceMarker`).
  */
 export function AgentChoiceMarker({
     isDefault,

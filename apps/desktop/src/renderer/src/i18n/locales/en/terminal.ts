@@ -264,7 +264,7 @@ export const terminal = {
     'terminal.new.chatMarker': 'Chat',
     'terminal.new.defaultMarker': 'Default',
     'terminal.new.notInstalledMarker': 'Not installed',
-    'terminal.new.signInRequiredMarker': 'Sign in required',
+    'terminal.new.signedOutMarker': 'Signed out',
     'terminal.new.signInHint.claude':
         'Claude Code is signed out. Run "claude auth login" in a Terminal, or start it and use /login.',
     'terminal.new.signInHint.codex': 'Codex is signed out. Run "codex login" in a Terminal.',

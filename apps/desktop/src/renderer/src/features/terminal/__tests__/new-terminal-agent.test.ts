@@ -277,7 +277,7 @@ describe('Agent readiness annotations', () => {
                 { isDefault: false, issue: 'signInRequired', surface: 'chat' },
                 translate,
             ),
-        ).toBe('Sign in required · Chat');
+        ).toBe('Signed out · Chat');
         expect(agentChoiceMarker({ isDefault: true, surface: 'chat' }, translate)).toBe(
             'Chat · Default',
         );

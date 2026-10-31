@@ -282,8 +282,8 @@ export function newSessionActionLabel(
 
 /**
  * The one muted suffix an Agent row in the New Session and New Terminal menus carries: `Not installed` when the CLI was
- * not found, `Sign in required` when the CLI reported it is signed out, `Chat` when choosing it opens a Chat, `Default`
- * for the configured default Agent, those joined with `·` when several apply, or nothing. One suffix rather than two
+ * not found, `Signed out` when the CLI reported it is signed out, `Chat` when choosing it opens a Chat, `Default` for
+ * the configured default Agent, those joined with `·` when several apply, or nothing. One suffix rather than two
  * separate markers, so both menus mark a row the same way and the words stay text a screen reader reads.
  */
 export function agentChoiceMarker(
@@ -292,7 +292,7 @@ export function agentChoiceMarker(
 ): string | undefined {
     const parts = [
         choice.issue === 'notInstalled' && t('terminal.new.notInstalledMarker'),
-        choice.issue === 'signInRequired' && t('terminal.new.signInRequiredMarker'),
+        choice.issue === 'signInRequired' && t('terminal.new.signedOutMarker'),
         choice.surface === 'chat' && t('terminal.new.chatMarker'),
         choice.isDefault && t('terminal.new.defaultMarker'),
     ].filter((part): part is string => typeof part === 'string');

@@ -149,8 +149,11 @@ function CreateSessionChoices() {
                                     <span className="text-[13px] leading-4 font-medium">
                                         {resolveAgentIcon(kind).label}
                                     </span>
-                                    {/* Reserved so tiles with and without a marker keep their labels on one baseline. */}
-                                    <span className="h-4 text-[11px] leading-4 whitespace-nowrap">
+                                    {/**
+                                     * Two lines reserved so tiles with and without a marker keep their labels on one baseline, and a long marker ("Signed
+                                     * out · Chat") wraps inside its tile instead of running into the next.
+                                     */}
+                                    <span className="h-8 text-center text-[11px] leading-4">
                                         <AgentChoiceMarker
                                             isDefault={false}
                                             issue={issue}

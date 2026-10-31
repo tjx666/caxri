@@ -246,7 +246,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.new.chatMarker': '对话',
     'terminal.new.defaultMarker': '默认',
     'terminal.new.notInstalledMarker': '未安装',
-    'terminal.new.signInRequiredMarker': '需要登录',
+    'terminal.new.signedOutMarker': '未登录',
     'terminal.new.signInHint.claude':
         'Claude Code 尚未登录。请在 Terminal 中运行 "claude auth login"，或启动后使用 /login。',
     'terminal.new.signInHint.codex': 'Codex 尚未登录。请在 Terminal 中运行 "codex login"。',

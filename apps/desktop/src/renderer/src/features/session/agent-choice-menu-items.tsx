@@ -14,7 +14,7 @@ import { AgentChoiceMarker } from './open-in-chat-menu-item';
  * The Agent rows of the New Session and New Terminal menus, shared so both annotate availability the same way. It
  * mounts with the open menu and so reads availability only then. An Agent whose CLI is missing stays in its catalog
  * position and stays selectable (choosing it surfaces the recovery bar with the Settings action); it gains a muted "Not
- * installed" suffix and a tooltip with the install hint. A signed-out Agent likewise reads "Sign in required" with the
+ * installed" suffix and a tooltip with the install hint. A signed-out Agent likewise reads "Signed out" with the
  * command that signs it in. Keyboard order is the catalog order, unchanged.
  */
 export function AgentChoiceMenuItems({

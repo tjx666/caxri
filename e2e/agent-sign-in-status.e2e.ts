@@ -12,7 +12,7 @@ import {
 } from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a signed-out Agent reads Sign in required in the New Terminal menu and says how to sign in', async ({}, testInfo) => {
+test('a signed-out Agent reads Signed out in the New Terminal menu and says how to sign in', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-sign-in-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -33,15 +33,17 @@ test('a signed-out Agent reads Sign in required in the New Terminal menu and say
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
             'Claude',
-            'CodexSign in required',
+            'CodexSigned out',
             'Grok BuildNot installed',
             'AntigravityNot installed',
             'Shell',
         ]);
         await terminalMenu.getByRole('menuitem', { name: /^Codex/u }).hover();
-        await expect(page.getByRole('tooltip')).toHaveText(
-            'Codex is signed out. Run "codex login" in a Terminal.',
-        );
+        await expect(
+            page.getByText('Codex is signed out. Run "codex login" in a Terminal.', {
+                exact: true,
+            }),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-sign-in-required-menu.png') });
     } finally {
         await closeAppQuietly(running.app);
