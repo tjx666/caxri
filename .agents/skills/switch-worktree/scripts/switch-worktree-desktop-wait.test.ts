@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { acquireDesktopLease, releaseDesktopLease } from './desktop-lease';
 import { runCapture } from './process';
+import { repoContext, withRepoLock } from './repo';
 import { runCli } from './switch-worktree';
 
 const temporaryDirectories: string[] = [];
@@ -65,4 +66,24 @@ describe('switch-worktree desktop --wait', () => {
             process.chdir(previousCwd);
         }
     });
+
+    it('waits out a repository operation that holds the lock past its default 10s', async () => {
+        const root = await createRepo();
+        const context = await repoContext(root);
+        const held = Promise.withResolvers<void>();
+        const released = Promise.withResolvers<void>();
+        const holding = withRepoLock(context, () => {
+            held.resolve();
+            return released.promise;
+        });
+        await held.promise;
+        const waiting = acquireDesktopLease(root, 'Android Acceptance', process.pid, {
+            waitMs: 30_000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 10_500));
+        released.resolve();
+        await holding;
+        const lease = await waiting;
+        await releaseDesktopLease(lease);
+    }, 30_000);
 });

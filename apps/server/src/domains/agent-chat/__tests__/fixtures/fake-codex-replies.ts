@@ -153,6 +153,24 @@ export async function runTestCommands(io: FakeCodexIo, turn: FakeTurn) {
 }
 
 /**
+ * The `jsonout` turn: a command printing compact JSON on one line, as `gh ... --json` does, then a short reply.
+ */
+export async function runJsonCommand(io: FakeCodexIo, turn: FakeTurn) {
+    io.completeItem(turn, {
+        type: 'commandExecution',
+        id: crypto.randomUUID(),
+        command: `/bin/zsh -lc "gh search repos example --limit 2 --json fullName,stargazersCount"`,
+        cwd: process.cwd(),
+        status: 'completed',
+        aggregatedOutput:
+            '[{"fullName":"owner/example","stargazersCount":42,"topics":[]},{"fullName":"owner/project","stargazersCount":7,"topics":["cli","agent"]}]\n',
+        exitCode: 0,
+        durationMs: 800,
+    });
+    await io.streamMessage(turn, 'Found two repositories.', 0);
+}
+
+/**
  * The `workrows` turn: one completed command per recognized shell shape, wrapped the way Agents run them (`rtk`,
  * `bunx`, chained with `&&`).
  */

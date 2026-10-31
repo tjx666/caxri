@@ -33,6 +33,7 @@
  *   table, and a fenced code block, streamed in small chunks.
  * - `codeblocks`: a reply with fenced code in `ts`, `bash`, `json`, and `diff`, a fence without a language, and an
  *   indented code block, so a Client's syntax highlighting can be compared across languages.
+ * - `jsonout`: a command printing compact one-line JSON, so a Client's JSON output layout can be checked.
  * - `testrun`: a finished multi-step turn: a thought, a test command that exits with code 1, a passing command, and a
  *   short reply, so a Client folds the work behind its `Worked for` row and shows the failed command's exit code.
  * - `manyagents`: seven `spawnAgent` calls with long titles, each child finishing before the next, then one `wait` for
@@ -69,6 +70,7 @@ import {
     runBurstStream,
     runCodeBlocks,
     runConsecutiveThoughts,
+    runJsonCommand,
     runLongStream,
     runManySteps,
     runMarkdownTable,
@@ -169,6 +171,8 @@ export async function runKeywordScenario(
         await runCodeBlocks(io, turn);
     } else if (text.includes('thoughts')) {
         await runConsecutiveThoughts(io, turn);
+    } else if (text.includes('jsonout')) {
+        await runJsonCommand(io, turn);
     } else if (text.includes('testrun')) {
         await runTestCommands(io, turn);
     } else if (text.includes('manysteps')) {

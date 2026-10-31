@@ -212,6 +212,45 @@ export async function executeMobileChatComposerScenario(
         }
         await capture(environment, 'command-exit-code', artifacts);
 
+        // A command's one-line JSON output reads indented, and each code block copies (#3184).
+        await sendFromPhone(serial, 'jsonout');
+        const listed = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                agentText(snapshot).includes('Found two repositories.') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        const jsonReply = findItem(
+            listed,
+            (item) => item.type === 'agentMessage' && item.text.includes('Found two repositories.'),
+        );
+        const jsonCommand = findItem(
+            listed,
+            (item) => item.type === 'command' && item.command.includes('--json'),
+        );
+        if (!jsonCommand || !jsonReply?.turnId)
+            throw new Error('The JSON command turn is incomplete');
+        const commandRow = `agent-chat-work-${jsonCommand.id}`;
+        const shown = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, commandRow) ||
+                hasCheck(nodes, `agent-chat-turn-${jsonReply.turnId}`),
+        );
+        if (!hasCheck(shown, commandRow)) {
+            await tapMobileCheckByBounds(serial, `agent-chat-turn-${jsonReply.turnId}`);
+            await waitForCheck(serial, commandRow);
+        }
+        await tapMobileCheckByBounds(serial, commandRow);
+        await waitForCheck(serial, 'agent-chat-work-copy');
+        await capture(environment, 'command-json-detail', artifacts);
+        await waitForCheck(serial, 'agent-chat-work-copy-command');
+        await tapMobileCheckByBounds(serial, 'agent-chat-work-copy');
+        await waitForCheck(serial, 'agent-chat-work-copied');
+        await capture(environment, 'command-copied', artifacts);
+        await tapMobileCheckByBounds(serial, 'tool-detail-close');
+        await waitForNoCheck(serial, 'conversation-tool-detail');
+
         // Following the user's own send (#1878): scroll up, send, and land on the latest message.
         recording = environment.remoteVideoPath
             ? await startMobileFramebufferRecording(serial, environment.remoteVideoPath)

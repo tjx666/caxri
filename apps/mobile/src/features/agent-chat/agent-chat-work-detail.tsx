@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWorkItem } from '@caxri/protocol';
 import {
@@ -8,10 +9,13 @@ import {
     agentChatToolCallArguments,
     agentChatWorkVerb,
     describeAgentChatWork,
+    formatAgentChatJsonOutput,
     isAgentChatSubagentItem,
     stripLineNumberGutter,
     unwrapShellCommand,
 } from '@caxri/protocol';
+import * as Clipboard from 'expo-clipboard';
+import { Check, CircleAlert, Copy } from 'lucide-react-native';
 
 import { HighlightedCode } from '../../components/highlighted-code';
 import { useTranslation } from '../../i18n';
@@ -26,27 +30,96 @@ import { useAgentChatSubagentTask, useAgentChatTaskLink } from './agent-chat-tas
 import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
 
 /**
+ * How long Copy shows its confirmation, matching Desktop's `COPY_FEEDBACK_RESET_MS`.
+ */
+const COPY_FEEDBACK_RESET_MS = 2000;
+
+/**
+ * Copy confirms in place, like Desktop's `CopyIconButton`, instead of with a toast: the detail sheet is an Android
+ * `Modal` window that covers the app's root toast, so a toast here would never be seen.
+ */
+const CopyButton = ({
+    code,
+    testID,
+    theme,
+}: {
+    code: string;
+    testID: string;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
+    useEffect(() => {
+        if (status === 'idle') return;
+        const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
+        return () => clearTimeout(timer);
+    }, [status]);
+    const label = {
+        copied: t('chat.work.copied'),
+        failed: t('chat.work.copyFailed'),
+        idle: t('chat.work.copy'),
+    }[status];
+    return (
+        <Pressable
+            accessibilityLabel={label}
+            accessibilityLiveRegion="polite"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={() => {
+                void Clipboard.setStringAsync(code)
+                    .then(() => setStatus('copied'))
+                    .catch(() => setStatus('failed'));
+            }}
+            style={({ pressed }) => [
+                styles.copy,
+                { backgroundColor: theme.elevated, opacity: pressed ? 0.5 : 1 },
+            ]}
+            testID={testID}
+        >
+            {status === 'copied' ? (
+                <View testID="agent-chat-work-copied">
+                    <Check color={theme.success} size={15} />
+                </View>
+            ) : status === 'failed' ? (
+                <CircleAlert color={theme.danger} size={15} />
+            ) : (
+                <Copy color={theme.muted} size={15} />
+            )}
+        </Pressable>
+    );
+};
+
+/**
  * A code block in the detail sheet: syntax colored, selectable, and capped in height so a long output scrolls inside
- * its own box while the sheet's other facts stay in reach.
+ * its own box while the sheet's other facts stay in reach. Copy sits in the corner because selecting a long block by
+ * hand on a phone stops at the screen edge.
  */
 const CodeBlock = ({
     code,
+    copyTestID = 'agent-chat-work-copy',
     language,
     theme,
 }: {
     code: string;
+    /**
+     * Distinct per block: Android semantic capture keeps one node per test ID, so a shared ID hides the second Copy.
+     */
+    copyTestID?: string;
     language: string | undefined;
     theme: MobileTheme;
 }) => (
-    <ScrollView
-        nestedScrollEnabled
-        style={[styles.code, { backgroundColor: theme.elevated }]}
-        testID="agent-chat-work-code"
-    >
-        <Text selectable style={[styles.codeText, { color: theme.text }]}>
-            <HighlightedCode code={code} language={codeLanguage(language)} />
-        </Text>
-    </ScrollView>
+    <View>
+        <ScrollView
+            nestedScrollEnabled
+            style={[styles.code, { backgroundColor: theme.elevated }]}
+            testID="agent-chat-work-code"
+        >
+            <Text selectable style={[styles.codeText, { color: theme.text }]}>
+                <HighlightedCode code={code} language={codeLanguage(language)} />
+            </Text>
+        </ScrollView>
+        <CopyButton code={code} testID={copyTestID} theme={theme} />
+    </View>
 );
 
 const Output = ({
@@ -59,7 +132,8 @@ const Output = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const output = text.replace(/\n+$/u, '');
+    const trimmed = text.replace(/\n+$/u, '');
+    const output = language === 'json' ? formatAgentChatJsonOutput(trimmed) : trimmed;
     if (!output)
         return (
             <Text style={[styles.note, { color: theme.muted }]}>{t('chat.tasks.noOutput')}</Text>
@@ -167,7 +241,12 @@ const CommandDetail = ({
     const { t } = useTranslation();
     return (
         <>
-            <CodeBlock code={unwrapShellCommand(item.command)} language="bash" theme={theme} />
+            <CodeBlock
+                code={unwrapShellCommand(item.command)}
+                copyTestID="agent-chat-work-copy-command"
+                language="bash"
+                theme={theme}
+            />
             <Output language={agentChatOutputLanguage(item)} text={item.output} theme={theme} />
             {item.exitCode === undefined ? null : (
                 <Text
@@ -262,9 +341,12 @@ const styles = StyleSheet.create({
         fontFamily: MONOSPACE_FONT,
         fontSize: 12,
         lineHeight: 18,
-        paddingHorizontal: 10,
+        paddingLeft: 10,
+        // Keeps the first line clear of the Copy button.
+        paddingRight: 36,
         paddingVertical: 8,
     },
+    copy: { borderRadius: 6, padding: 6, position: 'absolute', right: 4, top: 4 },
     note: { fontSize: 13, lineHeight: 18 },
     backgroundTask: { gap: 4, paddingTop: 6 },
     sectionTitle: { fontSize: 14, fontWeight: '700' },
