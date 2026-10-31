@@ -445,6 +445,15 @@ async function hostStatus(
 }
 
 /**
+ * Clears the search field and waits until the clear control disappears, so the next adb text input never lands on top
+ * of the previous query.
+ */
+async function clearSessionSearch(serial: string) {
+    await tapMobileCheck(serial, 'session-search-clear');
+    await waitFor(serial, (nodes) => !hasCheck(nodes, 'session-search-clear'));
+}
+
+/**
  * Session search from the home header: the recent listing, a title match, no results, an archived result that a control
  * device restores by opening it, and the offline state.
  */
@@ -472,18 +481,18 @@ async function sessionSearch(
         (nodes) => hasCheck(nodes, 'session-search-clear') && hasCheck(nodes, result),
     );
     await capture(environment, 'title-match', artifacts, result);
-    await tapMobileCheck(serial, 'session-search-clear');
+    await clearSessionSearch(serial);
     await adbShell(serial, ['input', 'text', 'zzqxnomatch']);
     await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-empty'));
     await capture(environment, 'no-results', artifacts, 'session-search-empty');
-    await tapMobileCheck(serial, 'session-search-clear');
+    await clearSessionSearch(serial);
     await adbShell(serial, ['input', 'text', sessionId.slice(0, 8)]);
     await waitFor(
         serial,
         (nodes) => hasCheck(nodes, 'session-search-clear') && hasCheck(nodes, result),
     );
     await capture(environment, 'id-match', artifacts, result);
-    await tapMobileCheck(serial, 'session-search-clear');
+    await clearSessionSearch(serial);
 
     await pageRequest(fixture.running.page, 'session.archive', { sessionId });
     if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
