@@ -18,6 +18,7 @@ export function agentChatActionSuggestion(
         key: action.invocation,
         label: action.invocation,
         isLabelLiteral: true,
+        ...(unavailableReason !== undefined && { isDisabled: true }),
         ...(action.argumentHint && { hint: action.argumentHint }),
         ...(description && { description: isCaxri ? `${description} · Caxri` : description }),
     };

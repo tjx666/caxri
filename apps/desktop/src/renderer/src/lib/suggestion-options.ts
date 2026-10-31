@@ -5,6 +5,11 @@
  */
 export interface SuggestionOption {
     description?: string;
+    /**
+     * The row cannot be chosen now: it is drawn muted and exposed as `aria-disabled`, but stays reachable by keyboard
+     * so its description can say why.
+     */
+    isDisabled?: boolean;
     hint?: string;
     isLabelLiteral: boolean;
     /**
