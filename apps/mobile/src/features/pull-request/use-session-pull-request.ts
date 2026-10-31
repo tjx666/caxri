@@ -43,6 +43,13 @@ const isSettling = (pullRequest: MobilePullRequest | undefined): boolean =>
         !pullRequest.headSha);
 
 /**
+ * The cache key of a Session's pull request read. A Status panel `Merge` re-reads it too, so the header chip turns
+ * merged at once instead of after the idle poll.
+ */
+export const sessionPullRequestQueryKey = (connectionScopeKey: string | null, sessionId: string) =>
+    ['mobile', 'pull-request', connectionScopeKey ?? 'unpaired', sessionId] as const;
+
+/**
  * The Session's pull request from Desktop's Project Status, and the merge a control device can start. Nothing pushes
  * pull request changes to the phone, so the read polls: slowly for the header chip, faster while the open sheet waits
  * for checks to settle. A merge refreshes the read so every surface shows the merged state.
@@ -52,7 +59,7 @@ export const useSessionPullRequest = (sessionId: string, isWatching: boolean) =>
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
     const queryClient = useQueryClient();
     const queryKey = useMemo(
-        () => ['mobile', 'pull-request', connectionScopeKey ?? 'unpaired', sessionId] as const,
+        () => sessionPullRequestQueryKey(connectionScopeKey, sessionId),
         [connectionScopeKey, sessionId],
     );
     const isObservable = connectionScopeKey !== null && isForeground && status === 'connected';
