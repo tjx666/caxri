@@ -1,10 +1,10 @@
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 import {
-    AGENT_CHAT_SESSION_HANDOFF_COMMAND,
     agentChatDraftMatches,
     agentChatMenuActions,
     agentChatSlashQuery,
     completeAgentChatAction,
+    withAgentChatBuiltInActions,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
@@ -17,41 +17,22 @@ import { translate } from '../../i18n';
 export const MOBILE_AGENT_CHAT_COMMAND_ROWS = 6;
 
 /**
- * Caxri's own `/new-session [next task]` row, which leads the menu on every provider because Caxri runs it (see
- * `parseAgentChatSessionHandoffCommand`). It takes a note, so choosing it completes the draft instead of sending it.
- */
-const agentChatHandoffAction = (t: Translate = translate): AgentAction => ({
-    invocation: `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`,
-    kind: 'command',
-    description: t('chat.commands.newSessionDescription'),
-    argumentHint: t('chat.commands.newSessionHint'),
-    requiresArguments: false,
-    source: 'builtIn',
-});
-
-/**
- * The menu rows for a draft, as on Desktop: Caxri's `/new-session` first, then the provider's commands, then the skills
- * discovered for the Agent's Terminal, ranked by name and description (`agentChatDraftMatches`) and led by the group
- * the typed sigil names. A provider command named like `/new-session` loses to it, since the composer runs Caxri's
- * anyway; a skill the provider already lists as a command keeps its runnable command row. `undefined` when no menu
- * should show: the draft is not a bare invocation. An empty list keeps the menu open on Desktop's `No matching command
- * or skill`, so a typo reads as a miss instead of the menu silently vanishing.
+ * The menu rows for a draft, as on Desktop: Caxri's own commands (`builtIn`, see `mobileAgentChatBuiltInActions`), the
+ * provider's commands, then the skills discovered for the Agent's Terminal, ranked by name and description
+ * (`agentChatDraftMatches`) and led by the group the typed sigil names. A skill the provider already lists as a command
+ * keeps its runnable command row. `undefined` when no menu should show: the draft is not a bare invocation, or there is
+ * no command or skill to offer. An empty list keeps the menu open on Desktop's `No matching command or skill`, so a
+ * typo reads as a miss instead of the menu silently vanishing.
  */
 export function agentChatMenuMatches(
     draft: string,
     commands: readonly AgentChatCommand[] | undefined,
     skills: readonly AgentAction[] | undefined,
-    t: Translate = translate,
+    builtIn: readonly AgentAction[] = [],
 ): AgentAction[] | undefined {
     if (agentChatSlashQuery(draft) === undefined) return undefined;
-    const handoff = agentChatHandoffAction(t);
-    const actions = [
-        handoff,
-        ...agentChatMenuActions(commands, skills).filter(
-            ({ invocation }) => invocation !== handoff.invocation,
-        ),
-    ];
-    return agentChatDraftMatches(actions, draft);
+    const actions = withAgentChatBuiltInActions(agentChatMenuActions(commands, skills), builtIn);
+    return actions.length === 0 ? undefined : agentChatDraftMatches(actions, draft);
 }
 
 /**

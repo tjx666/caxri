@@ -79,6 +79,23 @@ describe('mobile read-only files', () => {
         ).resolves.toEqual({ status: 'oversized' });
     });
 
+    it('names a file inside the Project by its Project-relative path, and one outside in full', async () => {
+        const read = (path: string) =>
+            handlersWith({
+                read: vi.fn(() => Promise.resolve({ path, content: 'x', mtimeMs: 1, size: 1 })),
+                resolveSessionPath: vi.fn(() =>
+                    Promise.resolve({ root: '/workspace', path: '/workspace' }),
+                ),
+            })['mobile.files.readInternal']({ sessionId: 'session-granted', path, principal });
+
+        await expect(read('/workspace/src/app.ts')).resolves.toMatchObject({
+            path: 'src/app.ts',
+        });
+        await expect(read('/elsewhere/notes.md')).resolves.toMatchObject({
+            path: '/elsewhere/notes.md',
+        });
+    });
+
     it('reports a binary file from the read reason, not its message', async () => {
         const read = (error: CaxriError) =>
             handlersWith({ read: vi.fn().mockRejectedValue(error) })['mobile.files.readInternal']({

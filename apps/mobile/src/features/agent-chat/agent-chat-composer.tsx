@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentAction, AgentProvider } from '@caxri/protocol';
 import {
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
@@ -19,6 +19,7 @@ import { sessionDetailStyles as styles } from '../sessions/components/session-de
 import { useFileAttachments } from '../sessions/hooks/use-file-attachments';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
+import type { MobileAgentChatSessionCommand } from './agent-chat-app-commands';
 import { AgentChatCommandList } from './agent-chat-command-list';
 import { agentChatMenuMatches, agentChatSkillNotice } from './agent-chat-commands';
 import {
@@ -28,6 +29,7 @@ import {
 } from './agent-chat-composer-buttons';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
 import { AgentChatEditBanner } from './agent-chat-edit-banner';
+import { AgentChatMentionList } from './agent-chat-mention-list';
 import {
     agentChatComposerAvailability,
     agentChatComposerPressDeliveries,
@@ -41,8 +43,10 @@ import { AgentChatSettings } from './agent-chat-settings';
 import { sheetStyles } from './agent-chat-sheet-styles';
 import { AgentChatContextNotice } from './context/agent-chat-context-notice';
 import type { AgentChatController } from './use-agent-chat';
+import { useAgentChatAppCommands } from './use-agent-chat-app-commands';
 import { useAgentChatComposerAction } from './use-agent-chat-composer-action';
 import { useAgentChatHandoffSource } from './use-agent-chat-handoff-source';
+import { useAgentChatMentions } from './use-agent-chat-mentions';
 import { useAgentChatSkills } from './use-agent-chat-skills';
 
 /**
@@ -67,11 +71,13 @@ const chatImageLimits = (t: Translate) =>
  * the Chat's Terminal, as on Desktop. Nothing shows while the composer cannot send.
  */
 const useComposerMenu = ({
+    builtIn,
     chat,
     draft,
     isEnabled,
     sessionId,
 }: {
+    builtIn: readonly AgentAction[];
     chat: AgentChatController;
     draft: string;
     isEnabled: boolean;
@@ -86,7 +92,7 @@ const useComposerMenu = ({
     });
     if (!isEnabled) return { matches: undefined, notice: undefined };
     return {
-        matches: agentChatMenuMatches(draft, chat.snapshot?.commands, skills.skills, t),
+        matches: agentChatMenuMatches(draft, chat.snapshot?.commands, skills.skills, builtIn),
         notice: agentChatSkillNotice(skills, t),
     };
 };
@@ -180,9 +186,11 @@ export const AgentChatComposer = ({
     focusComposer,
     isConnected,
     isHandedOff,
+    isPinned,
     isVisible,
     onComposerFocused,
     onDraftChange,
+    onSessionCommand,
     provider,
     providerId,
     sessionId,
@@ -198,9 +206,17 @@ export const AgentChatComposer = ({
      * A detached Chat refuses input until its Session resumes; its banner says so and the composer only disables.
      */
     isHandedOff: boolean;
+    /**
+     * Whether the Session is pinned, so `/pin` reads as Unpin.
+     */
+    isPinned: boolean;
     isVisible: boolean;
     onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
+    /**
+     * Runs `/rename`, `/archive`, or `/pin`; absent while the device may not manage Sessions.
+     */
+    onSessionCommand: ((command: MobileAgentChatSessionCommand) => void) | undefined;
     provider: string;
     providerId: AgentProvider | undefined;
     /**
@@ -229,7 +245,19 @@ export const AgentChatComposer = ({
     const canStop = isRunning && deviceRole === 'control';
     const isStopAction = canStop && !hasDraft;
     const { editing } = chat;
+    const configureReason = agentChatDisabledReason({ ...access, action: 'configure' }, t);
+    const permissionReason = agentChatDisabledReason({ ...access, action: 'permission' }, t);
+    const appCommands = useAgentChatAppCommands({
+        chat,
+        configureReason,
+        isPinned,
+        onDraftChange,
+        onSessionCommand,
+        permissionReason,
+        providerId,
+    });
     const menu = useComposerMenu({
+        builtIn: appCommands.builtIn,
         chat,
         draft,
         // An edit's text is the replacement message, so the command menu does not offer to run it.
@@ -246,6 +274,7 @@ export const AgentChatComposer = ({
         run,
     } = useAgentChatComposerAction({
         activeTurnId,
+        appCommands,
         chat,
         draft,
         files,
@@ -257,6 +286,13 @@ export const AgentChatComposer = ({
         provider,
     });
     const isEditable = availability.isEnabled && !isRunningCommand && !isSendingEdit;
+    const mentions = useAgentChatMentions({
+        draft,
+        // An edit's text can cite files and Sessions too; only a composer that cannot send hides the list.
+        isEnabled: availability.isEnabled,
+        onDraftChange,
+        sessionId,
+    });
     /**
      * An edit waits for the running turn (or a compaction) to end, as on Desktop; Core would refuse it.
      */
@@ -300,7 +336,8 @@ export const AgentChatComposer = ({
     });
     // Images never return to an edit (`agentChatMessageEditAvailability`), so it offers none to add.
     const showsAttach = rowControls.showsAttach && !editing;
-    const isMenuOpen = menu.matches !== undefined || menu.notice !== undefined;
+    const isMenuOpen =
+        menu.matches !== undefined || menu.notice !== undefined || mentions.rows !== undefined;
     const statusReason =
         availability.reason ??
         editWaitReason ??
@@ -332,19 +369,17 @@ export const AgentChatComposer = ({
                 <View style={sheetStyles.choices}>
                     <AgentChatSettings
                         chat={chat}
-                        configureReason={agentChatDisabledReason(
-                            { ...access, action: 'configure' },
-                            t,
-                        )}
-                        permissionReason={agentChatDisabledReason(
-                            { ...access, action: 'permission' },
-                            t,
-                        )}
+                        configureReason={configureReason}
+                        entry={appCommands.sheet === 'usage' ? null : appCommands.sheet}
+                        onEntryChange={appCommands.setSheet}
+                        permissionReason={permissionReason}
                         provider={providerId}
                         theme={theme}
                     />
                     {chat.snapshot?.terminalId ? (
                         <AgentChatSessionUsageButton
+                            isOpen={appCommands.sheet === 'usage'}
+                            onOpenChange={(isOpen) => appCommands.setSheet(isOpen ? 'usage' : null)}
                             terminalId={chat.snapshot.terminalId}
                             theme={theme}
                             usage={chat.snapshot.usage}
@@ -369,6 +404,17 @@ export const AgentChatComposer = ({
                 matches={menu.matches}
                 notice={menu.notice}
                 onChoose={chooseCommand}
+                theme={theme}
+            />
+            <AgentChatMentionList
+                isEnabled={isEditable}
+                isError={mentions.isError}
+                isSearching={mentions.isSearching}
+                onChoose={(row) => {
+                    void mentions.choose(row);
+                }}
+                preparingSessionId={mentions.preparingSessionId}
+                rows={mentions.rows}
                 theme={theme}
             />
             <View style={styles.composerRow}>
@@ -408,7 +454,7 @@ export const AgentChatComposer = ({
                 />
             </View>
             <AgentChatComposerStatus
-                error={error ?? images.attachError ?? files.attachError}
+                error={error ?? mentions.error ?? images.attachError ?? files.attachError}
                 isStopping={isStopping}
                 provider={provider}
                 reason={statusReason}

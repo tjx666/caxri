@@ -53,6 +53,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.session.setPinned'
             | 'mobile.session.delete'
             | 'mobile.session.suggestTitle'
+            | 'mobile.session.conversationReference'
             | 'mobile.session.archived'
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'

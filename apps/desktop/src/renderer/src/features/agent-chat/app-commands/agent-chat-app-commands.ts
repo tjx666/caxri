@@ -1,3 +1,4 @@
+import type { AgentChatAppCommand } from '@caxri/protocol';
 import { isPinnedSession } from '@caxri/protocol';
 
 import { getBootstrap } from '../../../stores/selectors';
@@ -9,7 +10,6 @@ import { createTerminalForSession } from '../../terminal/terminal-commands';
 import { openUsagePageForTerminal } from '../../usage/usage-page-request';
 import { forkAgentChat } from '../agent-chat-commands';
 import { runAgentChatComposerCommand } from '../composer/agent-chat-composer-commands';
-import type { AgentChatAppCommand } from '../composer-input/agent-chat-slash-commands';
 
 /**
  * Runs one of Caxri's app commands for the Chat in `terminalId` (`AGENT_CHAT_APP_COMMANDS`). Each reaches the same

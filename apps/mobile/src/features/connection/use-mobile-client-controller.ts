@@ -13,6 +13,7 @@ import { loadMobileCredentialAtStart } from './credential-load';
 import type { MobileCredential } from './credential-store';
 import { expoMobileCredentialStore } from './expo-credential-store';
 import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
+import type { MobileGatewayRouteKind } from './gateway-routes';
 import type { MobileClientContextValue } from './mobile-client-context-value';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import {
@@ -62,6 +63,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const [relayFailure, setRelayFailure] = useState<MobileRelayFailureKind | null>(null);
     const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
     const connection = useRef<MobileGatewayConnection | null>(null);
+    const [route, setRoute] = useState<MobileGatewayRouteKind | null>(null);
     const [pairingAttempts] = useState(createPairingAttemptOwner);
     const backgroundedAt = useRef<number | null>(null);
     const appState = useRef(AppState.currentState);
@@ -106,6 +108,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 deferredNetworkWake.current = false;
             }
             connection.current = next;
+            setRoute(next?.route ?? null);
         },
         [],
     );
@@ -546,6 +549,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             request,
             retryConnection,
             retryCredentialLoad,
+            route,
             status,
             subscribe,
             subscriptionAvailable: status === 'connected' && isForeground,
@@ -564,6 +568,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             request,
             retryConnection,
             retryCredentialLoad,
+            route,
             status,
             subscribe,
         ],

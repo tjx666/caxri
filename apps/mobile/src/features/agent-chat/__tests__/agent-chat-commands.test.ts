@@ -1,6 +1,7 @@
 import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { mobileAgentChatBuiltInActions } from '../agent-chat-app-commands';
 import {
     agentChatCommandChoice,
     agentChatMenuMatches,
@@ -22,24 +23,35 @@ const skill = (invocation: string, description?: string): AgentAction => ({
     source: 'project',
 });
 
+/**
+ * The phone's built-in rows on a device that can run no app command: `/new-session` alone.
+ */
+const handoffOnly = mobileAgentChatBuiltInActions({
+    canConfigure: false,
+    canManageSession: false,
+    canPlan: false,
+    hasUsage: false,
+    isPinned: false,
+});
+
+const menu = (...[draft, offered, skills]: Parameters<typeof agentChatMenuMatches>) =>
+    agentChatMenuMatches(draft, offered, skills, handoffOnly);
+
 const invocations = (actions: readonly AgentAction[]) => actions.map((action) => action.invocation);
 
 describe('agentChatMenuMatches', () => {
     it('lists commands then skills for a bare slash and narrows while the user types', () => {
         const todo = [skill('$todo-sweep')];
-        expect(invocations(agentChatMenuMatches('/', commands, todo) ?? [])).toEqual([
+        expect(invocations(menu('/', commands, todo) ?? [])).toEqual([
             '/new-session',
             '/compact',
             '/review',
             '/mcp:list',
             '$todo-sweep',
         ]);
-        expect(invocations(agentChatMenuMatches('/REV', commands, undefined) ?? [])).toEqual([
-            '/review',
-        ]);
-        expect(invocations(agentChatMenuMatches('/mcp:', commands, undefined) ?? [])[0]).toBe(
-            '/mcp:list',
-        );
+        // Desktop's `/new-session` description ("... stop here") also loosely matches, ranked below the name match.
+        expect(invocations(menu('/REV', commands, undefined) ?? [])[0]).toBe('/review');
+        expect(invocations(menu('/mcp:', commands, undefined) ?? [])[0]).toBe('/mcp:list');
     });
 
     it('finds a skill by name or description, and leads with skills after `$`', () => {
@@ -47,46 +59,37 @@ describe('agentChatMenuMatches', () => {
             skill('$todo-sweep', 'Find stale TODOs'),
             skill('$commit', 'Compact commits'),
         ];
-        expect(invocations(agentChatMenuMatches('/to', commands, skills) ?? [])).toEqual([
+        expect(invocations(menu('/to', commands, skills) ?? [])).toEqual([
             '/new-session',
             '$todo-sweep',
         ]);
-        expect(invocations(agentChatMenuMatches('$com', commands, skills) ?? [])).toEqual([
-            '$commit',
-            '/compact',
-        ]);
-        expect(invocations(agentChatMenuMatches('/summarize', commands, skills) ?? [])).toEqual([
-            '/compact',
-        ]);
+        expect(invocations(menu('$com', commands, skills) ?? [])).toEqual(['$commit', '/compact']);
+        expect(invocations(menu('/summarize', commands, skills) ?? [])).toEqual(['/compact']);
     });
 
     it('keeps the command row when the provider already lists a skill as a command', () => {
         expect(
-            agentChatMenuMatches('/review', commands, [skill('/review', 'Skill copy')])?.map(
+            menu('/review', commands, [skill('/review', 'Skill copy')])?.map(
                 ({ kind, invocation }) => `${kind}:${invocation}`,
             ),
         ).toEqual(['command:/review']);
     });
 
     it('shows no menu mid-sentence, past the name, or with nothing to offer', () => {
-        expect(agentChatMenuMatches('fix /rev', commands, undefined)).toBeUndefined();
-        expect(agentChatMenuMatches('/review src', commands, undefined)).toBeUndefined();
+        expect(menu('fix /rev', commands, undefined)).toBeUndefined();
+        expect(menu('/review src', commands, undefined)).toBeUndefined();
     });
 
     it('leads with Caxri /new-session on every provider, ahead of a provider command of that name', () => {
-        expect(invocations(agentChatMenuMatches('/', undefined, undefined) ?? [])).toEqual([
-            '/new-session',
-        ]);
-        expect(invocations(agentChatMenuMatches('/', commands, undefined) ?? [])[0]).toBe(
-            '/new-session',
-        );
-        const shadowed = agentChatMenuMatches('/new', [{ name: 'new-session' }], undefined) ?? [];
+        expect(invocations(menu('/', undefined, undefined) ?? [])).toEqual(['/new-session']);
+        expect(invocations(menu('/', commands, undefined) ?? [])[0]).toBe('/new-session');
+        const shadowed = menu('/new', [{ name: 'new-session' }], undefined) ?? [];
         expect(shadowed.map(({ source }) => source)).toEqual(['builtIn']);
-        expect(agentChatMenuMatches('/new-session', undefined, undefined)).toHaveLength(1);
+        expect(menu('/new-session', undefined, undefined)).toHaveLength(1);
     });
 
     it('completes /new-session into the draft instead of sending it', () => {
-        const [handoff] = agentChatMenuMatches('/new', undefined, undefined) ?? [];
+        const [handoff] = menu('/new', undefined, undefined) ?? [];
         expect(handoff.argumentHint).toBeTruthy();
         expect(agentChatCommandChoice(handoff)).toEqual({
             kind: 'complete',
@@ -95,8 +98,8 @@ describe('agentChatMenuMatches', () => {
     });
 
     it('keeps the menu open with no matches so a typo reads as a miss', () => {
-        expect(agentChatMenuMatches('/zzz', commands, undefined)).toEqual([]);
-        expect(agentChatMenuMatches('$zzz', undefined, [skill('$todo-sweep')])).toEqual([]);
+        expect(menu('/zzz', commands, undefined)).toEqual([]);
+        expect(menu('$zzz', undefined, [skill('$todo-sweep')])).toEqual([]);
     });
 });
 
@@ -119,7 +122,7 @@ describe('shouldHoldAgentChatSendAsText', () => {
         shouldHoldAgentChatSendAsText({
             confirmedDraft,
             draft,
-            matches: agentChatMenuMatches(draft, commands, undefined),
+            matches: menu(draft, commands, undefined),
         });
 
     it('holds the first send of an unknown command and lets the second through', () => {
@@ -139,7 +142,7 @@ describe('shouldHoldAgentChatSendAsText', () => {
 
 describe('agentChatCommandChoice', () => {
     it('runs a command without arguments and completes one that takes them or a skill', () => {
-        const [, compact, review] = agentChatMenuMatches('/', commands, undefined) ?? [];
+        const [, compact, review] = menu('/', commands, undefined) ?? [];
         expect(agentChatCommandChoice(compact)).toEqual({
             kind: 'run',
             command: { name: 'compact' },

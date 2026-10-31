@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { Principal } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerDomainService } from '../../../domain-service';
@@ -60,6 +61,26 @@ describe('mobile preview requests', () => {
         );
         expect(result).toEqual({ targets: [{ port: 5173, processName: 'node' }] });
         expect(reauthorize).toHaveBeenCalledOnce();
+    });
+
+    it('lists nothing without reading ports when the phone cannot reach the gateway, as over the Relay', async () => {
+        const readListening = vi.fn();
+        const requests = createMobilePreviewRequests({
+            random: (bytes) => new Uint8Array(bytes).fill(7),
+            readListening,
+            registry: { currentPrincipal: () => principal },
+        });
+        const result = await requests.invoke(
+            { method: 'mobile.preview.list', params: { sessionId: 'session-1' } },
+            principal,
+            domainService,
+            () => {
+                throw new CaxriError('UNAVAILABLE', 'Not available over the Relay route');
+            },
+            () => {},
+        );
+        expect(result).toEqual({ targets: [] });
+        expect(readListening).not.toHaveBeenCalled();
     });
 
     it('refuses to open a port outside the Session', async () => {

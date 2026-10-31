@@ -7,7 +7,6 @@ import {
     agentChatMentionRows,
     agentChatMentionRowSuggestion,
     agentChatMentionStep,
-    formatAgentChatFileMention,
     openFileMentions,
     rankAgentChatFileMentions,
 } from '../agent-chat-file-mentions';
@@ -74,13 +73,6 @@ describe('agentChatFileSuggestion', () => {
             label: 'README.md',
             isLabelLiteral: false,
         });
-    });
-});
-
-describe('formatAgentChatFileMention', () => {
-    it('quotes a path with whitespace and leaves others bare', () => {
-        expect(formatAgentChatFileMention('src/a.ts')).toBe('@src/a.ts');
-        expect(formatAgentChatFileMention('my docs/a b.md')).toBe('@"my docs/a b.md"');
     });
 });
 

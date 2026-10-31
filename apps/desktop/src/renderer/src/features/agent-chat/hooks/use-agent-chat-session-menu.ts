@@ -1,6 +1,8 @@
 import type { RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
+import { formatAgentChatFileMention } from '@caxri/protocol';
+
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
@@ -21,7 +23,6 @@ import {
     agentChatMentionRows,
     agentChatMentionRowSuggestion,
     agentChatMentionStep,
-    formatAgentChatFileMention,
 } from '../composer-input/agent-chat-file-mentions';
 import {
     agentChatSessionPreparingText,

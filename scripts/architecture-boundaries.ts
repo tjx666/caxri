@@ -65,7 +65,7 @@ export const appBoundaries: readonly AppBoundary[] = [
         id: 'mobile',
         root: 'apps/mobile',
         packageNames: ['@caxri/mobile'],
-        allowedPackages: ['mobile-transport', 'protocol'],
+        allowedPackages: ['markdown', 'mobile-transport', 'protocol'],
         testAllowedPackages: ['utils'],
     },
     {
@@ -122,7 +122,10 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         id: 'markdown',
         root: 'packages/markdown',
         packageNames: ['@caxri/markdown'],
-        publicSubpaths: ['.'],
+        /**
+         * `./file-reference` lets the phone find cited files in Chat text without pulling in the Markdown parser.
+         */
+        publicSubpaths: ['.', './file-reference'],
         browserSafe: true,
         allowedPackages: [],
     },

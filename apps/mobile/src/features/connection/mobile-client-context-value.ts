@@ -5,6 +5,7 @@ import type {
 import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 
 import type { MobileConnectionStatus } from './connection-state';
+import type { MobileGatewayRouteKind } from './gateway-routes';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import type { MobileGatewaySubscriptionHandle } from './mobile-gateway-connection';
 import type { MobileRelayFailureKind } from './relay-failure';
@@ -17,6 +18,11 @@ export interface MobileClientContextValue {
     hostId: string | null;
     isForeground: boolean;
     getLastSeenAt: () => number | null;
+    /**
+     * The path the current connection took, or `null` without one. Plain-HTTP side channels on the gateway (web
+     * previews) are reachable only over a `direct` route; see `docs/mobile/relay.md`.
+     */
+    route: MobileGatewayRouteKind | null;
     pair: (pairingLink: string) => Promise<void>;
     paired: boolean;
     /**

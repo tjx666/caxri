@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
-import { isPinnedSession } from '@caxri/protocol';
+import { isPinnedSession, parseAgentChatAppCommand } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { useSessions, useTerminal } from '../../../stores/selectors';
@@ -13,7 +13,6 @@ import {
 import {
     agentChatAppCommandActions,
     agentChatAppCommandUnavailable,
-    parseAgentChatAppCommand,
 } from '../composer-input/agent-chat-slash-commands';
 import { runAgentChatAppCommand } from './agent-chat-app-commands';
 

@@ -4,11 +4,11 @@ import {
     createPaneLayout,
     findResourceTabs,
     openResource,
+    parseFileLocation,
     splitTabIntoPane,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { parseTerminalFileLocation } from '../../terminal/terminal-file-location';
 import { chooseReferenceTerminal, formatFileReference } from '../file-reference';
 
 function terminal(overrides: Partial<TerminalRecord> & Pick<TerminalRecord, 'id'>): TerminalRecord {
@@ -74,7 +74,7 @@ describe('formatFileReference', () => {
             startLine: 3,
             endLine: 9,
         });
-        expect(parseTerminalFileLocation(reference.trim().slice(1))).toEqual({
+        expect(parseFileLocation(reference.trim().slice(1))).toEqual({
             target: 'src/index.ts',
             location: { mode: 'line', startLine: 3, endLine: 9 },
         });

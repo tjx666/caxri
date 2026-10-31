@@ -27,15 +27,14 @@ import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
-import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { mobileHostDisplayName } from './host-display-name';
 import { createMobileHostStatusReader } from './host-status';
+import { createPairedPrincipalGuard } from './paired-principal-guard';
 import { invokeMobilePanelRequest } from './panel-requests';
 import { createMobilePreviewRequests } from './preview';
 import { createMobilePairing, invokeMobileProjectRequest } from './project-requests';
 import { mergeMobilePullRequest, readMobilePullRequest } from './pull-request-requests';
 import { createRelaySettingFollower } from './relay';
-import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import { sessionForPrincipal } from './session-management';
 import { invokeMobileSessionRequest, isMobileSessionRequest } from './session-requests';
 import {
@@ -92,18 +91,7 @@ export const openMobileAccessController = (options: {
         if (isClosed) throw new CaxriError('UNAVAILABLE', 'Mobile access is shutting down');
     };
     const { abortOperations, runRevocableOperation, withAuthority } = createMobileAuthorityQueue();
-    const currentPairedPrincipal = (principal: Principal, method: string) => {
-        if (principal.kind !== 'paired-device')
-            throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
-        const current = adoptCurrentPairedPrincipal(
-            principal,
-            registry.currentPrincipal(principal.deviceId, principal.generation),
-        );
-        if (!current) throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
-        if (!isMobileGatewayMethodAllowedForRole(current.role, method))
-            throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
-        return current;
-    };
+    const { currentPairedPrincipal, readAsPaired } = createPairedPrincipalGuard(registry);
     const authorizeSubscription = (
         principal: Principal,
         resource: MobileSubscriptionResource,
@@ -274,48 +262,38 @@ export const openMobileAccessController = (options: {
                     );
                 }
                 case 'mobile.timeline.read':
-                case 'mobile.timeline.readMessage': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await invokeMobileTimelineRequest(
-                        request,
-                        principal,
-                        domainService,
+                case 'mobile.timeline.readMessage':
+                    return readAsPaired(context.principal, request.method, (principal) =>
+                        invokeMobileTimelineRequest(request, principal, domainService),
                     );
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
                 case 'mobile.changes.list':
-                case 'mobile.changes.diff': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
-                    const result =
-                        request.method === 'mobile.changes.list'
-                            ? await domainService.request('mobile.changes.listInternal', {
+                case 'mobile.changes.diff':
+                    return readAsPaired(context.principal, request.method, async (principal) => {
+                        await sessionForPrincipal(
+                            domainService,
+                            principal,
+                            request.params.sessionId,
+                        );
+                        return request.method === 'mobile.changes.list'
+                            ? domainService.request('mobile.changes.listInternal', {
                                   sessionId: request.params.sessionId,
                                   refresh: request.params.refresh,
                                   principal,
                               })
-                            : await domainService.request('mobile.changes.diffInternal', {
+                            : domainService.request('mobile.changes.diffInternal', {
                                   sessionId: request.params.sessionId,
                                   repositoryId: request.params.repositoryId,
                                   path: request.params.path,
                                   principal,
                               });
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
-                case 'mobile.agent.availability': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await domainService.request(
-                        'mobile.agent.availabilityInternal',
-                        {
+                    });
+                case 'mobile.agent.availability':
+                    return readAsPaired(context.principal, request.method, (principal) =>
+                        domainService.request('mobile.agent.availabilityInternal', {
                             projectId: request.params.projectId,
                             principal,
-                        },
+                        }),
                     );
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
                 case 'mobile.agent.actions': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
                     return listMobileAgentActions(request, principal, domainService, () => {
@@ -378,18 +356,14 @@ export const openMobileAccessController = (options: {
                         });
                     });
                 }
-                case 'mobile.agentUsage.read': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await readAgentUsage(domainService, principal);
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
-                case 'mobile.pullRequest.read': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await readMobilePullRequest(domainService, principal, request);
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
+                case 'mobile.agentUsage.read':
+                    return readAsPaired(context.principal, request.method, (principal) =>
+                        readAgentUsage(domainService, principal),
+                    );
+                case 'mobile.pullRequest.read':
+                    return readAsPaired(context.principal, request.method, (principal) =>
+                        readMobilePullRequest(domainService, principal, request),
+                    );
                 case 'mobile.pullRequest.merge': {
                     return runRevocableOperation(
                         () => {

@@ -7,6 +7,7 @@ import {
     isBinaryFileReadError,
     MOBILE_FILES_MAX_ENTRIES,
     MOBILE_FILES_READ_MAX_BYTES,
+    projectDisplayPath,
     readMobileMessageChunk,
 } from '@caxri/protocol';
 
@@ -377,9 +378,14 @@ export function createMobileDomainHandlers(options: {
                  */
                 if (Buffer.byteLength(document.content, 'utf8') > MOBILE_FILES_READ_MAX_BYTES)
                     return { status: 'oversized' as const };
+                /**
+                 * A file a message cited by its absolute path reads back as one; the phone cannot know the Project
+                 * root, so name a file inside it Project-relative here, as Desktop names an Agent's files.
+                 */
+                const { root } = await options.files.resolveSessionPath(sessionId);
                 return {
                     status: 'available' as const,
-                    path: document.path,
+                    path: projectDisplayPath(document.path, root),
                     content: document.content,
                     mtimeMs: document.mtimeMs,
                     size: document.size,

@@ -33,6 +33,19 @@ export const sessionForPrincipal = async (
 };
 
 /**
+ * Condenses a granted Session's Agent conversation into a reference file through Desktop's own handler, after the same
+ * grant check Session management makes, so a phone can cite only Sessions it may see.
+ */
+export const prepareMobileSessionReference = async (
+    domainService: ServerDomainService,
+    principal: Principal,
+    sessionId: string,
+) => {
+    await sessionForPrincipal(domainService, principal, sessionId);
+    return domainService.request('session.conversationReference', { sessionId });
+};
+
+/**
  * Lists archived Sessions of the Projects granted to a paired device. The principal-scoped queries already bound the
  * records; the explicit grant filter keeps a Desktop-scale Project list out of the projection.
  */

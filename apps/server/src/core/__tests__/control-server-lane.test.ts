@@ -204,6 +204,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.project.addInternal': 'ordered',
     'mobile.pullRequest.merge': 'ordered',
     'mobile.session.archive': 'ordered',
+    'mobile.session.conversationReference': 'ordered',
     'mobile.session.create': 'ordered',
     'mobile.session.delete': 'ordered',
     'mobile.session.createForPrincipal': 'ordered',

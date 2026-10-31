@@ -6,6 +6,7 @@ import type { createMobileAuthorityQueue } from './authority-queue';
 import type { MobileSessionManagementRequest } from './session-management';
 import {
     applyMobileSessionManagement,
+    prepareMobileSessionReference,
     readMobileArchivedSessions,
     suggestMobileSessionTitle,
 } from './session-management';
@@ -13,7 +14,8 @@ import {
 type PairedPrincipal = Extract<Principal, { kind: 'paired-device' }>;
 
 /**
- * Every phone Session method: create, the archived list, Rename with AI, and the management writes.
+ * Every phone Session method: create, the archived list, Rename with AI, the Chat `@` Session reference, and the
+ * management writes.
  */
 export type MobileSessionRequest =
     | MobileSessionManagementRequest
@@ -22,6 +24,7 @@ export type MobileSessionRequest =
           {
               method:
                   | 'mobile.session.archived'
+                  | 'mobile.session.conversationReference'
                   | 'mobile.session.create'
                   | 'mobile.session.suggestTitle';
           }
@@ -30,6 +33,7 @@ export type MobileSessionRequest =
 const mobileSessionMethods: ReadonlySet<string> = new Set<MobileSessionRequest['method']>([
     'mobile.session.archive',
     'mobile.session.archived',
+    'mobile.session.conversationReference',
     'mobile.session.create',
     'mobile.session.delete',
     'mobile.session.rename',
@@ -91,6 +95,16 @@ export const invokeMobileSessionRequest = async (
         case 'mobile.session.archived': {
             const principal = currentPairedPrincipal(context.principal, request.method);
             const result = await readMobileArchivedSessions(domainService, principal);
+            currentPairedPrincipal(principal, request.method);
+            return result;
+        }
+        case 'mobile.session.conversationReference': {
+            const principal = currentPairedPrincipal(context.principal, request.method);
+            const result = await prepareMobileSessionReference(
+                domainService,
+                principal,
+                request.params.sessionId,
+            );
             currentPairedPrincipal(principal, request.method);
             return result;
         }

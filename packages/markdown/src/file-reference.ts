@@ -187,7 +187,9 @@ export function proseFileReferences(text: string): ProseFileReference[] {
         const file = fileReferenceTarget(value);
         if (file) references.push({ index, text: value, file });
     }
-    return references.toSorted((a, b) => a.index - b.index);
+    // `references` is this call's own array, and the phone's ES2022 runtime has no `toSorted`.
+    // eslint-disable-next-line unicorn/no-array-sort -- sorting a local array in place
+    return references.sort((a, b) => a.index - b.index);
 }
 
 /**

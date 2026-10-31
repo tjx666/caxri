@@ -1,5 +1,6 @@
+import { parseFileLocation } from '@caxri/protocol';
+
 import { isLikelyFilePath, trailingCjkProseOffset } from './terminal-file-candidate';
-import { parseTerminalFileLocation } from './terminal-file-location';
 import type { TerminalLinkMatch } from './terminal-links';
 
 /**
@@ -101,7 +102,7 @@ export function findQuotedPathLinks(
                 });
             continue;
         }
-        const location = parseTerminalFileLocation(candidate);
+        const location = parseFileLocation(candidate);
         if (location.invalidLocation || !isLikelyFilePath(location.target)) continue;
         const endIndex = startIndex + candidate.length;
         while (urlLinks[urlIndex]?.endIndex <= startIndex) urlIndex += 1;

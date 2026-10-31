@@ -29,8 +29,13 @@ export interface AndroidNodeObservation {
     textMatches?: boolean;
 }
 
-const attribute = (source: string, name: string): string | undefined =>
-    new RegExp(String.raw`\s${name}="([^"]*)"`, 'u').exec(source)?.[1];
+/**
+ * UIAutomator single-quotes a value that contains a double quote, such as `text='Session "Untitled".'`.
+ */
+const attribute = (source: string, name: string): string | undefined => {
+    const match = new RegExp(String.raw`\s${name}=(?:"([^"]*)"|'([^']*)')`, 'u').exec(source);
+    return match?.[1] ?? match?.[2];
+};
 
 const decodeXmlAttribute = (value: string): string =>
     value.replaceAll(/&(?:#(?:x[\da-fA-F]+|\d+)|amp|apos|gt|lt|quot);/gu, (entity) => {

@@ -156,7 +156,7 @@ describe('pnpm workspace contract', () => {
         expect(serverManifest.dependencies?.['@caxri/mobile-transport']).toBe('workspace:*');
         expect(mobileTransportManifest.dependencies ?? {}).not.toHaveProperty('@caxri/system');
         expect(appBoundaries.find(({ id }) => id === 'mobile')).toMatchObject({
-            allowedPackages: ['mobile-transport', 'protocol'],
+            allowedPackages: ['markdown', 'mobile-transport', 'protocol'],
             root: 'apps/mobile',
             testAllowedPackages: ['utils'],
         });
