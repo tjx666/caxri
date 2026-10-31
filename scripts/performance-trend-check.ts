@@ -1,6 +1,6 @@
 /**
- * CLI entrypoint for the gradual-creep trend check: reads a directory of already-downloaded `renderer-performance.json`
- * receipts (one per recent runner CI run) and `scripts/performance-baseline.json`, then reports
+ * CLI entrypoint for the gradual-creep trend check: reads a directory of already-downloaded benchmark receipts named
+ * `--receipt-name` (default `renderer-performance.json`, one per recent runner CI run) and their baseline, then reports
  * `scripts/performance-trend.ts`'s verdict as a step summary table and a non-zero exit code on alarm.
  *
  * This is a lightweight GitHub-hosted-runner tool: fetching artifacts through the REST API and comparing two small JSON
@@ -19,7 +19,11 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 
 import type { PerformanceBaseline } from './performance-baseline';
-import { findReceiptFiles, flattenNumericMetrics } from './performance-baseline';
+import {
+    DEFAULT_RECEIPT_NAME,
+    findReceiptFiles,
+    flattenNumericMetrics,
+} from './performance-baseline';
 import {
     DEFAULT_TREND_ALARM_RATIO,
     DEFAULT_TREND_WINDOW_SIZE,
@@ -33,6 +37,10 @@ export interface CliOptions {
     alarmRatio: number;
     baseline: string;
     metrics: readonly string[];
+    /**
+     * File name collected under `--receipts-dir`, so each benchmark's receipts compare with their own baseline.
+     */
+    receiptName: string;
     receiptsDir: string;
     windowSize: number;
 }
@@ -47,6 +55,11 @@ function applyTrendFlag(options: CliOptions, flag: string, value: string | undef
         case '--receipts-dir': {
             if (!value) throw new Error('--receipts-dir requires a value');
             options.receiptsDir = value;
+            break;
+        }
+        case '--receipt-name': {
+            if (!value) throw new Error('--receipt-name requires a value');
+            options.receiptName = value;
             break;
         }
         case '--window': {
@@ -75,6 +88,7 @@ export function parseArguments(argv: string[]): CliOptions {
         alarmRatio: DEFAULT_TREND_ALARM_RATIO,
         baseline: 'scripts/performance-baseline.json',
         metrics: TREND_ELIGIBLE_METRICS,
+        receiptName: DEFAULT_RECEIPT_NAME,
         receiptsDir: '',
         windowSize: DEFAULT_TREND_WINDOW_SIZE,
     };
@@ -103,16 +117,17 @@ async function readBaseline(path: string): Promise<PerformanceBaseline | undefin
 }
 
 /**
- * Reads every `renderer-performance.json` receipt under `receiptsDir` and collects each eligible metric's values.
- * Receipt order does not matter: `evaluatePerformanceTrend` only computes a median over whatever is handed to it, so
- * "recent" is entirely the responsibility of the caller that populated `receiptsDir` (the workflow's `gh run download`
- * step, which fetches the N most recently created matching artifacts).
+ * Reads every `receiptName` receipt under `receiptsDir` and collects each eligible metric's values. Receipt order does
+ * not matter: `evaluatePerformanceTrend` only computes a median over whatever is handed to it, so "recent" is entirely
+ * the responsibility of the caller that populated `receiptsDir` (the workflow's `gh run download` step, which fetches
+ * the N most recently created matching artifacts).
  */
 async function readRecentValues(
     receiptsDirectory: string,
+    receiptName: string,
     metrics: readonly string[],
 ): Promise<Record<string, number[]>> {
-    const receiptPaths = await findReceiptFiles(resolve(receiptsDirectory));
+    const receiptPaths = await findReceiptFiles(resolve(receiptsDirectory), receiptName);
     const recentValuesByMetric: Record<string, number[]> = Object.fromEntries(
         metrics.map((metric) => [metric, []]),
     );
@@ -140,7 +155,11 @@ async function writeSummary(markdown: string): Promise<void> {
 async function main(): Promise<void> {
     const options = parseArguments(process.argv.slice(2));
     const baseline = await readBaseline(options.baseline);
-    const recentValuesByMetric = await readRecentValues(options.receiptsDir, options.metrics);
+    const recentValuesByMetric = await readRecentValues(
+        options.receiptsDir,
+        options.receiptName,
+        options.metrics,
+    );
 
     const result = evaluatePerformanceTrend(recentValuesByMetric, baseline, {
         windowSize: options.windowSize,

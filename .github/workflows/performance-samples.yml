@@ -1,0 +1,172 @@
+name: Performance samples
+
+# Dispatch-only collector of same-image performance receipts for deriving a baseline (docs/ci-performance.md,
+# "Collecting baseline samples"). `ci.yml`'s `e2e-perf` job is the only other producer and costs a full hosted-full
+# run (8 macOS runners, about 35 minutes) per receipt. Here every matrix entry is one independent `macos-15` runner
+# that builds once and runs only the selected benchmark, so 40 receipts take one parallel wave. It never becomes a
+# pull-request check and never gates anything: it only uploads receipts.
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: Number of independent runner samples to collect
+        required: true
+        default: '20'
+        type: choice
+        options: ['10', '20', '40']
+      benchmark:
+        description: Benchmark whose receipt each sample uploads
+        required: true
+        default: agent-chat-switch
+        type: choice
+        options: [agent-chat-switch, renderer, both]
+
+concurrency:
+  group: performance-samples
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan samples
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      samples: ${{ steps.plan.outputs.samples }}
+    steps:
+      - id: plan
+        env:
+          CAXRI_SAMPLE_COUNT: ${{ inputs.samples }}
+        run: |
+          set -euo pipefail
+          [[ "$CAXRI_SAMPLE_COUNT" =~ ^(10|20|40)$ ]]
+          echo "samples=$(seq -s, 1 "$CAXRI_SAMPLE_COUNT" | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+
+  sample:
+    name: sample-${{ matrix.sample }}
+    needs: [plan]
+    timeout-minutes: 30
+    # The same runner image as `ci.yml`'s `e2e-perf` job, so the receipts derive a baseline `e2e-perf` can compare against.
+    runs-on: macos-15
+    strategy:
+      # One failed sample must not cancel the others; the derivation tolerates missing samples.
+      fail-fast: false
+      matrix:
+        sample: ${{ fromJSON(needs.plan.outputs.samples) }}
+    env:
+      CAXRI_E2E_AGENT_MODE: blocked
+      CAXRI_E2E_PARALLEL_WORKERS: '3'
+      CAXRI_E2E_PROFILE: optimized
+      CAXRI_E2E_RUNNER_KIND: github-hosted
+      CAXRI_E2E_RUNNER_REASON: performance-samples
+      CAXRI_EXPECTED_HEAD: ${{ github.sha }}
+      CAXRI_CHECKS_REVISION: ${{ github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - name: Prepare hosted E2E temporary root
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          test ! -e "$temporary_root"
+          test ! -L "$temporary_root"
+          umask 077
+          mkdir "$temporary_root"
+          printf '%s\n' "$owner" > "$temporary_root/.caxri-owner"
+          {
+            echo "TEMP=$temporary_root"
+            echo "TMP=$temporary_root"
+            echo "TMPDIR=$temporary_root"
+          } >> "$GITHUB_ENV"
+      - id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify privileged dispatch trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.actor }}
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+          install-playwright-shell: 'true'
+          install-media-tools: 'true'
+      # `benchmark:renderer` builds the React profiling bundles itself, exactly as `e2e-perf` runs it.
+      - name: Run Renderer performance benchmark
+        id: renderer-performance
+        if: inputs.benchmark != 'agent-chat-switch'
+        run: bun run benchmark:renderer
+      # Alone, `benchmark:chat-switch` builds the same profiling bundles and runs the spec. After the Renderer
+      # benchmark it reuses that build, as `e2e-perf` does; the spec rejects any other build mode, so a failed Renderer
+      # build fails here rather than measuring the wrong Renderer. A Renderer failure must not skip this sample.
+      - name: Run Agent Chat switch performance benchmark (own build)
+        id: agent-chat-switch-build
+        if: inputs.benchmark == 'agent-chat-switch'
+        run: bun run benchmark:chat-switch
+      - name: Run Agent Chat switch performance benchmark (shared build)
+        id: agent-chat-switch-shared
+        if: always() && inputs.benchmark == 'both' && steps.setup.outcome == 'success'
+        env:
+          CAXRI_AGENT_CHAT_SWITCH_BENCHMARK: '1'
+          CAXRI_E2E_OUTPUT_DIR: test-results/agent-chat-switch-performance
+        run: bunx playwright test e2e/agent-chat-switch.performance.e2e.ts
+      # A failed assertion still leaves the numeric receipt the spec writes before asserting, so upload regardless and
+      # let the benchmark step above own the job result.
+      - name: Prepare public receipts
+        id: prepare-public-receipts
+        if: always() && steps.setup.outcome == 'success'
+        run: bun run scripts/prepare-public-e2e-receipts.ts
+      - name: Upload Renderer performance receipt
+        if: >-
+          always() &&
+          steps.prepare-public-receipts.outcome == 'success' &&
+          inputs.benchmark != 'agent-chat-switch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: renderer-performance-receipt-sample-${{ matrix.sample }}
+          path: test-results/public-receipts/renderer-performance.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload Agent Chat switch performance receipt
+        if: >-
+          always() &&
+          steps.prepare-public-receipts.outcome == 'success' &&
+          inputs.benchmark != 'renderer'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-chat-switch-performance-receipt-sample-${{ matrix.sample }}
+          path: test-results/public-receipts/agent-chat-session-switch.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove hosted E2E temporary root
+        if: always()
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          if [[ -e "$temporary_root" || -L "$temporary_root" ]]; then
+            test -d "$temporary_root"
+            test ! -L "$temporary_root"
+            test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
+            rm -rf -- "$temporary_root"
+          fi

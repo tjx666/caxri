@@ -12,9 +12,10 @@
  *   contributing exactly one sample per metric.
  *
  * `--input` is repeatable (one file per flag). `--input-dir` is the ergonomic alternative for arming from many
- * downloaded runner receipts at once: it recursively finds every `renderer-performance.json` under the given directory
- * (matching the layout `gh run download <run-id> --name renderer-performance-receipt --dir <dir>` produces, one receipt
- * per downloaded run) and adds each as an input. `--input` and `--input-dir` are both repeatable and can be combined.
+ * downloaded runner receipts at once: it recursively finds every receipt named `--receipt-name` (default
+ * `renderer-performance.json`; `agent-chat-session-switch.json` for the Agent Chat switch benchmark) under the given
+ * directory (matching the layout `gh run download <run-id> --name <artifact> --dir <dir>` produces, one receipt per
+ * downloaded run) and adds each as an input. `--input` and `--input-dir` are both repeatable and can be combined.
  *
  * `--source local` always writes `armed: false`: a Mac sampled locally, shared with sibling agent sessions, is evidence
  * for the statistical method, never a stand-in for the target CI runner image's own noise. `--source runner` requires
@@ -32,6 +33,7 @@ import {
     DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS,
     DEFAULT_PERFORMANCE_RELATIVE_MARGIN,
     DEFAULT_PERFORMANCE_THRESHOLD_K,
+    DEFAULT_RECEIPT_NAME,
     derivePerformanceMetricBaseline,
     findReceiptFiles,
     flattenNumericMetrics,
@@ -48,6 +50,10 @@ export interface CliOptions {
     metrics?: string[];
     out: string;
     provenance?: string;
+    /**
+     * File name `--input-dir` collects, so each benchmark's receipts derive their own baseline.
+     */
+    receiptName: string;
     relativeMargin: number;
     source: 'local' | 'runner';
     spec: string;
@@ -63,6 +69,11 @@ function applyDeriveFlag(options: CliOptions, flag: string, value: string | unde
         case '--input-dir': {
             if (!value) throw new Error('--input-dir requires a value');
             options.inputDirs.push(value);
+            break;
+        }
+        case '--receipt-name': {
+            if (!value) throw new Error('--receipt-name requires a value');
+            options.receiptName = value;
             break;
         }
         case '--out': {
@@ -120,6 +131,7 @@ export function parseArguments(argv: string[]): CliOptions {
         inputs: [],
         k: DEFAULT_PERFORMANCE_THRESHOLD_K,
         out: 'scripts/performance-baseline.json',
+        receiptName: DEFAULT_RECEIPT_NAME,
         relativeMargin: DEFAULT_PERFORMANCE_RELATIVE_MARGIN,
         source: 'local',
         spec: '',
@@ -197,12 +209,12 @@ async function collectContributions(
 
 export async function resolveInputPaths(options: CliOptions): Promise<string[]> {
     const fromDirectories = await Promise.all(
-        options.inputDirs.map((directory) => findReceiptFiles(directory)),
+        options.inputDirs.map((directory) => findReceiptFiles(directory, options.receiptName)),
     );
     const flattenedFromDirectories = fromDirectories.flat();
     if (options.inputDirs.length > 0 && flattenedFromDirectories.length === 0) {
         throw new Error(
-            `--input-dir found no renderer-performance.json under: ${options.inputDirs.join(', ')}`,
+            `--input-dir found no ${options.receiptName} under: ${options.inputDirs.join(', ')}`,
         );
     }
     return [...options.inputs, ...flattenedFromDirectories];
