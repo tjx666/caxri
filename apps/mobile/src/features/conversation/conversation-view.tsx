@@ -298,7 +298,7 @@ export const ConversationList = <Entry extends { id: string }>({
         fillWithOlder,
         isShort,
         loadOlder: onLoadOlder,
-        onStartReached,
+        readOlderAtTop,
     } = useConversationOlderPages({
         isFollowing: () => follower.isFollowing,
         isPositionedReference,
@@ -326,7 +326,8 @@ export const ConversationList = <Entry extends { id: string }>({
     const onCommitLayout = useCallback((): void => {
         pin();
         onLayoutCommitted();
-    }, [onLayoutCommitted, pin]);
+        readOlderAtTop();
+    }, [onLayoutCommitted, pin, readOlderAtTop]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
@@ -342,8 +343,9 @@ export const ConversationList = <Entry extends { id: string }>({
                 followHoldUntil.current,
             );
             setIsAtBottom(follower.recordScroll(isNearEnd));
+            readOlderAtTop();
         },
-        [follower, setIsAtBottom, spacerReserve],
+        [follower, readOlderAtTop, setIsAtBottom, spacerReserve],
     );
     const onScrollBeginDrag = useCallback((): void => {
         followHoldUntil.current = 0;
@@ -474,8 +476,6 @@ export const ConversationList = <Entry extends { id: string }>({
                         onScroll={onScroll}
                         onScrollBeginDrag={onScrollBeginDrag}
                         onScrollEndDrag={follower.endDrag}
-                        onStartReached={onStartReached}
-                        onStartReachedThreshold={0.25}
                         ref={list}
                         renderItem={renderItem}
                         scrollEventThrottle={32}

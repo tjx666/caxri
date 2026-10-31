@@ -125,22 +125,48 @@ export const shouldFillConversationWithOlder = ({
     contentHeight < viewportHeight;
 
 /**
- * Whether reaching the list's top reads an older page. A short list sits at its top while it follows its end, so only a
- * reader who left the end scrolls back; while following, `shouldFillConversationWithOlder` reads one page at a time
- * instead. A scroll-back reads several pages in a row, and each one shifted the followed rows before the list returned
- * to its end.
+ * How close to the list's top, as a share of the viewport height, the reader must be for an older page to load.
+ */
+const CONVERSATION_TOP_READ_THRESHOLD = 0.25;
+
+/**
+ * Whether the list should read an older page because the reader rests near its top. The check is level-triggered: the
+ * list repeats it on every scroll event and layout commit, so a reader who stays at the top keeps reading pages until
+ * the rows push them out of the top band or nothing older remains. FlashList's `onStartReached` fires only when the
+ * offset enters the band, so a call rejected while a page was loading, or a page too short to leave the band, would
+ * otherwise strand the reader at the load-earlier button.
+ *
+ * A short list sits at its top while it follows its end, so only a reader who left the end reads here; while following,
+ * `shouldFillConversationWithOlder` reads one page at a time instead. A failed page waits for the reader's Retry rather
+ * than reading again on every scroll event.
  */
 export const shouldReadOlderAtConversationTop = ({
+    hasFailed,
     hasOlder,
     isFollowing,
     isLoadingOlder,
     isPositioned,
+    scrollOffset,
+    viewportHeight,
 }: {
+    hasFailed: boolean;
     hasOlder: boolean;
     isFollowing: boolean;
     isLoadingOlder: boolean;
     isPositioned: boolean;
-}): boolean => isPositioned && !isFollowing && hasOlder && !isLoadingOlder;
+    /**
+     * The list's absolute scroll offset, header included.
+     */
+    scrollOffset: number;
+    viewportHeight: number;
+}): boolean =>
+    isPositioned &&
+    !isFollowing &&
+    hasOlder &&
+    !hasFailed &&
+    !isLoadingOlder &&
+    viewportHeight > 0 &&
+    scrollOffset <= viewportHeight * CONVERSATION_TOP_READ_THRESHOLD;
 
 /**
  * Whether the list follows its end after a scroll event. Only the reader's own touch (a drag or the momentum after it)

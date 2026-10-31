@@ -230,7 +230,15 @@ describe('shouldFillConversationWithOlder', () => {
 });
 
 describe('shouldReadOlderAtConversationTop', () => {
-    const base = { hasOlder: true, isFollowing: false, isLoadingOlder: false, isPositioned: true };
+    const base = {
+        hasFailed: false,
+        hasOlder: true,
+        isFollowing: false,
+        isLoadingOlder: false,
+        isPositioned: true,
+        scrollOffset: 40,
+        viewportHeight: 800,
+    };
 
     it('reads an older page once the reader has scrolled back to the top', () => {
         expect(shouldReadOlderAtConversationTop(base)).toBe(true);
@@ -244,6 +252,21 @@ describe('shouldReadOlderAtConversationTop', () => {
         expect(shouldReadOlderAtConversationTop({ ...base, isPositioned: false })).toBe(false);
         expect(shouldReadOlderAtConversationTop({ ...base, hasOlder: false })).toBe(false);
         expect(shouldReadOlderAtConversationTop({ ...base, isLoadingOlder: true })).toBe(false);
+    });
+
+    it('keeps reading while the reader still rests near the top after a page lands', () => {
+        // A page of short rows moves the offset only a little; the reader is still inside the top band.
+        expect(shouldReadOlderAtConversationTop({ ...base, scrollOffset: 120 })).toBe(true);
+        expect(shouldReadOlderAtConversationTop({ ...base, scrollOffset: 200 })).toBe(true);
+    });
+
+    it('stops once the rows push the reader out of the top band', () => {
+        expect(shouldReadOlderAtConversationTop({ ...base, scrollOffset: 201 })).toBe(false);
+    });
+
+    it('waits for Retry after a failed page and for a measured viewport', () => {
+        expect(shouldReadOlderAtConversationTop({ ...base, hasFailed: true })).toBe(false);
+        expect(shouldReadOlderAtConversationTop({ ...base, viewportHeight: 0 })).toBe(false);
     });
 });
 
