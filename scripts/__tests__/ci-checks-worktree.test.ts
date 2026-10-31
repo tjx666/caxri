@@ -7,8 +7,7 @@ import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFetchedCheckout, verifyRevisionProvenance } from '../ci-checks-worktree';
-import { ConcurrentValidationProcesses } from '../ci-concurrent-validation';
+import { verifyRevisionProvenance } from '../ci-checks-worktree';
 
 const execFileAsync = promisify(execFile);
 const fixtureRoots: string[] = [];
@@ -70,7 +69,6 @@ async function driftedSyntheticMergeFixture() {
     return {
         advancedBase,
         detourBase,
-        disposable: join(fixtureRoot, 'disposable'),
         headRevision,
         mergeRevision,
         payloadBase,
@@ -193,48 +191,5 @@ describe('checks worktree synthetic merge provenance', () => {
         await expect(failure).rejects.toThrow(
             'rebase the PR onto the latest base branch and force-push',
         );
-    });
-
-    it('prepares the disposable checkout against the drifted base so React Doctor diffs the real merge base', async () => {
-        const fixture = await driftedSyntheticMergeFixture();
-        const processes = new ConcurrentValidationProcesses();
-        const log = vi.fn();
-
-        await expect(
-            createFetchedCheckout(
-                fixture.disposable,
-                {
-                    baseFetchReference: fixture.payloadBase,
-                    expectedBaseRevision: fixture.payloadBase,
-                    expectedRevision: fixture.mergeRevision,
-                    fetchReference: fixture.mergeRevision,
-                    headRevision: fixture.headRevision,
-                    isMergeRequired: true,
-                    remoteUrl: `file://${fixture.source}`,
-                },
-                fetchEnvironment,
-                {
-                    execFile: (command, arguments_, options) =>
-                        processes.capture(command, arguments_, options),
-                    log,
-                },
-            ),
-        ).resolves.toEqual({
-            baseDrift: {
-                mergeReferenceBase: fixture.advancedBase,
-                payloadBase: fixture.payloadBase,
-            },
-            baseRevision: fixture.advancedBase,
-            revision: fixture.mergeRevision,
-        });
-        expect(await git(fixture.disposable, 'rev-parse', 'HEAD')).toBe(fixture.mergeRevision);
-        expect(await git(fixture.disposable, 'merge-base', fixture.advancedBase, 'HEAD')).toBe(
-            fixture.advancedBase,
-        );
-        expect(
-            log.mock.calls.some(([message]) =>
-                String(message).startsWith('CAXRI_CHECKS_BASE_DRIFT '),
-            ),
-        ).toBe(true);
     });
 });

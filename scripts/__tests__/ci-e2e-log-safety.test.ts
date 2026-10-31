@@ -69,12 +69,13 @@ describe('public Actions E2E log boundary', () => {
         expect(ci.jobs.e2e.env?.PW_TEST_REPORTER).toBe('');
         expect(release.jobs.rehearsal.env?.PW_TEST_REPORTER).toBe('');
         expect(release.jobs.release.env?.PW_TEST_REPORTER).toBe('');
-        expect(valuesForKey(ci, 'PW_TEST_REPORTER')).toEqual(['', '']);
+        expect(ci.jobs['e2e-parallel'].env?.PW_TEST_REPORTER).toBe('');
+        expect(ci.jobs['e2e-perf'].env?.PW_TEST_REPORTER).toBe('');
+        expect(valuesForKey(ci, 'PW_TEST_REPORTER')).toEqual(['', '', '', '']);
         expect(valuesForKey(release, 'PW_TEST_REPORTER')).toEqual(['', '']);
-        expect(reporterEnvironmentLines(ciSource)).toEqual([
-            "PW_TEST_REPORTER: ''",
-            "PW_TEST_REPORTER: ''",
-        ]);
+        expect(reporterEnvironmentLines(ciSource)).toEqual(
+            Array.from({ length: 4 }, () => "PW_TEST_REPORTER: ''"),
+        );
         expect(reporterEnvironmentLines(releaseSource)).toEqual([
             "PW_TEST_REPORTER: ''",
             "PW_TEST_REPORTER: ''",
@@ -114,7 +115,7 @@ describe('public Actions E2E log boundary', () => {
                 ),
             ),
         );
-        expect(directWorkflowRuns).toHaveLength(3);
+        expect(directWorkflowRuns).toHaveLength(4);
         for (const run of directWorkflowRuns) expect(run).not.toMatch(alternateConfigPattern);
     });
 

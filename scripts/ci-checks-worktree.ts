@@ -1,21 +1,16 @@
-#!/usr/bin/env bun
+/**
+ * Revision provenance for the `checks` job's synthetic PR merge ref: verifies the merge commit's parents against the PR
+ * base and head, and tolerates a base branch that advanced while the run was queued.
+ */
 
 import { Buffer } from 'node:buffer';
-import { access, appendFile, mkdir, rm, symlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import process from 'node:process';
 
-import { checksWorktreeSetupCommands } from './ci-checks-worktree-setup';
-import { platformChecksEnvironment, sanitizedChildEnvironment } from './ci-child-environment';
-import { execFileAsync, runChildProcess } from './exec';
+import { sanitizedChildEnvironment } from './ci-child-environment';
+import { execFileAsync } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-
-interface ChecksWorktreeOperations {
-    execFile?: CaptureProcess;
-    log?: (message: string) => void;
-    runChildProcess?: typeof runChildProcess;
-}
 
 interface SyntheticMergeBaseDrift {
     /**
@@ -31,7 +26,7 @@ interface SyntheticMergeBaseDrift {
 interface RevisionProvenance {
     baseDrift?: SyntheticMergeBaseDrift;
     /**
-     * The base the checks worktree must diff against; the merge ref's own base once drift is verified.
+     * The base the checks job must diff against; the merge ref's own base once drift is verified.
      */
     baseRevision: string;
 }
@@ -67,22 +62,11 @@ function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): strin
     return value;
 }
 
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
-export function checksWorktreePath(environment: NodeJS.ProcessEnv): string {
-    const temporaryRoot = resolve(requiredEnvironment(environment, 'TMPDIR'));
-    const owner = requiredEnvironment(environment, 'CAXRI_RUNNER_OWNER');
-    if (!/^caxri-\d+-\d+-e2e$/u.test(owner)) throw new Error('Invalid E2E runner owner');
-    if (temporaryRoot !== join('/private/tmp', owner)) {
-        throw new Error('E2E TMPDIR does not match the owned short temporary path');
-    }
-    return join(temporaryRoot, 'synthetic-merge-checks');
-}
-
 /**
  * Supplies GitHub's job token to one fetch through command-scoped Git configuration. The exact-head checkout
  * deliberately removes persisted credentials, so the token must not be written back into the repository config.
  */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
+
 export function authenticatedGitEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     const existingCount = environment.GIT_CONFIG_COUNT ?? '0';
     if (!/^\d+$/u.test(existingCount) || Number(existingCount) > 32) {
@@ -97,31 +81,6 @@ export function authenticatedGitEnvironment(environment: NodeJS.ProcessEnv): Nod
         [`GIT_CONFIG_KEY_${index}`]: 'http.https://github.com/.extraheader',
         [`GIT_CONFIG_VALUE_${index}`]: `AUTHORIZATION: basic ${authorization}`,
     };
-}
-
-async function isPathPresent(path: string): Promise<boolean> {
-    try {
-        await access(path);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Exact-head E2E uses a shallow checkout, so GitHub's synthetic PR merge commit may not exist in the local object
- * database. Fetch only the already validated immutable SHA before creating the detached checks worktree; push runs
- * normally take the fast path because HEAD already owns it.
- */
-function validateFetchReference(value: string): string {
-    if (
-        /^[0-9a-f]{40}$/u.test(value) ||
-        /^refs\/pull\/\d+\/merge$/u.test(value) ||
-        /^refs\/heads\/[A-Za-z0-9][\w./-]*$/u.test(value)
-    ) {
-        return value;
-    }
-    throw new Error('Invalid checks fetch ref');
 }
 
 async function isCommitAvailable(
@@ -142,6 +101,13 @@ async function isCommitAvailable(
     }
 }
 
+/**
+ * A fetch starts git's detached auto-maintenance, whose `gc` rewrites `.git/shallow` while the next deepening fetch
+ * runs, failing it with "shallow file has changed since we read it" (#1869, hosted-full run 41224291826). This
+ * throwaway repository never needs maintenance.
+ */
+const FETCH_ARGUMENTS = ['fetch', '--no-auto-maintenance', '--no-tags'];
+
 async function ensureRevisionAvailable(
     expectedRevision: string | undefined,
     fetchReference: string,
@@ -159,7 +125,7 @@ async function ensureRevisionAvailable(
         return expectedRevision;
     }
 
-    await execute('git', ['fetch', '--no-tags', '--depth=1', 'origin', fetchReference], {
+    await execute('git', [...FETCH_ARGUMENTS, '--depth=1', 'origin', fetchReference], {
         cwd: repoRoot,
         env: authenticatedGitEnvironment(environment),
     });
@@ -217,7 +183,7 @@ async function ensureDiffBaseAvailable(
         // eslint-disable-next-line no-await-in-loop -- bounded progressive history fetch avoids a full clone normally
         await execute(
             'git',
-            ['fetch', '--no-tags', `--deepen=${deepenBy}`, 'origin', revision, baseRevision],
+            [...FETCH_ARGUMENTS, `--deepen=${deepenBy}`, 'origin', revision, baseRevision],
             { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
         );
         // eslint-disable-next-line no-await-in-loop -- re-check after each bounded deepening step
@@ -231,7 +197,7 @@ async function ensureDiffBaseAvailable(
         if (stdout.trim() === 'true') {
             await execute(
                 'git',
-                ['fetch', '--no-tags', '--unshallow', 'origin', revision, baseRevision],
+                [...FETCH_ARGUMENTS, '--unshallow', 'origin', revision, baseRevision],
                 { cwd: repoRoot, env: authenticatedGitEnvironment(environment) },
             );
             mergeBase = await readMergeBase(revision, baseRevision, repoRoot, environment, execute);
@@ -271,7 +237,7 @@ function staleSyntheticMergeError(input: {
  * whenever another PR lands while this run is queued, and the merge ref still contains the reviewed head, so a
  * forward-only base drift continues with the merge ref's real base instead of aborting. Tracked in #609.
  */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested with a depth-one synthetic merge clone
+
 export async function verifyRevisionProvenance(
     revision: string,
     baseRevision: string,
@@ -362,205 +328,3 @@ export async function verifyRevisionProvenance(
     );
     return { baseDrift, baseRevision: mergeReferenceBase };
 }
-
-/**
- * Fetches both immutable revisions directly into an owned repository. Reusing the E2E checkout's object database is
- * unsafe because a shared clone does not carry its shallow/promisor metadata and can report `unable to read tree` for a
- * valid synthetic merge. The command-scoped token is removed with the remote before repository scripts execute.
- */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- regression-tested with a depth-one E2E source checkout
-export async function createFetchedCheckout(
-    path: string,
-    options: {
-        baseFetchReference: string;
-        expectedBaseRevision?: string;
-        expectedRevision: string;
-        fetchReference: string;
-        headRevision: string;
-        isMergeRequired: boolean;
-        remoteUrl: string;
-    },
-    environment: NodeJS.ProcessEnv = process.env,
-    operations: Pick<ChecksWorktreeOperations, 'execFile' | 'log'> = {},
-): Promise<{ baseDrift?: SyntheticMergeBaseDrift; baseRevision: string; revision: string }> {
-    const execute = operations.execFile ?? captureProcess;
-    const log = operations.log ?? console.log;
-    await execute('git', ['init', path], {
-        cwd: resolve(path, '..'),
-        env: sanitizedChildEnvironment(environment),
-    });
-    await execute('git', ['remote', 'add', 'origin', options.remoteUrl], {
-        cwd: path,
-        env: sanitizedChildEnvironment(environment),
-    });
-    const revision = await ensureRevisionAvailable(
-        options.expectedRevision,
-        options.fetchReference,
-        path,
-        environment,
-        execute,
-    );
-    await execute('git', ['checkout', '--detach', revision], {
-        cwd: path,
-        env: sanitizedChildEnvironment(environment),
-    });
-    const payloadBaseRevision = await ensureRevisionAvailable(
-        options.expectedBaseRevision,
-        options.baseFetchReference,
-        path,
-        environment,
-        execute,
-    );
-    const { baseDrift, baseRevision } = await verifyRevisionProvenance(
-        revision,
-        payloadBaseRevision,
-        options.headRevision,
-        options.isMergeRequired,
-        path,
-        environment,
-        execute,
-        log,
-    );
-    await ensureDiffBaseAvailable(
-        revision,
-        baseRevision,
-        options.isMergeRequired,
-        path,
-        environment,
-        execute,
-    );
-    await execute('git', ['remote', 'remove', 'origin'], {
-        cwd: path,
-        env: sanitizedChildEnvironment(environment),
-    });
-    const { stdout } = await execute('git', ['rev-parse', 'HEAD'], {
-        cwd: path,
-        env: sanitizedChildEnvironment(environment),
-    });
-    if (stdout.trim() !== revision) throw new Error('Checks checkout revision mismatch');
-    return { baseDrift, baseRevision, revision };
-}
-
-async function runInChecksWorktree(
-    worktree: string,
-    label: string,
-    command: string,
-    arguments_: string[],
-    environment: NodeJS.ProcessEnv,
-    execute: typeof runChildProcess,
-): Promise<void> {
-    const result = await execute(
-        'bun',
-        ['run', 'scripts/ci-metrics.ts', '--label', label, '--', command, ...arguments_],
-        { cwd: worktree, env: sanitizedChildEnvironment(environment), stdio: 'inherit' },
-    );
-    if (result !== 0) throw new Error(`${label} failed with exit ${result}`);
-}
-
-async function prepareCaches(worktree: string, environment: NodeJS.ProcessEnv): Promise<void> {
-    const cacheRoot = requiredEnvironment(environment, 'CAXRI_CACHE_ROOT');
-    const cacheDirectory = join(worktree, '.cache');
-    await mkdir(cacheDirectory, { recursive: true });
-    await symlink(join(cacheRoot, 'eslint'), join(cacheDirectory, 'eslint'));
-}
-
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- the concurrent runner overlaps checkout preparation with E2E setup
-export async function prepareChecksWorktree(
-    environment: NodeJS.ProcessEnv = process.env,
-    operations: ChecksWorktreeOperations = {},
-): Promise<{ baseRevision: string; checksEnvironment: NodeJS.ProcessEnv; worktree: string }> {
-    const revision = requiredEnvironment(environment, 'CAXRI_CHECKS_REVISION');
-    if (!/^[0-9a-f]{40}$/u.test(revision)) throw new Error('Invalid CAXRI_CHECKS_REVISION');
-    const headRevision = requiredEnvironment(environment, 'CAXRI_CHECKS_HEAD_REVISION');
-    if (!/^[0-9a-f]{40}$/u.test(headRevision)) throw new Error('Invalid checks head revision');
-    const isMergeRequired = requiredEnvironment(environment, 'CAXRI_CHECKS_REQUIRE_MERGE');
-    if (isMergeRequired !== 'true' && isMergeRequired !== 'false') {
-        throw new Error('Invalid CAXRI_CHECKS_REQUIRE_MERGE');
-    }
-    const worktree = checksWorktreePath(environment);
-    if (await isPathPresent(worktree)) {
-        throw new Error(`Checks worktree already exists: ${worktree}`);
-    }
-
-    const baseRevisionValue = environment.CAXRI_CHECKS_BASE_REVISION?.trim();
-    if (baseRevisionValue && !/^[0-9a-f]{40}$/u.test(baseRevisionValue)) {
-        throw new Error('Invalid checks base revision');
-    }
-    const expectedBaseRevision = baseRevisionValue?.length ? baseRevisionValue : undefined;
-    const execute = operations.execFile ?? captureProcess;
-    const { stdout: remoteOutput } = await execute('git', ['remote', 'get-url', 'origin'], {
-        cwd: projectRoot,
-        env: sanitizedChildEnvironment(environment),
-    });
-    const remoteUrl = remoteOutput.trim();
-    if (!remoteUrl || remoteUrl.includes('\n')) throw new Error('Invalid checks remote URL');
-    const { baseDrift, baseRevision } = await createFetchedCheckout(
-        worktree,
-        {
-            baseFetchReference: validateFetchReference(
-                requiredEnvironment(environment, 'CAXRI_CHECKS_BASE_FETCH_REF'),
-            ),
-            expectedBaseRevision,
-            expectedRevision: revision,
-            fetchReference: validateFetchReference(
-                requiredEnvironment(environment, 'CAXRI_CHECKS_FETCH_REF'),
-            ),
-            headRevision,
-            isMergeRequired: isMergeRequired === 'true',
-            remoteUrl,
-        },
-        environment,
-        { execFile: execute, log: operations.log },
-    );
-
-    await prepareCaches(worktree, environment);
-    for (const command of checksWorktreeSetupCommands()) {
-        // eslint-disable-next-line no-await-in-loop -- each setup command consumes the previous command's outputs
-        await runInChecksWorktree(
-            worktree,
-            command.label,
-            command.command,
-            command.arguments,
-            environment,
-            operations.runChildProcess ?? runChildProcess,
-        );
-    }
-
-    const githubEnvironment = requiredEnvironment(environment, 'GITHUB_ENV');
-    await appendFile(
-        githubEnvironment,
-        `CAXRI_CHECKS_WORKTREE=${worktree}\nCAXRI_REACT_DOCTOR_BASE=${baseRevision}\n`,
-        'utf8',
-    );
-    /**
-     * A base drift is a normal outcome, not a failure, so it would otherwise be visible only by grepping step logs.
-     * Surface it in the job summary so its frequency is measurable without opening each run.
-     */
-    if (baseDrift && environment.GITHUB_STEP_SUMMARY) {
-        await appendFile(
-            environment.GITHUB_STEP_SUMMARY,
-            `- Synthetic merge base drift: payload base \`${baseDrift.payloadBase}\` → merge-ref base \`${baseDrift.mergeReferenceBase}\`; platform checks diffed against the merge-ref base.\n`,
-            'utf8',
-        );
-    }
-    return {
-        baseRevision,
-        checksEnvironment: platformChecksEnvironment(environment, baseRevision),
-        worktree,
-    };
-}
-
-async function remove(): Promise<void> {
-    const worktree = checksWorktreePath(process.env);
-    if (await isPathPresent(worktree)) {
-        await rm(worktree, { recursive: true });
-    }
-}
-
-async function main(): Promise<void> {
-    const [command] = process.argv.slice(2);
-    if (command === 'remove') await remove();
-    else throw new Error('Usage: ci-checks-worktree.ts remove');
-}
-
-if (import.meta.main) await main();

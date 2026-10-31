@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { spawn } from 'node:child_process';
-import { appendFile, readdir, readFile, rm } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
@@ -17,6 +17,8 @@ import {
 import type { E2EPoolInvocation } from '../e2e/support/pools';
 import { createE2EPoolPlan } from '../e2e/support/pools';
 import { writeJsonAtomic } from './atomic-json';
+import { narrowInvocationsToShard, parseE2EShard } from './e2e-pool-shard';
+import { appendPoolSummary } from './e2e-pool-summary';
 import { waitForChildExit } from './exec';
 import type {
     E2EAbortedInvocation,
@@ -77,12 +79,16 @@ export function resolveParallelWorkers(environment: NodeJS.ProcessEnv): number {
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export function parseE2EPool(arguments_: readonly string[]): E2EPool {
+    const hasValidShape =
+        arguments_.length === 2 || (arguments_.length === 4 && arguments_[2] === '--shard');
     if (
-        arguments_.length !== 2 ||
+        !hasValidShape ||
         arguments_[0] !== '--pool' ||
         !['control', 'desktop-exclusive', 'parallel-safe'].includes(arguments_[1])
     ) {
-        throw new Error('Usage: run-e2e-pools.ts --pool <control|parallel-safe|desktop-exclusive>');
+        throw new Error(
+            'Usage: run-e2e-pools.ts --pool <control|parallel-safe|desktop-exclusive> [--shard <index>/<total>]',
+        );
     }
     return arguments_[1] as E2EPool;
 }
@@ -462,73 +468,15 @@ async function assertParallelLeasesReleased(parallelWorkers: number): Promise<vo
     });
 }
 
-async function appendSummary(
-    plan: ReturnType<typeof createE2EPoolPlan>,
-    pool: E2EPool,
-    receipt: E2EPoolReceipt,
-    result: number,
-    parallelWorkers: number,
-): Promise<void> {
-    const summary = process.env.GITHUB_STEP_SUMMARY;
-    if (!summary) return;
-    const invocations =
-        pool === 'control'
-            ? [
-                  {
-                      specs: [...plan.parallelSafe, ...plan.desktopExclusive].toSorted(
-                          (left, right) => left.localeCompare(right),
-                      ),
-                  },
-              ]
-            : pool === 'parallel-safe'
-              ? plan.parallelSafeInvocations
-              : plan.desktopExclusiveInvocations;
-    const specs = new Set(invocations.flatMap((invocation) => invocation.specs)).size;
-    const workers = pool === 'parallel-safe' ? parallelWorkers : 1;
-    await appendFile(
-        summary,
-        [
-            '## E2E pool execution',
-            '',
-            '| Pool | Specs | Planned | Started | Finished | Passed | Skipped | Failed | Timeout | Unknown | Workers | Result |',
-            '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
-            `| \`${pool}\` | ${specs} | ${receipt.planned} | ${receipt.started} | ${receipt.finished} | ${receipt.passed} | ${receipt.skipped} | ${receipt.failed} | ${receipt.timedOut} | ${receipt.unknown} | ${workers} | ${result === 0 ? 'passed' : 'failed'} |`,
-            '',
-            ...slowestSpecSummary(receipt, workers),
-        ].join('\n'),
-    );
-}
-
-/**
- * The ten costliest specs, so the next balancing decision reads a receipt instead of reconstructing durations from
- * job-log timestamps. `share` is the spec's cost against the pool's own serial total, which is the number that matters
- * when deciding what to move between pools; on a multi-worker pool the serial total deliberately exceeds wall time.
- */
-function slowestSpecSummary(receipt: E2EPoolReceipt, workers: number): string[] {
-    const ranked = [...receipt.specs].toSorted((left, right) => right.durationMs - left.durationMs);
-    if (ranked.length === 0) return [];
-    const serialTotal = ranked.reduce((total, { durationMs }) => total + durationMs, 0);
-    const seconds = (value: number): string => `${(value / 1000).toFixed(1)}s`;
-    return [
-        `<details><summary>Slowest specs (${seconds(serialTotal)} across ${ranked.length} specs, ${workers} worker${workers === 1 ? '' : 's'})</summary>`,
-        '',
-        '| Spec | Duration | Share |',
-        '| --- | ---: | ---: |',
-        ...ranked
-            .slice(0, 10)
-            .map(
-                (spec) =>
-                    `| \`${spec.path.replace(/^.*\/e2e\//u, 'e2e/')}\` | ${seconds(spec.durationMs)} | ${serialTotal === 0 ? '0.0' : ((spec.durationMs / serialTotal) * 100).toFixed(1)}% |`,
-            ),
-        '',
-        '</details>',
-        '',
-    ];
-}
-
 async function main(): Promise<void> {
     installAbortHandlers();
     const pool = parseE2EPool(process.argv.slice(2));
+    const shard = parseE2EShard(process.argv.slice(2));
+    if (shard && pool === 'control') {
+        throw new Error(
+            'The control E2E pool runs whole; only the parallel-safe and desktop-exclusive pools can be sharded',
+        );
+    }
     /**
      * Every pool hands Playwright an explicit spec list, which the `globalSetup` guard reads as a focused run. Refuse
      * here instead, or this script is an unguarded path to the full Electron suite.
@@ -540,6 +488,10 @@ async function main(): Promise<void> {
     }
     const parallelWorkers = resolveParallelWorkers(process.env);
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
+    const shardedInvocations = async (
+        whole: readonly E2EPoolInvocation[],
+    ): Promise<E2EPoolInvocation[]> =>
+        shard ? narrowInvocationsToShard(whole, shard, projectRoot) : [...whole];
     const invocations =
         pool === 'control'
             ? [
@@ -550,8 +502,8 @@ async function main(): Promise<void> {
                   },
               ]
             : pool === 'parallel-safe'
-              ? plan.parallelSafeInvocations
-              : plan.desktopExclusiveInvocations;
+              ? await shardedInvocations(plan.parallelSafeInvocations)
+              : await shardedInvocations(plan.desktopExclusiveInvocations);
     let execution: { receipt: E2EPoolReceipt; result: number };
     if (pool === 'parallel-safe') {
         const coordinator = await acquireDesktopLease(
@@ -573,7 +525,19 @@ async function main(): Promise<void> {
     } else {
         execution = await runPool(invocations, pool, 1);
     }
-    await appendSummary(plan, pool, execution.receipt, execution.result, parallelWorkers);
+    await appendPoolSummary(
+        plan,
+        pool,
+        execution.receipt,
+        execution.result,
+        parallelWorkers,
+        shard,
+    );
+    if (shard) {
+        process.stdout.write(
+            `CAXRI_E2E_SHARD ${JSON.stringify({ planned: execution.receipt.planned, pool, shard: `${shard.index}/${shard.total}`, specs: execution.receipt.specs.length })}\n`,
+        );
+    }
     if (execution.result !== 0) process.exitCode = 1;
 }
 
