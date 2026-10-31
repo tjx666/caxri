@@ -165,9 +165,18 @@ function SessionCreationMenu({
      * tooltip would only cover its first row, the same reason the tab strip's `+` shows none in that case. The Tooltip
      * wraps the trigger element here rather than this component, because Base UI's tooltip trigger reaches its child
      * through `render` and a plain function component drops the props it injects.
+     *
+     * Hover opens the heading's list beside the side bar 100ms before the tooltip appears, so the two are on screen
+     * together: the tooltip sits on the opposite (left) edge and never flips back across the list. The default bottom
+     * edge was shifted sideways by the side bar's right edge and drawn over the list's first rows.
      */
     const triggerWithTooltip = splitLabel ? (
-        <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
+        <Tooltip
+            content={splitLabel}
+            keepSide={anchor === 'heading'}
+            shortcut={sessionCreateShortcut}
+            side={anchor === 'heading' ? 'left' : undefined}
+        >
             {menuTrigger}
         </Tooltip>
     ) : (

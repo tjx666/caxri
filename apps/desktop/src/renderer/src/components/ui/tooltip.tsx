@@ -29,6 +29,7 @@ type TooltipSide = 'bottom' | 'left' | 'right' | 'top';
  */
 interface TooltipPayload {
     content: ReactNode;
+    keepSide: boolean;
     shortcut: string | undefined;
     side: TooltipSide;
 }
@@ -142,6 +143,11 @@ function TooltipHost({ handle, hoverOnly }: { handle: TooltipHandle; hoverOnly?:
                     <TooltipPrimitive.Portal>
                         <TooltipPrimitive.Positioner
                             className={POSITIONER_CLASS}
+                            collisionAvoidance={
+                                payload.keepSide
+                                    ? { side: 'none', align: 'shift', fallbackAxisSide: 'none' }
+                                    : undefined
+                            }
                             side={payload.side}
                             sideOffset={6}
                         >
@@ -222,6 +228,7 @@ export function Tooltip({
     content,
     disabled,
     hoverOnly,
+    keepSide = false,
     shortcut,
     side = 'bottom',
     triggerId,
@@ -245,6 +252,12 @@ export function Tooltip({
      * text is already in the trigger's accessible name, so a screen reader still hears it.
      */
     hoverOnly?: boolean;
+    /**
+     * Holds an element-anchored tooltip on `side` instead of flipping it to the opposite edge when space runs short; it
+     * narrows and wraps instead. For a trigger whose opposite edge is already taken by its own popup, such as a menu
+     * that opens on hover beside it, where a flipped tooltip would land on that menu.
+     */
+    keepSide?: boolean;
     shortcut?: string;
     /**
      * The trigger edge an element-anchored tooltip opens from; a cursor-anchored one always sits beside the pointer.
@@ -265,7 +278,10 @@ export function Tooltip({
      * Stable while its parts are: Base UI copies the payload into the shared store, and a fresh object per render would
      * re-render the open popup's Root for every trigger that re-renders.
      */
-    const payload = useMemo(() => ({ content, shortcut, side }), [content, shortcut, side]);
+    const payload = useMemo(
+        () => ({ content, keepSide, shortcut, side }),
+        [content, keepSide, shortcut, side],
+    );
     // A tree outside any TooltipProvider (a detached React root) has no Root to open, so it renders the bare trigger.
     if (!hosts) return children;
     const isCursorMode = anchorMode === 'cursor';

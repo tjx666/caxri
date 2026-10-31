@@ -83,3 +83,39 @@ test('Project actions reveal on hover or focus', async () => {
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('the heading New Session tooltip stays clear of the list it opens beside it', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-primary-sidebar-tooltip-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        // The remembered Agent turns the button into a split whose press is named by a tooltip.
+        const newSession = running.page
+            .locator('.project-heading')
+            .getByRole('button', { name: /^New .+ Session in project$/u });
+        /**
+         * Hover opens the list 100ms before the tooltip, so the two always share the screen. A synthesized hover is
+         * unreliable on CI, so focus raises the tooltip and ArrowDown opens the list; the tooltip is measured first
+         * because ArrowDown highlights the first row, whose own tooltip then takes the shared popup.
+         */
+        await newSession.focus();
+        const tooltip = running.page.locator('.tooltip-popup', { hasText: /^New .+ Session/u });
+        await expect(tooltip).toBeVisible();
+        const tooltipBox = await tooltip.boundingBox();
+        await newSession.press('ArrowDown');
+        const menu = running.page.getByRole('menu', { name: /^New Session in /u });
+        await expect(menu).toBeVisible();
+        const menuBox = await menu.boundingBox();
+        expect(tooltipBox).not.toBeNull();
+        expect(menuBox).not.toBeNull();
+        // The list opens on the trigger's right, so the tooltip must end left of it rather than cross it.
+        expect(tooltipBox!.x + tooltipBox!.width).toBeLessThanOrEqual(menuBox!.x);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
