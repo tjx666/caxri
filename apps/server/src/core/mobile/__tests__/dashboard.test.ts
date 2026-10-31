@@ -405,6 +405,7 @@ describe('buildMobileDashboard background work', () => {
             projectId: 'project-1',
             workbenchRootProjectId: 'project-1',
             title: 'Session',
+            createdAt: 1,
             lastVisitedAt: 1,
             sessionActivityAt: 1,
             attentionGeneration: 0,
