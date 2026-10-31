@@ -4,6 +4,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
 import {
+    FAKE_CODEX_BARE_LINK_SUFFIX,
     FAKE_CODEX_INLINE_LINK_PREFIX,
     FAKE_CODEX_WEB_LINK_LABEL,
 } from './fixtures/fake-codex-replies';
@@ -235,6 +236,16 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(done.items.at(-1)).toMatchObject({
             type: 'agentMessage',
             text: `${FAKE_CODEX_INLINE_LINK_PREFIX}<http://10.0.2.2:8123/page?report=1>`,
+        });
+    });
+
+    it('answers weblink bare with the named page as plain text before a CJK full stop', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'weblink bare http://10.0.2.2:8123/page' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.at(-1)).toMatchObject({
+            type: 'agentMessage',
+            text: `http://10.0.2.2:8123/page${FAKE_CODEX_BARE_LINK_SUFFIX}`,
         });
     });
 
