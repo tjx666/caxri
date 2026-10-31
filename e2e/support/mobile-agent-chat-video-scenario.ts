@@ -219,8 +219,10 @@ export async function executeMobileChatVideoScenario(
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await tapMobileCheckByBounds(serial, `agent-chat-message-video-${card}`);
         await waitForCheck(serial, 'agent-chat-video-player');
-        const player = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
-        if (!player) throw new Error('The player is not open');
+        const opened = await mobileSemantics(serial);
+        const player = checkBounds(opened, 'agent-chat-video-player');
+        const close = checkBounds(opened, 'agent-chat-video-player-close');
+        if (!player || !close) throw new Error('The player is not open');
         // The player plays at once and keeps the screen moving, so it is followed by time, not by UIAutomator.
         await pause(3_000);
         await capture(environment, 'playing', artifacts);
@@ -235,7 +237,15 @@ export async function executeMobileChatVideoScenario(
         await recording.stop();
         recording = undefined;
 
-        await tapMobileCheckByBounds(serial, 'agent-chat-video-player-close');
+        // Semantic reads fail while the video moves, so the close button is tapped where it was when the player opened.
+        await pressMediaKey(serial, 'KEYCODE_MEDIA_PAUSE');
+        await waitForStill(serial, player);
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.round((close.left + close.right) / 2)),
+            String(Math.round((close.top + close.bottom) / 2)),
+        ]);
         await waitForNoCheck(serial, 'agent-chat-video-player');
         const after = checkBounds(
             await mobileSemantics(serial),
