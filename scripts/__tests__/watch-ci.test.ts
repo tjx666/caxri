@@ -174,6 +174,32 @@ describe('watch-ci', () => {
             }).title,
         ).toBe('CI cancelled · feat/example');
         expect(
+            formatCiNotification(
+                {
+                    ...run,
+                    workflowName: 'Guards',
+                    jobs: [job('guards', 'completed', 'cancelled')],
+                },
+                ['guards'],
+            ),
+        ).toEqual({
+            title: 'CI cancelled · feat/example',
+            subtitle: 'feat: example change',
+            message: 'Guards cancelled: guards',
+        });
+        expect(
+            formatCiNotification(
+                {
+                    ...run,
+                    jobs: [
+                        job('checks', 'completed', 'failure'),
+                        job('e2e', 'completed', 'cancelled'),
+                    ],
+                },
+                ['checks', 'e2e'],
+            ).title,
+        ).toBe('CI failed · feat/example');
+        expect(
             formatCiNotification({
                 ...run,
                 conclusion: 'success',

@@ -24,13 +24,14 @@
  * Usage: `bun run scripts/watch-ci.ts [--pr <number> [--workflow <name>] | --run <id> | --branch <name> | --sha
  * <commit>] [--quiet]` `--pr` waits for every workflow run of the pull request's current head (only `--workflow`'s,
  * when given) and watches them all, failing fast when the pull request conflicts with its base (GitHub then starts no
- * CI). Defaults to the newest run on the current git branch. `--sha` (full or abbreviated) follows every workflow run
- * of one commit to completion, including runs that only start after another run completes (`on: workflow_run`, read
- * from `.github/workflows/*.yml`): after a release PR merges, `--sha <merge commit>` covers its CI run and the Release
- * macOS run that CI triggers. A run whose jobs are all skipped counts as success, and the failed runs are printed by
- * name. A run that `cancel-in-progress` cancelled because a newer push to the branch contains this commit is replaced
- * by that push's run of the same workflow. It cannot be combined with another selector. Exits 0 when every watched run
- * succeeded, 1 otherwise.
+ * CI); a run cancelled by a newer run of its workflow on the same head (a push followed by marking the draft ready) is
+ * judged by that newer run. Defaults to the newest run on the current git branch. `--sha` (full or abbreviated) follows
+ * every workflow run of one commit to completion, including runs that only start after another run completes (`on:
+ * workflow_run`, read from `.github/workflows/*.yml`): after a release PR merges, `--sha <merge commit>` covers its CI
+ * run and the Release macOS run that CI triggers. A run whose jobs are all skipped counts as success, and the failed
+ * runs are printed by name. A run that `cancel-in-progress` cancelled because a newer push to the branch contains this
+ * commit is replaced by that push's run of the same workflow. It cannot be combined with another selector. Exits 0 when
+ * every watched run succeeded, 1 otherwise.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -44,7 +45,7 @@ import { writeJsonAtomic } from './atomic-json';
 import { execFileAsync } from './exec';
 import type { CliOptions } from './watch-ci-arguments';
 import { parseArguments } from './watch-ci-arguments';
-import { resolvePrRuns } from './watch-ci-pr';
+import { didPrRunsSucceed, resolvePrRuns } from './watch-ci-pr';
 import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
 
 const POLL_INTERVAL_MS = 20_000;
@@ -246,10 +247,19 @@ export function formatCiNotification(
             message: `${workflow} ${state.conclusion === 'skipped' ? 'skipped' : 'succeeded'}`,
         });
     }
-    const outcome =
-        newlyFailed.length > 0 ? 'failed' : (state.conclusion || 'failed').replaceAll('_', ' ');
-    // A cancelled run is usually superseded by a newer push, which `--sha` then follows; it is not a failure.
-    const isCancelled = newlyFailed.length === 0 && state.conclusion === 'cancelled';
+    // A cancelled run or job is usually superseded by a newer run, which `--pr` and `--sha` then follow; it is not a
+    // failure. An early job notification used to say `Guards failed: guards` for a job a newer run had cancelled.
+    const isCancelled =
+        newlyFailed.length > 0
+            ? newlyFailed.every(
+                  (name) => state.jobs.find((job) => job.name === name)?.conclusion === 'cancelled',
+              )
+            : state.conclusion === 'cancelled';
+    const outcome = isCancelled
+        ? 'cancelled'
+        : newlyFailed.length > 0
+          ? 'failed'
+          : (state.conclusion || 'failed').replaceAll('_', ' ');
     return withSubtitle({
         title: `${isCancelled ? 'CI cancelled' : 'CI failed'} · ${target}`,
         message:
@@ -521,9 +531,17 @@ async function main(): Promise<void> {
             );
             process.exit(failed.length === 0 ? 0 : 1);
         }
-        runIds = options.pr
-            ? await resolvePrRuns(options.pr, options.workflow)
-            : [options.run ?? (await resolveRunId(options.branch))];
+        if (options.pr) {
+            const { headSha, runs } = await resolvePrRuns(options.pr, options.workflow);
+            const succeeded = await didPrRunsSucceed(
+                headSha,
+                runs,
+                (runId) => didRunSucceed(runId, options.quiet),
+                options.workflow,
+            );
+            process.exit(succeeded ? 0 : 1);
+        }
+        runIds = [options.run ?? (await resolveRunId(options.branch))];
     } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exit(1);
