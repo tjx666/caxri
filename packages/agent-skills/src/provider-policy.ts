@@ -33,6 +33,10 @@ export const agentSkillProviderIntegrations: Record<
         defaultConfigDirectory: '.codex',
         localSkillsDirectory: '.agents',
     },
+    /**
+     * Antigravity reads skills from its own customization roots, which Caxri has not reviewed yet.
+     */
+    antigravity: null,
 };
 
 export const agentSkillProviderIds = agentProviderIds.filter(

@@ -225,20 +225,26 @@ async function raceStart(
 }
 
 /**
- * Applies the Entry's effort where a provider takes it only after start (Claude Code). Codex and Grok Build already
- * received it at launch; switching again through the listed models keeps the request validated either way.
+ * Applies the Entry's model and effort where a provider takes them only after start: Claude Code's effort, and both for
+ * Antigravity, whose `agy acp` has no model flag. Codex and Grok Build already received them at launch; switching again
+ * through the listed models keeps the request validated either way.
  */
 async function applyEffort(
     session: AgentChatProviderSession,
     snapshot: AgentChatSnapshot,
     entry: BenchmarkEntry,
 ): Promise<void> {
-    if (entry.provider !== 'claude' || !entry.effort || !session.configure) return;
+    const appliesAfterStart =
+        entry.provider === 'antigravity' || (entry.provider === 'claude' && entry.effort);
+    if (!appliesAfterStart || !session.configure) return;
     if (!findAgentChatModel(snapshot.models, entry.model))
         throw new TurnFailure('modelUnavailable', `${entry.model} is not offered by this Agent`);
     try {
         await session.configure(
-            resolveAgentChatModelChange(snapshot, { model: entry.model, effort: entry.effort }),
+            resolveAgentChatModelChange(snapshot, {
+                model: entry.model,
+                ...(entry.effort && { effort: entry.effort }),
+            }),
         );
     } catch (error) {
         throw new TurnFailure(

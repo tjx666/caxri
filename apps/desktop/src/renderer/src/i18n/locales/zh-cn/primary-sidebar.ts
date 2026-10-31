@@ -111,6 +111,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.sessionMenu.takeBackFromBot': '从 Caxri Bot 收回',
     'primarySidebar.sessionMenu.forkSession': '分叉会话',
     'primarySidebar.sessionMenu.forkNeedsChatReason': '以对话方式打开 Agent 后才能分叉对话',
+    'primarySidebar.sessionMenu.forkUnsupportedReason': '此 Agent 不支持分叉对话',
     'primarySidebar.sessionMenu.resumeAgent': '恢复 Agent',
     'primarySidebar.sessionMenu.detachAgent': '分离 Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': '在此会话中关闭“始终允许”',

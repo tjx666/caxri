@@ -243,7 +243,7 @@ export function createServiceHandlers(services: {
                 registerProject,
             );
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
-            return result;
+            return { ...result, callerProvider };
         },
         'agentActions.list': ({ terminalId }) =>
             listAgentActions(

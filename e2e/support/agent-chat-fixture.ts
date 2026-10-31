@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import {
+    fakeAntigravityChatExecutableSource,
     fakeClaudeChatExecutableSource,
     fakeCodexChatExecutableSource,
     fakeGrokChatExecutableSource,
@@ -97,11 +98,27 @@ export function fakeGrokChatAgentMode(directory: string, userData: string) {
 }
 
 /**
+ * A fake Antigravity whose `acp` is the deterministic ACP fixture; conversations persist under `directory`.
+ */
+export function fakeAntigravityChatAgentMode(directory: string, userData: string) {
+    return createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            antigravity: {
+                executableSource: fakeAntigravityChatExecutableSource({
+                    stateDirectory: join(directory, 'antigravity-sessions'),
+                }),
+            },
+        },
+    });
+}
+
+/**
  * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open Agents in Chat toggle on.
  */
 export async function openAgentChat(
     page: Page,
-    label: 'Claude Chat' | 'Codex Chat' | 'Grok Build Chat',
+    label: 'Antigravity Chat' | 'Claude Chat' | 'Codex Chat' | 'Grok Build Chat',
 ) {
     const session = page.locator(VISIBLE_SESSION);
     // With one tab beside a Terminal | Chat toggle, + takes its width only once the pointer reaches the tab bar.

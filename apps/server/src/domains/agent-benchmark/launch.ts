@@ -8,8 +8,8 @@ import { agentProviderCatalog } from '@caxri/protocol';
  * Entry's.
  *
  * Effort travels where each provider accepts it at launch: Codex as a `model_reasoning_effort` config override, Grok
- * Build as `--reasoning-effort`. Claude Code takes effort only after start, so the Attempt applies it through the Chat
- * driver's model switch instead.
+ * Build as `--reasoning-effort`. Claude Code takes effort only after start, and Antigravity both model and effort, so
+ * the Attempt applies them through the Chat driver's model switch instead.
  */
 export function benchmarkLaunchSettings(
     entry: BenchmarkEntry,
@@ -23,6 +23,8 @@ export function benchmarkLaunchSettings(
 }
 
 function modelArguments(provider: AgentProvider, model: string): string[] {
+    // `agy acp` takes the model only through `session/set_config_option`, which the Attempt applies after start.
+    if (provider === 'antigravity') return [];
     return provider === 'codex' ? ['-m', model] : ['--model', model];
 }
 

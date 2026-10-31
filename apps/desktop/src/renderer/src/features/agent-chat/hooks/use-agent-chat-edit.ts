@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useRef, useState } from 'react';
 
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatSnapshot, AgentProviderCatalogEntry } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../../i18n';
 import { forkAgentChat, restoreAgentChatFiles } from '../agent-chat-commands';
@@ -49,9 +49,10 @@ export function useAgentChatEdit(): AgentChatEditActions | undefined {
 
 /**
  * The Chat pane's "Edit from here", "Fork from here", and (when the provider restores files) "Restore code to here"
- * state: the actions its user messages read, the composer handle that starts an edit, and the setter the composer
- * reports the edited message through. The actions derive from the serialized availability table, which a streamed delta
- * leaves equal, so the context value keeps its identity and does not re-render every user message.
+ * state, offered only when the provider can rewind (`chatRewind`): the actions its user messages read, the composer
+ * handle that starts an edit, and the setter the composer reports the edited message through. The actions derive from
+ * the serialized availability table, which a streamed delta leaves equal, so the context value keeps its identity and
+ * does not re-render every user message.
  */
 export function useAgentChatEditActions(
     terminalId: string,
@@ -59,9 +60,17 @@ export function useAgentChatEditActions(
     {
         canFork,
         providerName,
-        supportsRewindFiles,
-    }: { canFork: boolean; providerName: string; supportsRewindFiles: boolean },
+        capabilities,
+    }: {
+        canFork: boolean;
+        providerName: string;
+        capabilities: Pick<
+            AgentProviderCatalogEntry['capabilities'],
+            'chatRewind' | 'chatRewindFiles'
+        >;
+    },
 ) {
+    const { chatRewind: supportsRewind, chatRewindFiles: supportsRewindFiles } = capabilities;
     const composerEdit = useRef<AgentChatComposerEditHandle | null>(null);
     const [editingId, setEditingId] = useState(() => readAgentChatEdit(terminalId)?.itemId);
     const availability = useMemo(
@@ -74,7 +83,7 @@ export function useAgentChatEditActions(
         [availability],
     );
     const editActions = useMemo<AgentChatEditActions | undefined>(() => {
-        if (!table) return;
+        if (!table || !supportsRewind) return;
         return {
             availability: (itemId) => table.get(itemId)?.edit,
             editingId,
@@ -104,6 +113,6 @@ export function useAgentChatEditActions(
                 },
             }),
         };
-    }, [table, editingId, canFork, supportsRewindFiles, terminalId, providerName]);
+    }, [table, editingId, canFork, supportsRewind, supportsRewindFiles, terminalId, providerName]);
     return { composerEdit, editActions, setEditingId };
 }

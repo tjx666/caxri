@@ -50,6 +50,7 @@ vi.mock('../../../stores/workbench', () => ({
 }));
 
 import {
+    chatConversationBlocker,
     copyAgentSessionId,
     copyAgentTranscriptPath,
     detachSession,
@@ -227,5 +228,15 @@ describe('sessionForkBlocker', () => {
         expect(
             sessionForkBlocker({ provider: 'grok', surface: 'chat', agentSessionId: undefined }),
         ).toBe('noConversation');
+    });
+
+    it('says an Agent that cannot fork its conversation is unsupported, though it can still continue elsewhere', () => {
+        const terminal = {
+            provider: 'antigravity',
+            surface: 'chat',
+            agentSessionId: 'c-1',
+        } as const;
+        expect(sessionForkBlocker(terminal)).toBe('unsupported');
+        expect(chatConversationBlocker(terminal)).toBeUndefined();
     });
 });

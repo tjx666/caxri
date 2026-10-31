@@ -24,8 +24,8 @@ interface AgentActionSettingsEditorProperties {
 }
 
 /**
- * Example invocations are literal command syntax and stay untranslated; Grok has no actions, so its placeholder is a
- * translated word instead.
+ * Example invocations are literal command syntax and stay untranslated; Grok and Antigravity have no actions, so their
+ * placeholder is a translated word instead, as is Antigravity's.
  */
 const AGENT_ACTION_INVOCATION_PLACEHOLDERS: Record<
     AgentProvider,
@@ -34,6 +34,7 @@ const AGENT_ACTION_INVOCATION_PLACEHOLDERS: Record<
     claude: { text: '/deploy' },
     codex: { text: '/goal or $commit' },
     grok: { key: 'settings.agentActionsEditor.unavailable' },
+    antigravity: { key: 'settings.agentActionsEditor.unavailable' },
 };
 
 export function AgentActionSettingsEditor({

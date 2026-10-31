@@ -48,6 +48,7 @@ function SeriesSwatch({ result }: { result: ConfigResult }) {
                 'inline-block size-2 flex-none',
                 shape === 'circle' && 'rounded-full',
                 shape === 'diamond' && 'scale-[0.85] rotate-45',
+                shape === 'triangle' && '[clip-path:polygon(50%_0,100%_100%,0_100%)]',
             )}
             style={{ background: seriesColor(result.entry.provider) }}
         />

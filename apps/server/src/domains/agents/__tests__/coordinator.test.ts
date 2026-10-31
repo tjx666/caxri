@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProvider, ServerEvent } from '@caxri/protocol';
-import { agentProviderIds } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -30,11 +30,9 @@ const temporaryDirectories: string[] = [];
 
 function createAgents(snapshot: AgentAdapter['snapshot']): AgentService {
     const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
-    const adapters: Record<AgentProvider, AgentAdapter> = {
-        claude: { provider: 'claude', renameSession, snapshot },
-        codex: { provider: 'codex', renameSession, snapshot },
-        grok: { provider: 'grok', renameSession, snapshot },
-    };
+    const adapters = Object.fromEntries(
+        agentProviderIds.map((provider) => [provider, { provider, renameSession, snapshot }]),
+    ) as Record<AgentProvider, AgentAdapter>;
     return new AgentService(undefined, adapters);
 }
 
@@ -108,13 +106,15 @@ describe('AgentCoordinator', () => {
                 { refreshDelayMs: 5 },
             );
 
+            const terminalId = created.terminal!.id;
             try {
-                coordinator.observeInput(created.terminal!.id, `echo ${provider}\r`);
+                coordinator.observeInput(terminalId, `echo ${provider}\r`);
                 coordinator.observeOutput(created.terminal!.id);
                 await new Promise((resolve) => setTimeout(resolve, 20));
                 expect(snapshot).not.toHaveBeenCalled();
 
-                coordinator.observeInput(created.terminal!.id, `${provider}\r`);
+                const command = `${agentProviderCatalog[provider].executableName}\r`;
+                coordinator.observeInput(terminalId, command);
                 coordinator.observeOutput(created.terminal!.id);
 
                 await expect

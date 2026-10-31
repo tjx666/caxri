@@ -24,7 +24,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | ------------------------------------------------------------------ | ------------------------------------------------------------------- |
 | [activity-view.md](activity-view.md)                               | Activity view: attention queue, excerpts, return hint               |
 | [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                       |
-| [agent-chat.md](agent-chat.md)                                     | Chat Terminals for Codex, Claude Code, and Grok Build               |
+| [agent-chat.md](agent-chat.md)                                     | Chat Terminals for Codex, Claude Code, Grok Build, and Antigravity  |
 | [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries       |
 | [agent-usage-continuation.md](agent-usage-continuation.md)         | Usage-limit recovery, weekly usage guard, continue in another Agent |
 | [caxri-bot.md](caxri-bot.md)                                       | Second-window Codex or Claude Code bot and Agent board              |
@@ -33,6 +33,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [agent-secrets.md](agent-secrets.md)                               | Secrets Agents use through `caxri secret` without seeing them       |
 | [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return          |
 | [airplane-mode.md](airplane-mode.md)                               | Compact, stop every Agent before going offline, resume on return    |
+| [antigravity.md](antigravity.md)                                   | Antigravity (`agy`) terminal and Chat integration                   |
 | [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                        |
 | [architecture-debt.md](architecture-debt.md)                       | Persistent architecture-debt audit ledger                           |
 | [benchmark.md](benchmark.md)                                       | Benchmark tab: one prompt across Agents, models, and efforts        |

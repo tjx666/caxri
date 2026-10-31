@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeChatSettings, codexChatSettings, grokChatSettings } from '../launch-settings';
+import {
+    antigravityChatSettings,
+    claudeChatSettings,
+    codexChatSettings,
+    grokChatSettings,
+} from '../launch-settings';
 
 const launch = (arguments_: string[]) => ({ executable: 'codex', args: arguments_ });
 
@@ -122,5 +127,29 @@ describe('grokChatSettings', () => {
             rootArgs: ['--sandbox', 'workspace', '--permission-mode', 'acceptEdits'],
             agentArgs: ['--model', 'grok-x', '--reasoning-effort', 'high'],
         });
+    });
+});
+
+describe('antigravityChatSettings', () => {
+    it('keeps only the workspace options agy acp accepts and reports the autonomy flag apart', () => {
+        expect(
+            antigravityChatSettings(
+                launch([
+                    '--dangerously-skip-permissions',
+                    '--model',
+                    'gemini-fake',
+                    '--mode',
+                    'plan',
+                    '--sandbox',
+                    '--add-dir',
+                    '/repo/extra',
+                    '--add-dir=/repo/other',
+                ]),
+            ),
+        ).toEqual({
+            args: ['--sandbox', '--add-dir', '/repo/extra', '--add-dir=/repo/other'],
+            isAutonomous: true,
+        });
+        expect(antigravityChatSettings(launch([]))).toEqual({ args: [], isAutonomous: false });
     });
 });

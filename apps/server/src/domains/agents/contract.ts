@@ -219,7 +219,13 @@ export interface AgentProviderDescriptor {
             resumeAgentSessionId?: string;
             version?: string;
         },
-    ): Promise<{ args: string[]; agentSessionId: string }>;
+    ): Promise<{
+        args: string[];
+        /**
+         * Absent when the provider chooses the identity itself and reports it through hooks, as Antigravity does.
+         */
+        agentSessionId?: string;
+    }>;
     delegation?: AgentDelegationAdapter;
     /**
      * Reads content-free persisted finality for one exact native turn, independently of transcript discovery.

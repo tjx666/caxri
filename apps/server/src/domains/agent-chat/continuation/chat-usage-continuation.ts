@@ -11,7 +11,12 @@ import type {
     Principal,
     UsageLimit,
 } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds, CaxriError, toWireError } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    CaxriError,
+    delegationProviderSchema,
+    toWireError,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -274,28 +279,30 @@ export class ChatUsageContinuation {
     }
 
     /**
-     * Every other provider, with why it cannot take the work over now. Whether its sign-in still works is not known
-     * without asking it, so an installed provider is offered.
+     * Every other provider Caxri can delegate to, with why it cannot take the work over now. Whether its sign-in still
+     * works is not known without asking it, so an installed provider is offered.
      */
     async targets(terminalId: string): Promise<AgentChatContinuationTarget[]> {
         const terminal = requireChatTerminal(this.database, terminalId);
         return Promise.all(
-            agentProviderIds.map(async (provider): Promise<AgentChatContinuationTarget> => {
-                if (provider === terminal.provider) return { provider, unavailable: 'current' };
-                const guard = this.options.guards.current(provider);
-                if (guard)
-                    return { provider, unavailable: 'usageLimited', resetsAt: guard.resetsAt };
-                try {
-                    await resolveTerminalExecutable(
-                        provider,
-                        this.options.launchSettings(provider, terminal),
-                        this.options.resolveExecutable,
-                    );
-                    return { provider };
-                } catch {
-                    return { provider, unavailable: 'notInstalled' };
-                }
-            }),
+            delegationProviderSchema.options.map(
+                async (provider): Promise<AgentChatContinuationTarget> => {
+                    if (provider === terminal.provider) return { provider, unavailable: 'current' };
+                    const guard = this.options.guards.current(provider);
+                    if (guard)
+                        return { provider, unavailable: 'usageLimited', resetsAt: guard.resetsAt };
+                    try {
+                        await resolveTerminalExecutable(
+                            provider,
+                            this.options.launchSettings(provider, terminal),
+                            this.options.resolveExecutable,
+                        );
+                        return { provider };
+                    } catch {
+                        return { provider, unavailable: 'notInstalled' };
+                    }
+                },
+            ),
         );
     }
 
@@ -309,9 +316,16 @@ export class ChatUsageContinuation {
      */
     async continueIn(
         terminalId: string,
-        provider: AgentProvider,
+        requested: AgentProvider,
         origin: ContinuationOrigin,
     ): Promise<{ sessionId: string; delegationId: string }> {
+        const delegated = delegationProviderSchema.safeParse(requested);
+        if (!delegated.success)
+            throw new CaxriError(
+                'VALIDATION',
+                `${agentProviderCatalog[requested].displayName} cannot take over a Chat`,
+            );
+        const provider = delegated.data;
         const startedAt = Date.now();
         const terminal = requireChatTerminal(this.database, terminalId);
         const snapshot = this.chat?.states.open(terminalId).projection.snapshot;

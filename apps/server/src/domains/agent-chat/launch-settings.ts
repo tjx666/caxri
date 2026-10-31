@@ -240,3 +240,30 @@ export function grokChatSettings(launch: AgentLaunchSettings): GrokChatSettings 
     if (isAutonomous) agentArguments.unshift('--always-approve');
     return { rootArgs: rootArguments, agentArgs: agentArguments };
 }
+
+const ANTIGRAVITY_SKIP_PERMISSIONS = agentProviderCatalog.antigravity.autonomyArgs[0];
+
+/**
+ * Translates the Antigravity launch settings the user configured for the TUI into `agy acp` arguments: only
+ * `--add-dir`, `--sandbox`, and the autonomy flag carry over, because `agy acp` takes no model, mode, or prompt
+ * options. `isAutonomous` reports the autonomy flag separately so the Chat's permission level can replace it.
+ */
+export function antigravityChatSettings(launch: AgentLaunchSettings): {
+    args: string[];
+    isAutonomous: boolean;
+} {
+    const arguments_ = expandLaunchArguments(launch.args);
+    const kept: string[] = [];
+    let isAutonomous = false;
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const argument = arguments_[index];
+        const isKeptFlag = argument === '--sandbox' || argument.startsWith('--add-dir=');
+        if (argument === ANTIGRAVITY_SKIP_PERMISSIONS) isAutonomous = true;
+        else if (isKeptFlag) kept.push(argument);
+        else if (argument === '--add-dir') {
+            const value = arguments_.at(++index);
+            if (value !== undefined) kept.push(argument, value);
+        }
+    }
+    return { args: kept, isAutonomous };
+}

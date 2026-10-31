@@ -135,6 +135,7 @@ const CONVERSATION_TIMELINE_PROVIDERS: Record<AgentProvider, boolean> = {
     claude: true,
     codex: true,
     grok: false,
+    antigravity: false,
 };
 
 const hasConversationTimeline = (identity: MobileTerminal['kind'] | undefined): boolean =>

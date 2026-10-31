@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatSnapshot, AgentProviderCatalogEntry } from '@caxri/protocol';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
@@ -121,6 +121,14 @@ function sentAction(
     };
 }
 
+/**
+ * The provider catalog capabilities the Chat pane reads.
+ */
+export type AgentChatPaneCapabilities = Pick<
+    AgentProviderCatalogEntry['capabilities'],
+    'chatImages' | 'chatRewind' | 'chatRewindFiles'
+>;
+
 interface AgentChatPaneProperties {
     ariaLabel: string;
     /**
@@ -143,13 +151,10 @@ interface AgentChatPaneProperties {
      */
     providerName: string;
     /**
-     * The provider catalog's `capabilities.chatImages`.
+     * The provider catalog's capabilities: `chatImages` for image attachments, `chatRewind` for "Edit from here" and
+     * "Fork from here", and `chatRewindFiles` for reverting files with an edit.
      */
-    supportsImages: boolean;
-    /**
-     * The provider catalog's `capabilities.chatRewindFiles`: whether "Edit from here" can also revert files.
-     */
-    supportsRewindFiles: boolean;
+    capabilities: AgentChatPaneCapabilities;
     terminalId: string;
 }
 
@@ -165,8 +170,7 @@ export function AgentChatPane({
     isSessionVisible,
     isShown,
     providerName,
-    supportsImages,
-    supportsRewindFiles,
+    capabilities,
     terminalId,
 }: AgentChatPaneProperties) {
     const { t } = useTranslation();
@@ -184,7 +188,7 @@ export function AgentChatPane({
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
-        { canFork, providerName, supportsRewindFiles },
+        { canFork, providerName, capabilities },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
     // The waiting popup leaves out a Chat on screen here, whose own request card already asks.
@@ -374,7 +378,7 @@ export function AgentChatPane({
                             <AgentChatEmptyState
                                 hint={
                                     processState !== 'detached' &&
-                                    agentChatEmptyHint(supportsImages, t)
+                                    agentChatEmptyHint(capabilities.chatImages, t)
                                 }
                                 message={emptyMessage}
                             />
@@ -438,7 +442,7 @@ export function AgentChatPane({
                 dropHandlersReference={composerDrop}
                 edit={{
                     handleReference: composerEdit,
-                    filesUnsupportedReason: supportsRewindFiles
+                    filesUnsupportedReason: capabilities.chatRewindFiles
                         ? undefined
                         : t('agentChat.pane.filesUnsupported', { provider: providerName }),
                     onEditingChange: setEditingId,
@@ -453,7 +457,7 @@ export function AgentChatPane({
                 pendingQueue={composerView.pendingQueue}
                 queue={composerView.queue}
                 snapshot={composerView.snapshot}
-                supportsImages={supportsImages}
+                supportsImages={capabilities.chatImages}
                 terminalId={terminalId}
             />
         </section>

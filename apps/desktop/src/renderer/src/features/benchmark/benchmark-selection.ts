@@ -71,7 +71,7 @@ export function toggleEntry(
 /**
  * Agents the judge is picked from by default, strongest general reviewer first.
  */
-const JUDGE_PREFERENCE: readonly AgentProvider[] = ['claude', 'codex', 'grok'];
+const JUDGE_PREFERENCE: readonly AgentProvider[] = ['claude', 'codex', 'grok', 'antigravity'];
 
 /**
  * The judge a new run starts with: the first ready Agent's default model, so the result can rank by quality without the

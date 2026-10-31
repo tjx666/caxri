@@ -21,7 +21,7 @@ const FORMATTING_OPTIONS: FormattingOptions = {
  * cold bridge is not killed before it can identify a resumed session.
  */
 const HOOK_STARTUP_HEADROOM_MS = 2_000;
-const HOOK_TIMEOUT_SECONDS = Math.ceil(
+export const HOOK_TIMEOUT_SECONDS = Math.ceil(
     (AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS + HOOK_STARTUP_HEADROOM_MS) / 1_000,
 );
 
@@ -74,7 +74,7 @@ function malformedHookTree(document: Record<string, unknown>): string | undefine
     return undefined;
 }
 
-function shellQuote(value: string): string {
+export function shellQuote(value: string): string {
     return `'${value.replaceAll("'", String.raw`'\''`)}'`;
 }
 
@@ -88,7 +88,7 @@ function shellQuote(value: string): string {
  * instance's `CAXRI_HOOK_*` Terminal launch environment, so a build whose entries were superseded still receives and
  * accepts its own signals.
  */
-function buildBridgeCommand(
+export function buildBridgeCommand(
     desired: DesiredHookInstall,
     phase: AgentHookBinding['phase'],
     reply?: AgentHookBinding['reply'],
@@ -125,7 +125,7 @@ function expectedGroup(desired: DesiredHookInstall, binding: AgentHookBinding): 
     };
 }
 
-function ownedSchema(command: unknown, provider: AgentProvider): number | undefined {
+export function ownedSchema(command: unknown, provider: AgentProvider): number | undefined {
     if (typeof command !== 'string') return undefined;
     const marker = `--source caxri --provider ${provider} --phase `;
     if (!command.includes(marker)) return undefined;

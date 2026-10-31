@@ -9,7 +9,8 @@
  * Steps:
  *
  * - `language <en|zh-CN|system>`: sets `workbench.language`, so English-label E2E helpers match.
- * - `open-chat <claude|codex|grok>`: adds the fixture's test-root Project (`Cmd+O`) and opens that Agent in Chat.
+ * - `open-chat <claude|codex|grok|antigravity>`: adds the fixture's test-root Project (`Cmd+O`) and opens that Agent in
+ *   Chat.
  * - `send <text>`: inserts the text into the visible Agent Chat message box, newlines included, and presses Enter once.
  * - `paste-image [count]`: pastes that many synthetic PNGs (default 1) into the visible Agent Chat message box, as a
  *   screenshot paste would, without touching the system clipboard.
@@ -21,8 +22,8 @@
  * - `theme <built-in id|absolute JSON path>`: replaces the active theme with a built-in palette (such as
  *   `solarized-light`) or a theme file, the way an imported theme lands, without the native import dialog.
  * - `select-session <id prefix|title>`: clicks that Session in the sidebar, as a user opening it would.
- * - `new-session [shell|claude|codex|grok]`: creates a Session in the selected Project (a Shell Terminal by default, an
- *   Agent in Chat), opens it from the sidebar, and prints its id.
+ * - `new-session [shell|claude|codex|grok|antigravity]`: creates a Session in the selected Project (a Shell Terminal by
+ *   default, an Agent in Chat), opens it from the sidebar, and prints its id.
  * - `hold-press <modifiers+key> [--times <n>]`: holds the modifiers, presses the key n times (default 1), and releases
  *   them, such as `Control+Alt+Tab --times 2` for the Session MRU switcher. `--screenshot` captures while they are
  *   still held, so a surface that closes on release is still on screen.

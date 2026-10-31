@@ -30,12 +30,13 @@ import { parseArgs } from 'node:util';
 import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
 
 import {
+    fakeAntigravityChatAgentMode,
     fakeClaudeChatAgentMode,
     fakeCodexChatAgentMode,
     fakeGrokChatAgentMode,
 } from '../../../../e2e/support/agent-chat-fixture';
 
-const PROVIDERS = ['claude', 'codex', 'grok'] as const;
+const PROVIDERS = ['claude', 'codex', 'grok', 'antigravity'] as const;
 type FakeChatProvider = (typeof PROVIDERS)[number];
 
 function shellQuote(value: string): string {
@@ -80,11 +81,11 @@ export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]
         );
     const provider = values.provider ?? 'claude';
     if (!PROVIDERS.includes(provider as FakeChatProvider))
-        throw new Error('--provider must be one of claude, codex, grok');
+        throw new Error(`--provider must be one of ${PROVIDERS.join(', ')}`);
     const scriptPath = values.script;
     if (scriptPath !== undefined && !isAbsolute(scriptPath))
         throw new Error('--script must be an absolute path');
-    if (provider === 'grok' && scriptPath !== undefined)
+    if (scriptPath !== undefined && (provider === 'grok' || provider === 'antigravity'))
         throw new Error('--script supports only fake claude and codex');
     return { directory, provider: provider as FakeChatProvider, ...(scriptPath && { scriptPath }) };
 }
@@ -104,7 +105,9 @@ async function main(): Promise<void> {
             ? await fakeClaudeChatAgentMode(userData, controlDirectory, scriptPath)
             : provider === 'codex'
               ? await fakeCodexChatAgentMode(directory, userData, { scriptPath })
-              : await fakeGrokChatAgentMode(directory, userData);
+              : provider === 'grok'
+                ? await fakeGrokChatAgentMode(directory, userData)
+                : await fakeAntigravityChatAgentMode(directory, userData);
     const environment = await createE2EAgentEnvironment({
         fixtureRoot: join(userData, 'e2e-agents'),
         mode,

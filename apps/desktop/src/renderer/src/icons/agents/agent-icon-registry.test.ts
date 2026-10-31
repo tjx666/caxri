@@ -56,10 +56,13 @@ describe('agentIconRegistry', () => {
 });
 
 describe('resolveAgentIconRenderSource', () => {
-    it.each(['claude', 'codex'] as const)('keeps %s as a full-color image', (identity) => {
-        const icon = agentIconRegistry[identity];
-        expect(resolveAgentIconRenderSource(icon)).toEqual({ kind: 'image', src: icon.src });
-    });
+    it.each(['claude', 'codex', 'antigravity'] as const)(
+        'keeps %s as a full-color image',
+        (identity) => {
+            const icon = agentIconRegistry[identity];
+            expect(resolveAgentIconRenderSource(icon)).toEqual({ kind: 'image', src: icon.src });
+        },
+    );
 
     it.each(['grok', 'opencode'] as const)(
         'tints the mask-asset %s identity with currentColor',

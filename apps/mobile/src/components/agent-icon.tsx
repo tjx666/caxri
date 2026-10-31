@@ -8,7 +8,7 @@ import type { MobileTheme } from '../theme/tokens';
 
 /**
  * Brand glyphs mirror Desktop's `agent-icon-registry`, which loads them from `@lobehub/icons-static-svg` (MIT). React
- * Native cannot import raw SVG files without a Metro transformer, so the three paths are inlined here instead.
+ * Native cannot import raw SVG files without a Metro transformer, so the paths are inlined here instead.
  */
 const ClaudeCodeGlyph = ({ size }: { size: number }) => (
     <Svg height={size} viewBox="0 0 24 24" width={size}>
@@ -59,6 +59,34 @@ const GrokGlyph = ({ color, size }: { color: string; size: number }) => (
 );
 
 /**
+ * Antigravity's arch outline from the same package. The original paints it with a dozen blurred color blobs; a single
+ * vertical gradient through the same brand colors keeps it recognizable at avatar sizes without SVG filters.
+ */
+const AntigravityGlyph = ({ size }: { size: number }) => (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+        <Defs>
+            <LinearGradient
+                gradientUnits="userSpaceOnUse"
+                id="antigravity"
+                x1="12"
+                x2="12"
+                y1="1"
+                y2="23"
+            >
+                <Stop stopColor="#FFE432" />
+                <Stop offset="0.3" stopColor="#FC413D" />
+                <Stop offset="0.55" stopColor="#00B95C" />
+                <Stop offset="1" stopColor="#3186FF" />
+            </LinearGradient>
+        </Defs>
+        <Path
+            d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z"
+            fill="url(#antigravity)"
+        />
+    </Svg>
+);
+
+/**
  * The glyph alone, for inline use beside a label. Unknown kinds fall back to the Shell glyph so a new Terminal kind
  * degrades to a neutral mark instead of an empty slot.
  */
@@ -78,6 +106,8 @@ export const AgentGlyph = ({
             return <CodexGlyph size={size} />;
         case 'grok':
             return <GrokGlyph color={theme.text} size={size} />;
+        case 'antigravity':
+            return <AntigravityGlyph size={size} />;
         default:
             return <SquareTerminal color={theme.muted} size={size} strokeWidth={1.75} />;
     }

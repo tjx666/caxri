@@ -242,6 +242,7 @@ interface RealE2EAgentLaunchPolicy {
 const REAL_E2E_AGENT_LAUNCH_POLICIES: Record<AgentProvider, RealE2EAgentLaunchPolicy | null> = {
     grok: null,
     claude: null,
+    antigravity: null,
     codex: {
         argumentPrefix: [
             'exec',
@@ -307,6 +308,7 @@ export function assertE2EAgentLaunch(
 const REAL_E2E_AGENT_CHAT_PROVIDERS: Record<AgentProvider, boolean> = {
     grok: false,
     claude: false,
+    antigravity: false,
     codex: true,
 };
 

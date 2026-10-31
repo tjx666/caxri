@@ -24,6 +24,7 @@ const FAKE_CLIS: Record<AgentProvider, string> = {
     claude: join(FIXTURES, 'fake-claude-cli.ts'),
     codex: join(FIXTURES, 'fake-codex-app-server.ts'),
     grok: join(FIXTURES, 'fake-grok-acp.ts'),
+    antigravity: join(FIXTURES, 'fake-antigravity-acp.ts'),
 };
 
 const CLAUDE: BenchmarkEntry = { provider: 'claude', model: 'fake-claude-model', effort: 'high' };
@@ -54,6 +55,7 @@ async function fixture() {
                     ...process.env,
                     FAKE_CODEX_STATE_DIR: join(directory, 'codex'),
                     FAKE_GROK_STATE_DIR: join(directory, 'grok'),
+                    FAKE_ANTIGRAVITY_STATE_DIR: join(directory, 'antigravity'),
                     CLAUDE_CONFIG_DIR: claudeConfigDirectory,
                     FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
                 }),
@@ -170,6 +172,18 @@ describe('BenchmarkService', () => {
         expect(harness.service.list().runs).toMatchObject([
             { id: runId, title: 'Say hello', attempts: 3, completedAttempts: 3 },
         ]);
+    });
+
+    it('applies the Antigravity model and effort after start, since agy acp takes no model flag', async () => {
+        const harness = await fixture();
+        const { runId } = await harness.service.start({
+            prompt: 'Say hello',
+            entries: [{ provider: 'antigravity', model: 'gemini-fake-pro', effort: 'low' }],
+            settings: harness.settings(),
+        });
+        const [attempt] = (await harness.finished(runId)).attempts;
+        expect(attempt.status).toBe('completed');
+        expect(attempt.finalText).toContain('(gemini-fake-pro, low)');
     });
 
     it('runs each Entry the requested number of times', async () => {

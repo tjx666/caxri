@@ -189,6 +189,8 @@ export function agentInstallHint(kind: TerminalKind, t: Translate): string | und
             return t('terminal.new.installHint.codex');
         case 'grok':
             return t('terminal.new.installHint.grok');
+        case 'antigravity':
+            return t('terminal.new.installHint.antigravity');
         default:
             return undefined;
     }

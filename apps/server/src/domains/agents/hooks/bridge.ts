@@ -24,6 +24,10 @@ const HOOK_TURN_ID_KEYS: Record<AgentProvider, readonly string[]> = {
     claude: ['prompt_id'],
     codex: ['turn_id', 'turnId'],
     grok: ['promptId'],
+    /**
+     * Antigravity's hook payloads carry no per-turn identifier, only a numeric execution counter.
+     */
+    antigravity: [],
 };
 
 const BRIDGE_SCRIPT = String.raw`'use strict';
@@ -135,7 +139,8 @@ function readIdentifiers(callback) {
   let source = '';
   let done = false;
   const captureDigests = ['claude', 'codex', 'grok'].includes(provider) && process.env.CAXRI_HOOK_DIGEST === '1';
-  const sourceLimit = captureDigests ? 1048576 : 65536;
+  // Antigravity puts the user's prompt in every payload, so a long prompt must not truncate away the conversation scope.
+  const sourceLimit = captureDigests || provider === 'antigravity' ? 1048576 : 65536;
   let overflow = false;
   function prefixString(keys) {
     let commonEnd = source.length;
@@ -180,10 +185,25 @@ function readIdentifiers(callback) {
           turnContinues = true;
         }
       }
+      if (provider === 'antigravity') {
+        // Subagents fire the same hooks under their own conversationId and never carry the user's input. Only its
+        // presence is read; the prompt itself never leaves this process.
+        if (typeof payload.lastUserInput !== 'string' || payload.lastUserInput.length === 0)
+          return callback({ ignored: true });
+        // PreInvocation runs before every model call of a turn; only the first one starts it.
+        if (signal.phase === 'turnStarted' && payload.invocationNum !== 0) return callback({ ignored: true });
+        if (signal.phase === 'turnFinished') {
+          // A Stop while helpers still run is not the end of the main turn.
+          if (payload.fullyIdle === false) return callback({ ignored: true });
+          if (['ERROR', 'MAX_INVOCATIONS', 'MAX_FORCED_INVOCATIONS', 'MAX_TOKEN_BUDGET_EXCEEDED', 'USER_CANCELED',
+            'TERMINAL_CUSTOM_HOOK'].includes(payload.terminationReason))
+            signal.phase = 'turnFailed';
+        }
+      }
       if (provider === 'claude' && signal.phase === 'turnFinished' && !agentValue && hasWakingBackgroundWork(payload.background_tasks))
         backgroundWork = true;
       if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
-      const value = payload && (payload.session_id ?? payload.sessionId);
+      const value = payload && (payload.session_id ?? payload.sessionId ?? (provider === 'antigravity' ? payload.conversationId : undefined));
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
       const turnValue = firstPresent(payload, turnIdKeys);
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
@@ -211,7 +231,7 @@ function readIdentifiers(callback) {
       }
     } catch {
       // Grok writes native-child scope after event content. A truncated prefix cannot prove this is the main Agent.
-      if (provider === 'grok') { process.exitCode = exitCodes.payloadScopeUnavailable; return; }
+      if (provider === 'grok' || provider === 'antigravity') { process.exitCode = exitCodes.payloadScopeUnavailable; return; }
       // Common hook fields precede event-specific tool input/results. A large payload is intentionally truncated, but
       // these bounded opaque identifiers remain recoverable without retaining or parsing provider content. The cwd is
       // deliberately not recovered here: its character class overlaps provider content, and every later hook event
@@ -387,7 +407,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
  * Bump on every bridge script change, including a behavior-preserving one: same-version builds sharing the staged
  * bridge would otherwise keep rewriting each other's copy.
  */
-const BRIDGE_VERSION = 25;
+const BRIDGE_VERSION = 26;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

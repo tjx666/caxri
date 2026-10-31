@@ -48,6 +48,7 @@ const command = (invocation: string, description: string, argumentHint?: string)
  */
 export const defaultAgentActions: Record<AgentProvider, readonly AgentAction[]> = {
     grok: [],
+    antigravity: [],
     claude: [
         command('/model', 'Choose the active model'),
         command('/compact', 'Summarize the conversation to free context', '[instructions]'),

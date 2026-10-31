@@ -47,6 +47,15 @@ describe('benchmarkLaunchSettings', () => {
             ).args,
         ).toEqual([agentProviderCatalog.claude.autonomyArgs[0], '--model', 'opus']);
     });
+
+    it('leaves both the Antigravity model and effort to the session', () => {
+        expect(
+            benchmarkLaunchSettings(
+                { provider: 'antigravity', model: 'gemini-x', effort: 'high' },
+                configured,
+            ).args,
+        ).toEqual([agentProviderCatalog.antigravity.autonomyArgs[0]]);
+    });
 });
 
 describe('probeLaunchSettings', () => {

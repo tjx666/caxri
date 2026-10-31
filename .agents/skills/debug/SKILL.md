@@ -162,7 +162,7 @@ only that test's generated feedback. Never use private hooks or existing busines
 
 For ordinary Agent UI verification in a dev instance, run fake providers. Outside the controlled
 exception above, never discover or invoke a host CLI. Prepare a task-owned fixture folder and start
-the dev instance with its exports; `--provider` takes `claude` (default), `codex`, or `grok`:
+the dev instance with its exports; `--provider` takes `claude` (default), `codex`, `grok`, or `antigravity`:
 
 ```bash
 eval "$(bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude)"
@@ -180,13 +180,13 @@ before `dev`: each `Cmd+O` consumes the next folder. A raw `project.create` over
 `PATH_DENIED`, because only that picker path mints the grant. A new Agent opens as a Terminal unless `session.openAgentsInChat` is on; the
 tab bar's Chat toggle switches an open one. Run the repeated Caxri steps through
 `.agents/skills/debug/scripts/drive-app.ts` instead of hand-writing Playwright: `language en`
-(English labels for the E2E helpers), `open-chat <claude|codex|grok>` to add the test-root Project
+(English labels for the E2E helpers), `open-chat <claude|codex|grok|antigravity>` to add the test-root Project
 and open that Agent in Chat (driving the dialog by hand lets the root grant expire, and
 `project.create` then fails with `PATH_DENIED` and no Session), `send <text>` into the Chat message box (its words can select a fake scenario; see `e2e-testing`), `paste-image [count]` to paste synthetic PNGs there without the system clipboard, `idle` until a reply
 stops changing the window, `search <query>` in Session search, `ready [seconds]` until a relaunched
 window's Workbench reports the Runtime ready (instead of a fixed sleep; a first launch spends about a
 minute pre-bundling Vite dependencies after CDP already answers), `select-session <id prefix|title>`
-to open a sidebar Session, `new-session [shell|claude|codex|grok]` to create a Session in the
+to open a sidebar Session, `new-session [shell|claude|codex|grok|antigravity]` to create a Session in the
 selected Project (a Shell Terminal by default, an Agent in Chat) and print its id instead of
 hand-writing a `session.create` request, `hold-press <modifiers+key> [--times <n>]` to keep
 modifiers down across several presses (`Control+Alt+Tab --times 2` walks the Session MRU switcher;

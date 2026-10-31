@@ -55,7 +55,12 @@ describe('filterSettingsRows', () => {
         ]);
         expect(
             filterSettingsRows(settingsRows, 'Agent Commands & Skills').map((r) => r.id),
-        ).toEqual(['agents.claude.actions', 'agents.codex.actions', 'agents.grok.actions']);
+        ).toEqual([
+            'agents.claude.actions',
+            'agents.codex.actions',
+            'agents.grok.actions',
+            'agents.antigravity.actions',
+        ]);
         expect(filterSettingsRows(settingsRows, 'mobile qr').map((r) => r.id)).toEqual([
             'mobile.access',
         ]);

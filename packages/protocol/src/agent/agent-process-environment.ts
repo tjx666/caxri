@@ -11,6 +11,10 @@ export const AGENT_STATE_ENVIRONMENT_KEYS: Readonly<Record<AgentProvider, readon
     claude: ['CLAUDE_CONFIG_DIR'],
     codex: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
     grok: ['GROK_HOME'],
+    /**
+     * Antigravity keeps its state under `$HOME/.gemini` with no variable to relocate it, so isolation needs `HOME`.
+     */
+    antigravity: [],
 };
 
 /**

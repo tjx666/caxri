@@ -21,6 +21,7 @@ const VERIFIED_PROVIDER_RANGE: Record<
     grok: null,
     claude: { major: 2, minimum: [2, 1, 80] as const },
     codex: { major: 0, minimum: [0, 147, 0] as const },
+    antigravity: null,
 };
 
 interface ProbeResult {

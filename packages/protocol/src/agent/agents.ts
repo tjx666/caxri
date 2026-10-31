@@ -9,7 +9,7 @@ import { defaultAgentActionsSettings } from './agent-action-settings.js';
  * the Runtime Agent adapters derive from this catalog instead of hand-syncing provider identifiers across the
  * codebase.
  */
-export const agentProviderIds = ['claude', 'codex', 'grok'] as const;
+export const agentProviderIds = ['claude', 'codex', 'grok', 'antigravity'] as const;
 
 export const agentProviderSchema = z.enum(agentProviderIds);
 
@@ -106,9 +106,15 @@ export interface AgentProviderCatalogEntry {
          */
         chatImages: boolean;
         /**
+         * Whether an Agent Chat with this provider offers "Edit from here" and "Fork from here": the provider can drop
+         * the turns after a point of its own record or copy the record into a new conversation. Caxri never rebuilds a
+         * provider's record itself.
+         */
+        chatRewind: boolean;
+        /**
          * Whether "Edit from here" can also restore the files the rewound turns changed, through the provider's own
-         * file checkpoints. Every Chat provider can rewind its conversation; one without native file checkpoints keeps
-         * the files as they are, because Caxri does not snapshot the worktree itself.
+         * file checkpoints. One without native file checkpoints keeps the files as they are, because Caxri does not
+         * snapshot the worktree itself.
          */
         chatRewindFiles: boolean;
         /**
@@ -159,6 +165,7 @@ export const agentProviderCatalog = {
             automaticSuspension: true,
             chat: true,
             chatImages: true,
+            chatRewind: true,
             /**
              * Claude Code's SDK file checkpointing (`rewindFiles`).
              */
@@ -184,6 +191,7 @@ export const agentProviderCatalog = {
             automaticSuspension: true,
             chat: true,
             chatImages: true,
+            chatRewind: true,
             /**
              * App-server's `thread/revert` changes only the conversation; Codex keeps no file checkpoints.
              */
@@ -216,6 +224,7 @@ export const agentProviderCatalog = {
              * Grok Build's ACP agent advertises `promptCapabilities.image: false`.
              */
             chatImages: false,
+            chatRewind: true,
             /**
              * Grok Build's `_x.ai/rewind/execute` restores its own per-prompt file snapshots.
              */
@@ -233,6 +242,37 @@ export const agentProviderCatalog = {
         imageInput: undefined,
         requiresLifecycleHooks: true,
         resumeArgs: ['--resume'],
+    },
+    /**
+     * Google's Antigravity CLI. Chat runs its hidden `agy acp` subcommand; see `docs/antigravity.md`. Verified against
+     * `agy` 1.4.11.
+     */
+    antigravity: {
+        autonomyArgs: ['--dangerously-skip-permissions'],
+        capabilities: {
+            actions: false,
+            automaticSuspension: false,
+            chat: true,
+            /**
+             * `agy acp` advertises no `promptCapabilities`, so it takes text prompts only.
+             */
+            chatImages: false,
+            /**
+             * `agy acp` offers `session/load`, `resume`, `close`, and `list` but no way to truncate or copy a
+             * conversation.
+             */
+            chatRewind: false,
+            chatRewindFiles: false,
+            chatSideQuestion: false,
+            messaging: false,
+            nativeRename: false,
+        },
+        defaultLaunchArgs: ['--dangerously-skip-permissions'],
+        displayName: 'Antigravity',
+        executableName: 'agy',
+        imageInput: undefined,
+        requiresLifecycleHooks: true,
+        resumeArgs: ['--conversation'],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
 

@@ -35,6 +35,7 @@ describe('Agent provider Runtime descriptors', () => {
         ['claude', ['--resume', 'provider-session-1']],
         ['codex', ['resume', 'provider-session-1']],
         ['grok', ['--resume', 'provider-session-1']],
+        ['antigravity', ['--conversation', 'provider-session-1']],
     ] as const)('keeps %s resume argv provider-local', (provider, expected) => {
         expect(agentProviders[provider].resumeArguments('provider-session-1')).toEqual(expected);
     });

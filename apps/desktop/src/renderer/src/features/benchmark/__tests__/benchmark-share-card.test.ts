@@ -18,7 +18,7 @@ const PALETTE: ShareCardPalette = {
     fontFamily: 'sans-serif',
     foreground: '#ffffff',
     muted: '#999999',
-    series: { claude: '#f00', codex: '#0f0', grok: '#00f' },
+    series: { claude: '#f00', codex: '#0f0', grok: '#00f', antigravity: '#ff0' },
 };
 
 function attempt(entryIndex: number, overrides: Partial<BenchmarkAttempt>): BenchmarkAttempt {

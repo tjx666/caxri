@@ -108,6 +108,7 @@ export const primarySidebar = {
     'primarySidebar.sessionMenu.forkSession': 'Fork Session',
     'primarySidebar.sessionMenu.forkNeedsChatReason':
         'Open the Agent as Chat to fork its conversation',
+    'primarySidebar.sessionMenu.forkUnsupportedReason': 'This Agent cannot fork its conversation',
     'primarySidebar.sessionMenu.resumeAgent': 'Resume Agent',
     'primarySidebar.sessionMenu.detachAgent': 'Detach Agent',
     'primarySidebar.sessionMenu.turnOffAlwaysAllow': 'Turn Off Always Allow in This Session',

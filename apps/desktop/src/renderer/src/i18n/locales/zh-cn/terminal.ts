@@ -252,6 +252,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
         '未找到 Codex。请运行 "npm install -g @openai/codex" 安装，或在“设置 > Agent”中指定它的位置。',
     'terminal.new.installHint.grok':
         '未找到 Grok Build。请从 x.ai 安装，或在“设置 > Agent”中指定它的位置。',
+    'terminal.new.installHint.antigravity':
+        '未找到 Antigravity。请从 antigravity.google 安装，或在“设置 > Agent”中指定它的位置。',
     'terminal.new.buttonWithAgent': '{{action}}（{{agent}}）',
     'terminal.new.selectAgent': '选择其他 Agent',
     'terminal.surface.terminal': '终端',

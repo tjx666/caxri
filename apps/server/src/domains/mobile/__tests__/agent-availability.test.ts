@@ -1,4 +1,4 @@
-import { defaultAppSettings } from '@caxri/protocol';
+import { defaultAppSettings, mobileMethods } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ConfigService } from '../../config';
@@ -39,9 +39,13 @@ describe('mobile Agent availability', () => {
             { kind: 'claude', available: false, reason: 'Agent CLI is unavailable' },
             { kind: 'codex', available: true },
             { kind: 'grok', available: false, reason: 'Agent CLI is unavailable' },
+            { kind: 'antigravity', available: false, reason: 'Agent CLI is unavailable' },
             { kind: 'shell', available: true },
         ]);
         expect(result.openAgentsInChat).toBe(true);
+        expect(mobileMethods['mobile.agent.availability'].result.safeParse(result).success).toBe(
+            true,
+        );
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
     });
 
@@ -88,6 +92,7 @@ describe('desktop Agent availability', () => {
             { kind: 'claude', available: false },
             { kind: 'codex', available: true },
             { kind: 'grok', available: false },
+            { kind: 'antigravity', available: false },
         ]);
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
     });

@@ -4,17 +4,14 @@ import { agentChatAnsweredNotice, CaxriError } from '@caxri/protocol';
 import { questionAnswers } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import type { JsonRpcConnection } from '../../json-rpc-connection';
-import type { GrokToolCall } from './items';
-import {
-    grokPermissionOutcome,
-    grokQuestionAnswers,
-    mapGrokPermission,
-    mapGrokQuestion,
-} from './items';
+import type { AcpToolCall, AcpToolPresentation } from './items';
+import { acpPermissionOutcome, mapAcpPermission } from './items';
+
+type Json = Record<string, unknown>;
 
 const CANCELLED = { outcome: { outcome: 'cancelled' } };
 /**
- * `_x.ai/ask_user_question` answers its outcome at the top level, unlike `session/request_permission`.
+ * Grok Build's `_x.ai/ask_user_question` answers its outcome at the top level, unlike `session/request_permission`.
  */
 const QUESTION_CANCELLED = { outcome: 'cancelled' };
 
@@ -26,9 +23,22 @@ function cancelledResponse(pending: PendingRequest) {
     return pending.kind === 'question' ? QUESTION_CANCELLED : CANCELLED;
 }
 
-interface GrokRequestOwner {
+/**
+ * A provider's question extension: how its request reads as a question card and how the Client's answers go back.
+ */
+export interface AcpQuestionDialect {
+    request: (key: string, questions: unknown) => Extract<AgentChatRequest, { kind: 'question' }>;
+    answers: (questions: unknown, answers: Readonly<Record<string, readonly string[]>>) => Json;
+}
+
+interface AcpRequestOwner {
     host: AgentChatSessionHost;
-    sessionId: string;
+    /**
+     * The conversation's current id, read when a request is held or settled.
+     */
+    sessionId: () => string;
+    presentation: AcpToolPresentation;
+    questions?: AcpQuestionDialect;
     /**
      * The user declined or cancelled the tool call; its timeline row reads declined.
      */
@@ -36,21 +46,22 @@ interface GrokRequestOwner {
 }
 
 /**
- * Grok Build's `session/request_permission` and `_x.ai/ask_user_question` calls, held as pending Chat requests keyed by
- * the tool call they belong to. Each JSON-RPC request stays unanswered until `respond`, Grok Build resolving it, the
- * turn ending, or the process ending.
+ * An ACP agent's `session/request_permission` calls, and its question extension's calls, held as pending Chat requests
+ * keyed by the tool call they belong to. Each JSON-RPC request stays unanswered until `respond`, the agent resolving
+ * it, the turn ending, or the process ending.
  */
-export class GrokRequestBroker {
+export class AcpRequestBroker {
     private readonly pending = new Map<string, PendingRequest>();
 
-    constructor(private readonly owner: GrokRequestOwner) {}
+    constructor(private readonly owner: AcpRequestOwner) {}
 
     private hold(
         connection: JsonRpcConnection,
         pending: PendingRequest,
         mapped: AgentChatRequest,
     ): void {
-        const { host, sessionId } = this.owner;
+        const { host } = this.owner;
+        const sessionId = this.owner.sessionId();
         const key = mapped.id;
         const { turnId } = pending;
         const previous = this.pending.get(key);
@@ -82,19 +93,19 @@ export class GrokRequestBroker {
     ask(
         connection: JsonRpcConnection,
         transportId: number | string,
-        call: GrokToolCall,
+        call: AcpToolCall,
         options: unknown,
         turnId: string | undefined,
     ): void {
         this.hold(
             connection,
             { kind: 'permission', transportId, options, ...(turnId && { turnId }) },
-            mapGrokPermission(call, options),
+            mapAcpPermission(call, options, this.owner.presentation),
         );
     }
 
     /**
-     * Holds an `_x.ai/ask_user_question` request as a question card keyed by its `toolCallId`.
+     * Holds a question extension's request as a question card keyed by its tool call.
      */
     askQuestion(
         connection: JsonRpcConnection,
@@ -103,16 +114,19 @@ export class GrokRequestBroker {
         questions: unknown,
         turnId: string | undefined,
     ): void {
+        const dialect = this.owner.questions;
+        if (!dialect) throw new CaxriError('CONFLICT', 'This agent asks no questions');
         this.hold(
             connection,
             { kind: 'question', transportId, questions, ...(turnId && { turnId }) },
-            mapGrokQuestion(key, questions),
+            dialect.request(key, questions),
         );
     }
 
     settle(key: string): void {
         if (!this.pending.delete(key)) return;
-        const { host, sessionId } = this.owner;
+        const { host } = this.owner;
+        const sessionId = this.owner.sessionId();
         const { requests } = host.read();
         host.apply([
             { op: 'state', state: { requests: requests.filter((request) => request.id !== key) } },
@@ -125,7 +139,7 @@ export class GrokRequestBroker {
     }
 
     /**
-     * Settles the requests a finished turn left open; Grok Build no longer waits on them. A question Grok Build left
+     * Settles the requests a finished turn left open; the agent no longer waits on them. A question Grok Build left
      * pending after `session/cancel` would otherwise keep its card up for an answer Grok Build ignores (verified with
      * Grok Build 1.0.50).
      */
@@ -152,7 +166,7 @@ export class GrokRequestBroker {
             const answers = questionAnswers(response);
             connection.respond(
                 pending.transportId,
-                grokQuestionAnswers(pending.questions, answers),
+                this.owner.questions?.answers(pending.questions, answers) ?? QUESTION_CANCELLED,
             );
             const { host } = this.owner;
             const answered = agentChatAnsweredNotice(
@@ -168,7 +182,7 @@ export class GrokRequestBroker {
             throw new CaxriError('VALIDATION', 'An approval needs a decision');
         connection.respond(
             pending.transportId,
-            grokPermissionOutcome(pending.options, response.decision),
+            acpPermissionOutcome(pending.options, response.decision),
         );
         if (response.decision === 'decline' || response.decision === 'cancel')
             this.owner.onDeclined(requestId);
@@ -192,7 +206,7 @@ export class GrokRequestBroker {
         for (const key of keys)
             this.owner.host.lifecycle({
                 phase: 'attentionResolved',
-                agentSessionId: this.owner.sessionId,
+                agentSessionId: this.owner.sessionId(),
                 agentToolUseId: key,
             });
     }

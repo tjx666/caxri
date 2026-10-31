@@ -1,5 +1,5 @@
 import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { isChatTerminal } from '@caxri/protocol';
+import { agentProviderCatalog, isChatTerminal } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
@@ -33,20 +33,35 @@ export function detachTurnTerminalId(
 }
 
 /**
- * Why "Fork Session" cannot copy a Session's Primary Agent conversation, or `undefined` when it can. The fork goes
- * through the Chat's provider (`agentChat.fork`), so a PTY Agent offers it only once it is open as Chat, and only after
- * the provider created a conversation to copy. A running turn is left to Server Core, which refuses it with the
+ * Why a Session's Primary Agent has no Chat conversation to hand on, or `undefined` when it has one: Fork Session and
+ * "Continue in Another Agent" both read the Chat's provider, so a PTY Agent offers them only once it is open as Chat,
+ * and only after the provider created a conversation. A running turn is left to Server Core, which refuses it with the
  * reason.
  */
-export type SessionForkBlocker = 'noAgent' | 'notChat' | 'noConversation';
+export type ChatConversationBlocker = 'noAgent' | 'notChat' | 'noConversation';
 
-export function sessionForkBlocker(
+export function chatConversationBlocker(
     terminal: Pick<TerminalRecord, 'agentSessionId' | 'provider' | 'surface'> | undefined,
-): SessionForkBlocker | undefined {
+): ChatConversationBlocker | undefined {
     if (!terminal?.provider) return 'noAgent';
     if (!isChatTerminal(terminal)) return 'notChat';
     if (!terminal.agentSessionId) return 'noConversation';
     return undefined;
+}
+
+/**
+ * Why "Fork Session" cannot copy a Session's Primary Agent conversation, or `undefined` when it can. The fork goes
+ * through the Chat's provider (`agentChat.fork`), so beyond {@link chatConversationBlocker} the provider must be able to
+ * copy a conversation (`capabilities.chatRewind`).
+ */
+export type SessionForkBlocker = ChatConversationBlocker | 'unsupported';
+
+export function sessionForkBlocker(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'provider' | 'surface'> | undefined,
+): SessionForkBlocker | undefined {
+    if (terminal?.provider && !agentProviderCatalog[terminal.provider].capabilities.chatRewind)
+        return 'unsupported';
+    return chatConversationBlocker(terminal);
 }
 
 /**

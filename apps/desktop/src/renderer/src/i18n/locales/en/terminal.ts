@@ -270,6 +270,8 @@ export const terminal = {
         'Codex was not found. Install it with "npm install -g @openai/codex", or set its location in Settings > Agents.',
     'terminal.new.installHint.grok':
         'Grok Build was not found. Install it from x.ai, or set its location in Settings > Agents.',
+    'terminal.new.installHint.antigravity':
+        'Antigravity was not found. Install it from antigravity.google, or set its location in Settings > Agents.',
     'terminal.new.buttonWithAgent': '{{action}} ({{agent}})',
     'terminal.new.selectAgent': 'Select a different Agent',
     'terminal.surface.terminal': 'Terminal',
