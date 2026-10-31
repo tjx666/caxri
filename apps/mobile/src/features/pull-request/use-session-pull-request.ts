@@ -43,8 +43,8 @@ const isSettling = (pullRequest: MobilePullRequest | undefined): boolean =>
         !pullRequest.headSha);
 
 /**
- * The cache key of a Session's pull request read. A Status panel `Merge` re-reads it too, so the header chip turns
- * merged at once instead of after the idle poll.
+ * The cache key of a Session's pull request read. A Status panel change re-reads it too, so a row's `Merge` turns the
+ * header chip merged at once instead of after the idle poll.
  */
 export const sessionPullRequestQueryKey = (connectionScopeKey: string | null, sessionId: string) =>
     ['mobile', 'pull-request', connectionScopeKey ?? 'unpaired', sessionId] as const;

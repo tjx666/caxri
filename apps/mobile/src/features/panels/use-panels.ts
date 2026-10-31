@@ -4,6 +4,7 @@ import type { MethodResult } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { sessionPullRequestQueryKey } from '../pull-request/use-session-pull-request';
 import { readTreeChildren } from './tree-children-read';
 
 export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
@@ -67,7 +68,10 @@ export const useTreeChildren = (sessionId: string, viewId: string, parentHandle?
 /**
  * Keeps the extension tree this Session shows current: each `extensionViews.changed` hint re-reads the tree queries in
  * place. Rows stay on screen while the read runs, so scroll position and expanded state survive and no loading state
- * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again.
+ * appears; a failed re-read keeps the last rows and the next hint or a pull-to-retry tries again. The same hint
+ * re-reads the header's pull request, because the Status panel changes when it does: a row's `Merge` lands in the
+ * Server's status cache only after its command returns, so a re-read at that moment would still see the open pull
+ * request.
  */
 export const useExtensionTreeSubscription = (sessionId: string) => {
     const { connectionScopeKey, isForeground, status, subscribe, subscriptionAvailable } =
@@ -81,6 +85,10 @@ export const useExtensionTreeSubscription = (sessionId: string) => {
         const watch: { handle: Awaited<ReturnType<typeof subscribe>> | null } = { handle: null };
         const refresh = (): void => {
             void queryClient.invalidateQueries({ queryKey });
+            void queryClient.invalidateQueries({
+                exact: true,
+                queryKey: sessionPullRequestQueryKey(connectionScopeKey, sessionId),
+            });
         };
         const attach = async (): Promise<void> => {
             try {

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 
 import type { MobileTreeItemAction } from '@caxri/protocol';
-import { useQueryClient } from '@tanstack/react-query';
 
 import { Chip } from '../../components/chip';
 import { ConfirmSheet } from '../../components/confirm-sheet';
@@ -11,7 +10,6 @@ import { useTranslation } from '../../i18n';
 import { openExternalLink } from '../../lib/open-external-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
-import { sessionPullRequestQueryKey } from '../pull-request/use-session-pull-request';
 import { runTreeAction, treeActionTint } from './tree-item-actions';
 import { TreeItemIcon } from './tree-item-icon';
 
@@ -33,27 +31,19 @@ export const TreeItemActionButton = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const { connectionScopeKey, request } = useMobileClient();
-    const queryClient = useQueryClient();
+    const { request } = useMobileClient();
     const [isBusy, setBusy] = useState(false);
     const [isConfirming, setConfirming] = useState(false);
     const tint = treeActionTint(action.tone, theme);
     const run = () => {
         setBusy(true);
         void runTreeAction(action, {
-            execute: async (commandId, arguments_) => {
-                const result = await request('mobile.tree.executeCommand', {
+            execute: (commandId, arguments_) =>
+                request('mobile.tree.executeCommand', {
                     sessionId,
                     commandId,
                     arguments: arguments_,
-                });
-                // The row's `Merge` may have merged the Session's own pull request, which the header chip shows.
-                void queryClient.invalidateQueries({
-                    exact: true,
-                    queryKey: sessionPullRequestQueryKey(connectionScopeKey, sessionId),
-                });
-                return result;
-            },
+                }),
             notify: showToast,
             openLink: (url) => openExternalLink(url),
             t,
