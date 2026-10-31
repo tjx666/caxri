@@ -268,7 +268,7 @@ real split can be uneven; a half 25% heavier than the other would still be about
 `CAXRI_E2E_SHARD` summary line of the next run before adjusting further.
 
 - `run-e2e-pools.ts --pool parallel-safe|desktop-exclusive` reads `--shard <i>/<N>` or `CAXRI_E2E_SHARD`. The partition
-  lives in `scripts/e2e-pool-shard.ts`: specs are weighed by their declared `test(` calls and
+  lives in `scripts/e2e-pool-shard.ts`: specs are weighed by measured duration (see the fourth iteration) and
   assigned longest-first to the lightest shard (name order breaks ties), so every runner derives the
   same split from the same checkout, each spec lands in exactly one shard, and a shard's receipt is
   validated against exactly the specs it was dispatched. Playwright's own `--shard` is not used: its
@@ -290,6 +290,56 @@ real split can be uneven; a half 25% heavier than the other would still be about
   shard, `e2e-desktop-exclusive-failure-artifacts-shard-<index>` for the second exclusive half,
   `e2e-desktop-exclusive-failure-artifacts` for the exclusive leg in `e2e`, and the unchanged
   `renderer-performance-receipt` and `agent-chat-switch-performance-receipt` from `e2e-perf`.
+
+### Fourth iteration: duration-weighted partition, four parallel-safe shards
+
+Run `41236985917` (the third iteration) measured these windows (build and manifest time plus pool time). The
+target is 21m15s with margin:
+
+| Leg                          | Build and setup | Pool   | Test-seconds | Window    |
+| ---------------------------- | --------------- | ------ | -----------: | --------- |
+| `e2e-parallel` 1/3           | 116 s           | 1007 s |         2871 | 18.7 min  |
+| `e2e-parallel` 2/3           | 183 s           | 1241 s |         3612 | 23.7 min  |
+| `e2e-parallel` 3/3           | 122 s           | 819 s  |         2375 | 15.7 min  |
+| `e2e` (exclusive 1/2)        | 117 s           | ~650 s |            - | ~12.8 min |
+| `e2e-parallel` exclusive 2/2 | 132 s           | 544 s  |            - | 11.3 min  |
+
+"Test-seconds" is the sum of `test-end` durations in the shard. Shard 2/3 ran 26% above shard 3/3 because the
+partition weighed specs by declared `test(` count while a few specs dominate the cost (`agent-delegation`
+347 s, `agent-chat-usage-limit` 210 s, `git-diff-tabs` 182 s).
+
+What changed:
+
+- `scripts/e2e-spec-durations.json` holds measured seconds per spec (summed over the spec's `test-end`
+  events, rounded, minimum 1) plus the median single-test duration. `scripts/e2e-pool-shard.ts` weighs each
+  spec by its table entry and prices a spec missing from the table at its declared `test(` count times the
+  median. The partition stays greedy longest-first with path order as the tie-break, so every runner still
+  derives the identical split. Some entries are inflated by failing tests spending their timeouts (#3351);
+  the table is a balancing hint, not a baseline.
+- `parallel-safe` runs as four shards (`1/4` to `4/4`); `desktop-exclusive` stays two halves.
+- Regenerate the table after downloading the hosted job logs of a fresh run (the logs carry the
+  `CAXRI_E2E_PUBLIC` `test-end` events; the `e2e-perf` job is skipped):
+
+  ```bash
+  mkdir -p /tmp/hosted-logs && gh run view <run-id> --log > /tmp/hosted-logs/run.log
+  bun run scripts/e2e-spec-durations.ts /tmp/hosted-logs/run.log
+  ```
+
+  `gh run view --log` prefixes each line with the job name, which the generator uses to skip `e2e-perf`. Commit the
+  rewritten JSON. Regenerate when a shard drifts or specs are added or retimed.
+
+Predicted shard loads from the new partition (computed from the committed table, in test-seconds):
+
+| Pool                | Shards | Per-shard test-seconds |
+| ------------------- | -----: | ---------------------- |
+| `parallel-safe`     |      4 | 2211, 2211, 2211, 2220 |
+| `desktop-exclusive` |      2 | 587, 587               |
+
+Estimated windows (estimates, not measurements). The balanced `parallel-safe` pool is about 8858 test-seconds;
+over 4 shards and 3 workers each shard is about 2215 / 3, or roughly 740 s, plus about 2 minutes of build and
+manifest, or about 14.5 minutes. The measured 3/3 shard ran 2375 test-seconds in 819 s (0.34 s of wall time per
+test-second), so the same ratio gives about 770 s. The exclusive halves are balanced at about 587
+test-seconds each. The first run after this change replaces these estimates.
 
 The original single-window accounting follows. On the historical self-hosted runner the window held
 `desktop-exclusive`, the dispatch-only CI parity cases (about 200s, one worker), `parallel-safe`,

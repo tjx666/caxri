@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 
 import type { E2EPoolInvocation } from '../e2e/support/pools';
+import type { E2ESpecDurationTable } from './e2e-spec-durations';
+import { E2E_SPEC_DURATIONS_PATH } from './e2e-spec-durations';
 
 /**
  * One slice of the `parallel-safe` or `desktop-exclusive` pool. Hosted-full runs each pool as slices on separate
@@ -40,12 +42,53 @@ export function specWeight(source: string): number {
 }
 
 /**
+ * Weighs each spec by its measured seconds from the committed duration table, so long specs spread across shards. A
+ * spec the table does not know (a new one) costs its declared test count times the table's median single-test duration,
+ * which keeps it comparable with measured entries until the table is regenerated.
+ */
+export function measuredSpecWeights(
+    specs: readonly string[],
+    table: E2ESpecDurationTable,
+    declaredWeights: ReadonlyMap<string, number>,
+): Map<string, number> {
+    return new Map(
+        specs.map((spec) => [
+            spec,
+            table.specs[spec] ?? (declaredWeights.get(spec) ?? 1) * table.medianTestSeconds,
+        ]),
+    );
+}
+
+/**
+ * Reads the committed duration table and weighs the specs by it, reading sources only for unmeasured specs.
+ */
+export async function loadSpecWeights(
+    specs: readonly string[],
+    projectRoot: string,
+): Promise<Map<string, number>> {
+    const table = JSON.parse(
+        await readFile(resolve(projectRoot, E2E_SPEC_DURATIONS_PATH), 'utf8'),
+    ) as E2ESpecDurationTable;
+    const unmeasured = specs.filter((spec) => table.specs[spec] === undefined);
+    const declared = new Map(
+        await Promise.all(
+            unmeasured.map(
+                async (spec) =>
+                    [spec, specWeight(await readFile(resolve(projectRoot, spec), 'utf8'))] as const,
+            ),
+        ),
+    );
+    return measuredSpecWeights(specs, table, declared);
+}
+
+/**
  * Splits the specs into `shard.total` slices and returns the one at `shard.index`. Greedy longest-first assignment on
- * the weights, with name order as the tie-break, so every runner derives the identical partition from the identical
- * checkout without a coordinator. Each spec lands in exactly one slice, and a slice's receipt is therefore validated
- * against exactly the specs it was dispatched (`resolvePoolOutcome` in `run-e2e-pools.ts`). Playwright's own `--shard`
- * is deliberately not used: validating a shard against it would require listing the shard with a JSON reporter
- * override, which the public log boundary confines to `scripts/reporters/public-e2e-reporter-policy.ts`.
+ * the weights (measured seconds, see `measuredSpecWeights`), with name order as the tie-break, so every runner derives
+ * the identical partition from the identical checkout without a coordinator. Each spec lands in exactly one slice, and
+ * a slice's receipt is therefore validated against exactly the specs it was dispatched (`resolvePoolOutcome` in
+ * `run-e2e-pools.ts`). Playwright's own `--shard` is deliberately not used: validating a shard against it would require
+ * listing the shard with a JSON reporter override, which the public log boundary confines to
+ * `scripts/reporters/public-e2e-reporter-policy.ts`.
  */
 export function shardSpecs(
     specs: readonly string[],
@@ -75,14 +118,7 @@ export async function narrowInvocationsToShard(
     projectRoot: string,
 ): Promise<E2EPoolInvocation[]> {
     const specs = invocations.flatMap((invocation) => invocation.specs);
-    const weights = new Map(
-        await Promise.all(
-            specs.map(
-                async (spec) =>
-                    [spec, specWeight(await readFile(resolve(projectRoot, spec), 'utf8'))] as const,
-            ),
-        ),
-    );
+    const weights = await loadSpecWeights(specs, projectRoot);
     const owned = new Set(shardSpecs(specs, weights, shard));
     return invocations
         .map((invocation) => ({ specs: invocation.specs.filter((spec) => owned.has(spec)) }))

@@ -408,11 +408,11 @@ describe('CI workflow contract', () => {
         expect(e2e).not.toContain('outputs:');
         expect(e2e).not.toContain('steps.concurrent-full.outputs.aborted');
 
-        // The shards run only on the optimized full-scope hosted-full route and never block each other. Three
+        // The shards run only on the optimized full-scope hosted-full route and never block each other. Four
         // parallel-safe shards plus the second exclusive half (an `include` entry whose shard cannot extend one of the
-        // three) keep every runner's window under the target.
+        // four) keep every runner's window under the target.
         expect(jobs['e2e-parallel'].strategy?.['fail-fast']).toBe(false);
-        expect(jobs['e2e-parallel'].strategy?.matrix?.shard).toEqual(['1/3', '2/3', '3/3']);
+        expect(jobs['e2e-parallel'].strategy?.matrix?.shard).toEqual(['1/4', '2/4', '3/4', '4/4']);
         expect(jobs['e2e-parallel'].strategy?.matrix?.include).toEqual([
             { component: 'exclusive', shard: '2/2' },
         ]);

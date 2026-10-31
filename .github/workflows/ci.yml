@@ -812,7 +812,8 @@ jobs:
           fi
   # One shard of the parallel-safe pool per runner (hosted-full only), plus the second half of the desktop-exclusive pool
   # as an `include` entry. Sharding keeps the three-worker pool, which ran at about 0.27 tests/s on one runner, and the
-  # one-worker pool from filling a 25-minute window alone (#1869). `matrix.component` is unset for the parallel-safe
+  # one-worker pool from filling a 25-minute window alone (#1869). The pool is split four ways, weighted by measured spec
+  # duration (`scripts/e2e-spec-durations.json`). `matrix.component` is unset for the parallel-safe
   # shards; the `2/2` entry cannot extend one of them, so GitHub adds it as its own leg.
   e2e-parallel:
     name: e2e-parallel (${{ matrix.component == 'exclusive' && 'exclusive ' || '' }}${{ matrix.shard }})
@@ -820,7 +821,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ['1/3', '2/3', '3/3']
+        shard: ['1/4', '2/4', '3/4', '4/4']
         include:
           - component: exclusive
             shard: '2/2'
