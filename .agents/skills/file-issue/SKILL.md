@@ -184,10 +184,13 @@ process boundary: say so in 方案, and consider whether it should be split befo
 | `settings`       | Settings UI and configuration read, write, watch, or validation                  |
 | `theme`          | Theming, semantic color tokens, or theme import/export                           |
 | `a11y`           | Keyboard navigation, focus order, or screen reader support                       |
+| `i18n`           | UI language, localization, or translated copy on any client                      |
+| `chat`           | Agent Chat UI: messages, composer, slash menu, goal line, or background work     |
 | `agent`          | Agent work spanning or sitting outside the three specific agent areas below      |
 | `agent-provider` | Claude / Codex / Grok discovery, launch, identity, or metadata                   |
 | `agent-hook`     | Lifecycle hook installation, authorization, phases, or hook receipts             |
 | `agent-dispatch` | Dispatch and delegation: routing, presets, depth, or dispatch receipts           |
+| `relay`          | Relay connection for remote clients: pairing, reconnect, heartbeat, or transport |
 | `protocol`       | Wire protocol and IPC contracts between desktop, server, and mobile              |
 | `extension-api`  | Extension API surface, declared capabilities, or Extension Host behavior         |
 | `db`             | SQLite schema, drizzle migrations, or persistence integrity                      |
@@ -201,7 +204,8 @@ process boundary: say so in 方案, and consider whether it should be split befo
 | `deps`           | Dependency versions, pins, overrides, or patches                                 |
 
 Prefer the specific agent area over bare `agent`; reach for `agent` alone only when the issue truly
-spans provider, hook, and dispatch, or belongs to none of them.
+spans provider, hook, and dispatch, or belongs to none of them. Chat UI work is `chat`, not
+`agent`: a slash menu entry or message context menu change carries `chat` plus a surface.
 
 `files-explorer` owns the Files inspector; `tree-view` owns the generic tree runtime an extension
 contributes to under `view-containers`. How the Files tree renders its rows is `files-explorer`;
