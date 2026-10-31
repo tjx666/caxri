@@ -33,7 +33,8 @@ async function openChatAfter(fixture: Fixture, serial: string, prompt: string) {
 }
 
 /**
- * Fails unless the control `id` reads `text`, the name Desktop gives the same action.
+ * Fails unless the text `id` reads `text`. Android Acceptance reads a node's text, not a button's accessibility label,
+ * so button names are pinned by `agent-chat-usage-actions.test.ts` and the screenshots instead.
  */
 async function expectText(serial: string, id: string, text: string): Promise<void> {
     const node = await observeMobileNode(serial, id, { kind: 'includes', value: text });
@@ -60,8 +61,6 @@ export async function executeMobileChatUsageLimitContinueScenario(
         const chat = await openChatAfter(fixture, serial, 'usage exhausted');
         await waitForCheck(serial, 'chat-usage-limit-continue-now', 60_000);
         await waitForCheck(serial, 'chat-usage-limit-cancel');
-        await expectText(serial, 'chat-usage-limit-continue-now', 'Continue now');
-        await expectText(serial, 'chat-usage-limit-cancel', 'Cancel');
         await capture(environment, 'waiting', artifacts);
         // The fake's limit resets in 2 hours, so a reply within this case can only come from Continue now.
         const tappedAt = Date.now();
@@ -108,8 +107,6 @@ export async function executeMobileChatUsageGuardHandoffScenario(
         const chat = await openChatAfter(fixture, serial, 'weekly nearly used');
         await waitForCheck(serial, 'agent-chat-usage-guard-generate-handoff', 60_000);
         await waitForCheck(serial, 'agent-chat-usage-guard-continue-anyway');
-        await expectText(serial, 'agent-chat-usage-guard-generate-handoff', 'Generate hand-off');
-        await expectText(serial, 'agent-chat-usage-guard-continue-anyway', 'Continue anyway');
         await capture(environment, 'guard', artifacts);
 
         await writeFile(hold, '');
