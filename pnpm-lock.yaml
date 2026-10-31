@@ -24,6 +24,9 @@ catalogs:
     eslint-plugin-import-x:
       specifier: ^4.17.1
       version: 4.17.1
+    expo-document-picker:
+      specifier: ~58.0.4
+      version: 58.0.4
     expo-file-system:
       specifier: ~58.0.10
       version: 58.0.10
@@ -533,6 +536,9 @@ importers:
       expo-device:
         specifier: ~58.0.5
         version: 58.0.5(expo@58.0.16)
+      expo-document-picker:
+        specifier: 'catalog:'
+        version: 58.0.4(expo@58.0.16)
       expo-file-system:
         specifier: 'catalog:'
         version: 58.0.10(expo@58.0.16)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))
@@ -6610,6 +6616,11 @@ packages:
 
   expo-device@58.0.5:
     resolution: {integrity: sha512-GNyaHPwoiI/z2SGR14R6d9J7hFSW2JabZieJtC3l6/LO2mJYVCbhEsQ7/1ljGBeTUnFFWHcFLccdaWEhOWtaQQ==}
+    peerDependencies:
+      expo: '*'
+
+  expo-document-picker@58.0.4:
+    resolution: {integrity: sha512-rxs+9RrpI55/BEGNB/3sXjoBG6yZDLyn6Z7KzjbbBLdX8bE2cZT4IozQ3Q5wufaEEeaHQn48EgPiuMoTsAidpg==}
     peerDependencies:
       expo: '*'
 
@@ -16494,6 +16505,10 @@ snapshots:
     dependencies:
       expo: 58.0.16(b368fb513d38a3e18e5106ac22e2f56b)
       ua-parser-js: 0.7.41
+
+  expo-document-picker@58.0.4(expo@58.0.16):
+    dependencies:
+      expo: 58.0.16(b368fb513d38a3e18e5106ac22e2f56b)
 
   expo-file-system@58.0.10(expo@58.0.16)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1)):
     dependencies:

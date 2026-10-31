@@ -1,18 +1,21 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { Image, StyleSheet, Text, View } from 'react-native';
 
+import { parseAgentChatPathReferences } from '@caxri/protocol';
+
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationHandoffCard } from '../conversation/conversation-handoff-card';
 import { conversationStyles } from '../conversation/conversation-styles';
 import { conversationUserText } from '../conversation/conversation-user-text';
+import { AgentChatPathChips } from './agent-chat-path-chips';
 
 const THUMBNAIL_SIZE = 96;
 
 /**
  * A message on its way, laid out like the user message it becomes but faded, with Desktop's `Sending…` caption and none
  * of its actions, since nothing can act on a message the conversation does not hold yet. Its images show from the
- * prepared JPEGs still on the phone.
+ * prepared JPEGs still on the phone, and the files it cites show as the chips the sent message will have.
  */
 export const AgentChatPendingMessage = ({
     id,
@@ -26,8 +29,9 @@ export const AgentChatPendingMessage = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const cited = parseAgentChatPathReferences(text);
     // A `/new-session` hand-off shows as its card while it is on its way, never as the instructions for the Agent.
-    const user = conversationUserText(text);
+    const user = conversationUserText(cited.text);
     return (
         <View
             accessibilityState={{ busy: true }}
@@ -47,7 +51,8 @@ export const AgentChatPendingMessage = ({
                     ))}
                 </View>
             ) : null}
-            {text.length > 0 ? (
+            <AgentChatPathChips references={cited.references} skills={cited.skills} theme={theme} />
+            {cited.text.length > 0 ? (
                 <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
                     {user.kind === 'handoff' ? (
                         <ConversationHandoffCard note={user.note} theme={theme} />
@@ -56,7 +61,7 @@ export const AgentChatPendingMessage = ({
                             selectable
                             style={[conversationStyles.userText, { color: theme.text }]}
                         >
-                            {text}
+                            {cited.text}
                         </Text>
                     )}
                 </View>

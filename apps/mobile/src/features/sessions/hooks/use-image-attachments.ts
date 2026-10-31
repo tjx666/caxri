@@ -11,6 +11,12 @@ import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { mobileErrorMessage, MobileLocalizedError } from '../../connection/mobile-error-message';
 import {
+    attachmentKey,
+    attachmentsWithReturned,
+    patchAttachment,
+    removeAttachment,
+} from '../attachment-store';
+import {
     CHAT_THUMBNAIL_QUALITIES,
     chatThumbnailSize,
     isWithinChatThumbnailLimit,
@@ -20,15 +26,12 @@ import type { ImageAttachment } from '../image-attachment-store';
 import {
     completeImageAttachment,
     expireImageAttachments,
-    imageAttachmentKey,
     imageAttachmentsBase64Length,
     imageAttachmentStore,
-    imageAttachmentsWithReturned,
     imageAttachmentWaitReason,
-    patchImageAttachment,
-    removeImageAttachment,
 } from '../image-attachment-store';
 import { didUploadImageChunks } from '../image-upload';
+import type { PickedFile } from './use-file-attachments';
 
 /**
  * The largest number of images one Terminal Agent message may carry; a Chat takes `MAX_AGENT_CHAT_IMAGES`.
@@ -67,6 +70,16 @@ const renderChatThumbnail = async (
 export type ImageSource = 'library' | 'camera' | 'clipboard';
 
 /**
+ * Where the photo picker sends what is not attached as an image: every video, and every picked photo when the composer
+ * cannot take images (`imagesAsFiles`), which then reaches the Agent as a file by path.
+ */
+interface FileRoute {
+    add: (files: readonly PickedFile[]) => Promise<void>;
+    imagesAsFiles: boolean;
+    remaining: () => number;
+}
+
+/**
  * One image a source returned; a clipboard image arrives already encoded.
  */
 interface PickedImage {
@@ -86,11 +99,16 @@ const failureMessage = (error: unknown, t: Translate): string =>
 export const useImageAttachments = (
     sessionId: string,
     {
+        files,
         maxAttachments = MAX_ATTACHMENTS,
         maxTotal,
         surface = 'terminal',
         withThumbnail = false,
     }: {
+        /**
+         * Lets the photo library offer videos, and the library and camera stand in for a composer without image input.
+         */
+        files?: FileRoute;
         maxAttachments?: number;
         /**
          * The combined base64 length one message's images may reach, and what the refusal says. An image that would
@@ -120,7 +138,7 @@ export const useImageAttachments = (
     const [failedId, setFailedId] = useState<string>();
     const attachFailureMessage = (error: unknown): string =>
         `${t('sessions.image.attachFailedTitle')}. ${mobileErrorMessage(error, t('sessions.image.attachFailedBody'), t)}`;
-    const key = imageAttachmentKey(connectionScopeKey, surface, sessionId);
+    const key = attachmentKey(connectionScopeKey, surface, sessionId);
     const subscribe = useCallback(
         (listener: () => void) => imageAttachmentStore.subscribe(key, listener),
         [key],
@@ -169,7 +187,7 @@ export const useImageAttachments = (
                     () => imageAttachmentStore.isCancelled(item.id),
                     (progress) =>
                         update((current) =>
-                            patchImageAttachment(current, item.id, {
+                            patchAttachment(current, item.id, {
                                 progress: (before + progress * part.chunks.length) / total,
                             }),
                         ),
@@ -180,7 +198,7 @@ export const useImageAttachments = (
             update((current) => completeImageAttachment(current, item.id, Date.now()));
         } catch (error) {
             update((current) =>
-                patchImageAttachment(current, item.id, {
+                patchAttachment(current, item.id, {
                     state: 'failed',
                     error: failureMessage(error, t),
                 }),
@@ -248,7 +266,7 @@ export const useImageAttachments = (
                 ...prepared,
             };
             update((current) =>
-                patchImageAttachment(current, id, {
+                patchAttachment(current, id, {
                     ...prepared,
                     base64Length,
                     state: 'uploading',
@@ -257,15 +275,18 @@ export const useImageAttachments = (
             await upload(item);
             return undefined;
         } catch (error) {
-            update((current) => removeImageAttachment(current, id));
+            update((current) => removeAttachment(current, id));
             return error;
         }
     };
 
     const add = async (source: ImageSource) => {
-        const remaining = () => maxAttachments - imageAttachmentStore.get(key).length;
-        if (remaining() <= 0) return;
+        const remaining = () =>
+            files?.imagesAsFiles ? 0 : maxAttachments - imageAttachmentStore.get(key).length;
+        const filesRemaining = () => files?.remaining() ?? 0;
+        if (remaining() <= 0 && filesRemaining() <= 0) return;
         let picked: PickedImage[];
+        let pickedFiles: PickedFile[] = [];
         setAttachError(null);
         try {
             if (source === 'clipboard') {
@@ -287,18 +308,29 @@ export const useImageAttachments = (
                           })
                         : await ImagePicker.launchImageLibraryAsync({
                               allowsMultipleSelection: true,
-                              mediaTypes: ['images'],
+                              mediaTypes: files ? ['images', 'videos'] : ['images'],
                               orderedSelection: true,
                               quality: 1,
-                              selectionLimit: remaining(),
+                              selectionLimit: remaining() + filesRemaining(),
                           });
                 if (result.canceled) return;
-                picked = result.assets.map(({ height, uri, width }) => ({ height, uri, width }));
+                const isFile = (asset: ImagePicker.ImagePickerAsset) =>
+                    files !== undefined && (files.imagesAsFiles || asset.type === 'video');
+                picked = result.assets
+                    .filter((asset) => !isFile(asset))
+                    .map(({ height, uri, width }) => ({ height, uri, width }));
+                pickedFiles = result.assets.filter(isFile).map((asset) => ({
+                    uri: asset.uri,
+                    name: asset.fileName,
+                    size: asset.fileSize,
+                    mimeType: asset.mimeType,
+                }));
             }
         } catch (error) {
             setAttachError(attachFailureMessage(error));
             return;
         }
+        if (pickedFiles.length > 0) void files?.add(pickedFiles);
         // Another pick may have filled the strip while the picker was open.
         const pending = picked
             .slice(0, Math.max(0, remaining()))
@@ -326,7 +358,7 @@ export const useImageAttachments = (
 
     const remove = (id: string) => {
         imageAttachmentStore.cancel(id);
-        update((current) => removeImageAttachment(current, id));
+        update((current) => removeAttachment(current, id));
     };
 
     const retry = async (id: string) => {
@@ -388,6 +420,6 @@ export const useImageAttachments = (
          * twice. Their uploads are still on the Server, so they are ready to send again.
          */
         restore: (returned: readonly ImageAttachment[]) =>
-            update((current) => imageAttachmentsWithReturned(current, returned)),
+            update((current) => attachmentsWithReturned(current, returned)),
     };
 };

@@ -26,6 +26,7 @@ import type { GitService } from '../git';
 import type { TerminalManager } from '../terminal';
 import { createMobileAgentAvailabilityHandler } from './agent-availability';
 import { createMobileAgentSubmitHandler } from './agent-submit';
+import { MobileFileStore } from './file-store';
 import { MobileImageStore } from './image-store';
 import { createMobileProjectAddHandler, createMobileProjectBrowseHandler } from './project-browse';
 import type { MobileTerminalMutationQueue } from './terminal-mutation-queue';
@@ -45,6 +46,9 @@ type MobileDomainMethods = Pick<
     | 'mobile.image.upload'
     | 'mobile.image.uploadInternal'
     | 'mobile.image.readInternal'
+    | 'mobile.file.upload'
+    | 'mobile.file.uploadInternal'
+    | 'mobile.file.pathsInternal'
     | 'mobile.changes.list'
     | 'mobile.changes.listInternal'
     | 'mobile.changes.diff'
@@ -105,6 +109,7 @@ export function createMobileDomainHandlers(options: {
     autoAllow?: Partial<PermissionAutoAllowAccess>;
     git: GitService;
     imageDirectory?: string;
+    fileDirectory?: string;
     queue: MobileTerminalMutationQueue;
     terminals: TerminalManager;
     timeline: AgentTimelineService;
@@ -121,6 +126,7 @@ export function createMobileDomainHandlers(options: {
     const grantAutoAllow = options.autoAllow?.grantAutoAllow ?? noAutoAllowGrant;
     const revokeAutoAllow = options.autoAllow?.revokeAutoAllow ?? noAutoAllowGrant;
     const images = new MobileImageStore(options.imageDirectory);
+    const files = new MobileFileStore(options.fileDirectory);
     const browseProject = createMobileProjectBrowseHandler({});
     const addProject = createMobileProjectAddHandler({
         database: options.database,
@@ -178,7 +184,11 @@ export function createMobileDomainHandlers(options: {
         'mobile.agent.submit': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Agent input requires a paired device');
         },
-        'mobile.agent.submitInternal': createMobileAgentSubmitHandler({ ...options, images }),
+        'mobile.agent.submitInternal': createMobileAgentSubmitHandler({
+            ...options,
+            images,
+            uploads: files,
+        }),
         'mobile.image.upload': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile image upload requires a paired device');
         },
@@ -207,6 +217,28 @@ export function createMobileDomainHandlers(options: {
                 throw new CaxriError('FORBIDDEN', 'Device cannot attach images');
             authorizedSession(options.database, sessionId, principal);
             return images.read(
+                `${principal.deviceId}:${principal.generation}`,
+                sessionId,
+                attachmentIds,
+            );
+        },
+        'mobile.file.upload': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile file upload requires a paired device');
+        },
+        'mobile.file.uploadInternal': async ({ principal, ...parameters }) => {
+            if (principal.kind !== 'paired-device' || principal.role === 'view')
+                throw new CaxriError('FORBIDDEN', 'Device cannot attach files');
+            authorizedSession(options.database, parameters.sessionId, principal);
+            return files.upload({
+                ...parameters,
+                owner: `${principal.deviceId}:${principal.generation}`,
+            });
+        },
+        'mobile.file.pathsInternal': ({ sessionId, attachmentIds, principal }) => {
+            if (principal.kind !== 'paired-device' || principal.role === 'view')
+                throw new CaxriError('FORBIDDEN', 'Device cannot attach files');
+            authorizedSession(options.database, sessionId, principal);
+            return files.paths(
                 `${principal.deviceId}:${principal.generation}`,
                 sessionId,
                 attachmentIds,

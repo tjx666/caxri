@@ -10,21 +10,23 @@ import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 
 /**
- * Why one image failed to upload, with Retry and Remove. It replaces the system dialog the strip used to raise, so the
- * choice looks like every other sheet and the reason sits under its title.
+ * Why one image or file failed to upload, with Retry and Remove. It replaces the system dialog the strip used to raise,
+ * so the choice looks like every other sheet and the reason sits under its title.
  */
-export const ImageFailureSheet = ({
+export const UploadFailureSheet = ({
     onClose,
     onRemove,
     onRetry,
     reason,
     theme,
+    title,
 }: {
     onClose: () => void;
     onRemove: () => void;
     onRetry: () => void;
     reason: string;
     theme: MobileTheme;
+    title: string;
 }) => {
     const { t } = useTranslation();
     return (
@@ -36,11 +38,7 @@ export const ImageFailureSheet = ({
         >
             {(dismiss) => (
                 <>
-                    <SheetTitle
-                        detail={reason}
-                        theme={theme}
-                        title={t('sessions.image.uploadFailedTitle')}
-                    />
+                    <SheetTitle detail={reason} theme={theme} title={title} />
                     <SheetAction
                         icon={RotateCw}
                         label={t('common.retry')}

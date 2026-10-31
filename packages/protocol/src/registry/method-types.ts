@@ -170,6 +170,7 @@ export const effectfulCommandRecovery = {
     'mobile.pullRequest.merge': 'durable',
     'mobile.agent.submit': 'none',
     'mobile.image.upload': 'memory',
+    'mobile.file.upload': 'memory',
     'mobile.attention.answer': 'memory',
     'mobile.attention.autoAllowRevoke': 'memory',
     'mobile.terminal.takeOver': 'none',

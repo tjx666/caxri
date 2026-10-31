@@ -92,6 +92,8 @@ export function domainFixture(options: {
             if (method === 'agentChat.read') return options.snapshot ?? chatSnapshot('ready');
             if (method === 'mobile.session.projectRootInternal') return { rootPath: '/work/demo' };
             if (method === 'mobile.image.readInternal') return ['T1JJRw==', 'VEhVTUI='];
+            if (method === 'mobile.file.pathsInternal')
+                return ['/tmp/uploads/file_1/clip.mov', '/tmp/uploads/file_2/notes.pdf'];
             if (method === 'agentChat.readHistory' && options.history) return options.history;
             if (method === 'agentChat.continuationTargets')
                 return { targets: options.targets ?? [] };

@@ -5,7 +5,7 @@ import type {
     AgentChatSnapshot,
     AgentProvider,
 } from '@caxri/protocol';
-import { agentProviderCatalog, sentenceStartProvider } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
@@ -58,14 +58,6 @@ export const canAttachAgentChatImages = (
         ? agentProviderCatalog[provider].capabilities.chatImages
         : false;
 };
-
-/**
- * Why a Chat composer's attach button is disabled for a provider that takes no images in a Chat (Grok Build).
- */
-export const agentChatImagesUnsupportedReason = (
-    provider: string,
-    t: Translate = translate,
-): string => t('chat.imagesUnsupported', { provider: sentenceStartProvider(provider) });
 
 /**
  * Whether Retry can fix a failure from the phone. A missing or outdated provider fails the same way again until someone

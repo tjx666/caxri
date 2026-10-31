@@ -208,19 +208,22 @@ export const useAgentChat = ({
     }, []);
 
     /**
-     * Sends a message. While a turn runs it waits in the follow-up queue unless `delivery` is `steer`.
+     * Sends a message. While a turn runs it waits in the follow-up queue unless `delivery` is `steer`. `files` are the
+     * uploads `text` cites by path, which the Server checks before it sends.
      */
     const send = useCallback(
         async (
             text: string,
             attachments: readonly AgentChatAttachment[] = [],
             delivery?: 'steer',
+            files: readonly string[] = [],
         ): Promise<void> => {
             if (terminalId === null) return;
             await request('mobile.agentChat.send', {
                 terminalId,
                 text,
                 ...(attachments.length > 0 && { attachments: [...attachments] }),
+                ...(files.length > 0 && { files: [...files] }),
                 ...(delivery && { delivery }),
             });
             // Acceptance-only: fail after the request was delivered; see `agent-chat-send-fault.ts`.

@@ -115,6 +115,49 @@ describe('mobile Agent submission', () => {
         }
     });
 
+    it('appends uploaded file paths after image paths and fingerprints the file IDs', async () => {
+        const f = await fixture();
+        const attachmentId = `image_${'a'.repeat(32)}`;
+        const fileAttachmentId = `file_${'b'.repeat(32)}`;
+        const imagePath = join(f.path, `${attachmentId}.jpg`);
+        const filePath = join(f.path, fileAttachmentId, 'clip.mov');
+        const uploads = { paths: vi.fn(() => [filePath]) };
+        const handler = createMobileAgentSubmitHandler({
+            database: f.database,
+            endpoints: f.endpoints,
+            images: { paths: vi.fn(() => [imagePath]) },
+            uploads,
+            queue: f.queue,
+            terminals: { submitAgentExact: f.submitAgentExact },
+        });
+        const input = {
+            ...f.input,
+            attachmentIds: [attachmentId],
+            fileAttachmentIds: [fileAttachmentId],
+        };
+        try {
+            await expect(handler(input)).resolves.toEqual({
+                terminalId: f.terminalId,
+                outcome: 'accepted',
+            });
+            expect(uploads.paths).toHaveBeenCalledExactlyOnceWith('device-1:1', f.input.sessionId, [
+                fileAttachmentId,
+            ]);
+            expect(f.submitAgentExact).toHaveBeenCalledExactlyOnceWith(
+                f.terminalId,
+                f.input.sessionId,
+                'launch-1',
+                `${f.input.text}\n\nAttached image paths:\n${imagePath}\n\nAttached file paths:\n${filePath}`,
+                undefined,
+            );
+            await expect(handler({ ...input, fileAttachmentIds: [] })).rejects.toMatchObject({
+                code: 'CONFLICT',
+            });
+        } finally {
+            f.database.close();
+        }
+    });
+
     it('writes once and replays accepted after a Server database reopen without storing text', async () => {
         const f = await fixture();
         expect(await f.handler(f.input)).toEqual({ terminalId: f.terminalId, outcome: 'accepted' });

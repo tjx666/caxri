@@ -16,7 +16,6 @@ import {
     agentChatHandedOffBanner,
     agentChatHandedOffNotice,
     agentChatImageCounts,
-    agentChatImagesUnsupportedReason,
     agentChatProviderId,
     agentChatProviderName,
     agentChatRequestBlockedReason,
@@ -177,15 +176,6 @@ describe('Agent Chat model', () => {
         expect(agentChatProviderId({ kind: 'shell', provider: 'claude' })).toBe('claude');
         expect(agentChatProviderId({ kind: 'shell' })).toBeUndefined();
         expect(agentChatProviderId(undefined)).toBeUndefined();
-    });
-
-    it('starts the unsupported-images reason with a capital for the providerless fallback', () => {
-        expect(agentChatImagesUnsupportedReason('Grok Build')).toBe(
-            'Grok Build Chat does not accept images',
-        );
-        expect(agentChatImagesUnsupportedReason('the Agent')).toBe(
-            'The Agent Chat does not accept images',
-        );
     });
 
     it('offers no Retry for a provider that must be installed or updated on the computer', () => {

@@ -1,6 +1,9 @@
 // oxlint-disable typescript/require-await -- Async domain fakes preserve the production Promise boundary.
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH } from '@caxri/protocol';
+import {
+    agentChatTextWithPathReferences,
+    MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { invokeMobileAgentChatRequest } from '../agent-chat-requests';
@@ -120,6 +123,66 @@ describe('mobile Agent Chat requests', () => {
                 ],
             },
         });
+    });
+
+    it('sends a message citing its uploaded files, and refuses one that leaves a file out', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        const files = [`file_${'c'.repeat(32)}`, `file_${'d'.repeat(32)}`];
+        const text = agentChatTextWithPathReferences(
+            'Summarize these',
+            [
+                { path: '/tmp/uploads/file_1/clip.mov', isDirectory: false },
+                { path: '/tmp/uploads/file_2/notes.pdf', isDirectory: false },
+            ],
+            'Codex',
+        );
+        await invoke(
+            { method: 'mobile.agentChat.send', params: { terminalId: 'terminal-1', text, files } },
+            domain,
+            forward,
+        );
+        expect(domain.request).toHaveBeenCalledWith('mobile.file.pathsInternal', {
+            sessionId: 'session-1',
+            attachmentIds: files,
+            principal,
+        });
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.send',
+            params: { terminalId: 'terminal-1', text },
+        });
+        await expect(
+            invoke(
+                {
+                    method: 'mobile.agentChat.send',
+                    params: { terminalId: 'terminal-1', text: 'Summarize these', files },
+                },
+                domain,
+                forward,
+            ),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(forward).toHaveBeenCalledTimes(1);
+        // Files sent with no words: the gateway's schema trims the text, which must still cite them.
+        await invoke(
+            {
+                method: 'mobile.agentChat.send',
+                params: {
+                    terminalId: 'terminal-1',
+                    text: agentChatTextWithPathReferences(
+                        '',
+                        [
+                            { path: '/tmp/uploads/file_1/clip.mov', isDirectory: false },
+                            { path: '/tmp/uploads/file_2/notes.pdf', isDirectory: false },
+                        ],
+                        'Claude Code',
+                    ).trim(),
+                    files,
+                },
+            },
+            domain,
+            forward,
+        );
+        expect(forward).toHaveBeenCalledTimes(2);
     });
 
     it('reads a thumbnail the window left out, and pages an original in frame-sized chunks', async () => {

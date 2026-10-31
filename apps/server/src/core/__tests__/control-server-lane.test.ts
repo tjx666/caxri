@@ -195,6 +195,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.device.revoke.apply': 'ordered',
     'mobile.files.write': 'ordered',
     'mobile.files.writeInternal': 'ordered',
+    'mobile.file.upload': 'ordered',
+    'mobile.file.uploadInternal': 'ordered',
     'mobile.image.upload': 'ordered',
     'mobile.image.uploadInternal': 'ordered',
     'mobile.pairing.create': 'ordered',

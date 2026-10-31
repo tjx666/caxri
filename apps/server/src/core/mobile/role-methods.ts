@@ -100,6 +100,7 @@ const mobileGatewayMethodsByRole = {
         'session.markRead',
         'mobile.agent.submit',
         'mobile.image.upload',
+        'mobile.file.upload',
         ...mobileEveryRoleMethods,
     ],
     control: [
@@ -144,6 +145,7 @@ const mobileGatewayMethodsByRole = {
         'session.markRead',
         'mobile.agent.submit',
         'mobile.image.upload',
+        'mobile.file.upload',
         'agent.control.interrupt',
         'mobile.session.archived',
         'mobile.session.create',

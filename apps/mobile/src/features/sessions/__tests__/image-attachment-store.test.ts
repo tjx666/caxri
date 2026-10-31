@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+    attachmentKey,
+    AttachmentStore,
+    attachmentsWithReturned,
+    patchAttachment,
+    removeAttachment,
+} from '../attachment-store';
 import type { ImageAttachment } from '../image-attachment-store';
 import {
     completeImageAttachment,
@@ -7,13 +14,8 @@ import {
     IMAGE_ATTACHMENT_REUSE_MS,
     imageAttachmentAccessibilityLabel,
     imageAttachmentBudgetNote,
-    imageAttachmentKey,
     imageAttachmentsBase64Length,
-    ImageAttachmentStore,
-    imageAttachmentsWithReturned,
     imageAttachmentWaitReason,
-    patchImageAttachment,
-    removeImageAttachment,
 } from '../image-attachment-store';
 
 const attachment = (patch: Partial<ImageAttachment> = {}): ImageAttachment => ({
@@ -27,31 +29,31 @@ const attachment = (patch: Partial<ImageAttachment> = {}): ImageAttachment => ({
 
 describe('composer image attachment store', () => {
     it('keeps pending images per key after every subscriber left, as a composer remount needs', () => {
-        const store = new ImageAttachmentStore();
-        const key = imageAttachmentKey('scope', 'chat', 'session_1');
+        const store = new AttachmentStore<ImageAttachment>();
+        const key = attachmentKey('scope', 'chat', 'session_1');
         const listener = vi.fn();
         const unsubscribe = store.subscribe(key, listener);
         store.update(key, (current) => [...current, attachment()]);
         expect(listener).toHaveBeenCalledTimes(1);
         unsubscribe();
         // An upload still running after the composer unmounted keeps reporting into the store.
-        store.update(key, (current) => patchImageAttachment(current, 'image_a', { progress: 0.5 }));
+        store.update(key, (current) => patchAttachment(current, 'image_a', { progress: 0.5 }));
         expect(store.get(key)).toEqual([attachment({ progress: 0.5 })]);
-        expect(store.get(imageAttachmentKey('scope', 'chat', 'session_2'))).toEqual([]);
-        expect(store.get(imageAttachmentKey('scope', 'terminal', 'session_1'))).toEqual([]);
+        expect(store.get(attachmentKey('scope', 'chat', 'session_2'))).toEqual([]);
+        expect(store.get(attachmentKey('scope', 'terminal', 'session_1'))).toEqual([]);
     });
 
     it('skips notifying when a change leaves the list as it was', () => {
-        const store = new ImageAttachmentStore();
+        const store = new AttachmentStore<ImageAttachment>();
         const listener = vi.fn();
         store.subscribe('key', listener);
-        store.update('key', (current) => removeImageAttachment(current, 'missing'));
-        store.update('key', (current) => patchImageAttachment(current, 'missing', { progress: 1 }));
+        store.update('key', (current) => removeAttachment(current, 'missing'));
+        store.update('key', (current) => patchAttachment(current, 'missing', { progress: 1 }));
         expect(listener).not.toHaveBeenCalled();
     });
 
     it('remembers a cancelled upload so its next chunk stops', () => {
-        const store = new ImageAttachmentStore();
+        const store = new AttachmentStore<ImageAttachment>();
         expect(store.isCancelled('image_a')).toBe(false);
         store.cancel('image_a');
         expect(store.isCancelled('image_a')).toBe(true);
@@ -152,11 +154,11 @@ describe('returning the images of a failed send', () => {
     it('puts them back ahead of images attached since, without duplicates', () => {
         const sent = [attachment({ id: 'sent' }), attachment({ id: 'kept' })];
         const current = [attachment({ id: 'later' }), attachment({ id: 'kept' })];
-        expect(imageAttachmentsWithReturned(current, sent).map(({ id }) => id)).toEqual([
+        expect(attachmentsWithReturned(current, sent).map(({ id }) => id)).toEqual([
             'sent',
             'later',
             'kept',
         ]);
-        expect(imageAttachmentsWithReturned(current, [attachment({ id: 'kept' })])).toBe(current);
+        expect(attachmentsWithReturned(current, [attachment({ id: 'kept' })])).toBe(current);
     });
 });
