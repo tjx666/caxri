@@ -6,8 +6,11 @@
  * - `--staged` (pre-commit hook): scans the Git index, the same diff a commit is about to create.
  * - Default, `GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION` set (all push and pull-request CI checks): scans only the
  *   commits the triggering push or pull request actually introduced.
- * - Default, no base revision (manual dispatch or a bare local invocation): scans the entire commit history as an
- *   intentional audit.
+ * - Default, manual CI dispatch (`GITHUB_EVENT_NAME=workflow_dispatch`) with no base revision: scans the commits the
+ *   dispatched ref adds beyond `origin/main`, as a pull request would.
+ * - Default, no base revision outside a dispatch (a bare local invocation): scans the entire commit history as an
+ *   intentional audit. History is never rewritten, so that audit still reports the identifying values earlier commits
+ *   carry (see `.gitleaks.toml`) and cannot gate CI.
  */
 
 import { resolve } from 'node:path';
@@ -18,6 +21,21 @@ import { resolveGitleaksBinary } from './prepare-gitleaks';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const ALL_ZERO_REVISION = '0000000000000000000000000000000000000000';
+const DISPATCH_BASE_REVISION = 'origin/main';
+
+/**
+ * The base revision to scan from. A manual dispatch carries no push or pull-request base, and treating that as a
+ * full-history audit failed every `hosted-full` run on historical findings before E2E could start (#3293), so it scans
+ * from `origin/main` instead. A dispatch on `main` itself then scans no commits, which the push run already did.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/gitleaks-scan.test.ts
+export function resolveGitleaksBaseRevision(
+    baseRevision: string | undefined,
+    eventName: string | undefined,
+): string | undefined {
+    if (baseRevision?.trim()) return baseRevision;
+    return eventName === 'workflow_dispatch' ? DISPATCH_BASE_REVISION : undefined;
+}
 
 /**
  * Resolves the `--log-opts` git-log range gitleaks should scan. A PR or push carries a real base revision; the very
@@ -153,7 +171,7 @@ async function main(): Promise<void> {
     if (unsupported.length > 0) {
         console.error(
             `Unsupported argument ${unsupported.join(' ')}. Pass --staged, or scan a range with` +
-                ' GITLEAKS_BASE_REVISION=<base> [GITLEAKS_HEAD_REVISION=<head>]; no range scans the full history.',
+                ' GITLEAKS_BASE_REVISION=<base> [GITLEAKS_HEAD_REVISION=<head>]; no range outside a CI dispatch scans the full history.',
         );
         process.exitCode = 2;
         return;
@@ -162,7 +180,10 @@ async function main(): Promise<void> {
         ? resolve(process.env.RUNNER_TOOL_CACHE, 'caxri')
         : resolve(projectRoot, '.cache', 'tool-cache');
     const result = await runGitleaksScan({
-        baseRevision: process.env.GITLEAKS_BASE_REVISION,
+        baseRevision: resolveGitleaksBaseRevision(
+            process.env.GITLEAKS_BASE_REVISION,
+            process.env.GITHUB_EVENT_NAME,
+        ),
         cacheRoot,
         headRevision: process.env.GITLEAKS_HEAD_REVISION ?? 'HEAD',
         repoRoot: projectRoot,
