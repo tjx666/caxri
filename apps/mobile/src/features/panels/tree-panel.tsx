@@ -27,6 +27,7 @@ const INDENT = 16;
 const TreeChildren = ({
     depth,
     deviceRole,
+    onOpenChat,
     parentHandle,
     parentPosition,
     sessionId,
@@ -35,6 +36,7 @@ const TreeChildren = ({
 }: {
     depth: number;
     deviceRole: DeviceRole;
+    onOpenChat?: () => void;
     parentHandle?: string;
     parentPosition?: string;
     sessionId: string;
@@ -109,6 +111,7 @@ const TreeChildren = ({
                     depth={depth}
                     deviceRole={deviceRole}
                     item={item}
+                    onOpenChat={onOpenChat}
                     position={
                         parentPosition === undefined ? `${index}` : `${parentPosition}.${index}`
                     }
@@ -125,6 +128,7 @@ const TreeRow = ({
     depth,
     deviceRole,
     item,
+    onOpenChat,
     position,
     sessionId,
     theme,
@@ -133,6 +137,7 @@ const TreeRow = ({
     depth: number;
     deviceRole: DeviceRole;
     item: TreeItem;
+    onOpenChat?: () => void;
     /**
      * The row's place in the tree as sibling indexes (`1.2` is the third child of the second root row). It keys the
      * inline actions' test IDs, which must differ between rows yet must not carry a handle, a label, or a path.
@@ -189,6 +194,7 @@ const TreeRow = ({
                             <TreeItemActionButton
                                 key={`${action.command.id}:${action.command.title}`}
                                 action={action}
+                                onOpenChat={onOpenChat}
                                 sessionId={sessionId}
                                 testID={`tree-row-action-${position}-${index}`}
                                 theme={theme}
@@ -201,6 +207,7 @@ const TreeRow = ({
                 <TreeChildren
                     depth={depth + 1}
                     deviceRole={deviceRole}
+                    onOpenChat={onOpenChat}
                     parentHandle={item.handle}
                     parentPosition={position}
                     sessionId={sessionId}
@@ -218,11 +225,13 @@ const TreeRow = ({
  */
 export const TreePanel = ({
     deviceRole,
+    onOpenChat,
     sessionId,
     theme,
     viewId,
 }: {
     deviceRole: DeviceRole;
+    onOpenChat?: () => void;
     sessionId: string;
     theme: MobileTheme;
     viewId: string;
@@ -233,6 +242,7 @@ export const TreePanel = ({
             <TreeChildren
                 depth={0}
                 deviceRole={deviceRole}
+                onOpenChat={onOpenChat}
                 sessionId={sessionId}
                 theme={theme}
                 viewId={viewId}

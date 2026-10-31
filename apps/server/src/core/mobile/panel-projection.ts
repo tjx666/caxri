@@ -41,15 +41,26 @@ const OPEN_EXTERNAL_COMMAND = 'caxri.openExternal';
 type TreeItemAction = NonNullable<TreeItemDto['actions']>[number];
 
 /**
+ * The Workbench command that hands a prompt to the Session's Agent. The phone cannot resolve it itself, so
+ * `mobile.tree.executeCommand` intercepts it and sends the prompt to the Session's Agent Chat.
+ */
+export const SEND_TO_AGENT_COMMAND = 'caxri.sendToAgent';
+
+/**
  * Whether a phone can run this inline action: an extension's own command (it runs in the Extension Host through
- * `mobile.tree.executeCommand`, as Desktop runs it) or `caxri.openExternal`. Every other Workbench command, such as
- * `caxri.sendToAgent` or `caxri.showLogs`, is resolved by the Desktop Renderer and has no phone equivalent yet, so its
- * button is dropped rather than shown dead.
+ * `mobile.tree.executeCommand`, as Desktop runs it), `caxri.openExternal`, or `caxri.sendToAgent` for a `control`
+ * device (sending a prompt starts an Agent turn, which only that role may do). Every other Workbench command, such as
+ * `caxri.showLogs`, is resolved by the Desktop Renderer and has no phone equivalent yet, so its button is dropped
+ * rather than shown dead.
  */
 const canPhoneRunTreeAction = (
     action: TreeItemAction,
     isExtensionCommand: (commandId: string) => boolean,
-): boolean => action.command.id === OPEN_EXTERNAL_COMMAND || isExtensionCommand(action.command.id);
+    canSendToAgent: boolean,
+): boolean =>
+    action.command.id === OPEN_EXTERNAL_COMMAND ||
+    (canSendToAgent && action.command.id === SEND_TO_AGENT_COMMAND) ||
+    isExtensionCommand(action.command.id);
 
 const projectMobileTreeAction = ({ icon, ...action }: TreeItemAction): MobileTreeItemAction => ({
     ...action,
@@ -59,9 +70,10 @@ const projectMobileTreeAction = ({ icon, ...action }: TreeItemAction): MobileTre
 export const projectMobileTreeItem = (
     item: TreeItemDto,
     isExtensionCommand: (commandId: string) => boolean,
+    canSendToAgent: boolean,
 ) => {
     const actions = (item.actions ?? [])
-        .filter((action) => canPhoneRunTreeAction(action, isExtensionCommand))
+        .filter((action) => canPhoneRunTreeAction(action, isExtensionCommand, canSendToAgent))
         .map(projectMobileTreeAction);
     return {
         handle: item.handle,

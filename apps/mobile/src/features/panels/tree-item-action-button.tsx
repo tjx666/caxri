@@ -21,11 +21,13 @@ import { TreeItemIcon } from './tree-item-icon';
  */
 export const TreeItemActionButton = ({
     action,
+    onOpenChat,
     sessionId,
     testID,
     theme,
 }: {
     action: MobileTreeItemAction;
+    onOpenChat?: () => void;
     sessionId: string;
     testID: string;
     theme: MobileTheme;
@@ -45,6 +47,7 @@ export const TreeItemActionButton = ({
                     arguments: arguments_,
                 }),
             notify: showToast,
+            openChat: onOpenChat,
             openLink: (url) => openExternalLink(url),
             t,
         }).finally(() => setBusy(false));

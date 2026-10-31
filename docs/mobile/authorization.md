@@ -154,12 +154,21 @@ first asks for a second confirmation that names it, as Desktop does.
 
 The Status panel on the phone also carries Desktop's per-repository `Merge` buttons, so a submodule
 or nested repository's pull request merges from its own row. `mobile.tree.children` projects each
-row's inline actions that a phone can run: an extension's own command or `caxri.openExternal`
-(opened on the phone). Renderer-resolved commands such as `caxri.sendToAgent` are dropped.
+row's inline actions that a phone can run: an extension's own command, `caxri.openExternal`
+(opened on the phone), and, for a control device only, `caxri.sendToAgent` (the Status panel's
+`Resolve` and `Fix`). Other Renderer-resolved commands such as `caxri.showLogs` are dropped.
 `mobile.tree.executeCommand` runs an extension command through the same
 `ExtensionService.executeCommand` Desktop uses, scoped to the phone's Session. Because that command
 may be the merge, it requires the control role and re-checks the device generation before and
 after the command runs.
+
+`caxri.sendToAgent` has no Extension Host handler, so `mobile.tree.executeCommand` resolves it in
+Server Core: it refuses a non-control device (`FORBIDDEN`), normalizes the prompt with the shared
+`agentPromptText` Desktop uses (`VALIDATION` when it is empty or over the Agent Chat message limit),
+and sends it to the Session's primary Agent when that is a Chat through the same `agentChat.send` admission as
+`mobile.agentChat.send`, re-checking the device generation before and after. A Session whose
+primary Agent is not a Chat answers `CONFLICT`: the phone does not target a Terminal Agent. The result names the
+Agent (`Sent to Claude`).
 
 ## Agent usage from mobile
 

@@ -82,4 +82,90 @@ describe('MobileAccessController tree actions', () => {
             await controller.close();
         }
     });
+
+    /**
+     * `caxri.sendToAgent` is a Workbench command Desktop's Renderer resolves; for a phone Server Core sends the prompt
+     * to the Session's Agent Chat through the forwarded `agentChat.send`, and never reaches the Extension Host.
+     */
+    it('sends a Resolve prompt to the Session Agent Chat through the forwarded operation', async () => {
+        const store = createMemoryMobileDeviceStore();
+        const registry = MobileDeviceRegistry.open({ store });
+        const paired = await registry.pair({
+            displayName: 'Test phone',
+            platform: 'ios',
+            projectIds: ['project-1'],
+        });
+        const principal = registry.authenticate({
+            credential: paired.credential,
+            deviceId: paired.device.deviceId,
+            generation: paired.device.generation,
+        });
+        const executeCommand = vi.fn();
+        const controller = openMobileAccessController({ store });
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            {} as ServerDomainService,
+            terminalExecution,
+            () => ({ executeCommand }) as unknown as ExtensionService,
+        );
+        const request = vi.fn((method: string) => {
+            if (method === 'session.queryForPrincipal')
+                return Promise.resolve({
+                    sessions: [
+                        {
+                            id: 'session-1',
+                            projectId: 'project-1',
+                            primaryAgentTerminalId: 'chat-1',
+                        },
+                    ],
+                });
+            if (method === 'app.sessionContext')
+                return Promise.resolve({
+                    projectIds: ['project-1'],
+                    sessionId: 'session-1',
+                    workbenchRootProjectId: 'project-1',
+                });
+            if (method === 'terminal.queryForPrincipal')
+                return Promise.resolve({
+                    terminals: [
+                        {
+                            id: 'chat-1',
+                            sessionId: 'session-1',
+                            kind: 'claude',
+                            provider: 'claude',
+                            surface: 'chat',
+                        },
+                    ],
+                });
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const forward = vi.fn(() => Promise.resolve(null));
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.tree.executeCommand',
+                        params: {
+                            sessionId: 'session-1',
+                            commandId: 'caxri.sendToAgent',
+                            arguments: ['Resolve the conflicts'],
+                        },
+                    },
+                    { capabilities: [], principal },
+                    { request } as unknown as ServerDomainService,
+                    undefined,
+                    forward,
+                ),
+            ).resolves.toEqual({ executed: true, message: 'Sent to Claude' });
+            expect(forward).toHaveBeenCalledWith({
+                method: 'agentChat.send',
+                params: { terminalId: 'chat-1', text: 'Resolve the conflicts' },
+            });
+            expect(executeCommand).not.toHaveBeenCalled();
+        } finally {
+            await controller.close();
+        }
+    });
 });

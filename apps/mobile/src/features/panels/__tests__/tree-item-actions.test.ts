@@ -21,7 +21,48 @@ const merge = {
     feedback: { success: 'Merged #42', failure: "Couldn't merge #42" },
 };
 
+const resolve = {
+    command: {
+        id: 'caxri.sendToAgent',
+        title: 'Resolve',
+        arguments: ['Resolve the merge conflicts'],
+    },
+    feedback: { failure: "Couldn't send to the Agent" },
+};
+
 describe('runTreeAction', () => {
+    it('shows the Chat after a prompt was sent to the Agent', async () => {
+        const dependencies_ = { ...dependencies(), openChat: vi.fn() };
+        dependencies_.execute.mockResolvedValueOnce({
+            executed: true,
+            message: 'Sent to Claude',
+        } as never);
+        await runTreeAction(resolve, dependencies_);
+        expect(dependencies_.execute).toHaveBeenCalledWith('caxri.sendToAgent', [
+            'Resolve the merge conflicts',
+        ]);
+        expect(dependencies_.notify).toHaveBeenCalledWith('success', 'Sent to Claude');
+        expect(dependencies_.openChat).toHaveBeenCalledOnce();
+    });
+
+    it('stays on the panel and reports the reason when the send failed', async () => {
+        const dependencies_ = { ...dependencies(), openChat: vi.fn() };
+        dependencies_.execute.mockRejectedValueOnce(new Error('No Agent Chat in this Session'));
+        await runTreeAction(resolve, dependencies_);
+        expect(dependencies_.notify).toHaveBeenCalledWith(
+            'error',
+            "Couldn't send to the Agent",
+            'No Agent Chat in this Session',
+        );
+        expect(dependencies_.openChat).not.toHaveBeenCalled();
+    });
+
+    it('does not show the Chat after other commands', async () => {
+        const dependencies_ = { ...dependencies(), openChat: vi.fn() };
+        await runTreeAction(merge, dependencies_);
+        expect(dependencies_.openChat).not.toHaveBeenCalled();
+    });
+
     it('runs an extension command and prefers its own result message', async () => {
         const dependencies_ = dependencies();
         dependencies_.execute.mockResolvedValueOnce({

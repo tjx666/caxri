@@ -473,7 +473,9 @@ A tap on a row only expands it; on a `control` device the row's inline actions (
 repository's `Merge` in Status, submodules included) appear as pills tinted like Desktop's and run
 through `mobile.tree.executeCommand`, asking first when the provider attached a confirmation. Merging
 the primary repository's pull request from its row also turns the header's pull request chip merged,
-because the chip re-reads after every Status panel change. The Project tab is available to every role. Offline with nothing cached, it asks the
+because the chip re-reads after every Status panel change. A conflicting pull request's `Resolve`
+(and a failed check's `Fix`) sends Desktop's prepared prompt to the Session's Agent Chat, then
+switches the phone to that Chat; a failure keeps the panel and shows the reason in a toast. The Project tab is available to every role. Offline with nothing cached, it asks the
 reader to reconnect instead of showing an empty folder or a spinner. A loading folder or tree item
 waits 500 ms before it shows its spinner, so one that answers at once never flashes it.
 

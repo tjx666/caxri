@@ -6,8 +6,15 @@ import { CaxriError } from '@caxri/protocol';
 import type { ServerDomainService } from '../domain-service';
 import type { ExtensionService } from '../extensions/service';
 import { toExtensionViewEventContext } from '../extensions/service-events';
-import { mobilePanelViewKind, projectMobileIcon, projectMobileTreeItem } from './panel-projection';
+import type { MobileOperationForwarder } from './agent-chat-requests';
+import {
+    mobilePanelViewKind,
+    projectMobileIcon,
+    projectMobileTreeItem,
+    SEND_TO_AGENT_COMMAND,
+} from './panel-projection';
 import { sessionForPrincipal } from './session-management';
+import { sendTreePromptToSessionAgent } from './tree-send-to-agent';
 
 type PanelRequest = Extract<
     ServerRequest,
@@ -25,6 +32,7 @@ export async function invokeMobilePanelRequest(
     domainService: ServerDomainService,
     extensionService: ExtensionService | undefined,
     reauthorize: () => void,
+    forward?: MobileOperationForwarder,
 ) {
     await sessionForPrincipal(domainService, principal, request.params.sessionId);
     if (request.method === 'mobile.panels.list') {
@@ -62,6 +70,17 @@ export async function invokeMobilePanelRequest(
             throw new CaxriError('NOT_FOUND', 'Session is not available for this command');
         // Re-checked before the command starts, since it may merge a pull request a revoked device must not reach.
         reauthorize();
+        if (request.params.commandId === SEND_TO_AGENT_COMMAND) {
+            // A Workbench command, not an extension's: Desktop's Renderer resolves it, so Server Core does here.
+            return sendTreePromptToSessionAgent(
+                request.params.arguments,
+                request.params.sessionId,
+                principal,
+                domainService,
+                forward,
+                reauthorize,
+            );
+        }
         const result = await extensionService.executeCommand(
             request.params.commandId,
             request.params.arguments,
@@ -94,7 +113,11 @@ export async function invokeMobilePanelRequest(
     );
     return {
         items: result.items.map((item) =>
-            projectMobileTreeItem(item, (commandId) => extensionCommands.has(commandId)),
+            projectMobileTreeItem(
+                item,
+                (commandId) => extensionCommands.has(commandId),
+                principal.role === 'control',
+            ),
         ),
         ...(result.reset && { reset: result.reset }),
     };

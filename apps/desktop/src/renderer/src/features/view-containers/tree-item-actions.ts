@@ -1,10 +1,11 @@
 import type { TreeItemDto } from '@caxri/protocol';
+import { agentPromptText } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { isCancelledRequest, pushToast } from '../../stores/toasts';
-import { agentPromptText, sendPromptToSessionAgent } from '../terminal/agent-prompt-commands';
+import { sendPromptToSessionAgent } from '../terminal/agent-prompt-commands';
 import { actionFailureMessage, dispatchExtensionViewAction } from './view-container-commands';
 
 /**

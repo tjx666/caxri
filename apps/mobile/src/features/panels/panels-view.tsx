@@ -13,11 +13,13 @@ type PanelView = Panel['views'][number];
 
 const PanelBody = ({
     deviceRole,
+    onOpenChat,
     sessionId,
     theme,
     view,
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
+    onOpenChat?: () => void;
     sessionId: string;
     theme: MobileTheme;
     view: PanelView;
@@ -38,6 +40,7 @@ const PanelBody = ({
                 <TreePanel
                     key={view.id}
                     deviceRole={deviceRole}
+                    onOpenChat={onOpenChat}
                     sessionId={sessionId}
                     theme={theme}
                     viewId={view.id}
@@ -61,12 +64,17 @@ const PanelBody = ({
  */
 export const ProjectPanelView = ({
     deviceRole,
+    onOpenChat,
     panelId,
     panels,
     sessionId,
     theme,
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
+    /**
+     * Shows the Session's Chat after an inline action sent a prompt to its Agent.
+     */
+    onOpenChat?: () => void;
     panelId: string;
     panels: ReturnType<typeof useSessionPanels>;
     sessionId: string;
@@ -103,6 +111,7 @@ export const ProjectPanelView = ({
             {panel.views.length === 1 ? (
                 <PanelBody
                     deviceRole={deviceRole}
+                    onOpenChat={onOpenChat}
                     sessionId={sessionId}
                     theme={theme}
                     view={panel.views[0]}
@@ -113,6 +122,7 @@ export const ProjectPanelView = ({
                         <Text style={[styles.viewTitle, { color: theme.muted }]}>{view.title}</Text>
                         <PanelBody
                             deviceRole={deviceRole}
+                            onOpenChat={onOpenChat}
                             sessionId={sessionId}
                             theme={theme}
                             view={view}

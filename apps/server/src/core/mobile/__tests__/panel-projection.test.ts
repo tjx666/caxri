@@ -31,14 +31,25 @@ describe('projectMobileTreeItem', () => {
         const projected = projectMobileTreeItem(
             row([merge, action('caxri.openExternal')]),
             isExtensionCommand,
+            false,
         );
         expect(projected.actions).toEqual([merge, action('caxri.openExternal')]);
     });
 
-    it('drops Renderer-resolved commands a phone cannot run', () => {
+    it('keeps send-to-Agent for a control device and drops Renderer-only commands', () => {
         const projected = projectMobileTreeItem(
             row([action('caxri.sendToAgent'), action('caxri.showLogs')]),
             isExtensionCommand,
+            true,
+        );
+        expect(projected.actions).toEqual([action('caxri.sendToAgent')]);
+    });
+
+    it('drops the send-to-Agent action for a device that cannot start an Agent turn', () => {
+        const projected = projectMobileTreeItem(
+            row([action('caxri.sendToAgent')]),
+            isExtensionCommand,
+            false,
         );
         expect(projected).not.toHaveProperty('actions');
     });
@@ -52,6 +63,7 @@ describe('projectMobileTreeItem', () => {
                 },
             ]),
             isExtensionCommand,
+            false,
         );
         expect(projected.actions).toEqual([
             { command: { id: 'caxri.project-status.refresh', title: 'Refresh' } },
