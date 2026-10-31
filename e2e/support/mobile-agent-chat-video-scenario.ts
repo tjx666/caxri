@@ -238,8 +238,18 @@ export async function executeMobileChatVideoScenario(
         recording = undefined;
 
         // Semantic reads fail while the video moves, so the close button is tapped where it was when the player opened.
+        // A key event takes the window out of touch mode, and the touch that brings it back never reaches React Native,
+        // so a tap on the empty area above the picture (which only toggles the player's controls; the middle of the
+        // screen is the play button) goes first.
         await pressMediaKey(serial, 'KEYCODE_MEDIA_PAUSE');
         await waitForStill(serial, player);
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.round((player.left + player.right) / 2)),
+            String(Math.round(player.top + (player.bottom - player.top) / 4)),
+        ]);
+        await pause(1_000);
         await adbShell(serial, [
             'input',
             'tap',
