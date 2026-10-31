@@ -23,7 +23,7 @@ import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSettings } from '../../stores/selectors';
 import { useAgentAvailability } from '../terminal/hooks/use-agent-availability';
-import { agentInstallHint, newAgentSurface } from '../terminal/new-terminal-agent';
+import { agentReadinessHint, newAgentSurface } from '../terminal/new-terminal-agent';
 import { setDefaultAgent, shouldMakeDefault } from './default-agent-preference';
 import { AgentChoiceMarker, OpenInChatSwitch } from './open-in-chat-menu-item';
 import {
@@ -98,7 +98,7 @@ function CreateSessionChoices() {
     const openInChat = settings?.['session.openAgentsInChat'];
     const currentDefault = settings?.['session.defaultAgent'];
     const { t } = useTranslation();
-    const unavailable = useAgentAvailability();
+    const readiness = useAgentAvailability();
     const [isDefaultRequested, setDefaultRequested] = useState(false);
     const choose = (kind: TerminalKind | null): void => {
         if (shouldMakeDefault(isDefaultRequested, kind, currentDefault)) setDefaultAgent(kind);
@@ -111,8 +111,12 @@ function CreateSessionChoices() {
                 onKeyDown={moveTileFocus}
             >
                 {terminalKindSchema.options.map((kind) => {
-                    const isUnavailable = unavailable.has(kind);
-                    const hint = isUnavailable ? agentInstallHint(kind, t) : undefined;
+                    const issue = readiness.get(kind);
+                    /**
+                     * Only a missing CLI recedes and offers the location setting; a signed-out one is installed.
+                     */
+                    const isUnavailable = issue === 'notInstalled';
+                    const hint = agentReadinessHint(kind, issue, t);
                     const provider = agentProviderSchema.safeParse(kind);
                     const configureLabel = t('session.createDialog.configureAgent', {
                         agent: resolveAgentIcon(kind).label,
@@ -145,11 +149,14 @@ function CreateSessionChoices() {
                                     <span className="text-[13px] leading-4 font-medium">
                                         {resolveAgentIcon(kind).label}
                                     </span>
-                                    {/* Reserved so tiles with and without a marker keep their labels on one baseline. */}
-                                    <span className="h-4 text-[11px] leading-4 whitespace-nowrap">
+                                    {/**
+                                     * Two lines reserved so tiles with and without a marker keep their labels on one baseline, and a long marker ("Signed
+                                     * out · Chat") wraps inside its tile instead of running into the next.
+                                     */}
+                                    <span className="h-8 text-center text-[11px] leading-4">
                                         <AgentChoiceMarker
                                             isDefault={false}
-                                            isUnavailable={isUnavailable}
+                                            issue={issue}
                                             surface={newAgentSurface(kind, openInChat)}
                                         />
                                     </span>

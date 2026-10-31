@@ -264,6 +264,10 @@ export const terminal = {
     'terminal.new.chatMarker': 'Chat',
     'terminal.new.defaultMarker': 'Default',
     'terminal.new.notInstalledMarker': 'Not installed',
+    'terminal.new.signedOutMarker': 'Signed out',
+    'terminal.new.signInHint.claude':
+        'Claude Code is signed out. Run "claude auth login" in a Terminal, or start it and use /login.',
+    'terminal.new.signInHint.codex': 'Codex is signed out. Run "codex login" in a Terminal.',
     'terminal.new.installHint.claude':
         'Claude Code was not found. Install it from claude.com/claude-code, or set its location in Settings > Agents.',
     'terminal.new.installHint.codex':

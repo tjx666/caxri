@@ -50,6 +50,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             'ClaudeNot installed',
             'Codex',
             'Grok BuildNot installed',
+            'AntigravityNot installed',
             'Shell',
         ]);
         await openInChat.click();
@@ -58,6 +59,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             'ClaudeNot installed · Chat',
             'CodexChat',
             'Grok BuildNot installed · Chat',
+            'AntigravityNot installed · Chat',
             'Shell',
         ]);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-new-terminal-menu.png') });

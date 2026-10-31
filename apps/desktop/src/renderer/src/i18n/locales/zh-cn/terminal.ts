@@ -246,6 +246,10 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.new.chatMarker': '对话',
     'terminal.new.defaultMarker': '默认',
     'terminal.new.notInstalledMarker': '未安装',
+    'terminal.new.signedOutMarker': '未登录',
+    'terminal.new.signInHint.claude':
+        'Claude Code 尚未登录。请在 Terminal 中运行 "claude auth login"，或启动后使用 /login。',
+    'terminal.new.signInHint.codex': 'Codex 尚未登录。请在 Terminal 中运行 "codex login"。',
     'terminal.new.installHint.claude':
         '未找到 Claude Code。请从 claude.com/claude-code 安装，或在“设置 > Agent”中指定它的位置。',
     'terminal.new.installHint.codex':
