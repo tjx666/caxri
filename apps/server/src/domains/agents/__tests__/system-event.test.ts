@@ -52,6 +52,19 @@ describe('classifySystemEvent', () => {
         });
     });
 
+    it('keeps why a slash command failed from its stderr', () => {
+        expect(
+            classifySystemEvent(
+                '<command-name>/compact</command-name>' +
+                    '<local-command-stderr>Error: No messages to compact</local-command-stderr>',
+            ),
+        ).toEqual({
+            kind: 'slashCommand',
+            summary: '/compact',
+            detail: 'Error: No messages to compact',
+        });
+    });
+
     it('falls back to the command message when the command has no name', () => {
         const result = classifySystemEvent('<command-message>Ran a saved prompt</command-message>');
         expect(result).toMatchObject({ kind: 'slashCommand', summary: 'Ran a saved prompt' });

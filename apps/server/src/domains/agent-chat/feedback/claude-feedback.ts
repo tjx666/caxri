@@ -23,11 +23,22 @@ export function claudeFeedbackToolUseId(input: Json): string | undefined {
 }
 
 /**
- * Strip only the provider-owned command envelope, never arbitrary markup in a user's message.
+ * Strip only the provider-owned command envelope, never arbitrary markup in a user's message. A failed command wraps
+ * its message in `local-command-stderr` instead (verified with Claude Code 2.1.312), which showed raw in the notice.
  */
-function commandText(content: unknown): string {
+function commandText(content: unknown): { text: string; isStderr: boolean } {
     const value = stringField(content) ?? '';
-    return /^<local-command-stdout>([\s\S]*)<\/local-command-stdout>$/.exec(value)?.[1] ?? value;
+    const envelope = /^<local-command-(stdout|stderr)>([\s\S]*)<\/local-command-\1>$/.exec(value);
+    return { text: envelope?.[2] ?? value, isStderr: envelope?.[1] === 'stderr' };
+}
+
+/**
+ * Whether Claude Code reported the command failed: live delivery names the outcome `local_command_outcome`, its
+ * transcript `commandOutcome` (verified with Claude Code 2.1.312).
+ */
+function isFailedCommand(message: Json): boolean {
+    const outcome = message.local_command_outcome ?? message.commandOutcome;
+    return isRecord(outcome) && outcome.kind === 'failed';
 }
 
 /**
@@ -84,8 +95,11 @@ export function claudeFeedbackItems(
             ...(plugin && { plugin: clip(plugin, 100) }),
             ...(name && { command: clip(name, 100) }),
         };
-        // Plain command output, as the Terminal prints it; a warning tone made `/rename` read like a problem.
-        content = commandText(message.local_command_source ?? message.content);
+        // Plain command output, as the Terminal prints it; a warning tone made `/rename` read like a problem. A failed
+        // command reads as one.
+        const output = commandText(message.local_command_source ?? message.content);
+        content = output.text;
+        if (output.isStderr || isFailedCommand(message)) kind = 'error';
     } else {
         switch (message.subtype) {
             case 'informational': {
@@ -119,7 +133,9 @@ export function claudeFeedbackItems(
             }
             case 'local_command':
             case 'local_command_output': {
-                content = commandText(message.content);
+                const output = commandText(message.content);
+                content = output.text;
+                if (output.isStderr || isFailedCommand(message)) kind = 'error';
                 heading = { kind: 'command' };
                 break;
             }

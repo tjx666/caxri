@@ -64,13 +64,15 @@ export function classifySystemEvent(rawText: string): SystemEventProjection | un
     if (commandName !== undefined || commandMessage !== undefined) {
         const commandArguments = tagContent(rawText, 'command-args');
         const stdout = tagContent(rawText, 'local-command-stdout');
+        // A failed command reports through stderr instead; without it the timeline lost why the command failed.
+        const stderr = tagContent(rawText, 'local-command-stderr');
         const caveat = tagContent(rawText, 'local-command-caveat');
         const label = [commandName, commandMessage].map((value) => value?.trim()).find(Boolean);
         const summary = timelineSummary(
             [label, commandArguments?.trim()].filter(Boolean).join(' '),
             'Slash command',
         );
-        const detail = combinedDetail([stdout, caveat]);
+        const detail = combinedDetail([stdout, stderr, caveat]);
         return { kind: 'slashCommand', summary, ...(detail && { detail }) };
     }
     const bashInput = tagContent(rawText, 'bash-input');

@@ -30,6 +30,7 @@ describe('agentChatUsageLimitReset', () => {
             'Resets in 3h 0m',
         );
         expect(agentChatUsageLimitReset({}, NOW, translate)).toBeUndefined();
+        expect(agentChatUsageLimitReset({ resetsAt: NOW }, NOW, translate)).toBeUndefined();
     });
 });
 

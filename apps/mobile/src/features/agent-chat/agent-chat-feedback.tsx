@@ -39,6 +39,18 @@ const UsageLimitContent = ({
     const now = useMinuteClock();
     const reset = agentChatUsageLimitReset(usageLimit, now, t);
     const detail = agentChatNoticeMessage(item, t);
+    // A later turn failed on the limit too and carries the wait (Desktop collapses it the same way).
+    if (usageLimit.superseded)
+        return (
+            <>
+                <Gauge color={theme.muted} size={18} />
+                <View style={styles.content} testID={`chat-usage-limit-${item.id}`}>
+                    <Text selectable style={[styles.title, { color: theme.muted }]}>
+                        {agentChatUsageLimitHeadline(usageLimit, provider, t)}
+                    </Text>
+                </View>
+            </>
+        );
     return (
         <>
             <Gauge color={theme.danger} size={18} />
@@ -96,7 +108,7 @@ export function AgentChatFeedback({
             style={styles.card}
             testID={`chat-feedback-${item.id}`}
             theme={theme}
-            tone={item.kind === 'error' ? 'danger' : 'default'}
+            tone={item.kind === 'error' && !item.usageLimit?.superseded ? 'danger' : 'default'}
         >
             {item.kind === 'error' && item.usageLimit ? (
                 <UsageLimitContent

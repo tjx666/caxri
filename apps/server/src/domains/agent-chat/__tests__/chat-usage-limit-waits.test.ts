@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ChatUsageLimitWaits } from '../continuation/chat-usage-limit-waits';
 import type { UsageLimitNotice } from '../continuation/usage-continuation-stamp';
-import { stampUsageContinuations } from '../continuation/usage-continuation-stamp';
+import {
+    observeUsageLimitWaits,
+    stampUsageContinuations,
+} from '../continuation/usage-continuation-stamp';
 
 const NOW = 1_800_000_000_000;
 const HOUR_MS = 3_600_000;
@@ -85,6 +88,81 @@ describe('ChatUsageLimitWaits', () => {
             fields: expect.objectContaining({ outcome: 'skipped', reason }) as unknown,
         });
         expect(subject.replayNotice('terminal-1')).toBeUndefined();
+    });
+
+    it('retires an earlier notice when a later turn fails on the limit before it continued', () => {
+        const { subject } = waits();
+        const items: UsageLimitNotice[] = [];
+        const apply = vi.fn((_terminalId: string, operations: AgentChatPatchOperation[]) => {
+            for (const operation of operations)
+                if (operation.op === 'upsertItem') {
+                    const index = items.findIndex((item) => item.id === operation.item.id);
+                    items[index] = operation.item as UsageLimitNotice;
+                }
+        });
+        subject.attach({
+            states: { get: () => ({ projection: { snapshot: { items } } }), apply } as never,
+            deliver: vi.fn(),
+        });
+        // Background work woke the provider twice while the limit held; each wake failed a turn on it.
+        for (const turnId of ['turn-1', 'turn-2']) {
+            const failed = notice(turnId, NOW + HOUR_MS);
+            items.push({
+                ...failed,
+                usageLimit: { ...failed.usageLimit, autoContinue: { status: 'waiting', at: NOW } },
+            });
+            subject.observeFailure('terminal-1', 'claude', failed);
+        }
+        expect(items[0].usageLimit).toEqual({
+            window: 'session',
+            resetsAt: NOW + HOUR_MS,
+            superseded: true,
+        });
+        expect(items[1].usageLimit.superseded).toBeUndefined();
+        expect(subject.stateOf('terminal-1', 'turn-2')?.status).toBe('waiting');
+
+        // Re-upserting the retired notice never arms its wait again.
+        const observeFailure = vi.fn();
+        observeUsageLimitWaits([{ op: 'upsertItem', item: items[0] }], false, {
+            observeFailure,
+        } as never);
+        expect(observeFailure).not.toHaveBeenCalled();
+    });
+
+    it('retires every earlier notice, also one whose wait a message ended, but keeps a continued one', () => {
+        const { subject } = waits();
+        const items: UsageLimitNotice[] = [
+            {
+                ...notice('turn-0', NOW - HOUR_MS),
+                usageLimit: {
+                    window: 'session',
+                    autoContinue: { status: 'continued', at: NOW - HOUR_MS },
+                },
+            },
+            notice('turn-1', NOW + HOUR_MS),
+        ];
+        const apply = vi.fn((_terminalId: string, operations: AgentChatPatchOperation[]) => {
+            for (const operation of operations)
+                if (operation.op === 'upsertItem') {
+                    const index = items.findIndex((item) => item.id === operation.item.id);
+                    items[index] = operation.item as UsageLimitNotice;
+                }
+        });
+        subject.attach({
+            states: { get: () => ({ projection: { snapshot: { items } } }), apply } as never,
+            deliver: vi.fn(),
+        });
+        subject.observeFailure('terminal-1', 'claude', notice('turn-1', NOW + HOUR_MS));
+        // The user's next message ends the wait and drops the record; that turn fails on the limit again.
+        subject.cancel('terminal-1', 'userInput');
+        items.push(notice('turn-2', NOW + HOUR_MS));
+        subject.observeFailure('terminal-1', 'claude', notice('turn-2', NOW + HOUR_MS));
+
+        expect(items.map((item) => item.usageLimit.superseded)).toEqual([
+            undefined,
+            true,
+            undefined,
+        ]);
     });
 
     it('re-plans a skipped wait when the same turn reports its reset later', () => {

@@ -550,7 +550,11 @@ export class AgentChatService {
         return this.maintenance.idleLaunchId(terminalId);
     }
 
-    compactIdle(terminalId: string, launchId: string, reason?: 'batch' | 'idle'): Promise<void> {
+    compactIdle(
+        terminalId: string,
+        launchId: string,
+        reason?: 'batch' | 'idle',
+    ): Promise<'submitted' | 'usageLimited'> {
         return this.maintenance.compactIdle(terminalId, launchId, reason);
     }
 

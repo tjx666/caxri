@@ -1,5 +1,6 @@
 import type {
     AgentChatItem,
+    AgentChatSnapshot,
     AgentChatUsage,
     AgentProvider,
     SessionPullRequest,
@@ -36,16 +37,32 @@ function fixture({
     items?: AgentChatItem[];
 } = {}) {
     let now = respondedAt;
-    const current = { usage: usage as AgentChatUsage | undefined };
+    const current = {
+        usage: usage as AgentChatUsage | undefined,
+        idleCompactionHold: undefined as AgentChatSnapshot['idleCompactionHold'],
+    };
     const agentChat = {
         states: {
             terminalIds: () => ['chat'][Symbol.iterator](),
-            get: () => ({ projection: { snapshot: { items, usage: current.usage } } }) as never,
+            get: () =>
+                ({
+                    projection: {
+                        snapshot: {
+                            items,
+                            usage: current.usage,
+                            idleCompactionHold: current.idleCompactionHold,
+                        },
+                    },
+                }) as never,
         },
         idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'launch'),
         compactIdle: vi.fn<
-            (terminalId: string, launchId: string, reason?: 'batch' | 'idle') => Promise<void>
-        >(() => Promise.resolve()),
+            (
+                terminalId: string,
+                launchId: string,
+                reason?: 'batch' | 'idle',
+            ) => Promise<'submitted' | 'usageLimited'>
+        >(() => Promise.resolve('submitted')),
     };
     const maintenanceTurns = { begin: vi.fn(), end: vi.fn(), holds: vi.fn(() => false) };
     const write = vi.fn<StructuredLogger['write']>();
@@ -107,6 +124,53 @@ describe('ChatIdleCompaction', () => {
         f.advanceTo(55);
         await f.compaction.sweep();
         expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
+    });
+
+    it('sends nothing into a used-up plan limit that resets after the cache expires', async () => {
+        const f = fixture();
+        // What `compactIdle` does when the provider reports the limit used up: it records the hold and sends nothing.
+        f.agentChat.compactIdle.mockImplementation(() => {
+            f.current.idleCompactionHold = {
+                lastResponseAt: respondedAt,
+                resetsAt: respondedAt + 90 * minute,
+            };
+            return Promise.resolve('usageLimited');
+        });
+        f.advanceTo(54);
+        await f.compaction.sweep();
+        expect(f.maintenanceTurns.end).toHaveBeenCalledWith('chat', 'undelivered');
+        expect(f.lastRecord()).toMatchObject({
+            level: 'info',
+            outcome: 'usage_limited',
+            afterReset: false,
+        });
+        // The user decides from here: no retry, and idle suspension no longer waits for a compaction.
+        expect(f.compaction.isPending('chat')).toBe(false);
+        f.advanceTo(59);
+        await f.compaction.sweep();
+        expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
+    });
+
+    it('compacts after a used-up plan limit resets while the cache still holds', async () => {
+        const f = fixture();
+        f.agentChat.compactIdle.mockImplementationOnce(() => {
+            f.current.idleCompactionHold = {
+                lastResponseAt: respondedAt,
+                resetsAt: respondedAt + 56 * minute,
+            };
+            return Promise.resolve('usageLimited');
+        });
+        f.advanceTo(54);
+        await f.compaction.sweep();
+        expect(f.lastRecord()).toMatchObject({ outcome: 'usage_limited', afterReset: true });
+        expect(f.compaction.isPending('chat')).toBe(true);
+        f.advanceTo(56);
+        await f.compaction.sweep();
+        expect(f.agentChat.compactIdle).toHaveBeenCalledOnce();
+        f.advanceTo(56.5);
+        await f.compaction.sweep();
+        expect(f.agentChat.compactIdle).toHaveBeenCalledTimes(2);
+        expect(f.lastRecord()).toMatchObject({ outcome: 'submitted' });
     });
 
     it('waits through a busy Chat and gives up once the cache expired', async () => {

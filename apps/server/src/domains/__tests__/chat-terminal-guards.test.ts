@@ -239,7 +239,10 @@ describe('Chat Terminal PTY guards', () => {
         const f = await fixture();
         const readTranscript = vi.fn();
         const agentChat = {
-            compactIdle: vi.fn<(terminalId: string, launchId: string) => Promise<void>>(),
+            compactIdle:
+                vi.fn<
+                    (terminalId: string, launchId: string) => Promise<'submitted' | 'usageLimited'>
+                >(),
             idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(),
             isLive: vi.fn(() => false),
         };

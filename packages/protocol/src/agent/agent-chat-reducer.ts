@@ -205,10 +205,10 @@ export function applyAgentChatOperation(
         case 'reset': {
             /**
              * Commands, models, MCP servers, and the permission level and plan mode describe the running provider, and
-             * the follow-up queue and the usage guard belong to Server Core; none is part of the conversation being
-             * replaced. A resumed Claude Code reports its models and permission before its history replay resets the
-             * Chat, and reports the permission again only when it changes, so dropping them here hid the model picker
-             * and showed "Custom" for the permission on every resumed Chat.
+             * the follow-up queue, the usage guard, and the idle compaction hold belong to Server Core; none is part of
+             * the conversation being replaced. A resumed Claude Code reports its models and permission before its
+             * history replay resets the Chat, and reports the permission again only when it changes, so dropping them
+             * here hid the model picker and showed "Custom" for the permission on every resumed Chat.
              */
             return {
                 ...emptyAgentChatSnapshot(snapshot.terminalId),
@@ -223,6 +223,9 @@ export function applyAgentChatOperation(
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
                 ...(snapshot.queuePauseReason && { queuePauseReason: snapshot.queuePauseReason }),
                 ...(snapshot.usageGuard && { usageGuard: snapshot.usageGuard }),
+                ...(snapshot.idleCompactionHold && {
+                    idleCompactionHold: snapshot.idleCompactionHold,
+                }),
             };
         }
         case 'upsertItem': {
@@ -277,6 +280,8 @@ export function applyAgentChatOperation(
             if (state.queuePauseReason !== undefined)
                 next.queuePauseReason = state.queuePauseReason ?? undefined;
             if (state.usageGuard !== undefined) next.usageGuard = state.usageGuard ?? undefined;
+            if (state.idleCompactionHold !== undefined)
+                next.idleCompactionHold = state.idleCompactionHold ?? undefined;
             for (const key of [
                 'failure',
                 'activeTurnId',
@@ -294,6 +299,7 @@ export function applyAgentChatOperation(
                 'operation',
                 'queuePauseReason',
                 'usageGuard',
+                'idleCompactionHold',
             ] as const)
                 if (next[key] === undefined) delete next[key];
             return next;

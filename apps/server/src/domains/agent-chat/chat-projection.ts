@@ -21,6 +21,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { DelegatedTaskDetails } from './chat-delegated-task';
 import { stampDelegatedTasks } from './chat-delegated-task';
+import { isCompactionFailureNotice } from './chat-items';
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
 import {
     observeGuardStops,
@@ -398,10 +399,27 @@ export class ChatProjection {
             if (
                 this.idleCompactionUntil === undefined ||
                 operation.op !== 'upsertItem' ||
-                operation.item.type !== 'notice' ||
-                operation.item.kind !== 'compacted'
+                operation.item.type !== 'notice'
             )
                 return operation;
+            const { item } = operation;
+            // A failed idle compaction is Caxri's own request, not the user's command: a warning headed as such, with the
+            // provider's reason alone ("Error during compaction: " repeats the heading).
+            if (isCompactionFailureNotice(item)) {
+                this.idleCompactionUntil = undefined;
+                return {
+                    ...operation,
+                    item: {
+                        ...item,
+                        kind: 'warning' as const,
+                        heading: { kind: 'event' as const, event: 'idleCompactionFailed' as const },
+                        ...(item.message !== undefined && {
+                            message: item.message.replace(/^Error(?: during compaction)?: /, ''),
+                        }),
+                    },
+                };
+            }
+            if (item.kind !== 'compacted') return operation;
             this.idleCompactionUntil = undefined;
             return {
                 ...operation,

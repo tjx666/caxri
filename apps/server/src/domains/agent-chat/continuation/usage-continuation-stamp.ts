@@ -101,7 +101,14 @@ export function observeUsageLimitWaits(
     for (const operation of operations) {
         if (operation.op !== 'upsertItem') continue;
         const { item } = operation;
-        if (item.type === 'notice' && item.kind === 'error' && item.usageLimit && item.turnId)
+        // A superseded notice is re-upserted only to retire its wait, never to arm one again.
+        if (
+            item.type === 'notice' &&
+            item.kind === 'error' &&
+            item.usageLimit &&
+            !item.usageLimit.superseded &&
+            item.turnId
+        )
             waits.observeFailure(item as UsageLimitNotice);
     }
     return operations;

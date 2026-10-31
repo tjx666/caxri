@@ -230,6 +230,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.context.cacheDetail':
         '每次回复后，Agent 会把对话保持就绪 {{minutes}} 分钟。超过这个时间，下次回复要重新读取整个对话（{{tokens}}），更慢也更贵。',
     'agentChat.context.cacheDetailCost': '费用按标准 API 价格估算。',
+    'agentChat.context.cacheHeldByUsageLimit':
+        '额度已用完且在缓存过期后才重置，因此 Caxri 没有自动压缩。',
     'agentChat.context.cacheExpiringText': '在 {{remaining}} 内回复可避免重新读取整个对话{{cost}}',
     'agentChat.context.cacheExpiringDetail':
         '每次回复后，Agent 会把对话保持就绪 {{minutes}} 分钟。在 {{remaining}} 内发送消息可以接着上次继续；之后下次回复要重新读取整个对话（{{tokens}}）。',

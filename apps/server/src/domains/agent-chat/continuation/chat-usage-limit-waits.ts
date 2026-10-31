@@ -10,6 +10,7 @@ import {
     CaxriError,
     isChatTerminal,
     toWireError,
+    usageLimitedUntil,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -18,6 +19,11 @@ import type { AppStateValue, CaxriDatabase } from '../../db';
 import type { WatchHandle, WatchHub } from '../../watch';
 import type { ChatStateDelivery, ChatStates } from '../chat-states';
 import type { UsageLimitNotice } from './usage-continuation-stamp';
+import {
+    MISSED_AFTER_MS,
+    SWEEP_INTERVAL_MS,
+    usageLimitWaitStagger,
+} from './usage-limit-wait-timing';
 
 type StoredWait = AppStateValue<'agentChatUsageLimitWaits'>[number];
 
@@ -29,25 +35,6 @@ type StoredWait = AppStateValue<'agentChatUsageLimitWaits'>[number];
  */
 type CancelReason =
     'cancelled' | 'closed' | 'continuedElsewhere' | 'disabled' | 'queueResumed' | 'userInput';
-
-/**
- * How often waits are checked. A continuation lands at most this long after its stagger ends.
- */
-const SWEEP_INTERVAL_MS = 15_000;
-
-/**
- * A wait that comes due this long after its time (the Mac slept through the reset, or Server Core was not running) does
- * not continue on its own: the user may have moved on, so the notice offers Continue instead. Claude Code asks the same
- * after a long sleep.
- */
-const MISSED_AFTER_MS = 30 * 60_000;
-
-/**
- * The stagger after a reset before a Chat continues, so Chats that hit the same limit do not all start at its first
- * second, when a provider may still count the old window.
- */
-const MIN_STAGGER_MS = 30_000;
-const MAX_STAGGER_MS = 120_000;
 
 /**
  * The Chat service parts a wait drives; set once the service exists.
@@ -113,11 +100,6 @@ export class ChatUsageLimitWaits {
         return this.options.now?.() ?? Date.now();
     }
 
-    private stagger(): number {
-        const random = this.options.random?.() ?? Math.random();
-        return MIN_STAGGER_MS + Math.round(random * (MAX_STAGGER_MS - MIN_STAGGER_MS));
-    }
-
     private save(terminalId: string): void {
         this.options.database.setAppState(
             'agentChatUsageLimitWaits',
@@ -164,6 +146,25 @@ export class ChatUsageLimitWaits {
         if (notice) this.chat!.states.apply(terminalId, [{ op: 'upsertItem', item: notice }]);
     }
 
+    /**
+     * Marks every earlier usage-limit notice of the Chat superseded once a later turn failed on its limit too (see
+     * `AgentChatUsageLimit.superseded`): only the latest one keeps its state and actions. Without this an earlier
+     * notice kept saying it was about to continue, with live Continue now and Cancel buttons, long after its wait moved
+     * on or the user's next message ended it. A notice whose Chat continued keeps saying so.
+     */
+    private supersedeBefore(terminalId: string, turnId: string): void {
+        const items = this.chat?.states.get(terminalId)?.projection.snapshot.items ?? [];
+        const ops = items.flatMap((item) => {
+            if (item.type !== 'notice' || !item.usageLimit || item.turnId === turnId) return [];
+            if (item.usageLimit.superseded || item.usageLimit.autoContinue?.status === 'continued')
+                return [];
+            const usageLimit = { ...item.usageLimit, superseded: true as const };
+            delete usageLimit.autoContinue;
+            return [{ op: 'upsertItem' as const, item: { ...item, usageLimit } }];
+        });
+        if (ops.length > 0) this.chat!.states.apply(terminalId, ops);
+    }
+
     private update(record: StoredWait, autoContinue: AgentChatAutoContinue): void {
         record.autoContinue = autoContinue;
         this.records.set(record.terminalId, record);
@@ -192,7 +193,10 @@ export class ChatUsageLimitWaits {
         // A used-up 5-hour window resets without lifting the guard; a guard-stopped turn waits for the guard itself.
         if (source === 'usageLimit' && this.options.isUsageGuarded(terminalId))
             return skip('usageGuard');
-        return { status: 'waiting', at: resetsAt + this.stagger() };
+        return {
+            status: 'waiting',
+            at: resetsAt + usageLimitWaitStagger(this.options.random?.() ?? Math.random()),
+        };
     }
 
     private async deliver(
@@ -231,18 +235,10 @@ export class ChatUsageLimitWaits {
                 return;
             }
         };
-        const limits = await read();
-        const now = this.now();
-        const windows = (limits?.windows ?? []).filter(
-            (window) =>
-                window.usedPercent >= 100 &&
-                window.resetsAt !== undefined &&
-                window.resetsAt > now &&
-                (record.window === 'unknown' || window.scope === record.window),
-        );
-        return windows.reduce<number | undefined>(
-            (latest, window) => Math.max(latest ?? 0, window.resetsAt!),
-            undefined,
+        return usageLimitedUntil(
+            await read(),
+            this.now(),
+            record.window === 'unknown' ? undefined : record.window,
         );
     }
 
@@ -504,6 +500,7 @@ export class ChatUsageLimitWaits {
         };
         this.records.set(terminalId, record);
         this.save(terminalId);
+        if (previous?.turnId !== notice.turnId) this.supersedeBefore(terminalId, notice.turnId);
         const { autoContinue } = record;
         if (autoContinue.status === 'skipped')
             this.log(record, 'skipped', { reason: autoContinue.reason });

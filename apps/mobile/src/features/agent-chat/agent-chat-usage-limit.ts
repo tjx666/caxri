@@ -19,14 +19,17 @@ export const agentChatUsageLimitHeadline = (
 ): string => t(`chat.usageLimit.${limit.window}`, { provider: providerName });
 
 /**
- * `Resets in 3h 20m`, or nothing when the provider reported no reset time.
+ * `Resets in 3h 20m`, or nothing when the provider reported no reset time or the reset already passed (a lasting
+ * "resets now" on an old notice reads as if the limit were still in force).
  */
 export const agentChatUsageLimitReset = (
     limit: Pick<AgentChatUsageLimit, 'resetsAt'>,
     now: number,
     t: Translate,
 ): string | undefined =>
-    limit.resetsAt === undefined ? undefined : resetText(limit.resetsAt, now, t);
+    limit.resetsAt === undefined || limit.resetsAt <= now
+        ? undefined
+        : resetText(limit.resetsAt, now, t);
 
 /**
  * The line about the Chat continuing on its own once its limit resets: when it continues, that it did, that the reset

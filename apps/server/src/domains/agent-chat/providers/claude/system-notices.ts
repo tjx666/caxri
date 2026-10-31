@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { AgentChatItem, AgentChatPatchOperation, AgentChatUsage } from '@caxri/protocol';
 
-import { clip, isRecord, stringField } from '../../chat-items';
+import { clip, isCompactionFailureNotice, isRecord, stringField } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { claudeFeedbackItems } from '../../feedback/claude-feedback';
 
@@ -21,6 +21,19 @@ type NoticeHost = Pick<AgentChatSessionHost, 'apply' | 'lifecycle' | 'read'>;
 type RetryCause = NonNullable<Extract<AgentChatItem, { type: 'notice' }>['retry']>['cause'];
 
 /**
+ * Whether the active turn already shows a failed compaction. A failed `/compact` reports the same error twice, once as
+ * the status's `compact_error` and once as the command's output (verified with Claude Code 2.1.312), and the Chat
+ * showed both, one under the other.
+ */
+function hasCompactionFailure(host: Pick<NoticeHost, 'read'>, turnId: string | undefined): boolean {
+    // Outside a turn there is nothing to tie the two reports together, and an older failure must not hide a new one.
+    if (!turnId) return false;
+    return host
+        .read()
+        .items.some((item) => item.turnId === turnId && isCompactionFailureNotice(item));
+}
+
+/**
  * Only explicit feedback belongs in Chat; successful Hook diagnostics remain internal. Returns the notices it added.
  */
 export function applyClaudeFeedback(
@@ -28,7 +41,10 @@ export function applyClaudeFeedback(
     message: Json,
     scope: 'agent' | 'session' = 'session',
 ): Notice[] {
-    const items = claudeFeedbackItems(message, host.read().activeTurnId, scope);
+    const turnId = host.read().activeTurnId;
+    let items = claudeFeedbackItems(message, turnId, scope);
+    if (items.some(isCompactionFailureNotice) && hasCompactionFailure(host, turnId))
+        items = items.filter((item) => !isCompactionFailureNotice(item));
     if (items.length > 0) host.apply(items.map((item) => ({ op: 'upsertItem', item })));
     return items;
 }
@@ -54,6 +70,10 @@ export function onClaudeStatus(host: NoticeHost, message: Json): void {
     const error = stringField(message.compact_error);
     if (!error && message.compact_result !== 'failed') return;
     const turnId = host.read().activeTurnId;
+    if (hasCompactionFailure(host, turnId)) {
+        if (wasCompacting) host.lifecycle({ phase: 'compactionFinished' });
+        return;
+    }
     host.apply([
         {
             op: 'upsertItem',

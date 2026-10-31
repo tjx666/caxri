@@ -79,7 +79,7 @@ async function fixture(authMode?: string) {
         observeInput: vi.fn(() => true),
     };
     const agentChat = {
-        compactIdle: vi.fn(() => Promise.resolve()),
+        compactIdle: vi.fn(() => Promise.resolve<'submitted' | 'usageLimited'>('submitted')),
         idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'chat-launch'),
         isLive: vi.fn(() => true),
     };

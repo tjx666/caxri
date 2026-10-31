@@ -94,6 +94,12 @@ export const agentChatUsageLimitSchema = z.strictObject({
      * the wait's anchor after the guard lifts, and a Client words its headline for the guard instead of a failed turn.
      */
     trigger: z.literal('usageGuard').optional(),
+    /**
+     * Set when a later turn of the same Chat failed on a plan limit too, so that turn's notice carries the wait and its
+     * actions. A Chat whose background work keeps waking the provider while the limit holds fails a turn on every wake;
+     * Clients collapse each superseded notice to its headline instead of repeating the whole card.
+     */
+    superseded: z.literal(true).optional(),
 });
 export type AgentChatUsageLimit = z.infer<typeof agentChatUsageLimitSchema>;
 

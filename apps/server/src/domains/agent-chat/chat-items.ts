@@ -257,3 +257,17 @@ export function promptTitle(prompt: unknown): string | undefined {
         .find((candidate) => candidate.trim());
     return line ? clip(line.trim(), 1_000) : undefined;
 }
+
+/**
+ * Whether a Chat item tells that a compaction failed: the `compact_error` of a `system/status`, the failed `/compact`
+ * command's own output, or either once labeled as Caxri's idle compaction.
+ */
+export function isCompactionFailureNotice(item: AgentChatItem): boolean {
+    if (item.type !== 'notice') return false;
+    const { heading } = item;
+    return (
+        item.id.startsWith('compact-error:') ||
+        (heading?.kind === 'event' && heading.event === 'idleCompactionFailed') ||
+        (item.kind === 'error' && heading?.kind === 'command' && heading.command === 'compact')
+    );
+}

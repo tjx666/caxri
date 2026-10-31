@@ -156,6 +156,7 @@ const agentChatNoticeHeadingSchema = z.discriminatedUnion('kind', [
     }),
     /**
      * `caxriNote` is a note Caxri itself sent the Agent, such as that the user stopped a subagent.
+     * `idleCompactionFailed` heads the provider's error when Caxri's own idle compaction could not compact the Chat.
      */
     z.strictObject({
         kind: z.literal('event'),
@@ -165,6 +166,7 @@ const agentChatNoticeHeadingSchema = z.discriminatedUnion('kind', [
             'modelChanged',
             'verificationNeeded',
             'caxriNote',
+            'idleCompactionFailed',
         ]),
     }),
 ]);
@@ -561,6 +563,18 @@ export const agentChatSnapshotSchema = z.strictObject({
      * Set while the provider's account is at the weekly usage guard (`agentChatUsageGuardSchema`).
      */
     usageGuard: agentChatUsageGuardSchema.optional(),
+    /**
+     * Set by Server Core's idle compaction when the provider's plan limit was used up as the compaction came due: the
+     * response (`lastResponseAt`) it holds compaction for, and when the limit resets. `agentChatIdleCompactionAt` moves
+     * compaction past the reset while the cache outlives it, and drops it otherwise, so the cache notice tells the user
+     * the cache will expire instead of promising a compaction that cannot run.
+     */
+    idleCompactionHold: z
+        .strictObject({
+            lastResponseAt: z.number().int().nonnegative(),
+            resetsAt: z.number().int().positive(),
+        })
+        .optional(),
 });
 
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;

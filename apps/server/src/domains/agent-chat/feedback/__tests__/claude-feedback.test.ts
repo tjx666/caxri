@@ -26,6 +26,36 @@ describe('real Claude feedback envelopes', () => {
             }),
         ]);
     });
+    it('shows a failed command as an error without its stderr envelope, live and from the transcript', () => {
+        const message = 'Error during compaction: Example limit reached';
+        const failure: unknown = expect.objectContaining({
+            kind: 'error',
+            heading: { kind: 'command', command: 'compact' },
+            message,
+        });
+        expect(
+            claudeFeedbackItems(
+                {
+                    type: 'assistant',
+                    uuid: 'live',
+                    local_command_run: { command: 'compact', args: '' },
+                    local_command_outcome: { kind: 'failed' },
+                    local_command_source: `<local-command-stderr>${message}</local-command-stderr>`,
+                },
+                'turn',
+            ),
+        ).toEqual([failure]);
+        expect(
+            claudeFeedbackItems({
+                type: 'system',
+                subtype: 'local_command',
+                uuid: 'saved',
+                commandRun: { command: 'compact', args: '' },
+                commandOutcome: { kind: 'failed' },
+                content: `<local-command-stderr>${message}</local-command-stderr>`,
+            }),
+        ).toEqual([failure]);
+    });
     it('shows a prompt blocked by an exit-code-2 Hook once, through its blocked notice', () => {
         const exitTwo = {
             subtype: 'hook_response',

@@ -2,7 +2,7 @@ import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatSessionHost } from '../../../chat-provider';
-import { applyClaudeFeedback, onClaudeApiRetry } from '../system-notices';
+import { applyClaudeFeedback, onClaudeApiRetry, onClaudeStatus } from '../system-notices';
 
 function harness() {
     let snapshot = emptyAgentChatSnapshot('terminal-1');
@@ -194,5 +194,48 @@ describe('Claude retry notice resolution', () => {
             },
         ]);
         expect(retryOf(host)).not.toHaveProperty('retry.resolved');
+    });
+});
+
+describe('a failed compaction', () => {
+    const error = 'Error during compaction: Example limit reached';
+    const command = {
+        type: 'assistant',
+        uuid: 'command',
+        local_command_run: { command: 'compact', args: '' },
+        local_command_outcome: { kind: 'failed' },
+        local_command_source: `<local-command-stderr>${error}</local-command-stderr>`,
+    };
+    const status = {
+        subtype: 'status',
+        status: null,
+        compact_result: 'failed',
+        compact_error: error,
+    };
+
+    function inTurn() {
+        const host = harness();
+        host.apply([{ op: 'state', state: { activeTurnId: 'turn' } }]);
+        return host;
+    }
+
+    it.each([
+        ['status first', true],
+        ['command first', false],
+    ])('shows the error once (%s)', (_order, isStatusFirst) => {
+        const host = inTurn();
+        host.apply([{ op: 'state', state: { operation: 'compacting' } }]);
+        if (isStatusFirst) onClaudeStatus(host, status);
+        applyClaudeFeedback(host, command);
+        if (!isStatusFirst) onClaudeStatus(host, status);
+        expect(host.read().items.filter((item) => item.type === 'notice')).toHaveLength(1);
+        expect(host.read().operation).toBeUndefined();
+    });
+
+    it('still shows a later failure outside the turn', () => {
+        const host = harness();
+        onClaudeStatus(host, status);
+        onClaudeStatus(host, { ...status, uuid: 'second' });
+        expect(host.read().items).toHaveLength(2);
     });
 });
