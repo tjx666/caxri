@@ -365,3 +365,18 @@ the screen, so the tap lands on the preview and opens Quick Share instead of foc
 **Works:** Tap a spot that does nothing in the product (the Chat timeline), wait about a second for
 the preview to dismiss, then tap the composer and assert the pasted text through the sanitized
 observer (`MOB-CHAT-35`).
+
+## Tapping the video player right after a media key
+
+**Situation:** An Android case pauses or resumes the `expo-video` player with
+`adb shell input keyevent KEYCODE_MEDIA_PAUSE`, then taps the player's close button at bounds read
+when the player opened.
+
+**Does not work:** Tapping the close button at once, or concluding that the native player swallows
+touches or draws the picture offset. The first tap after the media key never reached React Native;
+a second identical tap closed the player. Two runs were spent on the wrong suspects before a probe
+showed this.
+
+**Works:** After the media key, tap an area of the player that only toggles its controls (above
+the picture, not the center play button), wait about a second, then tap the close button
+(`MOB-CHAT-VIDEO-01`, `e2e/support/mobile-agent-chat-video-scenario.ts`).

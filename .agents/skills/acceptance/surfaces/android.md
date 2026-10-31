@@ -34,6 +34,9 @@ The emulator adopts an inherited `http_proxy` as its own proxy, so a shell that 
 the phone's traffic to the host's LAN address through that proxy: pairing then fails with
 "Caxri could not be reached" while Server Core logs only `pairing_outcome` `started`. Relaunch a
 task-owned emulator with the variables unset before suspecting the gateway.
+A host-level proxy (the macOS system proxy or a TUN-mode proxy client) is not covered by unsetting
+the variables. When pairing still fails the same way with them unset, ask the user to turn that
+proxy off for the run before suspecting the gateway; one delivery's pairing passed only after that.
 
 `-read-only` lets the task share an AVD that another instance is using. Stop it with
 `adb -s emulator-<port> emu kill` and confirm it left `adb devices`.

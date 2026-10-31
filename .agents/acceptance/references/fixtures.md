@@ -57,3 +57,12 @@ launching a host Agent.
 The `agent-chat-v1` fixture replaces Claude Code and Codex with the deterministic Agent Chat fakes
 the E2E suite uses (stream-json and app-server JSON-RPC). Message keywords drive replies, approvals,
 and file-change diffs; the fakes' header comments list them.
+
+## FX5. A video driven by media keys carries an audio track
+
+Android routes a media key to the session that most recently played audio
+([media buttons](https://developer.android.com/media/legacy/media-buttons#finding-a-media-session)).
+A silent synthetic video never becomes that session, so `KEYCODE_MEDIA_PAUSE`
+leaves it playing. A case that pauses or resumes the `expo-video` player with
+media keys generates its video with a tone, as
+`e2e/support/mobile-agent-chat-video-scenario.ts` does.
