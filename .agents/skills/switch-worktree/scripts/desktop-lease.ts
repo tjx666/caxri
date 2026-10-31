@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { CommandError, getProcessIdentity, isProcessIdentityAlive } from './process';
+import type { RepoContext } from './repo';
 import {
     didWriteJsonExclusive,
     ensureProfile,
@@ -26,6 +27,11 @@ interface DesktopLease {
     worktreeId: string;
     worktreePath: string;
 }
+
+/**
+ * A sibling's `create` holds the repository lock across `ni`, which takes minutes on a cold store.
+ */
+const RELEASE_LOCK_TIMEOUT_MS = 120_000;
 
 export interface DesktopLeaseHandle extends DesktopLease {
     leasePath: string;
@@ -71,6 +77,10 @@ export interface DesktopLeaseReleaseOptions {
      * Test seam for proving a competing acquisition waits for release cleanup.
      */
     afterLockAcquired?: () => Promise<void>;
+    /**
+     * Test seam for the repository lock wait; production uses `RELEASE_LOCK_TIMEOUT_MS`.
+     */
+    lockTimeoutMs?: number;
 }
 
 export type DesktopLeaseStatus =
@@ -327,11 +337,36 @@ export async function transferDesktopLease(
     );
 }
 
+/**
+ * Release waits longer than the metadata default because a sibling checkout can hold the repository lock across a
+ * dependency install; a fully passing run must not fail only because it released during one. If the wait still times
+ * out, the release succeeds only when an unlocked reread proves the lease is no longer this handle's.
+ */
 export async function releaseDesktopLease(
     handle: DesktopLeaseHandle,
     options: DesktopLeaseReleaseOptions = {},
 ): Promise<void> {
     const context = await repoContext(handle.worktreePath);
+    try {
+        await releaseUnderLock(context, handle, options);
+    } catch (error) {
+        const current = await readLease(handle.leasePath);
+        if (!isLockTimeout(error) || (current && current.token === handle.token)) throw error;
+        console.warn(
+            `Desktop lease was already released or taken over while waiting for the repository lock: ${error.message}`,
+        );
+    }
+}
+
+function isLockTimeout(error: unknown): error is CommandError {
+    return error instanceof CommandError && error.message.startsWith('Timed out waiting for');
+}
+
+async function releaseUnderLock(
+    context: RepoContext,
+    handle: DesktopLeaseHandle,
+    options: DesktopLeaseReleaseOptions,
+): Promise<void> {
     await withRepoLock(
         context,
         async () => {
@@ -351,6 +386,9 @@ export async function releaseDesktopLease(
             }
             await unlinkIfExists(handle.leasePath);
         },
-        { namespace: handle.namespace },
+        {
+            namespace: handle.namespace,
+            timeoutMs: options.lockTimeoutMs ?? RELEASE_LOCK_TIMEOUT_MS,
+        },
     );
 }
