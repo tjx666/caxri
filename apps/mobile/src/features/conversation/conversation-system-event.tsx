@@ -21,6 +21,7 @@ import { Card } from '../../components/card';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { useConversationDisclosure } from './conversation-disclosure';
 import { conversationStyles as styles } from './conversation-styles';
 
 type SystemEvent = Extract<AgentTimelineItem, { type: 'systemEvent' }>;
@@ -77,6 +78,7 @@ export const ConversationSystemEvent = ({
     // The Conversation's FlashList recycles this row for another event, which starts folded. `isTruncated` is measured
     // from the text itself, so it follows the new text without a reset.
     const [isExpanded, setExpanded] = useRecyclingState(false, [event.id]);
+    const disclose = useConversationDisclosure();
     const [isTruncated, setTruncated] = useState(false);
     const { Icon, color } = eventIcon(event, theme);
     const hasDetail = event.detail !== undefined;
@@ -94,7 +96,10 @@ export const ConversationSystemEvent = ({
                     accessibilityRole={canExpand ? 'button' : 'text'}
                     accessibilityState={canExpand ? { expanded: isExpanded } : undefined}
                     disabled={!canExpand}
-                    onPress={() => setExpanded((value) => !value)}
+                    onPress={() => {
+                        disclose();
+                        setExpanded((value) => !value);
+                    }}
                     style={[styles.eventRow, canExpand ? styles.eventRowExpandable : null]}
                 >
                     <Icon color={color} size={16} />

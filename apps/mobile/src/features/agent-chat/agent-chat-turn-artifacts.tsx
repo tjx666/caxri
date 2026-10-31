@@ -16,6 +16,7 @@ import { useTranslation } from '../../i18n';
 import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
+import { useConversationDisclosure } from '../conversation/conversation-disclosure';
 import { conversationStyles } from '../conversation/conversation-styles';
 import { AgentChatFileDiff } from './agent-chat-file-changes';
 import { AgentChatResultRow } from './agent-chat-result-row';
@@ -60,6 +61,7 @@ const AgentChatEditedFiles = ({
     const { t } = useTranslation();
     // The timeline's FlashList recycles this row for another turn; keyed by turn, the card opens folded there.
     const [isExpanded, setExpanded] = useRecyclingState(false, [turnId]);
+    const disclose = useConversationDisclosure();
     const stat = agentChatEditedFilesStat(files);
     const title = agentChatEditedFilesTitle(files, t);
     return (
@@ -71,7 +73,10 @@ const AgentChatEditedFiles = ({
                 )}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
-                onPress={() => setExpanded((current) => !current)}
+                onPress={() => {
+                    disclose();
+                    setExpanded((current) => !current);
+                }}
                 testID={`agent-chat-turn-changes-${turnId}`}
                 theme={theme}
                 tile={<FileDiff color={theme.text} size={16} />}

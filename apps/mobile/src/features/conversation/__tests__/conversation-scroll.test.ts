@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
     CONVERSATION_TURN_TOP_GAP,
+    conversationEndOffset,
     conversationTurnSpacerHeight,
     createConversationFollower,
     isConversationFollowingAfterScroll,
+    isConversationTurnFromOlderPage,
     latestConversationTurnStart,
     shouldFillConversationWithOlder,
     shouldReadOlderAtConversationTop,
@@ -54,6 +56,151 @@ describe('conversationTurnSpacerHeight', () => {
                 viewportHeight: 300,
             }),
         ).toBe(200);
+    });
+});
+
+describe('conversationEndOffset', () => {
+    const viewportHeight = 600;
+    const bottomInset = 12;
+    const firstItemOffset = 40;
+    const turnTop = 900;
+    const endFor = (contentHeight: number): number => {
+        const spacerHeight = conversationTurnSpacerHeight({
+            bottomInset,
+            contentHeight,
+            turnTop,
+            viewportHeight,
+        });
+        return conversationEndOffset({
+            bottomInset,
+            contentHeight,
+            firstItemOffset,
+            isBottomAligned: false,
+            spacerHeight,
+            viewportHeight,
+        });
+    };
+
+    it('rests the latest turn at the top while the spacer absorbs a growing reply', () => {
+        const restingEnd = firstItemOffset + turnTop - CONVERSATION_TURN_TOP_GAP;
+        expect(endFor(1000)).toBe(restingEnd);
+        expect(endFor(1020)).toBe(restingEnd);
+        expect(endFor(1300)).toBe(restingEnd);
+    });
+
+    it('follows the rows once the turn outgrows the viewport', () => {
+        expect(endFor(2000)).toBe(firstItemOffset + 2000 + bottomInset - viewportHeight);
+        expect(endFor(2020) - endFor(2000)).toBe(20);
+    });
+
+    it('rests the first turn of a short Chat at the top under the header', () => {
+        const spacerHeight = conversationTurnSpacerHeight({
+            bottomInset,
+            contentHeight: 200,
+            turnTop: 0,
+            viewportHeight,
+        });
+        const end = conversationEndOffset({
+            bottomInset,
+            contentHeight: 200,
+            firstItemOffset,
+            isBottomAligned: false,
+            spacerHeight,
+            viewportHeight,
+        });
+        expect(firstItemOffset - end).toBe(CONVERSATION_TURN_TOP_GAP);
+    });
+
+    it('lets the keyboard close without the content having to grow back', () => {
+        // The spacer is drawn for the viewport before the keyboard opened; the end is placed for the current one.
+        const keyboardHeight = 300;
+        const contentHeight = 1000;
+        const turn = { bottomInset, contentHeight, turnTop };
+        const drawn = conversationTurnSpacerHeight({ ...turn, viewportHeight });
+        const scrollRange = (viewport: number): number =>
+            firstItemOffset + contentHeight + bottomInset + drawn - viewport;
+        const endWithKeyboard = conversationEndOffset({
+            bottomInset,
+            contentHeight,
+            firstItemOffset,
+            isBottomAligned: false,
+            spacerHeight: conversationTurnSpacerHeight({
+                ...turn,
+                viewportHeight: viewportHeight - keyboardHeight,
+            }),
+            viewportHeight: viewportHeight - keyboardHeight,
+        });
+        expect(endWithKeyboard).toBe(endFor(contentHeight));
+        // The drawn content still reaches the end once the viewport grows back, so the scroll is not clamped.
+        expect(scrollRange(viewportHeight)).toBe(endWithKeyboard);
+        expect(scrollRange(viewportHeight - keyboardHeight)).toBe(endWithKeyboard + keyboardHeight);
+    });
+
+    it('lifts the first turn of a bottom-aligned list past its margin', () => {
+        // One turn of 200 rows' height under a 40 header: FlashList's margin ends the rows at the viewport's bottom.
+        const spacerHeight = conversationTurnSpacerHeight({
+            bottomInset,
+            contentHeight: 200,
+            turnTop: 0,
+            viewportHeight,
+        });
+        const end = conversationEndOffset({
+            bottomInset,
+            contentHeight: 200,
+            firstItemOffset,
+            isBottomAligned: true,
+            spacerHeight,
+            viewportHeight,
+        });
+        const margin = viewportHeight - 200 - firstItemOffset;
+        expect(firstItemOffset + margin - end).toBe(CONVERSATION_TURN_TOP_GAP);
+    });
+
+    it('never scrolls a short list without a spacer', () => {
+        for (const isBottomAligned of [false, true])
+            expect(
+                conversationEndOffset({
+                    contentHeight: 200,
+                    firstItemOffset: 0,
+                    isBottomAligned,
+                    spacerHeight: 0,
+                    viewportHeight,
+                }),
+            ).toBe(0);
+    });
+});
+
+describe('isConversationTurnFromOlderPage', () => {
+    const rows = (...ids: string[]) => ids.map((id) => ({ id }));
+
+    it('holds a turn whose first row landed above the rows the reader saw', () => {
+        expect(
+            isConversationTurnFromOlderPage({
+                entries: rows('older', 'message', 'tail-1', 'tail-2'),
+                firstRowWithoutTurn: 'tail-1',
+                turnStart: 1,
+            }),
+        ).toBe(true);
+    });
+
+    it('lifts a turn that starts after those rows, as after a send', () => {
+        expect(
+            isConversationTurnFromOlderPage({
+                entries: rows('tail-1', 'tail-2', 'sent'),
+                firstRowWithoutTurn: 'tail-1',
+                turnStart: 2,
+            }),
+        ).toBe(false);
+    });
+
+    it('lifts any turn while the list has always held one', () => {
+        expect(
+            isConversationTurnFromOlderPage({
+                entries: rows('message', 'reply'),
+                firstRowWithoutTurn: undefined,
+                turnStart: 0,
+            }),
+        ).toBe(false);
     });
 });
 
@@ -160,6 +307,19 @@ describe('createConversationFollower', () => {
         };
         return { follower, flush, scrolls: () => scrolls };
     };
+
+    it('holds the reader in place after a disclosure until the end is reached again', () => {
+        const { follower, flush, scrolls } = setup();
+        follower.hold();
+        follower.request();
+        flush();
+        expect(scrolls()).toBe(0);
+        expect(follower.isFollowing).toBe(false);
+        expect(follower.recordScroll(true)).toBe(true);
+        follower.request();
+        flush();
+        expect(scrolls()).toBe(1);
+    });
 
     it('coalesces content changes in one frame into one scroll', () => {
         const { follower, flush, scrolls } = setup();

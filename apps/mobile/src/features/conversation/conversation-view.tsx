@@ -1,20 +1,21 @@
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
-import { ArrowDown } from 'lucide-react-native';
 
 import { Button } from '../../components/button';
 import { NoticeBanner } from '../../components/notice-banner';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
+import { ConversationDisclosure } from './conversation-disclosure';
 import { ConversationEntry } from './conversation-entry';
+import { ConversationJumpLatest } from './conversation-jump-latest';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
 import { ConversationMessageSheet } from './conversation-message-sheet';
@@ -27,11 +28,7 @@ import {
     isNewConversationSend,
     shouldShowConversationJump,
 } from './conversation-model';
-import {
-    conversationTurnSpacerHeight,
-    createConversationFollower,
-    latestConversationTurnStart,
-} from './conversation-scroll';
+import { createConversationFollower } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
 import { isTimelineMessageClipped, MessageReadOfflineError } from './read-whole-message';
 import { useConversationOlderPages } from './use-conversation-older-pages';
@@ -40,6 +37,7 @@ import type {
     ConversationPagedTimeline,
     ConversationTimelineState,
 } from './use-conversation-timeline';
+import { useConversationTurnSpacer } from './use-conversation-turn-spacer';
 
 const ConversationHistory = ({
     error,
@@ -170,6 +168,14 @@ const ConversationStatus = ({
  */
 const MAINTAIN_VISIBLE_CONTENT_POSITION = { startRenderingFromBottom: true } as const;
 
+/**
+ * A list with a turn spacer opens at its end through `initialScrollIndex` instead. `startRenderingFromBottom` also
+ * pushes rows shorter than the viewport down with a top margin, and FlashList resizes that margin a render after a row
+ * or the viewport changes, while the spacer and the scroll catch up in other frames: each new line of a streamed reply
+ * on a short Chat lifted the turn by a line for a frame, and the keyboard opening or closing bounced it the same way.
+ */
+const MAINTAIN_TURN_POSITION = {} as const;
+
 const conversationEntryKey = (entry: { id: string }): string => entry.id;
 
 /**
@@ -243,21 +249,21 @@ export const ConversationList = <Entry extends { id: string }>({
         },
         [onFollowingChange],
     );
+    const hasTurnSpacer = isTurnStart !== undefined;
+    const [initialScrollIndex] = useState(() =>
+        hasTurnSpacer && entries.length > 0 ? entries.length - 1 : undefined,
+    );
     const viewportHeight = useRef(0);
+    /**
+     * The tallest the viewport has been, as before the keyboard opened. The spacer is sized for it (`measureSpacer`),
+     * so the content never has to grow back when the keyboard closes.
+     */
+    const largestViewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const followHoldUntil = useRef(0);
     const [follower] = useState(() =>
         createConversationFollower({ nextFrame: requestAnimationFrame }),
     );
-    useEffect(
-        () =>
-            follower.connect(() => {
-                list.current?.scrollToEnd({ animated: false });
-            }),
-        [follower],
-    );
-    const spacerHeight = useSharedValue(0);
-    const appliedSpacerHeight = useRef(0);
     /**
      * The latest props the layout callbacks read, so those callbacks (and the list props built from them) stay stable.
      */
@@ -265,31 +271,22 @@ export const ConversationList = <Entry extends { id: string }>({
     useLayoutEffect(() => {
         latest.current = { entries, isTurnStart, timeline };
     });
-    /**
-     * Sizes the turn spacer from the latest turn's measured rows and returns whether it changed. A row FlashList has
-     * not laid out yet keeps the current spacer; the next layout commit measures again.
-     */
-    const measureSpacer = useCallback((): boolean => {
-        const { entries: rows, isTurnStart: startsTurn } = latest.current;
-        const reference = list.current;
-        if (!startsTurn || !reference || viewportHeight.current <= 0) return false;
-        const index = latestConversationTurnStart(rows, startsTurn);
-        let height = 0;
-        if (index !== -1) {
-            const layout = reference.getLayout(index);
-            if (!layout) return false;
-            height = conversationTurnSpacerHeight({
-                bottomInset: CONTENT_BOTTOM_INSET,
-                contentHeight: reference.getChildContainerDimensions().height,
-                turnTop: layout.y,
-                viewportHeight: viewportHeight.current,
-            });
-        }
-        if (height === appliedSpacerHeight.current) return false;
-        appliedSpacerHeight.current = height;
-        spacerHeight.set(height);
-        return true;
-    }, [spacerHeight]);
+    const {
+        endSpacerHeight,
+        markRevealed,
+        measureSpacer,
+        scrollToLatest,
+        spacerHeight,
+        spacerReserve,
+    } = useConversationTurnSpacer({
+        bottomInset: CONTENT_BOTTOM_INSET,
+        isBottomAligned: !hasTurnSpacer,
+        largestViewportHeight,
+        latest,
+        list,
+        viewportHeight,
+    });
+    useEffect(() => follower.connect(() => scrollToLatest(false)), [follower, scrollToLatest]);
     /**
      * Re-measures the spacer and, while the list follows, returns to the end on the next frame.
      */
@@ -316,22 +313,28 @@ export const ConversationList = <Entry extends { id: string }>({
         isShort,
         list,
         measureSpacer,
+        onReveal: markRevealed,
     });
     /**
-     * A row that grows on a short Conversation (an unfolded delegated task) never changes the content size:
-     * `startRenderingFromBottom`'s top margin shrinks by the same amount, so `onContentSizeChange` stays silent and the
-     * rows slid up under the header. Every layout commit re-measures the spacer instead.
+     * A row that grows (an unfolded delegated task) need not change the native content size: the spacer, or a short
+     * list's `startRenderingFromBottom` margin, absorbs it, so `onContentSizeChange` stays silent and the rows slid up
+     * under the header. Every layout commit re-measures the spacer instead.
+     *
+     * The follower scrolls to the end FlashList has measured, which a native content size change can precede, so each
+     * commit (a measured row grew, or the spacer changed) also follows the end.
      */
     const onCommitLayout = useCallback((): void => {
-        if (measureSpacer()) follower.request();
+        pin();
         onLayoutCommitted();
-    }, [follower, measureSpacer, onLayoutCommitted]);
+    }, [onLayoutCommitted, pin]);
     const onScroll = useCallback(
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
             if (!isPositionedReference.current) return;
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
+            // The spacer drawn for the largest viewport runs past the end while the keyboard is up.
+            const distance =
+                contentSize.height - layoutMeasurement.height - contentOffset.y - spacerReserve();
             const isNearEnd = isConversationFollowing(
                 distance,
                 layoutMeasurement.height,
@@ -340,7 +343,7 @@ export const ConversationList = <Entry extends { id: string }>({
             );
             setIsAtBottom(follower.recordScroll(isNearEnd));
         },
-        [follower, setIsAtBottom],
+        [follower, setIsAtBottom, spacerReserve],
     );
     const onScrollBeginDrag = useCallback((): void => {
         followHoldUntil.current = 0;
@@ -355,6 +358,7 @@ export const ConversationList = <Entry extends { id: string }>({
             const { height } = event.nativeEvent.layout;
             if (height === viewportHeight.current) return;
             viewportHeight.current = height;
+            largestViewportHeight.current = Math.max(largestViewportHeight.current, height);
             pin();
         },
         [pin],
@@ -365,12 +369,22 @@ export const ConversationList = <Entry extends { id: string }>({
         ),
         [renderEntry],
     );
+    /**
+     * The reader opened or closed a row. While the latest turn's spacer still has room the row grows into it and the
+     * end does not move, so the list keeps following; once the turn fills the viewport, following on would slide the
+     * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`).
+     */
+    const holdForDisclosure = useCallback((): void => {
+        if (endSpacerHeight() > 0 || !follower.isFollowing) return;
+        follower.hold();
+        setIsAtBottom(false);
+    }, [endSpacerHeight, follower, setIsAtBottom]);
     const jumpToLatest = useCallback((): void => {
         follower.follow();
         setIsAtBottom(true);
         measureSpacer();
-        list.current?.scrollToEnd({ animated: true });
-    }, [follower, measureSpacer, setIsAtBottom]);
+        scrollToLatest(true);
+    }, [follower, measureSpacer, scrollToLatest, setIsAtBottom]);
     const lastFollowKey = useRef(followKey);
     useEffect(() => {
         const previous = lastFollowKey.current;
@@ -408,77 +422,71 @@ export const ConversationList = <Entry extends { id: string }>({
             timeline.truncated,
         ],
     );
-    const hasTurnSpacer = isTurnStart !== undefined;
+    const maintainPosition = hasTurnSpacer
+        ? MAINTAIN_TURN_POSITION
+        : MAINTAIN_VISIBLE_CONTENT_POSITION;
     const footer = useMemo(
         () => (hasTurnSpacer ? <ConversationTurnSpacer height={spacerHeight} /> : null),
         [hasTurnSpacer, spacerHeight],
     );
     return (
-        <View style={styles.root} testID="conversation-view">
-            {/*
-             * Notices sit above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
-             * a stale Conversation, so this one appears only when the connection is up but the read failed.
-             */}
-            <SavedCopyNote savedAt={timeline.savedAt} testID="conversation-saved" theme={theme} />
-            {isConnected && timeline.status === 'stale' ? (
-                <NoticeBanner
-                    actionLabel={t('common.retry')}
-                    message={t('conversation.staleNotice')}
-                    onAction={onRetry}
-                    testID="conversation-status-stale"
+        <ConversationDisclosure value={holdForDisclosure}>
+            <View style={styles.root} testID="conversation-view">
+                {/*
+                 * Notices sit above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
+                 * a stale Conversation, so this one appears only when the connection is up but the read failed.
+                 */}
+                <SavedCopyNote
+                    savedAt={timeline.savedAt}
+                    testID="conversation-saved"
                     theme={theme}
-                    tone="muted"
                 />
-            ) : null}
-            <Animated.View onLayout={onViewportLayout} style={[styles.list, revealStyle]}>
-                <FlashList
-                    contentContainerStyle={styles.listContent}
-                    data={entries}
-                    /**
-                     * Dragging the timeline dismisses the composer keyboard (following the finger on iOS), and a tap on
-                     * a row's button lands on the first touch instead of only closing the keyboard.
-                     */
-                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-                    keyboardShouldPersistTaps="handled"
-                    keyExtractor={conversationEntryKey}
-                    ListFooterComponent={footer}
-                    ListHeaderComponent={header}
-                    maintainVisibleContentPosition={MAINTAIN_VISIBLE_CONTENT_POSITION}
-                    onCommitLayoutEffect={onCommitLayout}
-                    onContentSizeChange={pin}
-                    onLoad={onLoad}
-                    onMomentumScrollBegin={follower.beginMomentum}
-                    onMomentumScrollEnd={follower.endMomentum}
-                    onScroll={onScroll}
-                    onScrollBeginDrag={onScrollBeginDrag}
-                    onScrollEndDrag={follower.endDrag}
-                    onStartReached={onStartReached}
-                    onStartReachedThreshold={0.25}
-                    ref={list}
-                    renderItem={renderItem}
-                    scrollEventThrottle={32}
-                    style={styles.list}
-                />
-            </Animated.View>
-            {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
-                <Pressable
-                    accessibilityLabel={t('conversation.jumpToLatest')}
-                    accessibilityRole="button"
-                    onPress={jumpToLatest}
-                    style={[
-                        styles.jump,
-                        {
-                            backgroundColor: theme.elevated,
-                            borderColor: theme.border,
-                            boxShadow: `0px 2px 8px ${theme.shadow}`,
-                        },
-                    ]}
-                    testID="conversation-jump-latest"
-                >
-                    <ArrowDown color={theme.text} size={20} />
-                </Pressable>
-            ) : null}
-        </View>
+                {isConnected && timeline.status === 'stale' ? (
+                    <NoticeBanner
+                        actionLabel={t('common.retry')}
+                        message={t('conversation.staleNotice')}
+                        onAction={onRetry}
+                        testID="conversation-status-stale"
+                        theme={theme}
+                        tone="muted"
+                    />
+                ) : null}
+                <Animated.View onLayout={onViewportLayout} style={[styles.list, revealStyle]}>
+                    <FlashList
+                        contentContainerStyle={styles.listContent}
+                        data={entries}
+                        /**
+                         * Dragging the timeline dismisses the composer keyboard (following the finger on iOS), and a
+                         * tap on a row's button lands on the first touch instead of only closing the keyboard.
+                         */
+                        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                        keyboardShouldPersistTaps="handled"
+                        keyExtractor={conversationEntryKey}
+                        ListFooterComponent={footer}
+                        ListHeaderComponent={header}
+                        initialScrollIndex={initialScrollIndex}
+                        maintainVisibleContentPosition={maintainPosition}
+                        onCommitLayoutEffect={onCommitLayout}
+                        onContentSizeChange={pin}
+                        onLoad={onLoad}
+                        onMomentumScrollBegin={follower.beginMomentum}
+                        onMomentumScrollEnd={follower.endMomentum}
+                        onScroll={onScroll}
+                        onScrollBeginDrag={onScrollBeginDrag}
+                        onScrollEndDrag={follower.endDrag}
+                        onStartReached={onStartReached}
+                        onStartReachedThreshold={0.25}
+                        ref={list}
+                        renderItem={renderItem}
+                        scrollEventThrottle={32}
+                        style={styles.list}
+                    />
+                </Animated.View>
+                {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
+                    <ConversationJumpLatest onPress={jumpToLatest} theme={theme} />
+                ) : null}
+            </View>
+        </ConversationDisclosure>
     );
 };
 
