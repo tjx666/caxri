@@ -156,6 +156,46 @@ describe('branch publication', () => {
         }
     });
 
+    it('shares one tracking-ref read per root and branch through a round map', async () => {
+        const commit = 'c'.repeat(40);
+        const git = vi.fn((_cwd: string, arguments_: readonly string[]) =>
+            Promise.resolve(
+                arguments_[0] === 'for-each-ref' ? `${arguments_.at(-1)} ${commit}` : '',
+            ),
+        );
+        const repo: GitSummary['repositories'][number] = {
+            id: 'repo',
+            kind: 'primary',
+            rootPath: '/repo',
+            name: 'project',
+            branch: 'main',
+            head: commit,
+            ahead: 0,
+            behind: 0,
+            additions: 0,
+            deletions: 0,
+            generation: 0,
+            changedFileCount: 0,
+            truncated: false,
+            files: [],
+        };
+        const remotes = new RepoRemoteCache();
+        const trackingHeads = new Map<string, Promise<string>>();
+        const reads = () =>
+            git.mock.calls.filter(([, arguments_]) => arguments_[0] === 'for-each-ref');
+
+        const [first, second] = await Promise.all([
+            prepareStatusRepo(repo, git, remotes, false, trackingHeads),
+            prepareStatusRepo(repo, git, remotes, false, trackingHeads),
+        ]);
+        await prepareStatusRepo({ ...repo, branch: 'feature' }, git, remotes, false, trackingHeads);
+        await prepareStatusRepo(repo, git, remotes);
+
+        expect(first.context.trackingHead).toBe(commit);
+        expect(second.context.trackingHead).toBe(commit);
+        expect(reads()).toHaveLength(3);
+    });
+
     it('rechecks after push without a HEAD change and fails closed on refresh', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-publication-'));
         const logger = new StructuredLogger(directory);

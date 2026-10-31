@@ -163,6 +163,21 @@ export class RepoTopologyRegistry {
     }
 
     /**
+     * {@link topology} projected onto the public worktree shape Workbench consumers read.
+     */
+    async worktreeTopology(root: string, isForced: boolean): Promise<GitWorktreeTopology> {
+        const topology = await this.topology(root, { force: isForced });
+        return {
+            repositoryKey: topology.repositoryKey,
+            worktrees: topology.worktrees.map(({ branch, rootPath, isMain }) => ({
+                branch,
+                rootPath,
+                isMain,
+            })),
+        };
+    }
+
+    /**
      * Reports whether a lookup for `root` would be served from cache at the current generation.
      */
     isFresh(root: string): boolean {

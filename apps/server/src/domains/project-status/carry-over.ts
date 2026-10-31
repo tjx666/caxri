@@ -17,6 +17,34 @@ export interface PreparedSummary {
     summary: ProjectStatusSummary;
 }
 
+/**
+ * Identity of a Session's local inputs to the external refresh.
+ *
+ * `projectStatus.ignoredChecks` is an input to the rollup rather than a display filter, so a summary computed under
+ * superseded rules is wrong the moment the user edits them. Folding the rules into the fingerprint reuses the cache's
+ * existing "the inputs changed" path instead of adding a second invalidation mechanism, and the shared pull-request
+ * store answers the re-parse from its own record, so the correction normally costs no extra GitHub query.
+ */
+export function preparedFingerprint(
+    ignoredChecks: readonly string[],
+    repositories: readonly PreparedRepo[],
+): string {
+    return JSON.stringify([
+        ignoredChecks,
+        repositories.map(({ context, repository }) => [
+            repository.id,
+            context.branch,
+            context.defaultBranch,
+            context.head,
+            context.owner,
+            context.repo,
+            context.hasOrigin,
+            context.detached,
+            context.trackingHead,
+        ]),
+    ]);
+}
+
 export interface SummaryCacheEntry {
     expiresAt: number;
     fingerprint: string;

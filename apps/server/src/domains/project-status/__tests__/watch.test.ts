@@ -200,7 +200,7 @@ describe('DeliveryWatch cadence', () => {
                 return { unref: () => {} } as unknown as NodeJS.Timeout;
             },
             summaryOf: () => entry('pending').value,
-            watchSession: (_sessionId, _covered, isPendingRound): Promise<WatchOutcome> => {
+            watchSession: (_sessionId, _round, isPendingRound): Promise<WatchOutcome> => {
                 rounds.push(isPendingRound);
                 return Promise.resolve('refreshed');
             },

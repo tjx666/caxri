@@ -15,6 +15,13 @@ import { readPublicIp, readPublicIpProfile } from './public-ip';
 
 const MONITOR_INTERVAL_MS = 5_000;
 const PUBLIC_IP_INTERVAL_MS = 60_000;
+/**
+ * The 5-second tick reuses the settings it last read instead of asking the Server each time: `settings.changed` (which
+ * also covers external edits to the settings file) and `checkNow` mark them stale. Re-reading once a minute anyway
+ * covers a change event lost while the Server connection was down. Production logged one `settings.get` every 5
+ * seconds, about 28% of all Server request records.
+ */
+const SETTINGS_REFRESH_MS = 60_000;
 
 type MonitorSettings = Pick<
     AppSettings,
@@ -162,6 +169,8 @@ export function createEnvironmentMonitor(options: EnvironmentMonitorOptions): En
     const clearTimer = options.clearInterval ?? globalThis.clearInterval;
 
     let settings: MonitorSettings | undefined;
+    let settingsReadAt = 0;
+    let areSettingsStale = true;
     let actualTimeZone = getSystemTimeZone();
     let publicIpBaseline: IpObservation | undefined;
     let currentPublicIp: IpObservation | undefined;
@@ -213,9 +222,24 @@ export function createEnvironmentMonitor(options: EnvironmentMonitorOptions): En
         alertFingerprints = nextFingerprints;
     }
 
+    async function readSettings(): Promise<MonitorSettings> {
+        if (settings && !areSettingsStale && now() - settingsReadAt < SETTINGS_REFRESH_MS)
+            return settings;
+        // Cleared before the read, so a `settings.changed` that lands while it is in flight still forces the next one.
+        areSettingsStale = false;
+        try {
+            const next = await options.loadSettings();
+            settingsReadAt = now();
+            return next;
+        } catch (error) {
+            areSettingsStale = true;
+            throw error;
+        }
+    }
+
     async function performCheck(shouldForcePublicIp: boolean): Promise<void> {
         const previousSettings = settings;
-        settings = await options.loadSettings();
+        settings = await readSettings();
         const currentTime = now();
         let didCompleteSignal = false;
 
@@ -345,13 +369,18 @@ export function createEnvironmentMonitor(options: EnvironmentMonitorOptions): En
     }
 
     return {
-        checkNow: () => enqueue(true),
+        checkNow: () => {
+            areSettingsStale = true;
+            return enqueue(true);
+        },
         dispose: () => clearTimer(timer),
         initialize: async () => {
             await enqueue(false);
         },
         observe: (event) => {
-            if (event.event === 'settings.changed') void enqueue(false);
+            if (event.event !== 'settings.changed') return;
+            areSettingsStale = true;
+            void enqueue(false);
         },
         read: () => state,
         readNodes: (access) => options.readNodes({ ...access, assertions: [] }),
