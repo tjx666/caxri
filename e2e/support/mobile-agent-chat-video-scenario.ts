@@ -123,36 +123,49 @@ async function openChatWithVideo(environment: MobileAgentScenarioEnvironment) {
 }
 
 /**
- * Taps the timeline's progress bar at `fraction` of its width. The bar shows only with the controls, and only a paused
- * player lets UIAutomator read the screen.
+ * Taps the player at `heightFraction` of its height, in the middle horizontally. The play/pause button sits at the
+ * center; a tap higher up only shows or hides the controls.
  */
-async function seekTo(serial: string, fraction: number): Promise<void> {
-    const bar = await waitForMobile(
-        () => mobileNativeControlBounds(serial, { resourceId: TIME_BAR }),
-        (bounds) => bounds !== null,
-        15_000,
-    );
-    if (!bar) throw new Error('The player shows no progress bar');
-    await adbShell(serial, [
-        'input',
-        'tap',
-        String(Math.round(bar.left + (bar.right - bar.left) * fraction)),
-        String(Math.round((bar.top + bar.bottom) / 2)),
-    ]);
-}
-
-/**
- * Taps the middle of the player: the first tap shows the controls, and the next one presses their play/pause button,
- * which sits in the middle.
- */
-async function tapPlayer(serial: string): Promise<void> {
+async function tapPlayer(serial: string, heightFraction = 0.5): Promise<void> {
     const view = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
     if (!view) throw new Error('The player is not open');
     await adbShell(serial, [
         'input',
         'tap',
         String(Math.round((view.left + view.right) / 2)),
-        String(Math.round((view.top + view.bottom) / 2)),
+        String(Math.round(view.top + (view.bottom - view.top) * heightFraction)),
+    ]);
+}
+
+const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resourceId: TIME_BAR });
+
+/**
+ * Returns the progress bar, showing the controls first when Media3 has hidden them, which it does a few seconds after
+ * the last touch even while paused.
+ */
+async function showControls(serial: string) {
+    const shown = await timeBar(serial);
+    if (shown) return shown;
+    await tapPlayer(serial, 0.3);
+    const bar = await waitForMobile(
+        () => timeBar(serial),
+        (bounds) => bounds !== null,
+        15_000,
+    );
+    if (!bar) throw new Error('The player shows no progress bar');
+    return bar;
+}
+
+/**
+ * Taps the progress bar at `fraction` of its width. UIAutomator reads the screen only while the player is paused.
+ */
+async function seekTo(serial: string, fraction: number): Promise<void> {
+    const bar = await showControls(serial);
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.round(bar.left + (bar.right - bar.left) * fraction)),
+        String(Math.round((bar.top + bar.bottom) / 2)),
     ]);
 }
 
@@ -181,14 +194,17 @@ export async function executeMobileChatVideoScenario(
         // The player plays at once and keeps the screen moving, so it is followed by time, not by UIAutomator.
         await pause(3_000);
         await capture(environment, 'playing', artifacts);
-        await tapPlayer(serial);
+        // While playing the screen keeps moving, so the controls are shown by a blind tap before pressing pause.
+        await tapPlayer(serial, 0.3);
         await pause(500);
         await tapPlayer(serial);
         await waitForCheck(serial, 'agent-chat-video-player-view');
+        await showControls(serial);
         await capture(environment, 'paused', artifacts);
         await seekTo(serial, 0.25);
         await pause(1_000);
         await capture(environment, 'scrubbed', artifacts);
+        await showControls(serial);
         await tapPlayer(serial);
         await pause(2_000);
         await recording.stop();
