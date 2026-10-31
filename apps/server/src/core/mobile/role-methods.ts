@@ -179,6 +179,19 @@ const mobileGatewayMethodsByRole = {
         'mobile.session.delete',
         'mobile.session.suggestTitle',
         /**
+         * Restart and Detach end the Agent's running turn, as `mobile.terminal.switchSurface` may, so they carry Stop's
+         * grant with Resume. Handing a Session to Caxri Bot lets it start work there unattended, and Reopen
+         * Conversation relaunches an Agent, so both stay with the role that can already start a Session. The menu state
+         * read only feeds those entries.
+         */
+        'mobile.session.menuState',
+        'mobile.session.restartAgent',
+        'mobile.session.detach',
+        'mobile.session.resume',
+        'mobile.session.reopenConversation',
+        'mobile.session.handOverToBot',
+        'mobile.session.takeBackFromBot',
+        /**
          * Fork and Continue in Another Agent start an Agent in a new Session, as `mobile.session.create` does, so they
          * carry its grant; the targets read only feeds the continue menu.
          */

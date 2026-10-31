@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentProvider, MobileContinuationOrigin } from '@caxri/protocol';
 import {
     AGENT_CHAT_SESSION_HANDOFF_COMMAND,
     agentChatSessionHandoffMessage,
@@ -56,3 +56,12 @@ export const AgentChatHandoffStarter = createContext<
  * The Chat's own Session, which a hand-off message needs to find the Session it created.
  */
 export const AgentChatSessionId = createContext<string | undefined>(undefined);
+
+/**
+ * Opens Continue in Another Agent for the Chat from a card in its timeline or its usage guard card, with the failure it
+ * continues from. Provided by the Chat view for a control device only, as only that role may continue; absent
+ * otherwise, so the cards offer nothing.
+ */
+export const AgentChatContinuer = createContext<
+    { isConnected: boolean; open: (origin: MobileContinuationOrigin) => void } | undefined
+>(undefined);

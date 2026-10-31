@@ -3,6 +3,12 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../domain-service';
 import type { createMobileAuthorityQueue } from './authority-queue';
+import type { MobileSessionAgentRequest } from './session-agent';
+import {
+    applyMobileSessionAgentAction,
+    mobileSessionAgentActionMethods,
+    readMobileSessionMenuState,
+} from './session-agent';
 import type { MobileSessionManagementRequest } from './session-management';
 import {
     applyMobileSessionManagement,
@@ -15,11 +21,12 @@ import { searchMobileSessions } from './session-search-requests';
 type PairedPrincipal = Extract<Principal, { kind: 'paired-device' }>;
 
 /**
- * Every phone Session method: create, the archived list, search, Rename with AI, the Chat `@` Session reference, and
- * the management writes.
+ * Every phone Session method: create, the archived list, search, Rename with AI, the Chat `@` Session reference, the
+ * management writes, and the Session menu's Agent actions with the state they read.
  */
 export type MobileSessionRequest =
     | MobileSessionManagementRequest
+    | MobileSessionAgentRequest
     | Extract<
           ServerRequest,
           {
@@ -27,6 +34,7 @@ export type MobileSessionRequest =
                   | 'mobile.session.archived'
                   | 'mobile.session.conversationReference'
                   | 'mobile.session.create'
+                  | 'mobile.session.menuState'
                   | 'mobile.session.search'
                   | 'mobile.session.suggestTitle';
           }
@@ -38,6 +46,7 @@ const mobileSessionMethods: ReadonlySet<string> = new Set<MobileSessionRequest['
     'mobile.session.conversationReference',
     'mobile.session.create',
     'mobile.session.delete',
+    'mobile.session.menuState',
     'mobile.session.rename',
     'mobile.session.restore',
     'mobile.session.search',
@@ -47,7 +56,11 @@ const mobileSessionMethods: ReadonlySet<string> = new Set<MobileSessionRequest['
 ]);
 
 export const isMobileSessionRequest = (request: ServerRequest): request is MobileSessionRequest =>
-    mobileSessionMethods.has(request.method);
+    mobileSessionMethods.has(request.method) || mobileSessionAgentActionMethods.has(request.method);
+
+const isMobileSessionAgentRequest = (
+    request: MobileSessionRequest,
+): request is MobileSessionAgentRequest => mobileSessionAgentActionMethods.has(request.method);
 
 /**
  * The access controller's grant checks, which this module applies without owning the device registry.
@@ -117,6 +130,16 @@ export const invokeMobileSessionRequest = async (
             currentPairedPrincipal(principal, request.method);
             return result;
         }
+        case 'mobile.session.menuState': {
+            const principal = currentPairedPrincipal(context.principal, request.method);
+            const result = await readMobileSessionMenuState(
+                domainService,
+                principal,
+                request.params.sessionId,
+            );
+            currentPairedPrincipal(principal, request.method);
+            return result;
+        }
         case 'mobile.session.suggestTitle': {
             const principal = currentPairedPrincipal(context.principal, request.method);
             const result = await suggestMobileSessionTitle(
@@ -128,11 +151,19 @@ export const invokeMobileSessionRequest = async (
             return result;
         }
         default: {
+            const admit = (): PairedPrincipal => {
+                assertOpen();
+                return currentPairedPrincipal(context.principal, request.method);
+            };
+            if (isMobileSessionAgentRequest(request))
+                return runRevocableOperation(
+                    admit,
+                    (principal, signal) =>
+                        applyMobileSessionAgentAction(domainService, principal, request, signal),
+                    (principal) => currentPairedPrincipal(principal, request.method),
+                );
             return runRevocableOperation(
-                () => {
-                    assertOpen();
-                    return currentPairedPrincipal(context.principal, request.method);
-                },
+                admit,
                 (principal, signal) =>
                     applyMobileSessionManagement(domainService, principal, request, signal),
                 (principal) => currentPairedPrincipal(principal, request.method),

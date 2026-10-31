@@ -13,6 +13,7 @@ import { showToast } from '../../components/toast-store';
 import { useTranslation } from '../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { AgentChatContinueAction } from './agent-chat-continue';
 import { resetText } from './agent-chat-plan-limits';
 import { agentChatUsageGuardButtons } from './agent-chat-usage-actions';
 import { AgentChatUsageButtons } from './agent-chat-usage-buttons';
@@ -94,8 +95,8 @@ const HandoffDocument = ({
  * The top of the Chat while its provider account is at the weekly usage guard (issue #2580), after Desktop's card: how
  * much of the week is used and when it resets, why new requests are paused, whether the stopped turn continues on its
  * own, the hand-off document, and the ways forward: Generate hand-off, Cancel the automatic continuation, and Continue
- * anyway. Continuing in another Agent lives in the Session's menu. Without reply access or a connection the buttons are
- * disabled with the reason beneath them.
+ * anyway. A control device also continues in another Agent from here, and every device sees where the work continued.
+ * Without reply access or a connection the buttons are disabled with the reason beneath them.
  */
 export const AgentChatUsageGuardCard = ({
     blockedReason,
@@ -160,6 +161,12 @@ export const AgentChatUsageGuardCard = ({
                 pending={pending}
                 provider={provider}
                 testID="agent-chat-usage-guard"
+                theme={theme}
+            />
+            <AgentChatContinueAction
+                continuedIn={guard.continuedIn}
+                origin={{ kind: 'usageGuard' }}
+                testID="agent-chat-usage-guard-continue-in-agent"
                 theme={theme}
             />
         </Card>

@@ -26,6 +26,7 @@ import {
 
 import type { ServerDomainService } from '../domain-service';
 import { terminalForPrincipal } from './action-requests';
+import { agentChatContinuationParameters } from './agent-chat-continuation';
 import { invokeMobileAgentChatUsageRequest } from './agent-chat-usage-requests';
 
 /**
@@ -568,14 +569,11 @@ export async function invokeMobileAgentChatRequest(
             return { targets };
         }
         case 'mobile.agentChat.continueInAgent': {
-            /**
-             * Always the menu's `manual` continuation: the phone has no usage-limit card, and `manual` refuses a
-             * running turn instead of handing over work still in progress.
-             */
+            const { origin, provider } = request.params;
             const continued = agentChatMethods['agentChat.continueInAgent'].result.parse(
                 await forward({
                     method: 'agentChat.continueInAgent',
-                    params: { terminalId, provider: request.params.provider, manual: true },
+                    params: agentChatContinuationParameters(terminalId, provider, origin),
                 }),
             );
             return { sessionId: continued.sessionId };

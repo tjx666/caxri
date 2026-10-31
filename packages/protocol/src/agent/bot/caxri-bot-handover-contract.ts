@@ -47,7 +47,7 @@ const botHandoverRejections = [
     'conversation_bound',
     'duplicate',
 ] as const;
-const botHandoverRejectionSchema = z.enum(botHandoverRejections);
+export const botHandoverRejectionSchema = z.enum(botHandoverRejections);
 
 /**
  * One Agent conversation, named by the provider that owns it and the provider's own conversation ID (what that

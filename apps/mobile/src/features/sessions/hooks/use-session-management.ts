@@ -1,18 +1,37 @@
 import { useCallback, useState } from 'react';
 
-import type { AgentProvider } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    MobileContinuationOrigin,
+    MobileReopenableConversation,
+} from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useHostSessions } from '../components/host-sessions-provider';
+import { BOT_HANDOVER_REJECTION_REASONS } from '../session-agent-menu';
 import { sessionManagementErrorMessage } from '../session-management-model';
 
 type Action =
-    'archive' | 'continue' | 'delete' | 'fork' | 'pin' | 'rename' | 'restore' | 'suggestTitle';
+    | 'archive'
+    | 'continue'
+    | 'delete'
+    | 'detach'
+    | 'fork'
+    | 'handOver'
+    | 'pin'
+    | 'rename'
+    | 'reopen'
+    | 'restart'
+    | 'restore'
+    | 'resume'
+    | 'suggestTitle'
+    | 'takeBack';
 
 /**
- * The Session actions of a control device: rename (with AI), pin, archive, restore, delete, Fork Session, and Continue
- * in Another Agent. Each change refreshes the dashboard afterwards so the home list reflects it without waiting for the
+ * The Session actions of a control device: rename (with AI), pin, archive, restore, delete, Fork Session, Continue in
+ * Another Agent, and the Agent group (Restart, Detach and Resume, Hand Over to and Take Back from Caxri Bot, Reopen
+ * Conversation). Each change refreshes the dashboard afterwards so the home list reflects it without waiting for the
  * next poll, and a Session the phone then opens is already in that list.
  */
 export const useSessionManagement = () => {
@@ -140,31 +159,134 @@ export const useSessionManagement = () => {
             )?.sessionId ?? null,
         [attempt, request, t],
     );
+    /**
+     * `origin` says which entry asked, so the Server continues as Desktop's menu, usage-limit card, or usage guard
+     * banner would; the menu is the default.
+     */
     const continueInAgent = useCallback(
-        async (sessionId: string, terminalId: string, provider: AgentProvider) =>
+        async (
+            sessionId: string,
+            terminalId: string,
+            provider: AgentProvider,
+            origin?: MobileContinuationOrigin,
+        ) =>
             (
                 await attempt(
                     'continue',
                     sessionId,
-                    () => request('mobile.agentChat.continueInAgent', { terminalId, provider }),
+                    () =>
+                        request('mobile.agentChat.continueInAgent', {
+                            terminalId,
+                            provider,
+                            ...(origin && { origin }),
+                        }),
                     t('sessions.manage.continueFailed'),
                     true,
                 )
             )?.sessionId ?? null,
         [attempt, request, t],
     );
+    const restartAgent = useCallback(
+        (sessionId: string) =>
+            run(
+                'restart',
+                sessionId,
+                () => request('mobile.session.restartAgent', { sessionId }),
+                t('sessions.manage.restartFailed'),
+            ),
+        [request, run, t],
+    );
+    const detach = useCallback(
+        (sessionId: string) =>
+            run(
+                'detach',
+                sessionId,
+                () => request('mobile.session.detach', { sessionId }),
+                t('sessions.manage.detachFailed'),
+            ),
+        [request, run, t],
+    );
+    const resume = useCallback(
+        (sessionId: string) =>
+            run(
+                'resume',
+                sessionId,
+                () => request('mobile.session.resume', { sessionId }),
+                t('sessions.manage.resumeFailed'),
+            ),
+        [request, run, t],
+    );
+    /**
+     * A refusal is a result rather than an error, so it is turned into `error` with Desktop's reason.
+     */
+    const handOverToBot = useCallback(
+        async (sessionId: string) => {
+            const result = await attempt(
+                'handOver',
+                sessionId,
+                () => request('mobile.session.handOverToBot', { sessionId }),
+                t('sessions.manage.handOverFailed'),
+                true,
+            );
+            if (result?.outcome === 'rejected')
+                setError(
+                    t('sessions.manage.handOverRefused', {
+                        reason: t(BOT_HANDOVER_REJECTION_REASONS[result.reason]),
+                    }),
+                );
+            return result?.outcome === 'accepted';
+        },
+        [attempt, request, t],
+    );
+    const takeBackFromBot = useCallback(
+        (sessionId: string) =>
+            run(
+                'takeBack',
+                sessionId,
+                () => request('mobile.session.takeBackFromBot', { sessionId }),
+                t('sessions.manage.takeBackFailed'),
+            ),
+        [request, run, t],
+    );
+    const reopenConversation = useCallback(
+        (
+            sessionId: string,
+            {
+                agentSessionId,
+                provider,
+            }: Pick<MobileReopenableConversation, 'agentSessionId' | 'provider'>,
+        ) =>
+            run(
+                'reopen',
+                sessionId,
+                () =>
+                    request('mobile.session.reopenConversation', {
+                        sessionId,
+                        provider,
+                        agentSessionId,
+                    }),
+                t('sessions.manage.reopenFailed'),
+            ),
+        [request, run, t],
+    );
     const clearError = useCallback(() => setError(null), []);
     return {
         archive,
         clearError,
         continueInAgent,
+        detach,
         error,
         fork,
+        handOverToBot,
         pending,
         remove,
         rename,
+        reopenConversation,
+        restartAgent,
         restore,
+        resume,
         setPinned,
         suggestTitle,
+        takeBackFromBot,
     };
 };

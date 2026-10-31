@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { isPinnedSession } from '@caxri/protocol';
@@ -15,12 +15,21 @@ import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
+import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { useSessionManagement } from '../hooks/use-session-management';
+import { useSessionMenuState } from '../hooks/use-session-menu-state';
+import { sessionAgentMenu } from '../session-agent-menu';
 import type { SessionActionsMode, SessionForkBlocker } from '../session-management-model';
 import { sessionForkBlocker } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
 import { sessionTitleForDisplay } from '../session-row-model';
+import { useHostSessions } from './host-sessions-provider';
 import { SessionContinuePane, SessionDeletePane, SessionRenamePane } from './session-actions-panes';
+import {
+    SessionAgentConfirmPane,
+    SessionAgentSheetActions,
+    SessionReopenPane,
+} from './session-agent-panes';
 
 const FORK_BLOCKER_REASONS = {
     noAgent: 'sessions.actions.noAgent',
@@ -29,8 +38,9 @@ const FORK_BLOCKER_REASONS = {
 
 /**
  * The Session actions of a control device, from a long-pressed row or the Session menu. Rename, Continue in Another
- * Agent, and Delete swap the sheet body for their own step instead of stacking a second modal, so the keyboard and
- * focus stay in one surface; the Session menu opens the sheet directly on one of those steps through `mode`.
+ * Agent, Delete, and the Agent group's Restart, Detach, and Reopen swap the sheet body for their own step instead of
+ * stacking a second modal, so the keyboard and focus stay in one surface; the Session menu opens the sheet directly on
+ * one of those steps through `mode`.
  */
 export const SessionActionsSheet = ({
     management,
@@ -49,7 +59,7 @@ export const SessionActionsSheet = ({
      */
     onDeleted?: () => void;
     /**
-     * Opens the Session that Fork or Continue in Another Agent created.
+     * Opens the Session that Fork or Continue in Another Agent created, or the one Go to Creating Session names.
      */
     onOpenSession: (sessionId: string) => void;
     session: MobileSessionItem | null;
@@ -103,6 +113,27 @@ const SessionActionsBody = ({
         onOpenSession(sessionId);
     };
     const title = sessionTitleForDisplay(session.title, t);
+    const isConnected = useMobileClient().status === 'connected';
+    const menuState = useSessionMenuState(session.id, mode === 'menu' || mode === 'reopen').data;
+    const { sections } = useHostSessions().sessions;
+    const agentMenu = useMemo(
+        () =>
+            sessionAgentMenu(
+                session,
+                menuState,
+                new Set(sections.sessions.map((listed) => listed.id)),
+            ),
+        [menuState, sections.sessions, session],
+    );
+    const stepTitles = {
+        continue: t('sessions.actions.continue'),
+        delete: t('sessions.actions.deleteTitle', { title }),
+        detach: t('sessions.actions.detachTitle'),
+        menu: title,
+        rename: t('sessions.actions.renameTitle'),
+        reopen: t('sessions.actions.reopenConversation'),
+        restart: t('sessions.actions.restartTitle'),
+    } satisfies Record<SessionActionsMode, string>;
     return (
         <BottomSheet
             closeLabel={t('sessions.actions.close')}
@@ -115,15 +146,7 @@ const SessionActionsBody = ({
                     <SheetTitle
                         detail={session.projectTitle}
                         theme={theme}
-                        title={
-                            mode === 'rename'
-                                ? t('sessions.actions.renameTitle')
-                                : mode === 'continue'
-                                  ? t('sessions.actions.continue')
-                                  : mode === 'delete'
-                                    ? t('sessions.actions.deleteTitle', { title })
-                                    : title
-                        }
+                        title={stepTitles[mode]}
                     />
                     {mode === 'rename' ? (
                         <SessionRenamePane
@@ -135,9 +158,31 @@ const SessionActionsBody = ({
                         />
                     ) : mode === 'continue' ? (
                         <SessionContinuePane
+                            isConnected={isConnected}
                             management={management}
                             onCancel={backToMenu}
                             onContinued={opened}
+                            sessionId={session.id}
+                            terminalId={terminalId}
+                            theme={theme}
+                        />
+                    ) : mode === 'restart' || mode === 'detach' ? (
+                        <SessionAgentConfirmPane
+                            action={mode}
+                            isConnected={isConnected}
+                            management={management}
+                            onCancel={backToMenu}
+                            onDone={onClose}
+                            session={session}
+                            theme={theme}
+                        />
+                    ) : mode === 'reopen' ? (
+                        <SessionReopenPane
+                            isConnected={isConnected}
+                            management={management}
+                            menuState={menuState}
+                            onCancel={backToMenu}
+                            onDone={onClose}
                             session={session}
                             theme={theme}
                         />
@@ -201,6 +246,16 @@ const SessionActionsBody = ({
                                 label={t('sessions.actions.continue')}
                                 onPress={() => setMode('continue')}
                                 testID="session-action-continue"
+                                theme={theme}
+                            />
+                            <SessionAgentSheetActions
+                                isConnected={isConnected}
+                                management={management}
+                                menu={agentMenu}
+                                onDone={onClose}
+                                onOpenSession={onOpenSession}
+                                onStep={setMode}
+                                session={session}
                                 theme={theme}
                             />
                             <SheetAction

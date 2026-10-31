@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { AgentProvider } from '@caxri/protocol';
+import type { AgentProvider, MobileContinuationOrigin } from '@caxri/protocol';
 import { Forward, Sparkles } from 'lucide-react-native';
 
 import { SheetAction } from '../../../components/bottom-sheet';
@@ -113,42 +113,50 @@ export const SessionRenamePane = ({
 
 /**
  * Continue in Another Agent: every other provider, the unavailable ones disabled with their reason, read when the list
- * opens. Choosing one starts the new Session and opens it.
+ * opens. Choosing one starts the new Session and opens it. The Session menu continues the Chat's latest work; a Chat's
+ * usage-limit card and usage guard card pass their `origin`, so the new Session picks up from that failure.
  */
 export const SessionContinuePane = ({
+    isConnected = true,
     management,
     onCancel,
     onContinued,
-    session,
+    origin,
+    sessionId,
+    terminalId,
     theme,
 }: {
+    isConnected?: boolean;
     management: Management;
     onCancel: () => void;
     onContinued: (sessionId: string) => void;
-    session: MobileSessionItem;
+    origin?: MobileContinuationOrigin;
+    sessionId: string;
+    terminalId: string | undefined;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const terminalId = session.primaryTerminal?.id;
     const targets = useContinuationTargets(terminalId);
     /**
      * Read once when the list opens, as Desktop's menu does, so a reset time does not need a ticking clock.
      */
     const [now] = useState(Date.now);
     const choices = targets.data ? continuationChoices(targets.data.targets, now, t) : null;
-    const isBusy = management.pending?.sessionId === session.id;
+    const isBusy = management.pending?.sessionId === sessionId;
     const pick = async (provider: AgentProvider): Promise<void> => {
         if (!terminalId) return;
-        const sessionId = await management.continueInAgent(session.id, terminalId, provider);
-        if (sessionId) onContinued(sessionId);
+        const created = await management.continueInAgent(sessionId, terminalId, provider, origin);
+        if (created) onContinued(created);
     };
-    const status = targets.isError
-        ? t('sessions.actions.continueLoadFailed')
-        : choices === null
-          ? t('sessions.actions.continueLoading')
-          : choices.length === 0
-            ? t('sessions.actions.continueEmpty')
-            : null;
+    const status = !isConnected
+        ? t('sessions.detail.reconnectForActions')
+        : targets.isError
+          ? t('sessions.actions.continueLoadFailed')
+          : choices === null
+            ? t('sessions.actions.continueLoading')
+            : choices.length === 0
+              ? t('sessions.actions.continueEmpty')
+              : null;
     return (
         <View style={styles.list}>
             {status ? (
@@ -163,7 +171,7 @@ export const SessionContinuePane = ({
                 <SheetAction
                     busy={isBusy}
                     detail={choice.reason}
-                    disabled={choice.reason !== undefined}
+                    disabled={!isConnected || choice.reason !== undefined}
                     icon={Forward}
                     key={choice.provider}
                     label={mobileAgentDisplayName(choice.provider)}
