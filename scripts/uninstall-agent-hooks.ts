@@ -7,6 +7,7 @@ import type {
     AgentHookDocuments,
 } from '../apps/server/src/domains/agents/hooks/contract';
 import { MAX_AGENT_HOOK_CONFIG_BYTES } from '../apps/server/src/domains/agents/hooks/manager';
+import { antigravityHookAdapter } from '../apps/server/src/domains/agents/providers/antigravity/hooks';
 import { claudeHookAdapter } from '../apps/server/src/domains/agents/providers/claude/hooks';
 import { codexHookAdapter } from '../apps/server/src/domains/agents/providers/codex/hooks';
 import { grokHookAdapter } from '../apps/server/src/domains/agents/providers/grok/hooks';
@@ -19,6 +20,7 @@ const HOOK_ADAPTERS: ReadonlyArray<{ adapter: AgentHookAdapter; provider: AgentP
     { adapter: claudeHookAdapter, provider: 'claude' },
     { adapter: codexHookAdapter, provider: 'codex' },
     { adapter: grokHookAdapter, provider: 'grok' },
+    { adapter: antigravityHookAdapter, provider: 'antigravity' },
 ];
 
 /**
@@ -82,10 +84,11 @@ function cleanupsFor(
 
 /**
  * Caxri registers its Agent hook bridge in shared provider configs (`~/.claude/settings.json`, Codex's `hooks.json`,
- * Grok's `hooks/caxri.json`). Archiving the profile takes the bridge binary with it, so entries left behind make every
- * later Agent session fail its hooks with "command not found". The uninstaller therefore strips every Caxri-owned entry
- * while leaving foreign hooks untouched. A development Host kept alive by `--keep-dev` may reinstall the entries on its
- * next reconcile, which is correct because it also re-stages the bridge they point at.
+ * Grok's `hooks/caxri.json`, Antigravity's `config/hooks.json`). Archiving the profile takes the bridge binary with it,
+ * so entries left behind make every later Agent session fail its hooks with "command not found". The uninstaller
+ * therefore strips every Caxri-owned entry while leaving foreign hooks untouched. A development Host kept alive by
+ * `--keep-dev` may reinstall the entries on its next reconcile, which is correct because it also re-stages the bridge
+ * they point at.
  */
 export async function planHookConfigCleanups(
     environment: HookCleanupEnvironment,

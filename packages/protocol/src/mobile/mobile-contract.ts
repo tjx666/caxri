@@ -189,7 +189,10 @@ const mobileAgentAvailabilitySchema = z.strictObject({
     reason: z.string().min(1).max(200).optional(),
 });
 const mobileAgentAvailabilityResultSchema = z.strictObject({
-    agents: z.array(mobileAgentAvailabilitySchema).length(4),
+    /**
+     * One entry per Terminal kind, so a newly catalogued Agent extends the list instead of failing the response.
+     */
+    agents: z.array(mobileAgentAvailabilitySchema).length(terminalKindSchema.options.length),
     /**
      * The Mac's `session.openAgentsInChat` setting, so a new mobile Session defaults to the same surface as Desktop.
      */

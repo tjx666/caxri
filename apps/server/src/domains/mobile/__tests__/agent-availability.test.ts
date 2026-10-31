@@ -1,4 +1,4 @@
-import { defaultAppSettings } from '@caxri/protocol';
+import { defaultAppSettings, mobileMethods } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ConfigService } from '../../config';
@@ -43,6 +43,9 @@ describe('mobile Agent availability', () => {
             { kind: 'shell', available: true },
         ]);
         expect(result.openAgentsInChat).toBe(true);
+        expect(mobileMethods['mobile.agent.availability'].result.safeParse(result).success).toBe(
+            true,
+        );
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
     });
 

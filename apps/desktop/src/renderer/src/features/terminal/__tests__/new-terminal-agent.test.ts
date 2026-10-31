@@ -270,6 +270,7 @@ describe('Agent availability annotations', () => {
         expect(agentInstallHint('claude', translate)).toContain('Claude Code');
         expect(agentInstallHint('codex', translate)).toContain('@openai/codex');
         expect(agentInstallHint('grok', translate)).toContain('Grok Build');
+        expect(agentInstallHint('antigravity', translate)).toContain('antigravity.google');
         expect(agentInstallHint('shell', translate)).toBeUndefined();
     });
 });
