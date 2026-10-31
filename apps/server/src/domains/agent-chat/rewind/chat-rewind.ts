@@ -10,8 +10,15 @@ import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@c
 import { requireChatTerminal } from '../chat-launch';
 import type { ChatResumePoint } from '../chat-provider';
 import { chatStateStore } from '../chat-state-store';
-import type { ChatStateDelivery } from '../chat-states';
+import type { ChatStateDelivery, ChatStates } from '../chat-states';
 import type { AgentChatServiceOptions } from '../service-options';
+import type { KeptChatVersion } from './chat-versions';
+import {
+    anchorChatVersion,
+    dropChatVersion,
+    followChatVersionSession,
+    keepChatVersion,
+} from './chat-versions';
 
 const REWIND_REFUSALS: Record<AgentChatRewindRefusal, string> = {
     turnRunning: 'Stop the running turn before editing an earlier message',
@@ -81,6 +88,7 @@ export interface ChatRewindRequest {
  */
 export interface ChatRewindHost {
     options: AgentChatServiceOptions;
+    states: Pick<ChatStates, 'get'>;
     enqueue: (terminalId: string, deliver: ChatStateDelivery) => Promise<void>;
     restart: (terminalId: string) => Promise<unknown>;
     send: (terminalId: string, message: Omit<AgentChatMessageInput, 'delivery'>) => Promise<void>;
@@ -91,8 +99,9 @@ export interface ChatRewindHost {
  * removed turns changed when asked), restarts the Chat so the projection is rebuilt from the rewound record, and sends
  * the edited message as the next turn. The rewind and the send happen in one request so a provider that rewinds by
  * resuming at an earlier point (Claude Code) writes the new branch right away: an abandoned branch is never the newest
- * record a later resume would pick up. Logs `agent_chat.rewound` once, after the send: a closed outcome with its reason
- * and error code, and `resendFailed` when the rewind happened but the restart or send did not.
+ * record a later resume would pick up. The replaced turns are kept as an earlier version (`chat-versions.ts`). Logs
+ * `agent_chat.rewound` once, after the send: a closed outcome with its reason and error code, and `resendFailed` when
+ * the rewind happened but the restart or send did not.
  */
 export async function rewindChat(
     host: ChatRewindHost,
@@ -122,6 +131,7 @@ export async function rewindChat(
             },
         });
     let resumePoint: ChatResumePoint | undefined;
+    let version: KeptChatVersion | undefined;
     try {
         const providerEntry = agentProviderCatalog[provider];
         if (restoreFiles && !providerEntry.capabilities.chatRewindFiles)
@@ -141,11 +151,18 @@ export async function rewindChat(
                 );
             const item = snapshot.items.find((candidate) => candidate.id === request.itemId);
             removedTurns = result.target.removedTurns;
-            resumePoint = await session.rewind({
-                ...result.target,
-                text: item?.type === 'userMessage' ? item.text : '',
-                restoreFiles,
-            });
+            version = keepChatVersion(host.options.database, terminalId, snapshot, result.target);
+            try {
+                resumePoint = await session.rewind({
+                    ...result.target,
+                    text: item?.type === 'userMessage' ? item.text : '',
+                    restoreFiles,
+                });
+            } catch (error) {
+                dropChatVersion(host.options.database, terminalId, version);
+                version = undefined;
+                throw error;
+            }
             /**
              * Retire the rewound process before the send chain moves on, so input that arrives before the restart
              * (another client, a queued follow-up) is refused instead of reaching a conversation that was cut short.
@@ -168,6 +185,14 @@ export async function rewindChat(
     if (resumePoint?.kind === 'fresh') host.options.coordinator.prepareTerminalStart(terminalId);
     try {
         await host.restart(terminalId);
+        if (version)
+            anchorChatVersion(
+                host.options.database,
+                terminalId,
+                version,
+                host.states.get(terminalId)?.projection.snapshot,
+                resumePoint?.kind === 'fresh',
+            );
         await host.send(terminalId, request.message);
     } catch (error) {
         // The provider record is already rewound, so this is its own outcome rather than `failed`.
@@ -177,6 +202,8 @@ export async function rewindChat(
             error instanceof CaxriError ? error.code : 'UNAVAILABLE',
             `The conversation was rewound, but the message was not sent: ${errorMessage(error, 'unknown error')}`,
         );
+    } finally {
+        if (version) followChatVersionSession(host.options.database, terminalId, version);
     }
     log('rewound');
 }

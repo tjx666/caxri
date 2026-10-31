@@ -90,6 +90,18 @@ test('a Claude Chat edits an earlier message and reverts its files', async ({}, 
             ),
         ).toEqual(['Revert the files Claude changed in these 2 turns?']);
         await page.screenshot({ path: testInfo.outputPath('claude-edited.png') });
+
+        // The replaced turns stay viewable, read-only, behind the edited message's switcher.
+        await expect(chat.getByRole('status', { name: 'Version 2 of 2' })).toBeVisible();
+        await chat.getByRole('button', { name: 'Previous version' }).click();
+        await expect(chat.getByRole('status', { name: 'Version 1 of 2' })).toBeVisible();
+        await expect(userMessage(chat, 'second question')).toBeVisible();
+        await userMessage(chat, 'second question').hover();
+        await expect(chat.getByRole('button', { name: 'Edit from here' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('claude-earlier-version.png') });
+        await chat.getByRole('button', { name: 'Show current version' }).click();
+        await expect(userMessage(chat, 'second question')).toHaveCount(0);
+        await expect(chat.getByRole('status', { name: 'Version 2 of 2' })).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

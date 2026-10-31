@@ -11,7 +11,7 @@ describe('agentChatReplaceTurnsConfirm', () => {
         expect(agentChatReplaceTurnsConfirm({ removedTurns: 3, restoreFiles: false })).toEqual({
             title: 'Replace 3 turns?',
             message:
-                "Sending this edit removes this message's turn and the 2 after it from the conversation. To keep them, cancel and use Fork from Here instead.",
+                "Sending this edit replaces this message's turn and the 2 after it. They stay viewable as an earlier version of this message, but the Agent no longer remembers them. To keep continuing them, cancel and use Fork from Here instead.",
             confirmLabel: 'Replace Turns',
         });
     });

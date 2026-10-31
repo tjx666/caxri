@@ -3,6 +3,7 @@ import { AGENT_CHAT_WAITING_MAX_CHATS, CaxriError } from '@caxri/protocol';
 import type { DomainHandlers } from '../domain-services';
 import type { createSessionCreator } from '../session';
 import { readChatImage } from './chat-images';
+import { listChatVersions, readChatVersion } from './rewind/chat-versions';
 import type { AgentChatService } from './service';
 import type { AgentChatServiceOptions } from './service-options';
 import { readWaitingChats, readWaitingTerminals } from './waiting/chat-waiting';
@@ -31,6 +32,7 @@ export function createAgentChatHandlers(
     | 'agentChat.implementPlan'
     | 'agentChat.fork'
     | 'agentChat.interrupt'
+    | 'agentChat.listVersions'
     | 'agentChat.pendingRequests'
     | 'agentChat.previewRestoreFiles'
     | 'agentChat.read'
@@ -38,6 +40,7 @@ export function createAgentChatHandlers(
     | 'agentChat.readHistory'
     | 'agentChat.readImage'
     | 'agentChat.readTask'
+    | 'agentChat.readVersion'
     | 'agentChat.editQueued'
     | 'agentChat.removeQueued'
     | 'agentChat.restoreQueued'
@@ -204,6 +207,10 @@ export function createAgentChatHandlers(
         'agentChat.readHistory': ({ terminalId, beforeItemId, taskId }) =>
             agentChat.readHistory(terminalId, beforeItemId, taskId),
         'agentChat.readTask': ({ terminalId, taskId }) => agentChat.readTask(terminalId, taskId),
+        'agentChat.listVersions': ({ terminalId }) =>
+            listChatVersions(records.database, terminalId),
+        'agentChat.readVersion': ({ terminalId, versionId }) =>
+            readChatVersion(records.database, terminalId, versionId),
         'agentChat.readContext': ({ terminalId }) => agentChat.readContext(terminalId),
         'agentChat.stopTask': async ({ terminalId, taskId }) => {
             await agentChat.stopTask(terminalId, taskId);

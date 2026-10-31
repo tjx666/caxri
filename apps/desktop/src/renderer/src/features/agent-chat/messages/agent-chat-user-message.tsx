@@ -23,6 +23,8 @@ import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-ses
 import { AgentChatDelegatedTaskBubble } from '../tasks/agent-chat-delegated-task-bubble';
 import { AgentChatSkillPill } from '../tools/agent-chat-skill-card';
 import { agentChatDeliveryCaption } from '../transcript/agent-chat-presentation';
+import { AgentChatVersionSwitcher } from '../versions/agent-chat-version-switcher';
+import { useAgentChatVersions } from '../versions/use-agent-chat-versions';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
@@ -46,7 +48,9 @@ import { AgentChatUserMessageBody } from './bubble-text/agent-chat-user-message-
  * and folders the message cites (`agentChatTextWithPathReferences`) show as chips above its bubble rather than as the
  * reference block the provider received; clicking one shows it in Finder. Skills it asked for lead the bubble's text as
  * inline chips, so the message reads as one. A `/new-session` hand-off shows as its own card
- * (`AgentChatSessionHandoffBubble`).
+ * (`AgentChatSessionHandoffBubble`). A message "Edit from here" replaced keeps its version switcher
+ * (`AgentChatVersionSwitcher`) at the front of that row, shown without hover, so the earlier versions are always
+ * findable.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -80,6 +84,7 @@ export function AgentChatUserMessage({
     const container = useRef<HTMLDivElement>(null);
     const menu = useAgentChatUserMessageMenu({ container, id, text });
     const { handoff, references, skills, text: words } = parseAgentChatPathReferences(text);
+    const hasVersions = useAgentChatVersions()?.switcher(id) !== undefined;
     const hasActions =
         words !== '' ||
         createdAt !== undefined ||
@@ -116,6 +121,7 @@ export function AgentChatUserMessage({
             className="flex flex-col items-end gap-1.5"
             data-agent-chat-user-message={id}
             isPinned={menu.isForking || menu.isRestoring}
+            persistentActions={hasVersions ? <AgentChatVersionSwitcher id={id} /> : undefined}
             ref={container}
             onContextMenu={menu.onContextMenu}
         >

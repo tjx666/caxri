@@ -1,4 +1,10 @@
+import { z } from 'zod';
+
+import { identifierSchema } from '../domain/identifiers.js';
+import { commandPolicy } from '../transport/method-spec.js';
 import type { AgentChatSnapshot } from './agent-chat-contract.js';
+import { agentChatItemSchema, agentChatTurnSchema } from './agent-chat-contract.js';
+import { MAX_AGENT_CHAT_ITEMS } from './agent-chat-limits.js';
 
 /**
  * Which user messages "Edit from here" can rewind a Chat to. Server Core validates `agentChat.rewind` with the same
@@ -80,3 +86,71 @@ export function agentChatRewindableMessageIds(snapshot: RewindSnapshot): Set<str
     }
     return ids;
 }
+
+/**
+ * Earlier versions of a Chat's conversation: what "Edit from here" replaced, kept by Server Core and shown read-only
+ * behind the edited message's version switcher. See `docs/agent-chat.md`.
+ */
+
+/**
+ * Versions one Chat keeps, oldest dropped first.
+ */
+export const MAX_AGENT_CHAT_VERSIONS = 100;
+
+/**
+ * The stored JSON one Chat's versions may hold together, oldest dropped first. One version is at most one projection
+ * (`MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH` of text), so this keeps a dozen full ones.
+ */
+export const MAX_AGENT_CHAT_VERSION_BYTES = 64 * 1024 * 1024;
+
+/**
+ * One earlier version without its content. `anchorTurnId` is the last turn that version shares with the conversation it
+ * branched from, or null when it replaced the conversation's first message: the switcher sits on the user message that
+ * starts the turn right after it. `parentVersionId` is the earlier version whose content holds that turn, null when it
+ * is the conversation that continues.
+ */
+const agentChatVersionSummarySchema = z.strictObject({
+    id: z.string().min(1).max(200),
+    parentVersionId: z.string().min(1).max(200).nullable(),
+    anchorTurnId: z.string().min(1).max(200).nullable(),
+    createdAt: z.number().int().nonnegative(),
+});
+
+/**
+ * One earlier version's items and turns, from its edited message on, oldest first.
+ */
+export const agentChatVersionContentSchema = z.strictObject({
+    items: z.array(agentChatItemSchema).max(MAX_AGENT_CHAT_ITEMS),
+    turns: z.array(agentChatTurnSchema).max(MAX_AGENT_CHAT_ITEMS),
+});
+
+export type AgentChatVersionSummary = z.infer<typeof agentChatVersionSummarySchema>;
+export type AgentChatVersionContent = z.infer<typeof agentChatVersionContentSchema>;
+
+/**
+ * The `agentChat.*` methods that read a Chat's earlier versions.
+ */
+export const agentChatVersionMethods = {
+    /**
+     * The earlier versions "Edit from here" kept for the Chat's current conversation, oldest first, without their
+     * content. A version of another conversation (the Chat started a new Agent Session since) is left out. Read again
+     * when the snapshot's `historyId` changes, since every rewind replaces the history.
+     */
+    'agentChat.listVersions': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({ terminalId: identifierSchema }),
+        result: z.array(agentChatVersionSummarySchema).max(MAX_AGENT_CHAT_VERSIONS),
+    },
+    /**
+     * One earlier version's items and turns, read when the user switches to it. Fails with `NOT_FOUND` for a version
+     * the Chat no longer keeps.
+     */
+    'agentChat.readVersion': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            versionId: agentChatVersionSummarySchema.shape.id,
+        }),
+        result: agentChatVersionContentSchema,
+    },
+};

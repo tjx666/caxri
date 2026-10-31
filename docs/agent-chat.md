@@ -663,8 +663,9 @@ ordinary draft with the held-back draft lost.
 - Reverting files can discard the user's own later edits to those files, so it asks first in a
   native dialog (`agentChat.confirmRevertFiles`); Cancel sends nothing and keeps the draft.
   Replacing more than one turn without reverting files asks in the in-app confirmation instead
-  (`Replace N later turns?`, confirmed with Replace Turns), pointing at Fork from Here as the way to
-  keep them (`agent-chat-rewind-copy.ts`); an edit of the message's own single turn sends without
+  (`Replace N later turns?`, confirmed with Replace Turns), saying the turns stay viewable as an
+  earlier version the Agent no longer remembers and pointing at Fork from Here as the way to keep
+  continuing them (`agent-chat-rewind-copy.ts`); an edit of the message's own single turn sends without
   asking, since the edit bar already names it.
 - Each provider rewinds with its native mechanism; Caxri takes no snapshots of its own.
   `capabilities.chatRewindFiles` says whether files can be reverted, and when they cannot, the
@@ -710,6 +711,50 @@ not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` 
 point's preview matches the message before rewinding. An `_x.ai/interject` adds no point of its
 own (verified on Grok Build 1.0.62: one interjection and two prompts list two points), so a steered
 message does not shift the count. Mobile does not offer the action.
+
+### Earlier versions
+
+A sent edit keeps what it replaced. Before the provider rewinds, Server Core saves the projection
+from the edited message on as an earlier version in `agent_chat_versions` (`chat-versions.ts`); a
+refused rewind deletes it again, so a version only exists when the conversation really changed. The
+edited message then shows a `< 2/2 · Current >` switcher that stays visible without hovering
+(`agent-chat-version-switcher.tsx`). Its arrows are buttons with tooltips, and the position reads
+"Version 1 of 2" to a screen reader and is announced when it changes. Stepping back swaps everything
+from that message on for the earlier version; an edit inside an earlier version nests, so its own
+switcher appears inside it.
+
+Earlier versions are read-only on every provider. Codex `thread/revert` and Grok Build's rewind
+delete the turns, and Claude Code continues only from the active branch, so the Agent no longer
+remembers an earlier version and nothing can continue it in place. While one is on screen its
+messages offer no Edit, Fork, or Restore code, the end of the transcript says the conversation
+continues on the current version with a "Show current version" button, and sending a message
+brings the current version back. To continue an old branch, use Fork from Here before editing.
+
+```json
+{
+  "id": "v1",
+  "parentVersionId": null,
+  "anchorTurnId": "turn-1",
+  "items": ["user message 2", "reply", "user message 3", "reply"],
+  "turns": ["turn-2", "turn-3"]
+}
+```
+
+- `anchorTurnId` is the last turn the version shares with the conversation it branched from (null
+  for the first message). It is rewritten after the rewind's restart from the rebuilt projection,
+  because Grok Build replays turns as `history:N` while a live turn carries a generated id; the
+  rebuilt id is what every later restart reproduces. `parentVersionId` names the earlier version
+  whose content holds the anchor, set when a later edit replaces that turn.
+- `agentChat.listVersions` lists the summaries for the Chat's current Agent Session (an edit of
+  Claude Code's first message starts a new session, and the versions follow it once the edit is
+  sent); `agentChat.readVersion` reads one version's content when the user switches to it. The
+  Renderer refetches the list when the snapshot's `historyId` changes. Which version is on screen
+  is kept in memory per Chat, so a restart opens the current version.
+- A Chat keeps at most `MAX_AGENT_CHAT_VERSIONS` (100) versions and 64 MiB of stored JSON, oldest
+  dropped first together with the versions nested in them. Versions cascade with the Terminal.
+- No switcher shows when the edited message is older than the projection the Chat holds. Images
+  and subtask links inside an earlier version may not open, Fork Session copies only the current
+  version, and Mobile shows only the current version.
 
 ## Fork from here
 

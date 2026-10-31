@@ -1,7 +1,6 @@
-import type { ComponentProps } from 'react';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { AgentChatSnapshot, AgentProviderCatalogEntry } from '@caxri/protocol';
+import type { AgentProviderCatalogEntry } from '@caxri/protocol';
 
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { useTranslation } from '../../i18n';
@@ -28,33 +27,23 @@ import { useIsAgentChatComposerReady } from './composer-input/device-state/use-i
 import { useAgentChatComposerSnapshot } from './composer-snapshot/use-agent-chat-composer-snapshot';
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
-import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
+import { useAgentChatEditActions } from './hooks/use-agent-chat-edit';
 import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
-import {
-    AgentChatMcpServersContext,
-    useAgentChatMcpServers,
-} from './hooks/use-agent-chat-mcp-server';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPaneEscape } from './hooks/use-agent-chat-pane-escape';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
-import { AgentChatReadBackHistoryContext } from './hooks/use-agent-chat-read-back-history';
 import { useAgentChatReturnHint } from './hooks/use-agent-chat-return-hint';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
-import { useAgentChatSkillHost } from './hooks/use-agent-chat-skill-host';
-import { AgentChatSkillsContext } from './hooks/use-agent-chat-skills';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
-import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
 import { useLoadingStyle } from './loading';
-import { AgentChatDayBreak } from './messages/agent-chat-message-time';
 import {
     AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
     onAgentChatTranscriptKeyDown,
 } from './messages/agent-chat-reply-navigation';
-import { AgentChatReplyPlaceholder } from './messages/agent-chat-reply-placeholder';
 import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/agent-chat-approval-commands';
 import { AgentChatMessageRail } from './rail/agent-chat-message-rail';
@@ -63,14 +52,9 @@ import {
     isAgentChatMessageRailShown,
 } from './rail/agent-chat-rail-marks';
 import { useAgentChatMessageRail } from './rail/hooks/use-agent-chat-message-rail';
-import {
-    AgentChatReferencesContext,
-    useAgentChatReferenceIndex,
-} from './references/use-agent-chat-references';
 import { AgentChatExpansionState } from './transcript/agent-chat-expansion';
 import { AgentChatHistoryHead } from './transcript/agent-chat-history-head';
 import { AgentChatJumpToLatest } from './transcript/agent-chat-jump-to-latest';
-import { AgentChatPendingTimeline } from './transcript/agent-chat-pending-timeline';
 import {
     agentChatEmptyHint,
     agentChatEmptyMessage,
@@ -79,17 +63,11 @@ import {
     isAgentChatConversationLoading,
 } from './transcript/agent-chat-presentation';
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
-import { AgentChatSettledTimeline } from './transcript/agent-chat-settled-timeline';
-import type { AgentChatTimelineEntry } from './transcript/agent-chat-timeline';
-import {
-    AGENT_CHAT_TURN_START_ATTRIBUTE,
-    agentChatTimelineEntryKey,
-    agentChatTurnStartId,
-    isAgentChatAwaitingReplyInTimeline,
-} from './transcript/agent-chat-timeline';
-import { AgentChatTimelineEntryView } from './transcript/agent-chat-timeline-entry-view';
+import { isAgentChatAwaitingReplyInTimeline } from './transcript/agent-chat-timeline';
 import { useAgentChatTailFirstMount } from './transcript/mount/use-agent-chat-tail-first-mount';
+import { AgentChatTimelineBody } from './transcript/timeline/agent-chat-timeline-body';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
+import { useAgentChatVersionView } from './versions/use-agent-chat-versions';
 import { markAgentChatOnScreen } from './waiting/agent-chat-on-screen';
 
 /**
@@ -115,8 +93,12 @@ function openAsTerminalAction(terminal: ReturnType<typeof useTerminal>): (() => 
 function sentAction(
     terminal: ReturnType<typeof useTerminal>,
     jumpToLatest: () => void,
+    showCurrentVersion: () => void,
 ): () => void {
     return () => {
+        // The conversation continues on the current version, so a message sent while an earlier one is on screen
+        // brings the current one back to show where it went.
+        showCurrentVersion();
         jumpToLatest();
         if (terminal) dismissReturn(terminal.sessionId);
     };
@@ -197,6 +179,7 @@ function AgentChatPaneContent({
         { canFork, providerName, capabilities },
     );
     const pending = useAgentChatPending(terminalId, snapshot);
+    const versionView = useAgentChatVersionView(terminalId, pending.timelineSnapshot, editActions);
     // The waiting popup leaves out a Chat on screen here, whose own request card already asks.
     useEffect(
         () => (isSessionVisible ? markAgentChatOnScreen(terminalId) : undefined),
@@ -243,7 +226,7 @@ function AgentChatPaneContent({
     });
     const olderItems = history.history.items;
     const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
-        pending.timelineSnapshot,
+        versionView.snapshot,
         history.history,
     );
     const { start: mountedFrom, mountAll } = useAgentChatTailFirstMount(timeline.length);
@@ -364,8 +347,6 @@ function AgentChatPaneContent({
                                 <AgentChatTaskLinksContext value={taskLinks}>
                                     <AgentChatTimelineBody
                                         dayBreaks={dayBreaks}
-                                        editActions={editActions}
-                                        activeTurnId={snapshot?.activeTurnId}
                                         isAwaitingReply={
                                             pending.timeline.length === 0 &&
                                             isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
@@ -377,6 +358,7 @@ function AgentChatPaneContent({
                                         settledChunks={settledChunks}
                                         terminalId={terminalId}
                                         timeline={timeline}
+                                        versionView={versionView}
                                         onOpenFile={openFile}
                                     />
                                 </AgentChatTaskLinksContext>
@@ -459,7 +441,7 @@ function AgentChatPaneContent({
                 isShown={isShown}
                 providerName={providerName}
                 onOpenTask={taskLinks.openTask}
-                onSent={sentAction(terminal, jumpToLatest)}
+                onSent={sentAction(terminal, jumpToLatest, versionView.showCurrent)}
                 pendingQueue={composerView.pendingQueue}
                 queue={composerView.queue}
                 snapshot={composerView.snapshot}
@@ -482,114 +464,5 @@ function ConversationLoading() {
             label={t('agentChat.timeline.loadingConversation')}
             variant="transcript"
         />
-    );
-}
-
-/**
- * The live timeline's rows, each preceded by the day break that starts its calendar day. A row that opens a turn sits
- * in a box marked with the turn's id (`AGENT_CHAT_TURN_START_ATTRIBUTE`), laid out like a settled entry's box, so the
- * return hint can jump to a turn no prompt opened.
- */
-function LiveTimelineEntries({
-    dayBreaks,
-    mountedFrom,
-    onOpenFile,
-    timeline,
-}: {
-    dayBreaks: ReadonlyMap<string, number>;
-    mountedFrom: number;
-    onOpenFile: (reference: string) => void;
-    timeline: readonly AgentChatTimelineEntry[];
-}) {
-    return timeline.slice(mountedFrom).map((entry, offset) => {
-        const index = mountedFrom + offset;
-        const key = agentChatTimelineEntryKey(entry);
-        const dayBreak = dayBreaks.get(key);
-        const turnStartId = agentChatTurnStartId(entry, timeline[index - 1]);
-        const view = <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />;
-        return (
-            <Fragment key={key}>
-                {dayBreak !== undefined && <AgentChatDayBreak timestamp={dayBreak} />}
-                {turnStartId === undefined ? (
-                    view
-                ) : (
-                    <div
-                        {...{ [AGENT_CHAT_TURN_START_ATTRIBUTE]: turnStartId }}
-                        className="flex flex-col gap-3"
-                    >
-                        {view}
-                    </div>
-                )}
-            </Fragment>
-        );
-    });
-}
-
-/**
- * The Chat's settled, live, and pending timelines under the contexts their rows read.
- */
-function AgentChatTimelineBody({
-    activeTurnId,
-    dayBreaks,
-    editActions,
-    isAwaitingReply,
-    mcpServers,
-    mountedFrom,
-    onOpenFile,
-    pending,
-    readBackHistory,
-    settledChunks,
-    terminalId,
-    timeline,
-}: {
-    activeTurnId: string | undefined;
-    dayBreaks: ReadonlyMap<string, number>;
-    editActions: ComponentProps<typeof AgentChatEditContext>['value'];
-    isAwaitingReply: boolean;
-    mcpServers: AgentChatSnapshot['mcpServers'];
-    /**
-     * Index of the first live entry to mount; earlier ones are added by the idle backfill.
-     */
-    mountedFrom: number;
-    onOpenFile: (reference: string) => void;
-    pending: ComponentProps<typeof AgentChatPendingTimeline>['pending'];
-    readBackHistory: ComponentProps<typeof AgentChatReadBackHistoryContext>['value'];
-    settledChunks: ComponentProps<typeof AgentChatSettledTimeline>['chunks'];
-    terminalId: string;
-    timeline: readonly AgentChatTimelineEntry[];
-}) {
-    const servers = useAgentChatMcpServers(mcpServers);
-    const skills = useAgentChatSkillHost(terminalId);
-    const references = useAgentChatReferenceIndex(settledChunks, timeline);
-    return (
-        <AgentChatMcpServersContext value={servers}>
-            <AgentChatTerminalContext value={terminalId}>
-                <AgentChatSkillsContext value={skills}>
-                    <AgentChatReferencesContext value={references}>
-                        {/*
-                         * History read back is not in the projection, so it never offers Edit, Fork, or Restore; keeping it
-                         * outside the actions, which change with every patch, lets a patch skip it. Its menus list Edit and
-                         * Fork disabled with why.
-                         */}
-                        <AgentChatReadBackHistoryContext value={readBackHistory}>
-                            <AgentChatSettledTimeline
-                                chunks={settledChunks}
-                                onOpenFile={onOpenFile}
-                            />
-                        </AgentChatReadBackHistoryContext>
-                        <AgentChatEditContext value={editActions}>
-                            <LiveTimelineEntries
-                                dayBreaks={dayBreaks}
-                                mountedFrom={mountedFrom}
-                                timeline={timeline}
-                                onOpenFile={onOpenFile}
-                            />
-                            {isAwaitingReply && <AgentChatReplyPlaceholder turnId={activeTurnId} />}
-                            <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
-                        </AgentChatEditContext>
-                    </AgentChatReferencesContext>
-                </AgentChatSkillsContext>
-            </AgentChatTerminalContext>
-        </AgentChatMcpServersContext>
     );
 }

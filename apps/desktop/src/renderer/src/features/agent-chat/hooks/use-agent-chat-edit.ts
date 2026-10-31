@@ -116,3 +116,27 @@ export function useAgentChatEditActions(
     }, [table, editingId, canFork, supportsRewind, supportsRewindFiles, terminalId, providerName]);
     return { composerEdit, editActions, setEditingId };
 }
+
+/**
+ * `actions` for a timeline that may show an earlier version: its messages left the provider's record, so they offer no
+ * Edit, Fork, or Restore code, even where a replayed id (Grok Build's `history:N`) matches a current message.
+ */
+export function agentChatEditActionsOutside(
+    actions: AgentChatEditActions | undefined,
+    isEarlier: ((itemId: string) => boolean) | undefined,
+): AgentChatEditActions | undefined {
+    if (!actions || !isEarlier) return actions;
+    const only =
+        (availability: (itemId: string) => TranslationKey | null | undefined) =>
+        (itemId: string) => (isEarlier(itemId) ? undefined : availability(itemId));
+    return {
+        ...actions,
+        availability: only(actions.availability),
+        ...(actions.fork && {
+            fork: { ...actions.fork, availability: only(actions.fork.availability) },
+        }),
+        ...(actions.restore && {
+            restore: { ...actions.restore, availability: only(actions.restore.availability) },
+        }),
+    };
+}

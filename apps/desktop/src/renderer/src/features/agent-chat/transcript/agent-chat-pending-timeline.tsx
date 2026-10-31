@@ -7,8 +7,8 @@ import type { useAgentChatPending } from '../hooks/use-agent-chat-pending';
 import { AgentChatUserMessageBubble } from '../messages/agent-chat-user-message';
 import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-session-handoff-bubble';
 import type { AgentChatPendingMessage, AgentChatPendingWait } from './agent-chat-pending';
-import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questions';
+import { AgentChatTimelineEntryView } from './timeline/agent-chat-timeline-entry-view';
 
 const SENDING_HINT_KEYS = {
     delivery: 'agentChat.message.sending',
