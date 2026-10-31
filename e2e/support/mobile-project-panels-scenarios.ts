@@ -171,16 +171,20 @@ async function reorderProjectFilters(environment: Environment, artifacts: string
         await capture(environment, 'before', artifacts);
 
         // `draganddrop` holds the first point for the long-press timeout before moving, as a finger picking up a chip.
+        // The frame captured mid-move shows the held chip lifted and its neighbor stepping aside.
         const y = String(Math.floor((added.top + added.bottom) / 2));
-        await adbShell(environment.serial, [
+        const drag = adbShell(environment.serial, [
             'input',
             'draganddrop',
             String(Math.floor((added.left + added.right) / 2)),
             y,
             String(allowed.left + 4),
             y,
-            '900',
+            '2500',
         ]);
+        await new Promise((resolve) => setTimeout(resolve, 1800));
+        await capture(environment, 'dragging', artifacts);
+        await drag;
         const after = await waitForMobile(desktopOrder, (order) => order[0] === addedId);
         if (after.join(',') !== [addedId, allowedId, hiddenId].join(','))
             throw new Error(`Unexpected Project order after the drag: ${after.join(',')}`);
