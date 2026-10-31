@@ -1,4 +1,5 @@
 import type { GitRepositorySummary, SourceControlAction } from 'caxri';
+import { l10n } from 'caxri';
 
 import type { RepoBranchRow } from './repo-row-labels';
 import type { GitSourceControlMode, RegisterSourceControlAction } from './source-control-model';
@@ -30,10 +31,10 @@ export function branchSync(
     const action = registerAction({
         command: { id: 'caxri.git.sync', arguments: [repo.id, repo.ahead, repo.behind] },
         icon: { kind: 'theme', id: 'sync' },
-        label: `Sync Changes in ${repo.name}`,
-        progressLabel: `Syncing ${repo.name}`,
-        errorMessage: 'Sync failed',
-        tooltip: 'Sync Changes (Pull, then Push)',
+        label: l10n.t('Sync Changes in {name}', { name: repo.name }),
+        progressLabel: l10n.t('Syncing {name}', { name: repo.name }),
+        errorMessage: l10n.t('Sync failed'),
+        tooltip: l10n.t('Sync Changes (Pull, then Push)'),
     });
     return {
         action,

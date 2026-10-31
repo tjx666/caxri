@@ -146,6 +146,7 @@ export function isExtensionHostResult(
             return value.executed === true;
         case 'activeContextChanged':
         case 'gitChanged':
+        case 'languageChanged':
         case 'projectStatusChanged':
             return Number.isSafeInteger(value.notified) && Number(value.notified) >= 0;
         case 'cancel':

@@ -26,7 +26,7 @@
             "secondarySidebar": [
                 {
                     "id": "caxri.project-status",
-                    "title": "Status",
+                    "title": "%viewsContainers.project-status.title%",
                     "order": 400,
                     "icon": {
                         "kind": "builtin",
@@ -40,7 +40,7 @@
             "caxri.project-status": [
                 {
                     "id": "caxri.project-status.overview",
-                    "name": "Project Status",
+                    "name": "%views.overview.name%",
                     "type": "tree",
                     "badge": true,
                     "actions": [
@@ -55,18 +55,18 @@
         "commands": [
             {
                 "command": "caxri.project-status.refresh",
-                "title": "Refresh Project Status",
-                "description": "Refresh Project Status from GitHub, Linear, and Vercel"
+                "title": "%commands.refresh.title%",
+                "description": "%commands.refresh.description%"
             },
             {
                 "command": "caxri.project-status.mergePullRequest",
-                "title": "Merge Pull Request",
+                "title": "%commands.mergePullRequest.title%",
                 "palette": false
             },
             {
                 "command": "caxri.project-status.mergeCurrentPullRequest",
-                "title": "Merge Pull Request for Current Branch",
-                "description": "Merge the current branch's pull request when nothing blocks it"
+                "title": "%commands.mergeCurrentPullRequest.title%",
+                "description": "%commands.mergeCurrentPullRequest.description%"
             }
         ]
     }

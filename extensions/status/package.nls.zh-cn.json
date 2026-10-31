@@ -1,0 +1,9 @@
+{
+    "viewsContainers.project-status.title": "状态",
+    "views.overview.name": "项目状态",
+    "commands.refresh.title": "刷新项目状态",
+    "commands.refresh.description": "从 GitHub、Linear 和 Vercel 刷新项目状态",
+    "commands.mergePullRequest.title": "合并 Pull Request",
+    "commands.mergeCurrentPullRequest.title": "合并当前分支的 Pull Request",
+    "commands.mergeCurrentPullRequest.description": "在没有阻碍时合并当前分支的 Pull Request"
+}

@@ -1,0 +1,17 @@
+{
+    "views.sourceControl.name": "Source Control",
+    "views.sourceControl.noContextMessage": "Pick a Session to inspect its Git state.",
+    "views.sourceControl.loadingMessage": "Loading Git status…",
+    "views.sourceControl.actionErrorMessage": "Git action failed",
+    "views.sourceControl.refreshErrorMessage": "Git refresh failed",
+    "commands.workingTree.title": "Working Tree Changes",
+    "commands.lastCommit.title": "Last Commit Changes",
+    "commands.pullRequest.title": "Pull Request Changes",
+    "commands.refresh.title": "Refresh Git",
+    "commands.sync.title": "Sync Changes",
+    "commands.discardAll.title": "Discard All Changes",
+    "commands.discard.title": "Discard Changes",
+    "commands.openChanges.title": "Open Changes",
+    "commands.history.title": "Show Repository History",
+    "commands.openCommit.title": "Open Git Commit"
+}

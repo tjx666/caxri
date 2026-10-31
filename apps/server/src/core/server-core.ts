@@ -535,7 +535,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             invokeDesktopOperation: (request) =>
                 request.method === 'mobile.device.revoke.apply'
                     ? credentials.mobile().invokeDesktopOperation(request)
-                    : forwardDomainOperation(request),
+                    : extensionEvents.routeDesktopOperation(request, forwardDomainOperation),
             logger,
             identity: lease.identity,
             protocolIdentity,

@@ -6,7 +6,7 @@ import type {
     TreeDataProvider,
     TreeItem,
 } from 'caxri';
-import caxri, { EventEmitter } from 'caxri';
+import caxri, { EventEmitter, l10n } from 'caxri';
 
 import { statusBadge } from './status-badge';
 import type { StatusNode } from './status-item';
@@ -131,7 +131,9 @@ export function activate(context: ExtensionContext): void {
         ),
         caxri.commands.registerCommand(MERGE_PULL_REQUEST_COMMAND, async (target: unknown) => {
             if (!isMergePullRequestArguments(target))
-                throw new Error('Merge Pull Request needs a pull request from the Status panel');
+                throw new Error(
+                    l10n.t('Merge Pull Request needs a pull request from the Status panel'),
+                );
             return mergePullRequest(provider, target);
         }),
         caxri.commands.registerCommand(MERGE_CURRENT_PULL_REQUEST_COMMAND, async () => {

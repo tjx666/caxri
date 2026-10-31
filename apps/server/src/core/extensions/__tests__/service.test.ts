@@ -5,24 +5,26 @@ import type { DiscoveredExtension } from '../discovery';
 import { grantsForExtension, projectStatusForExtension } from '../host-api-access';
 
 function extension(source: DiscoveredExtension['source']): DiscoveredExtension {
+    const manifest: DiscoveredExtension['manifest'] = {
+        name: 'publisher.fixture',
+        version: '1.0.0',
+        type: 'module',
+        main: './dist/extension.js',
+        engines: { caxri: '^0.0.17' },
+        caxri: { capabilities: ['projects.read', 'settings.read'] },
+        contributes: {
+            viewsContainers: { secondarySidebar: [], panel: [] },
+            views: {},
+            commands: [],
+        },
+    };
     return {
         extensionId: 'publisher.fixture',
         source,
         rootPath: '/extensions/fixture',
         entryPath: '/extensions/fixture/dist/extension.js',
-        manifest: {
-            name: 'publisher.fixture',
-            version: '1.0.0',
-            type: 'module',
-            main: './dist/extension.js',
-            engines: { caxri: '^0.0.17' },
-            caxri: { capabilities: ['projects.read', 'settings.read'] },
-            contributes: {
-                viewsContainers: { secondarySidebar: [], panel: [] },
-                views: {},
-                commands: [],
-            },
-        },
+        manifest,
+        localization: { manifests: { en: manifest }, runtimeBundles: {}, ignoredFiles: [] },
     };
 }
 

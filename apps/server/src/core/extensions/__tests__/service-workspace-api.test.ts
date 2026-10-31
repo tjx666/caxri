@@ -66,7 +66,14 @@ vi.mock('../discovery', () => ({
                         },
                     },
                 },
-            ],
+            ].map((extension) => ({
+                ...extension,
+                localization: {
+                    manifests: { en: extension.manifest },
+                    runtimeBundles: {},
+                    ignoredFiles: [],
+                },
+            })),
             rejected: [],
         }),
 }));
@@ -74,10 +81,10 @@ vi.mock('../discovery', () => ({
 vi.mock('../supervisor', () => ({
     ExtensionHostSupervisor: class {
         constructor(options: {
-            registrations(): ExtensionHostRegistration[];
+            configuration(): { extensions: ExtensionHostRegistration[] };
             requestApi(request: ExtensionHostApiRequest): Promise<unknown>;
         }) {
-            harness.registrations = () => options.registrations();
+            harness.registrations = () => options.configuration().extensions;
             harness.requestApi = (request) => options.requestApi(request);
         }
 

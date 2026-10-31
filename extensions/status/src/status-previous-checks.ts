@@ -1,5 +1,5 @@
 import type { ProjectStatusPreviousChecks } from 'caxri';
-import { TreeItemCollapsibleState } from 'caxri';
+import { l10n, TreeItemCollapsibleState } from 'caxri';
 
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
@@ -31,7 +31,7 @@ export function isDocumentationPath(path: string): boolean {
 }
 
 function commitsBackLabel(count: number): string {
-    return count === 1 ? '1 commit back' : `${count} commits back`;
+    return count === 1 ? l10n.t('1 commit back') : l10n.t('{count} commits back', { count });
 }
 
 /**
@@ -39,11 +39,17 @@ function commitsBackLabel(count: number): string {
  * each check row's does, and repeating `passed` there truncated the commit title the row exists to show.
  */
 function positionLabel(count: number): string {
-    return count === 1 ? 'previous' : commitsBackLabel(count);
+    return count === 1 ? l10n.t('previous') : commitsBackLabel(count);
 }
 
 function filesLabel(count: number): string {
-    return count === 1 ? '1 file' : `${count} files`;
+    return count === 1 ? l10n.t('1 file') : l10n.t('{count} files', { count });
+}
+
+function filesChangedSinceLabel(count: number): string {
+    return count === 1
+        ? l10n.t('1 file changed since')
+        : l10n.t('{count} files changed since', { count });
 }
 
 function lineDelta(files: ReadonlyArray<Pick<ChangedFile, 'additions' | 'deletions'>>): string {
@@ -59,7 +65,7 @@ function lineDelta(files: ReadonlyArray<Pick<ChangedFile, 'additions' | 'deletio
 export function changedFilesDescription(files: readonly ChangedFile[]): string {
     return files.length < COMPARE_FILE_LIMIT &&
         files.every((file) => isDocumentationPath(file.path))
-        ? 'docs only'
+        ? l10n.t('docs only')
         : lineDelta(files);
 }
 
@@ -92,7 +98,7 @@ export function previousChecksNode(
     const files = previous.changedFiles;
     const children = files
         ? [
-              item(`${prefix}:previous-checks:files`, `${filesLabel(files.length)} changed since`, {
+              item(`${prefix}:previous-checks:files`, filesChangedSinceLabel(files.length), {
                   icon: 'file-diff',
                   description: files.length > 0 ? changedFilesDescription(files) : undefined,
                   children: files.map((file, index) =>
@@ -105,29 +111,39 @@ export function previousChecksNode(
               }),
           ]
         : [];
-    return item(`${prefix}:previous-checks`, `Previous commit: ${previous.title}`, {
-        icon: stateIcons[previous.state],
-        description: positionLabel(previous.commitsBefore),
-        accessibilityLabel: `Previous commit ${previous.title}, checks ${stateLabel}, ${commitsBackLabel(previous.commitsBefore)}`,
-        url: previous.url,
-        tooltip: {
-            title: previous.title,
-            description: 'The newest earlier commit whose checks finished.',
-            badge: { label: stateLabel, tone: stateTones[previous.state] },
-            rows: [
-                { label: 'position', value: commitsBackLabel(previous.commitsBefore) },
-                ...(files && files.length > 0
-                    ? [
-                          {
-                              label: 'since',
-                              value: `${filesLabel(files.length)}, ${changedFilesDescription(files)}`,
-                          },
-                      ]
-                    : []),
-            ],
+    return item(
+        `${prefix}:previous-checks`,
+        l10n.t('Previous commit: {title}', { title: previous.title }),
+        {
+            icon: stateIcons[previous.state],
+            description: positionLabel(previous.commitsBefore),
+            accessibilityLabel: l10n.t('Previous commit {title}, checks {state}, {position}', {
+                title: previous.title,
+                state: stateLabel,
+                position: commitsBackLabel(previous.commitsBefore),
+            }),
+            url: previous.url,
+            tooltip: {
+                title: previous.title,
+                description: l10n.t('The newest earlier commit whose checks finished.'),
+                badge: { label: stateLabel, tone: stateTones[previous.state] },
+                rows: [
+                    { label: l10n.t('position'), value: commitsBackLabel(previous.commitsBefore) },
+                    ...(files && files.length > 0
+                        ? [
+                              {
+                                  label: l10n.t('since'),
+                                  value: `${filesLabel(files.length)}${l10n.t(', ')}${changedFilesDescription(files)}`,
+                              },
+                          ]
+                        : []),
+                ],
+            },
+            children,
+            collapsibleState:
+                children.length > 0
+                    ? TreeItemCollapsibleState.Expanded
+                    : TreeItemCollapsibleState.None,
         },
-        children,
-        collapsibleState:
-            children.length > 0 ? TreeItemCollapsibleState.Expanded : TreeItemCollapsibleState.None,
-    });
+    );
 }

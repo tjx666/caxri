@@ -191,6 +191,15 @@ const contributedCommandDescriptorSchema = z.object({
     id: extensionCommandIdSchema,
     title: z.string().min(1).max(200),
     description: z.string().max(1_024).optional(),
+    /**
+     * The extension's default-language `title`, present only when `title` is a translation of it, so a Command Palette
+     * query in the extension's source language still finds the command in any interface language.
+     */
+    sourceTitle: z.string().min(1).max(200).optional(),
+    /**
+     * The default-language `description`, under the same rule as `sourceTitle`.
+     */
+    sourceDescription: z.string().max(1_024).optional(),
     allowInEditable: z.boolean().optional(),
     palette: z.boolean().optional(),
     source: descriptorSourceSchema,

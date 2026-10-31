@@ -62,6 +62,7 @@ export function extensionApiModuleUrl(owner: RegisteredExtensionModule): string 
         'export const Disposable = binding.runtime.Disposable;',
         'export const EventEmitter = binding.runtime.EventEmitter;',
         'export const isGlobMatch = binding.runtime.isGlobMatch;',
+        'export const l10n = binding.api.l10n;',
         'export const CancellationTokenSource = binding.runtime.CancellationTokenSource;',
         'export const ProjectStatusSummaryErrorMessage = binding.runtime.ProjectStatusSummaryErrorMessage;',
         'export const GitPullRequestErrorMessage = binding.runtime.GitPullRequestErrorMessage;',

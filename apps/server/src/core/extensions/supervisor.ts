@@ -19,7 +19,6 @@ import {
 import type {
     ExtensionHostApiRequest,
     ExtensionHostMessage,
-    ExtensionHostRegistration,
     ExtensionHostRequest,
 } from '../../extension-host/protocol';
 import { logProtocolRejection } from '../../extension-host/protocol-diagnostics';
@@ -50,7 +49,10 @@ export interface ExtensionHostSupervisorOptions {
      * sequence is resolved from the fail-closed environment gate instead.
      */
     protocolFaults?: ExtensionHostProtocolFault[];
-    registrations(): ExtensionHostRegistration[];
+    /**
+     * What a (re)started Host is configured with; later language changes arrive as `languageChanged`.
+     */
+    configuration(): Extract<ExtensionHostRequest, { method: 'configure' }>['params'];
     requestApi(request: ExtensionHostApiRequest, signal?: AbortSignal): Promise<unknown>;
     serverId: string;
     userDataPath: string;
@@ -214,9 +216,7 @@ export class ExtensionHostSupervisor extends EventTarget {
     private deliverProtocolFault(fault: ExtensionHostProtocolFault, child: ChildProcess): void {
         if (fault === 'reply-result') {
             this.corruptNextReplyResult = true;
-            void this.sendRequest('configure', {
-                extensions: this.options.registrations(),
-            }).catch(() => {});
+            void this.sendRequest('configure', this.options.configuration()).catch(() => {});
             return;
         }
         if (fault === 'child-envelope') {
@@ -408,7 +408,7 @@ export class ExtensionHostSupervisor extends EventTarget {
         );
         try {
             await this.readiness;
-            await this.sendRequest('configure', { extensions: this.options.registrations() });
+            await this.sendRequest('configure', this.options.configuration());
             this.options.logger.recordMetric('startup.phase', performance.now() - startedAt, {
                 owner: 'extension-host',
                 phase: 'startup',

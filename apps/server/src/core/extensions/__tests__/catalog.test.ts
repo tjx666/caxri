@@ -8,6 +8,7 @@ import { extensionManifestSchema, MAX_VIEW_CATALOG_CONTAINERS } from '@caxri/pro
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildViewCatalog } from '../catalog';
+import { readExtensionLocalization } from '../localization';
 
 const temporaryDirectories: string[] = [];
 const bundledExtensionsRoot = resolve(import.meta.dirname, '../../../../../../extensions');
@@ -57,7 +58,30 @@ async function extension(id: string, containerId: string, icon?: unknown, order?
         rootPath,
         entryPath: join(rootPath, 'extension.js'),
         manifest,
+        localization: { manifests: { en: manifest }, runtimeBundles: {}, ignoredFiles: [] },
     };
+}
+
+function bundledProducts() {
+    return Promise.all(
+        ['git', 'status'].map(async (name) => {
+            const rootPath = join(bundledExtensionsRoot, name);
+            const source = await readFile(join(rootPath, 'package.json'), 'utf8');
+            const localization = await readExtensionLocalization(
+                rootPath,
+                extensionManifestSchema.parse(JSON.parse(source)),
+            );
+            const manifest = localization.manifests.en;
+            return {
+                extensionId: manifest.name,
+                source: 'bundled' as const,
+                rootPath,
+                entryPath: join(rootPath, 'dist/extension.js'),
+                manifest,
+                localization,
+            };
+        }),
+    );
 }
 
 describe('buildViewCatalog', () => {
@@ -88,20 +112,7 @@ describe('buildViewCatalog', () => {
     });
 
     it('catalogs Git and Status as lifecycle-bearing product extensions while Files remains Core', async () => {
-        const products = await Promise.all(
-            ['git', 'status'].map(async (name) => {
-                const rootPath = join(bundledExtensionsRoot, name);
-                const source = await readFile(join(rootPath, 'package.json'), 'utf8');
-                const manifest = extensionManifestSchema.parse(JSON.parse(source));
-                return {
-                    extensionId: manifest.name,
-                    source: 'bundled' as const,
-                    rootPath,
-                    entryPath: join(rootPath, 'dist/extension.js'),
-                    manifest,
-                };
-            }),
-        );
+        const products = await bundledProducts();
         const states = new Map(
             products.map(({ extensionId }) => [
                 extensionId,
@@ -158,6 +169,43 @@ describe('buildViewCatalog', () => {
             allowInEditable: true,
             title: 'Show Status',
         });
+    });
+
+    it('serves bundled extension titles in the interface language with their English source', async () => {
+        const products = await bundledProducts();
+        const states = new Map(
+            products.map(({ extensionId }) => [
+                extensionId,
+                { generation: 1, lifecycle: 'active' as const },
+            ]),
+        );
+        const options = { extensions: products, rejected: [], states, revision: 1 };
+
+        const english = await buildViewCatalog(options);
+        const chinese = await buildViewCatalog({ ...options, locale: 'zh-CN' });
+
+        expect(english.views.find(({ id }) => id === 'caxri.git.sourceControl')).toMatchObject({
+            title: 'Source Control',
+        });
+        expect(english.commands.find(({ id }) => id === 'caxri.git.sync')).not.toHaveProperty(
+            'sourceTitle',
+        );
+        expect(chinese.views.find(({ id }) => id === 'caxri.git.sourceControl')).toMatchObject({
+            title: '源代码管理',
+        });
+        expect(chinese.containers.find(({ id }) => id === 'caxri.project-status')).toMatchObject({
+            title: '状态',
+        });
+        expect(chinese.commands.find(({ id }) => id === 'caxri.git.sync')).toMatchObject({
+            title: '同步更改',
+            sourceTitle: 'Sync Changes',
+        });
+        expect(chinese.containers.find(({ id }) => id === 'caxri.git')).toMatchObject({
+            title: 'Git',
+        });
+        expect(
+            chinese.commands.find(({ id }) => id === 'secondarySidebar.showStatus'),
+        ).toMatchObject({ title: '显示状态', sourceTitle: 'Show Status' });
     });
 
     it('orders view containers by their manifest contribution instead of discovery order', async () => {

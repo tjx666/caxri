@@ -67,6 +67,15 @@ export const extensionHostLogEvents = {
     catalogRebuildFailed: 'extension_host.catalog_rebuild_failed',
     contextRefreshFailed: 'extension_host.context_refresh_failed',
     discovered: 'extension_host.discovered',
+    /**
+     * The Extension Host's interface language moved (`workbench.language` or the reported system language changed).
+     */
+    languageChanged: 'extension_host.language_changed',
+    /**
+     * An extension localization file exists but was not used, with a closed reason; that language falls back to the
+     * extension's default text.
+     */
+    localizationIgnored: 'extension_host.localization_ignored',
     gitRefreshFanout: 'extension_host.git_refresh_fanout',
     error: 'extension_host.error',
     exit: 'extension_host.exit',

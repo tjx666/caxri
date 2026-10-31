@@ -16,7 +16,6 @@ import { logEventCatalog, SingleFlight } from '@caxri/system';
 import type {
     ExtensionHostApiRequest,
     ExtensionHostRegistration,
-    ExtensionProjectStatusSummary,
     ExtensionViewOperation,
     ExtensionWorkspaceOperation,
 } from '../../extension-host/protocol';
@@ -24,11 +23,18 @@ import type { CatalogExtensionState } from './catalog';
 import { buildViewCatalog } from './catalog';
 import type { DiscoveredExtension } from './discovery';
 import { discoverExtensions } from './discovery';
+import { ExtensionLanguage } from './extension-language';
 import { extensionFailure } from './failure';
 import type { ExtensionGrant } from './host-api-access';
-import { grantsForExtension, projectStatusForExtension } from './host-api-access';
+import {
+    grantsForExtension,
+    projectStatusForExtension,
+    projectStatusWithoutSession,
+    readDeclaredConfig,
+} from './host-api-access';
 import type { ExtensionHostStartTrigger } from './host-start-gate';
 import { ExtensionHostStartGate } from './host-start-gate';
+import { logIgnoredLocalization } from './localization';
 import type { CatalogChangedEvent, TreeChangedEvent, ViewChangedEvent } from './service-events';
 import { projectExtensionHostViewEvent, subscribeExtensionEvent } from './service-events';
 import type { ResolvedSessionContext, SessionContextReader, SessionScope } from './session-scope';
@@ -95,6 +101,7 @@ export class ExtensionService extends EventTarget {
     private supervisor?: ExtensionHostSupervisor;
     private readonly hostStartGate = new ExtensionHostStartGate();
     private projectIds: string[] = [];
+    private readonly language = new ExtensionLanguage();
     private readonly readSessionContext: SessionContextReader = (sessionId) =>
         this.options.sessionContext(sessionId);
 
@@ -109,6 +116,7 @@ export class ExtensionService extends EventTarget {
         this.states.clear();
         this.grants.clear();
         for (const extension of this.discovered) {
+            logIgnoredLocalization(this.options.logger, extension);
             const generation = shouldAdvanceGenerations
                 ? (previousStates.get(extension.extensionId)?.generation ?? 0) + 1
                 : 1;
@@ -148,6 +156,7 @@ export class ExtensionService extends EventTarget {
                 manifest: extension.manifest,
                 grants: [...grant.capabilities],
                 projectIds: [...grant.projectIds],
+                l10n: extension.localization.runtimeBundles,
             });
         }
         return registrations;
@@ -165,9 +174,22 @@ export class ExtensionService extends EventTarget {
             rejected: this.rejected,
             states: this.states,
             revision: this.revision,
+            locale: this.language.locale,
         });
         this.dispatchEvent(
             new CustomEvent('catalogChanged', { detail: { revision: this.revision, extensionId } }),
+        );
+    }
+
+    /**
+     * For child-process callbacks, which cannot await catalog publication; a failure is logged locally.
+     */
+    private rebuildCatalogInBackground(): void {
+        // eslint-disable-next-line unicorn/prefer-await
+        this.rebuildCatalog().catch((error: unknown) =>
+            this.options.logger.write('error', logEventCatalog.extensionHost.catalogRebuildFailed, {
+                fields: { message: error instanceof Error ? error.message : String(error) },
+            }),
         );
     }
 
@@ -187,19 +209,6 @@ export class ExtensionService extends EventTarget {
             });
         if (!grant.capabilities.has(capability))
             throw Object.assign(new Error(`Extension lacks ${capability}`), {
-                code: 'CAPABILITY_DENIED',
-            });
-    }
-
-    private assertConfigurationAccess(extensionId: string, key: string): void {
-        const extension = this.discovered.find(
-            (candidate) => candidate.extensionId === extensionId,
-        );
-        const declared = Object.values(extension?.manifest.contributes.views ?? {})
-            .flat()
-            .some((view) => view.configurationDependencies?.includes(key));
-        if (!declared)
-            throw Object.assign(new Error('Extension configuration key is not declared'), {
                 code: 'CAPABILITY_DENIED',
             });
     }
@@ -263,28 +272,16 @@ export class ExtensionService extends EventTarget {
     ): Promise<unknown> {
         if (request.method === 'workspace.request')
             return this.workspaceApiRequest(request, signal);
-        if (request.method === 'workspace.getConfiguration') {
-            this.assertApiAccess(request, 'settings.read');
-            this.assertConfigurationAccess(request.extensionId, request.params.key);
-            if (!this.options.settings)
-                throw Object.assign(new Error('Extension configuration is unavailable'), {
-                    code: 'EXTENSION_HOST_UNAVAILABLE',
-                });
-            const settings = await this.options.settings();
-            this.assertApiAccess(request, 'settings.read');
-            if (!Object.hasOwn(settings, request.params.key))
-                throw Object.assign(new Error('Extension configuration key is unknown'), {
-                    code: 'CAPABILITY_DENIED',
-                });
-            return settings[request.params.key as keyof AppSettings];
-        }
+        if (request.method === 'workspace.getConfiguration')
+            return readDeclaredConfig({
+                assertAccess: () => this.assertApiAccess(request, 'settings.read'),
+                discovered: this.discovered,
+                extensionId: request.extensionId,
+                key: request.params.key,
+                settings: () => this.options.settings?.(),
+            });
         this.assertApiAccess(request, 'projects.read');
-        if (request.params.context.kind !== 'session')
-            return {
-                repositories: [],
-                refreshedAt: Date.now(),
-                error: 'No active Session',
-            } satisfies ExtensionProjectStatusSummary;
+        if (request.params.context.kind !== 'session') return projectStatusWithoutSession();
         const scope = await this.scopeForApi(request, 'projects.read', request.params.context);
         const result = await this.options.projectStatus(
             scope.sessionId,
@@ -378,6 +375,8 @@ export class ExtensionService extends EventTarget {
      */
     async start(options: { deferHost?: boolean } = {}): Promise<void> {
         this.projectIds = await this.options.projectIds();
+        const preference = (await this.options.settings?.())?.['workbench.language'] ?? null;
+        this.language.update({ preference }, this.options.logger);
         const result = await discoverExtensions({
             roots: this.options.extensionRoots,
             appVersion: this.options.appVersion,
@@ -395,7 +394,10 @@ export class ExtensionService extends EventTarget {
             logger: this.options.logger,
             serverId: this.options.serverId,
             userDataPath: this.options.userDataPath,
-            registrations: () => this.registrations(),
+            configuration: () => ({
+                extensions: this.registrations(),
+                locale: this.language.locale,
+            }),
             requestApi: (request, signal) => this.handleApiRequest(request, signal),
         });
         this.supervisor.onEvent((event) => {
@@ -420,17 +422,7 @@ export class ExtensionService extends EventTarget {
                     },
                 });
             for (const grant of this.grants.values()) grant.apiToken = randomUUID();
-            // The child-exit callback cannot await catalog publication; errors are logged locally.
-            // eslint-disable-next-line unicorn/prefer-await
-            this.rebuildCatalog().catch((error: unknown) =>
-                this.options.logger.write(
-                    'error',
-                    logEventCatalog.extensionHost.catalogRebuildFailed,
-                    {
-                        fields: { message: error instanceof Error ? error.message : String(error) },
-                    },
-                ),
-            );
+            this.rebuildCatalogInBackground();
         });
         this.supervisor.onStart(() => {
             this.options.logger.write('info', logEventCatalog.extensionHost.ready, {
@@ -442,17 +434,7 @@ export class ExtensionService extends EventTarget {
                         generation: state.generation,
                         lifecycle: 'discovered',
                     });
-            // The child-start callback cannot await catalog publication; errors are logged locally.
-            // eslint-disable-next-line unicorn/prefer-await
-            this.rebuildCatalog().catch((error: unknown) =>
-                this.options.logger.write(
-                    'error',
-                    logEventCatalog.extensionHost.catalogRebuildFailed,
-                    {
-                        fields: { message: error instanceof Error ? error.message : String(error) },
-                    },
-                ),
-            );
+            this.rebuildCatalogInBackground();
         });
         if (!options.deferHost) await this.startHost('core-start');
     }
@@ -611,6 +593,24 @@ export class ExtensionService extends EventTarget {
         const supervisor = this.startedSupervisor();
         if (!supervisor) return { cancelled: false };
         return (await supervisor.request('cancel', { requestId })) as { cancelled: boolean };
+    }
+
+    /**
+     * Switches the Host before republishing the catalog, whose `catalogChanged` makes clients re-read titles and views.
+     */
+    async updateLanguage(update: Parameters<ExtensionLanguage['update']>[0]): Promise<void> {
+        const locale = this.language.update(update, this.options.logger);
+        if (!locale) return;
+        await this.startedSupervisor()?.request('languageChanged', { locale });
+        await this.rebuildCatalog();
+    }
+
+    /**
+     * Re-reads `workbench.language` after any settings change, since `settings.changed` names no key.
+     */
+    async settingsChanged(): Promise<void> {
+        const settings = await this.options.settings?.();
+        if (settings) await this.updateLanguage({ preference: settings['workbench.language'] });
     }
 
     async activeContextChanged(context: ExtensionViewEventContext): Promise<void> {

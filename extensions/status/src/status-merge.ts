@@ -4,27 +4,40 @@ import type {
     TreeItemAction,
     TreeItemActionTone,
 } from 'caxri';
-import { ThemeIcon } from 'caxri';
+import { l10n, ThemeIcon } from 'caxri';
 
 import { fixFailedChecksAction, resolveConflictsAction } from './status-agent-actions';
 
 export const MERGE_PULL_REQUEST_COMMAND = 'caxri.project-status.mergePullRequest';
 export const MERGE_CURRENT_PULL_REQUEST_COMMAND = 'caxri.project-status.mergeCurrentPullRequest';
-const MERGE_PULL_REQUEST_TITLE = 'Merge Pull Request';
+function mergePullRequestTitle(): string {
+    return l10n.t('Merge Pull Request');
+}
+
+type MergeMethod = NonNullable<PullRequest['mergeMethod']>;
 
 /**
- * Fallback when the repository's allowed methods were not read (offline, signed out, or an older projection): states
- * the selection order Server Core applies, because the exact method is unknown. Normally {@link mergeMethodNote} names
- * it.
+ * The sentence naming the method, with or without the base branch. Each is a whole message so a translation can place
+ * the branch where its language wants it.
  */
-const MERGE_METHOD_ORDER_NOTE =
-    'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.';
+function mergeMethodAction(method: MergeMethod, baseBranch: string | undefined): string {
+    if (method === 'squash')
+        return baseBranch
+            ? l10n.t('Squash and merge into {branch}.', { branch: baseBranch })
+            : l10n.t('Squash and merge.');
+    if (method === 'merge')
+        return baseBranch
+            ? l10n.t('Create a merge commit into {branch}.', { branch: baseBranch })
+            : l10n.t('Create a merge commit.');
+    return baseBranch
+        ? l10n.t('Rebase and merge into {branch}.', { branch: baseBranch })
+        : l10n.t('Rebase and merge.');
+}
 
-const mergeMethodPhrases = {
-    squash: { action: 'Squash and merge', confirm: 'Squash and Merge' },
-    merge: { action: 'Create a merge commit', confirm: 'Create Merge Commit' },
-    rebase: { action: 'Rebase and merge', confirm: 'Rebase and Merge' },
-} as const;
+function mergeMethodConfirmLabel(method: MergeMethod): string {
+    if (method === 'squash') return l10n.t('Squash and Merge');
+    return method === 'merge' ? l10n.t('Create Merge Commit') : l10n.t('Rebase and Merge');
+}
 
 /**
  * The sentence stating what the merge will do, from the method Server Core reported for this repository. A method other
@@ -33,15 +46,20 @@ const mergeMethodPhrases = {
  */
 function mergeMethodNote(pullRequest: PullRequest): string {
     const method = pullRequest.mergeMethod;
-    if (!method) return MERGE_METHOD_ORDER_NOTE;
-    const target = pullRequest.baseBranch ? ` into ${pullRequest.baseBranch}` : '';
-    const reason =
-        method === 'squash'
-            ? ''
-            : method === 'merge'
-              ? ' This repository does not allow squash merging.'
-              : ' This repository allows neither squash merging nor merge commits.';
-    return `${mergeMethodPhrases[method].action}${target}.${reason}`;
+    // Fallback when the repository's allowed methods were not read (offline, signed out, or an older projection): states
+    // the selection order Server Core applies, because the exact method is unknown.
+    if (!method)
+        return l10n.t(
+            'Squash and merge when the repository allows it, otherwise a merge commit, then rebase.',
+        );
+    const action = mergeMethodAction(method, pullRequest.baseBranch);
+    if (method === 'squash') return action;
+    return joinSentences(
+        action,
+        method === 'merge'
+            ? l10n.t('This repository does not allow squash merging.')
+            : l10n.t('This repository allows neither squash merging nor merge commits.'),
+    );
 }
 
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
@@ -73,32 +91,45 @@ export function isMergePullRequestArguments(value: unknown): value is MergePullR
  */
 type MergeBlocker = PullRequestMergeBlocker;
 
-const mergeBlockerLabels: Record<MergeBlocker, string> = {
-    'conflicting': 'Has conflicts',
-    'checks-failed': 'Checks did not pass',
-    'checks-running': 'Checks still running',
-    'branch-protection': 'Blocked by branch protection',
-    'behind': 'Behind its base branch',
-    'mergeability-unknown': 'Checking mergeability',
+const mergeBlockerLabels: Record<MergeBlocker, () => string> = {
+    'conflicting': () => l10n.t('Has conflicts'),
+    'checks-failed': () => l10n.t('Checks did not pass'),
+    'checks-running': () => l10n.t('Checks still running'),
+    'branch-protection': () => l10n.t('Blocked by branch protection'),
+    'behind': () => l10n.t('Behind its base branch'),
+    'mergeability-unknown': () => l10n.t('Checking mergeability'),
 };
+
+/**
+ * Joins whole sentences. A translated sentence that ends in a full-width stop needs no space before the next one.
+ */
+function joinSentences(...sentences: string[]): string {
+    return sentences.reduce((joined, sentence) =>
+        /[。？！]$/u.test(joined) ? `${joined}${sentence}` : `${joined} ${sentence}`,
+    );
+}
 
 /**
  * The hover card's `merge` row: `Ready to merge`, or the one reason it is not.
  */
 export function mergeReadinessLabel(pullRequest: PullRequest): string {
     const blocker = pullRequest.mergeBlocker;
-    return blocker ? mergeBlockerLabels[blocker] : 'Ready to merge';
+    return blocker ? mergeBlockerLabels[blocker]() : l10n.t('Ready to merge');
 }
 
 const mergeConfirmationReasons: Record<
     Exclude<MergeBlocker, 'checks-failed' | 'conflicting'>,
-    string
+    () => string
 > = {
-    'checks-running': 'Checks are still running.',
-    'branch-protection':
-        'GitHub reports a branch protection requirement is not met yet, so it may refuse the merge.',
-    'behind': 'The branch is behind its base, so GitHub may require updating it first.',
-    'mergeability-unknown': 'GitHub has not finished checking whether this pull request can merge.',
+    'checks-running': () => l10n.t('Checks are still running.'),
+    'branch-protection': () =>
+        l10n.t(
+            'GitHub reports a branch protection requirement is not met yet, so it may refuse the merge.',
+        ),
+    'behind': () =>
+        l10n.t('The branch is behind its base, so GitHub may require updating it first.'),
+    'mergeability-unknown': () =>
+        l10n.t('GitHub has not finished checking whether this pull request can merge.'),
 };
 
 const failedCheckStates = new Set<PullRequest['state']>(['failure', 'cancelled']);
@@ -111,11 +142,22 @@ const NAMED_FAILED_CHECKS = 3;
  */
 export function failedChecksSummary(pullRequest: Pick<PullRequest, 'checks'>): string {
     const failed = pullRequest.checks.filter((check) => failedCheckStates.has(check.state));
-    if (failed.length === 0) return 'Some checks did not pass.';
+    if (failed.length === 0) return l10n.t('Some checks did not pass.');
     const named = failed.slice(0, NAMED_FAILED_CHECKS).map((check) => check.name);
     const rest = failed.length - named.length;
-    const names = rest > 0 ? `${named.join(', ')}, and ${rest} more` : named.join(', ');
-    return `${failed.length} of ${pullRequest.checks.length} ${pullRequest.checks.length === 1 ? 'check' : 'checks'} failed: ${names}.`;
+    const values = {
+        count: failed.length,
+        total: pullRequest.checks.length,
+        names: named.join(', '),
+        number: rest,
+    };
+    if (pullRequest.checks.length === 1)
+        return rest > 0
+            ? l10n.t('{count} of {total} check failed: {names}, and {number} more.', values)
+            : l10n.t('{count} of {total} check failed: {names}.', values);
+    return rest > 0
+        ? l10n.t('{count} of {total} checks failed: {names}, and {number} more.', values)
+        : l10n.t('{count} of {total} checks failed: {names}.', values);
 }
 
 /**
@@ -146,14 +188,14 @@ function mergeButtonPresentation(
     if (!blocker)
         return {
             icon: new ThemeIcon('git-merge'),
-            label: 'Merge',
+            label: l10n.t('Merge'),
             tone: 'success',
             tooltip: mergeMethodNote(pullRequest),
         };
     return {
         icon: new ThemeIcon('git-merge'),
         tone: blockerTones[blocker],
-        tooltip: mergeBlockerLabels[blocker],
+        tooltip: mergeBlockerLabels[blocker](),
     };
 }
 
@@ -166,17 +208,20 @@ function draftAction(pullRequest: PullRequest): TreeItemAction {
     return {
         command: {
             command: 'caxri.openExternal',
-            title: MERGE_PULL_REQUEST_TITLE,
+            title: mergePullRequestTitle(),
             arguments: [pullRequest.url],
         },
         icon: new ThemeIcon('git-merge'),
         tone: 'neutral',
-        tooltip: "Draft pull requests can't be merged",
+        tooltip: l10n.t("Draft pull requests can't be merged"),
         confirmation: {
-            title: `Open draft pull request #${pullRequest.number} on GitHub?`,
-            message:
+            title: l10n.t('Open draft pull request #{number} on GitHub?', {
+                number: pullRequest.number,
+            }),
+            message: l10n.t(
                 "GitHub can't merge a draft pull request. Mark it ready for review on GitHub, then merge it here.",
-            confirmLabel: 'Open on GitHub',
+            ),
+            confirmLabel: l10n.t('Open on GitHub'),
         },
     };
 }
@@ -206,7 +251,7 @@ function mergePullRequestAction(
         blocker &&
         (blocker === 'checks-failed'
             ? failedChecksSummary(pullRequest)
-            : mergeConfirmationReasons[blocker]);
+            : mergeConfirmationReasons[blocker]());
     const arguments_: MergePullRequestArguments = {
         repositoryId: repo.id,
         number: pullRequest.number,
@@ -215,26 +260,30 @@ function mergePullRequestAction(
     return {
         command: {
             command: MERGE_PULL_REQUEST_COMMAND,
-            title: MERGE_PULL_REQUEST_TITLE,
+            title: mergePullRequestTitle(),
             arguments: [arguments_],
         },
         ...mergeButtonPresentation(blocker, pullRequest),
         ...(reason && {
             confirmation: {
-                title: `Merge pull request #${pullRequest.number}?`,
-                message: `${reason} ${mergeMethodNote(pullRequest)} A merged pull request cannot be undone from Caxri.`,
+                title: l10n.t('Merge pull request #{number}?', { number: pullRequest.number }),
+                message: joinSentences(
+                    reason,
+                    mergeMethodNote(pullRequest),
+                    l10n.t('A merged pull request cannot be undone from Caxri.'),
+                ),
                 confirmLabel:
                     blocker === 'checks-failed'
-                        ? 'Merge Anyway'
+                        ? l10n.t('Merge Anyway')
                         : pullRequest.mergeMethod
-                          ? mergeMethodPhrases[pullRequest.mergeMethod].confirm
-                          : 'Merge',
+                          ? mergeMethodConfirmLabel(pullRequest.mergeMethod)
+                          : l10n.t('Merge'),
             },
         }),
         feedback: {
             // Fallback only: the command's own `mergedMessage` result names the method Server Core chose.
-            success: `Merged #${pullRequest.number}`,
-            failure: `Couldn't merge #${pullRequest.number}`,
+            success: l10n.t('Merged #{number}', { number: pullRequest.number }),
+            failure: l10n.t("Couldn't merge #{number}", { number: pullRequest.number }),
             githubUrl: pullRequest.url,
         },
     };
@@ -272,33 +321,59 @@ export function currentBranchMerge(
     const repo = repositories.find((candidate) => candidate.kind === 'primary');
     const pullRequest = repo?.pullRequest;
     if (!repo || !pullRequest)
-        return { kind: 'refuse', message: 'The current branch has no pull request.' };
-    const label = `Pull request #${pullRequest.number}`;
+        return { kind: 'refuse', message: l10n.t('The current branch has no pull request.') };
+    const { number } = pullRequest;
     if (pullRequest.lifecycle === 'draft')
         return {
             kind: 'refuse',
-            message: `${label} is a draft. Mark it ready for review on GitHub first.`,
+            message: l10n.t(
+                'Pull request #{number} is a draft. Mark it ready for review on GitHub first.',
+                { number },
+            ),
         };
     if (pullRequest.lifecycle !== 'open')
         return {
             kind: 'refuse',
-            message: `${label} is ${pullRequest.lifecycle ?? 'not open'}, so there is nothing to merge.`,
+            message:
+                pullRequest.lifecycle === 'merged'
+                    ? l10n.t('Pull request #{number} is merged, so there is nothing to merge.', {
+                          number,
+                      })
+                    : pullRequest.lifecycle === 'closed'
+                      ? l10n.t('Pull request #{number} is closed, so there is nothing to merge.', {
+                            number,
+                        })
+                      : l10n.t(
+                            'Pull request #{number} is not open, so there is nothing to merge.',
+                            {
+                                number,
+                            },
+                        ),
         };
     const blocker = pullRequest.mergeBlocker;
     if (blocker === 'conflicting')
         return {
             kind: 'refuse',
-            message: `${label} has conflicts. Use Resolve in the Status panel to have the Agent rebase it.`,
+            message: l10n.t(
+                'Pull request #{number} has conflicts. Use Resolve in the Status panel to have the Agent rebase it.',
+                { number },
+            ),
         };
     if (blocker)
         return {
             kind: 'refuse',
-            message: `${label} is not ready to merge: ${mergeBlockerLabels[blocker].toLowerCase()}. Use the merge button in the Status panel to merge it anyway.`,
+            message: l10n.t(
+                'Pull request #{number} is not ready to merge: {reason}. Use the merge button in the Status panel to merge it anyway.',
+                { number, reason: mergeBlockerLabels[blocker]().toLowerCase() },
+            ),
         };
     if (!pullRequest.headSha)
         return {
             kind: 'refuse',
-            message: `${label} has no known head commit yet. Refresh Project Status and try again.`,
+            message: l10n.t(
+                'Pull request #{number} has no known head commit yet. Refresh Project Status and try again.',
+                { number },
+            ),
         };
     return {
         kind: 'merge',
@@ -310,15 +385,12 @@ export function currentBranchMerge(
     };
 }
 
-const mergeMethodVerbs = {
-    squash: 'Squash-merged',
-    merge: 'Merged',
-    rebase: 'Rebase-merged',
-} as const;
-
 /**
  * Success toast text naming the merge method Server Core picked, which is only known once the merge has happened.
  */
-export function mergedMessage(method: keyof typeof mergeMethodVerbs, number: number): string {
-    return `${mergeMethodVerbs[method]} #${number}`;
+export function mergedMessage(method: MergeMethod, number: number): string {
+    if (method === 'squash') return l10n.t('Squash-merged #{number}', { number });
+    return method === 'merge'
+        ? l10n.t('Merged #{number}', { number })
+        : l10n.t('Rebase-merged #{number}', { number });
 }

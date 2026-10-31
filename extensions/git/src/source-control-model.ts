@@ -7,16 +7,26 @@ import type {
     SourceControlAction,
     SourceControlCommandBinding,
     SourceControlFileHistory,
-    SourceControlHistoryDescriptor,
     SourceControlResource,
     SourceControlViewModel,
 } from 'caxri';
-import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
+import { isGlobMatch, l10n, ProjectStatusSummaryErrorMessage } from 'caxri';
 
 import { branchSync } from './branch-sync';
 import { commitFilesToStatuses } from './commit-file-statuses';
 import { formatRepoCountLabel, repoBranchRow as repoBranchRow } from './repo-row-labels';
 import { emptyStateForMode } from './source-control-empty-state';
+import {
+    excludedFilesToggleLabel,
+    hiddenFilesMessage,
+    historyDescriptor,
+    repoKindLabel,
+    sourceControlModes,
+    summaryErrorMessage,
+    themeIcon,
+    uncommittedChangesLabel,
+    uncommittedChangesTooltip,
+} from './source-control-labels';
 import {
     boundedActionLabel,
     boundedEditorResource,
@@ -59,10 +69,6 @@ interface BuildSourceControlViewModelOptions {
     isShowingExcluded?: boolean;
 }
 
-function themeIcon(id: string) {
-    return { kind: 'theme' as const, id };
-}
-
 /**
  * VS Code's own Source Control glyphs, by repository kind: `repo` for a checkout, `worktree` for a linked worktree (the
  * arrow splitting off a trunk), and `archive` for a submodule. A nested repository is an ordinary checkout that happens
@@ -75,38 +81,6 @@ const repoKindIcons: Record<GitRepositorySummary['kind'], string> = {
     submodule: 'archive',
 };
 
-function sourceControlModes(selectedCommitSha?: string) {
-    return [
-        {
-            command: { id: 'caxri.git.workingTree' },
-            icon: themeIcon('diff'),
-            id: 'working',
-            label: 'Working Tree Changes',
-        },
-        {
-            command: { id: 'caxri.git.lastCommit' },
-            icon: themeIcon('git-commit'),
-            id: 'commit',
-            label: selectedCommitSha
-                ? `Commit Changes (${selectedCommitSha.slice(0, 7)})`
-                : 'Last Commit Changes',
-        },
-        {
-            command: { id: 'caxri.git.pullRequest' },
-            icon: themeIcon('git-pull-request'),
-            id: 'pull-request',
-            label: 'Pull Request Changes',
-        },
-    ] as const;
-}
-
-/**
- * Names the uncommitted work a non-working mode is hiding, for both the button's accessible name and its tooltip.
- */
-function uncommittedChangesLabel(count: number, repoName: string): string {
-    return `${count} uncommitted ${count === 1 ? 'change' : 'changes'} in ${repoName}`;
-}
-
 function fallbackRegisterAction(action: ActionRegistration): SourceControlAction {
     return { id: action.command.id, ...action };
 }
@@ -117,39 +91,6 @@ function basename(path: string): string {
 
 function trimTrailingPathSeparators(path: string): string {
     return path === '/' ? path : path.replace(/\/+$/, '');
-}
-
-function historyDescriptor(
-    repo: GitRepositorySummary,
-    revision: string,
-    kind: 'file' | 'repository',
-): SourceControlHistoryDescriptor {
-    return {
-        id: repo.id,
-        label: kind === 'file' ? 'File History' : 'Commits',
-        command: {
-            id: 'caxri.git.history',
-            arguments: [repo.id],
-        },
-        pathInputLabel: `History path for ${repo.name}`,
-        pathInputPlaceholder: 'History path (optional)',
-        clearPathLabel: 'Clear history path',
-        loadingMessage: kind === 'file' ? 'Loading file history…' : 'Loading commits…',
-        emptyMessage: kind === 'file' ? 'No file history.' : 'No commits.',
-        loadMoreLabel: 'Load more commits',
-        loadingMoreLabel: 'Loading…',
-        loadErrorMessage:
-            kind === 'file' ? 'Unable to load file history' : 'Unable to load commits',
-        detailsLoadingMessage: 'Loading commit…',
-        detailsErrorMessage: 'Unable to load commit',
-        detailsLabel: 'Changed files',
-        detailsEmptyMessage: 'No files in this scope.',
-        detailsTruncatedMessage: 'File list truncated.',
-        itemAccessibilityLabelPrefix: 'Commit',
-        ...(kind === 'file' && { itemActivation: 'action' as const }),
-        pageSize: 5,
-        revision,
-    };
 }
 
 /**
@@ -186,8 +127,8 @@ function fileHistoryModel(
         : undefined;
     if (!match) return;
     return {
-        label: 'File History',
-        emptyMessage: 'Open a file to view its history.',
+        label: l10n.t('File History'),
+        emptyMessage: l10n.t('Open a file to view its history.'),
         history: historyDescriptor(match.repo, revision, 'file'),
         description: basename(match.path),
         path: match.path,
@@ -237,10 +178,6 @@ function excludedFileCount(
     return files.filter((file) => isGlobMatch(file.path, excludePatterns)).length;
 }
 
-function hiddenFilesMessage(hiddenCount: number): string {
-    return `${hiddenCount} excluded file${hiddenCount === 1 ? '' : 's'} hidden.`;
-}
-
 function resourcesForRepo(
     mode: GitSourceControlMode,
     repo: GitRepositorySummary,
@@ -270,7 +207,9 @@ function resourcesForRepo(
                         arguments: [resource],
                     },
                     icon: themeIcon('diff'),
-                    label: boundedActionLabel(`Open changes in ${file.path}`),
+                    label: boundedActionLabel(
+                        l10n.t('Open changes in {path}', { path: file.path }),
+                    ),
                 }),
             }),
             ...(mode === 'working' && {
@@ -282,12 +221,17 @@ function resourcesForRepo(
                         },
                         icon: themeIcon('discard'),
                         emphasis: 'danger',
-                        errorMessage: 'Discard failed',
-                        label: file.kind === 'untracked' ? 'Delete File' : 'Discard Changes',
+                        errorMessage: l10n.t('Discard failed'),
+                        label:
+                            file.kind === 'untracked'
+                                ? l10n.t('Delete File')
+                                : l10n.t('Discard Changes'),
                         accessibilityLabel:
                             file.kind === 'untracked'
-                                ? `Delete ${basename(file.path)}`
-                                : `Discard changes in ${basename(file.path)}`,
+                                ? l10n.t('Delete {name}', { name: basename(file.path) })
+                                : l10n.t('Discard changes in {name}', {
+                                      name: basename(file.path),
+                                  }),
                     }),
                 ],
             }),
@@ -308,12 +252,6 @@ function repoFiles(
     return mode === 'commit' ? commitFilesToStatuses(details) : (pullRequest?.files ?? []);
 }
 
-function summaryErrorMessage(error: string | undefined): string {
-    if (error === ProjectStatusSummaryErrorMessage.missingGitRepository)
-        return 'This folder is not a Git repository.';
-    return `Source Control is unavailable right now.${error ? ` ${error}` : ''}`;
-}
-
 export function buildSourceControlViewModel({
     activeResource,
     detailsByRepository: detailsByRepo = new Map(),
@@ -331,7 +269,7 @@ export function buildSourceControlViewModel({
     const emptyMessage = !summary.isRepository
         ? summaryErrorMessage(summary.error)
         : summary.repositories.length === 0
-          ? 'No approved Git repositories found.'
+          ? l10n.t('No approved Git repositories found.')
           : undefined;
     const emptyKind = emptyMessage
         ? summary.error === ProjectStatusSummaryErrorMessage.missingGitRepository
@@ -373,24 +311,24 @@ export function buildSourceControlViewModel({
         (excludedCount > 0 || isShowingExcluded || hasAnyUnloadedExclusions);
     return {
         revision,
-        title: 'Source Control',
-        accessibilityLabel: 'Git repositories',
-        modeAccessibilityLabel: 'Source control mode',
+        title: l10n.t('Source Control'),
+        accessibilityLabel: l10n.t('Git repositories'),
+        modeAccessibilityLabel: l10n.t('Source control mode'),
         modes: [...sourceControlModes(selectedCommitSha)],
         selectedModeId: mode,
         refreshAction: registerAction({
             command: { id: 'caxri.git.refresh' },
             icon: themeIcon('refresh'),
-            label: mode === 'pull-request' ? 'Refresh Pull Request' : 'Refresh Git',
+            label: mode === 'pull-request' ? l10n.t('Refresh Pull Request') : l10n.t('Refresh Git'),
         }),
         ...(hasActionableExclusions && {
             headerActions: [
                 registerAction({
                     command: { id: 'caxri.git.toggleExcludedFiles' },
                     icon: themeIcon(isShowingExcluded ? 'eye-off' : 'eye'),
-                    label: `${isShowingExcluded ? 'Hide' : 'Show'} excluded files (${excludedCount})`,
+                    label: excludedFilesToggleLabel(isShowingExcluded, excludedCount),
                     pressed: isShowingExcluded,
-                    tooltip: `${isShowingExcluded ? 'Hide' : 'Show'} excluded files (${excludedCount})`,
+                    tooltip: excludedFilesToggleLabel(isShowingExcluded, excludedCount),
                 }),
             ],
         }),
@@ -431,10 +369,14 @@ export function buildSourceControlViewModel({
              */
             const aheadBehindLabel =
                 repo.ahead > 0 || repo.behind > 0
-                    ? `${repo.ahead} ahead, ${repo.behind} behind`
+                    ? `${l10n.t('{count} ahead', { count: repo.ahead })}, ${l10n.t('{count} behind', { count: repo.behind })}`
                     : undefined;
             const revisionSummary = pullRequest
-                ? `Pull request #${pullRequest.number} into ${pullRequest.baseRefName}: ${pullRequest.title}`
+                ? l10n.t('Pull request #{number} into {base}: {title}', {
+                      number: pullRequest.number,
+                      base: pullRequest.baseRefName,
+                      title: pullRequest.title,
+                  })
                 : details
                   ? `${details.commit.shortSha} ${details.commit.subject}`
                   : undefined;
@@ -442,9 +384,19 @@ export function buildSourceControlViewModel({
                 mode === 'pull-request' ? (pullRequest?.unpushedCommitCount ?? 0) : 0;
             const unpushedSummary =
                 pullRequest && unpushedCommitCount > 0
-                    ? `${unpushedCommitCount} local commit${unpushedCommitCount === 1 ? '' : 's'} ${unpushedCommitCount === 1 ? 'is' : 'are'} not included in pull request #${pullRequest.number}`
+                    ? unpushedCommitCount === 1
+                        ? l10n.t('{count} local commit is not included in pull request #{number}', {
+                              count: unpushedCommitCount,
+                              number: pullRequest.number,
+                          })
+                        : l10n.t(
+                              '{count} local commits are not included in pull request #{number}',
+                              { count: unpushedCommitCount, number: pullRequest.number },
+                          )
                     : undefined;
-            const trackingSummary = repo.upstream ? `tracking ${repo.upstream}` : undefined;
+            const trackingSummary = repo.upstream
+                ? l10n.t('tracking {ref}', { ref: repo.upstream })
+                : undefined;
             const hoverParts = [
                 branchRow.summary,
                 trackingSummary,
@@ -457,16 +409,16 @@ export function buildSourceControlViewModel({
             );
             const descriptionTooltip = boundedSourceControlDescription(hoverParts.join(' · '));
             const groupLabel = pullRequest
-                ? `PR #${pullRequest.number} Changes`
+                ? l10n.t('PR #{number} Changes', { number: pullRequest.number })
                 : mode === 'commit'
                   ? details
-                      ? `Commit ${details.commit.shortSha}`
-                      : 'Last Commit'
+                      ? l10n.t('Commit {sha}', { sha: details.commit.shortSha })
+                      : l10n.t('Last Commit')
                   : // A repository with no pull request still sits in Pull Request mode. Leaving the heading at
                     // `Changes` made its zero read as "the working tree is clean" instead of "no pull request here".
                     mode === 'pull-request'
-                    ? 'Pull Request Changes'
-                    : 'Changes';
+                    ? l10n.t('Pull Request Changes')
+                    : l10n.t('Changes');
             const actions: SourceControlAction[] = [];
             const aggregateResource = aggregateEditorResource(
                 mode,
@@ -484,12 +436,14 @@ export function buildSourceControlViewModel({
                         disabled: repo.changedFileCount === 0 || isDiscardBlockedByExclusions,
                         icon: themeIcon('discard'),
                         emphasis: 'danger',
-                        errorMessage: 'Discard failed',
-                        label: 'Discard All Changes',
+                        errorMessage: l10n.t('Discard failed'),
+                        label: l10n.t('Discard All Changes'),
                         ...(isDiscardBlockedByExclusions && {
                             tooltip: hasUnloadedExclusions
-                                ? 'Some changes are not loaded. Show excluded files before discarding all changes.'
-                                : 'Show excluded files to discard all changes.',
+                                ? l10n.t(
+                                      'Some changes are not loaded. Show excluded files before discarding all changes.',
+                                  )
+                                : l10n.t('Show excluded files to discard all changes.'),
                         }),
                     }),
                 );
@@ -504,16 +458,18 @@ export function buildSourceControlViewModel({
                         icon: themeIcon('diff-multiple'),
                         label:
                             mode === 'pull-request'
-                                ? 'Open Pull Request Changes'
-                                : 'Open Working Tree Changes',
+                                ? l10n.t('Open Pull Request Changes')
+                                : l10n.t('Open Working Tree Changes'),
                         accessibilityLabel:
-                            mode === 'pull-request' ? 'Open Pull Request Changes' : 'Open Changes',
+                            mode === 'pull-request'
+                                ? l10n.t('Open Pull Request Changes')
+                                : l10n.t('Open Changes'),
                     }),
                 );
             return {
                 id: repo.id,
                 label: repo.name,
-                ...(repo.kind !== 'primary' && { kindLabel: repo.kind }),
+                ...(repo.kind !== 'primary' && { kindLabel: repoKindLabel(repo.kind) }),
                 icon: themeIcon(repoKindIcons[repo.kind]),
                 tooltip: repo.rootPath,
                 rootPath: repo.rootPath,
@@ -527,13 +483,15 @@ export function buildSourceControlViewModel({
                     externalLink: {
                         url: pullRequest.url,
                         label: boundedActionLabel(
-                            `Open pull request #${pullRequest.number} on the web`,
+                            l10n.t('Open pull request #{number} on the web', {
+                                number: pullRequest.number,
+                            }),
                         ),
                     },
                 }),
                 countLabel:
                     mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
-                        ? ' · Unavailable'
+                        ? ` · ${l10n.t('Unavailable')}`
                         : formatRepoCountLabel({
                               count,
                               uncommittedCount,
@@ -543,7 +501,7 @@ export function buildSourceControlViewModel({
                     uncommittedNotice: {
                         modeId: 'working',
                         accessibilityLabel: uncommittedChangesLabel(uncommittedCount, repo.name),
-                        tooltip: `${uncommittedChangesLabel(uncommittedCount, repo.name)}. Show Working Tree Changes.`,
+                        tooltip: uncommittedChangesTooltip(uncommittedCount, repo.name),
                     },
                 }),
                 expandedByDefault: true,
@@ -567,11 +525,22 @@ export function buildSourceControlViewModel({
                               )),
                         ...(mode === 'working' &&
                             repo.truncated && {
-                                truncationMessage: `Showing the first ${files.length} of ${count} changes`,
+                                truncationMessage: l10n.t(
+                                    'Showing the first {shown} of {total} changes',
+                                    {
+                                        shown: files.length,
+                                        total: count,
+                                    },
+                                ),
                             }),
                         ...(mode === 'commit' &&
                             details?.filesTruncated && {
-                                truncationMessage: `Showing the first ${files.length} files of this commit`,
+                                truncationMessage: l10n.t(
+                                    'Showing the first {count} files of this commit',
+                                    {
+                                        count: files.length,
+                                    },
+                                ),
                             }),
                         actions,
                         resources: resourcesForRepo(

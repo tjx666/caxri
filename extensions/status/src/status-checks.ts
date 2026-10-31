@@ -1,9 +1,9 @@
 import type { ProjectStatusRepository } from 'caxri';
-import { TreeItemCollapsibleState } from 'caxri';
+import { l10n, TreeItemCollapsibleState } from 'caxri';
 
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
-import { durationLabel, ignoredChecksLabel, projectStatusStateLabel } from './status-labels';
+import { durationLabel, ignoredChecksHiddenLabel, projectStatusStateLabel } from './status-labels';
 import { linkText, stateIcons, stateTones } from './status-presentation';
 import { previousChecksNode } from './status-previous-checks';
 
@@ -44,14 +44,14 @@ const checkFolds: readonly CheckFold[] = [
          * Uses the same `running` and `queued` words as the row's trailing summary (`1 failing · 3 running · 1
          * queued`), so the fold's count reads as the sum of those two numbers instead of a third vocabulary.
          */
-        label: (count) => `${count} checks running or queued`,
+        label: (count) => l10n.t('{count} checks running or queued', { count }),
         state: 'pending',
         states: new Set(['pending', 'queued']),
     },
     {
         collapsibleState: TreeItemCollapsibleState.Collapsed,
         key: 'passed-checks',
-        label: (count) => `${count} checks passed`,
+        label: (count) => l10n.t('{count} checks passed', { count }),
         state: 'success',
         states: new Set(['success']),
     },
@@ -87,9 +87,9 @@ function checkRow(id: string, check: PullRequestCheck): StatusNode {
                 tone: stateTones[check.state],
             },
             rows: [
-                ...(duration ? [{ label: 'duration', value: duration }] : []),
+                ...(duration ? [{ label: l10n.t('duration'), value: duration }] : []),
                 ...(check.url
-                    ? [{ label: 'logs', value: linkText(check.url), url: check.url }]
+                    ? [{ label: l10n.t('logs'), value: linkText(check.url), url: check.url }]
                     : []),
             ],
         },
@@ -131,7 +131,7 @@ export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest):
         nodes.push(
             item(
                 `${prefix}:hidden-checks`,
-                `${ignoredChecksLabel(pullRequest.hiddenCheckCount)} hidden`,
+                ignoredChecksHiddenLabel(pullRequest.hiddenCheckCount),
                 { icon: 'eye-off' },
             ),
         );
@@ -146,12 +146,12 @@ export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest):
  */
 const attentionCheckCounts: ReadonlyArray<{
     state: PullRequestCheck['state'];
-    label: string;
+    label: (count: number) => string;
 }> = [
-    { state: 'failure', label: 'failing' },
-    { state: 'cancelled', label: 'cancelled' },
-    { state: 'pending', label: 'running' },
-    { state: 'queued', label: 'queued' },
+    { state: 'failure', label: (count) => l10n.t('{count} failing', { count }) },
+    { state: 'cancelled', label: (count) => l10n.t('{count} cancelled', { count }) },
+    { state: 'pending', label: (count) => l10n.t('{count} running', { count }) },
+    { state: 'queued', label: (count) => l10n.t('{count} queued', { count }) },
 ];
 
 /**
@@ -161,7 +161,7 @@ const attentionCheckCounts: ReadonlyArray<{
 export function pullRequestCheckSummary(checks: readonly PullRequestCheck[]): string | undefined {
     const parts = attentionCheckCounts.flatMap(({ state, label }) => {
         const count = checks.filter((check) => check.state === state).length;
-        return count > 0 ? [`${count} ${label}`] : [];
+        return count > 0 ? [label(count)] : [];
     });
     return parts.length > 0 ? parts.join(' · ') : undefined;
 }

@@ -1,0 +1,9 @@
+{
+    "viewsContainers.project-status.title": "Status",
+    "views.overview.name": "Project Status",
+    "commands.refresh.title": "Refresh Project Status",
+    "commands.refresh.description": "Refresh Project Status from GitHub, Linear, and Vercel",
+    "commands.mergePullRequest.title": "Merge Pull Request",
+    "commands.mergeCurrentPullRequest.title": "Merge Pull Request for Current Branch",
+    "commands.mergeCurrentPullRequest.description": "Merge the current branch's pull request when nothing blocks it"
+}

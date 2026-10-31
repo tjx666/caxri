@@ -125,7 +125,14 @@ export const discoveryModule = {
                         },
                     },
                 },
-            ],
+            ].map((extension) => ({
+                ...extension,
+                localization: {
+                    manifests: { en: extension.manifest },
+                    runtimeBundles: {},
+                    ignoredFiles: [],
+                },
+            })),
             rejected: [],
         }),
 };

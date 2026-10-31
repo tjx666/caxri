@@ -1,4 +1,5 @@
 import type { GitRepositorySummary } from 'caxri';
+import { l10n } from 'caxri';
 
 /**
  * The literal `git status --porcelain=v2 --branch` reports as the branch of a detached HEAD.
@@ -27,10 +28,13 @@ export function checkedOutReference(
     if (repo.branch !== DETACHED_BRANCH)
         return { label: repo.branch, summary: repo.branch, detached: false };
     const head = repo.detachedHead;
-    if (!head) return { label: 'Detached HEAD', summary: 'Detached HEAD', detached: true };
+    if (!head) {
+        const label = l10n.t('Detached HEAD');
+        return { label, summary: label, detached: true };
+    }
     return {
         label: head.reference ?? head.subject,
-        summary: `${head.reference ? `Detached HEAD at ${head.reference}` : 'Detached HEAD'} · ${head.subject}`,
+        summary: `${head.reference ? l10n.t('Detached HEAD at {ref}', { ref: head.reference }) : l10n.t('Detached HEAD')} · ${head.subject}`,
         detached: true,
     };
 }
@@ -86,7 +90,7 @@ export function repoBranchRow(
     repo: Pick<GitRepositorySummary, 'ahead' | 'behind' | 'branch' | 'detachedHead' | 'name'>,
 ): RepoBranchRow {
     const reference = checkedOutReference(repo);
-    const badge = reference.detached ? 'detached' : syncBadge(repo.ahead, repo.behind);
+    const badge = reference.detached ? l10n.t('detached') : syncBadge(repo.ahead, repo.behind);
     const isRedundant =
         badge === undefined && !reference.detached && isNamedAfterBranch(repo.name, repo.branch);
     return {
@@ -107,8 +111,12 @@ export function formatRepoCountLabel(counts: {
 }): string {
     return [
         counts.count > 0 ? `${counts.count}` : '',
-        counts.unpushedCommitCount > 0 ? `${counts.unpushedCommitCount} unpushed` : '',
-        counts.uncommittedCount > 0 ? `${counts.uncommittedCount} uncommitted` : '',
+        counts.unpushedCommitCount > 0
+            ? l10n.t('{count} unpushed', { count: counts.unpushedCommitCount })
+            : '',
+        counts.uncommittedCount > 0
+            ? l10n.t('{count} uncommitted', { count: counts.uncommittedCount })
+            : '',
     ]
         .filter(Boolean)
         .map((part) => ` · ${part}`)

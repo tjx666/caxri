@@ -1,4 +1,5 @@
 import type { SourceControlGroup, SourceControlResource, SourceControlViewModel } from 'caxri';
+import { l10n } from 'caxri';
 
 /**
  * Leaves headroom below the Extension Host's 4 MiB response ceiling for the request envelope and serialization
@@ -19,7 +20,7 @@ interface GroupCursor {
 }
 
 function transportTruncationMessage(visible: number, total: number): string {
-    return `Showing the first ${visible} of ${total} changes`;
+    return l10n.t('Showing the first {shown} of {total} changes', { shown: visible, total });
 }
 
 function emptyBoundedModel(model: SourceControlViewModel): {
@@ -29,8 +30,9 @@ function emptyBoundedModel(model: SourceControlViewModel): {
     const cursors: GroupCursor[] = [];
     const bounded: SourceControlViewModel = {
         ...model,
-        truncationMessage:
+        truncationMessage: l10n.t(
             'Some Source Control resources are hidden because this workspace exceeds the display limit.',
+        ),
         providers: model.providers.map((provider) => ({
             ...provider,
             groups: provider.groups.map((group) => {

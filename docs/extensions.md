@@ -131,6 +131,30 @@ Configuration reads additionally require `settings.read` and are limited to keys
 extension view's `configurationDependencies`; declaring the broad capability alone cannot read an
 unlisted setting.
 
+## Localization
+
+Extensions localize the VS Code way, and an extension that ships nothing stays English in every language:
+
+- **Manifest text.** A contribution title, view name, view `presentation` message, or command title or description may
+  be a `%key%` placeholder. Discovery resolves it from `package.nls.json` (English) and `package.nls.<locale>.json`
+  (the lower-cased tag, such as `zh-cn`), re-validates each resolved manifest, and keeps every language ready, so a
+  switch only selects one (`localization.ts`). Ids and command bindings are never resolved. A default that does not
+  resolve to a valid manifest rejects the extension; an invalid or out-of-root translation file only drops that
+  language, with one discovery warning.
+- **Runtime text.** `import { l10n } from 'caxri'`, then `l10n.t('Sync Changes in {name}', { name })` or
+  `l10n.t('{0} ahead', count)`. The English message is the key into `l10n/bundle.l10n.<locale>.json`; a missing entry
+  falls back to the message. `l10n.t` reads the current language on every call, so build copy when it is shown rather
+  than in a module constant.
+- **Language.** `caxri.env.language` is the app's interface language (`en` or `zh-CN`): the `workbench.language`
+  setting, or the Desktop's system language when it follows the system. On a change Server Core tells the Extension
+  Host first, which re-reads every loaded tree view and fires `caxri.env.onDidChangeLanguage` for activated extensions,
+  then republishes the catalog, which makes clients re-read titles, controlled views, and badges. An extension
+  subscribes only to drop copy it cached in the previous language.
+
+The catalog carries the English text as `sourceTitle` and `sourceDescription` on a translated command, so the palette
+still matches an English query. The language is one Server-wide value, so a phone paired with a Chinese Desktop shows
+extension copy in Chinese whatever the phone's own language.
+
 ## Unified catalog and selection
 
 Builtin Logs and Info, Workbench Core contributions, and extension contributions share one Server Core

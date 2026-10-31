@@ -27,9 +27,11 @@ import {
     getTreeChildren,
     notifyActiveContextChanged,
     notifyGitChanged,
+    notifyLanguageChanged,
     notifyProjectStatusChanged,
     settleApiReply,
 } from './api-factory';
+import { setAppLanguage } from './app-language';
 import { extensionErrorShape, extensionRequestFailureRecord } from './extension-error';
 import { installExtensionModuleHooks, replaceExtensionModuleRegistrations } from './module-loader';
 import { createExtensionHostProcessLifecycle } from './process-lifecycle';
@@ -115,6 +117,7 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
     switch (request.method) {
         case 'configure':
             replaceExtensionModuleRegistrations(request.params.extensions);
+            setAppLanguage(request.params.locale);
             configureExtensions(request.params.extensions);
             return { configured: request.params.extensions.length };
         case 'activate':
@@ -131,6 +134,8 @@ async function handle(request: ExtensionHostRequest): Promise<unknown> {
             return notifyActiveContextChanged(request.params.context);
         case 'gitChanged':
             return notifyGitChanged(request.params.context);
+        case 'languageChanged':
+            return notifyLanguageChanged(request.params.locale);
         case 'projectStatusChanged':
             return notifyProjectStatusChanged(request.params.context);
         case 'cancel':

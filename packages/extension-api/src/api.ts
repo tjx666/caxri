@@ -1,4 +1,5 @@
 import type { Disposable, DisposableLike, Event } from './events.js';
+import type { CaxriEnvironment, L10n } from './l10n.js';
 import type { ProjectStatusSummary } from './project-status.js';
 import type { TreeDataProvider, ViewBadgeProvider } from './tree.js';
 import type { SourceControlProvider } from './view-providers.js';
@@ -54,6 +55,14 @@ export interface CommandResult {
 }
 
 export interface CaxriApi {
+    /**
+     * The interface language and its change event.
+     */
+    readonly env: CaxriEnvironment;
+    /**
+     * Translates this extension's runtime copy from its `l10n/bundle.l10n.<locale>.json`.
+     */
+    readonly l10n: L10n;
     readonly commands: {
         registerCommand(
             commandId: string,

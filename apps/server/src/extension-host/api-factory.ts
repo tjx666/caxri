@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-import type { ExtensionCommandResult, TreeItemDto } from '@caxri/protocol';
+import type { AppLocale, ExtensionCommandResult, TreeItemDto } from '@caxri/protocol';
 import {
     extensionCommandResult,
     MAX_VIEW_TREE_DEPTH,
@@ -23,6 +23,7 @@ import type {
 import { CancellationTokenSource, Disposable, EventEmitter } from 'caxri';
 
 import { extensionApiRuntime } from './api-runtime';
+import { createLanguageApi, setAppLanguage } from './app-language';
 import type { HostRequestState } from './extension-error';
 import {
     createProviderRequestScope,
@@ -50,6 +51,7 @@ import { serializeTreeItem } from './tree-item-dto';
 import type { ProviderRegistration, TreeScopeState } from './tree-provider-handles';
 import {
     collectDescendantHandles,
+    loadedTreeScopes,
     resetTreeScope,
     retireTreeHandles,
     stableTreeHandle,
@@ -58,7 +60,12 @@ import {
 } from './tree-provider-handles';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
-import { currentViewEventContext, withViewEventContext } from './view-event-context';
+import {
+    currentViewEventContext,
+    fireWorkspaceChange,
+    withViewEventContext,
+    workspaceChangeContext,
+} from './view-event-context';
 import {
     createControlledViewRegistrationApi,
     didCancelViewRequest,
@@ -70,6 +77,7 @@ interface ApiBinding {
     api: CaxriApi;
     notifyActiveContext(context: ExtensionViewEventScope): void;
     notifyGit(context: ExtensionViewEventScope): void;
+    notifyLanguage(locale: AppLocale): void;
     notifyProjectStatus(context: ExtensionViewEventScope): void;
     runtime: typeof extensionApiRuntime;
 }
@@ -178,15 +186,6 @@ function scheduleRefresh(viewId: string, provider: ProviderRegistration, changed
     pendingRefreshes.set(key, { viewId, batch, timer, context });
 }
 
-function workspaceChangeContext(context: ExtensionViewEventScope): WorkspaceChangeContext {
-    return {
-        scopeId:
-            context.kind === 'session'
-                ? `${context.sessionId}:${context.workbenchRootProjectId}`
-                : 'no-session',
-    };
-}
-
 function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     const activeContext = new EventEmitter<WorkspaceChangeContext>();
@@ -194,6 +193,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
     const git = new EventEmitter<WorkspaceChangeContext>();
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     const projectStatus = new EventEmitter<WorkspaceChangeContext>();
+    const language = createLanguageApi(registration);
     const allowedViewKinds = new Map(
         Object.values(registration.manifest.contributes.views)
             .flat()
@@ -315,52 +315,51 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
                 );
             },
         }),
+        env: language.env,
+        l10n: language.l10n,
         supersededError,
     });
     return {
         api,
-        notifyActiveContext: (context) =>
-            withViewEventContext(context, () =>
-                activeContext.fire(workspaceChangeContext(context)),
-            ),
-        notifyGit: (context) =>
-            withViewEventContext(context, () => git.fire(workspaceChangeContext(context))),
-        notifyProjectStatus: (context) =>
-            withViewEventContext(context, () =>
-                projectStatus.fire(workspaceChangeContext(context)),
-            ),
+        notifyActiveContext: (context) => fireWorkspaceChange(activeContext, context),
+        notifyGit: (context) => fireWorkspaceChange(git, context),
+        notifyLanguage: (locale) => language.notify(locale),
+        notifyProjectStatus: (context) => fireWorkspaceChange(projectStatus, context),
         runtime: extensionApiRuntime,
     };
 }
 
-export function notifyActiveContextChanged(context: ExtensionViewEventScope): { notified: number } {
+function notifyActivated(notify: (binding: ApiBinding) => void): { notified: number } {
     let notified = 0;
     for (const runtime of extensions.values()) {
         if (!runtime.activation) continue;
-        runtime.apiBinding.notifyActiveContext(context);
+        notify(runtime.apiBinding);
         notified += 1;
     }
     return { notified };
+}
+
+export function notifyActiveContextChanged(context: ExtensionViewEventScope): { notified: number } {
+    return notifyActivated((binding) => binding.notifyActiveContext(context));
 }
 
 export function notifyProjectStatusChanged(context: ExtensionViewEventScope): { notified: number } {
-    let notified = 0;
-    for (const runtime of extensions.values()) {
-        if (!runtime.activation) continue;
-        runtime.apiBinding.notifyProjectStatus(context);
-        notified += 1;
-    }
-    return { notified };
+    return notifyActivated((binding) => binding.notifyProjectStatus(context));
+}
+
+/**
+ * Switches the language bindings read and re-reads every loaded tree scope, since rows are worded when built and a
+ * provider's own refresh outside a Server scope is dropped; then extensions drop copy cached in the old language.
+ */
+export function notifyLanguageChanged(locale: AppLocale): { notified: number } {
+    setAppLanguage(locale);
+    for (const [viewId, provider, context] of loadedTreeScopes(providers))
+        withViewEventContext(context, () => scheduleRefresh(viewId, provider, undefined));
+    return notifyActivated((binding) => binding.notifyLanguage(locale));
 }
 
 export function notifyGitChanged(context: ExtensionViewEventScope): { notified: number } {
-    let notified = 0;
-    for (const runtime of extensions.values()) {
-        if (!runtime.activation) continue;
-        runtime.apiBinding.notifyGit(context);
-        notified += 1;
-    }
-    return { notified };
+    return notifyActivated((binding) => binding.notifyGit(context));
 }
 
 function disposeExtension(runtime: ExtensionInstance): void {
@@ -482,7 +481,7 @@ export async function getTreeChildren(parameters: {
         throw Object.assign(new Error(`No provider registered for ${parameters.viewId}`), {
             code: 'PROVIDER_MISSING',
         });
-    const state = treeScopeFor(provider, treeScopeKey(parameters.context));
+    const state = treeScopeFor(provider, parameters.context);
     const parent = parameters.parentHandle
         ? state.elements.get(parameters.parentHandle)
         : undefined;

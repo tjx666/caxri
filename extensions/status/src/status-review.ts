@@ -1,4 +1,5 @@
 import type { ProjectStatusCodexReview, ProjectStatusRepository, TreeItemTooltipRow } from 'caxri';
+import { l10n } from 'caxri';
 
 import { fixReviewCommentsAction } from './status-agent-actions';
 import type { StatusNode } from './status-item';
@@ -51,7 +52,7 @@ function codexReviewNode(
      * for.
      */
     const ownDescription = isStale
-        ? 'older commit'
+        ? l10n.t('older commit')
         : review.state === 'unknown'
           ? review.status
           : undefined;
@@ -60,21 +61,25 @@ function codexReviewNode(
         description,
         icon: codexReviewIcons[review.state],
         accessibilityLabel: [label, review.status]
-            .concat(isStale ? 'not the latest commit' : [])
+            .concat(isStale ? l10n.t('not the latest commit') : [])
             .filter(Boolean)
             .join(', '),
         url: review.url,
         tooltip: {
             ...(isStale && {
-                description:
+                description: l10n.t(
                     'Codex reviewed an older commit; pushes after it have not been reviewed yet.',
+                ),
             }),
             rows: [
-                { label: 'status', value: review.status },
-                review.trigger ? { label: 'trigger', value: review.trigger } : undefined,
+                { label: l10n.t('status'), value: review.status },
+                review.trigger ? { label: l10n.t('trigger'), value: review.trigger } : undefined,
                 review.updatedAt === undefined
                     ? undefined
-                    : { label: 'updated', value: new Date(review.updatedAt).toLocaleString() },
+                    : {
+                          label: l10n.t('updated'),
+                          value: new Date(review.updatedAt).toLocaleString(),
+                      },
             ].filter((row): row is TreeItemTooltipRow => row !== undefined),
         },
     });
@@ -89,12 +94,12 @@ function reviewDescription(
     threadCount: number,
     codexReviews: readonly ProjectStatusCodexReview[],
 ): string | undefined {
-    if (unresolved > 0) return `${unresolved} unresolved`;
+    if (unresolved > 0) return l10n.t('{count} unresolved', { count: unresolved });
     // The group's spinning icon already says a review is running; a `Reviewing` word beside it only repeated it.
     if (codexReviews.some((review) => review.state === 'running')) return undefined;
-    if (codexReviews.some((review) => review.state === 'failed')) return 'Review failed';
-    if (threadCount > 0) return 'All resolved';
-    return 'No comments';
+    if (codexReviews.some((review) => review.state === 'failed')) return l10n.t('Review failed');
+    if (threadCount > 0) return l10n.t('All resolved');
+    return l10n.t('No comments');
 }
 
 function reviewIcon(unresolved: number, codexReviews: readonly ProjectStatusCodexReview[]): string {
@@ -123,12 +128,13 @@ export function reviewNode(repo: ProjectStatusRepository, prefix: string): Statu
          * same as `[]` told the user the review was clean when Caxri never actually checked.
          */
         if (pullRequest.lifecycle !== 'open' && pullRequest.lifecycle !== 'draft') return undefined;
-        return item(`${prefix}:review`, 'Could not check review comments', {
+        return item(`${prefix}:review`, l10n.t('Could not check review comments'), {
             icon: stateIcons.unknown,
             url: pullRequest.url,
             tooltip: {
-                description:
+                description: l10n.t(
                     'GitHub review comments could not be read. Refresh Project Status to check again.',
+                ),
             },
         });
     }
@@ -145,20 +151,21 @@ export function reviewNode(repo: ProjectStatusRepository, prefix: string): Statu
     const summary =
         threads.length > 0
             ? unresolvedCommentsLabel(threads.length)
-            : (description ?? 'reviewing').toLowerCase();
-    return item(`${prefix}:review`, 'Review', {
+            : (description ?? l10n.t('reviewing')).toLowerCase();
+    return item(`${prefix}:review`, l10n.t('Review'), {
         description,
         icon: reviewIcon(threads.length, codexReviews),
-        accessibilityLabel: `Review, ${summary}`,
+        accessibilityLabel: `${l10n.t('Review')}${l10n.t(', ')}${summary}`,
         url: pullRequest.url,
         actions: threads.length > 0 ? [fixReviewCommentsAction(repo, pullRequest, threads)] : [],
         tooltip: {
             badge: { label: summary, tone: threads.length > 0 ? 'warning' : 'neutral' },
-            description:
+            description: l10n.t(
                 'Open the pull request conversation; expand for Codex reviews and threads.',
+            ),
             rows: [
-                { label: 'unresolved', value: String(threads.length) },
-                { label: 'threads', value: String(threadCount) },
+                { label: l10n.t('unresolved'), value: String(threads.length) },
+                { label: l10n.t('threads'), value: String(threadCount) },
             ],
         },
         children: [
@@ -171,21 +178,25 @@ export function reviewNode(repo: ProjectStatusRepository, prefix: string): Statu
                 return item(`${prefix}:review-thread:${index}`, location, {
                     description: excerpt || undefined,
                     icon: 'comment',
-                    accessibilityLabel: [location, thread.author && `by ${thread.author}`, excerpt]
+                    accessibilityLabel: [
+                        location,
+                        thread.author && l10n.t('by {author}', { author: thread.author }),
+                        excerpt,
+                    ]
                         .filter(Boolean)
                         .join(', '),
                     url: thread.url,
                     tooltip: {
                         ...(thread.body.trim() && { markdown: clipMarkdown(thread.body.trim()) }),
                         rows: [
-                            thread.path ? { label: 'file', value: thread.path } : undefined,
+                            thread.path ? { label: l10n.t('file'), value: thread.path } : undefined,
                             thread.author
-                                ? { label: 'author', value: `@${thread.author}` }
+                                ? { label: l10n.t('author'), value: `@${thread.author}` }
                                 : undefined,
                             thread.createdAt === undefined
                                 ? undefined
                                 : {
-                                      label: 'created',
+                                      label: l10n.t('created'),
                                       value: new Date(thread.createdAt).toLocaleString(),
                                   },
                         ].filter((row): row is TreeItemTooltipRow => row !== undefined),

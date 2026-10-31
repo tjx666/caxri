@@ -175,6 +175,16 @@ async function copyExtension(source: string, destination: string): Promise<void>
     if (await hasPath(mediaSource)) {
         await cp(mediaSource, join(destination, 'media'), { recursive: true });
     }
+    // Manifest translations (`package.nls*.json`) and runtime bundles (`l10n/`); see docs/extensions.md.
+    await Promise.all(
+        (await readdir(source))
+            .filter((name) => /^package\.nls(?:\.[\w-]+)?\.json$/.test(name))
+            .map((name) => cp(join(source, name), join(destination, name))),
+    );
+    const l10nSource = join(source, 'l10n');
+    if (await hasPath(l10nSource)) {
+        await cp(l10nSource, join(destination, 'l10n'), { recursive: true });
+    }
 }
 
 async function artifactReceipts(root: string): Promise<ServerArtifactFileReceipt[]> {

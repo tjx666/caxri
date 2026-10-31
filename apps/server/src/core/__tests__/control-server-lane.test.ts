@@ -85,6 +85,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'caxriBot.stop': 'ordered',
     'app.auxiliaryWindowState.update': 'ordered',
     'app.systemAppearance.update': 'ordered',
+    'app.systemLanguages.update': 'ordered',
     'app.windowState.update': 'ordered',
     'argv.update': 'ordered',
     'benchmark.cancel': 'ordered',

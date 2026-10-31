@@ -158,3 +158,28 @@ export const extensionManifestSchema = z
     });
 
 export type ExtensionManifest = z.infer<typeof extensionManifestSchema>;
+
+/**
+ * Upper bound on one extension localization file (`package.nls*.json` or `l10n/bundle.l10n.<locale>.json`), the same as
+ * the manifest itself.
+ */
+export const MAX_EXTENSION_L10N_FILE_BYTES = 256 * 1_024;
+
+/**
+ * A localization file's contents: VS Code's flat `{ key: message }` shape. Manifest files key by the `%key%`
+ * placeholder name; runtime bundles key by the English source message an extension passes to `l10n.t`.
+ */
+export const extensionL10nBundleSchema = z.record(
+    z.string().min(1).max(2_048),
+    z.string().min(1).max(2_048),
+);
+
+export type ExtensionL10nBundle = z.infer<typeof extensionL10nBundleSchema>;
+
+/**
+ * The file-name suffix of a locale's localization files, lower-cased the way VS Code names them: `zh-CN` reads
+ * `package.nls.zh-cn.json` and `l10n/bundle.l10n.zh-cn.json`.
+ */
+export function extensionL10nFileLocale(locale: string): string {
+    return locale.toLowerCase();
+}

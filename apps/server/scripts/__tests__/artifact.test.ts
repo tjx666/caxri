@@ -58,6 +58,9 @@ describe('standalone Server artifact', () => {
             ].map((name) => fixtureFile(join(sources, 'native', 'better-sqlite3', name), '{}')),
             fixtureFile(join(sources, 'extensions', 'git', 'package.json'), '{}'),
             fixtureFile(join(sources, 'extensions', 'git', 'dist', 'extension.js'), 'export {};'),
+            fixtureFile(join(sources, 'extensions', 'git', 'package.nls.json'), '{}'),
+            fixtureFile(join(sources, 'extensions', 'git', 'package.nls.zh-cn.json'), '{}'),
+            fixtureFile(join(sources, 'extensions', 'git', 'l10n', 'bundle.l10n.zh-cn.json'), '{}'),
         ]);
         await Promise.all([chmod(runtimeExecutable, 0o755), chmod(ripgrepExecutable, 0o755)]);
 
@@ -112,6 +115,9 @@ describe('standalone Server artifact', () => {
                 'bundles/project-search-worker.js',
                 'bundles/terminal-host.js',
                 'extensions/git/dist/extension.js',
+                'extensions/git/package.nls.json',
+                'extensions/git/package.nls.zh-cn.json',
+                'extensions/git/l10n/bundle.l10n.zh-cn.json',
                 'native/node_modules/better-sqlite3/package.json',
                 'LICENSE',
                 'THIRD_PARTY_NOTICES.md',
