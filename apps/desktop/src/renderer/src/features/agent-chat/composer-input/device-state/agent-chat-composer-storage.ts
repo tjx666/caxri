@@ -1,16 +1,26 @@
-import type { AgentChatImageInput, DeviceStoreBackend } from '@caxri/protocol';
-import { agentChatImageInputSchema, createDeviceStore } from '@caxri/protocol';
+import type { AgentChatImageInput, DeviceStoreBackend, DeviceStoreListing } from '@caxri/protocol';
+import {
+    agentChatImageInputSchema,
+    createDeviceStore,
+    decodeDeviceStoreEntry,
+} from '@caxri/protocol';
 import { z } from 'zod';
 
 import type { AgentChatEdit } from '../../composer/agent-chat-edit';
 
 /**
  * Unsent composer state per Chat on this device, kept across a restart in the device store (`createDeviceStore`): one
- * entry per Chat and kind, in the IndexedDB database of the window's composer scope (`agentChatComposerDatabaseName`).
- * It lives on the device, never in Server Core, since it is this device's unsent input rather than Session state.
+ * entry per Chat and kind, under the window's composer scope. It lives on the device, never in Server Core, since it is
+ * this device's unsent input rather than Session state.
+ *
+ * Text (drafts and "Edit from here") and images live in two backends of that scope. Text goes to a synchronous one
+ * (`localStorage`): a draft flushed from `pagehide` must be on disk before the window reloads or quits, which an
+ * IndexedDB transaction started there is not, and a reloaded Chat must show its draft on first paint. Images, about 27
+ * MB per Chat once base64-encoded, would exhaust that quota, so they go to the scope's IndexedDB database
+ * (`agentChatComposerDatabaseName`) and are written as soon as they change.
  *
  * One entry per Chat is what lets two windows of one scope save drafts for different Chats without overwriting each
- * other, and lets an image-heavy Chat (about 27 MB once base64-encoded) coexist with the small text entries.
+ * other.
  */
 
 /**
@@ -35,10 +45,10 @@ export type PersistedAgentChatAttachment =
 const COMPOSER_STORAGE_VERSION = 1;
 
 /**
- * Typing writes the draft on every keystroke; storage is written once the typing pauses, and right away when the window
- * is hidden or closed, so a quit loses at most this window of keystrokes.
+ * Typing writes the draft on every keystroke; storage is written once the typing pauses, and right away (synchronously)
+ * when the window is hidden or closed.
  */
-const COMPOSER_WRITE_DELAY_MS = 300;
+const COMPOSER_TEXT_WRITE_DELAY_MS = 300;
 
 /**
  * Bounds on what is persisted per kind, newest first. A Chat that is deleted never clears its draft or edit, and one
@@ -46,21 +56,18 @@ const COMPOSER_WRITE_DELAY_MS = 300;
  * refuses every write. The counts are Chats; the characters are those of the stored entries.
  */
 export const MAX_PERSISTED_AGENT_CHAT_DRAFTS = 50;
-export const MAX_PERSISTED_AGENT_CHAT_EDITS = 50;
-export const MAX_PERSISTED_AGENT_CHAT_TEXT_CHARACTERS = 1_000_000;
+const MAX_PERSISTED_AGENT_CHAT_EDITS = 50;
+const MAX_PERSISTED_AGENT_CHAT_TEXT_CHARACTERS = 1_000_000;
 /**
  * Encoded characters (image data plus thumbnail) kept across all Chats: a few Chats at the per-message image limit.
  */
-export const MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS = 128 * 1024 * 1024;
+const MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS = 128 * 1024 * 1024;
 
 export type AgentChatComposerEntryKind = 'attachments' | 'draft' | 'edit';
 
 const KINDS: readonly AgentChatComposerEntryKind[] = ['attachments', 'draft', 'edit'];
 
-export function agentChatComposerEntryName(
-    kind: AgentChatComposerEntryKind,
-    terminalId: string,
-): string {
+function agentChatComposerEntryName(kind: AgentChatComposerEntryKind, terminalId: string): string {
     return `${kind}:${terminalId}`;
 }
 
@@ -78,7 +85,7 @@ function parseEntryName(
  * Reads a stored attachment list. Anything malformed is dropped attachment by attachment rather than trusted: the store
  * is written only by this module, but a corrupt profile must not break the composer or send a broken image.
  */
-export function parsePersistedAgentChatAttachments(value: unknown): PersistedAgentChatAttachment[] {
+function parsePersistedAgentChatAttachments(value: unknown): PersistedAgentChatAttachment[] {
     if (!Array.isArray(value)) return [];
     return value.flatMap((entry: unknown): PersistedAgentChatAttachment[] => {
         if (typeof entry !== 'object' || entry === null) return [];
@@ -116,29 +123,54 @@ const editSchema = z.strictObject({
 const attachmentsSchema = z.array(z.unknown()).transform(parsePersistedAgentChatAttachments);
 
 /**
- * What an earlier run left for one scope.
+ * The text an earlier run left for one scope.
  */
-export interface RestoredAgentChatComposerState {
-    attachments: Map<string, PersistedAgentChatAttachment[]>;
+export interface RestoredAgentChatComposerText {
     drafts: Map<string, string>;
     edits: Map<string, AgentChatEdit>;
 }
 
 /**
- * Mirrors one scope's composer state into `backend`. The device store owns write ordering, debouncing, bounds, and
+ * The backends of one composer scope.
+ */
+export interface AgentChatComposerBackends {
+    /**
+     * Images, kept apart from text because of their size.
+     */
+    attachments: DeviceStoreBackend;
+    /**
+     * Drafts and edits. It must answer synchronously: text is read before the first paint and written from `pagehide`.
+     */
+    text: SynchronousDeviceStoreBackend;
+}
+
+/**
+ * A backend whose every call finishes on the caller's tick, such as `localStorageDeviceStoreBackend`.
+ */
+export interface SynchronousDeviceStoreBackend extends DeviceStoreBackend {
+    clear(): void;
+    count?(): number;
+    list(): DeviceStoreListing;
+    read(name: string): string | null;
+    remove(name: string): void;
+    write(name: string, text: string): void;
+}
+
+/**
+ * Mirrors one scope's composer state into its backends. The device store owns write ordering, debouncing, bounds, and
  * failure handling: every failure loses an unsent copy, never fails the composer.
  */
 export function createAgentChatComposerStorage({
-    backend,
+    backends,
     now,
     scope,
 }: {
-    backend: DeviceStoreBackend;
+    backends: AgentChatComposerBackends;
     now?: () => number;
     scope: string;
 }) {
-    const store = createDeviceStore({
-        backend,
+    const textStore = createDeviceStore({
+        backend: backends.text,
         now,
         retention: [
             {
@@ -151,16 +183,25 @@ export function createAgentChatComposerStorage({
                 maxCharacters: MAX_PERSISTED_AGENT_CHAT_TEXT_CHARACTERS,
                 maxEntries: MAX_PERSISTED_AGENT_CHAT_EDITS,
             },
-            {
-                isBounded: (name) => name.startsWith('attachments:'),
-                maxCharacters: MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS,
-            },
         ],
         version: COMPOSER_STORAGE_VERSION,
-        writeDelayMs: COMPOSER_WRITE_DELAY_MS,
+        writeDelayMs: COMPOSER_TEXT_WRITE_DELAY_MS,
     });
-    store.setScope(scope);
+    const attachmentStore = createDeviceStore({
+        backend: backends.attachments,
+        now,
+        retention: {
+            isBounded: (name) => name.startsWith('attachments:'),
+            maxCharacters: MAX_PERSISTED_AGENT_CHAT_ATTACHMENT_CHARACTERS,
+        },
+        version: COMPOSER_STORAGE_VERSION,
+        // Written at once: images change on a paste or a removal, never per keystroke.
+        writeDelayMs: 0,
+    });
+    textStore.setScope(scope);
+    attachmentStore.setScope(scope);
     const saveOrRemove = (
+        store: ReturnType<typeof createDeviceStore>,
         kind: AgentChatComposerEntryKind,
         terminalId: string,
         value: unknown,
@@ -171,45 +212,78 @@ export function createAgentChatComposerStorage({
         else store.save(scope, name, value);
     };
     return {
-        flush: store.flush,
         /**
-         * Reads every entry an earlier run left. `isRetained` is asked for each Chat's edit and images, which are
-         * removed instead of restored once the Workbench reported the Chat gone; a draft is always restored.
+         * Writes everything still waiting. Text is on disk when this returns; images are on their way.
          */
-        async hydrate(
+        flush: (): void => {
+            void textStore.flush();
+            void attachmentStore.flush();
+        },
+        /**
+         * Reads the drafts and edits an earlier run left, synchronously. `isRetained` is asked for each Chat's edit,
+         * which is removed instead of restored once the Workbench reported the Chat gone; a draft is always restored.
+         */
+        hydrateText(isRetained: (terminalId: string) => boolean): RestoredAgentChatComposerText {
+            const restored: RestoredAgentChatComposerText = { drafts: new Map(), edits: new Map() };
+            try {
+                for (const { name } of backends.text.list()) {
+                    const parsed = parseEntryName(name);
+                    if (!parsed || parsed.kind === 'attachments') continue;
+                    const { kind, terminalId } = parsed;
+                    if (kind === 'edit' && !isRetained(terminalId)) {
+                        textStore.remove(name);
+                        continue;
+                    }
+                    const text = backends.text.read(name);
+                    if (text === null) continue;
+                    if (kind === 'draft') {
+                        const entry = decodeDeviceStoreEntry(
+                            text,
+                            COMPOSER_STORAGE_VERSION,
+                            scope,
+                            draftSchema,
+                        );
+                        if (entry) restored.drafts.set(terminalId, entry.value);
+                    } else {
+                        const entry = decodeDeviceStoreEntry(
+                            text,
+                            COMPOSER_STORAGE_VERSION,
+                            scope,
+                            editSchema,
+                        );
+                        if (entry) restored.edits.set(terminalId, entry.value);
+                    }
+                }
+            } catch {
+                // An unreadable store restores nothing; the composer starts empty as before.
+            }
+            return restored;
+        },
+        /**
+         * Reads the images an earlier run left. `isRetained` is asked for each Chat, whose images are removed instead
+         * of restored once the Workbench reported it gone.
+         */
+        async hydrateAttachments(
             isRetained: (terminalId: string) => boolean,
-        ): Promise<RestoredAgentChatComposerState> {
-            const restored: RestoredAgentChatComposerState = {
-                attachments: new Map(),
-                drafts: new Map(),
-                edits: new Map(),
-            };
+        ): Promise<Map<string, PersistedAgentChatAttachment[]>> {
+            const restored = new Map<string, PersistedAgentChatAttachment[]>();
             let names: string[] = [];
             try {
-                names = (await backend.list()).map((entry) => entry.name);
+                names = (await backends.attachments.list()).map((entry) => entry.name);
             } catch {
                 // An unreadable store restores nothing; the composer starts empty as before.
             }
             await Promise.all(
                 names.map(async (name) => {
                     const parsed = parseEntryName(name);
-                    if (!parsed) return;
-                    const { kind, terminalId } = parsed;
-                    if (kind !== 'draft' && !isRetained(terminalId)) {
-                        store.remove(name);
+                    if (parsed?.kind !== 'attachments') return;
+                    if (!isRetained(parsed.terminalId)) {
+                        attachmentStore.remove(name);
                         return;
                     }
-                    if (kind === 'draft') {
-                        const entry = await store.load(scope, name, draftSchema);
-                        if (entry) restored.drafts.set(terminalId, entry.value);
-                    } else if (kind === 'edit') {
-                        const entry = await store.load(scope, name, editSchema);
-                        if (entry) restored.edits.set(terminalId, entry.value);
-                    } else {
-                        const entry = await store.load(scope, name, attachmentsSchema);
-                        if (entry && entry.value.length > 0)
-                            restored.attachments.set(terminalId, entry.value);
-                    }
+                    const entry = await attachmentStore.load(scope, name, attachmentsSchema);
+                    if (entry && entry.value.length > 0)
+                        restored.set(parsed.terminalId, entry.value);
                 }),
             );
             return restored;
@@ -217,11 +291,23 @@ export function createAgentChatComposerStorage({
         saveAttachments: (
             terminalId: string,
             attachments: readonly PersistedAgentChatAttachment[],
-        ): void => saveOrRemove('attachments', terminalId, attachments, attachments.length === 0),
+        ): void =>
+            saveOrRemove(
+                attachmentStore,
+                'attachments',
+                terminalId,
+                attachments,
+                attachments.length === 0,
+            ),
         saveDraft: (terminalId: string, text: string): void =>
-            saveOrRemove('draft', terminalId, text, text === ''),
-        saveEdit: (terminalId: string, edit: AgentChatEdit | undefined): void =>
-            saveOrRemove('edit', terminalId, edit, edit === undefined),
+            saveOrRemove(textStore, 'draft', terminalId, text, text === ''),
+        /**
+         * Stores or ends a Chat's edit, written at once: an edit starts and ends on a click, never per keystroke.
+         */
+        saveEdit: (terminalId: string, edit: AgentChatEdit | undefined): void => {
+            saveOrRemove(textStore, 'edit', terminalId, edit, edit === undefined);
+            void textStore.flush();
+        },
     };
 }
 

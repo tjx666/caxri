@@ -48,10 +48,17 @@ export function currentAgentChatComposerScope(): string {
 }
 
 /**
- * The IndexedDB database holding one composer scope's entries; the local scope keeps the bare name.
+ * The IndexedDB database holding one composer scope's images; the local scope keeps the bare name.
  */
 export function agentChatComposerDatabaseName(scope: string): string {
     return scope === 'local' ? 'caxri-agent-chat-composer' : `caxri-agent-chat-composer:${scope}`;
+}
+
+/**
+ * The prefix of the `localStorage` keys holding one composer scope's drafts and edits.
+ */
+export function agentChatComposerTextKeyPrefix(scope: string): string {
+    return `caxri.agent-chat.composer:${scope}:`;
 }
 
 /**

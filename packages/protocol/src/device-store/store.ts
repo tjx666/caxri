@@ -31,7 +31,7 @@ export interface DeviceStoreBackend {
      * Every entry with the time it was last written, used only to pick the oldest for eviction.
      */
     list(): DeviceStoreListing | Promise<DeviceStoreListing>;
-    read(name: string): Promise<string | null>;
+    read(name: string): Promise<string | null> | string | null;
     remove(name: string): Promise<void> | void;
     write(name: string, text: string): Promise<void> | void;
 }

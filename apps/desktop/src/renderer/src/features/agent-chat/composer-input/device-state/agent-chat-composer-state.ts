@@ -1,42 +1,43 @@
-import type { DeviceStoreBackend } from '@caxri/protocol';
 import { notifyListeners } from '@caxri/utils';
 
 import { indexedDatabaseDeviceStoreBackend } from '../../../../lib/indexed-database-device-store';
+import { localStorageDeviceStoreBackend } from '../../../../lib/local-storage-device-store';
 import type { AgentChatEdit } from '../../composer/agent-chat-edit';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
 import { didDeliverToMountedComposer, notifyDraftChange } from './agent-chat-composer-listeners';
 import {
     agentChatComposerDatabaseName,
+    agentChatComposerTextKeyPrefix,
     currentAgentChatComposerScope,
 } from './agent-chat-composer-scope';
 import type {
+    AgentChatComposerBackends,
     AgentChatComposerStorage,
-    RestoredAgentChatComposerState,
+    PersistedAgentChatAttachment,
 } from './agent-chat-composer-storage';
 import { createAgentChatComposerStorage } from './agent-chat-composer-storage';
 
 /**
- * How long a Chat pane waits for the stored composer state before it opens without it. A broken or very slow database
- * must not leave the Chat blank; what arrives later still fills in whatever the user has not touched.
+ * How long a Chat pane waits for the stored images before it opens without them. A broken or very slow database must
+ * not leave the Chat blank; images that arrive later still reach a composer on screen through `onAttachmentsRestored`.
  */
 const HYDRATION_PATIENCE_MS = 2_000;
 
-/**
- * What hydration put into a scope's memory after the composer may already have read it, for the surfaces that render
- * from it.
- */
-export interface AgentChatComposerRestoration {
-    attachments: ReadonlyMap<string, AgentChatAttachment[]>;
-    draftTerminalIds: readonly string[];
-}
-
 export interface AgentChatComposerStateOptions {
     /**
-     * The backend of one composer scope, or `undefined` when the profile has no IndexedDB: state then lives in memory
-     * only.
+     * The backends of one composer scope, or `undefined` when the profile has no device storage: state then lives in
+     * memory only.
      */
-    openBackend: ((scope: string) => DeviceStoreBackend) | undefined;
-    onRestored: (restoration: AgentChatComposerRestoration) => void;
+    openBackends: ((scope: string) => AgentChatComposerBackends) | undefined;
+    /**
+     * Images that hydration put into a scope's memory after its composers may already have read it.
+     */
+    onAttachmentsRestored: (attachments: ReadonlyMap<string, AgentChatAttachment[]>) => void;
+    /**
+     * Chats whose draft hydration read, for the surfaces that render from a draft and may have read the scope before (a
+     * scope that changed while running).
+     */
+    onDraftsRestored: (terminalIds: readonly string[]) => void;
     scope: () => string;
     now?: () => number;
 }
@@ -49,6 +50,9 @@ interface ScopeData {
     changedAttachments: Set<string>;
     drafts: Map<string, string>;
     edits: Map<string, AgentChatEdit>;
+    /**
+     * Whether the stored images have been read, or given up on.
+     */
     isReady: boolean;
     retained?: ReadonlySet<string>;
     scope: string;
@@ -63,35 +67,31 @@ interface ScopeData {
  *
  * The scope is read at each use, so a Workbench that learns its environment after load keys its state by it; the
  * earlier scope keeps its own data and its own pending writes, which land under the scope they were typed in. Hydration
- * reads what an earlier run left, once per scope. Readers that need the stored state before they mount (the Chat pane)
- * wait on `isReady`.
+ * reads what an earlier run left, once per scope: text synchronously on the scope's first use, so a composer that
+ * mounts reads its draft at once; images from IndexedDB later. A composer takes its images only when it mounts (their
+ * placeholders in the draft bind to them then), so the Chat pane waits on `isReady` before it renders.
  */
 export function createAgentChatComposerState(options: AgentChatComposerStateOptions) {
     const scopes = new Map<string, ScopeData>();
     const readyListeners = new Set<() => void>();
-    const { now, onRestored, openBackend } = options;
+    const { now, onAttachmentsRestored, onDraftsRestored, openBackends } = options;
 
     const notifyReady = (): void => {
         notifyListeners(readyListeners, undefined);
     };
 
-    const applyRestored = (data: ScopeData, restored: RestoredAgentChatComposerState): void => {
-        const draftTerminalIds: string[] = [];
-        for (const [terminalId, text] of restored.drafts) {
-            if (data.drafts.has(terminalId)) continue;
-            data.drafts.set(terminalId, text);
-            draftTerminalIds.push(terminalId);
-        }
-        for (const [terminalId, edit] of restored.edits)
-            if (!data.edits.has(terminalId)) data.edits.set(terminalId, edit);
+    const applyRestoredAttachments = (
+        data: ScopeData,
+        restored: ReadonlyMap<string, PersistedAgentChatAttachment[]>,
+    ): void => {
         const attachments = new Map<string, AgentChatAttachment[]>();
-        for (const [terminalId, list] of restored.attachments)
+        for (const [terminalId, list] of restored)
             if (!data.changedAttachments.has(terminalId)) {
                 attachments.set(terminalId, list);
                 if (!data.attachments.has(terminalId)) data.attachments.set(terminalId, list);
             }
         data.changedAttachments.clear();
-        if (options.scope() === data.scope) onRestored({ attachments, draftTerminalIds });
+        if (options.scope() === data.scope) onAttachmentsRestored(attachments);
     };
 
     const hydrate = (data: ScopeData): void => {
@@ -100,6 +100,15 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
             data.isReady = true;
             return;
         }
+        const isRetained = (terminalId: string): boolean => data.retained?.has(terminalId) ?? true;
+        const text = storage.hydrateText(isRetained);
+        for (const [terminalId, draft] of text.drafts) data.drafts.set(terminalId, draft);
+        for (const [terminalId, edit] of text.edits) data.edits.set(terminalId, edit);
+        if (text.drafts.size > 0) {
+            const terminalIds = text.drafts.keys().toArray();
+            // Not during the render that asked for the scope.
+            queueMicrotask(() => onDraftsRestored(terminalIds));
+        }
         const finish = (): void => {
             if (data.isReady) return;
             data.isReady = true;
@@ -107,8 +116,8 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
         };
         const patience = setTimeout(finish, HYDRATION_PATIENCE_MS);
         void storage
-            .hydrate((terminalId) => data.retained?.has(terminalId) ?? true)
-            .then((restored) => applyRestored(data, restored))
+            .hydrateAttachments(isRetained)
+            .then((restored) => applyRestoredAttachments(data, restored))
             .catch(() => {})
             .finally(() => {
                 clearTimeout(patience);
@@ -127,8 +136,8 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
             edits: new Map(),
             isReady: false,
             scope,
-            storage: openBackend
-                ? createAgentChatComposerStorage({ backend: openBackend(scope), now, scope })
+            storage: openBackends
+                ? createAgentChatComposerStorage({ backends: openBackends(scope), now, scope })
                 : undefined,
         };
         scopes.set(scope, data);
@@ -143,14 +152,14 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
         drafts: () => current().drafts,
         edits: () => current().edits,
         /**
-         * Starts writing everything still waiting, for a window that is going away. Every failure loses an unsent copy
-         * and never surfaces, so there is nothing to await.
+         * Writes everything still waiting, for a window that is going away: text is on disk when this returns, images
+         * are on their way. Every failure loses an unsent copy and never surfaces, so there is nothing to await.
          */
         flush: (): void => {
-            for (const data of scopes.values()) void data.storage?.flush();
+            for (const data of scopes.values()) data.storage?.flush();
         },
         /**
-         * Whether the current scope's stored state has been read, or given up on.
+         * Whether the current scope's stored images have been read, or given up on.
          */
         isReady: (): boolean => current().isReady,
         /**
@@ -182,14 +191,8 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
         },
         saveDraft: (terminalId: string, text: string): void =>
             current().storage?.saveDraft(terminalId, text),
-        /**
-         * Stores or ends a Chat's edit, written at once: an edit starts and ends on a click, never per keystroke.
-         */
-        saveEdit: (terminalId: string, edit: AgentChatEdit | undefined): void => {
-            const storage = current().storage;
-            storage?.saveEdit(terminalId, edit);
-            void storage?.flush();
-        },
+        saveEdit: (terminalId: string, edit: AgentChatEdit | undefined): void =>
+            current().storage?.saveEdit(terminalId, edit),
         subscribeReady: (listener: () => void): (() => void) => {
             readyListeners.add(listener);
             return () => readyListeners.delete(listener);
@@ -197,30 +200,32 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
     };
 }
 
-export type AgentChatComposerState = ReturnType<typeof createAgentChatComposerState>;
-
 /**
- * Opens the IndexedDB database of a composer scope; the profile has none under Vitest's Node environment.
+ * Opens the backends of a composer scope; the profile has none under Vitest's Node environment.
  */
-export function openAgentChatComposerBackend():
-    ((scope: string) => DeviceStoreBackend) | undefined {
+function openAgentChatComposerBackends():
+    ((scope: string) => AgentChatComposerBackends) | undefined {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
-    return typeof indexedDB === 'undefined'
+    return typeof indexedDB === 'undefined' || typeof localStorage === 'undefined'
         ? undefined
-        : (scope) => indexedDatabaseDeviceStoreBackend(agentChatComposerDatabaseName(scope));
+        : (scope) => ({
+              attachments: indexedDatabaseDeviceStoreBackend(agentChatComposerDatabaseName(scope)),
+              text: localStorageDeviceStoreBackend(agentChatComposerTextKeyPrefix(scope)),
+          });
 }
 
 /**
  * This window's composer state. Loading the module opens nothing: a scope's database opens on its first use.
  */
 export const agentChatComposerState = createAgentChatComposerState({
-    openBackend: openAgentChatComposerBackend(),
-    // A Chat's composer already on screen takes restored images the way it takes a failed send's images back; the
-    // surfaces that render from a draft hear it arrive.
-    onRestored: ({ attachments, draftTerminalIds }) => {
-        for (const terminalId of draftTerminalIds) notifyDraftChange(terminalId);
+    openBackends: openAgentChatComposerBackends(),
+    // A Chat's composer already on screen takes restored images the way it takes a failed send's images back.
+    onAttachmentsRestored: (attachments) => {
         for (const [terminalId, list] of attachments)
             didDeliverToMountedComposer(terminalId, '', list);
+    },
+    onDraftsRestored: (terminalIds) => {
+        for (const terminalId of terminalIds) notifyDraftChange(terminalId);
     },
     scope: currentAgentChatComposerScope,
 });
@@ -228,7 +233,7 @@ export const agentChatComposerState = createAgentChatComposerState({
 // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
 if (typeof window !== 'undefined') {
     // `pagehide` fires when the window closes or reloads, including a quit; `visibilitychange` covers the window being
-    // hidden first. Either way the pending keystrokes reach storage before the Renderer can go away.
+    // hidden first. Either way the pending keystrokes reach `localStorage` before the Renderer can go away.
     window.addEventListener('pagehide', () => {
         agentChatComposerState.flush();
     });

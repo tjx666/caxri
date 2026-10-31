@@ -166,7 +166,7 @@ interface AgentChatPaneProperties {
  * so scroll-follow state never carries from one Chat to another.
  */
 export function AgentChatPane(properties: AgentChatPaneProperties) {
-    // Renders nothing for the moment a reloaded window reads its stored drafts, edits, and images (see the hook).
+    // Renders nothing for the moment a reloaded window reads its stored images (see the hook).
     return useIsAgentChatComposerReady() ? <AgentChatPaneContent {...properties} /> : null;
 }
 

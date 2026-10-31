@@ -140,7 +140,7 @@ export function agentChatEditSendAction(
  * What one rewindable user message offers. `edit` and `fork` are `null` when enabled, otherwise the translation key of
  * the reason they are disabled; `restore` is the number of turns it undoes when enabled, otherwise that key.
  */
-export interface AgentChatEditAvailabilityRow {
+interface AgentChatEditAvailabilityRow {
     edit: TranslationKey | null;
     fork: TranslationKey | null;
     restore: TranslationKey | number;

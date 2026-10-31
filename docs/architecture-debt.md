@@ -504,7 +504,7 @@ Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answe
 ### AD-state-composer-window-scope: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Composer drafts, edits, and attachments were stored under one key and one IndexedDB database shared by every window on the `file://` origin, so retention in one window pruned another window's drafts and SSH Host Terminals could collide with local ones.
-- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-composer-scope.ts` scopes storage to `local`, `bot`, or `ssh:<hostIdentity>`; `SshEnvironmentState.hostIdentity` carries Main's host key.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/composer-input/device-state/agent-chat-composer-scope.ts` scopes storage to `local`, `bot`, or `ssh:<hostIdentity>`; `SshEnvironmentState.hostIdentity` carries Main's host key.
 - **First seen:** 2026-10-13 @ 319eab82e · **Last verified:** 2026-10-13 with the fix batch
 - **Resolved:** 2026-10-13 via [issue caxri#1992](https://github.com/tjx666/caxri/issues/1992).
 - **Remediation target / Acceptance:** Each window scope keeps its own drafts and attachments; retention never crosses scopes.

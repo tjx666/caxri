@@ -34,8 +34,6 @@ test('typing after a reload continues the restored Chat draft without opening th
         const draft = 'Please compare with @thr';
         await message.fill(draft);
 
-        // Typing is saved to IndexedDB once it pauses (300 ms); a reload inside that window can still lose it.
-        await page.waitForTimeout(1_000);
         await page.reload();
         await expectComposerValue(message, draft);
         await expect(message).toBeFocused();
