@@ -150,9 +150,11 @@ or cancels the delivery, or a concrete blocker requires their input.
    survives offline windows with capped backoff. The command exits 0 only when every watched run
    succeeded.
    In Claude Code, execute the watcher in a background shell. Redirect its output to a run-specific
-   path such as `/tmp/watch-ci-<run-id>.log` or `/tmp/watch-ci-pr-<number>.log`, never a generic name like `/tmp/watch-ci.log`:
+   path such as `/tmp/watch-ci-<run-id>.log` or `/tmp/watch-ci-pr-<number>-<short-sha>.log`, never a generic name like `/tmp/watch-ci.log`:
    sibling sessions write their own watchers there too, and an overwritten log reports another
-   PR's run as yours.
+   PR's run as yours. A `--pr` watcher keeps watching the head it started on after a later push,
+   so the head's SHA belongs in the name: a superseded head's watcher appended its cancelled
+   verdict and `exit 1` to the green replacement head's `/tmp/watch-ci-pr-<number>.log`.
    In Codex, read and follow [Codex Watch Await](../../references/codex-watch-await.md)
    before starting or collecting the watcher.
    A queued hosted job is a waiting state, not proof of repository infrastructure failure or a
