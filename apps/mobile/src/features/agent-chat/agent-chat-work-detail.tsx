@@ -36,10 +36,15 @@ import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
  */
 const CodeBlock = ({
     code,
+    copyTestID = 'agent-chat-work-copy',
     language,
     theme,
 }: {
     code: string;
+    /**
+     * Distinct per block: Android semantic capture keeps one node per test ID, so a shared ID hides the second Copy.
+     */
+    copyTestID?: string;
     language: string | undefined;
     theme: MobileTheme;
 }) => {
@@ -68,7 +73,7 @@ const CodeBlock = ({
                     styles.copy,
                     { backgroundColor: theme.elevated, opacity: pressed ? 0.5 : 1 },
                 ]}
-                testID="agent-chat-work-copy"
+                testID={copyTestID}
             >
                 <Copy color={theme.muted} size={15} />
             </Pressable>
@@ -195,7 +200,12 @@ const CommandDetail = ({
     const { t } = useTranslation();
     return (
         <>
-            <CodeBlock code={unwrapShellCommand(item.command)} language="bash" theme={theme} />
+            <CodeBlock
+                code={unwrapShellCommand(item.command)}
+                copyTestID="agent-chat-work-copy-command"
+                language="bash"
+                theme={theme}
+            />
             <Output language={agentChatOutputLanguage(item)} text={item.output} theme={theme} />
             {item.exitCode === undefined ? null : (
                 <Text

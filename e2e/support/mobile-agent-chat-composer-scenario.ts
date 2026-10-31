@@ -17,7 +17,6 @@ import {
 } from './mobile-agent-chat-helpers';
 import {
     adbShell,
-    androidBounds,
     mobileSemantics,
     observeMobileNode,
     startMobileFramebufferRecording,
@@ -245,24 +244,8 @@ export async function executeMobileChatComposerScenario(
         await tapMobileCheckByBounds(serial, commandRow);
         await waitForCheck(serial, 'agent-chat-work-copy');
         await capture(environment, 'command-json-detail', artifacts);
-        const copyButtons = (await mobileSemantics(serial)).filter(
-            ({ checkId }) => checkId === 'agent-chat-work-copy',
-        );
-        if (copyButtons.length !== 2)
-            throw new Error('The command and its output must each offer Copy');
-        // The output's Copy is the lower one; the command's sits above it.
-        const outputCopy = copyButtons
-            .map(({ bounds }) => androidBounds(bounds))
-            .filter((bounds) => bounds !== null)
-            .toSorted((first, second) => second.top - first.top)
-            .at(0);
-        if (!outputCopy) throw new Error('The output Copy has no bounds');
-        await adbShell(serial, [
-            'input',
-            'tap',
-            String(Math.floor((outputCopy.left + outputCopy.right) / 2)),
-            String(Math.floor((outputCopy.top + outputCopy.bottom) / 2)),
-        ]);
+        await waitForCheck(serial, 'agent-chat-work-copy-command');
+        await tapMobileCheckByBounds(serial, 'agent-chat-work-copy');
         await waitForCheck(serial, 'toast');
         await capture(environment, 'command-copied', artifacts);
         await tapMobileCheckByBounds(serial, 'tool-detail-close');
