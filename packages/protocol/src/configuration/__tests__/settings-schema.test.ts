@@ -48,28 +48,30 @@ describe('settings spec and schema agreement', () => {
         ).toBe(false);
     });
 
-    it('allows replacing Git diff exclusions without changing file-tree defaults', () => {
-        expect(appSettingsFileSchema.parse({})['git.diffExclude']).toEqual({
-            '**/*.test.*': true,
-            '**/*.spec.*': true,
-            '**/__tests__/**': true,
-            '**/locales/**': true,
-        });
+    it('shows every Git diff by default and keeps opted-in exclusions independent of the file tree', () => {
+        expect(appSettingsFileSchema.parse({})['git.diffExclude']).toEqual({});
         /**
-         * The default is only worth shipping if it reaches the paths it was written for: a localized repository keeps
-         * translations both at its root and inside a workspace package, and the source that drove the translation must
-         * stay visible.
+         * Opting back into the old test and translation filter must still reach the paths it was written for: a
+         * localized repository keeps translations both at its root and inside a workspace package, and the source that
+         * drove the translation must stay visible.
          */
-        const shipped = appSettingsFileSchema.parse({})['git.diffExclude'];
-        expect(isGlobMatch('locales/zh-CN/modelRuntime.json', shipped)).toBe(true);
-        expect(isGlobMatch('packages/locales/src/default/modelRuntime.ts', shipped)).toBe(true);
-        expect(isGlobMatch('packages/model-runtime/src/core/index.ts', shipped)).toBe(false);
-        const parsed = appSettingsFileSchema.parse({ 'git.diffExclude': {} });
-        expect(parsed['git.diffExclude']).toEqual({});
+        const optedIn = { '**/*.test.*': true, '**/locales/**': true };
+        const parsed = appSettingsFileSchema.parse({ 'git.diffExclude': optedIn });
+        expect(parsed['git.diffExclude']).toEqual(optedIn);
+        expect(isGlobMatch('locales/zh-CN/modelRuntime.json', optedIn)).toBe(true);
+        expect(isGlobMatch('packages/locales/src/default/modelRuntime.ts', optedIn)).toBe(true);
+        expect(isGlobMatch('packages/model-runtime/src/core/index.ts', optedIn)).toBe(false);
         expect(parsed['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
         expect(
             appSettingsSchema.safeParse({ 'git.diffExclude': { '**/tests/**': 'yes' } }).success,
         ).toBe(false);
+    });
+
+    it('does not copy Terminal selections unless the user opts in', () => {
+        expect(appSettingsFileSchema.parse({})['terminal.copyOnSelect']).toBe(false);
+        expect(
+            appSettingsFileSchema.parse({ 'terminal.copyOnSelect': true })['terminal.copyOnSelect'],
+        ).toBe(true);
     });
 
     it('covers exactly the spec keys', () => {

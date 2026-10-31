@@ -335,7 +335,11 @@ export const settingsSpec = [
         description: 'Automatically copy Terminal selections to the clipboard',
         category: 'terminal',
         keywords: ['clipboard'],
-        default: true,
+        /**
+         * Off by default: selecting text to read it must not silently replace what the user last copied elsewhere. Copy
+         * Selection (Cmd+C) still copies explicitly.
+         */
+        default: false,
     },
     {
         kind: 'enum',
@@ -446,7 +450,7 @@ export const settingsSpec = [
         key: 'git.diffExclude',
         title: 'Excluded Git diff files',
         description:
-            'Hide matching repository-relative paths from Git change lists and Open All Changes. Tests and translation catalogs are excluded by default. Use the Source Control eye button to show them temporarily. Supports *, **, and ?; this does not change Git tracking.',
+            'Hide matching repository-relative paths from Git change lists and Open All Changes. Nothing is excluded by default, so every Agent change stays visible. Use the Source Control eye button to show hidden files temporarily. Supports *, **, and ?; this does not change Git tracking.',
         category: 'files',
         keywords: [
             'git',

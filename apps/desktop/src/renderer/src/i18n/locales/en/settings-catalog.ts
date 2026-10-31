@@ -321,7 +321,7 @@ export const settingsCatalog = {
 
     'settings.git.diffExclude.title': 'Excluded Git diff files',
     'settings.git.diffExclude.description':
-        'Hide matching repository-relative paths from Git change lists and Open All Changes. Tests and translation catalogs are excluded by default. Use the Source Control eye button to show them temporarily. Supports *, **, and ?; this does not change Git tracking.',
+        'Hide matching repository-relative paths from Git change lists and Open All Changes. Nothing is excluded by default, so every Agent change stays visible. Use the Source Control eye button to show hidden files temporarily. Supports *, **, and ?; this does not change Git tracking.',
 
     'settings.files.maxFileBytes.title': 'Maximum editable file size',
     'settings.files.maxFileBytes.description':

@@ -1171,9 +1171,9 @@ of the row. A `+N -M` stat drops a zero half beside a non-zero one (`+3`, not `+
 lone `+0` when both are zero, so the column never goes blank on a changed row.
 
 **Git diff exclusions**: `git.diffExclude` hides matching repository-relative paths from Git
-change lists and from `Open Changes`; it ships filtering test files out by default, because a
-review of "what changed" almost never opens with them. A default that hides work is only honest if
-the surface says so and offers a way back, so hiding is never silent. The Source Control header's
+change lists and from `Open Changes`. It ships empty: a user reviewing an Agent's work must see every
+file the Agent touched, including tests and translations, until they choose to filter. Hiding work is
+only honest if the surface says so and offers a way back, so an opted-in exclusion is never silent. The Source Control header's
 eye button, which reveals the excluded files in place, appears only when exclusions are actually
 hiding something: a control that toggles nothing but is always on screen teaches the user it is
 decoration. In a multi-file diff tab the hidden count is stated in a `role="status"` notice
