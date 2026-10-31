@@ -281,6 +281,25 @@ async function readTrackingHead(
 }
 
 /**
+ * Joins a tracking-ref read already made for the same root and branch when the caller supplies a shared map.
+ */
+function sharedTrackingHead(
+    rootPath: string,
+    branch: string,
+    git: OptionalGit,
+    trackingHeads: Map<string, Promise<string>> | undefined,
+): Promise<string> {
+    if (!trackingHeads) return readTrackingHead(rootPath, branch, git);
+    const key = `${rootPath}\0${branch}`;
+    let read = trackingHeads.get(key);
+    if (!read) {
+        read = readTrackingHead(rootPath, branch, git);
+        trackingHeads.set(key, read);
+    }
+    return read;
+}
+
+/**
  * Reads local identity immediately; remote publication is checked later by the background refresh.
  *
  * HEAD and the branch come from the same `git.summary` snapshot the caller already holds, instead of two more `git`
@@ -291,11 +310,14 @@ export async function prepareStatusRepo(
     git: OptionalGit,
     remotes: RepoRemoteCache = new RepoRemoteCache(),
     isForced = false,
+    trackingHeads?: Map<string, Promise<string>>,
 ): Promise<{ context: BranchPublicationContext; repository: ProjectStatusRepository }> {
     const isDetached = repo.branch === DETACHED_BRANCH;
     const [{ remote, defaultBranch }, trackingHead] = await Promise.all([
         remotes.read(repo.rootPath, git, isForced),
-        isDetached ? Promise.resolve('') : readTrackingHead(repo.rootPath, repo.branch, git),
+        isDetached
+            ? Promise.resolve('')
+            : sharedTrackingHead(repo.rootPath, repo.branch, git, trackingHeads),
     ]);
     const github = parseGitHubRemote(remote);
     const context: BranchPublicationContext = {

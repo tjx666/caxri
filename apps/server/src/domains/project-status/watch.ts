@@ -30,6 +30,22 @@ const WATCH_CONCURRENCY = 2;
 export type WatchOutcome = 'duplicate' | 'failed' | 'fresh' | 'refreshed' | 'skipped';
 
 /**
+ * State shared by the Sessions of one delivery-watch round.
+ */
+export interface WatchRound {
+    /**
+     * Delivery keys a Session earlier in the round (or a resident poll) already refreshed.
+     */
+    covered: Set<string>;
+    /**
+     * Tracking-ref reads keyed by repository root and branch. Every Session reads its tracking ref before it can learn
+     * that another Session covered the same delivery, so Sessions sharing a checkout re-ran the same `for-each-ref`
+     * (production: 19 identical reads per round for one root, about half of all logged Git commands).
+     */
+    trackingHeads: Map<string, Promise<string>>;
+}
+
+/**
  * Identity of the delivery a repository reports: two Sessions with equal keys would fetch, and alert on, the same
  * checks and deployments.
  */
@@ -92,13 +108,13 @@ export interface DeliveryWatchOptions {
      */
     summaryOf: (sessionId: string) => ProjectStatusSummary | undefined;
     /**
-     * Refreshes one Session unless `covered` already holds its delivery keys, adding them when it does not.
+     * Refreshes one Session unless `round.covered` already holds its delivery keys, adding them when it does not.
      * `isPendingRound` lets a settled Session whose local inputs did not change sit the round out (see
      * {@link isWatchFresh}).
      */
     watchSession: (
         sessionId: string,
-        covered: Set<string>,
+        round: WatchRound,
         isPendingRound: boolean,
     ) => Promise<WatchOutcome>;
 }
@@ -163,6 +179,7 @@ export class DeliveryWatch {
             const covered = new Set<string>(
                 [...polled].flatMap((sessionId) => deliveryKeys(this.options.summaryOf(sessionId))),
             );
+            const round: WatchRound = { covered, trackingHeads: new Map() };
             const sessionIds = this.options
                 .listSessions()
                 .filter((sessionId) => !polled.has(sessionId));
@@ -171,7 +188,7 @@ export class DeliveryWatch {
                     try {
                         const outcome = await this.options.watchSession(
                             sessionId,
-                            covered,
+                            round,
                             this.isPendingRound,
                         );
                         outcomes[outcome] += 1;

@@ -36,7 +36,7 @@ import {
 } from './branch';
 import { summaryCacheTtlMs } from './cache-ttl';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-over';
-import { pendingSummaryEntry } from './carry-over';
+import { pendingSummaryEntry, preparedFingerprint } from './carry-over';
 import { EmptyCheckRollupTracker } from './empty-check-rollup';
 import { emptyGitHubLoad, failedGitHubLoad } from './github-load';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
@@ -53,7 +53,7 @@ import {
     resolvePullRequestTarget,
 } from './session-pull-request';
 import { VercelDeploymentStore } from './vercel-store';
-import type { WatchOutcome } from './watch';
+import type { WatchOutcome, WatchRound } from './watch';
 import { deliveryKeys, DeliveryWatch, isWatchFresh } from './watch';
 
 const SUMMARY_CACHE_LIMIT = 128;
@@ -118,8 +118,8 @@ export class ProjectStatusService {
                 logger,
                 polledSessionIds: () => this.residentPoll.polled,
                 summaryOf: (sessionId) => this.summaries.get(sessionId)?.value,
-                watchSession: (sessionId, covered, isPendingRound) =>
-                    this.watchSession(sessionId, covered, isPendingRound),
+                watchSession: (sessionId, round, isPendingRound) =>
+                    this.watchSession(sessionId, round, isPendingRound),
             });
         }
         this.github =
@@ -241,7 +241,11 @@ export class ProjectStatusService {
         };
     }
 
-    private async prepareSummary(sessionId: string, isForced = false): Promise<PreparedSummary> {
+    private async prepareSummary(
+        sessionId: string,
+        isForced = false,
+        trackingHeads?: Map<string, Promise<string>>,
+    ): Promise<PreparedSummary> {
         const startedAt = performance.now();
         const gitSummary = await this.git.summary(sessionId, 0, 'projectStatus');
         if (!gitSummary.isRepository) {
@@ -255,34 +259,14 @@ export class ProjectStatusService {
             if (repo.kind !== 'worktree') visibleRepositories.push(repo);
         const repositories = await Promise.all(
             visibleRepositories.map((repo) =>
-                prepareStatusRepo(repo, this.readGit, this.remotes, isForced),
+                prepareStatusRepo(repo, this.readGit, this.remotes, isForced, trackingHeads),
             ),
         );
         const summary = {
             repositories: repositories.map(({ repository }) => repository),
             refreshedAt: this.now(),
         };
-        /**
-         * `projectStatus.ignoredChecks` is an input to the rollup rather than a display filter, so a summary computed
-         * under superseded rules is wrong the moment the user edits them. Folding the rules into the fingerprint reuses
-         * the cache's existing "the inputs changed" path instead of adding a second invalidation mechanism, and the
-         * shared pull-request store answers the re-parse from its own record, so the correction normally costs no extra
-         * GitHub query.
-         */
-        const fingerprint = JSON.stringify([
-            this.ignoredChecks(),
-            repositories.map(({ context, repository }) => [
-                repository.id,
-                context.branch,
-                context.defaultBranch,
-                context.head,
-                context.owner,
-                context.repo,
-                context.hasOrigin,
-                context.detached,
-                context.trackingHead,
-            ]),
-        ]);
+        const fingerprint = preparedFingerprint(this.ignoredChecks(), repositories);
         const durationMs = performance.now() - startedAt;
         if (durationMs >= SLOW_LOCAL_PREPARE_MS)
             this.logger.write('info', logEventCatalog.projectStatus.local, {
@@ -432,11 +416,11 @@ export class ProjectStatusService {
      */
     private async watchSession(
         sessionId: string,
-        covered: Set<string>,
+        { covered, trackingHeads }: WatchRound,
         isPendingRound: boolean,
     ): Promise<WatchOutcome> {
         const generation = this.sessionGeneration(sessionId);
-        const prepared = await this.prepareSummary(sessionId);
+        const prepared = await this.prepareSummary(sessionId, false, trackingHeads);
         if (!prepared.fingerprint || this.sessionGenerations.get(sessionId) !== generation)
             return 'skipped';
         const keys = deliveryKeys(prepared.summary);
