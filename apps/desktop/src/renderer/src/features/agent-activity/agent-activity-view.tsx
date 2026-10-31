@@ -7,22 +7,16 @@ import { useRelativeTimes } from '@/hooks/use-relative-time';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useSessionExcerpts } from '../../hooks/use-session-excerpts';
 import { useTranslation } from '../../i18n';
-import {
-    useProjects,
-    useSelectedProject,
-    useSelectedSession,
-    useSessions,
-    useTerminals,
-} from '../../stores/selectors';
+import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
-import { ActivitySessionCreationMenu } from '../session/create-session-menu';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
 import { AgentActivityHeading } from './agent-activity-heading';
+import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
 import type {
     AgentActivityGroupId,
@@ -66,18 +60,6 @@ export function AgentActivityView() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const scrollReference = useRef<HTMLDivElement>(null);
-    const selectedProject = useSelectedProject();
-    const creationProjects = useMemo(
-        () => topLevelProjects(allProjects ?? NO_RECORDS),
-        [allProjects],
-    );
-    /**
-     * The Project `session.create` targets (the selected Session's), so the row and the shortcut agree. A selection in
-     * a hidden worktree Project falls back to the first listed Project, since the menu cannot name a hidden one.
-     */
-    const defaultCreationProject =
-        creationProjects.find((project) => project.id === selectedProject?.id) ??
-        creationProjects.at(0);
     const groupCollapse = useAgentActivityGroupCollapse();
     /**
      * How far each windowed group was revealed. Kept in memory only, like the Project tree's windows: a relaunch starts
@@ -220,24 +202,10 @@ export function AgentActivityView() {
         [relativeTimes, sessionRows],
     );
 
-    /**
-     * Outside the tree: it is not a row of the queue, and inside `role="tree"` a focusable element has to be one. It
-     * stays above the scroller so the entry never scrolls away behind a long queue.
-     */
-    const newSessionRow =
-        defaultCreationProject === undefined ? null : (
-            <div className="agent-activity-new-session-bar flex-none px-2 pt-2">
-                <ActivitySessionCreationMenu
-                    defaultProject={defaultCreationProject}
-                    projects={creationProjects}
-                />
-            </div>
-        );
-
     if (groups.length === 0)
         return (
             <div className="flex min-h-0 flex-1 flex-col">
-                {newSessionRow}
+                <AgentActivityNewSessionBar />
                 <div className="agent-activity-empty flex min-h-0 flex-1 items-center justify-center p-6 text-center text-xs text-muted">
                     {t('agentActivity.empty')}
                 </div>
@@ -276,7 +244,7 @@ export function AgentActivityView() {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            {newSessionRow}
+            <AgentActivityNewSessionBar />
             <div className="scroll-edge-shell relative min-h-0 flex-1">
                 <div
                     ref={scrollReference}
