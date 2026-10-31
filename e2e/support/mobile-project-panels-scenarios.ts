@@ -180,22 +180,27 @@ async function reorderProjectFilters(environment: Environment, artifacts: string
             top: added.top - 8,
         };
         const resting = await mobileRegionFingerprint(environment.serial, strip);
-        // `draganddrop` holds the first point for the long-press timeout before moving, as a finger picking up a chip.
-        // The frame captured mid-move shows the held chip lifted and its neighbor stepping aside.
-        const y = String(Math.floor((added.top + added.bottom) / 2));
-        const drag = adbShell(environment.serial, [
-            'input',
-            'draganddrop',
-            String(Math.floor((added.left + added.right) / 2)),
-            y,
-            String(allowed.left + 4),
-            y,
-            '3000',
+        // The finger stays down past the pick-up delay, slides onto the other chip, and holds there while the frame is
+        // captured, so the evidence shows the lifted chip and its neighbor stepping aside before the drop.
+        const y = Math.floor((added.top + added.bottom) / 2);
+        const fromX = Math.floor((added.left + added.right) / 2);
+        const toX = allowed.left + 4;
+        const steps = 12;
+        await adbShell(environment.serial, [
+            [
+                `input motionevent DOWN ${fromX} ${y}`,
+                'sleep 0.8',
+                ...Array.from(
+                    { length: steps },
+                    (_, index) =>
+                        `input motionevent MOVE ${Math.round(fromX + ((toX - fromX) * (index + 1)) / steps)} ${y}`,
+                ),
+                'sleep 0.5',
+            ].join('; '),
         ]);
-        await new Promise((resolve) => setTimeout(resolve, 2600));
         const moving = await mobileRegionFingerprint(environment.serial, strip);
         await capture(environment, 'dragging', artifacts);
-        await drag;
+        await adbShell(environment.serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
         if (moving === resting) throw new Error('The held chip did not move while dragged');
         const after = await waitForMobile(desktopOrder, (order) => order[0] === addedId);
         if (after.join(',') !== [addedId, allowedId, hiddenId].join(','))
@@ -210,6 +215,8 @@ async function reorderProjectFilters(environment: Environment, artifacts: string
         );
         if (moved.some(({ checkId }) => checkId === `project-filter-${hiddenId}`))
             throw new Error('The phone showed a Project outside its grant');
+        if (moving === (await mobileRegionFingerprint(environment.serial, strip)))
+            throw new Error('The dragging frame matched the dropped strip instead of a held chip');
         await capture(environment, 'after', artifacts);
 
         // A plain tap still filters: the moved Project has no Sessions, so the other Project's Session leaves the list.
