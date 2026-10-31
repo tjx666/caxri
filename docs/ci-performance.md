@@ -698,6 +698,34 @@ artifacts are collected, derived, reviewed, and armed. The benchmark adds one El
 two minutes to the job; see
 [Agent Chat Session switch](renderer-performance.md#agent-chat-session-switch).
 
+### Collecting baseline samples
+
+`e2e-perf` yields one receipt per hosted-full run (8 macOS runners, about 35 minutes), too slow for the
+at least 40 same-image receipts a runner baseline needs. `.github/workflows/performance-samples.yml` is
+the dispatch-only collector: its `samples` input (10, 20, or 40) fans out one independent `macos-15`
+runner per sample, the image `e2e-perf` uses, and its `benchmark` input selects `agent-chat-switch`
+(default), `renderer`, or `both`. Each sample reuses `e2e-perf`'s trust-boundary, temporary-root, and
+setup steps, builds the profiling bundles, runs only the selected benchmark, and uploads its public
+receipt as `<benchmark>-performance-receipt-sample-<n>` (7-day retention) even when a spec assertion
+failed. It gates nothing and has `contents: read` only. A failed sample fails its own matrix entry and
+never cancels the others.
+
+```bash
+gh workflow run performance-samples.yml --ref main -f samples=40 -f benchmark=agent-chat-switch
+gh run list --workflow performance-samples.yml --limit 1   # note the run id
+mkdir -p /tmp/chat-switch-receipts
+gh run download <run-id> --pattern 'agent-chat-switch-performance-receipt*' --dir /tmp/chat-switch-receipts
+bun run performance:baseline:derive -- --source runner --input-dir /tmp/chat-switch-receipts \
+  --receipt-name agent-chat-session-switch.json --spec e2e/agent-chat-switch.performance.e2e.ts \
+  --provenance '<run id>, <date>, 40 macos-15 samples' --out scripts/performance-baseline.agent-chat-switch.json
+```
+
+`--input-dir` finds receipts recursively, so the one-directory-per-artifact layout of `--pattern`
+needs no flattening. Review the derived `excluded` and `metrics` entries before committing the baseline.
+To top up from several runs, download each run into its own subdirectory (`--dir /tmp/chat-switch-receipts/<run-id>`):
+artifact names repeat across runs, so a shared download directory would overwrite earlier samples. Keep all runs
+on the same commit so the receipts describe one build.
+
 ### Per-run gate: design and backtest
 
 `scripts/performance-baseline.ts`'s `derivePerformanceMetricBaseline` classifies each metric as

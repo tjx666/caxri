@@ -10,6 +10,10 @@ const performanceTrendWorkflow = await readFile(
     new URL('../../.github/workflows/performance-trend.yml', import.meta.url),
     'utf8',
 );
+const performanceSamplesWorkflow = await readFile(
+    new URL('../../.github/workflows/performance-samples.yml', import.meta.url),
+    'utf8',
+);
 const performanceBaseline = JSON.parse(
     await readFile(new URL('../performance-baseline.json', import.meta.url), 'utf8'),
 ) as { armed: boolean; metrics: Record<string, unknown>; provenance: string };
@@ -470,5 +474,42 @@ describe('CI workflow contract', () => {
         expect(performanceTrendWorkflow).toContain('workflow_dispatch:');
         expect(performanceTrendWorkflow).not.toContain('schedule:');
         expect(performanceTrendWorkflow).toContain('dispatch-only');
+    });
+
+    it('collects performance samples only on demand, on the e2e-perf runner image, and uploads receipts after failures', () => {
+        interface SampleStep {
+            if?: string;
+            uses?: string;
+            with?: { 'name'?: string; 'retention-days'?: number };
+        }
+        const samples = parse(performanceSamplesWorkflow) as {
+            jobs: Record<string, { 'runs-on': string; 'steps': SampleStep[] }>;
+            on: Record<string, unknown>;
+            permissions: Record<string, string>;
+        };
+        expect(Object.keys(samples.on)).toEqual(['workflow_dispatch']);
+        expect(samples.permissions).toEqual({ contents: 'read' });
+        expect(performanceSamplesWorkflow).not.toContain('secrets.');
+        expect(performanceSamplesWorkflow).toContain('fail-fast: false');
+        expect(samples.jobs.sample['runs-on']).toBe(document.jobs['e2e-perf']['runs-on']);
+        expect(samples.jobs.sample['runs-on']).toBe('macos-15');
+        for (const command of [
+            'run: bun run benchmark:renderer',
+            'run: bun run benchmark:chat-switch',
+            'bunx playwright test e2e/agent-chat-switch.performance.e2e.ts',
+            'uses: ./.github/actions/verify-trust-boundary',
+            'uses: ./.github/actions/setup-caxri-job',
+        ]) {
+            expect(performanceSamplesWorkflow).toContain(command);
+        }
+        const uploads = samples.jobs.sample.steps.filter((step) =>
+            (step.uses ?? '').startsWith('actions/upload-artifact@'),
+        );
+        expect(uploads).toHaveLength(2);
+        for (const upload of uploads) {
+            expect(upload.if).toContain('always()');
+            expect(upload.with).toMatchObject({ 'retention-days': 7 });
+            expect(upload.with?.name).toContain('-sample-${{ matrix.sample }}');
+        }
     });
 });
