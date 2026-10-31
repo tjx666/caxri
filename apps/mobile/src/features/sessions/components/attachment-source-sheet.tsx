@@ -42,6 +42,7 @@ export const AttachmentSourceSheet = ({
 }) => {
     const { t } = useTranslation();
     const picked = useRef<AttachmentSource | null>(null);
+    const hiddenSources = new Set(hidden);
     return (
         <BottomSheet
             closeLabel={t('sessions.image.closeSources')}
@@ -55,7 +56,7 @@ export const AttachmentSourceSheet = ({
             {(dismiss) => (
                 <>
                     {sources
-                        .filter(({ source }) => !hidden.includes(source))
+                        .filter(({ source }) => !hiddenSources.has(source))
                         .map(({ icon, labelKey, source }) => (
                             <SheetAction
                                 icon={icon}
