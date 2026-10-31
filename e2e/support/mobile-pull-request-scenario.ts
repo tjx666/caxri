@@ -191,3 +191,66 @@ export async function executeMobilePullRequestScenario(
         await rm(ghDirectory, { force: true, recursive: true });
     }
 }
+
+/**
+ * `MOB-CHAT-STATUS-TREE-MERGE-01`: the phone's Status panel carries Desktop's per-repository `Merge` button on the pull
+ * request row, so a submodule or nested repository's pull request merges from its own row rather than only the Session
+ * header's. A ready pull request merges on one tap, as on Desktop, through the same Extension command, so the merge is
+ * pinned to the head the row showed, and the refreshed row no longer offers it.
+ */
+export async function executeMobileStatusTreeMergeScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const ghDirectory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gh-'));
+    let head = '';
+    let gh: { bin: string; mergeLog: string } | undefined;
+    let mobile: Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
+    try {
+        mobile = await createMobileAcceptanceFixture({
+            chatProvider: 'claude',
+            mode: 'agent-chat',
+            serial,
+            seedProject: async (root) => {
+                await seedRepo(root);
+                head = await git(root, 'rev-parse', 'HEAD');
+                gh = await writeFakeGh(ghDirectory, 'ready', head);
+            },
+            env: { PATH: `${join(ghDirectory, 'bin')}:${process.env.PATH ?? ''}` },
+        });
+    } catch (error) {
+        await rm(ghDirectory, { force: true, recursive: true });
+        throw error;
+    }
+    try {
+        if (!gh || !mobile.allowedSessionId) throw new Error('Pull request fixture is unavailable');
+        const { mergeLog } = gh;
+        await mobile.pair();
+        await tapMobileCheck(serial, `session-row-${mobile.allowedSessionId}`);
+        await tapMobileCheck(serial, 'session-segment-panel-caxri.project-status');
+        await waitForCheck(serial, 'tree-row-action-0', 60_000);
+        await capture(environment, 'status-merge', artifacts);
+
+        await tapMobileCheck(serial, 'tree-row-action-0');
+        await waitForMobile(
+            () => readFile(mergeLog, 'utf8'),
+            (log) => log.trim().length > 0,
+        );
+        // The Extension refreshes the panel after the merge, and a merged pull request offers no Merge.
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !hasCheck(nodes, 'tree-row-action-0'),
+        );
+        await capture(environment, 'status-merged', artifacts);
+
+        const merges = (await readFile(mergeLog, 'utf8')).trim().split('\n').filter(Boolean);
+        const expected = `pr merge 42 --repo ${SLUG} --squash --match-head-commit ${head}`;
+        if (merges.length !== 1 || merges[0] !== expected)
+            throw new Error(`GitHub merge calls did not match: ${JSON.stringify(merges)}`);
+        await finish(environment, artifacts, { merge: 'squash-pinned-to-head', surface: 'status' });
+    } finally {
+        await mobile.stop();
+        await rm(ghDirectory, { force: true, recursive: true });
+    }
+}

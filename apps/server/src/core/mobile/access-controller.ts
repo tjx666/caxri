@@ -493,7 +493,8 @@ export const openMobileAccessController = (options: {
                     );
                 }
                 case 'mobile.panels.list':
-                case 'mobile.tree.children': {
+                case 'mobile.tree.children':
+                case 'mobile.tree.executeCommand': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
                     return invokeMobilePanelRequest(
                         request,

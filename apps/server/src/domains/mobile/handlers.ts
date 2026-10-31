@@ -71,6 +71,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.project.reorder'
     | 'mobile.panels.list'
     | 'mobile.tree.children'
+    | 'mobile.tree.executeCommand'
     | 'mobile.files.list'
     | 'mobile.files.listInternal'
     | 'mobile.preview.rootsInternal'
@@ -345,6 +346,9 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.tree.children': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Conversation Tree requires a paired device');
+        },
+        'mobile.tree.executeCommand': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile tree actions require a paired device');
         },
         'mobile.preview.rootsInternal': ({ sessionId, principal }) => {
             const session = authorizedSession(options.database, sessionId, principal);

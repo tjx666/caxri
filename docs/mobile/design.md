@@ -468,8 +468,10 @@ included) and opens bounded text previews; binary and oversized files say so. A 
 edit and save a bounded text file (`mobile.files.write`, see [Conversation](conversation.md)); other
 roles see why editing is unavailable. An unsaved edit and the folder position survive switching
 tabs, and Android Back walks the editor, preview, and folders before leaving the Session, confirming
-before it discards an edit. Status and extension panels render the same tree nodes Desktop shows,
-without running their commands. The Project tab is available to every role. Offline with nothing cached, it asks the
+before it discards an edit. Status and extension panels render the same tree nodes Desktop shows.
+A tap on a row only expands it; on a `control` device the row's inline actions (such as each
+repository's `Merge` in Status, submodules included) appear as pills tinted like Desktop's and run
+through `mobile.tree.executeCommand`, asking first when the provider attached a confirmation. The Project tab is available to every role. Offline with nothing cached, it asks the
 reader to reconnect instead of showing an empty folder or a spinner. A loading folder or tree item
 waits 500 ms before it shows its spinner, so one that answers at once never flashes it.
 

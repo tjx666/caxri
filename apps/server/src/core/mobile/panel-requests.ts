@@ -11,13 +11,13 @@ import { sessionForPrincipal } from './session-management';
 
 type PanelRequest = Extract<
     ServerRequest,
-    { method: 'mobile.panels.list' | 'mobile.tree.children' }
+    { method: 'mobile.panels.list' | 'mobile.tree.children' | 'mobile.tree.executeCommand' }
 >;
 
 /**
- * Projects the Desktop's Extension panels onto a paired device. Both reads admit the Session first and re-check the
- * device generation through `reauthorize` after the Extension catalog or provider answers, so a revocation while the
- * provider runs never releases its result.
+ * Projects the Desktop's Extension panels onto a paired device and runs their tree rows' inline actions. Every request
+ * admits the Session first and re-checks the device generation through `reauthorize` after the Extension catalog,
+ * provider, or command answers, so a revocation while it runs never releases its result.
  */
 export async function invokeMobilePanelRequest(
     request: PanelRequest,
@@ -52,6 +52,24 @@ export async function invokeMobilePanelRequest(
         return { panels };
     }
     if (!extensionService) throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
+    if (request.method === 'mobile.tree.executeCommand') {
+        const context = toExtensionViewEventContext(
+            await domainService.request('app.sessionContext', {
+                sessionId: request.params.sessionId,
+            }),
+        );
+        if (context.kind !== 'session')
+            throw new CaxriError('NOT_FOUND', 'Session is not available for this command');
+        // Re-checked before the command starts, since it may merge a pull request a revoked device must not reach.
+        reauthorize();
+        const result = await extensionService.executeCommand(
+            request.params.commandId,
+            request.params.arguments,
+            context,
+        );
+        reauthorize();
+        return result;
+    }
     /**
      * Scoped to the Session the phone is viewing, whichever Session Desktop has focused. The Extension service cancels
      * the read if that Session is deleted, hidden, or rebound to another Workbench Root while it runs.
@@ -68,8 +86,16 @@ export async function invokeMobilePanelRequest(
         context,
     });
     reauthorize();
+    const extensionCommands = new Set(
+        extensionService
+            .catalog()
+            .commands.filter((command) => command.source.kind === 'extension')
+            .map((command) => command.id),
+    );
     return {
-        items: result.items.map((item) => projectMobileTreeItem(item)),
+        items: result.items.map((item) =>
+            projectMobileTreeItem(item, (commandId) => extensionCommands.has(commandId)),
+        ),
         ...(result.reset && { reset: result.reset }),
     };
 }

@@ -25,6 +25,7 @@ export const panels = {
     'panels.saveConflict':
         'This file changed on your computer. Discard and reload before editing again.',
     'panels.saveFailed': 'Unable to save this file. Try again.',
+    'panels.treeActionFailed': "Couldn't run {{title}}",
     'panels.treeChildrenEmpty': 'Nothing to show',
     'panels.treeLoadingChildren': 'Loading items',
     'panels.treeEmpty': 'Nothing to show.',

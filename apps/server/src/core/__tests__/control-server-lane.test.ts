@@ -352,6 +352,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'git.switchBranch': 'repository',
     'git.sync': 'repository',
     'viewContainers.executeCommand': 'repository',
+    'mobile.tree.executeCommand': 'repository',
     'viewContainers.viewOperation': 'repository',
     // self-serialized
     'agentChat.saveLongPaste': 'self-serialized',

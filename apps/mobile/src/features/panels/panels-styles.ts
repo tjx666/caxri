@@ -46,6 +46,18 @@ export const panelsStyles = StyleSheet.create({
         paddingHorizontal: mobileSpace.lg,
     },
     rowText: { ...mobileType.body, flex: 1, minWidth: 0 },
+    /**
+     * A tree row and its inline actions side by side, so the action pills take their own presses instead of the row's.
+     */
+    treeRowLine: { alignItems: 'center', flexDirection: 'row' },
+    treeRowLabel: { flex: 1, minWidth: 0 },
+    treeRowLabelWithActions: { paddingRight: mobileSpace.sm },
+    treeActions: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.xs,
+        paddingRight: mobileSpace.lg,
+    },
     treeChevron: { alignItems: 'center', marginRight: -mobileSpace.xs, width: mobileSpace.lg },
     symlinkBadge: {
         alignItems: 'center',

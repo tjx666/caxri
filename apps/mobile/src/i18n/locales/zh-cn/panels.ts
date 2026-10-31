@@ -28,6 +28,7 @@ export const panels: TranslatedNamespace<typeof source> = {
     'panels.save': '保存',
     'panels.saveConflict': '此文件已在电脑上更改。请放弃并重新加载后再编辑。',
     'panels.saveFailed': '无法保存此文件，请重试。',
+    'panels.treeActionFailed': '无法执行 {{title}}',
     'panels.treeChildrenEmpty': '没有内容',
     'panels.treeLoadingChildren': '正在加载',
     'panels.treeEmpty': '没有可显示的内容。',

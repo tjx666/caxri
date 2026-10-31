@@ -33,7 +33,7 @@ const treeItemTooltipUrlSchema = z
     .max(16_384)
     .refine((value) => parseExternalHttpUrl(value).ok, 'Expected a safe HTTP(S) URL');
 
-const treeItemActionSchema = z.object({
+export const treeItemActionSchema = z.object({
     command: treeItemCommandSchema,
     icon: viewIconSchema,
     /**

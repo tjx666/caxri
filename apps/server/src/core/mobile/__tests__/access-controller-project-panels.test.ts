@@ -490,7 +490,10 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                 },
             ],
         });
-        const extensionService = { treeChildren } as unknown as ExtensionService;
+        const extensionService = {
+            catalog: () => ({ commands: [] }),
+            treeChildren,
+        } as unknown as ExtensionService;
         const controller = openMobileAccessController({ store });
         controller.attach(
             { invoke: vi.fn() },
