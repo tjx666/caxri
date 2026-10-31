@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ErrorBoundaryProps } from 'expo-router';
-import { Stack } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { RouteErrorScreen } from '../src/components/route-error-screen';
@@ -14,8 +14,12 @@ import { MobileClientProvider } from '../src/features/connection/mobile-client-p
 import { expoReadCache } from '../src/features/read-cache/expo-read-cache';
 import { ReadCacheContext } from '../src/features/read-cache/read-cache-context';
 import { syncSystemLocale } from '../src/i18n';
+import { mobileNavigationColors } from '../src/theme/navigation-theme';
+import { mobileTheme } from '../src/theme/tokens';
 
 const styles = StyleSheet.create({ root: { flex: 1 } });
+
+const navigationTheme = { ...DarkTheme, colors: mobileNavigationColors(mobileTheme) };
 
 const acceptanceRenderFault = { isCleared: false };
 
@@ -58,22 +62,30 @@ export default function RootLayout() {
                     <ReadCacheContext.Provider value={expoReadCache}>
                         <MobileClientProvider>
                             <StatusBar style="light" />
-                            <Stack
-                                screenOptions={{ animation: 'ios_from_right', headerShown: false }}
-                            >
-                                {/* Boot and pairing redirects land on the host; sliding a whole new app in reads as a jump. */}
-                                <Stack.Screen name="h/[host-id]" options={{ animation: 'fade' }} />
-                                <Stack.Screen name="sessions" options={{ animation: 'none' }} />
-                                {/* The in-app browser slides over whatever opened it and returns there when closed. */}
-                                <Stack.Screen
-                                    name="browser"
-                                    options={{
-                                        animation: 'slide_from_bottom',
-                                        gestureEnabled: true,
-                                        presentation: 'fullScreenModal',
+                            <ThemeProvider value={navigationTheme}>
+                                <Stack
+                                    screenOptions={{
+                                        animation: 'ios_from_right',
+                                        headerShown: false,
                                     }}
-                                />
-                            </Stack>
+                                >
+                                    {/* Boot and pairing redirects land on the host; sliding a whole new app in reads as a jump. */}
+                                    <Stack.Screen
+                                        name="h/[host-id]"
+                                        options={{ animation: 'fade' }}
+                                    />
+                                    <Stack.Screen name="sessions" options={{ animation: 'none' }} />
+                                    {/* The in-app browser slides over whatever opened it and returns there when closed. */}
+                                    <Stack.Screen
+                                        name="browser"
+                                        options={{
+                                            animation: 'slide_from_bottom',
+                                            gestureEnabled: true,
+                                            presentation: 'fullScreenModal',
+                                        }}
+                                    />
+                                </Stack>
+                            </ThemeProvider>
                             <ToastHost />
                         </MobileClientProvider>
                     </ReadCacheContext.Provider>
