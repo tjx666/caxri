@@ -51,7 +51,11 @@ export function indexedDatabaseDeviceStoreBackend(databaseName: string): DeviceS
             const entries = (await requestResult(
                 (await objectStore('readonly')).getAll(),
             )) as StoredEntry[];
-            return entries.map(({ modifiedAt, name }) => ({ modifiedAt, name }));
+            return entries.map(({ modifiedAt, name, text }) => ({
+                modifiedAt,
+                name,
+                size: text.length,
+            }));
         },
         read: async (name) => {
             const entry = (await requestResult((await objectStore('readonly')).get(name))) as

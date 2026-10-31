@@ -28,10 +28,8 @@ import {
     resumeAgentChatQueue,
     sendAgentChatQueuedNow,
 } from '../agent-chat-commands';
-import {
-    readAgentChatDraft,
-    subscribeAgentChatDraftChanges,
-} from '../composer-input/agent-chat-drafts';
+import { readAgentChatDraft } from '../composer-input/agent-chat-drafts';
+import { subscribeAgentChatDraftChanges } from '../composer-input/device-state/agent-chat-composer-listeners';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import type { AgentChatQueueEntryView } from './agent-chat-queue';
 import {

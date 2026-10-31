@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { readAgentChatEdit, writeAgentChatEdit } from '../../composer/agent-chat-edit';
-import {
-    readAgentChatDraft,
-    subscribeAgentChatDraftChanges,
-    writeAgentChatDraft,
-} from '../../composer-input/agent-chat-drafts';
+import { readAgentChatDraft, writeAgentChatDraft } from '../../composer-input/agent-chat-drafts';
+import { subscribeAgentChatDraftChanges } from '../../composer-input/device-state/agent-chat-composer-listeners';
 import {
     draftWithoutReviewComment,
     draftWithReplacedReviewComment,

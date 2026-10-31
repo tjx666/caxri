@@ -11,6 +11,15 @@ import { decodeDeviceStoreEntry, encodeDeviceStoreEntry } from './envelope.js';
  * the Desktop Renderer. Each method may answer synchronously or with a promise; the store keeps every mutation in call
  * order either way.
  */
+export type DeviceStoreListing = Array<{
+    modifiedAt: number;
+    name: string;
+    /**
+     * Characters of the stored text. Only a retention bound by characters reads it; an absent size counts as zero.
+     */
+    size?: number;
+}>;
+
 export interface DeviceStoreBackend {
     clear(): Promise<void> | void;
     /**
@@ -21,12 +30,16 @@ export interface DeviceStoreBackend {
     /**
      * Every entry with the time it was last written, used only to pick the oldest for eviction.
      */
-    list():
-        | Array<{ modifiedAt: number; name: string }>
-        | Promise<Array<{ modifiedAt: number; name: string }>>;
+    list(): DeviceStoreListing | Promise<DeviceStoreListing>;
     read(name: string): Promise<string | null>;
     remove(name: string): Promise<void> | void;
     write(name: string, text: string): Promise<void> | void;
+}
+
+export interface DeviceStoreRetention {
+    isBounded(name: string): boolean;
+    maxCharacters?: number;
+    maxEntries?: number;
 }
 
 export interface DeviceStoreOptions {
@@ -40,10 +53,11 @@ export interface DeviceStoreOptions {
      */
     writeDelayMs: number;
     /**
-     * Bounds a family of entries: after each write, entries `isBounded` accepts beyond the newest `maxEntries` are
-     * removed, oldest first. Entries it rejects are never evicted.
+     * Bounds families of entries: after each write, entries a rule's `isBounded` accepts are kept newest first while
+     * they fit `maxEntries` and `maxCharacters`, and the rest are removed. Entries no rule accepts are never evicted. A
+     * single entry that alone exceeds `maxCharacters` is evicted whole rather than cut.
      */
-    retention?: { isBounded(name: string): boolean; maxEntries: number };
+    retention?: DeviceStoreRetention | readonly DeviceStoreRetention[];
     now?: () => number;
 }
 
@@ -73,7 +87,13 @@ const then = (first: () => unknown, next: () => unknown): unknown => {
  * view.
  */
 export const createDeviceStore = (options: DeviceStoreOptions) => {
-    const { backend, retention, version, writeDelayMs } = options;
+    const { backend, version, writeDelayMs } = options;
+    const { retention } = options;
+    const rules: readonly DeviceStoreRetention[] = !retention
+        ? []
+        : 'isBounded' in retention
+          ? [retention]
+          : retention;
     const now = options.now ?? Date.now;
     const pending = new Map<string, Pending>();
     /**
@@ -110,48 +130,101 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
     };
 
     /**
-     * Removes the bounded entries beyond the newest `maxEntries` from one listing, in order, synchronously while the
-     * backend answers synchronously.
+     * Name, last write time, and size of every entry, kept only when a rule bounds by characters: it is read from the
+     * backend once, then follows this store's own mutations, so a write never re-reads other entries' text. Entries
+     * another window of the same scope writes are unseen until the next launch, which only loosens a bound for a
+     * while.
      */
-    const evictFrom = (
-        listed: Array<{ modifiedAt: number; name: string }>,
-        bound: NonNullable<DeviceStoreOptions['retention']>,
-    ): unknown => {
-        const evicted = listed
-            .filter(({ name }) => bound.isBounded(name))
+    let ledger: Map<string, { modifiedAt: number; size: number }> | undefined;
+    /**
+     * Orders ledger entries by this store's own writes rather than a clock, since a seeded entry carries the backend's
+     * clock and a new one this store's `now`.
+     */
+    let sequence = 0;
+
+    const removeEntry = (name: string): unknown =>
+        then(
+            () => backend.remove(name),
+            () => ledger?.delete(name),
+        );
+
+    /**
+     * Removes the entries `rule` bounds beyond what fits, newest kept first, in order, synchronously while the backend
+     * answers synchronously.
+     */
+    const evictFrom = (listed: DeviceStoreListing, rule: DeviceStoreRetention): unknown => {
+        const bounded = listed
+            .filter(({ name }) => rule.isBounded(name))
             // eslint-disable-next-line unicorn/no-array-sort -- The mobile Hermes target does not support ES2023 toSorted.
-            .sort((left, right) => right.modifiedAt - left.modifiedAt)
-            .slice(bound.maxEntries);
+            .sort((left, right) => right.modifiedAt - left.modifiedAt);
+        let characters = 0;
+        let overflowFrom = bounded.length;
+        for (const [index, { size }] of bounded.entries()) {
+            characters += size ?? 0;
+            if (
+                (rule.maxEntries !== undefined && index >= rule.maxEntries) ||
+                (rule.maxCharacters !== undefined && characters > rule.maxCharacters)
+            ) {
+                overflowFrom = index;
+                break;
+            }
+        }
         // Removals stay ordered with the writes around them.
         let result: unknown;
-        for (const { name } of evicted)
-            result = isPromise(result)
-                ? result.then(() => backend.remove(name))
-                : backend.remove(name);
+        for (const { name } of bounded.slice(overflowFrom))
+            result = isPromise(result) ? result.then(() => removeEntry(name)) : removeEntry(name);
         return result;
     };
 
-    const evictListed = (): unknown => {
-        if (!retention) return undefined;
+    const ledgerListing = (): DeviceStoreListing =>
+        [...(ledger ?? [])].map(([name, entry]) => ({ name, ...entry }));
+
+    const withListing = (apply: (listed: DeviceStoreListing) => unknown): unknown => {
+        if (ledger) return apply(ledgerListing());
+        const seed = (listed: DeviceStoreListing): unknown => {
+            const seeded = new Map<string, { modifiedAt: number; size: number }>();
+            // Oldest first, so the sequence follows recency.
+            // eslint-disable-next-line unicorn/no-array-sort -- The mobile Hermes target does not support ES2023 toSorted.
+            const oldestFirst = [...listed].sort((l, r) => l.modifiedAt - r.modifiedAt);
+            for (const entry of oldestFirst) {
+                sequence += 1;
+                seeded.set(entry.name, { modifiedAt: sequence, size: entry.size ?? 0 });
+            }
+            ledger = seeded;
+            return apply(ledgerListing());
+        };
         const listed = backend.list();
-        return isPromise(listed)
-            ? listed.then((entries) => evictFrom(entries, retention))
-            : evictFrom(listed, retention);
+        return isPromise(listed) ? listed.then(seed) : seed(listed);
     };
 
     /**
-     * Evicts after a write. A backend that counts its entries is listed only once the total exceeds the bound: the
-     * bounded family is a subset of every entry, so a total within it cannot hold an entry to evict.
+     * Evicts for one rule after a write. A rule bounding only the entry count on a backend that counts is listed only
+     * once the total exceeds the bound: its family is a subset of every entry, so a total within it cannot hold an
+     * entry to evict.
      */
-    const evictSync = (): unknown => {
-        if (!retention) return undefined;
+    const evictRule = (rule: DeviceStoreRetention): unknown => {
+        if (rule.maxCharacters !== undefined)
+            return withListing((listed) => evictFrom(listed, rule));
+        const { maxEntries } = rule;
+        if (maxEntries === undefined) return undefined;
+        const listAndEvict = (): unknown => {
+            const listed = backend.list();
+            return isPromise(listed)
+                ? listed.then((entries) => evictFrom(entries, rule))
+                : evictFrom(listed, rule);
+        };
         const counted = backend.count?.();
-        if (counted === undefined) return evictListed();
-        const isOver = (total: number) => total > retention.maxEntries;
+        if (counted === undefined) return listAndEvict();
         if (isPromise(counted))
-            return counted.then((total) => (isOver(total) ? evictListed() : undefined));
-        return isOver(counted) ? evictListed() : undefined;
+            return counted.then((total) => (total > maxEntries ? listAndEvict() : undefined));
+        return counted > maxEntries ? listAndEvict() : undefined;
     };
+
+    const evictSync = (): unknown =>
+        rules.reduce<() => unknown>(
+            (previous, rule) => () => then(previous, () => evictRule(rule)),
+            () => {},
+        )();
 
     /**
      * Reads one entry written under `scope`. Waits for mutations still in flight, so a read never sees an entry its own
@@ -183,10 +256,20 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
             pending.delete(name);
             if (scheduledEpoch !== epoch || scope !== activeScope) return;
             run(() =>
-                then(
-                    () => backend.write(name, encodeDeviceStoreEntry(version, scope, now(), value)),
-                    evictSync,
-                ),
+                then(() => {
+                    const text = encodeDeviceStoreEntry(version, scope, now(), value);
+                    const written = backend.write(name, text);
+                    return then(
+                        () => written,
+                        () => {
+                            // Reinserted, so the map's order stays recency order.
+                            if (!ledger) return;
+                            ledger.delete(name);
+                            sequence += 1;
+                            ledger.set(name, { modifiedAt: sequence, size: text.length });
+                        },
+                    );
+                }, evictSync),
             );
         };
         pending.set(name, { flush, timer: setTimeout(flush, writeDelayMs) });
@@ -201,7 +284,7 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
             clearTimeout(previous.timer);
             pending.delete(name);
         }
-        run(() => backend.remove(name));
+        run(() => removeEntry(name));
     };
 
     /**
@@ -220,7 +303,14 @@ export const createDeviceStore = (options: DeviceStoreOptions) => {
         epoch += 1;
         for (const entry of pending.values()) clearTimeout(entry.timer);
         pending.clear();
-        run(() => backend.clear());
+        run(() =>
+            then(
+                () => backend.clear(),
+                () => {
+                    ledger = undefined;
+                },
+            ),
+        );
     };
 
     /**

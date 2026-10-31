@@ -651,7 +651,7 @@ a message, the composer does not wait for the answer: once any confirmation belo
 edit bar closes and the set-aside draft comes back while Send says it is sending, and a refused
 rewind reports why and reopens the edit with the sent text and images. The edit
 survives switching tabs and restarting Caxri, like a draft: the edit (message id, the revert choice,
-and the set-aside draft) is mirrored to device-local `localStorage` (`caxri.agent-chat.edits`,
+and the set-aside draft) is mirrored to the device store (see the composer bullet below;
 bounded to the 50 newest edits), so a restart never brings back the earlier message's text as an
 ordinary draft with the held-back draft lost.
 
@@ -883,11 +883,12 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   covers the last line of text.
 - The composer keeps an unsent draft per Chat across tab and Session switches and across a full
   restart, clears only the text that was actually sent, and treats Escape as Stop while a turn
-  runs. The draft text is device-local Renderer state in `localStorage` (bounded to the 50 most
-  recently edited Chats), never sent to Server Core. Attached images survive a restart too, in
-  device-local IndexedDB instead, because a few encoded images would exhaust the `localStorage`
-  quota (`agent-chat-attachment-persistence.ts`): at most 128 MB of encoded images across all
-  Chats, dropping the Chats whose images changed least recently first, deleted once the message
+  runs. Drafts, edits, and attached images are device-local Renderer state in the
+  device store (`createDeviceStore`), one IndexedDB entry per Chat and kind in the database of the window's composer scope
+  (`local`, `bot`, or `ssh:<hostIdentity>`), never sent to Server Core: at most the 50 most recently
+  edited drafts and 50 edits (1 million characters each), and at most 128 MB of encoded images across
+  all Chats, dropping the Chats changed least recently first. The Chat pane opens once those entries are read
+  (`agent-chat-composer-state.ts`), and images are deleted once the message
   that carried them is accepted or the Chat is gone, and silently skipped when unreadable. ArrowUp on an empty composer opens a list of the prompts this Chat sent, as LobeHub's chat input does: newest at the bottom nearest the input, a prompt sent again listed once at its newest place, at most 50 rows, and the highlighted prompt previewed in the input's placeholder. ArrowUp walks older without wrapping, ArrowDown past the newest closes the list, Enter or Tab (or a click) fills the input without sending, and Escape or any typed key closes it. The list is read from the user messages in the Chat's projection when it opens, so it needs no storage of its own and reaches only as far back as the projection keeps (see `truncated`). ArrowUp is left alone while the input holds text, an image is attached, a message is being edited, or another composer menu is open. A filled prompt is an ordinary draft and persists like one. Ctrl+S stashes the draft (text, caret, attachments, and Goal mode) and empties the input, as Claude Code's prompt stash does, so a quick question can go first; the placeholder says a stash is waiting, Ctrl+S in an empty input restores it, and it also returns by itself after the next send unless the user has started typing again, and both restores say so in the composer notice. A whitespace-only input counts as empty for a restore. Ctrl+S with a draft while a stash waits swaps the two (the draft becomes the stash and the stashed draft comes back, caret and attachments included) and the composer notice says so, so neither is lost and the key never dead-ends. While an earlier message is being edited Ctrl+S is refused with the notice "Finish or cancel the edit first". The stash lives in memory per Chat until Caxri quits, and the stashed notice says so. Ctrl+C with nothing selected empties the input and its attachments, as Claude Code's prompt does (over a selection it stays Copy); the text leaves as an ordinary edit, so Cmd+Z brings it back, while the attachments stay removed as they do when their placeholder is deleted by hand. A pasted `http(s)` URL renders in the input the way the sent message renders it: the same linkify rule finds it, it takes the accent color behind its site icon, and a pull request link's glyph and text take its state from the same cached reference preview. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its popover (opened by a click, or by Enter or Space on the focused ring, never by hover). Below 85% the
