@@ -76,9 +76,10 @@ const BUILD_TIMEOUT_MS = 12 * 60_000;
 /**
  * The Gradle release build gets its own budget. After a React Native or Android Gradle Plugin upgrade the first build
  * compiles every native module from scratch: one cold build was killed in R8 at 12 minutes, while the warm rebuild took
- * under 4.
+ * under 4. A fresh worktree's first build on a loaded host (several emulators running) then also outran 30 minutes and
+ * took about 12 once warm, so the budget leaves room for that; the overall deadline still bounds the whole run.
  */
-const ANDROID_RELEASE_BUILD_TIMEOUT_MS = 30 * 60_000;
+const ANDROID_RELEASE_BUILD_TIMEOUT_MS = 45 * 60_000;
 const E2E_TIMEOUT_MS = 8 * 60_000;
 const DEVICE_TIMEOUT_MS = 30_000;
 const SOURCE_TIMEOUT_MS = 10_000;

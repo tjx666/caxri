@@ -40,6 +40,7 @@ afterAll(async () => {
 describe('Acceptance plan programmatic-gate check', () => {
     it.each([
         ['method', '设备角色限制由 Server 单元测试覆盖。', '单元测试'],
+        ['method', '检查状态映射与外链 URL 由单测覆盖。', '单测'],
         ['expected', 'lint 通过且页面正常。', 'lint'],
         ['title', 'Unit tests cover the preview proxy', 'Unit tests'],
         ['category', '类型检查', '类型检查'],
