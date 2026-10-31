@@ -8,6 +8,20 @@ import { localizeServerStatusText } from './status-server-text';
 
 export type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
 
+const providerListFormatters = new Map<string, Intl.ListFormat>();
+
+/**
+ * One formatter per interface language, so the provider list joins as the current language does.
+ */
+function providerListFormatter(language: string): Intl.ListFormat {
+    let formatter = providerListFormatters.get(language);
+    if (!formatter) {
+        formatter = new Intl.ListFormat(language, { type: 'conjunction' });
+        providerListFormatters.set(language, formatter);
+    }
+    return formatter;
+}
+
 /**
  * Failures that state one condition for the whole Project rather than a property of the repository that happened to
  * report them: a lost connection, and a provider budget the whole account shares. The root states each of these once
@@ -43,10 +57,7 @@ export function networkNodes(errors: readonly ProjectStatusFailure[]): StatusNod
                 variant: 'message',
                 description: isShared
                     ? l10n.t('Caxri could not reach {providers}. Reconnect, then refresh.', {
-                          // Formatted per call in the interface language, so the list joins as that language does.
-                          providers: new Intl.ListFormat(caxri.env.language, {
-                              type: 'conjunction',
-                          }).format(names),
+                          providers: providerListFormatter(caxri.env.language).format(names),
                       })
                     : first.hint && localizeServerStatusText(first.hint),
                 icon: 'cloud',
