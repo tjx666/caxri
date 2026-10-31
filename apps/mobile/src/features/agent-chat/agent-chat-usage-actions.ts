@@ -113,6 +113,16 @@ export const agentChatUsageGuardButtons = (
 ];
 
 /**
+ * Each action's suffix on its button's `testID`, in the lowercase kebab-case Android Acceptance requires of check ids.
+ */
+export const AGENT_CHAT_USAGE_ACTION_IDS = {
+    bypassUsageGuard: 'continue-anyway',
+    cancel: 'cancel',
+    continueNow: 'continue-now',
+    generateHandoff: 'generate-handoff',
+} as const satisfies Record<AgentChatUsageAction, string>;
+
+/**
  * The toast an action shows when the Server refuses it, in Desktop's words.
  */
 export const AGENT_CHAT_USAGE_ACTION_FAILURES = {

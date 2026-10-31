@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n';
 import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatUsageAction, AgentChatUsageButton } from './agent-chat-usage-actions';
+import { AGENT_CHAT_USAGE_ACTION_IDS } from './agent-chat-usage-actions';
 
 /**
  * A usage card's buttons, wrapping onto a second line on a narrow phone. While this device cannot act (no reply access,
@@ -47,7 +48,7 @@ export const AgentChatUsageButtons = ({
                         key={button.action}
                         label={t(button.label)}
                         onPress={() => onPress(button.action)}
-                        testID={`${testID}-${button.action}`}
+                        testID={`${testID}-${AGENT_CHAT_USAGE_ACTION_IDS[button.action]}`}
                         theme={theme}
                         variant={button.isPrimary ? 'primary' : 'outline'}
                     />

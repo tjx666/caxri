@@ -58,22 +58,22 @@ export async function executeMobileChatUsageLimitContinueScenario(
     try {
         // The fake Claude answers this prompt with a rejected 5-hour limit, so the Chat waits for the reset.
         const chat = await openChatAfter(fixture, serial, 'usage exhausted');
-        await waitForCheck(serial, 'chat-usage-limit-continueNow', 60_000);
+        await waitForCheck(serial, 'chat-usage-limit-continue-now', 60_000);
         await waitForCheck(serial, 'chat-usage-limit-cancel');
-        await expectText(serial, 'chat-usage-limit-continueNow', 'Continue now');
+        await expectText(serial, 'chat-usage-limit-continue-now', 'Continue now');
         await expectText(serial, 'chat-usage-limit-cancel', 'Cancel');
         await capture(environment, 'waiting', artifacts);
         // The fake's limit resets in 2 hours, so a reply within this case can only come from Continue now.
         const tappedAt = Date.now();
 
-        await tapMobileCheck(serial, 'chat-usage-limit-continueNow');
+        await tapMobileCheck(serial, 'chat-usage-limit-continue-now');
         await waitForMobile(
             () => chat.read(),
             (snapshot) =>
                 !snapshot.activeTurnId && agentText(snapshot).includes('Hello from fake Claude'),
             60_000,
         );
-        await waitForNoCheck(serial, 'chat-usage-limit-continueNow');
+        await waitForNoCheck(serial, 'chat-usage-limit-continue-now');
         await waitForNoCheck(serial, 'chat-usage-limit-cancel');
         await capture(environment, 'continued', artifacts);
         await finish(environment, artifacts, {
@@ -106,14 +106,14 @@ export async function executeMobileChatUsageGuardHandoffScenario(
     try {
         // The fake Claude reports the weekly window at 99.5% before it answers, which arms the guard.
         const chat = await openChatAfter(fixture, serial, 'weekly nearly used');
-        await waitForCheck(serial, 'agent-chat-usage-guard-generateHandoff', 60_000);
-        await waitForCheck(serial, 'agent-chat-usage-guard-bypassUsageGuard');
-        await expectText(serial, 'agent-chat-usage-guard-generateHandoff', 'Generate hand-off');
-        await expectText(serial, 'agent-chat-usage-guard-bypassUsageGuard', 'Continue anyway');
+        await waitForCheck(serial, 'agent-chat-usage-guard-generate-handoff', 60_000);
+        await waitForCheck(serial, 'agent-chat-usage-guard-continue-anyway');
+        await expectText(serial, 'agent-chat-usage-guard-generate-handoff', 'Generate hand-off');
+        await expectText(serial, 'agent-chat-usage-guard-continue-anyway', 'Continue anyway');
         await capture(environment, 'guard', artifacts);
 
         await writeFile(hold, '');
-        await tapMobileCheck(serial, 'agent-chat-usage-guard-generateHandoff');
+        await tapMobileCheck(serial, 'agent-chat-usage-guard-generate-handoff');
         await waitForCheck(serial, 'agent-chat-usage-guard-generating', 60_000);
         // Held by the fake, so the document cannot have arrived yet.
         if (
@@ -129,10 +129,10 @@ export async function executeMobileChatUsageGuardHandoffScenario(
         await waitForCheck(serial, 'agent-chat-usage-guard-copy');
         await waitForNoCheck(serial, 'agent-chat-usage-guard-generating');
         // The account's one hand-off this week is spent.
-        await waitForNoCheck(serial, 'agent-chat-usage-guard-generateHandoff');
+        await waitForNoCheck(serial, 'agent-chat-usage-guard-generate-handoff');
         await capture(environment, 'generated', artifacts);
 
-        await tapMobileCheck(serial, 'agent-chat-usage-guard-bypassUsageGuard');
+        await tapMobileCheck(serial, 'agent-chat-usage-guard-continue-anyway');
         await waitForNoCheck(serial, 'agent-chat-usage-guard', 60_000);
         // The guard really let requests through: a new message gets its answer, and the guard stays lifted.
         await chat.send({ text: 'one more thing' });
@@ -173,7 +173,7 @@ export async function executeMobileChatUsageGuardOfflineScenario(
     let isNetworkDisabled = false;
     try {
         await openChatAfter(fixture, serial, 'weekly nearly used');
-        await waitForCheck(serial, 'agent-chat-usage-guard-generateHandoff', 60_000);
+        await waitForCheck(serial, 'agent-chat-usage-guard-generate-handoff', 60_000);
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
         await waitForCheck(serial, 'connection-stale-banner', 60_000);
@@ -185,8 +185,8 @@ export async function executeMobileChatUsageGuardOfflineScenario(
         );
         const offline = await mobileSemantics(serial);
         for (const id of [
-            'agent-chat-usage-guard-generateHandoff',
-            'agent-chat-usage-guard-bypassUsageGuard',
+            'agent-chat-usage-guard-generate-handoff',
+            'agent-chat-usage-guard-continue-anyway',
         ])
             if (offline.find(({ checkId }) => checkId === id)?.enabled !== false)
                 throw new Error(`${id} stayed enabled offline`);
@@ -198,7 +198,7 @@ export async function executeMobileChatUsageGuardOfflineScenario(
         await waitForNoCheck(serial, 'agent-chat-usage-guard-blocked');
         const online = await mobileSemantics(serial);
         if (
-            !online.find(({ checkId }) => checkId === 'agent-chat-usage-guard-generateHandoff')
+            !online.find(({ checkId }) => checkId === 'agent-chat-usage-guard-generate-handoff')
                 ?.enabled
         )
             throw new Error('Generate hand-off stayed disabled back online');
