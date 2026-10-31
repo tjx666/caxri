@@ -35,8 +35,9 @@ export function AgentChatReplyFrame({
      */
     isPinned?: boolean;
     /**
-     * Leads the row and stays shown without hover or focus: a user message's version switcher, which must stay findable
-     * once the message has earlier versions.
+     * Ends the row and stays shown without hover or focus: a user message's version switcher, which must stay findable
+     * once the message has earlier versions. A user message's row is end-aligned, so the hover actions that mount
+     * before it never move it out from under the pointer on the way to a click.
      */
     persistentActions?: ReactNode;
 }) {
@@ -65,8 +66,8 @@ export function AgentChatReplyFrame({
                     className={cn('mt-0.5 flex h-6 items-center gap-1', actionsClassName)}
                     data-agent-chat-find-ignore=""
                 >
-                    {persistentActions}
                     {(isHovered || isFocusWithin || isPinned) && actions}
+                    {persistentActions}
                 </div>
             )}
         </div>
