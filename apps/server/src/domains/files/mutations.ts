@@ -65,6 +65,11 @@ export interface FileMutationServiceOptions {
      */
     beforeCopyValidation?: () => Promise<void>;
     copyFile?: CopyFile;
+    /**
+     * Moves a file that a `replace` move is about to overwrite into the host Trash and returns the Undo receipt for it.
+     * Without it, `replace` overwrites the target in place.
+     */
+    trashReplacedTarget?: (sessionId: string, path: string) => Promise<string>;
     copyLimits?: Partial<CopyLimits>;
     now?: () => number;
 }
@@ -81,6 +86,7 @@ export class FileMutationService {
     private readonly copyLimits: CopyLimits;
     private readonly copyTree: CopyTreeExecutor;
     private readonly now: () => number;
+    private readonly trashReplacedTarget?: (sessionId: string, path: string) => Promise<string>;
     private readonly reservedTargets = new Set<string>();
 
     constructor(
@@ -92,6 +98,7 @@ export class FileMutationService {
         this.beforeCopyTargetValidation = options.beforeCopyTargetValidation;
         this.beforeCopyValidation = options.beforeCopyValidation;
         this.copyLimits = { ...DEFAULT_COPY_LIMITS, ...options.copyLimits };
+        this.trashReplacedTarget = options.trashReplacedTarget;
         this.now = options.now ?? (() => Date.now()); // Read per call, so later-installed fake timers apply.
         this.copyTree = new CopyTreeExecutor(
             this.now,
@@ -195,17 +202,22 @@ export class FileMutationService {
                         this.assertIdentity(source),
                         this.assertIdentity(directory),
                     ]);
+                    let replacedUndoToken: string | undefined;
+                    if (isReplacedTarget && this.trashReplacedTarget)
+                        // eslint-disable-next-line no-await-in-loop -- see comment above the loop
+                        replacedUndoToken = await this.trashReplacedTarget(sessionId, targetPath);
                     /**
                      * Node's rename matches VS Code's local provider. The reservation prevents conflicting Caxri
                      * requests, and the final check normally avoids knowingly replacing a target that already exists:
                      * except in `replace` mode, where the caller already showed the user an interactive Finder-style
                      * prompt and captured an explicit Replace confirmation, and `assertReplaceableMove` just verified
-                     * neither side of the move is a folder. Server has no Trash API for a safer overwrite (that lives
-                     * in Main), so the sanctioned replace path is POSIX `rename(2)` atomically overwriting a plain file
-                     * target.
+                     * neither side of the move is a folder. The overwritten file went into the host Trash just above
+                     * when `trashReplacedTarget` is wired, so `rename(2)` then lands on a free path and Undo can put
+                     * the old file back; otherwise rename overwrites the plain file target atomically.
                      */
                     // eslint-disable-next-line no-await-in-loop -- see comment above the loop
                     await rename(source.path, targetPath);
+                    if (replacedUndoToken) result.replacedUndoToken = replacedUndoToken;
                     this.logger.write('info', logEventCatalog.file.moved, {
                         fields: {
                             sessionId,

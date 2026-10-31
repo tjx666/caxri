@@ -66,6 +66,22 @@ export class TrashUndo {
     }
 
     /**
+     * Moves the file a Replace move is about to overwrite into the host Trash and returns its Undo receipt. Runs inside
+     * the move's own queued operation, which already holds the target path, so it must not queue again.
+     */
+    async trashReplacedTarget(sessionId: string, path: string): Promise<string> {
+        const trashPath = await moveToHostTrash(path);
+        const stats = await lstat(trashPath, { bigint: true });
+        return this.receipts.add({
+            sessionId,
+            originalPath: path,
+            trashPath,
+            device: stats.dev,
+            inode: stats.ino,
+        });
+    }
+
+    /**
      * Records where Main's native Trash call put an item. The location is trusted only when the entry there carries the
      * identity the user approved, so a mis-reported location yields no Undo rather than moving the wrong item.
      */

@@ -304,7 +304,15 @@ export const mutableFileEntrySchema = z.object({
     kind: z.enum(['file', 'directory']),
 });
 
-export const movedFileEntrySchema = mutableFileEntrySchema.extend({ previousPath: pathSchema });
+export const movedFileEntrySchema = mutableFileEntrySchema.extend({
+    previousPath: pathSchema,
+    /**
+     * Server's Trash receipt for the file a `replace` move overwrote, which Server moved into the host Trash first.
+     * Pass it to `files.restoreTrashed` after moving the entry back to put the overwritten file at the path it came
+     * from.
+     */
+    replacedUndoToken: z.string().min(1).max(128).optional(),
+});
 
 const stagedMovedFileEntrySchema = movedFileEntrySchema.extend({
     birthtime: z.string().min(1).optional(),
