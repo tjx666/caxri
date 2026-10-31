@@ -43,7 +43,7 @@ import { executeMobileSessionRefreshScenario } from './support/mobile-session-re
 import { executeMobileTerminalScenario } from './support/mobile-terminal-scenarios.ts';
 import { executeMobileTerminalScrollFeelScenario } from './support/mobile-terminal-scroll-scenario.ts';
 import { executeMobileTerminalScrollbackScenario } from './support/mobile-terminal-scrollback-scenario.ts';
-import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenarios.ts';
+import * as uiAudit from './support/mobile-ui-audit-scenarios.ts';
 import {
     assertMobileComposerDraft,
     assertMobileUnknownFeedback,
@@ -111,9 +111,8 @@ test('executes one report-bound Android product scenario', async ({}) => {
         );
         return;
     }
-    // `MOB-UI-04` shares `executeMobileConversationScenario` with `MOB-CONV-*` below, so it keeps its own case.
-    if (environment.caseId.startsWith('MOB-UI-') && environment.caseId !== 'MOB-UI-04') {
-        await executeMobileUiAuditScenario(environment, artifacts);
+    if (uiAudit.isMobileUiAuditCase(environment.caseId)) {
+        await uiAudit.executeMobileUiAuditScenario(environment, artifacts);
         return;
     }
     switch (environment.caseId) {

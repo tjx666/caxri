@@ -523,6 +523,14 @@ async function sessionSearch(
 }
 
 /**
+ * Whether {@link executeMobileUiAuditScenario} owns a case. `MOB-UI-04` shares `executeMobileConversationScenario` with
+ * `MOB-CONV-*`, so it stays with them.
+ */
+export const isMobileUiAuditCase = (caseId: string): boolean =>
+    (caseId.startsWith('MOB-UI-') && caseId !== 'MOB-UI-04') ||
+    caseId.startsWith('MOB-SESSION-SEARCH-');
+
+/**
  * Runs the synthetic Acceptance cases for the page-by-page mobile UI audit.
  */
 export async function executeMobileUiAuditScenario(
