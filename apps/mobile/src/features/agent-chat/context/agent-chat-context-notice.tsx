@@ -1,7 +1,5 @@
 import { useState } from 'react';
 
-import type { AgentChatUsage } from '@caxri/protocol';
-
 import { NoticeBanner } from '../../../components/notice-banner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -24,20 +22,22 @@ import { useAgentChatCompact } from './use-agent-chat-compact';
 export const AgentChatContextNotice = ({
     canSend,
     chat,
-    terminalId,
     theme,
-    usage,
 }: {
     /**
      * Whether this phone may send to the Chat; a view-only phone keeps the Usage button.
      */
     canSend: boolean;
+    /**
+     * The Chat whose usage the notice reads and whose `/compact` it runs. The composer mounts the notice only once the
+     * Chat has a Terminal.
+     */
     chat: Pick<AgentChatController, 'runCommand' | 'snapshot'>;
-    terminalId: string;
     theme: MobileTheme;
-    usage: AgentChatUsage | undefined;
 }) => {
     const { t } = useTranslation();
+    const terminalId = chat.snapshot?.terminalId ?? '';
+    const usage = chat.snapshot?.usage;
     const compaction = useAgentChatCompact(chat, canSend);
     const now = useMinuteClock();
     const [isOpen, setOpen] = useState(false);

@@ -366,9 +366,7 @@ export const AgentChatComposer = ({
                 <AgentChatContextNotice
                     canSend={availability.isEnabled}
                     chat={chat}
-                    terminalId={chat.snapshot.terminalId}
                     theme={theme}
-                    usage={chat.snapshot.usage}
                 />
             )}
             {isMenuOpen ? null : (
