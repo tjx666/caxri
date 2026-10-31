@@ -29,8 +29,8 @@ const LAST_NARRATION = 'Every reader of the plan usage is listed above.';
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Each cycle opens the Chat, lets it settle, and films one Back. A single Back rarely lands on a slow frame on the
- * emulator, so the case repeats it.
+ * Each cycle opens the Chat, lets it settle, and goes Back. A single Back rarely lands on a slow frame on the emulator,
+ * so the case repeats it.
  */
 const CYCLES = 6;
 const SETTLE_MS = 2_500;
@@ -89,27 +89,22 @@ const lightShare = ({ data }: GrayFrame): number => {
 };
 
 /**
- * Opens the Chat from its Session row, lets it settle, and films one Back gesture. Returns the light share of every
- * frame.
+ * Opens the Chat from its Session row, lets it settle, and performs one Back gesture while the caller films.
  */
-async function filmOneBack({
-    analysis,
+async function openAndGoBack({
     artifacts,
-    band,
     cycle,
     display,
     environment,
     sessionId,
 }: {
-    analysis: string;
     artifacts: string[];
-    band: { bottom: number; top: number };
     cycle: number;
     display: { height: number; width: number };
-    environment: MobileAgentScenarioEnvironment & { remoteVideoPath: string };
+    environment: MobileAgentScenarioEnvironment;
     sessionId: string;
-}): Promise<number[]> {
-    const { remoteVideoPath, serial } = environment;
+}): Promise<void> {
+    const { serial } = environment;
     const { width } = display;
     const swipeY = Math.floor(display.height / 2);
     const row = await waitForMobile(
@@ -130,26 +125,17 @@ async function filmOneBack({
     ]);
     await pause(SETTLE_MS);
     if (cycle === 0) await capture(environment, 'opened', artifacts);
-    const recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
-    try {
-        // The system Back gesture from the left edge, the way the flash was reported.
-        await adbShell(serial, [
-            'input',
-            'swipe',
-            '2',
-            String(swipeY),
-            String(Math.floor(width * 0.7)),
-            String(swipeY),
-            '150',
-        ]);
-        await pause(WATCH_MS);
-    } finally {
-        await recording.stop();
-    }
-    const video = join(analysis, `back-${cycle}.mp4`);
-    await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-    const { frames } = await readRecordingBand(video, band);
-    return frames.map(lightShare);
+    // The system Back gesture from the left edge, the way the flash was reported.
+    await adbShell(serial, [
+        'input',
+        'swipe',
+        '2',
+        String(swipeY),
+        String(Math.floor(width * 0.7)),
+        String(swipeY),
+        '150',
+    ]);
+    await pause(WATCH_MS);
 }
 
 /**
@@ -184,30 +170,29 @@ export async function executeMobileChatBackScenario(
         const { height } = display;
         // Below the status bar and above the navigation bar, which the app does not draw.
         const band = { top: Math.floor(height * 0.06), bottom: Math.floor(height * 0.94) };
-        const shares: number[][] = [];
-        for (let cycle = 0; cycle < CYCLES; cycle += 1) {
-            // eslint-disable-next-line no-await-in-loop -- each Back starts from the list the previous one returned to.
-            const cycleShares = await filmOneBack({
-                analysis,
-                artifacts,
-                band,
-                cycle,
-                display,
-                environment: { ...environment, remoteVideoPath },
-                sessionId,
-            });
-            shares.push(cycleShares);
+        // One recording spans every cycle, so the evidence video shows all six Backs and every frame is judged.
+        const recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        try {
+            for (let cycle = 0; cycle < CYCLES; cycle += 1) {
+                // eslint-disable-next-line no-await-in-loop -- each Back starts from the list the previous one returned to.
+                await openAndGoBack({ artifacts, cycle, display, environment, sessionId });
+            }
+        } finally {
+            await recording.stop();
         }
+        const video = join(analysis, 'back.mp4');
+        await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
+        const shares = (await readRecordingBand(video, band)).frames.map(lightShare);
         await capture(environment, 'returned', artifacts);
-        const flashFrames = shares.flat().filter((share) => share >= FLASH_SHARE).length;
-        const peakShare = Math.max(...shares.flat());
+        const flashFrames = shares.filter((share) => share >= FLASH_SHARE).length;
+        const peakShare = Math.max(...shares);
         if (flashFrames > 0)
             throw new Error(
                 `Back showed a light flash in ${flashFrames} frames (peak light share ${peakShare.toFixed(2)})`,
             );
         await finish(environment, artifacts, {
             cycles: CYCLES,
-            frames: shares.flat().length,
+            frames: shares.length,
             motion: 'live',
             peakLightShare: Number(peakShare.toFixed(3)),
             status: 'passed',
