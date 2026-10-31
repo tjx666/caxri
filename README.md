@@ -91,7 +91,6 @@ New here? Read [Getting started](docs/getting-started.md) for the model in five 
 - An Apple Silicon Mac running macOS 13 (Ventura) or later.
 - At least one supported Agent CLI (Claude Code, Codex or Grok Build) installed and signed in. Check
   that it works in Terminal first. Shell Sessions work without one.
-- [Homebrew](https://brew.sh/), only to install the optional notification helper.
 
 Release builds are currently Apple Silicon only; Intel Macs can build Caxri from source (see
 [CONTRIBUTING.md](CONTRIBUTING.md)). Other desktop platforms are not supported yet. A remote SSH
@@ -99,15 +98,25 @@ Host can be Linux or macOS.
 
 ## Install
 
-Paste this into your coding agent (Claude Code, Codex, Grok Build, or similar):
+Run this in Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tjx666/caxri/main/install.sh | bash
+```
+
+It needs nothing beyond macOS itself: it downloads the latest release, refuses it unless it matches
+the published SHA-256, replaces `/Applications/Caxri.app` only once the new copy is in place (a
+failed install keeps the previous app), and clears macOS's download quarantine on Caxri alone. Run
+it again to update; your Projects, Sessions and settings are never touched.
+
+Or paste this into your coding agent (Claude Code, Codex, Grok Build, or similar):
 
 ```text
 Install Caxri for me by following https://raw.githubusercontent.com/tjx666/caxri/main/docs/install.md
 ```
 
-The agent checks your Mac, downloads and verifies the latest release, installs it, and offers
-optional setup: notification banners, the `caxri` command, and initial settings such as language,
-default Agent, and font sizes. To install by hand, follow the same page:
+The agent checks your Mac, installs Caxri with the same script, and offers optional setup: the
+`caxri` command and initial settings such as language, default Agent, and font sizes. To install by hand, follow the same page:
 [docs/install.md](docs/install.md).
 
 **Caxri is not notarized by Apple yet.** If macOS says Apple could not verify Caxri, open
@@ -178,7 +187,8 @@ The full manual is [docs/cli.md](docs/cli.md).
 - **The `caxri` command link (only if you installed it).** **Install 'caxri' Command in PATH** in the
   command palette creates the symlink `/usr/local/bin/caxri`. Run **Uninstall 'caxri' Command from
   PATH** before deleting the app, or remove it later with `sudo rm /usr/local/bin/caxri`.
-- **The notification helper.** `alerter` is installed by you with Homebrew; Caxri only runs it.
+- **The notification helper.** Caxri ships [`alerter`](https://github.com/vjeantet/alerter) inside
+  the app (`Contents/Resources/bin/alerter`) and runs it only to show banners.
 - **Your data.** The profile (database, settings) lives in `~/Library/Application Support/Caxri`,
   with logs under its `logs` folder. Use **Help → Reveal Logs in Finder** to open them.
 - **Two kinds of network requests.** Caxri asks GitHub's public release API for new versions, and,

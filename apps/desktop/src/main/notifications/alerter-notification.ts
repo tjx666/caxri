@@ -2,7 +2,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 import { execFileAsync, preferredShell } from '@caxri/system';
 
@@ -68,6 +68,20 @@ interface CreateAlerterNotificationDriverOptions {
         arguments_: readonly string[],
         options: SpawnOptions,
     ) => ChildProcess;
+}
+
+/**
+ * Where to look for the helper, in order. Packaged builds ship their own copy as `Resources/bin/alerter`
+ * (`scripts/build-alerter.ts`), so a user never needs Homebrew; the Homebrew locations remain for development launches
+ * and as a fallback should the bundled copy be missing or not executable.
+ */
+export function alerterCandidates(options: {
+    isPackaged: boolean;
+    resourcesPath: string;
+}): readonly string[] {
+    return options.isPackaged
+        ? [join(options.resourcesPath, 'bin', 'alerter'), ...ALERTER_CANDIDATES]
+        : ALERTER_CANDIDATES;
 }
 
 export function buildAlerterArguments(

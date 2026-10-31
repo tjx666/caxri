@@ -48,70 +48,44 @@ continue.
 
 Offer these choices in one message. Every item is optional.
 
-1. **Notifications.** Install the [`alerter`](https://github.com/vjeantet/alerter) helper so Caxri
-   can show macOS banners when an Agent finishes or needs attention? Needs Homebrew.
-2. **Command line.** Add the `caxri` command to `PATH` so Agents and Terminals can drive Caxri?
-3. **Settings.** Any of the [initial settings](#initial-settings) below, such as the interface
+1. **Command line.** Add the `caxri` command to `PATH` so Agents and Terminals can drive Caxri?
+2. **Settings.** Any of the [initial settings](#initial-settings) below, such as the interface
    language, the default Agent, font sizes, or the external editor.
 
-## 3. Download and verify
+Notification banners need no setup: Caxri ships its notification helper inside the app.
 
-This downloads the latest release and its checksum into a temporary folder and verifies it. Each
-code block on this page is self-contained, because an agent's shell may not keep variables between
-commands.
+## 3. Install
 
-```bash
-dir="${TMPDIR:-/tmp}/caxri-install"
-rm -rf "$dir" && mkdir -p "$dir" && cd "$dir" || exit 1
-version="$(curl -fsSL https://api.github.com/repos/tjx666/caxri/releases/latest \
-  | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')"
-dmg="Caxri-${version}-arm64.dmg"
-base="https://github.com/tjx666/caxri/releases/download/v${version}"
-curl -fL --progress-bar -o "$dmg" "$base/$dmg" \
-  && curl -fsSL -o "$dmg.sha256" "$base/$dmg.sha256" \
-  && shasum -a 256 -c "$dmg.sha256"
-```
-
-Continue only when `shasum` prints `OK`. If the GitHub API answers with a rate limit, open
-<https://github.com/tjx666/caxri/releases/latest> instead and read the version from its title.
-
-## 4. Install
-
-Quit a running Caxri first; an install over a running app fails. If the user has unsaved work or
-running Agents, ask before quitting.
+Quit a running Caxri first; the script refuses to replace a running app. If the user has unsaved
+work or running Agents, ask before quitting.
 
 ```bash
 osascript -e 'quit app "Caxri"' 2>/dev/null || true
+curl -fsSL https://raw.githubusercontent.com/tjx666/caxri/main/install.sh | bash
 ```
 
-Then copy the app out of the disk image. When an older `/Applications/Caxri.app` exists, it is moved
-to the Trash rather than deleted; the profile and Projects are untouched.
+The script uses only tools macOS ships (`curl`, `shasum`, `hdiutil`, `ditto`, `xattr`). It:
 
-```bash
-cd "${TMPDIR:-/tmp}/caxri-install" || exit 1
-dmg="$(ls Caxri-*-arm64.dmg)"
-mount="$(mktemp -d)"
-hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg" || exit 1
-if [ -e /Applications/Caxri.app ]; then mv /Applications/Caxri.app ~/.Trash/"Caxri-$(date +%s).app"; fi
-ditto "$mount/Caxri.app" /Applications/Caxri.app
-hdiutil detach "$mount"
-xattr -dr com.apple.quarantine /Applications/Caxri.app 2>/dev/null || true
-```
+- resolves the latest release from <https://github.com/tjx666/caxri/releases/latest> without the
+  rate-limited GitHub API;
+- downloads `Caxri-<version>-arm64.dmg` and its `.sha256`, and stops with
+  `does not match its published SHA-256 ... Nothing was installed.` on a mismatch;
+- copies the app out of the read-only disk image into a staging folder, clears the download
+  quarantine attribute on that copy only (Gatekeeper stays on for everything else), and swaps it
+  into `/Applications/Caxri.app`, restoring the previous app if the swap fails;
+- never touches the profile (`~/Library/Application Support/Caxri`) or Project folders.
 
-Caxri is ad-hoc signed but not notarized. A file fetched with `curl` normally carries no quarantine flag,
-and the `xattr` line clears it if one is present, so macOS should open it without a warning. If
-macOS still blocks it, see [Troubleshooting](troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it).
+| Variable            | Effect                                                         |
+| ------------------- | -------------------------------------------------------------- |
+| `CAXRI_VERSION`     | Install this version (for example `0.0.147`) instead of latest |
+| `CAXRI_INSTALL_DIR` | Folder that receives `Caxri.app`; defaults to `/Applications`  |
 
-## 5. Apply the optional setup
+Every failure prints one `Caxri install failed: <reason>` line naming the step and what to do; report
+it to the user verbatim. When `/Applications` is not writable, rerun with
+`CAXRI_INSTALL_DIR="$HOME/Applications"`. Caxri is ad-hoc signed but not notarized; if macOS still
+blocks it, see [Troubleshooting](troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it).
 
-### Notifications
-
-```bash
-brew install vjeantet/tap/alerter
-```
-
-Install it before the first launch, or fully quit and reopen Caxri afterwards. **Settings →
-Notifications → System notifications** shows whether Caxri found it.
+## 4. Apply the optional setup
 
 ### Command line
 
@@ -169,7 +143,7 @@ types listed here.
 Everything else, including the color theme, is easier to change in **Settings** after launch. The
 theme picker offers Dracula (the default), Solarized Light, and other built-in palettes.
 
-## 6. Launch
+## 5. Launch
 
 ```bash
 open -a Caxri
@@ -177,5 +151,5 @@ open -a Caxri
 
 Tell the user to add a Project folder from the welcome screen's **Add Project** button and start a
 Session; the [getting started guide](getting-started.md) explains the rest. Caxri updates itself
-from then on; see [Desktop updates](desktop-updates.md). The downloaded files in
-`${TMPDIR:-/tmp}/caxri-install` can go to the Trash.
+from then on; see [Desktop updates](desktop-updates.md). Running the install command again also
+updates it in place.

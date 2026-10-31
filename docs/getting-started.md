@@ -29,9 +29,9 @@ The Primary Agent of each Session reports when it is waiting for you, finished, 
 Activity view in the side bar is a queue of the Sessions waiting on you across every Project; see
 [activity-view.md](activity-view.md). Caxri can also show a macOS banner for these events.
 
-System notifications depend on a small helper (`alerter`, installed with Homebrew). Open
-**Settings → Notifications → System notifications** to see its status, choose **Check Again** after
-installing it, and **Send Test Notification** to confirm a banner appears. The notification center
+System notifications go through a small helper (`alerter`) that ships inside Caxri. Open
+**Settings → Notifications → System notifications** to see its status and **Send Test Notification**
+to confirm a banner appears. The notification center
 and reminder types are described in [notifications.md](notifications.md).
 
 ## Agent permissions

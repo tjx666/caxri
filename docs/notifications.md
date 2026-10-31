@@ -119,8 +119,12 @@ extra resource.
 ### Delivery modes and the notification helper
 
 Main picks a delivery mode for every banner from two inputs: whether the running app is signed
-(probed once per launch) and whether `alerter` can be found. The lookup tries
-`/opt/homebrew/bin/alerter`, `/usr/local/bin/alerter`, then the login shell's PATH. A found helper is
+(probed once per launch) and whether `alerter` can be found. Packaged builds ship it as
+`Contents/Resources/bin/alerter`: `scripts/build-alerter.ts` downloads the pinned upstream release,
+refuses it unless it matches the pinned SHA-256, and the upstream Developer ID signature is kept
+(`build.mac.signIgnore`). The lookup tries that bundled copy first in a packaged build, then
+`/opt/homebrew/bin/alerter`, `/usr/local/bin/alerter`, and the login shell's PATH; a development
+launch starts at the Homebrew locations. A found helper is
 kept for the process; a miss is trusted for 60 seconds and then looked up again, so a helper
 installed while Caxri runs takes effect on a later banner without a restart. A failed spawn also
 forgets the cached path.

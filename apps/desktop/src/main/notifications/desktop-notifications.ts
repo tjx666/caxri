@@ -19,7 +19,7 @@ import {
 import type { NotificationHelperControl } from './agent-notification-delivery';
 import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import { createDesktopAgentNotifications } from './agent-notification-runtime';
-import { createAlerterNotificationDriver } from './alerter-notification';
+import { alerterCandidates, createAlerterNotificationDriver } from './alerter-notification';
 import { createDesktopBotInboxNotifications } from './bot-inbox-notification-runtime';
 import { createDesktopDeliveryNotifications } from './delivery-notification-runtime';
 
@@ -74,7 +74,10 @@ export function createDesktopNotifications({
         resourcesPath,
     });
     const systemNotifications = createAgentNotificationDelivery({
-        alerter: createAlerterNotificationDriver({ appIconPath }),
+        alerter: createAlerterNotificationDriver({
+            appIconPath,
+            candidates: alerterCandidates({ isPackaged, resourcesPath }),
+        }),
         forceNative: process.env.CAXRI_E2E === '1',
         logger,
         onHelperUnavailable: () =>

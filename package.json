@@ -73,9 +73,10 @@
         "uninstall:caxri": "bun run scripts/uninstall-caxri.ts",
         "build:desktop": "electron-vite build",
         "build:share-extension": "bun run scripts/build-share-extension.ts",
-        "package": "bun run build && bun run build:remote-layers && electron-builder --mac dir",
+        "build:alerter": "bun run scripts/build-alerter.ts",
+        "package": "bun run build && bun run build:remote-layers && bun run build:alerter && electron-builder --mac dir",
         "package:e2e": "bun run build && bun run scripts/package-extension-test-app.ts",
-        "package:dmg": "bun run build && bun run build:remote-layers && electron-builder --mac dmg --publish never",
+        "package:dmg": "bun run build && bun run build:remote-layers && bun run build:alerter && electron-builder --mac dmg --publish never",
         "package:release-dmgs": "bun run scripts/package-release-dmgs.ts",
         "release:prepare": "bun run .agents/skills/release/scripts/prepare-release.ts",
         "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
@@ -384,6 +385,10 @@
                 "to": "notification-icon.png"
             },
             {
+                "from": "out/alerter/alerter",
+                "to": "bin/alerter"
+            },
+            {
                 "from": "apps/server/dist/server",
                 "to": "server"
             },
@@ -453,6 +458,7 @@
             "identity": "-",
             "signIgnore": [
                 "Caxri Share\\.appex",
+                "Contents/Resources/bin/alerter$",
                 "Contents/Resources/server/"
             ],
             "target": [
