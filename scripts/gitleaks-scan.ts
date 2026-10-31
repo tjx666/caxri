@@ -7,7 +7,8 @@
  * - Default, `GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION` set (all push and pull-request CI checks): scans only the
  *   commits the triggering push or pull request actually introduced.
  * - Default, manual CI dispatch (`GITHUB_EVENT_NAME=workflow_dispatch`) with no base revision: scans the commits the
- *   dispatched ref adds beyond `origin/main`, as a pull request would.
+ *   dispatched ref adds beyond `origin/main`, as a pull request would. The optimized `e2e` job's checks checkout has no
+ *   `origin/main`, so it passes its verified base revision instead (`scripts/ci-child-environment.ts`).
  * - Default, no base revision outside a dispatch (a bare local invocation): scans the entire commit history as an
  *   intentional audit. History is never rewritten, so that audit still reports the identifying values earlier commits
  *   carry (see `.gitleaks.toml`) and cannot gate CI.
