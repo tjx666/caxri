@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -50,7 +50,7 @@ describe('Runtime Agent skill health', () => {
         try {
             const withoutProject = await runtime.handlers['agentSkills.get']({});
             expect(withoutProject).toMatchObject({
-                installations: ['claude', 'codex', 'grok'].map((provider) => ({
+                installations: ['claude', 'codex', 'grok', 'antigravity'].map((provider) => ({
                     provider,
                     scope: 'global',
                     status: 'missing',
@@ -68,6 +68,15 @@ describe('Runtime Agent skill health', () => {
                 { name: 'caxri-cli', provider: 'codex', scope: 'local' },
                 { cwd: projectRoot, environment, home },
             );
+            await executeSkillCommand(
+                'install',
+                { name: 'caxri-cli', provider: 'antigravity', scope: 'global' },
+                { cwd: projectRoot, environment, home },
+            );
+            // Antigravity reads `~/.gemini/config/skills` and reads no variable that relocates it.
+            await expect(
+                readdir(join(home, '.gemini', 'config', 'skills', 'caxri-cli')),
+            ).resolves.toContain('SKILL.md');
             await runtime.handlers['session.archive']({ sessionId: session.session.id });
 
             const health = await runtime.handlers['agentSkills.get']({});
@@ -86,6 +95,17 @@ describe('Runtime Agent skill health', () => {
                         provider: 'codex',
                         scope: 'global',
                         status: 'missing',
+                    }),
+                    // Codex and Antigravity share the Project's `.agents/skills` folder.
+                    expect.objectContaining({
+                        provider: 'antigravity',
+                        scope: 'local',
+                        status: 'compatible',
+                    }),
+                    expect.objectContaining({
+                        provider: 'antigravity',
+                        scope: 'global',
+                        status: 'compatible',
                     }),
                 ]),
             );

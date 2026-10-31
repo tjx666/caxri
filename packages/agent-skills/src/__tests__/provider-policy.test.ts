@@ -21,7 +21,7 @@ describe('Agent skill provider policy', () => {
             expect(requireAgentSkillProviderIntegration(provider)).toBeDefined();
     });
 
-    it.each(['claude', 'codex', 'grok'] as const)(
+    it.each(['claude', 'codex', 'grok', 'antigravity'] as const)(
         'keeps %s skill integration enabled',
         (provider) => {
             expect(requireAgentSkillProviderIntegration(provider)).toBeDefined();

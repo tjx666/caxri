@@ -26,7 +26,11 @@ interface ProviderSkillHealthProperties {
  */
 export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkillHealthProperties) {
     const { t } = useTranslation();
-    if (!agentProviderCatalog[provider].capabilities.actions)
+    /**
+     * The Server reports an installation for every scope of every provider Caxri installs skills for, so a loaded
+     * report without this provider means the provider has no reviewed skill layout.
+     */
+    if (agentSkillHealth?.installations.every((installation) => installation.provider !== provider))
         return (
             <span className="text-muted">
                 {t('settings.providerHealth.skill.unavailable', {
