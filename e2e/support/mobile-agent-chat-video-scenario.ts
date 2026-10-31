@@ -153,14 +153,42 @@ const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resource
 async function showControls(serial: string) {
     const shown = await timeBar(serial);
     if (shown) return shown;
+    const before = await playerControls(serial);
     await tapPlayer(serial);
-    const bar = await waitForMobile(
-        () => timeBar(serial),
-        (bounds) => bounds !== null,
-        15_000,
+    try {
+        const bar = await waitForMobile(
+            () => timeBar(serial),
+            (bounds) => bounds !== null,
+            15_000,
+        );
+        if (bar) return bar;
+    } catch {
+        // Reported below with what the screen held.
+    }
+    throw new Error(
+        `The player shows no progress bar; controls before the tap: ${before}; after: ${await playerControls(serial)}`,
     );
-    if (!bar) throw new Error('The player shows no progress bar');
-    return bar;
+}
+
+/**
+ * Lists the Media3 control ids UIAutomator can see, so a missing progress bar says what the screen held instead.
+ */
+async function playerControls(serial: string): Promise<string> {
+    const dumpPath = '/data/local/tmp/caxri-acceptance-video-controls.xml';
+    try {
+        await adbShell(serial, ['uiautomator', 'dump', dumpPath]);
+        const source = await adbShell(serial, ['cat', dumpPath]);
+        const ids = new Set(
+            source
+                .matchAll(/resource-id="com\.caxri\.mobile:id\/(exo_[^"]+)"/gu)
+                .map(([, id]) => id),
+        );
+        return [...ids].join(', ') || 'none';
+    } catch (error) {
+        return `dump failed (${error instanceof Error ? error.message : String(error)})`;
+    } finally {
+        await adbShell(serial, ['rm', '-f', dumpPath]);
+    }
 }
 
 /**
