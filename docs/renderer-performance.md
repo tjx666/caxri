@@ -138,13 +138,20 @@ within 100 ms for `keptAlive` and one second for `cold` (issue #2215); those cei
 switch that became unusably slow, and the statistical gate is the baseline below. Other times and
 frame gaps stay diagnostic.
 
+The budgets above were calibrated on a fast local machine. When `CAXRI_E2E_RUNNER_KIND` is
+`github-hosted` (the `e2e-perf` job and the sample collector set it), the spec swaps in hosted
+ceilings for the React durations, the cold readable ceiling (1,650 ms), and the cached frame gap and
+Long Animation Frame (130 ms each), and one hosted render count (cold primary sidebar, 5). Each is about 1.5 times the
+largest per-receipt `p50` among 44 `macos-15` receipts (see `HOSTED_REACT_BUDGET_OVERRIDES` in
+`e2e/support/agent-chat-switch-budgets.ts`), so they guard against a catastrophe only; local runs keep the tight budgets.
+
 CI runs the benchmark in the macOS E2E job right after `benchmark:renderer`, reusing its profiling
 build, and uploads the receipt's public projection (distributions only, no per-switch samples) as
 the `agent-chat-switch-performance-receipt` artifact. `Run Agent Chat switch performance baseline
-gate` compares it against `scripts/performance-baseline.agent-chat-switch.json`; until that file is
-derived from enough same-image runner receipts and armed
-([CI performance](ci-performance.md#performance-regression-baseline)), it records a `no-baseline`
-verdict and never fails.
+gate` compares it against `scripts/performance-baseline.agent-chat-switch.json`, derived on
+2026-10-31 from 44 same-image receipts and armed
+([CI performance](ci-performance.md#performance-regression-baseline)): a gated metric past its
+threshold fails the job.
 
 A fourth measurement covers a Chat that keeps working while the user looks elsewhere. The fake
 Codex streams a long reply into the Chat while its Session is kept alive behind another one, and the

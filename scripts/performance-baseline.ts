@@ -125,8 +125,51 @@ const EXCLUDED_PERFORMANCE_METRIC_NAMES = new Set([
     'requests.appBootstrap.totalDurationMs',
 ]);
 
+/**
+ * Metric-name patterns excluded from the Agent Chat switch receipt (`agent-chat-session-switch.json`), whose 204
+ * flattened numbers are mostly restatements of a few measurements. Derived from 44 same-image `macos-15` receipts
+ * (performance-samples runs 41245949323 and 41250478424 on one commit); the baseline records each excluded metric's
+ * evidence under `excluded`. Every pattern is anchored to that receipt's own prefixes, so none can match a Renderer
+ * benchmark metric.
+ *
+ * - `turnCount` and `scenarios.<name>.iterations` echo the benchmark's configuration; they are not measurements.
+ * - `hiddenStreaming.keptAliveStreaming.*` is one switch per receipt, so its `max`, `p50` and `p95` are the same wall
+ *   clock number three times (readable 40-286 ms against a 74 ms median). The spec asserts its invariants directly.
+ * - `hiddenStreaming.commitCount` and `hiddenStreaming.workbench.renders` count React work over a fixed five second
+ *   window of a live stream, which depends on how many patches the fake provider emitted in it (7 to 15 across the
+ *   corpus, MAD 0), a window length rather than a regression. `hiddenStreaming.workbench.actualDurationMs` stays
+ *   gated.
+ * - `scenarios.<name>.*.max` and `*.p95` are one or two order statistics of 20 switches (of 3 for `cold`, where `p95`
+ *   equals `max`). Their hosted tails are 2 to 10 times the median (cached workbench React `max` 199 ms against a 75 ms
+ *   median, cold primary sidebar `max` 705 ms) and one stalled switch moves them. `p50` of the same metric carries the
+ *   scenario's cost and is the statistic the spec's own budgets judge, so only `p50` is gated.
+ * - `scenarios.keptAlive.longestAnimationFrameMs.p50` is 0 in all 44 receipts because the platform reports no Long
+ *   Animation Frame below 50 ms, so its discrete threshold is 0 and one slow runner would fail the build on a metric
+ *   that only flips between "none" and "at least 50 ms". The cached scenario's Long Animation Frame p50 (55 ms median)
+ *   and the kept-alive frame gap stay gated.
+ * - `commitCount.p50` and `workbench.renders.p50` of `cached`, `uncached` and `cold` count the idle-callback backfill of
+ *   the tail-first mount (`use-agent-chat-tail-first-mount.ts`), which varies by a few commits with runner timing (cold
+ *   commit p50 MAD 3.5). A discrete metric's threshold is the bare historical maximum, so these would fail a clean run
+ *   one sample past the corpus; the spec's shared `REACT_BUDGETS` already bound them. The sidebar render counts, which
+ *   do not vary, and every scenario-level `p50` time and React duration stay gated.
+ */
+const EXCLUDED_PERFORMANCE_METRIC_PATTERNS: readonly RegExp[] = [
+    /^turnCount$/u,
+    /^scenarios\.[A-Za-z]+\.iterations$/u,
+    /^hiddenStreaming\.keptAliveStreaming\./u,
+    /^hiddenStreaming\.commitCount$/u,
+    /^hiddenStreaming\.workbench\.renders$/u,
+    /^scenarios\.[A-Za-z]+\..*\.(?:max|p95)$/u,
+    /^scenarios\.keptAlive\.longestAnimationFrameMs\.p50$/u,
+    /^scenarios\.(?:cached|uncached|cold)\.react\.commitCount\.p50$/u,
+    /^scenarios\.(?:cached|uncached|cold)\.react\.surfaces\.workbench\.renders\.p50$/u,
+];
+
 export function isExcludedPerformanceMetric(metric: string): boolean {
-    return EXCLUDED_PERFORMANCE_METRIC_NAMES.has(metric);
+    return (
+        EXCLUDED_PERFORMANCE_METRIC_NAMES.has(metric) ||
+        EXCLUDED_PERFORMANCE_METRIC_PATTERNS.some((pattern) => pattern.test(metric))
+    );
 }
 
 /**

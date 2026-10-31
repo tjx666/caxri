@@ -692,11 +692,25 @@ something the per-run gate is asked to do.
 
 `benchmark:chat-switch` runs in the same job right after `benchmark:renderer`, on its profiling
 build, and `Run Agent Chat switch performance baseline gate` compares its receipt against
-its own `performance-baseline.agent-chat-switch.json` under `scripts/` the same way. That baseline does not exist yet,
-so the step records `no-baseline` until enough same-image `agent-chat-switch-performance-receipt`
-artifacts are collected, derived, reviewed, and armed. The benchmark adds one Electron launch of about
-two minutes to the job; see
+its own `performance-baseline.agent-chat-switch.json` under `scripts/` the same way. That baseline is armed: it was
+derived on 2026-10-31 from 44 receipts of the same `macos-15` image (the dispatch-only collector below, runs
+41245949323 with 29 receipts and 41250478424 with 15, both on commit `ca9a03b43`), so a metric past its threshold fails
+the job. The benchmark adds one Electron launch of about two minutes to the job; see
 [Agent Chat Session switch](renderer-performance.md#agent-chat-session-switch).
+
+The receipt flattens to 204 numbers, most of them restatements of a few measurements, so the derivation gates 46 of
+them and records the other 158 under `excluded` with their evidence (rules and reasons in
+`EXCLUDED_PERFORMANCE_METRIC_PATTERNS`, `scripts/performance-baseline.ts`). In short: only `p50` is gated for times and React
+durations (`max` and `p95` are one or two order statistics of 20 switches, or of 3 for `cold`, with hosted tails of 2 to 10
+times the median); the single-switch `hiddenStreaming.keptAliveStreaming` family, the configuration echoes
+(`iterations`, `turnCount`), the commit and Workbench render counts that follow idle-callback timing, and the
+zero-inflated kept-alive Long Animation Frame are left out. The derive used `--relative-margin 0.5` instead of the
+default 0.08: the hosted per-receipt `p50` spread is wide (uncached Workbench React duration 88 to 172 ms, cold
+readable 1,083 ms at worst against a 278 ms median), and a leave-one-out backtest over the 44 receipts still lost one
+receipt to the single slowest cold run at the default margin. Training on the first run and testing on the second
+produced no failure at 0.08, 0.25 or 0.5. A gate this wide catches a regression of tens of percent; the
+[Gradual-creep trend check](#gradual-creep-trend-check) (which reads the four `readableMs.p50` metrics) owns smaller
+drift.
 
 ### Collecting baseline samples
 
@@ -716,7 +730,7 @@ gh run list --workflow performance-samples.yml --limit 1   # note the run id
 mkdir -p /tmp/chat-switch-receipts
 gh run download <run-id> --pattern 'agent-chat-switch-performance-receipt*' --dir /tmp/chat-switch-receipts
 bun run performance:baseline:derive -- --source runner --input-dir /tmp/chat-switch-receipts \
-  --receipt-name agent-chat-session-switch.json --spec e2e/agent-chat-switch.performance.e2e.ts \
+  --receipt-name agent-chat-session-switch.json --spec e2e/agent-chat-switch.performance.e2e.ts --relative-margin 0.5 \
   --provenance '<run id>, <date>, 40 macos-15 samples' --out scripts/performance-baseline.agent-chat-switch.json
 ```
 

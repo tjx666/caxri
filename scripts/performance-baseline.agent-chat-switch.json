@@ -1,0 +1,1151 @@
+{
+    "schemaVersion": 1,
+    "armed": true,
+    "source": "runner",
+    "spec": "e2e/agent-chat-switch.performance.e2e.ts",
+    "recordedAt": "2026-10-31T23:30:33.339Z",
+    "commit": "ca9a03b436cff7826667f020671cf493e4671662",
+    "provenance": "44 agent-chat-session-switch receipts from GitHub-hosted macos-15 performance-samples runs 41245949323 (29) and 41250478424 (15), both on main commit ca9a03b43; derived 2026-10-31",
+    "metrics": {
+        "hiddenStreaming.workbench.actualDurationMs": {
+            "kind": "continuous",
+            "median": 1.9,
+            "mad": 0.5,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 3.5,
+            "thresholdMs": 7.6,
+            "sampleCount": 44
+        },
+        "scenarios.cached.interactiveMs.p50": {
+            "kind": "continuous",
+            "median": 70.7,
+            "mad": 9.45,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 113.5,
+            "thresholdMs": 177.925,
+            "sampleCount": 44
+        },
+        "scenarios.cached.longestAnimationFrameMs.p50": {
+            "kind": "continuous",
+            "median": 54.95,
+            "mad": 4.5,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 84.3,
+            "thresholdMs": 127.45,
+            "sampleCount": 44
+        },
+        "scenarios.cached.maxFrameGapMs.p50": {
+            "kind": "continuous",
+            "median": 56.85,
+            "mad": 5.05,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 86.1,
+            "thresholdMs": 130.15,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.primary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 0.9,
+            "mad": 0.1,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1.3,
+            "thresholdMs": 3.1,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.primary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 2,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 2,
+            "thresholdMs": 2,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.secondary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 0.9,
+            "mad": 0.1,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1.3,
+            "thresholdMs": 3.1,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.secondary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 4,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 4,
+            "thresholdMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.workbench.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 41.15,
+            "mad": 6.95,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 76.4,
+            "thresholdMs": 115.6,
+            "sampleCount": 44
+        },
+        "scenarios.cached.readableMs.p50": {
+            "kind": "continuous",
+            "median": 70.7,
+            "mad": 9.45,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 113.5,
+            "thresholdMs": 177.925,
+            "sampleCount": 44
+        },
+        "scenarios.cached.readRequests.p50": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.cached.shownMs.p50": {
+            "kind": "continuous",
+            "median": 70.7,
+            "mad": 9.45,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 113.5,
+            "thresholdMs": 177.925,
+            "sampleCount": 44
+        },
+        "scenarios.cold.interactiveMs.p50": {
+            "kind": "continuous",
+            "median": 205,
+            "mad": 42.9,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 624,
+            "thresholdMs": 937,
+            "sampleCount": 44
+        },
+        "scenarios.cold.longestAnimationFrameMs.p50": {
+            "kind": "continuous",
+            "median": 133.7,
+            "mad": 30.6,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 385.3,
+            "thresholdMs": 578.95,
+            "sampleCount": 44
+        },
+        "scenarios.cold.maxFrameGapMs.p50": {
+            "kind": "continuous",
+            "median": 129.05,
+            "mad": 31.3,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 443.7,
+            "thresholdMs": 666.55,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.primary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 2.9,
+            "mad": 0.95,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 22.5,
+            "thresholdMs": 34.75,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.primary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 4,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 5,
+            "thresholdMs": 5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.secondary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 1.9,
+            "mad": 0.4,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 10.3,
+            "thresholdMs": 16.45,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.secondary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 6,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 6,
+            "thresholdMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.workbench.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 142.5,
+            "mad": 23.5,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 346.4,
+            "thresholdMs": 520.6,
+            "sampleCount": 44
+        },
+        "scenarios.cold.readableMs.p50": {
+            "kind": "continuous",
+            "median": 277.9,
+            "mad": 61.85,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1083.2,
+            "thresholdMs": 1625.8,
+            "sampleCount": 44
+        },
+        "scenarios.cold.readRequests.p50": {
+            "kind": "discrete",
+            "median": 1,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 1,
+            "thresholdMs": 1,
+            "sampleCount": 44
+        },
+        "scenarios.cold.shownMs.p50": {
+            "kind": "continuous",
+            "median": 205,
+            "mad": 42.9,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 624,
+            "thresholdMs": 937,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.interactiveMs.p50": {
+            "kind": "continuous",
+            "median": 44.8,
+            "mad": 8,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 76.2,
+            "thresholdMs": 128.2,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.maxFrameGapMs.p50": {
+            "kind": "continuous",
+            "median": 36.75,
+            "mad": 2.75,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 53.7,
+            "thresholdMs": 81.55,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.commitCount.p50": {
+            "kind": "discrete",
+            "median": 6,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 6,
+            "thresholdMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.primary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 0.9,
+            "mad": 0.1,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1.2,
+            "thresholdMs": 3.1,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.primary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 2,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 2,
+            "thresholdMs": 2,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.secondary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 0.9,
+            "mad": 0.1,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1.4,
+            "thresholdMs": 3.1,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.secondary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 4,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 4,
+            "thresholdMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.workbench.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 1.95,
+            "mad": 0.25,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 3.8,
+            "thresholdMs": 6.7,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.workbench.renders.p50": {
+            "kind": "discrete",
+            "median": 4,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 4,
+            "thresholdMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.readableMs.p50": {
+            "kind": "continuous",
+            "median": 44.8,
+            "mad": 8,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 76.2,
+            "thresholdMs": 128.2,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.readRequests.p50": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.shownMs.p50": {
+            "kind": "continuous",
+            "median": 44.8,
+            "mad": 8,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 76.2,
+            "thresholdMs": 128.2,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.interactiveMs.p50": {
+            "kind": "continuous",
+            "median": 151.35,
+            "mad": 16.3,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 201.1,
+            "thresholdMs": 350.275,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.longestAnimationFrameMs.p50": {
+            "kind": "continuous",
+            "median": 112.1,
+            "mad": 14.1,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 145.4,
+            "thresholdMs": 274.9,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.maxFrameGapMs.p50": {
+            "kind": "continuous",
+            "median": 116.95,
+            "mad": 12.05,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 153.4,
+            "thresholdMs": 266.8,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.primary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 1.8,
+            "mad": 0.35,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 3.9,
+            "thresholdMs": 6.85,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.primary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 2,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 2,
+            "thresholdMs": 2,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.secondary-sidebar.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 1.9,
+            "mad": 0.35,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 3.2,
+            "thresholdMs": 6.475,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.secondary-sidebar.renders.p50": {
+            "kind": "discrete",
+            "median": 6,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 6,
+            "thresholdMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.workbench.actualDurationMs.p50": {
+            "kind": "continuous",
+            "median": 130.6,
+            "mad": 12.65,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 171.5,
+            "thresholdMs": 291.775,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.readableMs.p50": {
+            "kind": "continuous",
+            "median": 228.3,
+            "mad": 27.1,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 302.7,
+            "thresholdMs": 546.7,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.readRequests.p50": {
+            "kind": "discrete",
+            "median": 1,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 1,
+            "thresholdMs": 1,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.shownMs.p50": {
+            "kind": "continuous",
+            "median": 151.35,
+            "mad": 16.3,
+            "k": 5,
+            "relativeMargin": 0.5,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 201.1,
+            "thresholdMs": 350.275,
+            "sampleCount": 44
+        }
+    },
+    "excluded": {
+        "hiddenStreaming.commitCount": {
+            "historicalMaxMs": 15,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.interactiveMs.max": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.interactiveMs.p50": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.interactiveMs.p95": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.iterations": {
+            "historicalMaxMs": 1,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.longestAnimationFrameMs.max": {
+            "historicalMaxMs": 172.6,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.longestAnimationFrameMs.p50": {
+            "historicalMaxMs": 172.6,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.longestAnimationFrameMs.p95": {
+            "historicalMaxMs": 172.6,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.maxFrameGapMs.max": {
+            "historicalMaxMs": 178.7,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.maxFrameGapMs.p50": {
+            "historicalMaxMs": 178.7,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.maxFrameGapMs.p95": {
+            "historicalMaxMs": 178.7,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.commitCount.max": {
+            "historicalMaxMs": 87,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.commitCount.p50": {
+            "historicalMaxMs": 87,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.commitCount.p95": {
+            "historicalMaxMs": 87,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.primary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 5.1,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.primary-sidebar.actualDurationMs.p50": {
+            "historicalMaxMs": 5.1,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.primary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 5.1,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.primary-sidebar.renders.max": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.primary-sidebar.renders.p50": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.primary-sidebar.renders.p95": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.secondary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 14.9,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.secondary-sidebar.actualDurationMs.p50": {
+            "historicalMaxMs": 14.9,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.secondary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 14.9,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.secondary-sidebar.renders.max": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.secondary-sidebar.renders.p50": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.secondary-sidebar.renders.p95": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.workbench.actualDurationMs.max": {
+            "historicalMaxMs": 208,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.workbench.actualDurationMs.p50": {
+            "historicalMaxMs": 208,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.workbench.actualDurationMs.p95": {
+            "historicalMaxMs": 208,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.workbench.renders.max": {
+            "historicalMaxMs": 85,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.workbench.renders.p50": {
+            "historicalMaxMs": 85,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.react.surfaces.workbench.renders.p95": {
+            "historicalMaxMs": 85,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.readableMs.max": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.readableMs.p50": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.readableMs.p95": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.readRequests.max": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.readRequests.p50": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.readRequests.p95": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.shownMs.max": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.shownMs.p50": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.keptAliveStreaming.shownMs.p95": {
+            "historicalMaxMs": 286.3,
+            "sampleCount": 44
+        },
+        "hiddenStreaming.workbench.renders": {
+            "historicalMaxMs": 15,
+            "sampleCount": 44
+        },
+        "scenarios.cached.interactiveMs.max": {
+            "historicalMaxMs": 658.8,
+            "sampleCount": 44
+        },
+        "scenarios.cached.interactiveMs.p95": {
+            "historicalMaxMs": 382.9,
+            "sampleCount": 44
+        },
+        "scenarios.cached.iterations": {
+            "historicalMaxMs": 20,
+            "sampleCount": 44
+        },
+        "scenarios.cached.longestAnimationFrameMs.max": {
+            "historicalMaxMs": 347.6,
+            "sampleCount": 44
+        },
+        "scenarios.cached.longestAnimationFrameMs.p95": {
+            "historicalMaxMs": 316.7,
+            "sampleCount": 44
+        },
+        "scenarios.cached.maxFrameGapMs.max": {
+            "historicalMaxMs": 351.5,
+            "sampleCount": 44
+        },
+        "scenarios.cached.maxFrameGapMs.p95": {
+            "historicalMaxMs": 321.1,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.commitCount.max": {
+            "historicalMaxMs": 27,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.commitCount.p50": {
+            "historicalMaxMs": 25,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.commitCount.p95": {
+            "historicalMaxMs": 26,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.primary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 12.6,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.primary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 8,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.primary-sidebar.renders.max": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.primary-sidebar.renders.p95": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.secondary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 8.8,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.secondary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 4.6,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.secondary-sidebar.renders.max": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.secondary-sidebar.renders.p95": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.workbench.actualDurationMs.max": {
+            "historicalMaxMs": 198.8,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.workbench.actualDurationMs.p95": {
+            "historicalMaxMs": 152,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.workbench.renders.max": {
+            "historicalMaxMs": 24,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.workbench.renders.p50": {
+            "historicalMaxMs": 23,
+            "sampleCount": 44
+        },
+        "scenarios.cached.react.surfaces.workbench.renders.p95": {
+            "historicalMaxMs": 24,
+            "sampleCount": 44
+        },
+        "scenarios.cached.readableMs.max": {
+            "historicalMaxMs": 658.8,
+            "sampleCount": 44
+        },
+        "scenarios.cached.readableMs.p95": {
+            "historicalMaxMs": 382.9,
+            "sampleCount": 44
+        },
+        "scenarios.cached.readRequests.max": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.cached.readRequests.p95": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.cached.shownMs.max": {
+            "historicalMaxMs": 658.8,
+            "sampleCount": 44
+        },
+        "scenarios.cached.shownMs.p95": {
+            "historicalMaxMs": 382.9,
+            "sampleCount": 44
+        },
+        "scenarios.cold.interactiveMs.max": {
+            "historicalMaxMs": 955.5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.interactiveMs.p95": {
+            "historicalMaxMs": 955.5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.iterations": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "scenarios.cold.longestAnimationFrameMs.max": {
+            "historicalMaxMs": 786,
+            "sampleCount": 44
+        },
+        "scenarios.cold.longestAnimationFrameMs.p95": {
+            "historicalMaxMs": 786,
+            "sampleCount": 44
+        },
+        "scenarios.cold.maxFrameGapMs.max": {
+            "historicalMaxMs": 793.7,
+            "sampleCount": 44
+        },
+        "scenarios.cold.maxFrameGapMs.p95": {
+            "historicalMaxMs": 793.7,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.commitCount.max": {
+            "historicalMaxMs": 40,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.commitCount.p50": {
+            "historicalMaxMs": 39,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.commitCount.p95": {
+            "historicalMaxMs": 40,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.primary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 704.5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.primary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 704.5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.primary-sidebar.renders.max": {
+            "historicalMaxMs": 5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.primary-sidebar.renders.p95": {
+            "historicalMaxMs": 5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.secondary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 55.6,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.secondary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 55.6,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.secondary-sidebar.renders.max": {
+            "historicalMaxMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.secondary-sidebar.renders.p95": {
+            "historicalMaxMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.workbench.actualDurationMs.max": {
+            "historicalMaxMs": 749,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.workbench.actualDurationMs.p95": {
+            "historicalMaxMs": 749,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.workbench.renders.max": {
+            "historicalMaxMs": 35,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.workbench.renders.p50": {
+            "historicalMaxMs": 33,
+            "sampleCount": 44
+        },
+        "scenarios.cold.react.surfaces.workbench.renders.p95": {
+            "historicalMaxMs": 35,
+            "sampleCount": 44
+        },
+        "scenarios.cold.readableMs.max": {
+            "historicalMaxMs": 1636.3,
+            "sampleCount": 44
+        },
+        "scenarios.cold.readableMs.p95": {
+            "historicalMaxMs": 1636.3,
+            "sampleCount": 44
+        },
+        "scenarios.cold.readRequests.max": {
+            "historicalMaxMs": 1,
+            "sampleCount": 44
+        },
+        "scenarios.cold.readRequests.p95": {
+            "historicalMaxMs": 1,
+            "sampleCount": 44
+        },
+        "scenarios.cold.shownMs.max": {
+            "historicalMaxMs": 955.5,
+            "sampleCount": 44
+        },
+        "scenarios.cold.shownMs.p95": {
+            "historicalMaxMs": 955.5,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.interactiveMs.max": {
+            "historicalMaxMs": 382.6,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.interactiveMs.p95": {
+            "historicalMaxMs": 125.3,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.iterations": {
+            "historicalMaxMs": 20,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.longestAnimationFrameMs.max": {
+            "historicalMaxMs": 166.1,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.longestAnimationFrameMs.p50": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.longestAnimationFrameMs.p95": {
+            "historicalMaxMs": 89.9,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.maxFrameGapMs.max": {
+            "historicalMaxMs": 171.1,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.maxFrameGapMs.p95": {
+            "historicalMaxMs": 101.5,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.commitCount.max": {
+            "historicalMaxMs": 7,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.commitCount.p95": {
+            "historicalMaxMs": 7,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.primary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 10.8,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.primary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 4.3,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.primary-sidebar.renders.max": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.primary-sidebar.renders.p95": {
+            "historicalMaxMs": 2,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.secondary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 17,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.secondary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 3.9,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.secondary-sidebar.renders.max": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.secondary-sidebar.renders.p95": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.workbench.actualDurationMs.max": {
+            "historicalMaxMs": 52,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.workbench.actualDurationMs.p95": {
+            "historicalMaxMs": 8.5,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.workbench.renders.max": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.react.surfaces.workbench.renders.p95": {
+            "historicalMaxMs": 4,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.readableMs.max": {
+            "historicalMaxMs": 382.6,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.readableMs.p95": {
+            "historicalMaxMs": 125.3,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.readRequests.max": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.readRequests.p95": {
+            "historicalMaxMs": 0,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.shownMs.max": {
+            "historicalMaxMs": 382.6,
+            "sampleCount": 44
+        },
+        "scenarios.keptAlive.shownMs.p95": {
+            "historicalMaxMs": 125.3,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.interactiveMs.max": {
+            "historicalMaxMs": 837.8,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.interactiveMs.p95": {
+            "historicalMaxMs": 639.3,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.iterations": {
+            "historicalMaxMs": 20,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.longestAnimationFrameMs.max": {
+            "historicalMaxMs": 705,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.longestAnimationFrameMs.p95": {
+            "historicalMaxMs": 517.7,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.maxFrameGapMs.max": {
+            "historicalMaxMs": 709.9,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.maxFrameGapMs.p95": {
+            "historicalMaxMs": 519,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.commitCount.max": {
+            "historicalMaxMs": 41,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.commitCount.p50": {
+            "historicalMaxMs": 36,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.commitCount.p95": {
+            "historicalMaxMs": 38,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.primary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 105.3,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.primary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 31.7,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.primary-sidebar.renders.max": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.primary-sidebar.renders.p95": {
+            "historicalMaxMs": 3,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.secondary-sidebar.actualDurationMs.max": {
+            "historicalMaxMs": 78.8,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.secondary-sidebar.actualDurationMs.p95": {
+            "historicalMaxMs": 20.1,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.secondary-sidebar.renders.max": {
+            "historicalMaxMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.secondary-sidebar.renders.p95": {
+            "historicalMaxMs": 6,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.workbench.actualDurationMs.max": {
+            "historicalMaxMs": 472.5,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.workbench.actualDurationMs.p95": {
+            "historicalMaxMs": 320.5,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.workbench.renders.max": {
+            "historicalMaxMs": 36,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.workbench.renders.p50": {
+            "historicalMaxMs": 31,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.react.surfaces.workbench.renders.p95": {
+            "historicalMaxMs": 33,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.readableMs.max": {
+            "historicalMaxMs": 1095.7,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.readableMs.p95": {
+            "historicalMaxMs": 720.2,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.readRequests.max": {
+            "historicalMaxMs": 1,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.readRequests.p95": {
+            "historicalMaxMs": 1,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.shownMs.max": {
+            "historicalMaxMs": 837.8,
+            "sampleCount": 44
+        },
+        "scenarios.uncached.shownMs.p95": {
+            "historicalMaxMs": 639.3,
+            "sampleCount": 44
+        },
+        "turnCount": {
+            "historicalMaxMs": 16,
+            "sampleCount": 44
+        }
+    }
+}
