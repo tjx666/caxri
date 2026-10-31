@@ -1751,8 +1751,9 @@ turns it off.
   while no turn runs and no newer reply landed (`currentAgentChatAwayRecap`). The transcript shows it
   as a card after the last reply, labelled "While you were away" with its age and a close button
   (dismissal is per recap and lives in Renderer memory), and Activity quotes it as the Session's
-  excerpt ([Activity view: Excerpts](activity-view.md#excerpts)). Mobile receives the field but does
-  not render it yet.
+  excerpt ([Activity view: Excerpts](activity-view.md#excerpts)). The phone draws the same card after
+  the last reply (`MOB-CHAT-AWAY-RECAP-01`), closed per recap in app memory; its Session rows show no
+  excerpt, so they carry no recap.
 - **Log.** `agent_chat.away_recap` records the closed outcome `generated`, `skipped`, or `failed`;
   the skip reason above or the failure reason `changed`, `notRunning`, `timeout`, `empty`,
   `providerError`, or `usageGuard`; the provider, how long after the reply it ran, the recap length,

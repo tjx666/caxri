@@ -24,6 +24,11 @@ import { conversationActionText } from '../conversation/conversation-user-text';
 import { ConversationList } from '../conversation/conversation-view';
 import { MessageReadOfflineError } from '../conversation/read-whole-message';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
+import {
+    dismissAgentChatAwayRecap,
+    useDismissedAgentChatAwayRecap,
+} from './agent-chat-away-recap-dismissals';
+import { withAgentChatAwayRecap } from './agent-chat-away-recap-entry';
 import { AgentChatContinueScope } from './agent-chat-continue';
 import { AgentChatDock } from './agent-chat-dock';
 import type { AgentChatHandoffSource } from './agent-chat-handoff';
@@ -146,30 +151,35 @@ const AgentChatBody = ({
      * so only the rows a patch touched redraw.
      */
     const [stabilizeEntries] = useState(() => createAgentChatEntryStabilizer<TimelineEntry>());
-    const entries = useMemo(
-        () =>
-            stabilizeEntries(
-                withAgentChatPendingEntries(
-                    withAgentChatAwaitingReply(built, snapshot),
-                    pending,
-                    t,
-                ),
-            ),
-        [built, pending, snapshot, stabilizeEntries, t],
+    const terminalId = snapshot?.terminalId;
+    const dismissedRecapAt = useDismissedAgentChatAwayRecap(terminalId);
+    const entries = useMemo(() => {
+        const withPending = withAgentChatPendingEntries(
+            withAgentChatAwaitingReply(built, snapshot),
+            pending,
+            t,
+        );
+        return stabilizeEntries(withAgentChatAwayRecap(withPending, snapshot, dismissedRecapAt));
+    }, [built, dismissedRecapAt, pending, snapshot, stabilizeEntries, t]);
+    const dismissRecap = useCallback(
+        (generatedAt: number) => {
+            if (terminalId !== undefined) dismissAgentChatAwayRecap(terminalId, generatedAt);
+        },
+        [terminalId],
     );
     const renderEntry = useCallback(
         (entry: TimelineEntry) => (
             <AgentChatTimelineEntry
                 entry={entry}
+                onDismissRecap={dismissRecap}
                 onToggle={toggleExpansion}
                 provider={provider}
                 theme={theme}
             />
         ),
-        [provider, theme, toggleExpansion],
+        [dismissRecap, provider, theme, toggleExpansion],
     );
     const renderAttachments = useAgentChatMessageAttachments(snapshot, theme);
-    const terminalId = snapshot?.terminalId;
     const serverList = snapshot?.mcpServers;
     const mcpServers = useMemo(
         () => (serverList ? new Map(serverList.map((server) => [server.name, server])) : undefined),

@@ -4,6 +4,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { useConversationDisclosure } from '../conversation/conversation-disclosure';
 import { ConversationEntry } from '../conversation/conversation-entry';
 import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
+import { AgentChatAwayRecap } from './agent-chat-away-recap';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatHandoffTarget } from './agent-chat-handoff-target';
@@ -24,11 +25,16 @@ import { AgentChatWorkGroup } from './agent-chat-work-group';
 export const AgentChatTimelineEntry = memo(
     ({
         entry,
+        onDismissRecap,
         onToggle,
         provider,
         theme,
     }: {
         entry: Entry;
+        /**
+         * Closes the away recap (by its `generatedAt`).
+         */
+        onDismissRecap: (generatedAt: number) => void;
         /**
          * Folds or unfolds a turn (by turn id), a delegated task's pointer, or an answered question list (by entry id).
          */
@@ -113,6 +119,16 @@ export const AgentChatTimelineEntry = memo(
                     <AgentChatPendingMessage
                         id={entry.id}
                         imageUris={entry.imageUris}
+                        text={entry.text}
+                        theme={theme}
+                    />
+                );
+            }
+            case 'awayRecap': {
+                return (
+                    <AgentChatAwayRecap
+                        generatedAt={entry.generatedAt}
+                        onDismiss={() => onDismissRecap(entry.generatedAt)}
                         text={entry.text}
                         theme={theme}
                     />

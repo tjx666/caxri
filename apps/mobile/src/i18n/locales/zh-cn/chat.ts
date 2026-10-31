@@ -9,6 +9,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.answered.hideAnswers': '隐藏这些回答',
     'chat.answered.showAnswers': '显示这些回答',
     'chat.answered.skipped': '已跳过',
+    'chat.awayRecap.dismiss': '关闭回顾',
+    'chat.awayRecap.label': '离开期间',
     'chat.changes.hideChanges': '{{title}}。隐藏更改，新增 {{additions}} 行，删除 {{deletions}} 行',
     'chat.changes.hideDiff':
         '隐藏差异：{{path}}，{{kind}}，新增 {{additions}} 行，删除 {{deletions}} 行',
