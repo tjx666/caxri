@@ -383,7 +383,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await expect.poll(() => running.clipboard.textEquals('terminal.copy')).toBe(true);
         await running.clipboard.claimText('terminal.copy');
         await running.page.keyboard.press('Meta+w');
-        await expect(keybindingsTab).toHaveCount(0);
+        await expect(keybindingsTab).toBeHidden();
 
         await running.page
             .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)

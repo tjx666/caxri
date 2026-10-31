@@ -50,15 +50,43 @@ function setPreferredTheme(
 }
 
 /**
- * The page's header leads with Back, the way the full-page settings of comparable apps return to where the user was,
- * and names the page visibly: with no tab above it, nothing else on screen says "Settings".
+ * The page's header takes the place of the Workbench's root tab bar, so it is the window's title bar too: the same
+ * fill, drag region, and windowed traffic-light inset. It leads with Back, the way the full-page settings of comparable
+ * apps return to where the user was, and names the page visibly: with no tab above it, nothing else on screen says
+ * "Settings".
  */
-function SettingsWorkbenchView(controller: SettingsPageController) {
-    const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
+function SettingsPageTitleBar({ children }: { children: ReactNode }) {
     const { t } = useTranslation();
     const closeShortcut = useCommandShortcut('settings.close');
     const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
     const isFullScreen = useIsFullScreen();
+    return (
+        <div
+            className={cn(
+                'flex h-9 items-center gap-3 bg-title-bar-active-background pr-2 pl-2 text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
+                !isPrimarySidebarVisible && !isFullScreen && 'pl-(--traffic-light-clearance)',
+            )}
+        >
+            <Tooltip content={t('settings.page.backTooltip')} shortcut={closeShortcut}>
+                <Button
+                    className="[-webkit-app-region:no-drag]"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => closeSettings({ restoreFocus: true })}
+                >
+                    <ArrowLeft size={14} />
+                    {t('settings.page.back')}
+                </Button>
+            </Tooltip>
+            <h1 className="m-0 shrink-0 text-[13px] font-semibold">{t('settings.page.heading')}</h1>
+            {children}
+        </div>
+    );
+}
+
+function SettingsWorkbenchView(controller: SettingsPageController) {
+    const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
+    const { t } = useTranslation();
     const canImportTheme = useIsLocalOnlyAvailable();
     const { categories } = useSettingsRegistry();
     const [navigationState, setNavigationState] = useState<SettingsNavigationState>();
@@ -169,33 +197,8 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                 data-settings-page
                 className="grid h-full min-w-[30rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
             >
-                {/*
-                 * The header takes the place of the Workbench's root tab bar, so it is the window's title bar too: the
-                 * same fill, drag region, and windowed traffic-light inset. A background step over the `bg-background`
-                 * content, not a hairline (see `renderer-design-contract.test.ts`).
-                 */}
-                <div
-                    className={cn(
-                        'flex h-9 items-center gap-3 bg-title-bar-active-background pr-2 pl-2 text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
-                        !isPrimarySidebarVisible &&
-                            !isFullScreen &&
-                            'pl-(--traffic-light-clearance)',
-                    )}
-                >
-                    <Tooltip content={t('settings.page.backTooltip')} shortcut={closeShortcut}>
-                        <Button
-                            className="[-webkit-app-region:no-drag]"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => closeSettings({ restoreFocus: true })}
-                        >
-                            <ArrowLeft size={14} />
-                            {t('settings.page.back')}
-                        </Button>
-                    </Tooltip>
-                    <h1 className="m-0 shrink-0 text-[13px] font-semibold">
-                        {t('settings.page.heading')}
-                    </h1>
+                {/* A background step over the `bg-background` content, not a hairline (see `renderer-design-contract.test.ts`). */}
+                <SettingsPageTitleBar>
                     <p className="m-0 min-w-0 flex-1 truncate text-[11px] leading-[1.45] text-muted">
                         {t('settings.page.intro')}
                     </p>
@@ -232,7 +235,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                             </ToggleGroupItem>
                         </Tooltip>
                     </ToggleGroup>
-                </div>
+                </SettingsPageTitleBar>
                 <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
                     <SettingsNavigation
                         activeAnchor={navigationState?.activeAnchor}
