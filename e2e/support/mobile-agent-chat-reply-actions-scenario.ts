@@ -6,7 +6,13 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
-import { adbShell, tapMobileCheck, tapMobileCheckByBounds, waitForMobile } from './mobile-android';
+import {
+    adbShell,
+    observeMobileNode,
+    tapMobileCheck,
+    tapMobileCheckByBounds,
+    waitForMobile,
+} from './mobile-android';
 
 const PROMPT = 'Which Expo SDK should we target?';
 const FOLLOW_UP = 'thanks';
@@ -52,9 +58,43 @@ const script: FakeClaudeScript = {
 const sessionIds = async (page: Parameters<typeof pageRequest>[0]): Promise<string[]> =>
     (await pageRequest<BootstrapState>(page, 'app.bootstrap')).sessions.map(({ id }) => id);
 
+const reply = (snapshot: AgentChatSnapshot, text: string) =>
+    snapshot.items.find(
+        (item): item is Extract<AgentChatSnapshot['items'][number], { type: 'agentMessage' }> =>
+            item.type === 'agentMessage' && item.text.startsWith(text),
+    );
+
 const replyTurnId = (snapshot: AgentChatSnapshot, text: string): string | undefined =>
-    snapshot.items.find((item) => item.type === 'agentMessage' && item.text.startsWith(text))
-        ?.turnId;
+    reply(snapshot, text)?.turnId;
+
+/**
+ * The turns land over a minute apart, so each reply's More menu must show its own minute rather than the time it was
+ * opened or the latest reply's.
+ */
+const TURN_GAP_MS = 65_000;
+
+/**
+ * A reply's minute as its menu prints it (`:07`). Only the minute is compared, since the emulator's time zone may
+ * differ from the host's.
+ */
+const minuteOf = (timestamp: number): string =>
+    `:${String(new Date(timestamp).getMinutes()).padStart(2, '0')}`;
+
+/**
+ * Opens a reply's More menu and proves its heading reads today at that reply's own minute.
+ */
+async function openMoreMenu(serial: string, turnId: string, sentAt: number): Promise<void> {
+    await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${turnId}`);
+    await waitForCheck(serial, 'agent-chat-reply-time');
+    for (const value of ['今天', minuteOf(sentAt)]) {
+        // eslint-disable-next-line no-await-in-loop -- one menu, read twice.
+        const heading = await observeMobileNode(serial, 'agent-chat-reply-time', {
+            kind: 'includes',
+            value,
+        });
+        if (heading.textMatches !== true) throw new Error(`The More menu does not show ${value}`);
+    }
+}
 
 /**
  * `MOB-CHAT-REPLY-ACTIONS-01` (#3354): every finished turn's reply ends with Copy, Share, and More, and a turn that
@@ -83,6 +123,7 @@ export async function executeMobileChatReplyActionsScenario(
             (snapshot) => !snapshot.activeTurnId && replyTurnId(snapshot, 'Target') !== undefined,
             60_000,
         );
+        await new Promise((resolve) => setTimeout(resolve, TURN_GAP_MS));
         await chat.send({ text: FOLLOW_UP });
         const answered = await waitForMobile(
             () => chat.read(),
@@ -91,30 +132,51 @@ export async function executeMobileChatReplyActionsScenario(
         );
         const searched = replyTurnId(answered, 'Target');
         const thanked = replyTurnId(answered, 'You are');
-        if (!searched || !thanked) throw new Error('The scripted turns did not finish');
+        const searchedAt = reply(answered, 'Target')?.createdAt;
+        const thankedAt = reply(answered, 'You are')?.createdAt;
+        if (!searched || !thanked || searchedAt === undefined || thankedAt === undefined)
+            throw new Error('The scripted turns did not finish');
+        if (minuteOf(searchedAt) === minuteOf(thankedAt))
+            throw new Error('The two replies landed in the same minute');
         const recorded = answered.items.find(
             (item): item is Extract<AgentChatSnapshot['items'][number], { type: 'toolCall' }> =>
                 item.type === 'toolCall',
         )?.sources;
-        if (recorded?.length !== LINKS.length) throw new Error('Server Core recorded no sources');
+        if (JSON.stringify(recorded) !== JSON.stringify(LINKS))
+            throw new Error('Server Core did not record the searched pages with their titles');
 
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${sessionId}`);
         await waitForCheck(serial, `agent-chat-reply-sources-${searched}`, 60_000);
-        await waitForCheck(serial, `agent-chat-reply-more-${thanked}`);
+        for (const turnId of [searched, thanked])
+            for (const action of ['copy', 'share', 'more'])
+                // eslint-disable-next-line no-await-in-loop -- each control is checked on the same settled screen.
+                await waitForCheck(serial, `agent-chat-reply-${action}-${turnId}`);
         await waitForNoCheck(serial, `agent-chat-reply-sources-${thanked}`);
         // Favicons load from the sites; give them a moment before the settled capture.
         await new Promise((resolve) => setTimeout(resolve, 3000));
         await capture(environment, 'action-bars', artifacts);
 
-        await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${searched}`);
-        await waitForCheck(serial, 'agent-chat-reply-time');
+        await tapMobileCheckByBounds(serial, `agent-chat-reply-copy-${searched}`);
+        await waitForCheck(serial, 'toast');
+        await capture(environment, 'copied', artifacts);
+
+        await openMoreMenu(serial, thanked, thankedAt);
+        await capture(environment, 'more-menu-latest', artifacts);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await waitForNoCheck(serial, 'agent-chat-reply-time');
+
+        await openMoreMenu(serial, searched, searchedAt);
         await waitForCheck(serial, 'agent-chat-reply-fork');
         await waitForCheck(serial, 'agent-chat-reply-retry');
         await waitForCheck(serial, 'agent-chat-reply-select');
         await capture(environment, 'more-menu', artifacts);
-        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
-        await waitForNoCheck(serial, 'agent-chat-reply-time');
+        await tapMobileCheckByBounds(serial, 'agent-chat-reply-select');
+        await waitForCheck(serial, 'conversation-message-select-text');
+        await capture(environment, 'select-text', artifacts);
+        await waitForCheck(serial, 'conversation-message-select-done');
+        await tapMobileCheckByBounds(serial, 'conversation-message-select-done');
+        await waitForNoCheck(serial, 'conversation-message-sheet');
 
         await tapMobileCheckByBounds(serial, `agent-chat-reply-sources-${searched}`);
         await waitForCheck(serial, 'agent-chat-sources-sheet');
@@ -136,13 +198,15 @@ export async function executeMobileChatReplyActionsScenario(
             )
         ).find((id) => !before.includes(id));
         if (!forkedId) throw new Error('Fork did not create a Session');
+        // The fork holds the conversation through the first turn only, so the phone showing it no longer shows the
+        // second reply's bar.
+        await waitForNoCheck(serial, `agent-chat-reply-more-${thanked}`, 60_000);
         await waitForCheck(serial, 'session-detail-title');
         await capture(environment, 'forked-session', artifacts);
         await finish(environment, artifacts, {
-            fork: 'opened-new-session',
-            menu: 'time-fork-retry-select',
-            recordedSources: recorded.length,
-            sourcesOnReplyWithoutSearch: 'absent',
+            forkedSessionCreated: true,
+            recordedSources: recorded?.length,
+            replyMinutes: [minuteOf(searchedAt), minuteOf(thankedAt)],
             status: 'passed',
         });
     } finally {
