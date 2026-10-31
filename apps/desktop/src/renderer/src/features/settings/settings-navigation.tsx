@@ -35,11 +35,15 @@ export interface SettingsNavigationProperties {
      */
     section: ConfigKind;
     /**
-     * Rows matching the current search per category and `category:subcategory` anchor; only read while searching.
+     * Rows matching the current search per category and `category:subcategory` anchor; only read while filtered.
      */
     counts?: Partial<Record<string, number>>;
     activeAnchor?: string;
     searching?: boolean;
+    /**
+     * Rows are filtered (a query, or advanced rows hidden): entries with no listed rows are hidden as dead clicks.
+     */
+    filtered?: boolean;
     onNavigate: (anchor: string) => void;
     onSectionChange: (section: ConfigKind) => void;
 }
@@ -56,6 +60,7 @@ export function SettingsNavigation({
     counts = {},
     activeAnchor,
     searching = false,
+    filtered = searching,
     onNavigate,
     onSectionChange,
 }: SettingsNavigationProperties) {
@@ -69,7 +74,7 @@ export function SettingsNavigation({
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                 {categories.map((category) => {
                     const count = counts[category.id] ?? 0;
-                    if (searching && count === 0) return null;
+                    if (filtered && count === 0) return null;
                     // A subcategory carries the location on its own, so `aria-current` names exactly one entry.
                     const isActive = isSettings && activeAnchor === category.id;
                     return (
@@ -99,7 +104,7 @@ export function SettingsNavigation({
                                         const anchor = `${category.id}:${subcategory}`;
                                         // A subcategory with no matches has no heading in the
                                         // filtered list, so its entry would be a dead click.
-                                        if (searching && (counts[anchor] ?? 0) === 0) return null;
+                                        if (filtered && (counts[anchor] ?? 0) === 0) return null;
                                         const provider = agentProviderForSubcategory(subcategory);
                                         const isSubActive = isSettings && activeAnchor === anchor;
                                         return (

@@ -11,17 +11,32 @@ export type SettingsListItem =
     | { kind: 'subcategory'; id: string; categoryId: SettingCategoryId; title: string }
     | { kind: 'row'; id: string; row: SettingRowDescriptor };
 
+export interface SettingsRowFilterOptions {
+    /**
+     * Lists advanced rows without a query. Defaults to true.
+     */
+    showAdvanced?: boolean;
+    /**
+     * Advanced rows a focus request is scrolling to, listed even while advanced rows are hidden so the request lands.
+     */
+    revealedRowIds?: ReadonlySet<string>;
+}
+
 /**
  * Whitespace-separated tokens must all appear in a row's haystack (AND semantics), matching how the VS Code settings
- * search narrows as you type. An empty or blank query keeps every row.
+ * search narrows as you type. A query searches advanced rows too, so hiding them never makes a setting unreachable. An
+ * empty or blank query keeps every basic row, and advanced rows only under `showAdvanced` or when revealed.
  */
 export function filterSettingsRows(
     rows: readonly SettingRowDescriptor[],
     query: string,
+    { showAdvanced = true, revealedRowIds }: SettingsRowFilterOptions = {},
 ): SettingRowDescriptor[] {
     const tokens = query.toLowerCase().split(/\s+/u).filter(Boolean);
-    if (tokens.length === 0) return [...rows];
-    return rows.filter((row) => tokens.every((token) => row.haystack.includes(token)));
+    if (tokens.length > 0)
+        return rows.filter((row) => tokens.every((token) => row.haystack.includes(token)));
+    if (showAdvanced) return [...rows];
+    return rows.filter((row) => !row.advanced || revealedRowIds?.has(row.id) === true);
 }
 
 /**

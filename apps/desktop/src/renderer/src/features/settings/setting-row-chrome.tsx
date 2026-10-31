@@ -35,6 +35,11 @@ interface SettingRowChromeProperties {
     toggle?: ReactNode;
     fullWidth: boolean;
     labelFor?: string;
+    /**
+     * Tags an advanced row listed while advanced rows are hidden, so it reads as found rather than as a row that will
+     * stay after the search is cleared.
+     */
+    showAdvancedTag?: boolean;
 }
 
 /**
@@ -51,6 +56,7 @@ export function SettingRowChrome({
     toggle,
     fullWidth,
     labelFor,
+    showAdvancedTag,
 }: SettingRowChromeProperties) {
     const { t } = useTranslation();
     const labelBlock = (
@@ -60,6 +66,11 @@ export function SettingRowChrome({
                     <FieldLabel htmlFor={labelFor}>{row.title}</FieldLabel>
                 ) : (
                     <FieldTitle>{row.title}</FieldTitle>
+                )}
+                {showAdvancedTag && (
+                    <span className="rounded-sm border border-border px-1 text-[10px] leading-4 text-muted">
+                        {t('settings.page.advancedTag')}
+                    </span>
                 )}
                 {modified && resettable && (
                     <Tooltip content={t('settings.page.resetToDefault')}>

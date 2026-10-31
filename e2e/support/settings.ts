@@ -6,11 +6,27 @@ import { expect } from '@playwright/test';
  * covers the Workbench, not a modal and not a pane tab, so this attribute is the scope every Settings-touching test
  * should query within. The page stays mounted (hidden) after it closes, so assert a closed page with `toBeHidden()`.
  */
-export async function openSettingsPage(page: Page): Promise<Locator> {
+export async function openSettingsPage(
+    page: Page,
+    { advanced = true }: { advanced?: boolean } = {},
+): Promise<Locator> {
     await page.keyboard.press('Meta+,');
     const panel = page.locator('[data-settings-page]');
     await expect(panel).toBeVisible();
+    if (advanced) await setShowAdvancedSettings(panel, true);
     return panel;
+}
+
+/**
+ * Turns Show advanced settings on or off. The list hides advanced rows by default, and most specs open Settings to
+ * reach one (launch arguments, hooks, scrollback), so `openSettingsPage` turns it on unless a spec asks for the default
+ * view; the choice lives in the window's `localStorage`, so it holds for the rest of the launch.
+ */
+async function setShowAdvancedSettings(settings: Locator, isOn: boolean): Promise<void> {
+    const toggle = settings.getByRole('switch', { name: 'Show advanced settings' });
+    await expect(toggle).toBeVisible();
+    if ((await toggle.getAttribute('aria-checked')) !== String(isOn)) await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', String(isOn));
 }
 
 /**

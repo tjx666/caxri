@@ -18,6 +18,8 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.page.clearSearch': '清除搜索',
     'settings.page.clearSearchLabel': '清除设置搜索',
     'settings.page.searchCount': '{{visible}} / {{total}} 项设置',
+    'settings.page.showAdvanced': '显示高级设置',
+    'settings.page.advancedTag': '高级',
     'settings.page.noMatches': '没有与“{{query}}”匹配的设置',
     'settings.page.accessibleTitle': '{{category}} {{title}}',
     'settings.page.resetToDefault': '恢复默认值',

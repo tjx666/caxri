@@ -10,12 +10,14 @@ const row = (
     category: SettingRowDescriptor['category'],
     haystack: string,
     subcategory?: string,
+    isAdvanced = false,
 ): SettingRowDescriptor => ({
     id,
     category,
     subcategory,
     title: id,
     accessibleTitle: id,
+    advanced: isAdvanced,
     binding: { type: 'setting', key: 'terminal.fontSize' },
     haystack,
 });
@@ -89,6 +91,55 @@ describe('filterSettingsRows', () => {
                 filterSettingsRows(settingsRows, query).map((r) => r.id),
                 query,
             ).toContain('security.remoteDebugging');
+    });
+});
+
+describe('advanced rows', () => {
+    const rows = [
+        row('basic', 'terminal', 'terminal font size'),
+        row('advanced', 'terminal', 'terminal scrollback', undefined, true),
+    ];
+
+    it('hides advanced rows without a query unless they are shown or revealed', () => {
+        expect(filterSettingsRows(rows, '', { showAdvanced: false }).map((r) => r.id)).toEqual([
+            'basic',
+        ]);
+        expect(filterSettingsRows(rows, '', { showAdvanced: true })).toHaveLength(2);
+        expect(
+            filterSettingsRows(rows, '', {
+                showAdvanced: false,
+                revealedRowIds: new Set(['advanced']),
+            }).map((r) => r.id),
+        ).toEqual(['basic', 'advanced']);
+    });
+
+    it('searches advanced rows even while they are hidden', () => {
+        expect(
+            filterSettingsRows(rows, 'scrollback', { showAdvanced: false }).map((r) => r.id),
+        ).toEqual(['advanced']);
+    });
+
+    it('keeps the everyday settings a new user looks for in the basic list', () => {
+        const basic = new Set(
+            filterSettingsRows(settingsRows, '', { showAdvanced: false }).map((r) => r.id),
+        );
+        for (const id of [
+            'session.defaultAgent',
+            'session.openAgentsInChat',
+            'agents.notifications.enabled',
+            'terminal.fontSize',
+            'editor.fontSize',
+            'agents.claude.autonomy',
+        ])
+            expect(basic.has(id), id).toBe(true);
+        for (const id of [
+            'agents.claude.args',
+            'agents.claude.hooks',
+            'agents.claude.recovery',
+            'agents.delegation.maxDepth',
+            'security.remoteDebugging',
+        ])
+            expect(basic.has(id), id).toBe(false);
     });
 });
 

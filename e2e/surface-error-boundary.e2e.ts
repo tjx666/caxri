@@ -56,7 +56,7 @@ test('a surface render failure stays local to its surface', async () => {
 
         // Settings page: the page header and navigation stay, only the content is replaced.
         await page.evaluate((key) => sessionStorage.setItem(key, 'settings'), SURFACE_FAULT_KEY);
-        const settings = await openSettingsPage(page);
+        const settings = await openSettingsPage(page, { advanced: false });
         const settingsFailure = settings
             .getByRole('alert')
             .filter({ hasText: 'This part of the window could not be displayed.' });

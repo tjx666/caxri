@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { rowFocusRequest, settingsSectionForRequest } from '../settings-focus-requests';
+import {
+    revealedSettingRowIds,
+    rowFocusRequest,
+    settingsSectionForRequest,
+} from '../settings-focus-requests';
 
 describe('settingsSectionForRequest', () => {
     it('opens Source and Keybindings requests on their own section', () => {
@@ -24,5 +28,18 @@ describe('rowFocusRequest', () => {
             rowId: 'security.remoteDebugging',
         });
         expect(rowFocusRequest({ id: 3, view: 'ui' })).toBeUndefined();
+    });
+});
+
+describe('revealedSettingRowIds', () => {
+    it('names the row each open focus request scrolls to', () => {
+        expect([
+            ...revealedSettingRowIds({
+                gitExclusionsFocusRequestId: 1,
+                rowFocusRequest: { rowId: 'security.remoteDebugging' },
+                agentExecutableFocusRequest: { provider: 'codex' },
+            }),
+        ]).toEqual(['git.diffExclude', 'security.remoteDebugging', 'agents.codex.executable']);
+        expect(revealedSettingRowIds({}).size).toBe(0);
     });
 });

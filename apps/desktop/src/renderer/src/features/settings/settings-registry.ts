@@ -52,6 +52,11 @@ export interface SettingRowDescriptor {
      * A boolean setting this row only applies under (see `SettingRowSource.enabledBy`).
      */
     enabledBy?: SettingRowSource['enabledBy'];
+    /**
+     * Listed only under Show advanced settings, while searching, or when a request scrolls to it (see
+     * `SettingRowSource.advanced`).
+     */
+    advanced: boolean;
     binding: SettingRowBinding;
     /**
      * Lowercased text corpus the settings search matches against: the English source text and keywords plus the active
@@ -141,6 +146,7 @@ function buildSettingsRegistry(t: Translate): SettingsRegistry {
             description,
             detail,
             enabledBy: source.enabledBy,
+            advanced: source.advanced ?? false,
             binding: source.binding,
             haystack: lower([
                 source.searchTerms,

@@ -17,6 +17,7 @@ const row = (
         subcategory,
         title: id,
         accessibleTitle: id,
+        advanced: false,
         binding: { type: 'setting', key: 'terminal.fontSize' },
         haystack: id,
     },
