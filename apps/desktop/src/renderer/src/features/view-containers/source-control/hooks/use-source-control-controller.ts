@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
     PaneResource,
@@ -16,7 +16,6 @@ import {
     invalidateControlledViewSnapshot,
 } from '../../../../features/view-containers/view-container-commands';
 import { useOnVisible } from '../../../../hooks/use-on-visible';
-import type { Translate } from '../../../../i18n';
 import { useTranslation } from '../../../../i18n';
 import { useToastOnQueryError } from '../../../../queries/client';
 import { useSessionViewScope, useSettings } from '../../../../stores/selectors';
@@ -36,7 +35,6 @@ import {
     SUPERSEDED,
 } from '../source-control-action-resolution';
 import { refreshingActionMessage } from '../source-control-history-state';
-import { localizeActionEffect, localizeSourceControlModel } from '../source-control-model-text';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import {
     isSupersededSnapshotError,
@@ -50,10 +48,9 @@ import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
 
-function applyActionEffect(effect: SourceControlActionEffect, t: Translate): void {
-    const localized = localizeActionEffect(effect, t);
-    if (localized.kind === 'open-editor') openEditorTab(localized.resource);
-    else pushToast(localized.tone, localized.message);
+function applyActionEffect(effect: SourceControlActionEffect): void {
+    if (effect.kind === 'open-editor') openEditorTab(effect.resource);
+    else pushToast(effect.tone, effect.message);
 }
 
 type SourceControlViewEmptyController = Exclude<SourceControlPanelState, { status: 'ready' }> & {
@@ -245,14 +242,6 @@ export function useSourceControlController(
     });
     useCancelViewContainerQueryWhenHidden(snapshotOptions.queryKey, isContainerActive);
     const snapshot = useQuery(snapshotOptions);
-    /**
-     * The Git extension sends English; translate for display only. Action resolution keeps using `snapshot.data`, which
-     * matches by command binding and never by label.
-     */
-    const localizedModel = useMemo(
-        () => (snapshot.data ? localizeSourceControlModel(snapshot.data, t) : undefined),
-        [snapshot.data, t],
-    );
     const requestRefresh = useCallback(() => {
         setRefresh((current) => current + 1);
     }, []);
@@ -348,7 +337,7 @@ export function useSourceControlController(
             }
             const { result, revision } = outcome;
             if (!result || result.revision !== revision) return;
-            for (const effect of result.effects) applyActionEffect(effect, t);
+            for (const effect of result.effects) applyActionEffect(effect);
             if (result.refresh) requestRefresh();
         },
         [
@@ -372,7 +361,7 @@ export function useSourceControlController(
         hasSession,
         hasSnapshotError: snapshot.isError,
         isSnapshotSuperseded: isSupersededSnapshotError(snapshot.error),
-        model: localizedModel,
+        model: snapshot.data,
         t,
     });
     if (panelState.status !== 'ready')
@@ -385,7 +374,7 @@ export function useSourceControlController(
                 presentation?.noContextMessage ?? t('viewContainers.sourceControl.noSessionHint'),
             refresh: requestRefresh,
         };
-    if (!localizedModel)
+    if (!snapshot.data)
         return {
             status: 'loading',
             isRefreshing: true,
@@ -400,7 +389,7 @@ export function useSourceControlController(
         activeEditorResource: activeFilePath,
         fileHistoryExpanded,
         isRefreshing: snapshot.isFetching,
-        model: localizedModel,
+        model: snapshot.data,
         navigation,
         runAction,
         selectMode,

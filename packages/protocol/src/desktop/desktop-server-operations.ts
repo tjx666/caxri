@@ -13,6 +13,7 @@ export const desktopServerOperationIds = [
     'app.auxiliaryWindowState.get',
     'app.auxiliaryWindowState.update',
     'app.systemAppearance.update',
+    'app.systemLanguages.update',
     'app.windowState.get',
     'app.windowState.update',
     'bugReport.deliver',

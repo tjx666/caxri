@@ -6,7 +6,6 @@ import { useTranslation } from '../../../i18n';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { describeFailure } from '../../../stores/toasts';
 import { useSourceControlHistoryDetails } from './hooks/use-source-control-history-details';
-import { localizeHistorySummary } from './source-control-model-text';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
 /**
@@ -58,7 +57,7 @@ export function SourceControlHistoryDetails({
             {details.data.resources.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-muted">
                     {details.data.hiddenCount
-                        ? localizeHistorySummary(details.data.summary, t)
+                        ? details.data.summary
                         : descriptor.detailsEmptyMessage}
                 </div>
             ) : (
@@ -103,7 +102,7 @@ export function SourceControlHistoryHoverDetails({
     if (!details.data) return null;
     return (
         <>
-            <span className="text-muted">{localizeHistorySummary(details.data.summary, t)}</span>
+            <span className="text-muted">{details.data.summary}</span>
             <DiffStat additions={details.data.additions} deletions={details.data.deletions} />
             <span className="sr-only">{diffStatLabel(details.data, t)}</span>
         </>

@@ -39,7 +39,6 @@ import {
     toggleTreeItemSubtree,
     treeItemSubtreeHandles,
 } from './state';
-import { localizeTreeChildren } from './text';
 
 const MemoizedExtensionTreeItemRow = memo(ExtensionTreeItemRow);
 
@@ -197,14 +196,10 @@ function ExtensionTreeViewContent({
         loadChildren,
         requests,
         rootLoads,
-        visibleChildren: loadedVisibleChildren,
+        visibleChildren,
         visibleErrors,
         visibleLoading,
     } = useExtensionTreeChildren(scope, updateTreeState, treeState);
-    const visibleChildren = useMemo(
-        () => localizeTreeChildren(scope.viewId, loadedVisibleChildren, t),
-        [loadedVisibleChildren, scope.viewId, t],
-    );
     const refreshLock = useRef<string | undefined>(undefined);
     const [pendingRefresh, setPendingRefresh] = useState<PendingTreeRefresh>();
     const activePendingRefresh = pendingRefresh

@@ -1,10 +1,10 @@
 import type { ProjectStatusRepository } from 'caxri';
+import caxri, { l10n } from 'caxri';
 
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
-import { REFRESH_ACTION_LABEL } from './status-labels';
-
-const networkProviderListFormatter = new Intl.ListFormat('en', { type: 'conjunction' });
+import { refreshActionLabel } from './status-labels';
+import { localizeServerStatusText } from './status-server-text';
 
 export type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
 
@@ -36,14 +36,23 @@ export function networkNodes(errors: readonly ProjectStatusFailure[]): StatusNod
     const names = failureSources(errors).map((source) => providerNames[source]);
     const isShared = names.length > 1;
     return [
-        item('status:network', isShared ? 'No network connection' : first.message, {
-            variant: 'message',
-            description: isShared
-                ? `Caxri could not reach ${networkProviderListFormatter.format(names)}. Reconnect, then refresh.`
-                : first.hint,
-            icon: 'cloud',
-            command: { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
-        }),
+        item(
+            'status:network',
+            isShared ? l10n.t('No network connection') : localizeServerStatusText(first.message),
+            {
+                variant: 'message',
+                description: isShared
+                    ? l10n.t('Caxri could not reach {providers}. Reconnect, then refresh.', {
+                          // Formatted per call in the interface language, so the list joins as that language does.
+                          providers: new Intl.ListFormat(caxri.env.language, {
+                              type: 'conjunction',
+                          }).format(names),
+                      })
+                    : first.hint && localizeServerStatusText(first.hint),
+                icon: 'cloud',
+                command: { command: 'caxri.project-status.refresh', title: refreshActionLabel() },
+            },
+        ),
     ];
 }
 
@@ -64,14 +73,14 @@ export function rateLimitNodes(errors: readonly ProjectStatusFailure[], now: num
              * deadline, or with no deadline at all, the action comes back.
              */
             const isPaused = error.retryAt !== undefined && error.retryAt > now;
-            return item(`status:rate-limit:${source}`, error.message, {
+            return item(`status:rate-limit:${source}`, localizeServerStatusText(error.message), {
                 variant: 'message',
-                description: error.hint,
+                description: error.hint && localizeServerStatusText(error.hint),
                 icon: 'hourglass',
                 ...(!isPaused && {
                     command: {
                         command: 'caxri.project-status.refresh',
-                        title: REFRESH_ACTION_LABEL,
+                        title: refreshActionLabel(),
                     },
                 }),
             });

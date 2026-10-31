@@ -1,4 +1,5 @@
 import type { GitSummary, ViewBadge } from 'caxri';
+import { l10n } from 'caxri';
 
 import { visibleChangedFileCount } from './submodule-sections';
 
@@ -17,6 +18,9 @@ export function workingTreeBadge(summary: GitSummary): ViewBadge | undefined {
     return {
         kind: 'count',
         count,
-        description: `${count} ${count === 1 ? 'change' : 'changes'}`,
+        description:
+            count === 1
+                ? l10n.t('{count} change', { count })
+                : l10n.t('{count} changes', { count }),
     };
 }

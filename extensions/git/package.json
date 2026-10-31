@@ -42,14 +42,14 @@
             "caxri.git": [
                 {
                     "id": "caxri.git.sourceControl",
-                    "name": "Source Control",
+                    "name": "%views.sourceControl.name%",
                     "type": "source-control",
                     "badge": true,
                     "presentation": {
-                        "noContextMessage": "Pick a Session to inspect its Git state.",
-                        "loadingMessage": "Loading Git status…",
-                        "actionErrorMessage": "Git action failed",
-                        "refreshErrorMessage": "Git refresh failed"
+                        "noContextMessage": "%views.sourceControl.noContextMessage%",
+                        "loadingMessage": "%views.sourceControl.loadingMessage%",
+                        "actionErrorMessage": "%views.sourceControl.actionErrorMessage%",
+                        "refreshErrorMessage": "%views.sourceControl.refreshErrorMessage%"
                     },
                     "configurationDependencies": [
                         "git.fetchGitHubAvatars",
@@ -61,48 +61,48 @@
         "commands": [
             {
                 "command": "caxri.git.workingTree",
-                "title": "Working Tree Changes"
+                "title": "%commands.workingTree.title%"
             },
             {
                 "command": "caxri.git.lastCommit",
-                "title": "Last Commit Changes"
+                "title": "%commands.lastCommit.title%"
             },
             {
                 "command": "caxri.git.pullRequest",
-                "title": "Pull Request Changes"
+                "title": "%commands.pullRequest.title%"
             },
             {
                 "command": "caxri.git.refresh",
-                "title": "Refresh Git"
+                "title": "%commands.refresh.title%"
             },
             {
                 "command": "caxri.git.sync",
-                "title": "Sync Changes",
+                "title": "%commands.sync.title%",
                 "palette": false
             },
             {
                 "command": "caxri.git.discardAll",
-                "title": "Discard All Changes",
+                "title": "%commands.discardAll.title%",
                 "palette": false
             },
             {
                 "command": "caxri.git.discard",
-                "title": "Discard Changes",
+                "title": "%commands.discard.title%",
                 "palette": false
             },
             {
                 "command": "caxri.git.openChanges",
-                "title": "Open Changes",
+                "title": "%commands.openChanges.title%",
                 "palette": false
             },
             {
                 "command": "caxri.git.history",
-                "title": "Show Repository History",
+                "title": "%commands.history.title%",
                 "palette": false
             },
             {
                 "command": "caxri.git.openCommit",
-                "title": "Open Git Commit",
+                "title": "%commands.openCommit.title%",
                 "palette": false
             }
         ]

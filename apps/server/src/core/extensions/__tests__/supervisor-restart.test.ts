@@ -78,7 +78,7 @@ describe('ExtensionHostSupervisor restart', () => {
                 'server-core',
                 'error',
             ),
-            registrations: () => [],
+            configuration: () => ({ extensions: [], locale: 'en' }),
             requestApi,
         });
     }

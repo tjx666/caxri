@@ -11,6 +11,7 @@ import type {
     TreeItemRichTooltip,
     TreeItemTooltipRow,
 } from 'caxri';
+import { l10n } from 'caxri';
 
 import { deploymentStateLabel } from './status-labels';
 
@@ -141,10 +142,34 @@ export const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'succ
  * reader who cannot use the color needs it.
  */
 export const pullRequestPresentation = {
-    open: { icon: 'git-pull-request-open', label: 'Open', tone: 'success' },
-    draft: { icon: 'git-pull-request-draft', label: 'Draft', tone: 'neutral' },
-    merged: { icon: 'git-merge', label: 'Merged', tone: 'neutral' },
-    closed: { icon: 'git-pull-request-closed', label: 'Closed', tone: 'danger' },
+    open: {
+        icon: 'git-pull-request-open',
+        get label() {
+            return l10n.t('Open');
+        },
+        tone: 'success',
+    },
+    draft: {
+        icon: 'git-pull-request-draft',
+        get label() {
+            return l10n.t('Draft');
+        },
+        tone: 'neutral',
+    },
+    merged: {
+        icon: 'git-merge',
+        get label() {
+            return l10n.t('Merged');
+        },
+        tone: 'neutral',
+    },
+    closed: {
+        icon: 'git-pull-request-closed',
+        get label() {
+            return l10n.t('Closed');
+        },
+        tone: 'danger',
+    },
 } as const;
 
 export const repoPresentation: Record<
@@ -152,9 +177,24 @@ export const repoPresentation: Record<
     { description?: string; icon: string }
 > = {
     primary: { icon: 'repo' },
-    worktree: { description: 'worktree', icon: 'worktree' },
-    nested: { description: 'nested', icon: 'repo' },
-    submodule: { description: 'submodule', icon: 'archive' },
+    worktree: {
+        get description() {
+            return l10n.t('worktree');
+        },
+        icon: 'worktree',
+    },
+    nested: {
+        get description() {
+            return l10n.t('nested');
+        },
+        icon: 'repo',
+    },
+    submodule: {
+        get description() {
+            return l10n.t('submodule');
+        },
+        icon: 'archive',
+    },
 };
 
 /**
@@ -229,7 +269,7 @@ export function deploymentRowLabel(deployment: ProjectStatusDeployment): string 
 export function deploymentEnvironmentLabel(
     environment: ProjectStatusDeployment['environment'],
 ): string {
-    return environment === 'production' ? 'Production' : 'Preview';
+    return environment === 'production' ? l10n.t('Production') : l10n.t('Preview');
 }
 
 /**
@@ -241,7 +281,10 @@ export function branchDeploymentRowDescription(
     deployment: ProjectStatusDeployment,
     isLatest: boolean,
 ): string {
-    return [deploymentEnvironmentLabel(deployment.environment), isLatest ? 'Latest' : undefined]
+    return [
+        deploymentEnvironmentLabel(deployment.environment),
+        isLatest ? l10n.t('Latest') : undefined,
+    ]
         .filter((part): part is string => part !== undefined)
         .join(' · ');
 }
@@ -272,7 +315,7 @@ export function deploymentTooltip(
             ...(commit
                 ? [
                       {
-                          label: 'commit',
+                          label: l10n.t('commit'),
                           value: [shortCommitSha(commit.sha), commit.message]
                               .filter(Boolean)
                               .join(' '),
@@ -280,16 +323,24 @@ export function deploymentTooltip(
                       },
                   ]
                 : []),
-            ...(commit?.authorLogin ? [{ label: 'author', value: commit.authorLogin }] : []),
-            { label: 'alias', value: deployment.hostname, url: deployment.url },
+            ...(commit?.authorLogin
+                ? [{ label: l10n.t('author'), value: commit.authorLogin }]
+                : []),
+            { label: l10n.t('alias'), value: deployment.hostname, url: deployment.url },
             ...(deployment.inspectorUrl
-                ? [{ label: 'inspect', value: 'details', url: deployment.inspectorUrl }]
+                ? [
+                      {
+                          label: l10n.t('inspect'),
+                          value: l10n.t('details'),
+                          url: deployment.inspectorUrl,
+                      },
+                  ]
                 : []),
             ...(deployment.createdAt === undefined
                 ? []
                 : [
                       {
-                          label: 'created',
+                          label: l10n.t('created'),
                           value: new Date(deployment.createdAt).toLocaleString(),
                       },
                   ]),

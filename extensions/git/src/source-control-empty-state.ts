@@ -4,6 +4,7 @@ import type {
     GitRepositorySummary,
     SourceControlGroup,
 } from 'caxri';
+import { l10n } from 'caxri';
 
 import { canDetectPullRequest } from './pull-request-detection';
 import type { GitSourceControlMode } from './source-control-model';
@@ -20,7 +21,7 @@ export function withRetryHint(message: string): string {
     const trimmed = message.trim();
     // A safe provider message may already name the step (`... Check remote access and refresh.`); say it once.
     if (/\brefresh\b/i.test(trimmed)) return trimmed;
-    return `${/[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`} Refresh to retry.`;
+    return `${/[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`} ${l10n.t('Refresh to retry.')}`;
 }
 
 /**
@@ -35,38 +36,43 @@ export function emptyStateForMode(
     pullRequest: GitPullRequestChanges | null | undefined,
     selectedCommitSha?: string,
 ): Pick<SourceControlGroup, 'emptyMessage' | 'isLoading'> {
-    if (mode === 'working') return { emptyMessage: 'Working tree clean.' };
+    if (mode === 'working') return { emptyMessage: l10n.t('Working tree clean.') };
     if (mode === 'commit') {
-        if (!repo.head) return { emptyMessage: 'No commits yet.' };
+        if (!repo.head) return { emptyMessage: l10n.t('No commits yet.') };
         if (detailError)
             return {
                 emptyMessage: selectedCommitSha
-                    ? `Unable to load commit ${selectedCommitSha.slice(0, 7)}.`
-                    : 'Unable to load the last commit.',
+                    ? l10n.t('Unable to load commit {sha}.', { sha: selectedCommitSha.slice(0, 7) })
+                    : l10n.t('Unable to load the last commit.'),
             };
         if (selectedCommitSha)
             return details
-                ? { emptyMessage: `Commit ${selectedCommitSha.slice(0, 7)} has no file changes.` }
-                : loading(`Loading commit ${selectedCommitSha.slice(0, 7)}…`);
+                ? {
+                      emptyMessage: l10n.t('Commit {sha} has no file changes.', {
+                          sha: selectedCommitSha.slice(0, 7),
+                      }),
+                  }
+                : loading(l10n.t('Loading commit {sha}…', { sha: selectedCommitSha.slice(0, 7) }));
         return details
-            ? { emptyMessage: 'Last commit has no file changes.' }
-            : loading('Loading last commit…');
+            ? { emptyMessage: l10n.t('Last commit has no file changes.') }
+            : loading(l10n.t('Loading last commit…'));
     }
     // A detached HEAD has no branch to match, so the provider skips the lookup and this says why nothing is listed.
     if (!canDetectPullRequest(repo))
         return {
-            emptyMessage: 'Detached HEAD has no pull request. Switch to a branch to see one.',
+            emptyMessage: l10n.t(
+                'Detached HEAD has no pull request. Switch to a branch to see one.',
+            ),
         };
     if (detailError)
         return {
-            emptyMessage: withRetryHint(
+            emptyMessage:
                 typeof detailError === 'string'
-                    ? detailError
-                    : 'Unable to load pull request changes.',
-            ),
+                    ? withRetryHint(detailError)
+                    : l10n.t('Unable to load pull request changes. Refresh to retry.'),
         };
-    if (pullRequest === null) return { emptyMessage: 'No pull request for this branch.' };
+    if (pullRequest === null) return { emptyMessage: l10n.t('No pull request for this branch.') };
     return pullRequest
-        ? { emptyMessage: 'Pull request has no file changes.' }
-        : loading('Loading pull request changes…');
+        ? { emptyMessage: l10n.t('Pull request has no file changes.') }
+        : loading(l10n.t('Loading pull request changes…'));
 }

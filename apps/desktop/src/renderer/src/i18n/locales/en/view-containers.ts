@@ -1,4 +1,3 @@
-import { viewContainersExtensionText } from './view-containers-extension-text';
 import { viewContainersFiles } from './view-containers-files';
 import { viewContainersSourceControl } from './view-containers-source-control';
 
@@ -44,11 +43,6 @@ export const viewContainers = {
     'viewContainers.builtin.files': 'Files',
     'viewContainers.builtin.info': 'Info',
     'viewContainers.builtin.logs': 'Logs',
-    'viewContainers.builtin.status': 'Status',
-    'viewContainers.builtin.projectStatus': 'Project Status',
-    'viewContainers.builtin.gitActionFailed': 'Git action failed',
-    'viewContainers.builtin.gitRefreshFailed': 'Git refresh failed',
-    ...viewContainersExtensionText,
     ...viewContainersFiles,
     ...viewContainersSourceControl,
 } as const;

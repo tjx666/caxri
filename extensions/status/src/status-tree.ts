@@ -5,7 +5,7 @@ import type {
     TreeItemAction,
     TreeItemTooltipRow,
 } from 'caxri';
-import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
+import { l10n, ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 
 import { fixDeploymentAction } from './status-agent-actions';
 import {
@@ -25,7 +25,7 @@ import {
     ignoredChecksLabel,
     publicationDescription,
     publicationLabel,
-    REFRESH_ACTION_LABEL,
+    refreshActionLabel,
 } from './status-labels';
 import { mergeReadinessLabel, pullRequestRowActions } from './status-merge';
 import {
@@ -46,6 +46,7 @@ import {
     stateTones,
 } from './status-presentation';
 import { reviewNode } from './status-review';
+import { localizeServerStatusText } from './status-server-text';
 import { networkNodes, rateLimitNodes, sharedFailureReasons } from './status-shared-failures';
 
 /**
@@ -98,7 +99,10 @@ function buildRepoChildren(
      * badges every state, `Synced` included.
      */
     const branchRowPublication = publication?.state === 'synced' ? undefined : branchPublication;
-    const branchDescription = [isDefaultBranch ? 'default' : undefined, branchRowPublication]
+    const branchDescription = [
+        isDefaultBranch ? l10n.t('default') : undefined,
+        branchRowPublication,
+    ]
         .filter(Boolean)
         .join(' · ');
     const nodes: StatusNode[] = [
@@ -115,11 +119,14 @@ function buildRepoChildren(
                 repo.branch,
                 branchDescription.length > 0 ? branchDescription : undefined,
                 branchLifecycle && repo.pullRequest
-                    ? `pull request #${repo.pullRequest.number} ${branchLifecycle.label}`
+                    ? l10n.t('pull request #{number} {state}', {
+                          number: repo.pullRequest.number,
+                          state: branchLifecycle.label,
+                      })
                     : undefined,
                 // The trailing "No origin" is terse; the spoken row says what it needs, as the hover card does.
                 publication?.state === 'no-origin'
-                    ? 'add a GitHub remote named origin to compare it'
+                    ? l10n.t('add a GitHub remote named origin to compare it')
                     : undefined,
             ]
                 .filter(Boolean)
@@ -127,34 +134,34 @@ function buildRepoChildren(
             url: repo.branchUrl,
             tooltip: {
                 ...((branchPublication !== undefined || isDefaultBranch) && {
-                    badge: { label: branchPublication ?? 'default', tone: 'neutral' },
+                    badge: { label: branchPublication ?? l10n.t('default'), tone: 'neutral' },
                 }),
                 description: publication ? publicationDescription(publication.state) : undefined,
                 rows: [
                     ...(branchLifecycle && repo.pullRequest
                         ? [
                               {
-                                  label: 'pull request',
+                                  label: l10n.t('pull request'),
                                   value: `#${repo.pullRequest.number} ${branchLifecycle.label}`,
                               },
                           ]
                         : []),
                     ...(publication?.remoteBranch
-                        ? [{ label: 'compared branch', value: publication.remoteBranch }]
+                        ? [{ label: l10n.t('compared branch'), value: publication.remoteBranch }]
                         : []),
                     ...(publication?.checkedAt === undefined
                         ? []
                         : [
                               {
-                                  label: 'checked',
+                                  label: l10n.t('checked'),
                                   value: new Date(publication.checkedAt).toLocaleString(),
                               },
                           ]),
                     ...(isDefaultBranch && publication
-                        ? [{ label: 'default', value: repo.branch }]
+                        ? [{ label: l10n.t('default'), value: repo.branch }]
                         : []),
                     !isDefaultBranch && repo.defaultBranch
-                        ? { label: 'default', value: repo.defaultBranch }
+                        ? { label: l10n.t('default'), value: repo.defaultBranch }
                         : undefined,
                 ].filter((row): row is TreeItemTooltipRow => row !== undefined),
             },
@@ -216,7 +223,7 @@ function buildRepoChildren(
                     rows: [
                         acceptance.verdict
                             ? {
-                                  label: 'verdict',
+                                  label: l10n.t('verdict'),
                                   value: acceptanceVerdictLabel(acceptance.verdict),
                               }
                             : undefined,
@@ -224,14 +231,22 @@ function buildRepoChildren(
                         acceptance.passedChecks === undefined
                             ? undefined
                             : {
-                                  label: 'checks',
-                                  value: `${acceptance.passedChecks} of ${acceptance.totalChecks} passed`,
+                                  label: l10n.t('checks'),
+                                  value: l10n.t('{count} of {total} passed', {
+                                      count: acceptance.passedChecks,
+                                      total: acceptance.totalChecks,
+                                  }),
                               },
                         acceptance.round === undefined
                             ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
-                                ? { label: 'round', value: `latest of ${acceptance.roundCount}` }
+                                ? {
+                                      label: l10n.t('round'),
+                                      value: l10n.t('latest of {count}', {
+                                          count: acceptance.roundCount,
+                                      }),
+                                  }
                                 : undefined
-                            : { label: 'round', value: `${acceptance.round}` },
+                            : { label: l10n.t('round'), value: `${acceptance.round}` },
                     ].filter((row): row is TreeItemTooltipRow => row !== undefined),
                 },
             }),
@@ -271,21 +286,31 @@ function buildRepoChildren(
             repo.branch === 'detached' && branchDeployments.length === 0;
         if (!isDetachedWithNothingDeployed)
             nodes.push(
-                item(`${prefix}:deployments`, 'Deployments', {
+                item(`${prefix}:deployments`, l10n.t('Deployments'), {
                     description:
                         environments.length === 1
-                            ? `${branchDeployments.length} on ${environments[0]}`
-                            : `${branchDeployments.length} on ${repo.branch}`,
+                            ? environments[0] === 'production'
+                                ? l10n.t('{count} on production', {
+                                      count: branchDeployments.length,
+                                  })
+                                : l10n.t('{count} on preview', { count: branchDeployments.length })
+                            : l10n.t('{count} on {branch}', {
+                                  count: branchDeployments.length,
+                                  branch: repo.branch,
+                              }),
                     icon: 'rocket',
                     tooltip: {
                         rows: [
-                            { label: 'branch', value: repo.branch },
+                            { label: l10n.t('branch'), value: repo.branch },
                             ...environments.map((environment) => ({
-                                label: environment,
+                                label:
+                                    environment === 'production'
+                                        ? l10n.t('production')
+                                        : l10n.t('preview'),
                                 value: `${branchDeployments.filter((deployment) => deployment.environment === environment).length}`,
                             })),
                             {
-                                label: 'project',
+                                label: l10n.t('project'),
                                 value: linkText(deploymentsUrl),
                                 url: deploymentsUrl,
                             },
@@ -302,7 +327,7 @@ function buildRepoChildren(
                                 ),
                                 accessibilityLabel: deploymentAccessibilityLabel(
                                     deployment.commit?.message ?? deployment.hostname,
-                                    `${deployment.environment} · ${deploymentStateLabel(deployment)}`,
+                                    `${deployment.environment === 'production' ? l10n.t('production') : l10n.t('preview')} · ${deploymentStateLabel(deployment)}`,
                                     deployment,
                                 ),
                                 icon: deploymentIcon(deployment),
@@ -320,8 +345,8 @@ function buildRepoChildren(
         // fe-helper's order: the deployment list, then the review feedback, then the latest environments.
         if (review) nodes.push(review);
         for (const [label, deployment] of [
-            ['Production', production],
-            ['Preview', preview],
+            [l10n.t('Production'), production],
+            [l10n.t('Preview'), preview],
         ] as const) {
             // Already shown once, inline, by the `branchDeployments` row `isLatestDeployment` marks "Latest" above.
             if (!deployment || isAlreadyListed(deployment)) continue;
@@ -351,7 +376,7 @@ function buildRepoChildren(
          * we did not hear about. `Unknown` also already meant two other things in this tree, and reusing it a third
          * time made the badge unreadable.
          */
-        const lifecycleLabel = lifecycle?.label ?? 'Not reported';
+        const lifecycleLabel = lifecycle?.label ?? l10n.t('Not reported');
         const children = pullRequestCheckNodes(prefix, pullRequest);
         /**
          * The row sits under the checked-out branch, so a pull request the Session's Agent opened from another worktree
@@ -379,10 +404,10 @@ function buildRepoChildren(
                     `#${pullRequest.number} ${pullRequest.title}`,
                     lifecycleLabel,
                     pullRequest.lifecycle === 'open' && pullRequest.mergeState === 'conflicting'
-                        ? 'has conflicts'
+                        ? l10n.t('has conflicts')
                         : undefined,
                     checkLabel(pullRequest.state),
-                    otherBranch ? `from ${otherBranch}` : undefined,
+                    otherBranch ? l10n.t('from {branch}', { branch: otherBranch }) : undefined,
                 ]
                     .filter(Boolean)
                     .join(', '),
@@ -390,20 +415,20 @@ function buildRepoChildren(
                 tooltip: {
                     badge: { label: lifecycleLabel, tone: lifecycle?.tone ?? 'neutral' },
                     rows: [
-                        ...(otherBranch ? [{ label: 'branch', value: otherBranch }] : []),
+                        ...(otherBranch ? [{ label: l10n.t('branch'), value: otherBranch }] : []),
                         // Names where a merge would land, so a pull request opened against a release branch or a
                         // stacked parent is not mistaken for one targeting the default branch.
                         ...(pullRequest.baseBranch
-                            ? [{ label: 'base', value: pullRequest.baseBranch }]
+                            ? [{ label: l10n.t('base'), value: pullRequest.baseBranch }]
                             : []),
-                        { label: 'checks', value: checkLabel(pullRequest.state) },
+                        { label: l10n.t('checks'), value: checkLabel(pullRequest.state) },
                         ...(pullRequest.lifecycle === 'open' && pullRequest.mergeState
-                            ? [{ label: 'merge', value: mergeReadinessLabel(pullRequest) }]
+                            ? [{ label: l10n.t('merge'), value: mergeReadinessLabel(pullRequest) }]
                             : []),
                         ...(pullRequest.hiddenCheckCount > 0
                             ? [
                                   {
-                                      label: 'hidden',
+                                      label: l10n.t('hidden'),
                                       value: ignoredChecksLabel(pullRequest.hiddenCheckCount),
                                   },
                               ]
@@ -420,9 +445,11 @@ function buildRepoChildren(
     for (const error of repo.errors) {
         if (shouldHideSharedErrors && sharedFailureReasons.has(error.reason)) continue;
         const isFailure = error.kind === 'failure';
-        const errorNode = item(`${prefix}:error:${error.source}`, error.message, {
+        const message = localizeServerStatusText(error.message);
+        const hint = error.hint && localizeServerStatusText(error.hint);
+        const errorNode = item(`${prefix}:error:${error.source}`, message, {
             variant: 'message',
-            description: error.hint,
+            description: hint,
             icon: isFailure
                 ? 'circle-x'
                 : error.source === 'vercel'
@@ -432,22 +459,22 @@ function buildRepoChildren(
                     : 'issues',
             tooltip: {
                 badge: { label: error.source, tone: isFailure ? 'danger' : 'neutral' },
-                description: error.hint,
+                description: hint,
             },
             command: error.logs
                 ? {
                       command: 'caxri.showLogs',
-                      title: 'Open Logs',
+                      title: l10n.t('Open Logs'),
                       // The query travels with the action so the panel opens on the failing event rather than on
                       // every process's records, which is the only form in which "the details are in the logs" is
                       // an answer instead of another search.
                       arguments: [error.logs],
                   }
-                : { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
+                : { command: 'caxri.project-status.refresh', title: refreshActionLabel() },
         });
         nodes.push(
             error.source === 'vercel'
-                ? item(`${prefix}:deployments`, 'Deployments', {
+                ? item(`${prefix}:deployments`, l10n.t('Deployments'), {
                       icon: 'rocket',
                       children: [errorNode],
                       collapsibleState: TreeItemCollapsibleState.Expanded,
@@ -476,11 +503,11 @@ export function buildRepoNode(
             // The Extension Host strips `rootPath` from the summary it hands extensions, so a repository hover
             // identifies itself by branch and remote rather than by its location on disk.
             rows: [
-                { label: 'branch', value: repo.branch },
+                { label: l10n.t('branch'), value: repo.branch },
                 ...(repo.githubUrl
                     ? [
                           {
-                              label: 'repository',
+                              label: l10n.t('repository'),
                               value: linkText(repo.githubUrl),
                               url: repo.githubUrl,
                           },
@@ -503,16 +530,18 @@ export function buildStatusRootNodes(
         return [
             item(
                 'status:summary:error',
-                isMissingGitRepo ? 'No Git repository' : 'Project Status unavailable',
+                isMissingGitRepo
+                    ? l10n.t('No Git repository')
+                    : l10n.t('Project Status unavailable'),
                 {
                     variant: 'message',
                     description: isMissingGitRepo
-                        ? 'Initialize a Git repository in the Project root, then refresh.'
+                        ? l10n.t('Initialize a Git repository in the Project root, then refresh.')
                         : summary.error,
                     icon: isMissingGitRepo ? 'git-branch' : 'circle-x',
                     command: {
                         command: 'caxri.project-status.refresh',
-                        title: REFRESH_ACTION_LABEL,
+                        title: refreshActionLabel(),
                     },
                 },
             ),
@@ -520,13 +549,13 @@ export function buildStatusRootNodes(
     }
     if (summary.repositories.length === 0)
         return [
-            item('status:empty', 'No repositories found', {
+            item('status:empty', l10n.t('No repositories found'), {
                 variant: 'message',
-                description: 'Add a Git repository to this Project, then refresh.',
+                description: l10n.t('Add a Git repository to this Project, then refresh.'),
                 icon: 'git-branch',
                 command: {
                     command: 'caxri.project-status.refresh',
-                    title: REFRESH_ACTION_LABEL,
+                    title: refreshActionLabel(),
                 },
             }),
         ];

@@ -114,6 +114,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.preview.list',
     'mobile.preview.open',
     'mobile.device.revoke.apply',
+    'app.systemLanguages.update',
     'desktop.status',
     'desktop.focus',
     'desktop.openPath',

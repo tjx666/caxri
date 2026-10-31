@@ -1,4 +1,4 @@
-import type { ServerEvent } from '@caxri/protocol';
+import type { ServerEvent, ServerOperationRequest } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -44,6 +44,11 @@ export function createExtensionEventRouter(options: ExtensionEventRouterOptions)
         },
         domainEvent: (event: ServerEvent): void => {
             if (options.isStopping()) return;
+            if (event.event === 'settings.changed') {
+                // eslint-disable-next-line unicorn/prefer-await -- event delivery cannot await a best-effort refresh
+                options.extensionService()?.settingsChanged().catch(logFailure);
+                return;
+            }
             const routing = routeExtensionDomainEvent(
                 options.extensionService(),
                 domainService,
@@ -58,6 +63,20 @@ export function createExtensionEventRouter(options: ExtensionEventRouterOptions)
             );
             // eslint-disable-next-line unicorn/prefer-await -- event delivery cannot await a best-effort refresh
             routing.catch(logFailure);
+        },
+        /**
+         * Applies the Desktop's system-language report, which only the Extension Host reads, and hands every other
+         * Desktop operation to `forward`.
+         */
+        routeDesktopOperation: async (
+            request: ServerOperationRequest,
+            forward: (request: ServerOperationRequest) => Promise<unknown>,
+        ): Promise<unknown> => {
+            if (request.method !== 'app.systemLanguages.update') return forward(request);
+            await options
+                .extensionService()
+                ?.updateLanguage({ systemLanguages: request.params.languages });
+            return { accepted: true };
         },
     };
 }

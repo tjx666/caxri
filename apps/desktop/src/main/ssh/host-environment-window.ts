@@ -2,7 +2,7 @@ import type { CaxriRequest, CommandAdapter, MainRequest, ServerEvent } from '@ca
 import { CaxriError, isMainRequest } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindowConstructorOptions } from 'electron';
-import { BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 
 import { DesktopServerConnection } from '../connection/server-connection';
 import type { SharedServerConnectionOptions } from '../connection/server-connection-options';
@@ -119,6 +119,7 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
         const connection = new DesktopServerConnection({
             ...options.connection,
             seedAttachment: (send) => presence.seed(send),
+            systemLanguages: () => [app.getLocale()],
             createServerSupervisor: () => supervisor,
             discoverDesktop: () => supervisor.discoverDesktop(),
             handleCommand: desktopOperations,

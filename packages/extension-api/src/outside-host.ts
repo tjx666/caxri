@@ -1,6 +1,8 @@
 import type { CaxriApi, GlobPatternSettings, WorkspaceChangeContext } from './api.js';
 import type { Event } from './events.js';
 import { Disposable } from './events.js';
+import type { L10n } from './l10n.js';
+import { createL10n } from './l10n.js';
 
 /**
  * Matches a root-relative path using the Extension Host's shared glob semantics.
@@ -31,7 +33,19 @@ const outsideHostEvent =
     () =>
         new Disposable();
 
+/**
+ * Outside the Extension Host there is no app language, so messages stay in their English source form. Unlike the
+ * workspace members this works instead of throwing: pure label helpers call it, and their unit tests run without a
+ * Host.
+ */
+export const l10n: L10n = createL10n(() => {});
+
 const caxri: CaxriApi = Object.freeze({
+    env: Object.freeze({
+        language: 'en',
+        onDidChangeLanguage: outsideHostEvent<string>(),
+    }),
+    l10n,
     commands: Object.freeze({
         registerCommand: () => unavailable('commands.registerCommand'),
     }),

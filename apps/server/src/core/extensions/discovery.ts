@@ -8,12 +8,19 @@ import { extensionIdSchema, extensionManifestSchema } from '@caxri/protocol';
 import { readBoundedRegularFileText } from '@caxri/system';
 import { satisfies } from 'semver';
 
+import type { ExtensionLocalization } from './localization';
+import { ManifestLocalizationError, readExtensionLocalization } from './localization';
+
 export interface DiscoveredExtension {
     extensionId: string;
     source: 'bundled' | 'installed';
     rootPath: string;
     entryPath: string;
+    /**
+     * The manifest in the extension's default language, every `%key%` placeholder resolved from `package.nls.json`.
+     */
     manifest: ExtensionManifest;
+    localization: ExtensionLocalization;
 }
 
 const MAX_EXTENSION_MANIFEST_BYTES = 256 * 1_024;
@@ -327,6 +334,19 @@ async function discoverEntry(options: {
             manifest,
             message: 'Extension entry escapes its root',
         });
+    let localization: ExtensionLocalization;
+    try {
+        localization = await readExtensionLocalization(rootPath, manifest);
+    } catch (error) {
+        if (!(error instanceof ManifestLocalizationError)) throw error;
+        return rejectedIdentifiedExtension({
+            code: 'MANIFEST_INVALID',
+            entryName: entry.name,
+            rootIndex,
+            manifest,
+            message: error.message,
+        });
+    }
     return {
         kind: 'extension',
         value: {
@@ -334,7 +354,8 @@ async function discoverEntry(options: {
             source: rootIndex === 0 ? 'bundled' : 'installed',
             rootPath,
             entryPath,
-            manifest,
+            manifest: localization.manifests.en,
+            localization,
         },
     };
 }

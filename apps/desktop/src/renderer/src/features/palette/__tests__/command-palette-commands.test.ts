@@ -8,6 +8,7 @@ import { withLocale } from '../../../i18n';
 import { terminal as enTerminal } from '../../../i18n/locales/en/terminal';
 import {
     botPaletteWhenContext,
+    dynamicCommandSearchEntry,
     getPaletteExtensionCommands,
     isCommandVisibleInPalette,
     paletteCommandTitle,
@@ -319,5 +320,26 @@ describe('paletteCommandTitle', () => {
         expect(paletteCommandTitle(newFile, { activeTerminalRestartsAgent: true }, t)).toBe(
             t('commands.session.create'),
         );
+    });
+});
+
+describe('dynamicCommandSearchEntry', () => {
+    const t = ((key: string) => key) as Translate;
+
+    it('keeps a localized extension command findable by its English title and description', () => {
+        const entry = dynamicCommandSearchEntry(
+            {
+                id: 'caxri.git.sync',
+                title: '同步更改',
+                sourceTitle: 'Sync Changes',
+                description: '先拉取再推送',
+                sourceDescription: 'Pull, then push',
+            },
+            t,
+        );
+        expect(entry.titles).toEqual(['Sync Changes', '同步更改']);
+        expect(entry.details).toEqual(['Pull, then push', '先拉取再推送']);
+        expect(paletteSearchScore(entry, 'sync')).toBeGreaterThan(0);
+        expect(paletteSearchScore(entry, '同步')).toBeGreaterThan(0);
     });
 });

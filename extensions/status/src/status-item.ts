@@ -1,5 +1,5 @@
 import type { Command, TreeItemAction, TreeItemRichTooltip, TreeItemVariant } from 'caxri';
-import { ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'caxri';
+import { l10n, ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'caxri';
 
 import type { StatusTooltip } from './status-presentation';
 import { linkText } from './status-presentation';
@@ -54,7 +54,7 @@ export function item(
     if (options.url) {
         treeItem.command = {
             command: 'caxri.openExternal',
-            title: `Open ${label}`,
+            title: l10n.t('Open {label}', { label }),
             arguments: [options.url],
         };
     }
@@ -82,7 +82,7 @@ function richTooltip(
         ...(tooltip?.badge && { badge: tooltip.badge }),
         rows:
             url && rows.every((row) => row.url !== url)
-                ? [...rows, { label: 'link', value: linkText(url), url }]
+                ? [...rows, { label: l10n.t('link'), value: linkText(url), url }]
                 : rows,
     };
 }

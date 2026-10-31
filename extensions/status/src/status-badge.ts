@@ -1,4 +1,5 @@
 import type { ProjectStatusSummary, ViewBadge } from 'caxri';
+import { l10n } from 'caxri';
 
 import { unresolvedCommentsLabel } from './status-labels';
 
@@ -37,13 +38,19 @@ export function statusBadge(summary: ProjectStatusSummary | undefined): ViewBadg
     }
     const parts: string[] = [];
     if (checks.size > 0)
-        parts.push(`${checks.size} failed ${checks.size === 1 ? 'check' : 'checks'}`);
+        parts.push(
+            checks.size === 1
+                ? l10n.t('{count} failed check', { count: checks.size })
+                : l10n.t('{count} failed checks', { count: checks.size }),
+        );
     if (deployments.size > 0)
         parts.push(
-            `${deployments.size} failed ${deployments.size === 1 ? 'deployment' : 'deployments'}`,
+            deployments.size === 1
+                ? l10n.t('{count} failed deployment', { count: deployments.size })
+                : l10n.t('{count} failed deployments', { count: deployments.size }),
         );
     if (reviewThreads.size > 0) parts.push(unresolvedCommentsLabel(reviewThreads.size));
     // A severity badge carries no tally: the Workbench draws its glyph, so the numbers travel in the description,
     // which reaches the container tab's tooltip and accessible description.
-    return { kind: 'error', description: parts.join(', ') };
+    return { kind: 'error', description: parts.join(l10n.t(', ')) };
 }

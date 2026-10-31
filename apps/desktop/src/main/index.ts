@@ -519,6 +519,7 @@ if (ownsProfileInstance) {
                 logger: mainLogger,
                 seedAttachment: (send) => localPresence.seed(send),
                 systemAppearance: () => (nativeTheme.shouldUseDarkColors ? 'dark' : 'light'),
+                systemLanguages: () => [app.getLocale()],
             });
             const logger = mainLogger;
             sshHostEnvironments = composeSshHostEnvironments({

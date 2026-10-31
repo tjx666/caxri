@@ -7,9 +7,11 @@ import type {
     ProjectStatusSummary,
 } from '@caxri/protocol';
 import {
+    appLocaleSchema,
     extensionCapabilitySchema,
     extensionCommandIdSchema,
     extensionIdSchema,
+    extensionL10nBundleSchema,
     extensionManifestSchema,
     extensionViewEventContextSchema,
     extensionViewOperationNameSchema,
@@ -91,6 +93,10 @@ const extensionHostRegistrationSchema = z
         manifest: extensionManifestSchema,
         grants: z.array(extensionCapabilitySchema).max(32),
         projectIds: z.array(privateIdentifierSchema).max(4_096),
+        /**
+         * Runtime `l10n.t` bundles Server Core read and validated at discovery, per language the extension translates.
+         */
+        l10n: z.partialRecord(appLocaleSchema, extensionL10nBundleSchema),
     })
     .strict();
 export type ExtensionHostRegistration = z.infer<typeof extensionHostRegistrationSchema>;
@@ -117,6 +123,7 @@ const extensionHostRequestSchema = z.discriminatedUnion('method', [
             params: z
                 .object({
                     extensions: extensionRegistrationsSchema,
+                    locale: appLocaleSchema,
                 })
                 .strict(),
         })
@@ -180,6 +187,13 @@ const extensionHostRequestSchema = z.discriminatedUnion('method', [
                     context: extensionViewEventContextSchema,
                 })
                 .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            ...requestBase,
+            method: z.literal('languageChanged'),
+            params: z.object({ locale: appLocaleSchema }).strict(),
         })
         .strict(),
     ...extensionContextNotificationSchemas.map((method) =>

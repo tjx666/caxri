@@ -297,7 +297,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
             logger,
-            registrations: () => [],
+            configuration: () => ({ extensions: [], locale: 'en' }),
             requestApi: () => {
                 apiObservations.push(currentObservationContext());
                 return Promise.resolve({ repositories: [], refreshedAt: Date.now() });
@@ -403,7 +403,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
             commit: 'test',
             extensionHostPath: '/out/main/extension-host.js',
             logger,
-            registrations: () => [],
+            configuration: () => ({ extensions: [], locale: 'en' }),
             requestApi: () => Promise.resolve({ repositories: [], refreshedAt: Date.now() }),
         });
 
@@ -474,7 +474,7 @@ describe('ExtensionHostSupervisor message boundary', () => {
                 'server-core',
                 'error',
             ),
-            registrations: () => [],
+            configuration: () => ({ extensions: [], locale: 'en' }),
             requestApi: () => Promise.resolve({}),
         });
         const started = supervisor.start();
@@ -568,7 +568,7 @@ describe('Acceptance protocol fault injection', () => {
             extensionHostPath: '/out/main/extension-host.js',
             logger,
             protocolFaults,
-            registrations: () => [],
+            configuration: () => ({ extensions: [], locale: 'en' }),
             requestApi: () => Promise.resolve({}),
         });
         const started = supervisor.start();

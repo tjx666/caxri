@@ -95,6 +95,11 @@ export interface DesktopServerConnectionOptions {
      * `app.systemAppearance.update` from `createOnDemandWindows`.
      */
     systemAppearance?: () => SystemColorScheme;
+    /**
+     * Reads the system's preferred languages, sent on every attachment so extension copy can follow "Follow system" in
+     * `workbench.language`. Changing the macOS language relaunches apps, so there is no later update.
+     */
+    systemLanguages?: () => readonly string[];
     serverArtifactRoot: string;
     userDataPath: string;
 }
@@ -164,6 +169,10 @@ export async function connectDesktopAttachment(
         if (options.systemAppearance)
             await client.requestServerOperation('app.systemAppearance.update', {
                 scheme: options.systemAppearance(),
+            });
+        if (options.systemLanguages)
+            await client.requestServerOperation('app.systemLanguages.update', {
+                languages: [...options.systemLanguages()],
             });
     } catch (error) {
         // The attachment is not usable without its presence, so the reconnect loop retries it from scratch.

@@ -1,9 +1,18 @@
+import { z } from 'zod';
+
 import type { SettingSpec } from './settings-spec.js';
 
 /**
  * Display languages the Renderer ships translations for. `null` (the setting's default) follows the system language.
  */
 export type AppLocale = 'en' | 'zh-CN';
+
+/**
+ * Every {@link AppLocale}, English (the source language) first.
+ */
+export const APP_LOCALES = ['en', 'zh-CN'] as const satisfies readonly AppLocale[];
+
+export const appLocaleSchema = z.enum(APP_LOCALES);
 
 /**
  * Resolves a language preference to the locale Caxri renders in. `null` (the default) follows the system: any Chinese

@@ -107,16 +107,25 @@ export function staticCommandSearchEntry(
 }
 
 /**
- * Search entry for a View catalog or extension command row: English title plus its translation when one exists.
+ * Search entry for a View catalog or extension command row: the shown title, plus the extension's default-language
+ * (`sourceTitle`) or the Renderer's translated title when they differ, so either language's query finds the row.
  */
 export function dynamicCommandSearchEntry(
-    command: { id: string; title: string; description?: string },
+    command: {
+        id: string;
+        title: string;
+        description?: string;
+        sourceTitle?: string;
+        sourceDescription?: string;
+    },
     t: Translate,
 ): PaletteSearchEntry {
     return {
-        titles: [command.title, commandTitle(command, t)],
+        titles: [command.sourceTitle ?? command.title, commandTitle(command, t)],
         terms: [command.id, 'Extension'],
-        details: command.description ? [command.description] : [],
+        details: [command.sourceDescription, command.description].filter(
+            (detail): detail is string => detail !== undefined,
+        ),
     };
 }
 

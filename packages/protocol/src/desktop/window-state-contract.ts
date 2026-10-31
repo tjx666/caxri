@@ -49,6 +49,17 @@ export const windowStateInternalMethods = {
         params: z.object({ scheme: systemColorSchemeSchema }),
         result: z.object({ scheme: systemColorSchemeSchema }),
     },
+    /**
+     * The system's preferred languages as Desktop Main resolves them (`app.getLocale()`). Server Core cannot read them
+     * itself and may run on another machine over SSH, yet extension copy follows "Follow system" in
+     * `workbench.language`; Main reports them on every attachment. Memory only: until a Desktop reports, "Follow
+     * system" means English.
+     */
+    'app.systemLanguages.update': {
+        ...serverWrite,
+        params: z.object({ languages: z.array(z.string().min(1).max(64)).max(32) }),
+        result: z.object({ accepted: z.literal(true) }),
+    },
 } as const;
 
 /**

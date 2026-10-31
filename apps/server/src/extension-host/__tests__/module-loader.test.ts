@@ -138,6 +138,7 @@ describe('extensionApiModuleUrl', () => {
             'EventEmitter',
             'GitPullRequestErrorMessage',
             'isGlobMatch',
+            'l10n',
             'ProjectStatusSummaryErrorMessage',
             'ThemeIcon',
             'TreeItem',

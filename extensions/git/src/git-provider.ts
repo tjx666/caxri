@@ -19,6 +19,7 @@ import {
     buildSourceControlHistoryDetails,
     buildSourceControlHistoryPage,
 } from './source-control-history';
+import { syncResultMessage } from './source-control-labels';
 import type {
     ActionRegistration,
     GitSourceControlMode,
@@ -378,10 +379,7 @@ export class GitProvider implements SourceControlProvider {
                     effects: [
                         {
                             kind: 'toast',
-                            message:
-                                ahead === 0 && behind === 0
-                                    ? 'Already up to date'
-                                    : 'Synced with remote',
+                            message: syncResultMessage(ahead, behind),
                             tone: 'success',
                         },
                     ],

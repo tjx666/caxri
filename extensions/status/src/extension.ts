@@ -6,7 +6,7 @@ import type {
     TreeDataProvider,
     TreeItem,
 } from 'caxri';
-import caxri, { EventEmitter } from 'caxri';
+import caxri, { EventEmitter, l10n } from 'caxri';
 
 import { statusBadge } from './status-badge';
 import type { StatusNode } from './status-item';
@@ -92,6 +92,15 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
         this.changed.fire(undefined);
     }
 
+    /**
+     * Rows and the badge tooltip are worded when they are built, so a language switch re-reads both from the Server's
+     * cached Project Status instead of forcing a provider refetch.
+     */
+    languageChanged(): void {
+        this.badgeChanged.fire();
+        this.changed.fire(undefined);
+    }
+
     dispose(): void {
         this.badgeChanged.dispose();
         this.changed.dispose();
@@ -131,7 +140,9 @@ export function activate(context: ExtensionContext): void {
         ),
         caxri.commands.registerCommand(MERGE_PULL_REQUEST_COMMAND, async (target: unknown) => {
             if (!isMergePullRequestArguments(target))
-                throw new Error('Merge Pull Request needs a pull request from the Status panel');
+                throw new Error(
+                    l10n.t('Merge Pull Request needs a pull request from the Status panel'),
+                );
             return mergePullRequest(provider, target);
         }),
         caxri.commands.registerCommand(MERGE_CURRENT_PULL_REQUEST_COMMAND, async () => {
@@ -153,5 +164,6 @@ export function activate(context: ExtensionContext): void {
                 provider.projectStatusChanged();
         }),
         caxri.workspace.onDidChangeProjectStatus(() => provider.projectStatusChanged()),
+        caxri.env.onDidChangeLanguage(() => provider.languageChanged()),
     );
 }

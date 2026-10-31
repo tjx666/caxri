@@ -3,11 +3,9 @@ import { useMemo } from 'react';
 
 import type { ControlledViewPresentation, ViewActionDescriptor } from '@caxri/protocol';
 
-import { useTranslation } from '../../i18n';
 import type { ControlledViewContextValue } from './controlled-view-context';
 import { ControlledViewContext } from './controlled-view-context';
 import { createResourceExplorerClient } from './resource-explorer/resource-explorer-client';
-import { viewPresentation } from './view-container-labels';
 import { createSourceControlClient } from './view-operation-client';
 
 const emptyActions: readonly ViewActionDescriptor[] = [];
@@ -30,7 +28,6 @@ export function ControlledViewProvider({
     presentation?: ControlledViewPresentation;
     viewId: string;
 }) {
-    const { t } = useTranslation();
     /**
      * Deliberately independent of the selected Session. A context value that changed identity on every switch
      * re-rendered every consumer beneath it, which for the Files view is all 49 visible rows and their context-menu
@@ -42,13 +39,13 @@ export function ControlledViewProvider({
             actions,
             configurationDependencies: configDependencies,
             providerGeneration,
-            presentation: viewPresentation(viewId, presentation, t),
+            presentation,
             viewId,
             ...(kind === 'resource-explorer'
                 ? { resourceExplorer: createResourceExplorerClient(viewId) }
                 : { sourceControl: createSourceControlClient(viewId) }),
         }),
-        [actions, configDependencies, kind, presentation, providerGeneration, t, viewId],
+        [actions, configDependencies, kind, presentation, providerGeneration, viewId],
     );
     return <ControlledViewContext value={value}>{children}</ControlledViewContext>;
 }

@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+import type { EventEmitter, WorkspaceChangeContext } from 'caxri';
+
 import type { ExtensionViewEventScope } from './protocol';
 
 const viewEventContext = new AsyncLocalStorage<ExtensionViewEventScope>();
@@ -21,4 +23,26 @@ export function withViewEventContext<Result>(
  */
 export function currentViewEventContext(): ExtensionViewEventScope | undefined {
     return viewEventContext.getStore();
+}
+
+/**
+ * The `scopeId` an extension sees for a view event context.
+ */
+export function workspaceChangeContext(context: ExtensionViewEventScope): WorkspaceChangeContext {
+    return {
+        scopeId:
+            context.kind === 'session'
+                ? `${context.sessionId}:${context.workbenchRootProjectId}`
+                : 'no-session',
+    };
+}
+
+/**
+ * Fires a workspace change inside its own context, so provider refreshes it triggers stay scoped to that Session.
+ */
+export function fireWorkspaceChange(
+    emitter: EventEmitter<WorkspaceChangeContext>,
+    context: ExtensionViewEventScope,
+): void {
+    withViewEventContext(context, () => emitter.fire(workspaceChangeContext(context)));
 }

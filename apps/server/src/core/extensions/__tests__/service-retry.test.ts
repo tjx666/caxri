@@ -43,7 +43,14 @@ vi.mock('../discovery', () => ({
                                   },
                               },
                           },
-                      ],
+                      ].map((extension) => ({
+                          ...extension,
+                          localization: {
+                              manifests: { en: extension.manifest },
+                              runtimeBundles: {},
+                              ignoredFiles: [],
+                          },
+                      })),
                       rejected: [],
                   }
                 : {
@@ -64,8 +71,8 @@ vi.mock('../discovery', () => ({
 
 vi.mock('../supervisor', () => ({
     ExtensionHostSupervisor: class {
-        constructor(options: { registrations: () => unknown[] }) {
-            harness.registrations = options.registrations;
+        constructor(options: { configuration: () => { extensions: unknown[] } }) {
+            harness.registrations = () => options.configuration().extensions;
         }
 
         onEvent() {

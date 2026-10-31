@@ -40,6 +40,7 @@ export function registration(
         entryPath: join(fixture.extensionRoot, 'extension.mjs'),
         grants: ['projects.read'],
         projectIds: ['project-1'],
+        l10n: {},
         manifest: {
             name: 'publisher.fixture',
             version: '1.0.0',

@@ -4,7 +4,7 @@ import type {
     SourceControlHistoryDetails,
     SourceControlHistoryPage,
 } from 'caxri';
-import { isGlobMatch } from 'caxri';
+import { isGlobMatch, l10n } from 'caxri';
 
 import { gitHubAvatarUrl, shouldFetchGitHubAvatar } from './github-avatar';
 import type { RegisterSourceControlAction } from './source-control-model';
@@ -27,6 +27,18 @@ interface FileHistoryActionOptions {
     repositoryId: string;
 }
 
+/**
+ * The details header (`3 files changed+ · 1 hidden`); `+` marks a file list the Server truncated.
+ */
+function historySummary(fileCount: number, isTruncated: boolean, hiddenCount: number): string {
+    const changed =
+        fileCount === 1
+            ? l10n.t('{count} file changed', { count: fileCount })
+            : l10n.t('{count} files changed', { count: fileCount });
+    const hidden = hiddenCount > 0 ? ` · ${l10n.t('{count} hidden', { count: hiddenCount })}` : '';
+    return `${changed}${isTruncated ? '+' : ''}${hidden}`;
+}
+
 export function buildSourceControlHistoryPage(
     page: GitCommitPage,
     revision: string,
@@ -45,7 +57,7 @@ export function buildSourceControlHistoryPage(
             const resource = rawResource ? boundedEditorResource(rawResource) : undefined;
             return {
                 id: commit.sha,
-                label: commit.subject || '(no subject)',
+                label: commit.subject || l10n.t('(no subject)'),
                 description: commit.shortSha,
                 timestamp: commit.authoredAt,
                 tooltipTimestamp: new Date(commit.authoredAt).toLocaleString(),
@@ -59,7 +71,9 @@ export function buildSourceControlHistoryPage(
                         action: fileHistoryAction.registerAction({
                             command: { id: 'caxri.git.openChanges', arguments: [resource] },
                             icon: { kind: 'theme', id: 'diff' },
-                            label: boundedActionLabel(`Open changes in ${fileHistoryAction.path}`),
+                            label: boundedActionLabel(
+                                l10n.t('Open changes in {path}', { path: fileHistoryAction.path }),
+                            ),
                         }),
                     }),
             };
@@ -103,7 +117,11 @@ export function buildSourceControlHistoryDetails(options: {
     return {
         revision,
         itemId: details.commit.sha,
-        summary: `${details.files.length} file${details.files.length === 1 ? '' : 's'} changed${details.filesTruncated ? '+' : ''}${!isShowingExcluded && excludedCount > 0 ? ` · ${excludedCount} hidden` : ''}`,
+        summary: historySummary(
+            details.files.length,
+            details.filesTruncated,
+            isShowingExcluded ? 0 : excludedCount,
+        ),
         additions: details.additions,
         deletions: details.deletions,
         ...(!isShowingExcluded && excludedCount > 0 && { hiddenCount: excludedCount }),
@@ -115,7 +133,9 @@ export function buildSourceControlHistoryDetails(options: {
                 ? registerAction({
                       command: { id: 'caxri.git.openChanges', arguments: [resource] },
                       icon: { kind: 'theme', id: 'diff' },
-                      label: boundedActionLabel(`Open changes in ${file.path}`),
+                      label: boundedActionLabel(
+                          l10n.t('Open changes in {path}', { path: file.path }),
+                      ),
                   })
                 : undefined;
             return {

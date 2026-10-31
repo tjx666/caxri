@@ -7,6 +7,7 @@ import type {
     ProjectStatusReviewThread,
     ProjectStatusState,
 } from 'caxri';
+import { l10n } from 'caxri';
 
 type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication']>;
 
@@ -14,35 +15,36 @@ type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
  * (the Agent finished, a person agreed), and that distinction is the whole reason a reviewer opens this row.
  *
- * Kept byte-identical to `STATUS_LABELS` in the Desktop status bar's `acceptance-label` module, together with
- * {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module: the architecture boundary
- * forbids Desktop importing `extension-api`, and `extension-api` imports nothing, so the copies are the contract:
- * change one and this row and the status bar chip name the same report two different things, with nothing failing.
+ * Kept byte-identical, in English and in `l10n/bundle.l10n.zh-cn.json`, to `STATUS_LABELS` in the Desktop status bar's
+ * `acceptance-label` module, together with {@link acceptanceVerdictLabels} and its counterpart there. The two cannot
+ * share a module: the architecture boundary forbids Desktop importing `extension-api`, and `extension-api` imports
+ * nothing, so the copies are the contract: change one and this row and the status bar chip name the same report two
+ * different things, with nothing failing.
  */
-const acceptanceStatusLabels: Record<AcceptanceStatus, string> = {
-    pending: 'Not started',
-    planned: 'Plan ready',
-    verifying: 'Verifying',
-    repairing: 'Repairing',
-    delivered: 'Awaiting review',
-    accepted: 'Accepted',
-    closed: 'Closed',
-    rejected: 'Rejected',
-    errored: 'Errored',
+const acceptanceStatusLabels: Record<AcceptanceStatus, () => string> = {
+    pending: () => l10n.t('Not started'),
+    planned: () => l10n.t('Plan ready'),
+    verifying: () => l10n.t('Verifying'),
+    repairing: () => l10n.t('Repairing'),
+    delivered: () => l10n.t('Awaiting review'),
+    accepted: () => l10n.t('Accepted'),
+    closed: () => l10n.t('Closed'),
+    rejected: () => l10n.t('Rejected'),
+    errored: () => l10n.t('Errored'),
 };
 
-const acceptanceVerdictLabels: Record<AcceptanceVerdict, string> = {
-    passed: 'Checks passed',
-    failed: 'Checks failed',
-    uncertain: 'Checks inconclusive',
+const acceptanceVerdictLabels: Record<AcceptanceVerdict, () => string> = {
+    passed: () => l10n.t('Checks passed'),
+    failed: () => l10n.t('Checks failed'),
+    uncertain: () => l10n.t('Checks inconclusive'),
 };
 
 export function acceptanceStatusLabel(status: AcceptanceStatus): string {
-    return acceptanceStatusLabels[status];
+    return acceptanceStatusLabels[status]();
 }
 
 export function acceptanceVerdictLabel(verdict: AcceptanceVerdict): string {
-    return acceptanceVerdictLabels[verdict];
+    return acceptanceVerdictLabels[verdict]();
 }
 
 /**
@@ -50,7 +52,7 @@ export function acceptanceVerdictLabel(verdict: AcceptanceVerdict): string {
  * private acceptance record and tells a reader nothing it could not get from the link itself.
  */
 export function acceptanceRowLabel(acceptance: ProjectStatusAcceptance): string {
-    return acceptance.title ?? 'Acceptance report';
+    return acceptance.title ?? l10n.t('Acceptance report');
 }
 
 /**
@@ -81,11 +83,11 @@ export function acceptanceDescription(
             ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
                 ? form === 'compact'
                     ? `r${acceptance.roundCount}`
-                    : `latest of ${acceptance.roundCount}`
+                    : l10n.t('latest of {count}', { count: acceptance.roundCount })
                 : undefined
             : form === 'compact'
               ? `r${acceptance.round}`
-              : `round ${acceptance.round}`;
+              : l10n.t('round {round}', { round: acceptance.round });
     return [tally, round].filter(Boolean).join(' · ') || undefined;
 }
 
@@ -94,38 +96,53 @@ export function acceptanceDescription(
  * ("Refresh Project Status"), so a row calling it `Retry` and the next one calling it `Recheck` invented a second and a
  * third name for it, and the user had no way to know the three buttons ran the same thing.
  */
-export const REFRESH_ACTION_LABEL = 'Refresh';
+export function refreshActionLabel(): string {
+    return l10n.t('Refresh');
+}
 
 /**
  * The product word for a provider state, and the only place one is written. Every surface that shows a state (a check
  * badge, a deployment row, the `CI …` labels) reads it from here, so the raw provider enum (`success`, `failure`,
  * `cancelled`) never reaches a user and one spelling of "canceled" survives.
  */
-const stateLabels: Record<ProjectStatusState, string> = {
-    success: 'passed',
-    failure: 'failed',
-    cancelled: 'canceled',
+const stateLabels: Record<ProjectStatusState, () => string> = {
+    success: () => l10n.t('passed'),
+    failure: () => l10n.t('failed'),
+    cancelled: () => l10n.t('canceled'),
     // "running", not "pending": the point of splitting these two states is that one of them has actually started.
-    pending: 'running',
-    queued: 'queued',
-    neutral: 'neutral',
-    unknown: 'unknown',
+    pending: () => l10n.t('running'),
+    queued: () => l10n.t('queued'),
+    neutral: () => l10n.t('neutral'),
+    unknown: () => l10n.t('unknown'),
 };
 
 export function projectStatusStateLabel(state: ProjectStatusState): string {
-    return stateLabels[state];
+    return stateLabels[state]();
 }
 
 /**
- * What a pull request's aggregated check state is called.
+ * What a pull request's aggregated check state is called. Each is one whole message, so a translation can place the
+ * state word where its language wants it.
  */
+const checkLabels: Record<ProjectStatusState, () => string> = {
+    success: () => l10n.t('CI passed'),
+    failure: () => l10n.t('CI failed'),
+    cancelled: () => l10n.t('CI canceled'),
+    pending: () => l10n.t('CI running'),
+    queued: () => l10n.t('CI queued'),
+    neutral: () => l10n.t('CI neutral'),
+    unknown: () => l10n.t('CI unknown'),
+};
+
 export function checkLabel(state: ProjectStatusState): string {
-    return `CI ${stateLabels[state]}`;
+    return checkLabels[state]();
 }
 
 export function deploymentStateLabel(deployment: ProjectStatusDeployment): string {
     // Vercel reports a cancellation as `neutral`; the row has to keep saying which one it was.
-    return deployment.state === 'neutral' ? 'canceled' : stateLabels[deployment.state];
+    return deployment.state === 'neutral'
+        ? l10n.t('canceled')
+        : projectStatusStateLabel(deployment.state);
 }
 
 /**
@@ -137,39 +154,44 @@ export function deploymentStateLabel(deployment: ProjectStatusDeployment): strin
  */
 export function publicationLabel(publication: ProjectStatusPublication): string {
     const labels: Record<ProjectStatusPublication['state'], string> = {
-        'checking': 'Checking origin…',
-        'unpublished': 'Not on origin',
-        'published': 'On origin',
-        'synced': 'Synced',
+        'checking': l10n.t('Checking origin…'),
+        'unpublished': l10n.t('Not on origin'),
+        'published': l10n.t('On origin'),
+        'synced': l10n.t('Synced'),
         'ahead': `↑${publication.ahead ?? 0}`,
         'behind': `↓${publication.behind ?? 0}`,
         'diverged': `↑${publication.ahead ?? 0} ↓${publication.behind ?? 0}`,
-        'unknown': 'Check failed',
-        'no-origin': 'No origin',
-        'unsupported': 'Not supported',
-        'detached': 'Detached HEAD',
-        'unborn': 'No commits',
+        'unknown': l10n.t('Check failed'),
+        'no-origin': l10n.t('No origin'),
+        'unsupported': l10n.t('Not supported'),
+        'detached': l10n.t('Detached HEAD'),
+        'unborn': l10n.t('No commits'),
     };
     return labels[publication.state];
 }
 
 export function publicationDescription(state: ProjectStatusPublication['state']): string {
     const descriptions: Record<ProjectStatusPublication['state'], string> = {
-        'unpublished':
+        'unpublished': l10n.t(
             'No same-named branch exists on origin. It may exist on another remote or under another name.',
-        'published':
+        ),
+        'published': l10n.t(
             'The branch exists on origin, but local history is insufficient to compare commits. This does not confirm that every local commit has been pushed.',
-        'synced': 'Local and origin branch tips match at the checked time.',
-        'ahead': 'Local commits not on the compared origin branch at the checked time.',
-        'behind': 'Origin commits not on the local branch at the checked time.',
-        'diverged': 'Both branches have commits absent from the other at the checked time.',
-        'unknown': 'Could not verify the branch on origin. Refresh Project Status to check again.',
-        'unsupported': 'Remote verification currently supports GitHub origins only.',
-        'no-origin':
+        ),
+        'synced': l10n.t('Local and origin branch tips match at the checked time.'),
+        'ahead': l10n.t('Local commits not on the compared origin branch at the checked time.'),
+        'behind': l10n.t('Origin commits not on the local branch at the checked time.'),
+        'diverged': l10n.t('Both branches have commits absent from the other at the checked time.'),
+        'unknown': l10n.t(
+            'Could not verify the branch on origin. Refresh Project Status to check again.',
+        ),
+        'unsupported': l10n.t('Remote verification currently supports GitHub origins only.'),
+        'no-origin': l10n.t(
             'Project Status compares this branch with a GitHub remote named origin, and this repository has none. Add one with `git remote add origin <url>`, then refresh.',
-        'detached': 'HEAD is not attached to a local branch.',
-        'unborn': 'This branch has no commits yet.',
-        'checking': 'Checking the same-named branch on origin.',
+        ),
+        'detached': l10n.t('HEAD is not attached to a local branch.'),
+        'unborn': l10n.t('This branch has no commits yet.'),
+        'checking': l10n.t('Checking the same-named branch on origin.'),
     };
     return descriptions[state];
 }
@@ -184,11 +206,21 @@ export function durationLabel(durationMs: number | undefined): string | undefine
 }
 
 export function ignoredChecksLabel(count: number): string {
-    return `${count} ignored check${count === 1 ? '' : 's'}`;
+    return count === 1
+        ? l10n.t('{count} ignored check', { count })
+        : l10n.t('{count} ignored checks', { count });
+}
+
+export function ignoredChecksHiddenLabel(count: number): string {
+    return count === 1
+        ? l10n.t('{count} ignored check hidden', { count })
+        : l10n.t('{count} ignored checks hidden', { count });
 }
 
 export function unresolvedCommentsLabel(count: number): string {
-    return `${count} unresolved ${count === 1 ? 'comment' : 'comments'}`;
+    return count === 1
+        ? l10n.t('{count} unresolved comment', { count })
+        : l10n.t('{count} unresolved comments', { count });
 }
 
 /**
@@ -199,7 +231,7 @@ export function unresolvedCommentsLabel(count: number): string {
 export function reviewThreadLocation(
     thread: Pick<ProjectStatusReviewThread, 'line' | 'path'>,
 ): string {
-    if (!thread.path) return 'General';
+    if (!thread.path) return l10n.t('General');
     const fileName = thread.path.slice(thread.path.lastIndexOf('/') + 1);
     return thread.line === undefined ? fileName : `${fileName}:${thread.line}`;
 }

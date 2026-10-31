@@ -9,7 +9,9 @@ export type {
 export { GitPullRequestErrorMessage, ProjectStatusSummaryErrorMessage } from './api.js';
 export type { CancellationToken, DisposableLike, Event } from './events.js';
 export { CancellationTokenSource, Disposable, EventEmitter } from './events.js';
-export { default, isGlobMatch } from './outside-host.js';
+export type { CaxriEnvironment, L10n, L10nArgument, L10nBundle } from './l10n.js';
+export { createL10n } from './l10n.js';
+export { default, isGlobMatch, l10n } from './outside-host.js';
 export type {
     AcceptanceStatus,
     AcceptanceVerdict,

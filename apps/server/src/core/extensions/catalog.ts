@@ -3,6 +3,7 @@ import { realpath } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve } from 'node:path';
 
 import type {
+    AppLocale,
     ContributedCommandDescriptor,
     ExtensionDescriptor,
     ExtensionError,
@@ -62,6 +63,29 @@ const builtinCommands: ContributedCommandDescriptor[] = builtinContainers.map((c
     source: { kind: 'builtin' },
     lifecycle: 'builtin',
 }));
+
+/**
+ * The generated "Show <container>" command title in each interface language. The English form is also the command's
+ * `sourceTitle` once the container title is translated, so an English palette query still finds it.
+ */
+const SHOW_CONTAINER_TITLES: Record<AppLocale, (title: string) => string> = {
+    'en': (title) => `Show ${title}`,
+    'zh-CN': (title) => `显示${title}`,
+};
+
+/**
+ * `sourceTitle`/`sourceDescription` ride along only when the shown text is a translation, so an untranslated catalog
+ * stays byte-identical to before.
+ */
+function sourceText<Key extends string>(
+    key: Key,
+    shown: string | undefined,
+    source: string | undefined,
+): Partial<Record<Key, string>> {
+    return source !== undefined && shown !== source
+        ? ({ [key]: source } as Partial<Record<Key, string>>)
+        : {};
+}
 
 const coreContainers = workbenchCoreContributions.map(({ container }) => container);
 const coreViews = workbenchCoreContributions.flatMap(({ views }) => views);
@@ -136,7 +160,13 @@ export async function buildViewCatalog(options: {
     rejected: readonly RejectedExtension[];
     states: ReadonlyMap<string, CatalogExtensionState>;
     revision: number;
+    /**
+     * The interface language contributions are shown in; each extension falls back to its default text for a language
+     * it does not translate.
+     */
+    locale?: AppLocale;
 }): Promise<ViewCatalogSnapshot> {
+    const locale = options.locale ?? 'en';
     const containers = [...builtinContainers, ...coreContainers];
     const views = [...builtinViews, ...coreViews];
     const commands = [...builtinCommands, ...coreCommands];
@@ -156,7 +186,9 @@ export async function buildViewCatalog(options: {
             lifecycle: 'discovered' as const,
         };
         let conflict: ExtensionError | undefined;
-        const contributions = extension.manifest.contributes;
+        const contributions = (extension.localization.manifests[locale] ?? extension.manifest)
+            .contributes;
+        const sourceContributions = extension.manifest.contributes;
         const contributedViews = Object.values(contributions.views).flat();
         const contributedContainers = [
             ...contributions.viewsContainers.secondarySidebar,
@@ -254,7 +286,8 @@ export async function buildViewCatalog(options: {
         const viewContainers = contributions.viewsContainers;
         for (const location of ['secondarySidebar', 'panel'] as const) {
             const containerContributions = viewContainers[location];
-            for (const contribution of containerContributions) {
+            for (const [index, contribution] of containerContributions.entries()) {
+                const sourceTitle = sourceContributions.viewsContainers[location][index].title;
                 const commandId =
                     contribution.command ??
                     `${SHOW_VIEW_CONTAINER_COMMAND_PREFIX}${contribution.id}`;
@@ -277,9 +310,11 @@ export async function buildViewCatalog(options: {
                     lifecycle,
                     ...(error && { error }),
                 });
+                const showTitle = SHOW_CONTAINER_TITLES[locale](contribution.title);
                 commands.push({
                     id: commandId,
-                    title: `Show ${contribution.title}`,
+                    title: showTitle,
+                    ...sourceText('sourceTitle', showTitle, SHOW_CONTAINER_TITLES.en(sourceTitle)),
                     allowInEditable: true,
                     source: { kind: 'extension', extensionId: extension.extensionId },
                     lifecycle,
@@ -312,12 +347,20 @@ export async function buildViewCatalog(options: {
                 });
             }
         }
-        for (const contribution of contributions.commands) {
+        for (const [index, contribution] of contributions.commands.entries()) {
+            const sourceCommand = sourceContributions.commands[index];
             ids.add(contribution.command);
             commands.push({
                 id: contribution.command,
                 title: contribution.title,
                 ...(contribution.description && { description: contribution.description }),
+                ...sourceText('sourceTitle', contribution.title, sourceCommand.title),
+                ...(contribution.description &&
+                    sourceText(
+                        'sourceDescription',
+                        contribution.description,
+                        sourceCommand.description,
+                    )),
                 ...(contribution.allowInEditable && { allowInEditable: true }),
                 ...(contribution.palette === false && { palette: false }),
                 source: { kind: 'extension', extensionId: extension.extensionId },
@@ -359,7 +402,7 @@ export async function buildViewCatalog(options: {
         });
         commands.push({
             id: commandId,
-            title: `Show ${rejected.extensionId}`,
+            title: SHOW_CONTAINER_TITLES[locale](rejected.extensionId),
             source: { kind: 'extension', extensionId: rejected.extensionId },
             lifecycle: 'error',
         });
