@@ -58,8 +58,8 @@ export const AgentChatHandoffStarter = createContext<
 export const AgentChatSessionId = createContext<string | undefined>(undefined);
 
 /**
- * Opens Continue in Another Agent for the Chat from a card in its timeline or its usage guard card, with the failure
- * it continues from. Provided by the Chat view for a control device only, as only that role may continue; absent
+ * Opens Continue in Another Agent for the Chat from a card in its timeline or its usage guard card, with the failure it
+ * continues from. Provided by the Chat view for a control device only, as only that role may continue; absent
  * otherwise, so the cards offer nothing.
  */
 export const AgentChatContinuer = createContext<

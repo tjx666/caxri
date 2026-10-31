@@ -9,8 +9,8 @@ const screenshotCase = (scenario: string) =>
     }) as const satisfies MobileAndroidCaseDefinition;
 
 /**
- * The Session menu's Agent group (#3238) and Continue in Another Agent from a usage-limit card or the usage guard
- * card (#2940). Handlers live in `e2e/support/mobile-chat-cases/session-agent-actions.ts`.
+ * The Session menu's Agent group (#3238) and Continue in Another Agent from a usage-limit card or the usage guard card
+ * (#2940). Handlers live in `e2e/support/mobile-chat-cases/session-agent-actions.ts`.
  */
 export const cases = {
     'MOB-CHAT-SESSION-AGENT-ACTIONS-01': screenshotCase('agent-chat-session-agent-actions'),

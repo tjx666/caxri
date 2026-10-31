@@ -22,9 +22,9 @@ import { AgentChatContinuer } from './agent-chat-handoff';
 import { useOpenSession } from './use-open-session';
 
 /**
- * A usage-limit or usage guard card's way forward, as Desktop's cards offer it: "Continue in another Agent" while the work has not
- * moved on, and "Continued in" with a link to the new Session once it has, which every role sees. A Session the phone
- * does not list (archived) is named by its Agent without a link.
+ * A usage-limit or usage guard card's way forward, as Desktop's cards offer it: "Continue in another Agent" while the
+ * work has not moved on, and "Continued in" with a link to the new Session once it has, which every role sees. A
+ * Session the phone does not list (archived) is named by its Agent without a link.
  */
 export const AgentChatContinueAction = ({
     continuedIn,
