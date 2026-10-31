@@ -53,8 +53,8 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * `MOB-CHAT-SINGLE-WORK-01` (#3325): a running turn whose trailing work is one call keeps its live summary, and that
  * summary used to expand into a single row repeating its own title (`Waiting for agents` under `Waiting for agents`).
- * The summary of one call now opens that call's detail, as Desktop's does. The card growing taller after the tap means
- * it expanded into that repeated row.
+ * The summary of one call now opens that call's detail, as Desktop's does. The open sheet's scrim dims the timeline,
+ * while a card that grew taller expanded into that repeated row.
  */
 export async function executeMobileChatSingleWorkScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -88,17 +88,31 @@ export async function executeMobileChatSingleWorkScenario(
         ]);
         await pause(1500);
         await capture(environment, 'after-tap', artifacts);
+        // The detail sheet dims the timeline behind it; an expanded card leaves the empty timeline below it undimmed.
+        const backdrop = {
+            bottom: card.bottom + 410,
+            left: 400,
+            right: 680,
+            top: card.bottom + 390,
+        };
+        const isDimmed = !(await mobileColorBounds(
+            serial,
+            backdrop,
+            draculaTheme.colors.background,
+            4,
+        ));
         const after = await cardBounds(serial);
-        const outcome =
-            after && after.bottom - after.top > card.bottom - card.top + 20
-                ? 'repeated-row'
-                : 'detail';
+        const outcome = isDimmed
+            ? 'detail'
+            : after && after.bottom - after.top > card.bottom - card.top + 20
+              ? 'repeated-row'
+              : 'unchanged';
         await finish(environment, artifacts, {
             outcome,
             status: outcome === 'detail' ? 'passed' : 'failed',
         });
         if (outcome !== 'detail')
-            throw new Error('The one-call summary expanded into a row repeating its title');
+            throw new Error(`The one-call summary did not open its detail (${outcome})`);
     } finally {
         await fixture.stop();
     }
