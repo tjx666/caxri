@@ -38,7 +38,7 @@ import {
     isNativeDialogAuthorized,
 } from './native-dialog-authorization';
 import type { DeclaredPlanFixtures } from './plan-fixtures';
-import { loadAcceptanceCasePlan, validateAcceptanceCaseLaunch } from './report';
+import { loadAcceptanceCasePlan, validateAcceptanceCaseLaunch } from './report-case-plan';
 import type { RuntimeState } from './runtime-state';
 import {
     discoverOwnedProcesses,

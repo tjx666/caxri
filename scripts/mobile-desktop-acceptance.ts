@@ -10,7 +10,7 @@ import {
     beginCaseLifecycle,
     completeCaseLifecycle,
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
-import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
+import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report-case-plan';
 import {
     assertMobileAcceptanceSourceIdentity,
     clearMobileAcceptanceCaseArtifacts,
