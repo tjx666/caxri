@@ -44,9 +44,13 @@ export const updates = {
     'updates.status.idle.description': 'Check GitHub Releases for a newer stable version.',
     'updates.status.checking.title': 'Checking for updates…',
     'updates.status.unavailable.title': 'Update checks unavailable',
+    'updates.status.unavailable.feedUnavailable':
+        'The Caxri release feed is not publicly available yet.',
+    'updates.status.unavailable.unpackaged':
+        'Update checks are available in packaged Caxri builds.',
     'updates.status.paused.title': 'Update checks are paused',
     'updates.status.paused.description':
-        '{{reason}} {{resume}} Checking now asks GitHub anyway, without waiting.',
+        'Update checks are rate limited by GitHub right now. {{resume}} Checking now asks GitHub anyway, without waiting.',
     'updates.status.paused.resumesAt': 'Automatic checks resume after {{time}}.',
     'updates.status.paused.resumesLater': 'Automatic checks resume once the limit clears.',
     'updates.status.upToDate.title': 'Caxri is up to date',

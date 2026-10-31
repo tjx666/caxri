@@ -79,13 +79,6 @@ export function shouldRunBackgroundCheck(input: BackgroundCheckInput): boolean {
     return input.lastAttemptAt === undefined || input.now - input.lastAttemptAt >= input.minGapMs;
 }
 
-/**
- * Message for the one `unavailable` cause a manual check can still get past. It deliberately stops at the fact; the
- * Renderer owns the clock time and the "checking now bypasses the wait" half, because the deadline has to be compared
- * against the reader's current time rather than the moment the state was published.
- */
-const RATE_LIMITED_REASON = 'Update checks are rate limited by GitHub right now.';
-
 export class UpdateService {
     private readonly fetch: UpdateFetch;
     private readonly now: () => number;
@@ -176,7 +169,7 @@ export class UpdateService {
                 return this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: 'The Caxri release feed is not publicly available yet.',
+                    reason: 'feed-unavailable',
                 });
             }
             // GitHub's anonymous release API is subject to both a per-hour primary limit (403) and a
@@ -191,8 +184,7 @@ export class UpdateService {
                 return this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: RATE_LIMITED_REASON,
-                    rateLimited: true,
+                    reason: 'rate-limited',
                     ...(this.rateLimitedUntil !== undefined && { retryAt: this.rateLimitedUntil }),
                 });
             }
@@ -450,7 +442,7 @@ export class UpdateService {
                 this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: 'Update checks are available in packaged Caxri builds.',
+                    reason: 'unpackaged',
                 }),
             );
         /**
@@ -469,8 +461,7 @@ export class UpdateService {
                 this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: RATE_LIMITED_REASON,
-                    rateLimited: true,
+                    reason: 'rate-limited',
                     retryAt: this.rateLimitedUntil,
                 }),
             );

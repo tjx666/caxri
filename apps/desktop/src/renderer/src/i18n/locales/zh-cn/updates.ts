@@ -47,9 +47,11 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.status.idle.description': '在 GitHub Releases 中检查是否有更新的稳定版本。',
     'updates.status.checking.title': '正在检查更新…',
     'updates.status.unavailable.title': '无法检查更新',
+    'updates.status.unavailable.feedUnavailable': 'Caxri 的发布源尚未公开。',
+    'updates.status.unavailable.unpackaged': '只有打包后的 Caxri 才能检查更新。',
     'updates.status.paused.title': '更新检查已暂停',
     'updates.status.paused.description':
-        '{{reason}} {{resume}}立即检查会直接请求 GitHub，无需等待。',
+        'GitHub 暂时限制了更新检查的频率。{{resume}}立即检查会直接请求 GitHub，无需等待。',
     'updates.status.paused.resumesAt': '自动检查将在 {{time}} 后恢复。',
     'updates.status.paused.resumesLater': '自动检查将在限制解除后恢复。',
     'updates.status.upToDate.title': 'Caxri 已是最新版本',

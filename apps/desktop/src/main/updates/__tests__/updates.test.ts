@@ -81,26 +81,23 @@ describe('update state log fields', () => {
             updateStateLogFields({
                 status: 'unavailable',
                 currentVersion: '0.0.3',
-                reason: 'The Caxri release feed is not publicly available yet.',
+                reason: 'feed-unavailable',
             }),
         ).toEqual({
             status: 'unavailable',
-            reason: 'The Caxri release feed is not publicly available yet.',
-            rateLimited: 'false',
+            reason: 'feed-unavailable',
             retryAt: null,
         });
         expect(
             updateStateLogFields({
                 status: 'unavailable',
                 currentVersion: '0.0.3',
-                reason: 'Update checks are rate limited by GitHub right now.',
-                rateLimited: true,
+                reason: 'rate-limited',
                 retryAt: Date.UTC(2026, 0, 2, 12, 0, 0),
             }),
         ).toEqual({
             status: 'unavailable',
-            reason: 'Update checks are rate limited by GitHub right now.',
-            rateLimited: 'true',
+            reason: 'rate-limited',
             retryAt: '2026-01-02T12:00:00.000Z',
         });
         expect(
@@ -337,7 +334,7 @@ describe('UpdateService', () => {
         const result = await service.check();
         expect(result.status).toBe('unavailable');
         if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
-        expect(result.reason).toContain('not publicly available');
+        expect(result.reason).toBe('feed-unavailable');
     });
 
     it('degrades a 403 primary rate limit to unavailable and remembers the reset time', async () => {
@@ -364,10 +361,9 @@ describe('UpdateService', () => {
         const result = await service.check();
         expect(result.status).toBe('unavailable');
         if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
-        expect(result.reason).toContain('rate limited');
         // The resume time reaches the Renderer instead of being computed and dropped: it is the only thing that turns
         // an unexplained disabled button into a wait the user can plan around.
-        expect(result.rateLimited).toBe(true);
+        expect(result.reason).toBe('rate-limited');
         expect(result.retryAt).toBe(resetEpochSeconds * 1_000);
 
         // A second check inside the reset window must not call fetch again.
@@ -375,7 +371,7 @@ describe('UpdateService', () => {
         expect(fetch).toHaveBeenCalledOnce();
         expect(secondResult.status).toBe('unavailable');
         if (secondResult.status !== 'unavailable') throw new Error('Expected an unavailable state');
-        expect(secondResult.reason).toContain('rate limited');
+        expect(secondResult.reason).toBe('rate-limited');
         expect(secondResult.retryAt).toBe(resetEpochSeconds * 1_000);
 
         // A user-initiated check bypasses the local window and hits the network again.
@@ -434,8 +430,7 @@ describe('UpdateService', () => {
         const result = await service.check();
         expect(result.status).toBe('unavailable');
         if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
-        expect(result.reason).toContain('rate limited');
-        expect(result.rateLimited).toBe(true);
+        expect(result.reason).toBe('rate-limited');
         expect(result.retryAt).toBe(nowMs + 30_000);
         expect(fetch).toHaveBeenCalledOnce();
     });

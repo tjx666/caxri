@@ -16,11 +16,9 @@ export function updateStateLogFields(state: UpdateState): Record<string, string 
         ...(state.status === 'unavailable' && {
             reason: state.reason,
             /**
-             * A rate-limited `unavailable` is a wait, not a fault, and the two are indistinguishable in a log record
-             * that only carries the prose `reason`. Recording the deadline as well is what makes "how long was update
-             * discovery actually paused" answerable from logs nobody filed a bug about.
+             * A rate-limited `unavailable` is a wait, not a fault. Recording the deadline as well is what makes "how
+             * long was update discovery actually paused" answerable from logs nobody filed a bug about.
              */
-            rateLimited: String(state.rateLimited === true),
             retryAt: state.retryAt === undefined ? null : new Date(state.retryAt).toISOString(),
         }),
     };
