@@ -134,9 +134,7 @@ async function openChatWithVideo(environment: MobileAgentScenarioEnvironment) {
  * Taps the middle of the player. While the controls are hidden a tap only shows them; once shown, the same spot is
  * their play/pause button.
  */
-async function tapPlayer(serial: string): Promise<void> {
-    const view = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
-    if (!view) throw new Error('The player is not open');
+async function tapPlayer(serial: string, view: PlayerBounds): Promise<void> {
     await adbShell(serial, [
         'input',
         'tap',
@@ -156,9 +154,7 @@ const pressMediaKey = (serial: string, key: 'KEYCODE_MEDIA_PAUSE' | 'KEYCODE_MED
  * Waits until the player's pixels stop changing. UIAutomator cannot see the controls while a video plays, so every read
  * of them waits for this first; a still frame also proves the pause took effect.
  */
-async function waitForStill(serial: string): Promise<void> {
-    const view = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
-    if (!view) throw new Error('The player is not open');
+async function waitForStill(serial: string, view: PlayerBounds): Promise<void> {
     try {
         await waitForMobile(
             async () => {
@@ -174,17 +170,23 @@ async function waitForStill(serial: string): Promise<void> {
     }
 }
 
+/**
+ * The player's bounds, read once as it opens: a semantic read can fail on the paused player, while the bounds never
+ * move.
+ */
+type PlayerBounds = NonNullable<ReturnType<typeof checkBounds>>;
+
 const timeBar = (serial: string) => mobileNativeControlBounds(serial, { resourceId: TIME_BAR });
 
 /**
  * Returns the progress bar, showing the controls first when Media3 has hidden them, which it does a few seconds after
  * the last touch even while paused.
  */
-async function showControls(serial: string) {
+async function showControls(serial: string, view: PlayerBounds) {
     const shown = await timeBar(serial);
     if (shown) return shown;
     const before = await playerControls(serial);
-    await tapPlayer(serial);
+    await tapPlayer(serial, view);
     try {
         const bar = await waitForMobile(
             () => timeBar(serial),
@@ -224,8 +226,8 @@ async function playerControls(serial: string): Promise<string> {
 /**
  * Taps the progress bar at `fraction` of its width. UIAutomator reads the screen only while the player is paused.
  */
-async function seekTo(serial: string, fraction: number): Promise<void> {
-    const bar = await showControls(serial);
+async function seekTo(serial: string, view: PlayerBounds, fraction: number): Promise<void> {
+    const bar = await showControls(serial, view);
     await adbShell(serial, [
         'input',
         'tap',
@@ -256,15 +258,18 @@ export async function executeMobileChatVideoScenario(
 
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await tapMobileCheckByBounds(serial, `agent-chat-message-video-${card}`);
+        await waitForCheck(serial, 'agent-chat-video-player');
+        const player = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
+        if (!player) throw new Error('The player is not open');
         // The player plays at once and keeps the screen moving, so it is followed by time, not by UIAutomator.
         await pause(3_000);
         await capture(environment, 'playing', artifacts);
         await pressMediaKey(serial, 'KEYCODE_MEDIA_PAUSE');
-        await waitForStill(serial);
-        await showControls(serial);
+        await waitForStill(serial, player);
+        await showControls(serial, player);
         await capture(environment, 'paused', artifacts);
-        await seekTo(serial, 0.25);
-        await waitForStill(serial);
+        await seekTo(serial, player, 0.25);
+        await waitForStill(serial, player);
         await capture(environment, 'scrubbed', artifacts);
         await pressMediaKey(serial, 'KEYCODE_MEDIA_PLAY');
         await pause(2_000);
