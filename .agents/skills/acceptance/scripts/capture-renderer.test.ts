@@ -134,6 +134,9 @@ describe('Acceptance Renderer capture', () => {
 
         expect(methods).toEqual(['Page.enable', 'Page.captureScreenshot']);
         expect(await readFile(join(outDirectory, 'frame_000000.png'), 'utf8')).toBe('frame-data');
+        expect(await readFile(join(outDirectory, 'frames.log'), 'utf8')).toMatch(
+            /^frame_000000\.png \d+\.\d{3}\n$/u,
+        );
     });
 
     it('parses bounded frame capture options', () => {

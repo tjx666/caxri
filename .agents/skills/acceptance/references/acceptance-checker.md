@@ -72,7 +72,8 @@ Checker procedure: read the original sources, list their required outcomes,
 and compare them with the draft cases and supplied diff. State coverage limits
 when sources are incomplete. Look for missing boundaries, ambiguous
 criteria, and probes that cannot distinguish success from failure. Check how
-fixtures/fault injections will be proven effective. Also identify duplicate or
+fixtures/fault injections will be proven effective, and that each case
+changing existing UI requires a before/after comparison pair. Also identify duplicate or
 out-of-scope cases; review must not only expand scope.
 Check that groups reflect independently reviewable user tasks and that each check
 can be accepted or rejected on its own. For flow plans, inspect flow titles as

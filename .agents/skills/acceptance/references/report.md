@@ -38,14 +38,16 @@ every published round carries a real note.
 - [Structured visualizations](#structured-visualizations)
 - [Finalize before publication](#finalize-before-publication)
 - [Publish immutable history](#publish-immutable-history)
+- [Render locally when not signed in](#render-locally-when-not-signed-in)
 - [Before and after evidence](#before-and-after-evidence)
+- [Video chapters](#video-chapters)
 
 ## Language contract
 
 Write human-facing Acceptance content in Simplified Chinese. This includes the
 immutable requirement, report title and entry, plan title/category/method/
 expected behavior, case name/category/observation, summary conclusion, evidence
-descriptions, comparison labels, visualization titles, and the `report.md` and
+descriptions, comparison labels, video chapter labels and notes, visualization titles, and the `report.md` and
 `proposal.md` prose. Keep stable ids, enum values, code identifiers, branches,
 commits, commands, and artifact paths in English.
 
@@ -458,6 +460,42 @@ lh acceptance feedback "$ACCEPTANCE_ID" --actionable --json
 - Publish only the stable Acceptance URL in the final handoff, never local
   report paths or internal round URLs.
 
+## Render locally when not signed in
+
+When `lh acceptance preflight --json` reports `mode: "local"` (this machine never
+signed in to LobeHub), or the user asks to keep the report local, the round is
+identical (same frozen plan, capture, `finalize`, `proposal.md`, and checker)
+but it is rendered instead of ingested, and nothing is uploaded:
+
+```bash
+ROUND_DIR="${REPORT_DIR%/}"
+lh acceptance run validate "$ROUND_DIR" --json
+lh acceptance run render "$ROUND_DIR" \
+  --requirement "$(cat "$(dirname "$ROUND_DIR")/requirement.txt")" \
+  --json
+```
+
+`validate` replaces the ingest dry run. The render writes `acceptance.json` and
+`report.html` into the acceptance root, beside `requirement.txt`, built from every
+round of that root with the same check screening, evidence coverage, and round
+history as ingest; `publicationStatus: partial` means the same as a partial
+ingest. Never edit `acceptance.json`, `reviews.json`, or `report.html` by hand:
+the CLI owns them, and a render rewrites the page. A later round joins the
+history by being written into the same acceptance root.
+
+The reader reviews in the page itself and clicks **Save reviews** to download
+their decisions. `lh acceptance feedback <acceptance-root> --json` and
+`lh acceptance view <acceptance-root> --json` pick up the newest download, file it
+as `reviews.json`, and answer in the same shape as a published acceptance
+(`--reviews <file>` names the download explicitly). Comments, mentions,
+approvals, and shared links do not exist locally.
+
+When others must review, the user signs in with `lh login`, and the existing
+rounds are published in order with
+`lh acceptance publish <acceptance-root> --json`, which returns the
+`acceptanceUrl`. Later rounds then use the normal `ingest --acceptance` path with
+the id recorded in `acceptance.json`. Never re-run cases just to share them.
+
 ## Before and after evidence
 
 For the same view in two states, use a comparison pair with a shared id:
@@ -488,5 +526,34 @@ For the same view in two states, use a comparison pair with a shared id:
 ```
 
 Use `horizontal` for normal full-window comparisons and `vertical` only when
-preserving the width of a shallow region matters. Sequential interaction steps
-are ordinary ordered evidence, not a comparison pair.
+preserving the width of a shallow region matters.
+
+A comparison pair means the same view, reached by the same operation and held
+in the same state, on the pre-change code (`before`) and the delivered code
+(`after`). Two states of one build, such as loading versus loaded or empty
+versus filled, are ordinary evidence, not a pair; a skeleton change pairs the
+old skeleton with the new one. Sequential interaction steps are ordinary ordered
+evidence, not a comparison pair. Capture the `before` half from a build of the
+merge base (for example a separate worktree at `origin/main`) and prove it runs
+the old code by reading the changed value, not by trusting the checkout.
+
+## Video chapters
+
+A `video` evidence entry takes `chapters`: `step` (an action, with `label`),
+`check` (a claim true of that frame, with `note`), and `flag` (an anomaly you
+noticed and disclose, with `note`), each at `t` seconds. The page puts them on
+the player's timeline and captions each claim over its frame:
+
+```json
+{
+  "path": "assets/session-switch.mp4",
+  "description": "连续切换三个 Session 的录屏，用于检查终端视口是否始终铺满工作区。",
+  "chapters": [
+    { "kind": "step", "t": 6, "label": "第 3 次切换" },
+    { "kind": "check", "t": 7.9, "note": "第 3 次切换后这一帧终端视口铺满工作区" }
+  ]
+}
+```
+
+Derive `t` from logged marks, never from memory, and disclose every anomaly as a
+`flag`: [video-chapters.md](./video-chapters.md).
