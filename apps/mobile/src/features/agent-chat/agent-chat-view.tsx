@@ -1,5 +1,4 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -35,13 +34,10 @@ import {
     agentChatMessageEditAvailability,
     isAgentChatMessageClipped,
 } from './agent-chat-message-edit';
-import { AgentChatMessageImages } from './agent-chat-message-images';
-import { AgentChatMessageVideos } from './agent-chat-message-videos';
 import {
     agentChatComposerAvailability,
     agentChatEmptyMessage,
     agentChatHandedOffBanner,
-    agentChatImageCounts,
     agentChatRequestBlockedReason,
     isAgentChatFailureRetryable,
     shouldShowAgentChatStaleNotice,
@@ -64,9 +60,9 @@ import {
     AgentChatUsageActionScope,
 } from './agent-chat-usage-actions';
 import { AgentChatUsageGuardCard } from './agent-chat-usage-guard-card';
-import { agentChatVideoPaths } from './agent-chat-videos';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChatHistory } from './use-agent-chat-history';
+import { useAgentChatMessageAttachments } from './use-agent-chat-message-attachments';
 import { useIsRequestBesideKeyboard } from './use-request-beside-keyboard';
 
 /**
@@ -172,12 +168,7 @@ const AgentChatBody = ({
         ),
         [provider, theme, toggleExpansion],
     );
-    /**
-     * Keyed on the messages that carry images or cite videos, not the snapshot, so a streamed reply does not redraw
-     * every entry.
-     */
-    const imageCounts = agentChatImageCounts(snapshot);
-    const videoPaths = agentChatVideoPaths(snapshot);
+    const renderAttachments = useAgentChatMessageAttachments(snapshot, theme);
     const terminalId = snapshot?.terminalId;
     const serverList = snapshot?.mcpServers;
     const mcpServers = useMemo(
@@ -192,42 +183,9 @@ const AgentChatBody = ({
                 : { blockedReason: usageBlockedReason, terminalId },
         [terminalId, usageBlockedReason],
     );
-    const renderImages = useMemo(() => {
-        const counts = new Map<string, number>(
-            imageCounts ? (JSON.parse(imageCounts) as Array<[string, number]>) : [],
-        );
-        const videos = new Map<string, string[]>(
-            videoPaths ? (JSON.parse(videoPaths) as Array<[string, string[]]>) : [],
-        );
-        return (itemId: string): ReactNode => {
-            const count = counts.get(itemId);
-            const paths = videos.get(itemId);
-            if (!terminalId || (!count && !paths)) return null;
-            return (
-                <>
-                    {count ? (
-                        <AgentChatMessageImages
-                            count={count}
-                            itemId={itemId}
-                            terminalId={terminalId}
-                            theme={theme}
-                        />
-                    ) : null}
-                    {paths ? (
-                        <AgentChatMessageVideos
-                            itemId={itemId}
-                            paths={paths}
-                            terminalId={terminalId}
-                            theme={theme}
-                        />
-                    ) : null}
-                </>
-            );
-        };
-    }, [imageCounts, terminalId, theme, videoPaths]);
     if (entries.length > 0)
         return (
-            <ConversationUserAttachments value={renderImages}>
+            <ConversationUserAttachments value={renderAttachments}>
                 <AgentChatMcpServersContext value={mcpServers}>
                     <AgentChatHandoffScope canSend={canSend} chat={chat} source={handoffSource}>
                         <ConversationMessageActions value={setActionTarget}>
