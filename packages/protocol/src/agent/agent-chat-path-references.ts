@@ -64,8 +64,12 @@ function requestHeading(providerName: string | undefined): string {
     return providerName ? `## My request for ${providerName}:` : '## My request:';
 }
 
+/**
+ * The request heading may end the text: `agentChat.send` trims a message, so one citing files with no words loses the
+ * newline after it.
+ */
 const REFERENCE_BLOCK =
-    /^(?:# Skills the user asked you to use:\n\n((?:## [^\n]*\n\n)+))?(?:# Files mentioned by the user:\n\n((?:## [^\n]*\n\n)+))?## My request(?: for [^\n:]+)?:\n/u;
+    /^(?:# Skills the user asked you to use:\n\n((?:## [^\n]*\n\n)+))?(?:# Files mentioned by the user:\n\n((?:## [^\n]*\n\n)+))?## My request(?: for [^\n:]+)?:(?:\n|$)/u;
 const REFERENCE_LINE = /^## (?<name>[^\n]*?): (?<path>\/[^\n]*)$/u;
 const SKILL_LINE = /^## (?<name>[\w.-]+): /u;
 

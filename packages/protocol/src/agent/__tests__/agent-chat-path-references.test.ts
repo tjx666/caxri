@@ -45,6 +45,12 @@ describe('agent chat path references', () => {
         expect(
             parseAgentChatPathReferences(agentChatTextWithPathReferences('', references)),
         ).toEqual({ references, skills: [], text: '' });
+        // `agentChat.send` trims a message, so files sent with no words arrive without the newline after the heading.
+        expect(
+            parseAgentChatPathReferences(
+                agentChatTextWithPathReferences('', references, 'Claude Code').trim(),
+            ),
+        ).toEqual({ references, skills: [], text: '' });
     });
 
     it('round-trips the filesystem root as a folder', () => {
