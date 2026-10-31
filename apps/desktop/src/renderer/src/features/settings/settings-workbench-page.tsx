@@ -242,6 +242,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                         categories={categories}
                         counts={navigationState?.counts}
                         searching={navigationState?.searching}
+                        filtered={navigationState?.filtered}
                         section={tab}
                         onNavigate={controller.navigateToAnchor}
                         onSectionChange={controller.changeTab}

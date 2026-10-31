@@ -74,6 +74,10 @@ export interface SettingRowProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
     trustedDomainsFocusRequestId?: number;
+    /**
+     * Marks an advanced row the list shows only because a search or focus request reached it.
+     */
+    showAdvancedTag?: boolean;
     handlers: SettingRowHandlers;
 }
 
@@ -578,6 +582,7 @@ export function SettingRow(properties: SettingRowProperties) {
             modified={isRowModified(row.binding, context)}
             resettable={isRowResettable(row.binding)}
             row={row}
+            showAdvancedTag={properties.showAdvancedTag}
             status={status}
             toggle={toggle}
             onReset={() => handlers.onResetRow(row)}

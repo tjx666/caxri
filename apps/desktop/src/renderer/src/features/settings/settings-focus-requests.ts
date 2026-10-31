@@ -1,3 +1,5 @@
+import type { AgentProvider } from '@caxri/protocol';
+
 import type { SettingsView } from '../../stores/dialogs';
 import type { ConfigKind } from './config-edit';
 
@@ -34,4 +36,26 @@ export function settingsSectionForRequest(view: SettingsView): {
     if (view === 'source') return { tab: 'settings', view: 'source' };
     if (view === 'keybindings') return { tab: 'keybindings', view: 'ui' };
     return { tab: 'settings', view: 'ui' };
+}
+
+/**
+ * Rows the Settings page's open focus requests scroll to. An advanced row among them stays listed while advanced rows
+ * are hidden, so the Git exclusions button, the debugging chip, or the GPU crash card still lands on its row.
+ */
+export function revealedSettingRowIds(requests: {
+    trustedDomainsFocusRequestId?: number;
+    gitExclusionsFocusRequestId?: number;
+    rowFocusRequest?: { rowId: string };
+    agentActionsFocusRequest?: { provider: AgentProvider };
+    agentExecutableFocusRequest?: { provider: AgentProvider };
+}): ReadonlySet<string> {
+    const ids = new Set<string>();
+    if (requests.trustedDomainsFocusRequestId) ids.add('security.trustedDomains');
+    if (requests.gitExclusionsFocusRequestId) ids.add('git.diffExclude');
+    if (requests.rowFocusRequest) ids.add(requests.rowFocusRequest.rowId);
+    if (requests.agentActionsFocusRequest)
+        ids.add(`agents.${requests.agentActionsFocusRequest.provider}.actions`);
+    if (requests.agentExecutableFocusRequest)
+        ids.add(`agents.${requests.agentExecutableFocusRequest.provider}.executable`);
+    return ids;
 }

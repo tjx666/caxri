@@ -19,6 +19,8 @@ export const settingsPage = {
     'settings.page.clearSearch': 'Clear Search',
     'settings.page.clearSearchLabel': 'Clear settings search',
     'settings.page.searchCount': '{{visible}} of {{total}} settings',
+    'settings.page.showAdvanced': 'Show advanced settings',
+    'settings.page.advancedTag': 'Advanced',
     'settings.page.noMatches': 'No settings match “{{query}}”',
     'settings.page.accessibleTitle': '{{category}} {{title}}',
     'settings.page.resetToDefault': 'Reset to default',

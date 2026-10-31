@@ -11,7 +11,8 @@ export const SURFACE_FAULT_KEY = 'caxri.test.surface-fault';
  * Surface scopes a boundary can guard. A closed set: it names the boundary in the mirrored console log, which the
  * classification path keeps free of content, and selects the fault target.
  */
-export type SurfaceScope = 'chat' | 'chat-entry' | 'editor' | 'settings' | 'terminal' | 'view';
+export type SurfaceScope =
+    'chat' | 'chat-entry' | 'editor' | 'settings' | 'settings-page' | 'terminal' | 'view';
 
 /**
  * Which surface instance currently holds the armed fault, as `scope:instanceKey`.

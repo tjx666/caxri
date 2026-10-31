@@ -1617,6 +1617,12 @@ it. The column stays mounted and in place
 for every section and for the Source view; picking a category from Keybindings, Theme, or Source
 returns to the Settings list scrolled to it. The current category takes `aria-current="location"`,
 the current file section `aria-current="page"`.
+The list starts with everyday rows only (default Agent, Chat, notifications, fonts, permissions).
+Launch arguments, hooks, recovery rules, delegation depth, the debugging port, and other advanced
+rows appear under the **Show advanced settings** switch beside the search field, which this device
+remembers. Search always covers every row and tags an advanced match `Advanced`, a request that
+scrolls to an advanced row (Edit exclusions, the debugging chip) still lists it, and the navigation
+hides a category or subcategory left with no listed rows.
 Field labels in plain language; byte values rendered as human units (`2 MB`) with unit-aware
 input. There is no Apply button and no per-section dirty marker: a structured control writes as
 soon as it changes, and the raw source editor commits when it loses focus, reporting a parse

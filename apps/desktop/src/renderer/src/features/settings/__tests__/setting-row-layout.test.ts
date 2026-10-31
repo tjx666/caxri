@@ -9,6 +9,7 @@ function row(binding: SettingRowBinding): SettingRowDescriptor {
         category: 'general',
         title: 'Test row',
         accessibleTitle: 'Test row',
+        advanced: false,
         binding,
         haystack: 'test row',
     };

@@ -17,12 +17,13 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
 import { useAgentFocusRequests } from './hooks/use-agent-focus-requests';
+import { useVisibleSettingsRows } from './hooks/use-visible-settings-rows';
 import { SettingRow } from './setting-row';
+import { SettingsPageHeader } from './settings-page-header';
 import type { SettingRowDescriptor } from './settings-registry';
 import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
 import type { SettingsListItem } from './settings-search';
-import { buildSettingsList, countRowsByCategory, filterSettingsRows } from './settings-search';
-import { SettingsSearchInput } from './settings-search-input';
+import { buildSettingsList, countRowsByCategory } from './settings-search';
 import { settingsActiveAnchor, settingsAnchorOf } from './settings-toc';
 import { rowResetAction } from './settings-values';
 
@@ -30,6 +31,10 @@ export interface SettingsNavigationState {
     activeAnchor?: string;
     counts: Partial<Record<string, number>>;
     searching: boolean;
+    /**
+     * Rows are filtered (a query, or advanced rows hidden), so a TOC entry with no listed rows would be a dead click.
+     */
+    filtered: boolean;
 }
 
 export interface SettingsPageProperties {
@@ -116,7 +121,14 @@ export function SettingsPage(properties: SettingsPageProperties) {
 
     useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
 
-    const visibleRows = useMemo(() => filterSettingsRows(rows, query), [rows, query]);
+    const { showAdvanced, visibleRows } = useVisibleSettingsRows(rows, query, {
+        trustedDomainsFocusRequestId,
+        gitExclusionsFocusRequestId: properties.gitExclusionsFocusRequestId,
+        rowFocusRequest: properties.rowFocusRequest,
+        agentActionsFocusRequest: properties.agentActionsFocusRequest,
+        agentExecutableFocusRequest: properties.agentExecutableFocusRequest,
+    });
+    const isFiltered = isSearching || !showAdvanced;
     const list = useMemo(
         () => buildSettingsList(categories, visibleRows),
         [categories, visibleRows],
@@ -191,8 +203,13 @@ export function SettingsPage(properties: SettingsPageProperties) {
         // The scroll-spied anchor comes from this page's virtualizer, and the navigation that shows it must outlive the
         // page over Keybindings, Theme, and Source, so the state cannot be lifted into the parent with the list.
         // react-doctor-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent
-        onNavigationStateChange?.({ activeAnchor, counts, searching: isSearching });
-    }, [activeAnchor, counts, isSearching, onNavigationStateChange]);
+        onNavigationStateChange?.({
+            activeAnchor,
+            counts,
+            searching: isSearching,
+            filtered: isFiltered,
+        });
+    }, [activeAnchor, counts, isFiltered, isSearching, onNavigationStateChange]);
     useEffect(() => () => onNavigationStateChange?.(undefined), [onNavigationStateChange]);
 
     // A `trusted-domains` open request scrolls the row into view; the mounted editor then grabs
@@ -286,25 +303,14 @@ export function SettingsPage(properties: SettingsPageProperties) {
 
     return (
         <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-            <div className="border-b border-border p-3 pb-2">
-                <SettingsSearchInput
-                    inputRef={searchInputReference}
-                    label={t('settings.page.search')}
-                    placeholder={t('settings.page.search')}
-                    clearTooltip={t('settings.page.clearSearch')}
-                    clearLabel={t('settings.page.clearSearchLabel')}
-                    value={query}
-                    onChange={changeQuery}
-                />
-                {isSearching && (
-                    <p className="mt-2 mb-0 text-[11px] text-muted" role="status">
-                        {t('settings.page.searchCount', {
-                            total: rows.length,
-                            visible: visibleRows.length,
-                        })}
-                    </p>
-                )}
-            </div>
+            <SettingsPageHeader
+                inputRef={searchInputReference}
+                query={query}
+                showAdvanced={showAdvanced}
+                totalCount={rows.length}
+                visibleCount={visibleRows.length}
+                onQueryChange={changeQuery}
+            />
             {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
             <div
                 ref={scrollParentReference}
@@ -353,6 +359,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
                                             context={{ argvConfig, settings }}
                                             handlers={handlers}
                                             row={item.row}
+                                            showAdvancedTag={item.row.advanced && !showAdvanced}
                                             trustedDomainsFocusRequestId={
                                                 trustedDomainsFocusRequestId
                                             }

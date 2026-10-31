@@ -74,7 +74,8 @@ test('Settings opens over a focused Terminal and Escape hands focus back to it',
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
 
-        const settingsPage = await openSettingsPage(running.page);
+        // The default view: turning Show advanced settings on would move focus to its switch.
+        const settingsPage = await openSettingsPage(running.page, { advanced: false });
         // The search field takes focus on open: a first Escape clears a query, and only an empty field closes the page.
         const search = settingsPage.getByLabel('Search settings');
         await expect(search).toBeFocused();
