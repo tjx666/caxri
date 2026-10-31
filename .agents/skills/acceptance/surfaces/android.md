@@ -42,6 +42,9 @@ clear the package outside the serial lock while another Acceptance run is active
 An isolated mobile case waits up to three minutes for another worktree's active desktop lease after
 the APK build. The lease remains fail-closed for stale or invalid ownership; never stop the sibling
 desktop instance to unblock a round.
+The runner also refuses to start, and each case to begin, while the emulator shows an "isn't
+responding" dialog, which a host running several emulators tends to produce. Reboot that serial
+(`adb -s emulator-<port> reboot`), wait for `sys.boot_completed`, and run the round again.
 
 For a user-owned wireless device, keep the phone's pairing screen open while completing the Mac
 side. Use Android Studio's Device Manager pairing UI when computer control is available; inspect

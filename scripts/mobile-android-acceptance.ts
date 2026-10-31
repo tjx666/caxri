@@ -13,6 +13,7 @@ import {
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
 import { repoContext, withRepoLock } from '../.agents/skills/switch-worktree/scripts/repo';
+import { assertAndroidResponsive } from './mobile-acceptance-anr';
 import { mobileAcceptanceFaultEnvironment } from './mobile-acceptance-fault';
 import {
     cleanupFixtureImeWithRetry,
@@ -278,6 +279,7 @@ async function executeCase(
      */
     const caseSettingRestores: Array<() => void> = [];
     try {
+        assertAndroidResponsive(serial, adbRead);
         adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile']);
         // The native-init guard reads only warnings logged after this point.
         adbRun(['logcat', '-c']);
@@ -472,6 +474,8 @@ await withRepoLock(
         let cleanupFixtureIme: (() => Promise<void>) | undefined;
         const desktopLease = createAndroidAcceptanceDesktopLease(root);
         try {
+            // Before the half-hour build, so a hung emulator fails in seconds.
+            assertAndroidResponsive(serial, adbRead);
             run('bun', ['run', 'build'], BUILD_TIMEOUT_MS);
             run(
                 'bun',

@@ -162,7 +162,7 @@ describe('mobile Agent Chat requests', () => {
             ),
         ).rejects.toMatchObject({ code: 'VALIDATION' });
         expect(forward).toHaveBeenCalledTimes(1);
-        // Files sent with no words: the gateway's schema trims the text, which must still cite them.
+        // Files sent with no words: the method's schema trims the text, which must still cite them.
         await invoke(
             {
                 method: 'mobile.agentChat.send',
@@ -175,7 +175,7 @@ describe('mobile Agent Chat requests', () => {
                             { path: '/tmp/uploads/file_2/notes.pdf', isDirectory: false },
                         ],
                         'Claude Code',
-                    ).trim(),
+                    ),
                     files,
                 },
             },
