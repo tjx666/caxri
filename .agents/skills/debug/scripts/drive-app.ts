@@ -15,6 +15,8 @@
  * - `paste-image [count]`: pastes that many synthetic PNGs (default 1) into the visible Agent Chat message box, as a
  *   screenshot paste would, without touching the system clipboard.
  * - `search <query>`: opens Session search and types the query.
+ * - `command <id>`: runs a command from the command palette by its exact id (such as `usage.open`), as a user picking
+ *   that row would, and fails when the palette shows no such row (an unknown id, or one hidden in the current state).
  * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply. Ticking figures, such
  *   as a background task's elapsed time, do not count as change.
  * - `ready [seconds]`: waits until a dev instance just started with `switch-worktree dev` answers over CDP as this
@@ -39,7 +41,7 @@ import { isAbsolute } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog, builtinThemeIds, builtinThemes } from '@caxri/protocol';
+import { agentProviderCatalog, builtinThemeIds, builtinThemes, commandIds } from '@caxri/protocol';
 import type { Browser, Page } from '@playwright/test';
 import { chromium } from '@playwright/test';
 
@@ -61,6 +63,7 @@ const STEPS = [
     'send',
     'paste-image',
     'search',
+    'command',
     'idle',
     'ready',
     'select-session',
@@ -135,6 +138,12 @@ export function parseDriveCommand(
     if (step === 'open-chat' && !Object.hasOwn(agentProviderCatalog, argument)) {
         throw new CommandError(
             `\`open-chat\` takes ${Object.keys(agentProviderCatalog).join(', ')}, not ${argument}`,
+            2,
+        );
+    }
+    if (step === 'command' && !(commandIds as readonly string[]).includes(argument)) {
+        throw new CommandError(
+            `\`command\` takes a command id such as usage.open, not ${argument}`,
             2,
         );
     }
@@ -430,6 +439,22 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
             await page.keyboard.press('Meta+Shift+S');
             // Matched by role alone so the step works in either interface language.
             await page.getByRole('dialog').getByRole('combobox').first().fill(argument);
+            return;
+        }
+        case 'command': {
+            await page.keyboard.press('Meta+Shift+P');
+            const palette = page.getByRole('dialog');
+            await palette.getByRole('combobox').first().fill(argument);
+            // Rows carry `command:<id>` as their cmdk value; typed text alone can rank a fuzzy match first.
+            const row = palette.locator(
+                `[cmdk-item][data-value=${JSON.stringify(`command:${argument}`)}]`,
+            );
+            try {
+                await row.waitFor({ timeout: 5000 });
+            } catch {
+                throw new CommandError(`The command palette shows no ${argument} row here`, 1);
+            }
+            await row.click();
             return;
         }
         case 'idle':

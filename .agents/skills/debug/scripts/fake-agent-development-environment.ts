@@ -21,11 +21,17 @@
  * `fake-codex-script.ts`), for a reply with exact content such as a long code block. Exporting `FAKE_CLAUDE_SCRIPT` in
  * the shell does nothing: the Agent process environment is an allowlist, so the path is baked into the fake's
  * launcher.
+ *
+ * The exports also move `HOME` (with `ZDOTDIR` and the XDG directories) into the fixture: Session search and Usage read
+ * every provider's history, and Antigravity's state under `~/.gemini` has no variable that relocates it, so the dev
+ * window would otherwise show the host's real conversations. An isolated HOME hides the mise shims, so the pinned Node
+ * the Server build needs is resolved first and exported as `CAXRI_SERVER_RUNTIME_EXECUTABLE`.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
-import { parseArgs } from 'node:util';
+import { parseArgs, promisify } from 'node:util';
 
 import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
 
@@ -37,6 +43,17 @@ import {
 } from '../../../../e2e/support/agent-chat-fixture';
 
 const PROVIDERS = ['claude', 'codex', 'grok', 'antigravity'] as const;
+/**
+ * Keys beyond {@link e2eAgentEnvironmentKeys} that keep the dev instance's own home directory inside the fixture.
+ */
+const HOME_ISOLATION_KEYS = [
+    'HOME',
+    'ZDOTDIR',
+    'XDG_CACHE_HOME',
+    'XDG_CONFIG_HOME',
+    'XDG_DATA_HOME',
+] as const;
+const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../../..');
 type FakeChatProvider = (typeof PROVIDERS)[number];
 
 function shellQuote(value: string): string {
@@ -77,7 +94,7 @@ export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]
     const [directory] = positionals;
     if (!directory || positionals.length !== 1 || !isAbsolute(directory))
         throw new Error(
-            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok] [--script <absolute path>]',
+            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok|antigravity] [--script <absolute path>]',
         );
     const provider = values.provider ?? 'claude';
     if (!PROVIDERS.includes(provider as FakeChatProvider))
@@ -88,6 +105,42 @@ export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]
     if (scriptPath !== undefined && (provider === 'grok' || provider === 'antigravity'))
         throw new Error('--script supports only fake claude and codex');
     return { directory, provider: provider as FakeChatProvider, ...(scriptPath && { scriptPath }) };
+}
+
+const execFileAsync = promisify(execFile);
+
+async function commandOutput(command: string, arguments_: string[]): Promise<string | undefined> {
+    try {
+        return (
+            (await execFileAsync(command, arguments_, { encoding: 'utf8' })).stdout.trim() ||
+            undefined
+        );
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * The Node executable `mise.toml` pins, found while the real HOME still reaches the mise toolchain. Fails closed: a
+ * Server build without it would fall back to a lookup the isolated HOME breaks.
+ */
+async function pinnedNodeExecutable(): Promise<string> {
+    const version = /^node\s*=\s*"([^"]+)"$/mu.exec(
+        await readFile(join(REPOSITORY_ROOT, 'mise.toml'), 'utf8'),
+    )?.[1];
+    if (!version) throw new Error('mise.toml must pin the Node version');
+    const candidates = [
+        process.env.CAXRI_SERVER_RUNTIME_EXECUTABLE,
+        await commandOutput('mise', ['which', 'node']),
+    ];
+    const versions = await Promise.all(
+        candidates.map(async (candidate) => candidate && commandOutput(candidate, ['--version'])),
+    );
+    const pinned = candidates.find((_, index) => versions[index] === `v${version}`);
+    if (pinned) return pinned;
+    throw new Error(
+        `Node ${version} is unavailable; install the mise toolchain or set CAXRI_SERVER_RUNTIME_EXECUTABLE`,
+    );
 }
 
 async function main(): Promise<void> {
@@ -113,9 +166,13 @@ async function main(): Promise<void> {
         mode,
         sourceEnvironment: { PATH: process.env.PATH },
     });
-    process.stdout.write(
-        `${fakeAgentDevelopmentExports(environment, e2eAgentEnvironmentKeys(), projectRoot)}\n`,
-    );
+    environment.CAXRI_SERVER_RUNTIME_EXECUTABLE = await pinnedNodeExecutable();
+    const keys = [
+        ...e2eAgentEnvironmentKeys(),
+        ...HOME_ISOLATION_KEYS,
+        'CAXRI_SERVER_RUNTIME_EXECUTABLE',
+    ];
+    process.stdout.write(`${fakeAgentDevelopmentExports(environment, keys, projectRoot)}\n`);
 }
 
 if (import.meta.main) await main();
