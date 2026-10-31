@@ -6,45 +6,9 @@ import { agentChatMenuGroupHeading } from '@caxri/protocol';
 import { Spinner } from '../../components/spinner';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
-import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import type { AgentChatSkillNotice } from './agent-chat-commands';
-import { MOBILE_AGENT_CHAT_COMMAND_ROWS } from './agent-chat-commands';
-
-const ROW_HEIGHT = mobileControl.row;
-
-const styles = StyleSheet.create({
-    list: {
-        borderRadius: mobileRadius.md,
-        borderWidth: StyleSheet.hairlineWidth,
-        maxHeight: ROW_HEIGHT * MOBILE_AGENT_CHAT_COMMAND_ROWS,
-        overflow: 'hidden',
-    },
-    heading: {
-        ...mobileType.caption,
-        fontWeight: '600',
-        paddingHorizontal: mobileSpace.md,
-        paddingTop: mobileSpace.sm,
-        paddingBottom: mobileSpace.xxs,
-        textTransform: 'uppercase',
-    },
-    row: {
-        justifyContent: 'center',
-        minHeight: ROW_HEIGHT,
-        paddingHorizontal: mobileSpace.md,
-        paddingVertical: mobileSpace.xs,
-    },
-    name: { ...mobileType.bodyStrong },
-    detail: { ...mobileType.meta },
-    notice: {
-        alignItems: 'center',
-        flexDirection: 'row',
-        gap: mobileSpace.sm,
-        minHeight: ROW_HEIGHT,
-        paddingHorizontal: mobileSpace.md,
-    },
-    noticeText: { ...mobileType.meta },
-});
+import { agentChatMenuStyles } from './agent-chat-menu-styles';
 
 const rowHint = (action: AgentAction, t: Translate): string =>
     action.kind !== 'command'
@@ -76,7 +40,7 @@ const AgentChatMenuRow = ({
             disabled={!isEnabled}
             onPress={() => onChoose(action)}
             style={({ pressed }) => [
-                styles.row,
+                agentChatMenuStyles.row,
                 hasDivider && {
                     borderColor: theme.border,
                     borderTopWidth: StyleSheet.hairlineWidth,
@@ -85,7 +49,7 @@ const AgentChatMenuRow = ({
             ]}
             testID={`agent-chat-command-${index}`}
         >
-            <Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>
+            <Text numberOfLines={1} style={[agentChatMenuStyles.name, { color: theme.text }]}>
                 {action.invocation}
                 {action.argumentHint ? (
                     <Text style={{ color: theme.muted, fontWeight: '400' }}>
@@ -94,7 +58,10 @@ const AgentChatMenuRow = ({
                 ) : null}
             </Text>
             {action.description ? (
-                <Text numberOfLines={1} style={[styles.detail, { color: theme.muted }]}>
+                <Text
+                    numberOfLines={1}
+                    style={[agentChatMenuStyles.detail, { color: theme.muted }]}
+                >
                     {action.description}
                 </Text>
             ) : null}
@@ -138,7 +105,10 @@ export const AgentChatCommandList = ({
     return (
         <View
             accessibilityLabel={t('chat.commands.label')}
-            style={[styles.list, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            style={[
+                agentChatMenuStyles.list,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
             testID="agent-chat-command-list"
         >
             <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
@@ -151,7 +121,7 @@ export const AgentChatCommandList = ({
                                 <Text
                                     accessibilityRole="header"
                                     style={[
-                                        styles.heading,
+                                        agentChatMenuStyles.heading,
                                         { color: theme.muted },
                                         index > 0 && {
                                             borderColor: theme.border,
@@ -178,10 +148,10 @@ export const AgentChatCommandList = ({
                     );
                 })}
                 {missNote ? (
-                    <View style={styles.notice}>
+                    <View style={agentChatMenuStyles.notice}>
                         <Text
                             accessibilityLiveRegion="polite"
-                            style={[styles.noticeText, { color: theme.muted }]}
+                            style={[agentChatMenuStyles.noticeText, { color: theme.muted }]}
                             testID="agent-chat-command-note"
                         >
                             {missNote}
@@ -192,7 +162,7 @@ export const AgentChatCommandList = ({
                     <View
                         accessibilityLiveRegion="polite"
                         style={[
-                            styles.notice,
+                            agentChatMenuStyles.notice,
                             rows.length > 0 && {
                                 borderColor: theme.border,
                                 borderTopWidth: StyleSheet.hairlineWidth,
@@ -201,7 +171,7 @@ export const AgentChatCommandList = ({
                         testID="agent-chat-skill-notice"
                     >
                         {notice.isLoading ? <Spinner color={theme.muted} /> : null}
-                        <Text style={[styles.noticeText, { color: theme.muted }]}>
+                        <Text style={[agentChatMenuStyles.noticeText, { color: theme.muted }]}>
                             {notice.text}
                         </Text>
                     </View>

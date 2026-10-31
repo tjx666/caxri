@@ -1,9 +1,12 @@
 import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 
+import { isPinnedSession } from '@caxri/protocol';
+
 import { NoticeBanner } from '../../../components/notice-banner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
+import type { MobileAgentChatSessionCommand } from '../../agent-chat/agent-chat-app-commands';
 import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
 import { useReleaseMessageEdit } from '../../agent-chat/use-release-message-edit';
 import { useSessionAgentChat } from '../../agent-chat/use-session-agent-chat';
@@ -46,6 +49,7 @@ export const SessionDetail = ({
     onRequestComposerFocus,
     onRefresh,
     onSegmentChange,
+    onSessionCommand,
     savedAt,
     segment,
     session,
@@ -77,6 +81,10 @@ export const SessionDetail = ({
     onRequestComposerFocus: () => void;
     onRefresh: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
+    /**
+     * Runs the Chat's `/rename`, `/archive`, or `/pin`; absent while the device may not manage Sessions.
+     */
+    onSessionCommand?: (command: MobileAgentChatSessionCommand) => void;
     /**
      * When `session` comes from the Session list saved on this phone rather than a live read.
      */
@@ -200,9 +208,11 @@ export const SessionDetail = ({
                     focusComposer={focusComposer}
                     isConnected={isConnected}
                     isHandedOff={chat.isHandedOff}
+                    isPinned={isPinnedSession(session)}
                     isVisible={isVisible}
                     onComposerFocused={onComposerFocused}
                     onDraftChange={onDraftChange}
+                    onSessionCommand={onSessionCommand}
                     provider={chat.provider}
                     providerId={chat.providerId}
                     sessionId={session.id}

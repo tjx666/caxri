@@ -1,5 +1,6 @@
 export const panels = {
     'panels.backToFolder': 'Back to folder',
+    'panels.citedFileMissing': "This file doesn't exist in this Session's Project.",
     'panels.discard': 'Discard',
     'panels.discardDetail': 'Your edits to this file will be lost.',
     'panels.discardTitle': 'Discard changes?',
@@ -18,6 +19,7 @@ export const panels = {
     'panels.loading': 'Loading…',
     'panels.offline': 'Reconnect to browse this Project.',
     'panels.openFileFailed': 'Unable to open this file.',
+    'panels.openCitedFile': 'Open {{name}}',
     'panels.openFolder': 'Open {{name}}',
     'panels.save': 'Save',
     'panels.saveConflict':

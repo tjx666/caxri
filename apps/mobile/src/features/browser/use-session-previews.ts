@@ -7,6 +7,7 @@ import { router, useIsFocused } from 'expo-router';
 import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { isSessionPreviewObservable } from './preview-availability';
 
 /**
  * How often a visible Session re-reads its listening ports: soon enough that a dev server an Agent just started shows
@@ -17,25 +18,27 @@ const PREVIEW_POLL_MS = 10_000;
 /**
  * The local web servers of one Session that a `control` device can preview, and the action that opens one in the in-app
  * browser, passing `label` (`Preview · :5173`) as the browser route's page title. Other roles never ask: the Server
- * would refuse them.
+ * would refuse them. Nor does a Relay connection (`isSessionPreviewObservable`).
  */
 export const useSessionPreviews = (
     sessionId: string,
     deviceRole: 'view' | 'reply' | 'control' | null,
 ) => {
     const { t } = useTranslation();
-    const { connectionScopeKey, isForeground, request, status } = useMobileClient();
+    const { connectionScopeKey, isForeground, request, route, status } = useMobileClient();
     const isFocused = useIsFocused();
     const queryKey = useMemo(
         () => ['mobile', 'preview', connectionScopeKey ?? 'unpaired', sessionId] as const,
         [connectionScopeKey, sessionId],
     );
-    const isObservable =
-        deviceRole === 'control' &&
-        connectionScopeKey !== null &&
-        isForeground &&
-        isFocused &&
-        status === 'connected';
+    const isObservable = isSessionPreviewObservable({
+        connectionScopeKey,
+        deviceRole,
+        isFocused,
+        isForeground,
+        route,
+        status,
+    });
     const query = useQuery({
         enabled: isObservable,
         gcTime: 60_000,

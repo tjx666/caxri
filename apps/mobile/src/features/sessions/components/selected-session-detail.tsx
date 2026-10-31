@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import { agentChatDraftWithReturnedMessage } from '@caxri/protocol';
+import { agentChatDraftWithReturnedMessage, isPinnedSession } from '@caxri/protocol';
 import { useRouter } from 'expo-router';
 
 import type { useMobileTheme } from '../../../theme/use-mobile-theme';
+import type { MobileAgentChatSessionCommand } from '../../agent-chat/agent-chat-app-commands';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useOpenSession } from '../hooks/use-open-session';
@@ -59,7 +60,7 @@ export const SelectedSessionDetail = ({
         await refresh();
     }, [refresh, request, selected]);
     const management = useSessionManagement();
-    const { clearError, fork } = management;
+    const { archive, clearError, fork, setPinned } = management;
     const openSession = useOpenSession(layout);
     const [sheetMode, setSheetMode] = useState<SessionActionsMode | null>(null);
     const terminalId = selected.primaryTerminal?.id;
@@ -101,6 +102,20 @@ export const SelectedSessionDetail = ({
             terminalId,
         ],
     );
+    /**
+     * Runs the Chat's `/rename`, `/archive`, and `/pin` as the Session menu does: Rename opens the same sheet step, and
+     * archiving leaves the Session on a phone, as archiving the open Session on Desktop does. A failure shows under the
+     * header with the menu's own.
+     */
+    const runSessionCommand = (command: MobileAgentChatSessionCommand): void => {
+        clearError();
+        if (command === 'rename') setSheetMode('rename');
+        else if (command === 'pin') void setPinned(selectedId, !isPinnedSession(selected));
+        else
+            void archive(selectedId).then((done) => {
+                if (done && layout === 'phone') goHome();
+            });
+    };
 
     return (
         <>
@@ -128,6 +143,7 @@ export const SelectedSessionDetail = ({
                 onRequestComposerFocus={() => requestComposerFocus(selected.id)}
                 onRefresh={refresh}
                 onSegmentChange={(next) => setSegment(selected.id, next, conversation.segment)}
+                onSessionCommand={sessions.deviceRole === 'control' ? runSessionCommand : undefined}
                 savedAt={sessions.savedAt}
                 segment={conversation.segment}
                 session={selected}

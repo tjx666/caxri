@@ -1,17 +1,17 @@
+import { parseAgentChatAppCommand, withAgentChatBuiltInActions } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
 import {
     agentChatAppCommandActions,
     agentChatAppCommandUnavailable,
+    agentChatBuiltInActions,
     agentChatCaxriInvocations,
     agentChatGoalModeDraft,
     agentChatLeadingInvocation,
     agentChatSkillDiscoveryNotice,
     isAgentChatGoalAction,
     isAgentChatGoalOffered,
-    parseAgentChatAppCommand,
-    withAgentChatBuiltInActions,
 } from '../agent-chat-slash-commands';
 
 describe('Agent Chat slash commands', () => {
@@ -110,7 +110,7 @@ describe('Goal mode', () => {
         } as const;
         const actions = withAgentChatBuiltInActions(
             [review, { ...review, invocation: '/new-session' }],
-            translate,
+            agentChatBuiltInActions(translate),
         );
         expect(actions.map(({ invocation }) => invocation)).toEqual(['/new-session', '/review']);
         expect(actions[0]).toMatchObject({
@@ -216,8 +216,10 @@ describe('Goal mode', () => {
             } as const;
             const actions = withAgentChatBuiltInActions(
                 [status, { ...status, invocation: '/review' }],
-                translate,
-                agentChatAppCommandActions(everything, translate).slice(0, 2),
+                agentChatBuiltInActions(
+                    translate,
+                    agentChatAppCommandActions(everything, translate).slice(0, 2),
+                ),
             );
             expect(actions.map(({ invocation }) => invocation)).toEqual([
                 '/new-session',

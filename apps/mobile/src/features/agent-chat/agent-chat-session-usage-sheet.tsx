@@ -227,24 +227,36 @@ export const AgentChatSessionUsageSheet = ({
  * The Session usage entry at the end of the composer's settings row: Desktop's context ring, a quiet neutral glyph
  * until the context reaches the share where compacting is suggested, then the warning tone with the percentage. Before
  * the provider reports a window size (or for one that never does) a gauge stands in once the conversation recorded
- * usage, so tokens and cost stay one tap away. Tapping opens the Session usage sheet. Nothing renders before the first
+ * usage, so tokens and cost stay one tap away. Tapping opens the Session usage sheet; the composer owns whether it is
+ * open (`isOpen`), so `/usage` opens it too, even before the chip shows. The chip renders nothing before the first
  * usage read, which also carries the plan limits. It is drawn bare, without the Chip fill the model and permission
  * settings use, so a readout does not weigh the same as a choice; the hit slop keeps the 48dp touch target.
  */
 export const AgentChatSessionUsageButton = ({
+    isOpen,
+    onOpenChange,
     terminalId,
     theme,
     usage,
 }: {
+    isOpen: boolean;
+    onOpenChange: (isOpen: boolean) => void;
     terminalId: string;
     theme: MobileTheme;
     usage: AgentChatUsage | undefined;
 }) => {
     const { t } = useTranslation();
-    const [isOpen, setOpen] = useState(false);
     const readout = useAgentChatUsage(terminalId, usage?.lastResponseAt);
     const ring = agentChatContextRing(usage, t);
-    if (!ring && !readout) return null;
+    const sheet = isOpen ? (
+        <AgentChatSessionUsageSheet
+            onClose={() => onOpenChange(false)}
+            terminalId={terminalId}
+            theme={theme}
+            usage={usage}
+        />
+    ) : null;
+    if (!ring && !readout) return sheet;
     const color = ring?.isWarning ? theme.warning : theme.muted;
     return (
         <>
@@ -253,7 +265,7 @@ export const AgentChatSessionUsageButton = ({
                 accessibilityLabel={ring?.accessibilityLabel ?? t('chat.usage.open')}
                 accessibilityRole="button"
                 hitSlop={chipHitSlop}
-                onPress={() => setOpen(true)}
+                onPress={() => onOpenChange(true)}
                 style={({ pressed }) => [
                     styles.trigger,
                     { opacity: pressed ? PRESSED_OPACITY : 1 },
@@ -269,14 +281,7 @@ export const AgentChatSessionUsageButton = ({
                     <Text style={[styles.percent, { color }]}>{`${ring.percent}%`}</Text>
                 ) : null}
             </Pressable>
-            {isOpen ? (
-                <AgentChatSessionUsageSheet
-                    onClose={() => setOpen(false)}
-                    terminalId={terminalId}
-                    theme={theme}
-                    usage={usage}
-                />
-            ) : null}
+            {sheet}
         </>
     );
 };

@@ -167,6 +167,7 @@ export const effectfulCommandRecovery = {
     'mobile.session.restore': 'durable',
     'mobile.session.setPinned': 'durable',
     'mobile.session.delete': 'durable',
+    'mobile.session.conversationReference': 'memory',
     'mobile.pullRequest.merge': 'durable',
     'mobile.agent.submit': 'none',
     'mobile.image.upload': 'memory',

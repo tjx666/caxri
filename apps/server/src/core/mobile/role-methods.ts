@@ -101,6 +101,10 @@ const mobileGatewayMethodsByRole = {
         'mobile.agent.submit',
         'mobile.image.upload',
         'mobile.file.upload',
+        /**
+         * Citing another Session with `@` belongs to writing a message, so it carries the reply grant.
+         */
+        'mobile.session.conversationReference',
         ...mobileEveryRoleMethods,
     ],
     control: [
@@ -146,6 +150,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agent.submit',
         'mobile.image.upload',
         'mobile.file.upload',
+        'mobile.session.conversationReference',
         'agent.control.interrupt',
         'mobile.session.archived',
         'mobile.session.create',

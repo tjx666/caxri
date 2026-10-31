@@ -8,8 +8,10 @@ import type { AgentChatEditTarget } from '../../agent-chat/agent-chat-message-ed
 import { AgentChatView } from '../../agent-chat/agent-chat-view';
 import type { SessionAgentChat } from '../../agent-chat/use-session-agent-chat';
 import { AttentionCards } from '../../conversation/attention-cards';
+import { ConversationFileOpener } from '../../conversation/conversation-file-opener';
 import { ConversationView } from '../../conversation/conversation-view';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
+import { useOpenSessionFile } from '../../file-viewer/use-open-session-file';
 import { primaryTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import { useSegmentEntering } from '../hooks/use-segment-entering';
@@ -149,6 +151,7 @@ export const SessionDetailBody = ({
 }) => {
     const { t } = useTranslation();
     const segmentEntering = useSegmentEntering(segment, segments);
+    const openFile = useOpenSessionFile(session.id);
     const { bodyEntering, conversationEnterFrom } = conversationAwareEntering(
         segment,
         hasConversationItems(chat, conversationTimeline),
@@ -198,22 +201,24 @@ export const SessionDetailBody = ({
         </View>
     );
     const conversation = (
-        <SessionConversationPane
-            attention={attention(
-                session.agentActivityState === 'waiting' &&
-                    session.primaryTerminal?.provider !== 'claude',
-                true,
-            )}
-            chat={chat}
-            deviceRole={deviceRole}
-            enterFrom={conversationEnterFrom}
-            isConnected={isConnected}
-            onEditMessage={onEditMessage}
-            onEditQueued={onEditQueued}
-            session={session}
-            theme={theme}
-            timeline={conversationTimeline}
-        />
+        <ConversationFileOpener value={openFile}>
+            <SessionConversationPane
+                attention={attention(
+                    session.agentActivityState === 'waiting' &&
+                        session.primaryTerminal?.provider !== 'claude',
+                    true,
+                )}
+                chat={chat}
+                deviceRole={deviceRole}
+                enterFrom={conversationEnterFrom}
+                isConnected={isConnected}
+                onEditMessage={onEditMessage}
+                onEditQueued={onEditQueued}
+                session={session}
+                theme={theme}
+                timeline={conversationTimeline}
+            />
+        </ConversationFileOpener>
     );
     const side = isPanelSessionSegment(segment) ? panelView : changesPanel;
     if (wideChanges && isSideSessionSegment(segment)) {

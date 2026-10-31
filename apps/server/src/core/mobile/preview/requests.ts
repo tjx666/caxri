@@ -21,6 +21,16 @@ const resolvedRoot = async (root: string): Promise<string> => {
     }
 };
 
+const canReachGateway = (connectionAddress: () => string): boolean => {
+    try {
+        connectionAddress();
+        return true;
+    } catch (error) {
+        if (error instanceof CaxriError && error.code === 'UNAVAILABLE') return false;
+        throw error;
+    }
+};
+
 type PreviewRequest = Extract<
     ServerRequest,
     { method: 'mobile.preview.list' | 'mobile.preview.open' }
@@ -85,6 +95,12 @@ export const createMobilePreviewRequests = (options: {
             connectionAddress: () => string,
             reauthorize: () => void,
         ): Promise<MethodResult<PreviewRequest['method']>> => {
+            /**
+             * A phone that cannot reach the gateway's plain-HTTP side (a Relay connection) could never open a preview,
+             * so the list is empty without reading listening ports at all.
+             */
+            if (request.method === 'mobile.preview.list' && !canReachGateway(connectionAddress))
+                return { targets: [] };
             const found = await targets(domainService, principal, request.params.sessionId);
             reauthorize();
             if (request.method === 'mobile.preview.list')

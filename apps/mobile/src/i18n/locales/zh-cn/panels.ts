@@ -4,6 +4,7 @@ import type { panels as source } from '../en/panels';
 
 export const panels: TranslatedNamespace<typeof source> = {
     'panels.backToFolder': '返回文件夹',
+    'panels.citedFileMissing': '此会话的项目中没有这个文件。',
     'panels.discard': '放弃',
     'panels.discardDetail': '你对此文件的修改将会丢失。',
     'panels.discardTitle': '放弃更改？',
@@ -22,6 +23,7 @@ export const panels: TranslatedNamespace<typeof source> = {
     'panels.loading': '正在加载…',
     'panels.offline': '重新连接以浏览此项目。',
     'panels.openFileFailed': '无法打开此文件。',
+    'panels.openCitedFile': '打开 {{name}}',
     'panels.openFolder': '打开 {{name}}',
     'panels.save': '保存',
     'panels.saveConflict': '此文件已在电脑上更改。请放弃并重新加载后再编辑。',

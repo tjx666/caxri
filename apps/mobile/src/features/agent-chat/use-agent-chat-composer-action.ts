@@ -4,6 +4,7 @@ import type { AgentAction } from '@caxri/protocol';
 import {
     agentChatDraftWithReturnedMessage,
     agentChatTextWithPathReferences,
+    parseAgentChatAppCommand,
     parseAgentChatCommand,
     sentenceStartProvider,
 } from '@caxri/protocol';
@@ -18,6 +19,7 @@ import { agentChatHandoffText } from './agent-chat-handoff';
 import { isAgentChatStopping } from './agent-chat-model';
 import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
 import type { AgentChatController } from './use-agent-chat';
+import type { useAgentChatAppCommands } from './use-agent-chat-app-commands';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
 
 /**
@@ -27,12 +29,14 @@ import { useAgentChatCommandRun } from './use-agent-chat-command-run';
  * of the text, as Desktop's file cards do, so the pending row already shows them as the chips the sent message will
  * have. Stop stays pending, keyed by the turn it stopped, until that turn ends, like the Desktop composer and the
  * Terminal composer's "Stopping Agent…" state; the interrupt request returning only means the provider was asked. A
- * draft naming a listed slash command runs it instead of sending (`useAgentChatCommandRun`); a bare `/word` the menu
- * has no row for is held once, as Desktop's first Enter is, and a second tap on the same draft sends it as text
+ * draft naming one of Caxri's app commands runs it on the phone (`useAgentChatAppCommands`), and a draft naming a
+ * listed provider command runs it instead of sending (`useAgentChatCommandRun`); a bare `/word` the menu has no row for
+ * is held once, as Desktop's first Enter is, and a second tap on the same draft sends it as text
  * (`shouldHoldAgentChatSendAsText`).
  */
 export const useAgentChatComposerAction = ({
     activeTurnId,
+    appCommands,
     chat,
     draft,
     files,
@@ -44,6 +48,7 @@ export const useAgentChatComposerAction = ({
     provider,
 }: {
     activeTurnId: string | undefined;
+    appCommands: ReturnType<typeof useAgentChatAppCommands>;
     chat: AgentChatController;
     draft: string;
     files: FileAttachments;
@@ -79,6 +84,16 @@ export const useAgentChatComposerAction = ({
         latestDraft.current = draft;
     }, [draft]);
     const commands = useAgentChatCommandRun({ chat, onDraftChange, reportError: setError });
+    const runAppCommand = async (
+        command: NonNullable<ReturnType<typeof parseAgentChatAppCommand>>,
+    ): Promise<void> => {
+        setError(null);
+        try {
+            await appCommands.run(command);
+        } catch {
+            setError(t('chat.commands.runFailed', { name: command }));
+        }
+    };
     const run = async (delivery?: 'steer'): Promise<void> => {
         setError(null);
         if (isStopAction) {
@@ -136,6 +151,11 @@ export const useAgentChatComposerAction = ({
             setConfirmedDraft(draft);
             return;
         }
+        const appCommand = parseAgentChatAppCommand(draft, appCommands.builtIn);
+        if (appCommand) {
+            await runAppCommand(appCommand);
+            return;
+        }
         /**
          * `/new-session [next task]` is Caxri's own command: it sends the hand-off instructions as an ordinary message,
          * ahead of any provider command of that name. When the Project or Agent is unknown it says so rather than send
@@ -187,8 +207,16 @@ export const useAgentChatComposerAction = ({
             snapshot: chat.snapshot,
         });
     };
+    /**
+     * An app command runs as soon as it is chosen, as on Desktop; anything else goes through the provider command path.
+     */
+    const chooseCommand = (action: AgentAction): void => {
+        const appCommand = parseAgentChatAppCommand(action.invocation, appCommands.builtIn);
+        if (appCommand) void runAppCommand(appCommand);
+        else commands.choose(action);
+    };
     return {
-        chooseCommand: commands.choose,
+        chooseCommand,
         confirmsSendAsText: confirmedDraft === draft,
         error,
         isRunningCommand: commands.isRunning,

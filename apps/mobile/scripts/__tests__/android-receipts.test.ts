@@ -89,6 +89,16 @@ describe('Android content-free receipts', () => {
         ).toEqual({ exists: true, focused: true, textMatches: false });
     });
 
+    it('reads a single-quoted text value that contains double quotes', () => {
+        const source = `<node resource-id="agent-chat-composer-input" package="com.caxri.mobile" focused="true" text='@notes.md contains the conversation from Session "Draft &amp; plan".' />`;
+        expect(
+            observeAndroidNodeFromUiAutomator(source, 'agent-chat-composer-input', {
+                kind: 'includes',
+                value: 'from Session "Draft & plan".',
+            }),
+        ).toEqual({ exists: true, focused: true, textMatches: true });
+    });
+
     it('matches any copy of a repeated test ID when comparing text', () => {
         const source = `<hierarchy>
           <node resource-id="agent-chat-answered-answer-0" package="com.caxri.mobile" focused="false" text="Blue" />

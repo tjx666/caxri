@@ -1,7 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, use, useCallback, useEffect, useMemo, useState } from 'react';
 import type { TextStyle } from 'react-native';
 import { ScrollView, Text, View } from 'react-native';
 
+import {
+    fileLinkTarget,
+    fileReferenceTarget,
+    proseFileReferences,
+} from '@caxri/markdown/file-reference';
 import type {
     ASTNode,
     MarkdownParser,
@@ -14,6 +19,7 @@ import { openLink } from '../../lib/open-link';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { fenceLanguage } from '../panels/file-language';
+import { ConversationFileOpener } from './conversation-file-opener';
 import type { ConversationTextReveal } from './conversation-text-reveal';
 import {
     colorWithOpacity,
@@ -128,6 +134,24 @@ function useRevealingMarkdown(
 const TOP_LEVEL_MAX_EXCEEDED_ITEM = null;
 
 /**
+ * A text run split around the file paths it cites in prose (`updated src/app.ts:12`), as Desktop's Chat links them.
+ * Text inside a link keeps that link's destination.
+ */
+const prosePathRuns = (content: string): Array<{ file?: string; text: string }> | undefined => {
+    const references = proseFileReferences(content);
+    if (references.length === 0) return undefined;
+    const runs: Array<{ file?: string; text: string }> = [];
+    let offset = 0;
+    for (const reference of references) {
+        if (reference.index > offset) runs.push({ text: content.slice(offset, reference.index) });
+        runs.push({ file: reference.file, text: reference.text });
+        offset = reference.index + reference.text.length;
+    }
+    if (offset < content.length) runs.push({ text: content.slice(offset) });
+    return runs;
+};
+
+/**
  * A code block in a reply: monospace, selectable, and scrolled sideways rather than wrapped. A known language paints
  * through `HighlightedCode`, which is memoized on the code and language, so a streamed reply re-tokenizes only the
  * block still growing; anything else stays one plain color.
@@ -194,6 +218,7 @@ export const ConversationMarkdown = memo(
         theme: MobileTheme;
     }) => {
         const monospace = MONOSPACE_FONT;
+        const onOpenFile = use(ConversationFileOpener);
         const markdownStyle = useMemo(
             () => ({
                 body: { color: theme.text, fontSize: 15, lineHeight: 23 },
@@ -221,6 +246,14 @@ export const ConversationMarkdown = memo(
             }),
             [monospace, theme],
         );
+        /**
+         * A cited path keeps its code or prose look and adds the link color and an underline, so it reads as tappable
+         * without turning a reply full of paths into a wall of links.
+         */
+        const fileStyle = useMemo(
+            () => ({ color: theme.primary, textDecorationLine: 'underline' as const }),
+            [theme],
+        );
         const onLinkPress = useCallback(
             (url: string) => {
                 onBeforeOpenLink?.();
@@ -236,16 +269,70 @@ export const ConversationMarkdown = memo(
                 // The library wraps a link in a `Pressable`, a View that sits inside the paragraph's text as one
                 // unbreakable box: after other text it rides above the baseline and a long URL runs off the screen. A
                 // nested pressable `Text` flows, aligns, and wraps with the words around it.
-                link: (node, children, _parents, styles) => (
-                    <Text
-                        accessibilityRole="link"
-                        key={node.key}
-                        onPress={() => onLinkPress(node.attributes.href)}
-                        style={styles.link}
-                    >
-                        {children}
-                    </Text>
-                ),
+                // A destination that names a local file (`[a.ts](/repo/a.ts:12)`, `file:///repo/a.ts`) opens the file
+                // viewer instead of the browser, as Desktop's Chat opens it in the Editor.
+                link: (node, children, _parents, styles) => {
+                    const { href } = node.attributes;
+                    const file = onOpenFile ? fileLinkTarget(href) : undefined;
+                    return (
+                        <Text
+                            accessibilityRole="link"
+                            key={node.key}
+                            onPress={() => {
+                                if (file && onOpenFile) onOpenFile(file);
+                                else onLinkPress(href);
+                            }}
+                            style={styles.link}
+                        >
+                            {children}
+                        </Text>
+                    );
+                },
+                // Inline code that reads as a path (`src/a.ts:12`) is a tap away from the file it names.
+                code_inline: (node, _children, _parents, styles, inheritedStyles) => {
+                    const file = onOpenFile ? fileReferenceTarget(node.content) : undefined;
+                    return (
+                        <Text
+                            accessibilityRole={file ? 'link' : undefined}
+                            key={node.key}
+                            onPress={file && onOpenFile ? () => onOpenFile(file) : undefined}
+                            style={[
+                                inheritedStyles as TextStyle,
+                                styles.code_inline,
+                                file && fileStyle,
+                            ]}
+                        >
+                            {node.content}
+                        </Text>
+                    );
+                },
+                text: (node, _children, parents, styles, inheritedStyles) => {
+                    const runs =
+                        onOpenFile && parents.every((parent) => parent.type !== 'link')
+                            ? prosePathRuns(node.content)
+                            : undefined;
+                    return (
+                        <Text key={node.key} style={[inheritedStyles as TextStyle, styles.text]}>
+                            {runs
+                                ? runs.map((run, index) =>
+                                      run.file ? (
+                                          // react-doctor-disable-next-line react-doctor/no-array-index-as-key -- Runs split one text node in order and may repeat; the position is the run.
+                                          <Text
+                                              accessibilityRole="link"
+                                              key={index}
+                                              onPress={() => onOpenFile?.(run.file!)}
+                                              style={fileStyle}
+                                          >
+                                              {run.text}
+                                          </Text>
+                                      ) : (
+                                          run.text
+                                      ),
+                                  )
+                                : node.content}
+                        </Text>
+                    );
+                },
                 // A run that just arrived is a nested span whose color fades in: the reply's tail reads as a soft
                 // gradient. A span takes no `opacity` of its own inside a `Text`, so the color carries it.
                 [FADING_TEXT_NODE]: (node, _children, _parents, styles, inheritedStyles) => {
@@ -292,7 +379,7 @@ export const ConversationMarkdown = memo(
                     />
                 ),
             }),
-            [monospace, onLinkPress, theme],
+            [fileStyle, monospace, onLinkPress, onOpenFile, theme],
         );
         const source = useRevealingMarkdown(text, reveal);
         return (

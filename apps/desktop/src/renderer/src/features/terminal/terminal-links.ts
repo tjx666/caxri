@@ -1,4 +1,5 @@
 import type { EditorNavigationTarget, TerminalOscLinkSnapshot } from '@caxri/protocol';
+import { parseFileLocation } from '@caxri/protocol';
 import type { ILink, Terminal } from '@xterm/xterm';
 
 import type { RawToken } from './terminal-file-candidate';
@@ -12,10 +13,7 @@ import {
     trailingCjkProseOffset,
     unsupportedHomeRanges,
 } from './terminal-file-candidate';
-import {
-    parseTerminalFileLocation,
-    TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
-} from './terminal-file-location';
+import { TERMINAL_FILE_LOCATION_SUFFIX_PATTERN } from './terminal-file-location';
 import {
     hasLinkActivationModifier,
     registerMouseTrackingLinkClickGuard,
@@ -192,7 +190,7 @@ function findLocationFileLinks(
         const endIndex = suffix.index + suffix[0].length;
         const startIndex = locationPathStart(text, suffix.index, wordSeparators);
         const trimmed = trimTerminalLinkToken(text.slice(startIndex, endIndex));
-        const location = parseTerminalFileLocation(trimmed.text);
+        const location = parseFileLocation(trimmed.text);
         if (
             !location.location ||
             location.invalidLocation ||
@@ -351,7 +349,7 @@ export function findTerminalLinks(
             if (startIndex < unsupportedHome.endIndex && endIndex > unsupportedHome.startIndex)
                 continue;
         }
-        const location = parseTerminalFileLocation(trimmed.text);
+        const location = parseFileLocation(trimmed.text);
         if (
             location.invalidLocation ||
             !isLikelyFilePath(location.target) ||

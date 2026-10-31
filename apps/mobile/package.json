@@ -5,7 +5,7 @@
     "description": "Caxri mobile companion for paired Agent Sessions.",
     "main": "expo-router/entry",
     "scripts": {
-        "build:dependencies": "bun run --cwd ../../packages/utils build && bun run --cwd ../../packages/protocol build && bun run --cwd ../../packages/mobile-transport build && bun run build:terminal-webview",
+        "build:dependencies": "bun run --cwd ../../packages/utils build && bun run --cwd ../../packages/protocol build && bun run --cwd ../../packages/markdown build && bun run --cwd ../../packages/mobile-transport build && bun run build:terminal-webview",
         "build:file-icons": "bun run scripts/build-file-icons.ts",
         "build:terminal-webview": "bun run scripts/build-terminal-webview.ts",
         "build:update-bundle": "bun run scripts/build-update-bundle.ts",
@@ -24,6 +24,7 @@
         "typecheck": "bun check --no-script -p tsconfig.runtime.json && bun check --no-script -p tsconfig.json"
     },
     "dependencies": {
+        "@caxri/markdown": "workspace:*",
         "@caxri/mobile-transport": "workspace:*",
         "@caxri/protocol": "workspace:*",
         "@react-native-masked-view/masked-view": "0.3.2",

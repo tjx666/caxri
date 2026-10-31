@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 
+import { parseFileLocation } from '@caxri/protocol';
+
 import { openTerminalFileTarget } from '../../terminal/terminal-file-link-open';
-import { parseTerminalFileLocation } from '../../terminal/terminal-file-location';
 import { terminalPaneHost } from '../../terminal/terminal-pane-host';
 
 /**
@@ -11,7 +12,7 @@ import { terminalPaneHost } from '../../terminal/terminal-pane-host';
 export function useAgentChatOpenFile(terminalId: string): (reference: string) => void {
     return useCallback(
         (reference: string) => {
-            const { target, location } = parseTerminalFileLocation(reference);
+            const { target, location } = parseFileLocation(reference);
             void openTerminalFileTarget(terminalId, target, location, {
                 hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
             });

@@ -15,6 +15,7 @@ export async function fakeChatAgent(
     userDataDirectory: string,
     testDirectory: string,
     claudeScriptPath?: string,
+    shouldWriteCodexRollouts?: boolean,
 ) {
     return createFakeAgentMode({
         userDataDir: userDataDirectory,
@@ -30,6 +31,7 @@ export async function fakeChatAgent(
                 executableSource: fakeCodexChatExecutableSource({
                     // A phone may reopen the Chat as a Terminal (`MOB-CHAT-SURFACE-SWITCH-01`).
                     hasPtyStandIn: true,
+                    shouldWriteRollouts: shouldWriteCodexRollouts,
                     stateDirectory: join(testDirectory, 'codex-threads'),
                 }),
             },

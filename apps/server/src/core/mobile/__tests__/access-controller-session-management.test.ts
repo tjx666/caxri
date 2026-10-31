@@ -12,6 +12,13 @@ const terminalExecution = {
     onHostExit: () => () => {},
 } as unknown as TerminalExecutionPort;
 
+const reference = {
+    filePath: '/refs/granted.md',
+    title: 'Granted',
+    messageCount: 2,
+    omittedMessageCount: 0,
+};
+
 const open = async () => {
     const store = createMemoryMobileDeviceStore();
     const registry = MobileDeviceRegistry.open({ store });
@@ -63,6 +70,7 @@ const open = async () => {
                             : sessions,
                 });
             if (method === 'session.suggestTitle') return Promise.resolve({ title: 'Suggested' });
+            if (method === 'session.conversationReference') return Promise.resolve(reference);
             if (method === 'terminal.queryForPrincipal')
                 return Promise.resolve({
                     terminals:
@@ -83,7 +91,7 @@ const open = async () => {
     );
     const domainService = { request, requestWithSignal } as unknown as ServerDomainService;
     const context: CommandExecutionContext = { capabilities: [], principal };
-    return { controller, context, domainService, requestWithSignal };
+    return { controller, context, domainService, request, requestWithSignal };
 };
 
 describe('MobileAccessController Session management', () => {
@@ -132,6 +140,37 @@ describe('MobileAccessController Session management', () => {
                 ['session.setPinned', { sessionId: 'session-granted', pinned: true }],
                 ['session.delete', { sessionId: 'session-granted' }],
             ]);
+        } finally {
+            await controller.close();
+        }
+    });
+
+    it("prepares a granted Session's conversation reference and refuses one outside the grant", async () => {
+        const { controller, context, domainService, request } = await open();
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.session.conversationReference',
+                        params: { sessionId: 'session-granted' },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).resolves.toEqual(reference);
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.session.conversationReference',
+                        params: { sessionId: 'session-hidden' },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+            expect(
+                request.mock.calls.filter(([method]) => method === 'session.conversationReference'),
+            ).toEqual([['session.conversationReference', { sessionId: 'session-granted' }]]);
         } finally {
             await controller.close();
         }

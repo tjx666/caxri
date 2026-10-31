@@ -72,6 +72,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.session.setPinned',
     'mobile.session.delete',
     'mobile.session.suggestTitle',
+    'mobile.session.conversationReference',
     'mobile.agentUsage.read',
     'mobile.pullRequest.read',
     'mobile.pullRequest.merge',

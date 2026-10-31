@@ -99,6 +99,11 @@ interface CreateMobileAcceptanceFixtureInput {
      */
     seedProject?: (root: string) => Promise<void>;
     /**
+     * Has the fake Codex keep a rollout per Chat, as the real CLI does, so the Server can read a Chat's conversation
+     * back (citing it from another Session). Off by default: some cases prove what the phone shows without one.
+     */
+    shouldWriteCodexRollouts?: boolean;
+    /**
      * Extra launch environment, such as a `PATH` that puts a fake `gh` ahead of the host's.
      */
     env?: NodeJS.ProcessEnv;
@@ -169,7 +174,12 @@ export async function createMobileAcceptanceFixture(
               : input.mode === 'launch-failure'
                 ? await fakeFailingAgent(userData)
                 : input.mode === 'agent-chat'
-                  ? await fakeChatAgent(userData, testDirectory, claudeScriptPath)
+                  ? await fakeChatAgent(
+                        userData,
+                        testDirectory,
+                        claudeScriptPath,
+                        input.shouldWriteCodexRollouts,
+                    )
                   : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
     let running: RunningCaxri;
     try {

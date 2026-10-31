@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgentProvider } from '@caxri/protocol';
@@ -109,15 +108,17 @@ const PermissionChip = ({
 /**
  * The Chat's settings entries above the composer input: one `Model · Effort` chip (followed by `Ultracode` while it is
  * on), and a shield chip while the permission level is worth noticing (`shouldMarkAgentChatPermission`), with `Plan`
- * beside it while plan mode is on. Both open the same Chat settings sheet, scrolled to their own section. A chip is
- * read-only while the device may not configure the Chat now (`control` access and a live connection), so the reader
- * still sees which model answers and at what level; an open sheet stays, disabled with the reason, when the connection
- * drops under the reader. The permission chip also shows whenever the model chip cannot, so permissions are never
- * unreachable.
+ * beside it while plan mode is on. Both open the same Chat settings sheet, scrolled to their own section; the composer
+ * owns which one is open (`entry`), so `/model` opens it too. A chip is read-only while the device may not configure
+ * the Chat now (`control` access and a live connection), so the reader still sees which model answers and at what
+ * level; an open sheet stays, disabled with the reason, when the connection drops under the reader. The permission chip
+ * also shows whenever the model chip cannot, so permissions are never unreachable.
  */
 export const AgentChatSettings = ({
     chat,
     configureReason,
+    entry,
+    onEntryChange,
     permissionReason,
     provider,
     theme,
@@ -128,6 +129,11 @@ export const AgentChatSettings = ({
      */
     configureReason: string | undefined;
     /**
+     * The section the open settings sheet shows, or `null` while it is closed.
+     */
+    entry: AgentChatSettingsEntry | null;
+    onEntryChange: (entry: AgentChatSettingsEntry | null) => void;
+    /**
      * Why the device cannot change permissions now; see `agentChatDisabledReason` with `action: 'permission'`.
      */
     permissionReason: string | undefined;
@@ -135,7 +141,6 @@ export const AgentChatSettings = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const [entry, setEntry] = useState<AgentChatSettingsEntry | null>(null);
     const model = useAgentChatModelSelection(chat, configureReason);
     const permission = useAgentChatPermissionSelection(chat, permissionReason);
     const modelTrigger = agentChatModelTrigger(model.snapshot, configureReason === undefined, t);
@@ -158,7 +163,7 @@ export const AgentChatSettings = ({
             {modelTrigger ? (
                 <ModelChip
                     hint={hint}
-                    onPress={() => setEntry('model')}
+                    onPress={() => onEntryChange('model')}
                     theme={theme}
                     trigger={modelTrigger}
                 />
@@ -166,7 +171,7 @@ export const AgentChatSettings = ({
             {permissionChip ? (
                 <PermissionChip
                     hint={hint}
-                    onPress={() => setEntry('permission')}
+                    onPress={() => onEntryChange('permission')}
                     theme={theme}
                     trigger={permissionChip}
                 />
@@ -176,7 +181,7 @@ export const AgentChatSettings = ({
                     configureReason={configureReason}
                     entry={entry}
                     model={model}
-                    onClose={() => setEntry(null)}
+                    onClose={() => onEntryChange(null)}
                     permission={permission}
                     permissionReason={permissionReason}
                     provider={provider}

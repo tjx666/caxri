@@ -1,6 +1,5 @@
-import { defaultAppSettings } from '@caxri/protocol';
+import { defaultAppSettings, parseFileLocation } from '@caxri/protocol';
 
-import { parseTerminalFileLocation } from './terminal-file-location';
 import { trimTerminalLinkToken } from './terminal-link-token';
 
 /**
@@ -146,7 +145,7 @@ export function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators:
         const isLabelColon = isCjkLabelColon;
         if (!hasExplicitPathMarker && !isLabelColon && !CJK_OPENING_WRAPPERS.has(character))
             return token;
-        if (!trimmed.text || !isLikelyFilePath(parseTerminalFileLocation(trimmed.text).target))
+        if (!trimmed.text || !isLikelyFilePath(parseFileLocation(trimmed.text).target))
             return token;
         return { index: token.index + index + 1, text: suffix };
     }
@@ -162,7 +161,7 @@ const ENUMERATED_PATH_TAIL_LENGTH = 64;
 
 function hasFileNameBefore(text: string, end: number): boolean {
     const tail = text.slice(Math.max(0, end - ENUMERATED_PATH_TAIL_LENGTH), end);
-    const { target } = parseTerminalFileLocation(tail.slice(tail.lastIndexOf('/') + 1));
+    const { target } = parseFileLocation(tail.slice(tail.lastIndexOf('/') + 1));
     return /^\.[\w-]+$/u.test(target) || /^[^/:]+\.[a-z\d][\w-]{0,15}$/iu.test(target);
 }
 

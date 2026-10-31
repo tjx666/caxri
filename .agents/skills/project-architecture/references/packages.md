@@ -31,8 +31,9 @@ stored credential cannot authenticate remains indistinguishable from an invalid 
 endpoint, so it retains the credential, stops automatic retry, and asks the user to retry or forget it.
 
 `apps/mobile` is the Expo and React Native companion application. Its `app/` and `src/` runtime graph
-may import only `@caxri/mobile-transport` and `@caxri/protocol`; tests may additionally consume
-browser-safe pure utilities. Runtime type-checking exposes only ECMAScript plus worker-safe Web APIs,
+may import only `@caxri/mobile-transport`, `@caxri/protocol`, and the dependency-free
+`@caxri/markdown/file-reference` subpath (cited-file detection shared with Desktop's Chat); tests may
+additionally consume browser-safe pure utilities. Runtime type-checking exposes only ECMAScript plus worker-safe Web APIs,
 excluding both Node.js ambient types and browser document/window globals that React Native does not
 provide. Node-powered Expo plugins and build scripts remain outside that runtime configuration.
 

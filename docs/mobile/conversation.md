@@ -47,8 +47,17 @@ use bounded Project file-name search. Selecting an item inserts its invocation o
 into the draft. An Agent Chat's composer instead opens Desktop's Chat menu for a draft that is a bare
 `/name` or `$name`: the provider's commands under Commands and the Terminal's discovered skills
 under Skills, where the skills come from `mobile.agent.actions` with the typed name as `query` so
-Server Core ranks the whole list before its 40-action cut. Tapping a command without arguments runs
-it; tapping any other row fills the draft with its invocation. See
+Server Core ranks the whole list before its 40-action cut. Caxri's own commands lead the menu, as
+on Desktop: `/new-session [next task]` sends the hand-off instructions for the Session's Project and
+provider, and the app commands the phone has a control for run on the phone. `/usage` and `/model`
+open the sheets their chips open, `/plan` flips plan mode, and `/rename`, `/archive`, and `/pin`
+(on `control` devices) act on the open Session. Each shows only while the device can run it;
+`/status`, `/btw`, `/fork`, and `/new` have no phone control yet. Tapping a command without
+arguments runs it; tapping any other row fills the draft with its invocation. A Chat draft ending
+in `@` opens Desktop's `@` list: Project files by name (`mobile.files.search`, inserted as
+`@path`), then the Host's other Sessions with an Agent by title. Choosing a Session calls
+`mobile.session.conversationReference`, which condenses that conversation into a Caxri-owned file
+on the Host and returns only its path; the phone inserts the same citing sentence Desktop does. See
 [Agent Chat](../agent-chat.md) for the full contract. A paired `reply` or `control` device may attach up to three compressed JPEGs from
 the library, camera, or clipboard. The app sends bounded chunks through the encrypted gateway;
 Server Core writes a file only after all chunks arrive and validates its type and size. The Agent
@@ -93,6 +102,13 @@ sheet; Dismiss hides the cache line until the next reply restarts the cache, whi
 line stays. Unlike Desktop, the phone does not know the Server's idle-compaction setting, so it
 never shows the "auto-compacts in" state and counts down to the expiry instead, and its dismissal
 is kept in memory per app run rather than shared with Desktop (Desktop's is also memory-only).
+
+**Cited files.** A file the conversation cites opens a read-only file viewer: a Markdown link to a
+local path, an inline code span or prose run that `@caxri/markdown/file-reference` recognizes as a
+file reference (the detection Desktop's Chat uses), or a file chip under a message. The viewer reads
+the file with `mobile.files.read`, so it reaches only files inside the Session's Project; a path
+outside it, or one that no longer exists, says the file is not in this Session's Project. It shows
+syntax-highlighted lines with numbers and scrolls to the cited line range, tinting it.
 
 The Project file preview exposes **Edit** only to `control` devices for bounded editable text.
 `mobile.files.write` carries the hash of the content originally read. The existing document writer

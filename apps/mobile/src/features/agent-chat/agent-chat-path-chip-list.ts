@@ -2,8 +2,8 @@ import type { AgentChatPathReference, AgentChatSkillReference } from '@caxri/pro
 import { agentChatPathReferenceName } from '@caxri/protocol';
 
 /**
- * One chip under a user message: a skill, a file, or a folder the message cited. `path` is what a tap reveals, since
- * the phone has no Finder to open.
+ * One chip under a user message: a skill, a file, or a folder the message cited. `path` is the file a tap opens, or the
+ * folder path it reveals, since the phone has no Finder to open.
  */
 export interface AgentChatPathChip {
     key: string;

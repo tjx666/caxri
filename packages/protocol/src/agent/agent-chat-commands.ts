@@ -173,6 +173,74 @@ export function completeAgentChatAction(action: AgentAction): string {
 }
 
 /**
+ * Caxri's own Chat commands that open or toggle an existing Client control instead of messaging the Agent, as the Codex
+ * app's `/` menu does: `/status` and `/usage` open the Agent status and usage pages, and the rest reach the model
+ * picker, plan mode, the side chat, and the Session's Fork, New Chat, Rename, Archive, and Pin actions. Each Client
+ * runs them and offers only those it has a control for (the phone has no side chat or fork, for example).
+ */
+export const AGENT_CHAT_APP_COMMANDS = [
+    'status',
+    'usage',
+    'model',
+    'plan',
+    'btw',
+    'fork',
+    'new',
+    'rename',
+    'archive',
+    'pin',
+] as const;
+
+export type AgentChatAppCommand = (typeof AGENT_CHAT_APP_COMMANDS)[number];
+
+/**
+ * One app command's menu row, described in the Client's own words.
+ */
+export function agentChatAppCommandAction(
+    command: AgentChatAppCommand,
+    description: string,
+    argumentHint?: string,
+): AgentAction {
+    return {
+        invocation: `/${command}`,
+        kind: 'command',
+        description,
+        ...(argumentHint && { argumentHint }),
+        requiresArguments: false,
+        source: 'builtIn',
+    };
+}
+
+/**
+ * The app command a submitted draft runs: a bare `/name` (surrounding whitespace aside) that `offered` lists and
+ * `unavailable` (a Client's disabled rows, by invocation) does not hold back. Anything after the name, such as `/btw
+ * <question>`, leaves the draft to the ordinary send path.
+ */
+export function parseAgentChatAppCommand(
+    draft: string,
+    offered: readonly AgentAction[],
+    unavailable: ReadonlyMap<string, string> = new Map(),
+): AgentChatAppCommand | undefined {
+    const invocation = draft.trim();
+    if (unavailable.has(invocation)) return undefined;
+    if (offered.every((action) => action.invocation !== invocation)) return undefined;
+    return AGENT_CHAT_APP_COMMANDS.find((command) => `/${command}` === invocation);
+}
+
+/**
+ * A Chat menu's rows with Caxri's own commands first (`/new-session`, then the app commands the Client offers), then
+ * the provider's commands and the discovered skills. A provider command named like one of Caxri's loses to it, since
+ * the composer runs Caxri's anyway.
+ */
+export function withAgentChatBuiltInActions(
+    actions: readonly AgentAction[],
+    builtIn: readonly AgentAction[],
+): AgentAction[] {
+    const invocations = new Set(builtIn.map((action) => action.invocation));
+    return [...builtIn, ...actions.filter((action) => !invocations.has(action.invocation))];
+}
+
+/**
  * The Chat composer's built-in `/new-session [next task]` command: the user is done with this Session and asks its
  * Agent to hand the next task to an Agent in a new Session of the same Project. Caxri runs it, not the provider, so
  * every provider offers it; the composer sends {@link agentChatSessionHandoffText} as an ordinary message and every
@@ -194,6 +262,23 @@ export function parseAgentChatSessionHandoffCommand(draft: string): string | und
     ).exec(draft);
     // The optional group is `undefined` at runtime for a bare `/new-session`, despite its `string` type.
     return match ? (match[1] || '').trim() : undefined;
+}
+
+/**
+ * The `/new-session` menu row, described in the Client's own words. Every provider offers it because Caxri runs it.
+ */
+export function agentChatSessionHandoffAction(text: {
+    argumentHint: string;
+    description: string;
+}): AgentAction {
+    return {
+        invocation: `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`,
+        kind: 'command',
+        description: text.description,
+        argumentHint: text.argumentHint,
+        requiresArguments: false,
+        source: 'builtIn',
+    };
 }
 
 /**

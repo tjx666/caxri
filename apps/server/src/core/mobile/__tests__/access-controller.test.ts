@@ -195,6 +195,15 @@ describe('MobileAccessController role and resource authority', () => {
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.files.write')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.files.write')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.files.write')).toBe(true);
+        expect(
+            isMobileGatewayMethodAllowedForRole('view', 'mobile.session.conversationReference'),
+        ).toBe(false);
+        expect(
+            isMobileGatewayMethodAllowedForRole('reply', 'mobile.session.conversationReference'),
+        ).toBe(true);
+        expect(
+            isMobileGatewayMethodAllowedForRole('control', 'mobile.session.conversationReference'),
+        ).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.image.upload')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.image.upload')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'agent.control.interrupt')).toBe(false);

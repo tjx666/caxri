@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatPathReference, AgentChatSkillReference } from '@caxri/protocol';
@@ -8,13 +8,15 @@ import { File, Folder, Sparkles } from 'lucide-react-native';
 import { useTranslation } from '../../i18n';
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { ConversationFileOpener } from '../conversation/conversation-file-opener';
 import { agentChatPathChips } from './agent-chat-path-chip-list';
 
 const GLYPHS = { file: File, folder: Folder, skill: Sparkles } as const;
 
 /**
  * The skills and the files and folders a sent user message cites, as pills between its images and its bubble, as
- * Desktop shows them. The phone has no Finder to open them in, so a tap shows the full path under the pills instead.
+ * Desktop shows them. A file opens in the file viewer; the phone has no Finder to open a folder in, so a folder's tap
+ * shows its full path under the pills instead.
  */
 export const AgentChatPathChips = ({
     references,
@@ -27,6 +29,7 @@ export const AgentChatPathChips = ({
 }) => {
     const { t } = useTranslation();
     const [shownPath, setShownPath] = useState<string | undefined>();
+    const openFile = use(ConversationFileOpener);
     const chips = agentChatPathChips(references, skills);
     if (chips.length === 0) return null;
     return (
@@ -39,19 +42,26 @@ export const AgentChatPathChips = ({
                 {chips.map((chip) => {
                     const Glyph = GLYPHS[chip.kind];
                     const { path } = chip;
+                    const opensFile = chip.kind === 'file' && path !== undefined && openFile;
                     return (
                         <Pressable
                             accessibilityLabel={
-                                path
-                                    ? t('chat.pathReference.showPath', { name: chip.name })
-                                    : chip.name
+                                opensFile
+                                    ? t('panels.openCitedFile', { name: chip.name })
+                                    : path
+                                      ? t('chat.pathReference.showPath', { name: chip.name })
+                                      : chip.name
                             }
                             accessibilityRole={path ? 'button' : 'text'}
                             disabled={path === undefined}
                             key={chip.key}
-                            onPress={() =>
-                                setShownPath((current) => (current === path ? undefined : path))
-                            }
+                            onPress={() => {
+                                if (opensFile) openFile(path);
+                                else
+                                    setShownPath((current) =>
+                                        current === path ? undefined : path,
+                                    );
+                            }}
                             style={[
                                 styles.chip,
                                 { backgroundColor: theme.elevated, borderColor: theme.border },

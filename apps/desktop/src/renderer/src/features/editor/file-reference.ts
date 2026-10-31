@@ -19,8 +19,8 @@ export interface FileReferenceInput {
 
 /**
  * Formats the `@path#L12` / `@path#L12-L20` mention that agent CLIs accept and that Caxri's own Terminal link parser
- * (`parseTerminalFileLocation`) navigates back to the editor, so the two directions stay round-trippable. A trailing
- * space lets the user keep typing the rest of the prompt immediately.
+ * (`parseFileLocation`) navigates back to the editor, so the two directions stay round-trippable. A trailing space lets
+ * the user keep typing the rest of the prompt immediately.
  */
 export function formatFileReference({
     path,

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { identifierSchema } from '../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
+import { sessionConversationReferenceResultSchema } from '../domain/session-conversation-reference.js';
 import { terminalKindSchema } from '../domain/terminal-record.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -34,7 +35,7 @@ const mobileSessionMutationResultSchema = z.strictObject({ sessionId: identifier
 
 /**
  * A phone's Session menu: rename, archive, restore, pin, delete, and Rename with AI, each forwarded to Desktop's own
- * `session.*` method, plus the Archived Sessions list.
+ * `session.*` method, plus the Archived Sessions list and the Chat `@` Session reference.
  */
 export const mobileSessionManagementMethods = {
     'mobile.session.rename': {
@@ -80,6 +81,16 @@ export const mobileSessionManagementMethods = {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: z.strictObject({ sessionId: identifierSchema }),
         result: z.strictObject({ title: sessionRenameTitleSchema }),
+    },
+    /**
+     * Desktop's `session.conversationReference` for a Session granted to the device, so the phone's Chat `@` can cite
+     * another Session's conversation. The Server writes the condensed file; the conversation never reaches the phone.
+     */
+    'mobile.session.conversationReference': {
+        ...commandPolicy('server', 'control', ['sessions.read']),
+        idempotency: 'none',
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: sessionConversationReferenceResultSchema,
     },
     'mobile.session.archived': {
         ...commandPolicy('server', 'read', ['sessions.read']),

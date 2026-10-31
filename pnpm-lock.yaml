@@ -494,6 +494,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@caxri/markdown':
+        specifier: workspace:*
+        version: link:../../packages/markdown
       '@caxri/mobile-transport':
         specifier: workspace:*
         version: link:../../packages/mobile-transport

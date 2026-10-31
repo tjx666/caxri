@@ -16,7 +16,9 @@ The Session header shows a globe chip beside the pull request chip while at leas
 Session's processes listens on a TCP port. One port shows its number and opens the page on tap; several
 show a port count and open a menu of `port · process` rows. The chip polls `mobile.preview.list`
 every 10 seconds only while the Session screen is focused, the app is in the foreground, and the
-connection is up, and it never appears for `view` or `reply` devices. A failed open shows an alert and
+connection is up over a direct route, and it never appears for `view` or `reply` devices. Over the
+Relay the phone cannot reach the gateway's plain-HTTP side, so it neither polls nor shows the chip,
+and `mobile.preview.list` answers an empty list without reading ports. A failed open shows an alert and
 refreshes the list, which hides a port that stopped listening.
 
 ## Which ports belong to a Session

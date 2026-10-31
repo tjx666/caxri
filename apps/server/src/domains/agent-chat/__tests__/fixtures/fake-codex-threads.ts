@@ -136,7 +136,8 @@ const pad = (value: number) => String(value).padStart(2, '0');
 
 /**
  * Appends a user message to the thread's rollout as codex-cli 0.164.0-alpha.8 records it: an `item_completed` event
- * carrying the app-server item id, the client id, and each image as the data URL it was sent with.
+ * carrying the app-server item id, the client id, and each image as the data URL it was sent with, then the prompt's
+ * `response_item` message, which is what a reader of the conversation (citing a Session) parses.
  */
 export function recordRolloutUserMessage(
     threadId: string,
@@ -158,8 +159,17 @@ export function recordRolloutUserMessage(
         entry.type === 'image' ? { type: 'image', image_url: entry.url } : entry,
     );
     const item = { type: 'UserMessage', id: user.id, client_id: user.clientId, content };
+    const message = {
+        type: 'message',
+        role: 'user',
+        content: user.content.map((entry) =>
+            entry.type === 'image'
+                ? { type: 'input_image', image_url: entry.url }
+                : { type: 'input_text', text: entry.text ?? '' },
+        ),
+    };
     fs.appendFileSync(
         path.join(day, `rollout-${clock}-${threadId}.jsonl`),
-        `${JSON.stringify({ type: 'event_msg', payload: { type: 'item_completed', thread_id: threadId, turn_id: turnId, item } })}\n`,
+        `${JSON.stringify({ type: 'event_msg', payload: { type: 'item_completed', thread_id: threadId, turn_id: turnId, item } })}\n${JSON.stringify({ type: 'response_item', payload: message })}\n`,
     );
 }

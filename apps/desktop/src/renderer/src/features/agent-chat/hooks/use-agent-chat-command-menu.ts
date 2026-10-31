@@ -6,6 +6,7 @@ import {
     agentChatMenuActions,
     agentChatRecentMenuActions,
     agentChatSlashQuery,
+    withAgentChatBuiltInActions,
 } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
@@ -16,10 +17,10 @@ import { useCaxriQuery } from '../../../queries/client';
 import { useSettings, useTerminal } from '../../../stores/selectors';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
 import {
+    agentChatBuiltInActions,
     agentChatCaxriInvocations,
     agentChatLeadingInvocation,
     agentChatSkillDiscoveryNotice,
-    withAgentChatBuiltInActions,
 } from '../composer-input/agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../composer-input/agent-chat-suggestions';
 import { agentChatCommandMenuKeyStep } from '../transcript/agent-chat-presentation';
@@ -100,8 +101,7 @@ export function useAgentChatCommandMenu({
         () =>
             withAgentChatBuiltInActions(
                 agentChatMenuActions(commands, discovery.data?.actions),
-                t,
-                appActions,
+                agentChatBuiltInActions(t, appActions),
             ),
         [appActions, commands, discovery.data?.actions, t],
     );

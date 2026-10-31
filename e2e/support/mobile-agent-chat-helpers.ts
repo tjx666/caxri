@@ -190,3 +190,27 @@ export async function swipeTimelineTowardEarlier(
         '300',
     ]);
 }
+
+/**
+ * Drags the Chat timeline toward earlier messages until `isShown` holds, for content a long reply has scrolled above
+ * the screen.
+ */
+export const scrollTimelineUntil = (serial: string, isShown: () => Promise<boolean>) =>
+    waitForMobile(
+        async () => {
+            const shown = await isShown();
+            if (!shown)
+                await adbShell(serial, ['input', 'swipe', '540', '700', '540', '1500', '200']);
+            return shown;
+        },
+        (shown) => shown,
+    );
+
+/**
+ * Drags the Chat timeline toward earlier messages until check `id` is on screen.
+ */
+export const scrollTimelineTo = (serial: string, id: string) =>
+    scrollTimelineUntil(
+        serial,
+        async () => checkBounds(await mobileSemantics(serial), id) !== undefined,
+    );

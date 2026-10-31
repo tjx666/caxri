@@ -1,4 +1,5 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+import { searchSessionReferenceCandidates } from '@caxri/protocol';
 
 /**
  * One row of the `@` Sessions group: a Session whose Agent conversation can be cited.
@@ -9,27 +10,8 @@ export interface SessionReferenceCandidate {
     title: string;
 }
 
-const MAX_SESSION_REFERENCE_CANDIDATES = 20;
-
 /**
- * How well `title` matches every query word: 0 for a title that starts with the query, 1 when each word starts a word
- * of the title, 2 for a plain substring match, `undefined` when some word is missing.
- */
-function titleMatchTier(title: string, query: string): number | undefined {
-    const normalizedTitle = title.toLowerCase();
-    const words = query.toLowerCase().split(/\s+/u).filter(Boolean);
-    if (words.length === 0) return 0;
-    if (words.some((word) => !normalizedTitle.includes(word))) return undefined;
-    if (normalizedTitle.startsWith(words.join(' '))) return 0;
-    const titleWords = normalizedTitle.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-    return words.every((word) => titleWords.some((titleWord) => titleWord.startsWith(word)))
-        ? 1
-        : 2;
-}
-
-/**
- * The Sessions an `@` can cite, searched by title: every unarchived Session with a Primary Agent except the one doing
- * the citing. An empty query lists the most recently opened first, which is the Session a user most often means.
+ * The Sessions an `@` can cite, searched by title (`searchSessionReferenceCandidates`), with their Project titles.
  */
 export function searchSessionReferences(
     sessions: readonly SessionRecord[] | undefined,
@@ -38,29 +20,11 @@ export function searchSessionReferences(
     query: string,
 ): SessionReferenceCandidate[] {
     const projectTitles = new Map(projects?.map((project) => [project.id, project.title]));
-    return (sessions ?? [])
-        .flatMap((session) => {
-            if (
-                session.id === currentSessionId ||
-                session.archivedAt !== undefined ||
-                !session.primaryAgentTerminalId
-            )
-                return [];
-            const tier = titleMatchTier(session.title, query.trim());
-            return tier === undefined ? [] : [{ session, tier }];
-        })
-        .toSorted(
-            (left, right) =>
-                left.tier - right.tier ||
-                right.session.lastVisitedAt - left.session.lastVisitedAt ||
-                left.session.id.localeCompare(right.session.id),
-        )
-        .slice(0, MAX_SESSION_REFERENCE_CANDIDATES)
-        .map(({ session }) => ({
-            projectTitle: projectTitles.get(session.projectId),
-            sessionId: session.id,
-            title: session.title,
-        }));
+    return searchSessionReferenceCandidates(sessions, currentSessionId, query).map((session) => ({
+        projectTitle: projectTitles.get(session.projectId),
+        sessionId: session.id,
+        title: session.title,
+    }));
 }
 
 /**

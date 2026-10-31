@@ -4,8 +4,39 @@ import { agentChatPathReferencePreview } from '../../agent/agent-chat-path-refer
 import {
     agentChatSessionReferenceRanges,
     agentChatTextWithSessionMentions,
+    formatAgentChatFileMention,
     formatAgentChatSessionReference,
+    searchSessionReferenceCandidates,
 } from '../session-conversation-reference.js';
+
+describe('formatAgentChatFileMention', () => {
+    it('quotes a path with whitespace and leaves others bare', () => {
+        expect(formatAgentChatFileMention('src/a.ts')).toBe('@src/a.ts');
+        expect(formatAgentChatFileMention('my docs/a b.md')).toBe('@"my docs/a b.md"');
+    });
+});
+
+describe('searchSessionReferenceCandidates', () => {
+    const session = (id: string, title: string, lastVisitedAt: number) => ({
+        id,
+        title,
+        lastVisitedAt,
+        primaryAgentTerminalId: `t-${id}`,
+    });
+
+    it('ranks a title prefix over a word start over a substring, then the most recently opened', () => {
+        const sessions = [
+            session('substring', 'Relogin flow', 9),
+            session('word', 'Fix login', 1),
+            session('prefix-old', 'Login page', 2),
+            session('prefix-new', 'Login form', 3),
+            { ...session('shell', 'Login shell', 9), primaryAgentTerminalId: undefined },
+        ];
+        expect(
+            searchSessionReferenceCandidates(sessions, undefined, 'login').map(({ id }) => id),
+        ).toEqual(['prefix-new', 'prefix-old', 'word', 'substring']);
+    });
+});
 
 describe('formatAgentChatSessionReference', () => {
     it('cites the file and names the Session in one sentence', () => {

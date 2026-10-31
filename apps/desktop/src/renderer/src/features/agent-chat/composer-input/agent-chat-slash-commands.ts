@@ -1,5 +1,11 @@
-import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
-import { AGENT_CHAT_GOAL_COMMAND, AGENT_CHAT_SESSION_HANDOFF_COMMAND } from '@caxri/protocol';
+import type { AgentAction, AgentChatAppCommand, AgentChatCommand } from '@caxri/protocol';
+import {
+    AGENT_CHAT_APP_COMMANDS,
+    AGENT_CHAT_GOAL_COMMAND,
+    AGENT_CHAT_SESSION_HANDOFF_COMMAND,
+    agentChatAppCommandAction,
+    agentChatSessionHandoffAction,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 
@@ -67,27 +73,6 @@ export function agentChatGoalModeDraft(draft: string): string {
     const match = new RegExp(String.raw`^\s*/${AGENT_CHAT_GOAL_COMMAND}(?:\s+|$)`, 'u').exec(draft);
     return match ? draft.slice(match[0].length) : draft;
 }
-
-/**
- * Caxri's own Chat commands that open or toggle an existing Desktop control instead of messaging the Agent, as the
- * Codex app's `/` menu does: `/status` and `/usage` open the pages the status bar's Agent speed and usage items open,
- * and the rest reach the model picker, plan mode, the side chat, and the Session's Fork, New Chat, Rename, Archive, and
- * Pin actions. Desktop runs them (`runAgentChatAppCommand`), so the phone does not offer them.
- */
-const AGENT_CHAT_APP_COMMANDS = [
-    'status',
-    'usage',
-    'model',
-    'plan',
-    'btw',
-    'fork',
-    'new',
-    'rename',
-    'archive',
-    'pin',
-] as const;
-
-export type AgentChatAppCommand = (typeof AGENT_CHAT_APP_COMMANDS)[number];
 
 /**
  * What the Chat can do right now, which decides which app commands can run: a row whose control this Chat lacks (a
@@ -215,56 +200,31 @@ export function agentChatAppCommandActions(
     state: AgentChatAppCommandState,
     t: Translate,
 ): AgentAction[] {
-    return AGENT_CHAT_APP_COMMANDS.map((command) => ({
-        invocation: `/${command}`,
-        kind: 'command',
-        description: agentChatAppCommandDescription(command, state, t),
-        ...(command === 'btw' && { argumentHint: t('agentChat.slash.app.btwHint') }),
-        requiresArguments: false,
-        source: 'builtIn',
-    }));
+    return AGENT_CHAT_APP_COMMANDS.map((command) =>
+        agentChatAppCommandAction(
+            command,
+            agentChatAppCommandDescription(command, state, t),
+            command === 'btw' ? t('agentChat.slash.app.btwHint') : undefined,
+        ),
+    );
 }
 
 /**
- * The app command a submitted draft runs: a bare `/name` (surrounding whitespace aside) that `offered` lists and
- * `unavailable` does not hold back. Anything after the name, such as `/btw <question>`, leaves the draft to the
- * ordinary send path.
+ * Caxri's own rows a Desktop Chat menu leads with (`withAgentChatBuiltInActions`): `/new-session`, which every provider
+ * offers because Caxri runs it (see `parseAgentChatSessionHandoffCommand`), then the app commands
+ * (`agentChatAppCommandActions`).
  */
-export function parseAgentChatAppCommand(
-    draft: string,
-    offered: readonly AgentAction[],
-    unavailable: ReadonlyMap<string, string> = new Map(),
-): AgentChatAppCommand | undefined {
-    const invocation = draft.trim();
-    if (unavailable.has(invocation)) return undefined;
-    if (offered.every((action) => action.invocation !== invocation)) return undefined;
-    return AGENT_CHAT_APP_COMMANDS.find((command) => `/${command}` === invocation);
-}
-
-/**
- * The menu rows for a Chat: Caxri's own `/new-session` first, which every provider offers because Caxri runs it (see
- * `parseAgentChatSessionHandoffCommand`), then Caxri's app commands (`agentChatAppCommandActions`), then the provider's
- * commands and the discovered skills. A provider command named like one of Caxri's loses to it, since the composer runs
- * Caxri's anyway.
- */
-export function withAgentChatBuiltInActions(
-    actions: readonly AgentAction[],
+export function agentChatBuiltInActions(
     t: Translate,
     appActions: readonly AgentAction[] = [],
 ): AgentAction[] {
-    const builtIn: AgentAction[] = [
-        {
-            invocation: `/${AGENT_CHAT_SESSION_HANDOFF_COMMAND}`,
-            kind: 'command',
-            description: t('agentChat.slash.newSessionDescription'),
+    return [
+        agentChatSessionHandoffAction({
             argumentHint: t('agentChat.slash.newSessionHint'),
-            requiresArguments: false,
-            source: 'builtIn',
-        },
+            description: t('agentChat.slash.newSessionDescription'),
+        }),
         ...appActions,
     ];
-    const invocations = new Set(builtIn.map((action) => action.invocation));
-    return [...builtIn, ...actions.filter((action) => !invocations.has(action.invocation))];
 }
 
 /**
