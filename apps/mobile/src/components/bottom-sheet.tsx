@@ -44,6 +44,9 @@ const CLOSE_MS = 180;
  *
  * Mount it only while it is open. A parent that closes it programmatically (for example after a completed action) may
  * simply unmount it instead of calling `dismiss`.
+ *
+ * It renders in a `Modal`, which Android opens as its own window above the root `ToastHost`; see `showToast` before
+ * reporting an outcome from content that keeps the sheet open.
  */
 export const BottomSheet = ({
     children,

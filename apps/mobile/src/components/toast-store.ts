@@ -80,6 +80,8 @@ export const createToastStore = (timers: ToastTimers = systemTimers) => {
 export const toastStore = createToastStore();
 
 /**
- * Shows a toast, replacing any toast already on screen.
+ * Shows a toast, replacing any toast already on screen. `ToastHost` renders in the root window, so on Android a toast
+ * fired while a `BottomSheet` stays open sits under the sheet's `Modal` window and is never seen: dismiss the sheet
+ * first, or confirm inside it (the work detail sheet's Copy swaps its icon to a check).
  */
 export const showToast = toastStore.show;
