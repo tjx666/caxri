@@ -147,6 +147,78 @@ export const publicE2EPoolReceiptSchema = z.strictObject({
 const publicRendererPerformanceReceiptSchema =
     rendererPerformanceScenarioDiagnosticSchema.superRefine(refineRendererPerformanceScenario);
 
+const chatSwitchValueSchema = z.number().nonnegative().max(1_000_000).nullable();
+const chatSwitchDistributionSchema = z.strictObject({
+    max: chatSwitchValueSchema,
+    p50: chatSwitchValueSchema,
+    p95: chatSwitchValueSchema,
+});
+const chatSwitchSurfaceSchema = z.strictObject({
+    actualDurationMs: chatSwitchDistributionSchema,
+    renders: chatSwitchDistributionSchema,
+});
+const chatSwitchSummarySchema = z.strictObject({
+    interactiveMs: chatSwitchDistributionSchema,
+    iterations: nonNegativeIntegerSchema,
+    longestAnimationFrameMs: chatSwitchDistributionSchema,
+    maxFrameGapMs: chatSwitchDistributionSchema,
+    react: z.strictObject({
+        commitCount: chatSwitchDistributionSchema,
+        surfaces: z.strictObject({
+            'primary-sidebar': chatSwitchSurfaceSchema,
+            'secondary-sidebar': chatSwitchSurfaceSchema,
+            'workbench': chatSwitchSurfaceSchema,
+        }),
+    }),
+    readableMs: chatSwitchDistributionSchema,
+    readRequests: chatSwitchDistributionSchema,
+    shownMs: chatSwitchDistributionSchema,
+});
+
+/**
+ * The public projection of `benchmark:chat-switch`'s receipt (`e2e/agent-chat-switch.performance.e2e.ts`): only the
+ * per-scenario distributions, counts, and the fixed scenario and surface names. The per-switch samples stay on the
+ * runner.
+ */
+const chatSwitchHiddenStreamingSchema = z.strictObject({
+    commitCount: nonNegativeIntegerSchema,
+    keptAliveStreaming: chatSwitchSummarySchema,
+    workbench: z.strictObject({
+        actualDurationMs: z.number().nonnegative().max(1_000_000),
+        renders: nonNegativeIntegerSchema,
+    }),
+});
+const publicAgentChatSwitchReceiptSchema = z.strictObject({
+    hiddenStreaming: chatSwitchHiddenStreamingSchema,
+    kind: z.literal('agent-chat-session-switch'),
+    scenarios: z.strictObject({
+        cached: chatSwitchSummarySchema,
+        cold: chatSwitchSummarySchema,
+        keptAlive: chatSwitchSummarySchema,
+        uncached: chatSwitchSummarySchema,
+    }),
+    turnCount: nonNegativeIntegerSchema,
+});
+
+export function toPublicAgentChatSwitchReceipt(
+    value: unknown,
+): z.infer<typeof publicAgentChatSwitchReceiptSchema> {
+    const { hiddenStreaming, kind, scenarios, turnCount } = z
+        .object({
+            hiddenStreaming: z.unknown(),
+            kind: z.unknown(),
+            scenarios: z.unknown(),
+            turnCount: z.unknown(),
+        })
+        .parse(value);
+    return publicAgentChatSwitchReceiptSchema.parse({
+        hiddenStreaming,
+        kind,
+        scenarios,
+        turnCount,
+    });
+}
+
 function specPath(location: string): string {
     return location.replace(/(?::\d+)+$/u, '');
 }
@@ -265,6 +337,16 @@ export async function preparePublicE2EReceipts(options: {
                 publicRendererPerformanceReceiptSchema.parse(rendererInput),
             );
             written.push(rendererFileName);
+        }
+
+        const chatSwitchFileName = 'agent-chat-session-switch.json';
+        const chatSwitchInput = await readJsonIfPresent(join(sourceDirectory, chatSwitchFileName));
+        if (chatSwitchInput !== undefined) {
+            await writeJson(
+                join(temporaryDirectory, chatSwitchFileName),
+                toPublicAgentChatSwitchReceipt(chatSwitchInput),
+            );
+            written.push(chatSwitchFileName);
         }
 
         await rename(temporaryDirectory, outputDirectory);

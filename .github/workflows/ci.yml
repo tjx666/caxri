@@ -677,6 +677,15 @@ jobs:
             steps.desktop-exclusive.outcome == 'success'
           )
         run: bun run benchmark:renderer
+      # Reuses the profiling build `benchmark:renderer` just made instead of building again; the spec rejects any other
+      # build mode, so a failed or skipped build fails here rather than measuring the wrong Renderer.
+      - name: Run Agent Chat switch performance gate
+        id: agent-chat-switch-performance
+        if: always() && steps.renderer-performance.outcome != 'skipped'
+        env:
+          CAXRI_AGENT_CHAT_SWITCH_BENCHMARK: '1'
+          CAXRI_E2E_OUTPUT_DIR: test-results/agent-chat-switch-performance
+        run: bunx playwright test e2e/agent-chat-switch.performance.e2e.ts
       - name: Record actual E2E execution receipt
         id: execution-receipt
         if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile != 'focused'
@@ -693,6 +702,17 @@ jobs:
         run: >-
           bun run scripts/performance-baseline-gate.ts --receipt
           test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
+      # No runner-derived baseline exists yet, so this records a NO-BASELINE verdict until one is derived and armed
+      # from the uploaded receipts (docs/ci-performance.md).
+      - name: Run Agent Chat switch performance baseline gate
+        id: agent-chat-switch-performance-baseline
+        if: always() && steps.agent-chat-switch-performance.outcome != 'skipped'
+        env:
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+        run: >-
+          bun run scripts/performance-baseline-gate.ts --receipt
+          test-results/receipts/agent-chat-session-switch.json
+          --baseline scripts/performance-baseline.agent-chat-switch.json
       - name: Prepare public E2E receipts
         id: prepare-public-e2e-receipts
         if: always()
@@ -707,6 +727,18 @@ jobs:
           name: renderer-performance-receipt
           path: test-results/public-receipts/renderer-performance.json
           if-no-files-found: error
+          retention-days: 7
+      - name: Upload Agent Chat switch performance receipt
+        if: >-
+          always() &&
+          steps.prepare-public-e2e-receipts.outcome == 'success' &&
+          steps.agent-chat-switch-performance.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-chat-switch-performance-receipt
+          path: test-results/public-receipts/agent-chat-session-switch.json
+          # A run that failed before writing its receipt already fails its own step.
+          if-no-files-found: warn
           retention-days: 7
       # A concurrent-validation pool can fail its receipt check without ever starting: a sibling `checks` failure
       # aborts the run before this pool's turn, and `ci-concurrent-validation.json` records the pool as `null`. There is

@@ -521,6 +521,14 @@ something the per-run gate is asked to do.
 
 [issue-1439]: https://github.com/tjx666/caxri/issues/1439
 
+`benchmark:chat-switch` runs in the same job right after `benchmark:renderer`, on its profiling
+build, and `Run Agent Chat switch performance baseline gate` compares its receipt against
+its own `performance-baseline.agent-chat-switch.json` under `scripts/` the same way. That baseline does not exist yet,
+so the step records `no-baseline` until enough same-image `agent-chat-switch-performance-receipt`
+artifacts are collected, derived, reviewed, and armed. The benchmark adds one Electron launch of about
+two minutes to the job; see
+[Agent Chat Session switch](renderer-performance.md#agent-chat-session-switch).
+
 ### Per-run gate: design and backtest
 
 `scripts/performance-baseline.ts`'s `derivePerformanceMetricBaseline` classifies each metric as

@@ -114,7 +114,7 @@ describe('public Actions E2E log boundary', () => {
                 ),
             ),
         );
-        expect(directWorkflowRuns).toHaveLength(2);
+        expect(directWorkflowRuns).toHaveLength(3);
         for (const run of directWorkflowRuns) expect(run).not.toMatch(alternateConfigPattern);
     });
 

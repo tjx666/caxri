@@ -92,36 +92,59 @@ bun run benchmark:chat-switch
 ```
 
 The fake Codex Chat answers sixteen Markdown-heavy turns (tables and highlighted code blocks), so the
-transcript is many screens tall, and the user leaves it following the latest reply. One Session-card
-click back to that Chat is then measured from each state a Session can be in:
+transcript is many screens tall, and the user leaves it following the latest reply. Session-card
+clicks back to that Chat are then measured from each state a Session can be in, twenty times each
+(`CAXRI_AGENT_CHAT_SWITCH_BENCHMARK_ITERATIONS`):
 
 - `keptAlive`: the Chat is still among the five most recently selected Sessions (the visible one
   included) whose Workbench stays mounted;
 - `cached`: newer Sessions evicted it from keep-alive, while the Renderer's query cache still holds
-  its conversation;
+  its conversation; selecting the newer Sessions again evicts it before every switch;
 - `uncached`: after a Renderer reload nothing is cached, and the switch reads the conversation from
-  Server Core.
+  Server Core;
+- `cold`: Server Core was killed and replaced before the reload, so the read also starts the
+  provider and resumes its thread (`docs/agent-chat.md` "Lazy start"); three switches
+  (`CAXRI_AGENT_CHAT_SWITCH_BENCHMARK_COLD_ITERATIONS`, at most three), because Desktop replaces a
+  killed Server Core only three times before 30 seconds of stable uptime reset its restart budget.
 
 The click and the sampling run inside the page, one sample per painted frame. An animation-frame
 callback runs before that frame's layout and resize observers, which is where the Chat pins its view
-to the end, so each sample is taken from a task posted from that callback instead. Each switch is
+to the end, so each sample runs in a `user-blocking` task posted from that callback, which Chromium
+runs right after the paint and ahead of ordinary tasks. An ordinary `MessageChannel` task could
+queue behind React's own and read a commit the next frame still adjusted: 1 to 4 of 40 `cached`
+switches read the top of the mounted tail, a state never painted. Each switch records when the
+Session first showed, when its real turns first showed (`readableMs`), and when its Message composer
+first held focus (`interactiveMs`). Each switch is
 also bracketed as a Renderer `session.switch` scenario, so the receipt carries the same per-surface
 React Profiler renders and actual duration as `benchmark:renderer`. The pointer is parked outside the
 Primary Sidebar first: left resting on a Session row, its detail card opens 200ms later inside the
 window and commits the sidebar about ten times, a hover cost that is not part of the switch. The command prints one receipt
 prefixed by `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK` and writes the same JSON to
-`test-results/receipts/agent-chat-session-switch.json`. `agentChat.read` requests are counted by
+`test-results/receipts/agent-chat-session-switch.json`: under `scenarios`, each scenario's p50, p95,
+and maximum (nearest rank) of every measured quantity, and under `samples` every switch.
+`agentChat.read` requests are counted by
 distinct request id from `server-core.jsonl`, because Server Core records each Renderer request twice
 (where the control relay admits it and where its domain answers it).
 
-The gates are the deterministic invariants plus React budgets. In every scenario the conversation
-appears, no painted frame shows the Session with neither placeholder turns nor real ones, and for
-thirty frames after the turns appear every frame shows the end of the conversation. A kept-alive
-Chat draws its turns in the first frame, with no placeholder, no `scroll` event, and no read. A
-cached Chat draws without a placeholder or a read. An uncached one reads exactly once. Each surface
-stays within the render and duration budget in `e2e/agent-chat-switch.performance.e2e.ts`; the
-kept-alive Workbench budget is the one that catches a switch back rendering the transcript again.
-Times and frame gaps stay diagnostic.
+The gates are the deterministic invariants plus React budgets. In every switch of every scenario the
+conversation appears and the composer takes focus, no painted frame shows the Session with neither
+placeholder turns nor real ones, and for thirty frames after the turns appear every frame shows the
+end of the conversation. A kept-alive Chat draws its turns in the first frame, with no placeholder,
+no `scroll` event, and no read. A cached Chat draws without a placeholder or a read. An uncached one
+reads exactly once, and a cold one at least once. Each surface's median renders and duration stay
+within the budget in `e2e/agent-chat-switch.performance.e2e.ts`; the kept-alive Workbench budget is
+the one that catches a switch back rendering the transcript again. The median `readableMs` must stay
+within 100 ms for `keptAlive` and one second for `cold` (issue #2215); those ceilings only catch a
+switch that became unusably slow, and the statistical gate is the baseline below. Other times and
+frame gaps stay diagnostic.
+
+CI runs the benchmark in the macOS E2E job right after `benchmark:renderer`, reusing its profiling
+build, and uploads the receipt's public projection (distributions only, no per-switch samples) as
+the `agent-chat-switch-performance-receipt` artifact. `Run Agent Chat switch performance baseline
+gate` compares it against `scripts/performance-baseline.agent-chat-switch.json`; until that file is
+derived from enough same-image runner receipts and armed
+([CI performance](ci-performance.md#performance-regression-baseline)), it records a `no-baseline`
+verdict and never fails.
 
 A fourth measurement covers a Chat that keeps working while the user looks elsewhere. The fake
 Codex streams a long reply into the Chat while its Session is kept alive behind another one, and the
@@ -137,6 +160,19 @@ measured, in milliseconds from the click:
 | `keptAlive` |     26.3–28.3 |        none |    26.3–28.3 |         20.7–27.5 |                0 |                 4 |         0.7–1.1 |
 | `cached`    |     60.0–64.7 |        none |    60.0–64.7 |         53.2–64.7 |                0 |                10 |       15.5–19.4 |
 | `uncached`  |     30.1–51.8 |   30.1–51.8 |    73.5–96.2 |         43.4–57.8 |                1 |             12–13 |       24.7–38.6 |
+
+Two local profiling runs on 2026-10-31 (Apple Silicon, hidden window, 40 switches per Renderer-side
+scenario and 3 `cold`) measured these p50 / p95 values in milliseconds from the click:
+
+| Scenario    |    Readable | Composer focused | Longest frame gap | `agentChat.read` | Workbench renders | Workbench React |
+| ----------- | ----------: | ---------------: | ----------------: | ---------------: | ----------------: | --------------: |
+| `keptAlive` |  36 / 44–49 |       36 / 44–49 |     22–23 / 26–27 |                0 |                 4 |       1.4 / 1.7 |
+| `cached`    |  54 / 64–66 |       54 / 64–66 |     39–40 / 44–46 |                0 |           23 / 24 |      29–30 / 32 |
+| `uncached`  | 84–87 / 118 |    54–56 / 71–72 |     38–41 / 50–68 |                1 |           29 / 30 |      51 / 55–56 |
+| `cold`      |     111–113 |            66–83 |             37–39 |                1 |             30–31 |              52 |
+
+The fake Codex resumes its thread at once, so `cold` measures Caxri's own restart path (the read,
+the provider start, and the history patch), not a real provider's resume time.
 
 While the Chat streamed hidden, the Workbench rendered 5 times in 0.3 ms of React per five seconds
 in every run, and switching back to it drew its turns in `30.3–32.7 ms` with no read.

@@ -24,9 +24,11 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    `test-results/receipts/renderer-performance.json`. Read the fixed `session.select` and
    `app.bootstrap` request summaries before attributing time to React.
    For switching to a long Agent Chat (blank transcript frames, scroll position, re-reads), run
-   `bun run benchmark:chat-switch` and record `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK`. It measures a
-   kept-alive, an evicted-but-cached, and an uncached Chat frame by frame after paint in a profiling
-   build, gates per-surface React budgets, and writes
+   `bun run benchmark:chat-switch` and record `CAXRI_AGENT_CHAT_SWITCH_BENCHMARK`. It measures
+   twenty switches each to a kept-alive, an evicted-but-cached, and an uncached Chat, plus three after
+   a Server Core restart (`cold`), frame by frame after paint in a profiling build, reports each
+   scenario's p50/p95 time until the Chat is readable and its composer focused, gates per-surface
+   React budgets, runs in CI after `benchmark:renderer`, and writes
    `test-results/receipts/agent-chat-session-switch.json`; see
    [Agent Chat Session switch](../../../docs/renderer-performance.md#agent-chat-session-switch).
    For what a visible Chat costs while it streams (a 50 KB Markdown reply, 600 tool updates, a reply
