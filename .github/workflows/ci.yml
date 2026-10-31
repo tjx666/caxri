@@ -196,8 +196,8 @@ jobs:
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
         run: bun run scripts/ci-checks-diff-base.ts
       - name: Run gitleaks
-        # Scoped to the commits this push or pull request actually introduced. Manual dispatches retain the
-        # wrapper's intentional full-history audit when no base revision exists.
+        # Scoped to the commits this push or pull request actually introduced. A manual dispatch has no base
+        # revision here, so the wrapper scans the dispatched ref's commits beyond origin/main.
         if: needs.retry-policy.outputs.checks_scope != 'full'
         env:
           GITLEAKS_BASE_REVISION: >-

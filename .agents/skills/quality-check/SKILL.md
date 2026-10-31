@@ -158,8 +158,10 @@ a standalone or repository-wide run.
   ruleset with narrowly path- and regex-scoped allowlists for this repository's known non-secret
   false positives, e.g. keyboard-shortcut strings). The pre-commit hook scans the Git index
   (`--staged`); every push or pull-request CI route scans only the commits it introduced
-  (`GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION`). A manual dispatch or bare local invocation
-  without a base revision remains an intentional full-history audit. A
+  (`GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION`), and a manual CI dispatch scans its ref's
+  commits beyond `origin/main`. A bare local invocation without a base revision remains an
+  intentional full-history audit; it reports historical identifying values `.gitleaks.toml`
+  documents as unrewritten, so it is an audit, not a gate. A
   finding fails closed with `--redact`, so the failure output never leaks the secret itself. To fix:
   rotate and remove a real secret; for a verified false positive, extend `.gitleaks.toml` with a
   narrowly scoped allowlist entry (never a blanket one) and explain why in a comment.

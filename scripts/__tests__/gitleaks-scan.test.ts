@@ -8,6 +8,7 @@ import {
     gitleaksArguments,
     gitleaksLogOptions,
     isGitleaksRevisionRangeValid,
+    resolveGitleaksBaseRevision,
     runGitleaksScan,
     unsupportedGitleaksArguments,
 } from '../gitleaks-scan';
@@ -52,6 +53,26 @@ describe('gitleaksLogOptions', () => {
 
     it('falls back to full history when the base equals the head (no new commits)', () => {
         expect(gitleaksLogOptions(head, head)).toBeUndefined();
+    });
+});
+
+describe('resolveGitleaksBaseRevision', () => {
+    it('keeps an explicit push or pull-request base for every event', () => {
+        expect(resolveGitleaksBaseRevision('abc123', 'pull_request')).toBe('abc123');
+        expect(resolveGitleaksBaseRevision('abc123', 'workflow_dispatch')).toBe('abc123');
+    });
+
+    it('scans a manual dispatch from origin/main instead of the full history', () => {
+        expect(resolveGitleaksBaseRevision(undefined, 'workflow_dispatch')).toBe('origin/main');
+        expect(resolveGitleaksBaseRevision('', 'workflow_dispatch')).toBe('origin/main');
+        expect(
+            gitleaksLogOptions(resolveGitleaksBaseRevision('', 'workflow_dispatch'), 'HEAD'),
+        ).toBe('origin/main..HEAD');
+    });
+
+    it('keeps the full-history audit for a bare local invocation', () => {
+        expect(resolveGitleaksBaseRevision(undefined, undefined)).toBeUndefined();
+        expect(resolveGitleaksBaseRevision('', 'push')).toBeUndefined();
     });
 });
 
