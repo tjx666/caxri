@@ -2,7 +2,7 @@ import type { MobileExitReason, MobileReportExitParameters } from '@caxri/protoc
 import { mobileReportExitParametersSchema } from '@caxri/protocol';
 
 /**
- * The previous main process's exit as Android recorded it, plus the class of the last uncaught Java exception.
+ * One of the main process's past exits as Android recorded it, plus the class of the last uncaught Java exception.
  */
 export interface NativeProcessExit {
     /**
@@ -43,15 +43,26 @@ export interface PreviousExitApp {
 }
 
 /**
- * The report for an abnormal exit newer than the last one reported, or `undefined` when there is nothing to send.
+ * The report for the newest abnormal exit after the last one reported, or `undefined` when there is nothing to send. A
+ * crash reported while offline can be followed by an ordinary exit, so every recent exit is considered, not only the
+ * newest.
  */
 export const previousExitReport = (
-    exit: NativeProcessExit | null,
+    exits: readonly NativeProcessExit[],
     app: PreviousExitApp,
     reportedAt: number,
 ): MobileReportExitParameters | undefined => {
-    const reason = exit && ABNORMAL_EXIT_REASONS.get(exit.reason);
-    if (!reason || exit.timestamp <= reportedAt) return;
+    const candidates = exits.flatMap((exit) => {
+        const reason = ABNORMAL_EXIT_REASONS.get(exit.reason);
+        return reason && exit.timestamp > reportedAt ? [{ exit, reason }] : [];
+    });
+    const newest = candidates.reduce<(typeof candidates)[number] | undefined>(
+        (latest, candidate) =>
+            latest && latest.exit.timestamp >= candidate.exit.timestamp ? latest : candidate,
+        undefined,
+    );
+    if (!newest) return;
+    const { exit, reason } = newest;
     const isOwnCrash =
         reason === 'crash' &&
         exit.uncaughtAt != null &&
@@ -74,7 +85,7 @@ export const previousExitReport = (
 };
 
 export interface PreviousExitPorts {
-    readExit(): Promise<NativeProcessExit | null>;
+    readExits(): Promise<NativeProcessExit[]>;
     loadReportedAt(): Promise<number>;
     saveReportedAt(exitedAt: number): Promise<void>;
     report(parameters: MobileReportExitParameters): Promise<unknown>;
@@ -89,7 +100,7 @@ export const reportPreviousExit = async (
     ports: PreviousExitPorts,
     app: PreviousExitApp,
 ): Promise<number | undefined> => {
-    const report = previousExitReport(await ports.readExit(), app, await ports.loadReportedAt());
+    const report = previousExitReport(await ports.readExits(), app, await ports.loadReportedAt());
     if (!report) return;
     await ports.report(report);
     await ports.saveReportedAt(report.exitedAt);

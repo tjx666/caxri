@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import type { NativeProcessExit, PreviousExitPorts } from './previous-exit';
 
 interface CaxriExitReasonModule {
-    readPreviousExit(): Promise<NativeProcessExit | null>;
+    readPreviousExits(): Promise<NativeProcessExit[]>;
 }
 
 /**
@@ -16,7 +16,7 @@ const exitReasonModule = requireOptionalNativeModule<CaxriExitReasonModule>('Cax
 const REPORTED_EXIT_KEY = 'caxri.mobile-reported-exit.v1';
 
 export const nativePreviousExitPorts: Omit<PreviousExitPorts, 'report'> = {
-    readExit: () => exitReasonModule?.readPreviousExit() ?? Promise.resolve(null),
+    readExits: () => exitReasonModule?.readPreviousExits() ?? Promise.resolve([]),
     loadReportedAt: async () => Number(await SecureStore.getItemAsync(REPORTED_EXIT_KEY)) || 0,
     saveReportedAt: (exitedAt) => SecureStore.setItemAsync(REPORTED_EXIT_KEY, String(exitedAt)),
 };

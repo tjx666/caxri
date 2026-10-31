@@ -10,10 +10,12 @@ that happened while nobody watched the phone still leaves a record in Desktop's 
 
 ## Previous abnormal exit
 
-When Caxri Mobile starts on Android 11 or later, it reads the most recent
+When Caxri Mobile starts on Android 11 or later, it reads the recent
 [`ApplicationExitInfo`](https://developer.android.com/reference/android/app/ApplicationExitInfo)
-Android kept for the app's main process. Once the gateway connects, the app reports that exit with
-`mobile.diagnostics.reportExit` when its reason names a failure:
+records Android kept for the app's main process. Once the gateway connects, the app reports the
+newest exit not yet reported whose reason names a failure, with `mobile.diagnostics.reportExit`.
+Reading past the newest record keeps a crash that happened offline from being hidden by a later
+ordinary exit, such as a swipe:
 
 | Android reason                    | Reported `reason`          |
 | --------------------------------- | -------------------------- |

@@ -11,6 +11,9 @@ private const val PREFERENCES = "caxri_exit_reason"
 private const val UNCAUGHT_CLASS = "uncaughtClass"
 private const val UNCAUGHT_AT = "uncaughtAt"
 
+/** Caps the read; Android keeps only a short exit history per package anyway. */
+private const val MAX_EXITS = 16
+
 /**
  * Reads why this app's previous main process ended, so the next connection can report a crash Caxri would otherwise
  * never see. Android's exit record names no exception, so an uncaught-exception handler keeps the class name of the last
@@ -27,23 +30,31 @@ class CaxriExitReasonModule : Module() {
       installUncaughtExceptionRecorder(context.applicationContext)
     }
 
-    AsyncFunction("readPreviousExit") {
-      readPreviousExit(context)
+    AsyncFunction("readPreviousExits") {
+      readPreviousExits(context)
     }
   }
 
-  private fun readPreviousExit(context: Context): Map<String, Any?>? {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-    val manager = context.getSystemService(ActivityManager::class.java) ?: return null
-    val exit = manager.getHistoricalProcessExitReasons(context.packageName, 0, 0)
-      .firstOrNull { it.processName == context.packageName } ?: return null
+  /**
+   * The main process's recent exits, newest first. A crash reported while offline can be followed by an ordinary exit,
+   * so reading only the newest record would lose it.
+   */
+  private fun readPreviousExits(context: Context): List<Map<String, Any?>> {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return emptyList()
+    val manager = context.getSystemService(ActivityManager::class.java) ?: return emptyList()
     val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-    return mapOf(
-      "reason" to exit.reason,
-      "timestamp" to exit.timestamp.toDouble(),
-      "uncaughtClass" to preferences.getString(UNCAUGHT_CLASS, null),
-      "uncaughtAt" to preferences.getLong(UNCAUGHT_AT, 0L).takeIf { it > 0L }?.toDouble(),
-    )
+    val uncaughtClass = preferences.getString(UNCAUGHT_CLASS, null)
+    val uncaughtAt = preferences.getLong(UNCAUGHT_AT, 0L).takeIf { it > 0L }?.toDouble()
+    return manager.getHistoricalProcessExitReasons(context.packageName, 0, MAX_EXITS)
+      .filter { it.processName == context.packageName }
+      .map { exit ->
+        mapOf(
+          "reason" to exit.reason,
+          "timestamp" to exit.timestamp.toDouble(),
+          "uncaughtClass" to uncaughtClass,
+          "uncaughtAt" to uncaughtAt,
+        )
+      }
   }
 
   private companion object {
