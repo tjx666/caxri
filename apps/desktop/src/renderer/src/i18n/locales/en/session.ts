@@ -169,6 +169,9 @@ export const session = {
     // Warm-cache compaction
     'session.compaction.progress': 'Checking Sessions for warm-cache compaction…',
     'session.compaction.failed': 'Batch compaction failed',
+    'session.compaction.interruptProgress': 'Interrupting running turns, then compacting…',
+    'session.compaction.interruptedOne': 'Interrupted {{count}} running turn.',
+    'session.compaction.interruptedOther': 'Interrupted {{count}} running turns.',
     'session.compaction.requestedOne': 'Compaction requested for {{count}} Session.',
     'session.compaction.requestedOther': 'Compaction requested for {{count}} Sessions.',
     'session.compaction.noneEligible': 'No Sessions were eligible for compaction.',

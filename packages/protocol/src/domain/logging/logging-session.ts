@@ -60,6 +60,11 @@ export const sessionSearchLogEvents = {
 export const sessionCompactionLogEvents = {
     checked: 'session.compaction_checked',
     idle: 'session.idle_compaction',
+    /**
+     * One `session.interruptAndCompact` run: running, interrupted, and submitted counts, whether every interrupted turn
+     * settled before compacting, and its duration.
+     */
+    interrupted: 'session.interrupt_compaction',
     maintenanceEnded: 'session.compaction_maintenance_ended',
 } as const;
 

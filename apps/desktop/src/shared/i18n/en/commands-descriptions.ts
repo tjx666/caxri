@@ -26,6 +26,8 @@ export const commandDescriptions = {
         'Move the selected Session out of the sidebar and park its Terminals',
     'commands.description.session.compactWarm':
         'Compact the Agent conversations of Sessions that went idle recently, while compacting them is still cheap',
+    'commands.description.session.interruptAndCompact':
+        'Interrupt every running Agent turn and compact the conversations at once, leaving the Agents idle',
     'commands.description.session.enterAirplaneMode':
         'Compact idle Agent conversations, then stop every Agent until you resume them, so none retries requests while offline',
     'commands.description.session.detach':

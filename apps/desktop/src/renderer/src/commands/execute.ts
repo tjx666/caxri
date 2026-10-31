@@ -88,7 +88,10 @@ import {
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-commands';
-import { compactWarmSessions } from '../features/session/session-compaction-commands';
+import {
+    compactWarmSessions,
+    interruptAndCompactSessions,
+} from '../features/session/session-compaction-commands';
 import {
     beginSessionCreation,
     chooseProjectFolder,
@@ -264,6 +267,7 @@ const commandContext: CommandContext = {
         },
         archiveSelected: archiveSelectedSession,
         compactWarm: compactWarmSessions,
+        interruptAndCompact: interruptAndCompactSessions,
         enterAirplaneMode,
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,

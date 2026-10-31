@@ -29,5 +29,14 @@ export const sessionCompactionResultSchema = z.object({
         .max(200),
     deferred: z.number().int().nonnegative(),
 });
+/**
+ * `session.interruptAndCompact`: the batch result plus how many running turns were interrupted before it ran.
+ */
+export const sessionInterruptCompactionResultSchema = sessionCompactionResultSchema.extend({
+    interrupted: z.number().int().nonnegative(),
+});
 export type SessionCompactionOutcome = z.infer<typeof sessionCompactionOutcomeSchema>;
 export type SessionCompactionResult = z.infer<typeof sessionCompactionResultSchema>;
+export type SessionInterruptCompactionResult = z.infer<
+    typeof sessionInterruptCompactionResultSchema
+>;

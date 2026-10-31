@@ -13,6 +13,7 @@ export { createSessionCreationHandlers, createSessionCreator } from './creation'
 export { ChatIdleCompaction } from './idle-compaction';
 export type { WorktreeTopologyReader } from './import-conversation';
 export { conversationProject, importExternalConversation } from './import-conversation';
+export { SessionInterruptCompaction } from './interrupt-compaction';
 export { createSessionMarkReadHandler } from './mark-read';
 export { SessionRenameService } from './rename';
 export { createSessionRuntimeForgetter } from './runtime-teardown';

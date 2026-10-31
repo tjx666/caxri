@@ -163,6 +163,9 @@ export const session: TranslatedNamespace<typeof source> = {
     // Warm-cache compaction
     'session.compaction.progress': '正在检查可进行热缓存压缩的会话…',
     'session.compaction.failed': '批量压缩失败',
+    'session.compaction.interruptProgress': '正在打断运行中的回合，然后压缩…',
+    'session.compaction.interruptedOne': '已打断 {{count}} 个运行中的回合。',
+    'session.compaction.interruptedOther': '已打断 {{count}} 个运行中的回合。',
     'session.compaction.requestedOne': '已为 {{count}} 个会话请求压缩。',
     'session.compaction.requestedOther': '已为 {{count}} 个会话请求压缩。',
     'session.compaction.noneEligible': '没有符合压缩条件的会话。',

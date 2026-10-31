@@ -8,18 +8,13 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { pollDelay, TURN_INTERRUPT_WAIT_MS, waitForSettledTurns } from './interrupt-compaction';
 
 /**
  * How long entering waits for the compactions it submitted before parking anyway. A native compaction of a large
  * conversation usually finishes within a minute or two; the user can also skip the wait from the dialog.
  */
 const AIRPLANE_MODE_COMPACTION_WAIT_MS = 3 * 60_000;
-/**
- * How long entering waits for the turns it interrupted to settle before compacting. An interrupt lands within a second
- * or two; a provider that ignores it is closed after ten seconds (`AgentChatService.interrupt`).
- */
-const AIRPLANE_MODE_INTERRUPT_WAIT_MS = 15_000;
-const COMPACTION_POLL_MS = 1_000;
 
 /**
  * Why a phase changed, logged with every transition.
@@ -132,9 +127,7 @@ export class AirplaneMode {
     }
 
     private sleep(): Promise<'tick'> {
-        return new Promise<'tick'>((resolve) => {
-            setTimeout(() => resolve('tick'), this.options.pollMs ?? COMPACTION_POLL_MS).unref();
-        });
+        return pollDelay(this.options.pollMs);
     }
 
     /**
@@ -158,19 +151,15 @@ export class AirplaneMode {
                 else void this.continueLive([sessionId]);
             }),
         );
-        const deadlineAt =
-            this.now() + (this.options.interruptWaitMs ?? AIRPLANE_MODE_INTERRUPT_WAIT_MS);
-        while (
-            this.isCurrentEntry(entry) &&
-            this.now() < deadlineAt &&
-            interrupted.some((sessionId) => this.options.isTurnRunning(sessionId))
-        ) {
-            // Polling: each pass depends on the previous one's answer.
-            // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const outcome = await Promise.race([skipped, this.sleep()]); // eslint-disable-line no-await-in-loop -- see above
-            if (outcome === 'skipped') return 'skipped';
-        }
-        return 'settled';
+        const outcome = await waitForSettledTurns({
+            sessionIds: interrupted,
+            isTurnRunning: (sessionId) => this.options.isTurnRunning(sessionId),
+            deadlineAt: this.now() + (this.options.interruptWaitMs ?? TURN_INTERRUPT_WAIT_MS),
+            now: () => this.now(),
+            pause: () => Promise.race([skipped, this.sleep()]),
+            shouldContinue: () => this.isCurrentEntry(entry),
+        });
+        return outcome === 'skipped' ? 'skipped' : 'settled';
     }
 
     private async compactThenPark(entry: number): Promise<void> {
