@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
-import type { StateIsolation } from './case-lifecycle';
 import {
     caseLifecycleReceiptSchema,
     lifecycleEvidencePath,
@@ -105,39 +104,6 @@ const PROPOSAL_PLACEHOLDER = '待补充：本轮交付了什么，希望评审�
 
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
-}
-
-export async function loadAcceptanceCasePlan(
-    reportDirectory: string,
-    caseId: string,
-): Promise<{ commit: string; directory: string; item: PlanItem }> {
-    const directory = await validateExistingReportDirectory(reportDirectory);
-    const raw: unknown = JSON.parse(await readFile(join(directory, 'result.json'), 'utf8'));
-    const { commit, plan } = z
-        .object({ commit: z.string().trim().min(1), plan: z.array(planItemSchema).min(1) })
-        .parse(raw);
-    const item = plan.find(({ id }) => id === caseId);
-    if (!item) throw new Error(`Acceptance case ${caseId} is not present in the frozen plan`);
-    validatePlanFixtureDeclarations([item]);
-    return { commit, directory, item };
-}
-export function validateAcceptanceCaseLaunch(
-    stateIsolation: StateIsolation,
-    input: { caseMode: 'isolated' | 'restart'; cleanupReusable: boolean; reuseUserData: boolean },
-): { profileId?: string } {
-    if (stateIsolation.mode === 'readonly_checkpoint') {
-        throw new Error('Readonly checkpoint cases require a checkpoint-aware launch adapter');
-    }
-    if (stateIsolation.mode === 'isolated') {
-        if (input.caseMode !== 'isolated' || input.reuseUserData || input.cleanupReusable) {
-            throw new Error('An isolated Acceptance case cannot reuse a profile');
-        }
-        return {};
-    }
-    if (input.caseMode !== 'restart' || !input.reuseUserData) {
-        throw new Error('A declared restart case must reuse its frozen profile');
-    }
-    return { profileId: stateIsolation.profileId };
 }
 
 async function freezeRequirement(parent: string, requirement: string): Promise<void> {

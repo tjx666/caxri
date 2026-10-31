@@ -12,7 +12,7 @@ import {
     completeCaseLifecycle,
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { assertDecodablePng } from '../.agents/skills/acceptance/scripts/png-integrity';
-import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
+import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report-case-plan';
 import { writeJsonAtomic, writeTextAtomic } from './atomic-json';
 import type { mobileAndroidAcceptanceCase } from './mobile-android-cases';
 

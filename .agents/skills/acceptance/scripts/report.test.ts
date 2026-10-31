@@ -18,12 +18,8 @@ import {
 } from './case-lifecycle';
 import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 import type { InitializeReportInput } from './report';
-import {
-    finalizeReport,
-    initializeReport,
-    rebindReportHead,
-    validateAcceptanceCaseLaunch,
-} from './report';
+import { finalizeReport, initializeReport, rebindReportHead } from './report';
+import { validateAcceptanceCaseLaunch } from './report-case-plan';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
