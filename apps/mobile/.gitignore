@@ -1,6 +1,9 @@
 .expo/
-android/
-ios/
+/android/
+/ios/
+# Gradle output of local Expo modules; their android/ sources stay tracked.
+modules/*/android/build/
+modules/*/android/.cxx/
 expo-env.d.ts
 *.jks
 *.keystore

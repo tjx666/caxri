@@ -81,6 +81,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.files.searchInternal'
     | 'mobile.files.write'
     | 'mobile.update.check'
+    | 'mobile.diagnostics.reportExit'
     | 'mobile.update.prepare'
     | 'mobile.files.writeInternal'
 >;
@@ -424,6 +425,9 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.update.prepare': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile updates require a paired device');
+        },
+        'mobile.diagnostics.reportExit': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile exit reports require a paired device');
         },
         'mobile.files.search': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile file search requires a paired device');

@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json.ts';
@@ -52,9 +52,35 @@ async function finish(
     ]);
 }
 
+/**
+ * The `mobile_gateway.previous_exit` entries Server Core has logged so far, oldest first.
+ */
+async function previousExitReports(path: string): Promise<Array<Record<string, unknown>>> {
+    try {
+        return (await readFile(path, 'utf8'))
+            .split('\n')
+            .filter((line) => line.includes('"mobile_gateway.previous_exit"'))
+            .map((line) => (JSON.parse(line) as { fields: Record<string, unknown> }).fields);
+    } catch {
+        return [];
+    }
+}
+
 function requireVideoPath(path: string | undefined): string {
     if (!path) throw new Error('Scenario-owned Android recording path is unavailable');
     return path;
+}
+
+const RECOVERY_CASES = new Set([
+    'MOB-EXIT-REASON-01',
+    'MOB-PAIR-CANCEL-01',
+    'MOB-RENDER-01',
+    'MOB-STORAGE-01',
+    'MOB-STORAGE-02',
+]);
+
+export function isMobileRecoveryCase(caseId: string): boolean {
+    return RECOVERY_CASES.has(caseId);
 }
 
 export async function executeMobileRecoveryScenario(
@@ -290,6 +316,65 @@ export async function executeMobileRecoveryScenario(
                 await finish(environment, artifacts, {
                     draft: 'restored-after-force-stop',
                     inputSent: 'none',
+                    status: 'passed',
+                });
+            } finally {
+                await fixture.stop();
+            }
+            return;
+        }
+        case 'MOB-EXIT-REASON-01': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'empty',
+                serial: environment.serial,
+            });
+            const log = join(fixture.testDirectory, 'user-data', 'logs', 'server-core.jsonl');
+            const openApp = async () => {
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
+                );
+            };
+            try {
+                await fixture.pair();
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
+                );
+                // `am crash` throws an uncaught Java exception in the app's main thread, as a real crash would.
+                await adbShell(environment.serial, ['am', 'crash', 'com.caxri.mobile']);
+                await waitForMobile(
+                    () => adbShell(environment.serial, ['pidof com.caxri.mobile || true']),
+                    (pid) => pid.trim() === '',
+                );
+                await openApp();
+                const reports = await waitForMobile(
+                    () => previousExitReports(log),
+                    (entries) => entries.length > 0,
+                    30_000,
+                );
+                expect(reports).toEqual([
+                    expect.objectContaining({
+                        reason: 'crash',
+                        exceptionClass: expect.any(String),
+                    }),
+                ]);
+                await capture(environment, 'reconnected-after-crash', artifacts);
+                // A force stop is the user's own choice, so the next launch reports nothing new.
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await openApp();
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+                expect(await previousExitReports(log)).toHaveLength(1);
+                await finish(environment, artifacts, {
+                    crash: 'reported-once-after-reconnect',
+                    exceptionClass: reports[0]?.exceptionClass,
+                    forceStop: 'not-reported',
                     status: 'passed',
                 });
             } finally {

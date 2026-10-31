@@ -48,6 +48,12 @@ export const mobileGatewayLogEvents = {
      * cause. No path, URL, or content.
      */
     videoClosed: 'mobile_gateway.video_closed',
+    /**
+     * A paired phone's previous process ended abnormally, reported once when it next connects: a closed `reason`, the
+     * `exitedAt` time, the app's `appVersion` and `buildNumber`, and for a Java crash its `exceptionClass`. No message,
+     * stack, or content.
+     */
+    previousExit: 'mobile_gateway.previous_exit',
     enabled: 'mobile_gateway.enabled',
     disabled: 'mobile_gateway.disabled',
     /**

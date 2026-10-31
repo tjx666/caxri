@@ -18,6 +18,10 @@ const mobileEveryRoleMethods = [
     'mobile.update.check',
     'mobile.update.prepare',
     /**
+     * A phone reporting its own previous exit reads no Desktop data.
+     */
+    'mobile.diagnostics.reportExit',
+    /**
      * A video a Chat message cites is part of a message every role can read; showing and playing it changes nothing.
      */
     'mobile.video.read',

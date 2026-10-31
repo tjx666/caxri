@@ -44,6 +44,9 @@ update bundle Desktop ships and a short-lived download token for the requesting 
 whose transport version no longer matches, after it proves its credential. It is a separate
 pre-authentication exchange outside the dispatcher and method set, so it authorizes nothing else.
 
+`mobile.diagnostics.reportExit` is granted to every role: the phone reports its own previous
+abnormal exit, and the Server only logs it; see [diagnostics.md](diagnostics.md).
+
 The read-only panel methods (`mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`,
 `mobile.files.read`, and `mobile.files.search`) are granted starting at `view`, since they only project state a device with
 access to the Session can already see on the dashboard. Each request re-validates the Session

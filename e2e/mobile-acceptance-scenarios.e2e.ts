@@ -38,7 +38,7 @@ import {
 import { executeMobileMotionScenario } from './support/mobile-motion-scenarios.ts';
 import { executeMobileNewSessionScenario } from './support/mobile-new-session-scenarios.ts';
 import { executeMobileProjectPanelsScenario } from './support/mobile-project-panels-scenarios.ts';
-import { executeMobileRecoveryScenario } from './support/mobile-recovery-scenarios.ts';
+import * as recovery from './support/mobile-recovery-scenarios.ts';
 import { executeMobileSessionRefreshScenario } from './support/mobile-session-refresh-scenarios.ts';
 import { executeMobileTerminalScenario } from './support/mobile-terminal-scenarios.ts';
 import { executeMobileTerminalScrollFeelScenario } from './support/mobile-terminal-scroll-scenario.ts';
@@ -115,20 +115,20 @@ test('executes one report-bound Android product scenario', async ({}) => {
         await executeMobileProjectPanelsScenario(environment, artifacts);
         return;
     }
+    if (recovery.isMobileRecoveryCase(environment.caseId)) {
+        await recovery.executeMobileRecoveryScenario(
+            { ...environment, remoteVideoPath },
+            artifacts,
+        );
+        return;
+    }
     if (uiAudit.isMobileUiAuditCase(environment.caseId)) {
         await uiAudit.executeMobileUiAuditScenario(environment, artifacts);
         return;
     }
     switch (environment.caseId) {
         case 'MOB-SESSION-PUSH-01':
-            test.setTimeout(300_000);
             await executeMobileSessionRefreshScenario(environment, artifacts);
-            break;
-        case 'MOB-PAIR-CANCEL-01':
-        case 'MOB-RENDER-01':
-        case 'MOB-STORAGE-01':
-        case 'MOB-STORAGE-02':
-            await executeMobileRecoveryScenario({ ...environment, remoteVideoPath }, artifacts);
             break;
         case 'MOB-ATTN-01':
         case 'MOB-ATTN-02': {

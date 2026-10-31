@@ -114,6 +114,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'render-retry',
     },
+    'MOB-EXIT-REASON-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'previous-exit-report',
+    },
     'MOB-STORAGE-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

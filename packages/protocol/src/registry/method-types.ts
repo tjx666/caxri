@@ -214,6 +214,7 @@ export const effectfulCommandRecovery = {
     'mobile.update.prepare': 'memory',
     'mobile.desktopUpdate.download': 'memory',
     'mobile.desktopUpdate.install': 'memory',
+    'mobile.diagnostics.reportExit': 'memory',
     'mobile.preview.open': 'memory',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',
