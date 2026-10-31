@@ -367,8 +367,9 @@ const handleCommand = (raw) => {
   try {
     if (command === 'fixture:start') startTurn('Long completion notification topic');
     else if (command === 'fixture:finish') finishTurn();
-    // Ends the turn while a background shell it started still runs, so the Session stays running in the background.
-    else if (command === 'fixture:background') invokeHook('Stop', { background_tasks: [{ id: 'shell-1', type: 'shell', status: 'running' }] });
+    // Ends the turn while a background test run it started still goes on, so the Session stays running in the
+    // background. A shell task needs its command: Caxri ignores dev servers and other commands that never finish.
+    else if (command === 'fixture:background') invokeHook('Stop', { background_tasks: [{ id: 'shell-1', type: 'shell', status: 'running', command: 'bun run test' }] });
     else if (command === 'fixture:waiting') requestAttention();
     else if (command === 'fixture:permission') requestNativeAttention('permission');
     else if (command === 'fixture:question') requestNativeAttention('question');
