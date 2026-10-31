@@ -609,6 +609,12 @@ importers:
       '@caxri/utils':
         specifier: workspace:*
         version: link:../../packages/utils
+      '@perf-profiler/e2e':
+        specifier: ^0.11.3
+        version: 0.11.3
+      '@perf-profiler/types':
+        specifier: ^0.8.0
+        version: 0.8.0
       '@react-native/metro-config':
         specifier: 0.88.0
         version: 0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
@@ -618,6 +624,9 @@ importers:
       '@yutengjing/vscode-icons':
         specifier: ^0.2.0
         version: 0.2.0
+      agent-device:
+        specifier: ^0.21.35
+        version: 0.21.35
       svgo:
         specifier: ^4.1.0
         version: 4.1.0
@@ -3241,6 +3250,34 @@ packages:
     resolution: {integrity: sha512-ODOov0sGMJMf3jPonOkgGqPknTsu+DdQ7kD++gz8aI+aFMOMHFbWAA2taqXXVTdP+OTOQR/znGvSpmkeI0WTYQ==}
     engines: {node: '>=14.18.0'}
 
+  '@perf-profiler/android@0.13.0':
+    resolution: {integrity: sha512-4lUQjJNHFAYB5npts5JLrPaPNpIOEAAjfpeTQOOgBNLT1NW50WWSGuvV2pAdnMi7T28cXs3aUziJJ30cNrSvNg==}
+    hasBin: true
+
+  '@perf-profiler/e2e@0.11.3':
+    resolution: {integrity: sha512-72fhRTxv40oB9VKQlhaJIlTIcx5K9iQpiNplAy6VqRM3bSMUldw7eryZaL/r/IuiYx9YQyem48KxYSmm2QjAXw==}
+    hasBin: true
+
+  '@perf-profiler/ios-instruments@0.3.3':
+    resolution: {integrity: sha512-e3UmlWuNUOuNbJPWg6aLOVd9wRKe3RYCqwwUgxMNIAwa5QBxaVYBf2pt3+HRsYReh2qm1yvqW7LU9zP+AJ7/7g==}
+    hasBin: true
+
+  '@perf-profiler/ios@0.3.3':
+    resolution: {integrity: sha512-dbb9lVKOyj1VjinuxrnbfI3FT0+uhH3xclqLQH7rQFA4d93dusjC/s3RzlnCXRNPFPDy5TTmkiIg3xM/6P3/2g==}
+
+  '@perf-profiler/logger@0.3.3':
+    resolution: {integrity: sha512-iAJJ5gWhJ3zEpdMT7M2+HX0Q0UjSuCOZiEs5g8UKKPFYQjmPWwC6otHoZz6ZzRRddjiA065iD2PTytVFkpFTeQ==}
+    hasBin: true
+
+  '@perf-profiler/profiler@0.10.11':
+    resolution: {integrity: sha512-nu/zakhG5wRi0tCw4SjTCZJh9e/x9YABAOChh3lGI6CESsFzc1Gi2Vrr+2sytN8dpiTDYCCbECC2EalD7ZKvtg==}
+
+  '@perf-profiler/reporter@0.9.0':
+    resolution: {integrity: sha512-wJt6ZRVM/cL+8rv9gFYgl8ZIra0uKdesfcfvsvhmrPXtxgC0O4ZdHF9hJDMtcCiHuHb8ptVq/BmEEW84CnvRIw==}
+
+  '@perf-profiler/types@0.8.0':
+    resolution: {integrity: sha512-TFiktv00SzLjjPp1hFYYjT9O36iGIUaF6yPLd7x/UT4CuLd0YYDUj+gvX0fbXtVtV7141tTvWbXFL5HiXGx0kw==}
+
   '@pierre/diffs@1.5.2':
     resolution: {integrity: sha512-QVxIWQEnNoko22k63maERzozd29+FtaUNpRrZiw603WMe5R1mFSED+jMtPkcVP3SDYS1DWg5K7sa7sJbr3xkNQ==}
     peerDependencies:
@@ -4927,6 +4964,16 @@ packages:
     resolution: {integrity: sha512-d8OWDVdZMgjhLUT9ZPgSv/BdFFF9pVuscC0JdUSz3bjwE15gcp6u/o0/JooM2yyAWC49KThFhXlgTXRa9B7yng==}
     engines: {node: '>=18.18'}
     hasBin: true
+
+  agent-device@0.21.35:
+    resolution: {integrity: sha512-opESFEhZPCPzCKMOPsxNhlOvqb2+YMyL5ZmTKS/SlN9OfCCvUB9jX905QwkiEn1lUMO1Ua0RnggpdpVyOJi4KA==}
+    engines: {node: '>=22.12'}
+    hasBin: true
+    peerDependencies:
+      ai: ^6.0.0 || ^7.0.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
 
   agent-install@0.0.5:
     resolution: {integrity: sha512-nHlms9BkP8ZiY79HrwCGiA2DcNaXrAaJrCM/BEqQ7MEsSKyCk+2A76xPGylIfASZSZE0SaU3T0bNSg4rBPIJAQ==}
@@ -6812,6 +6859,10 @@ packages:
   fast-uri@3.1.8:
     resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
 
+  fast-xml-parser@4.5.7:
+    resolution: {integrity: sha512-a6Qh1RMCNbSrU1+sAyAAZH3rTe+OaWJbNZIq0S+ifZciUUOQtlVxBJwoTUE2bYhysmG/RYyI5WJFIKdBahJdrQ==}
+    hasBin: true
+
   fastq@1.20.3:
     resolution: {integrity: sha512-XKv5nnLs6nLF71NgiKJLIZFLkPyIEuOselLG7ujZnGrRfQK8HpvY+WqKhAJUAdLomwVHErVS4LfxFlPq0/FTAw==}
 
@@ -7545,6 +7596,10 @@ packages:
     resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==}
     engines: {node: '>=6'}
 
+  kleur@4.1.5:
+    resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
+    engines: {node: '>=6'}
+
   knip@6.42.1:
     resolution: {integrity: sha512-gKJVsiT4LJQ0lfc8uSHOCzkOY8adAXNFGarIeODZbJOkBnQRVsG3e0UZFnO4LMwjA82A5tBWX/VgoeTYcjdKiQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -7848,6 +7903,10 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
+    engines: {node: '>=12'}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -9636,6 +9695,9 @@ packages:
   strip-json-comments@5.0.3:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
+
+  strnum@1.1.2:
+    resolution: {integrity: sha512-vrN+B7DBIoTTZjnPNewwhx6cBA/H+IS7rfW68n7XxC1y7uoiGQBxaKzqucGUgavX15dJgiGztLJ8vxuEzwqBdA==}
 
   structured-headers@0.4.1:
     resolution: {integrity: sha512-0MP/Cxx5SzeeZ10p/bZI0S6MpgD+yxAhi1BOQ34jgnMXsCq3j1t6tQnZu+KdlL7dvJTLT3g9xN8tl10TqgFMcg==}
@@ -12888,6 +12950,55 @@ snapshots:
       tslib: 2.8.1
       webcrypto-core: 1.9.2
 
+  '@perf-profiler/android@0.13.0':
+    dependencies:
+      '@perf-profiler/logger': 0.3.3
+      '@perf-profiler/profiler': 0.10.11
+      '@perf-profiler/types': 0.8.0
+      commander: 12.1.0
+      lodash: 4.18.1
+
+  '@perf-profiler/e2e@0.11.3':
+    dependencies:
+      '@perf-profiler/ios-instruments': 0.3.3
+      '@perf-profiler/logger': 0.3.3
+      '@perf-profiler/profiler': 0.10.11
+      '@perf-profiler/reporter': 0.9.0
+      '@perf-profiler/types': 0.8.0
+      commander: 12.1.0
+
+  '@perf-profiler/ios-instruments@0.3.3':
+    dependencies:
+      '@perf-profiler/logger': 0.3.3
+      '@perf-profiler/profiler': 0.10.11
+      '@perf-profiler/types': 0.8.0
+      commander: 12.1.0
+      fast-xml-parser: 4.5.7
+
+  '@perf-profiler/ios@0.3.3':
+    dependencies:
+      '@perf-profiler/ios-instruments': 0.3.3
+      '@perf-profiler/logger': 0.3.3
+      '@perf-profiler/types': 0.8.0
+
+  '@perf-profiler/logger@0.3.3':
+    dependencies:
+      kleur: 4.1.5
+      luxon: 3.7.2
+
+  '@perf-profiler/profiler@0.10.11':
+    dependencies:
+      '@perf-profiler/android': 0.13.0
+      '@perf-profiler/ios': 0.3.3
+      '@perf-profiler/types': 0.8.0
+
+  '@perf-profiler/reporter@0.9.0':
+    dependencies:
+      '@perf-profiler/types': 0.8.0
+      lodash: 4.18.1
+
+  '@perf-profiler/types@0.8.0': {}
+
   '@pierre/diffs@1.5.2(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@pierre/theme': 2.0.0
@@ -14551,6 +14662,8 @@ snapshots:
   agent-base@7.1.4: {}
 
   agent-cli-detector@0.1.7: {}
+
+  agent-device@0.21.35: {}
 
   agent-install@0.0.5:
     dependencies:
@@ -16673,6 +16786,10 @@ snapshots:
 
   fast-uri@3.1.8: {}
 
+  fast-xml-parser@4.5.7:
+    dependencies:
+      strnum: 1.1.2
+
   fastq@1.20.3:
     dependencies:
       reusify: 1.1.0
@@ -17489,6 +17606,8 @@ snapshots:
 
   kleur@3.0.3: {}
 
+  kleur@4.1.5: {}
+
   knip@6.42.1:
     dependencies:
       formatly: 0.11.4
@@ -17752,6 +17871,8 @@ snapshots:
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
+
+  luxon@3.7.2: {}
 
   magic-string@0.30.21:
     dependencies:
@@ -20318,6 +20439,8 @@ snapshots:
   strip-json-comments@2.0.1: {}
 
   strip-json-comments@5.0.3: {}
+
+  strnum@1.1.2: {}
 
   structured-headers@0.4.1: {}
 

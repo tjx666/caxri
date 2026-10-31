@@ -57,6 +57,10 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
   ([references/relay-servers.md](references/relay-servers.md)): how Orca, Paseo, T3 Code, Superset,
   Happy, Codex, and Claude Code let a phone reach a host behind NAT, and what users ask of them. Read
   it before changing the Caxri Relay or mobile route selection.
+- **Mobile E2E and benchmarks**
+  ([references/mobile-testing.md](references/mobile-testing.md)): which drivers Paseo, Orca, and
+  T3 Code use for their phone apps and what they measure (streaming latency, Relay round trips,
+  transfer budgets, large-list lag). Read it before adding a mobile flow or benchmark.
 - **Cross-Agent session history search**
   ([references/session-history-search.md](references/session-history-search.md)): how Wake, Orca,
   cmux, Kooky, Jean, Paseo, agentsview, and agent-sessions discover, index, and reopen Agent

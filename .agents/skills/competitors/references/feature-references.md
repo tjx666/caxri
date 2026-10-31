@@ -168,6 +168,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Window presence**: Client heartbeat of visible and focused state, used to decide what a user is looking at. Evidence: `docs/adr/0017-per-window-session-presence.md`; `apps/server/src/domains/window-presence/window-presence.ts`.
 - **Consecutive reasoning as one thought**: A thought chunk appends to the previous thought instead of starting a new row. Evidence: `packages/protocol/src/agent/agent-chat-work.ts` (`mergeAgentChatReasoning`).
 - **Mobile Relay control and data sockets**: Separate host control and per-connection data sockets; Caxri adds an Ed25519 host proof because Paseo's unauthenticated host ID lets anyone evict the real daemon. Evidence: `docs/adr/0021-blind-splice-relay.md`; `relay-servers.md`.
+- **Android mobile flows**: agent-device as the driver with portable Maestro YAML flows selected by `testID`. Evidence: `docs/mobile/testing.md`; `.agents/skills/competitors/references/mobile-testing.md`.
 
 ## Superset, Synara, Muxy, Herdr, Kero
 

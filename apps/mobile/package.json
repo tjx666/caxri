@@ -13,6 +13,9 @@
         "dev:reset": "bun run build:dependencies && EXPO_UNSTABLE_MCP_SERVER=1 expo start --dev-client --clear --lan",
         "android": "bun run build:dependencies && bun run scripts/android-build.ts",
         "android:device": "bun run scripts/android-device.ts",
+        "agent-device": "agent-device",
+        "android:benchmark": "bun run scripts/android-benchmark.ts",
+        "android:flows": "bun run scripts/android-flows.ts",
         "android:performance": "bun run scripts/android-performance.ts",
         "ios": "bun run build:dependencies && EXPO_NO_GIT_STATUS=1 expo run:ios",
         "prebuild:android": "bun run build:dependencies && EXPO_NO_GIT_STATUS=1 expo prebuild --platform android",
@@ -62,9 +65,12 @@
     },
     "devDependencies": {
         "@caxri/utils": "workspace:*",
+        "@perf-profiler/e2e": "^0.11.3",
+        "@perf-profiler/types": "^0.8.0",
         "@react-native/metro-config": "0.88.0",
         "@types/react": "~19.3.0",
         "@yutengjing/vscode-icons": "^0.2.0",
+        "agent-device": "^0.21.35",
         "svgo": "^4.1.0",
         "typescript": "^6.0.3"
     },
