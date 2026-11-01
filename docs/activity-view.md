@@ -299,9 +299,10 @@ into the same trap.
 | `packages/protocol/.../session/session-activity-group.ts`    | Group order, retention window, row order shared with mobile  |
 | `.../agent-activity-glyph.ts`                                | Which shape, which words, and the tint a row's state earns   |
 | `.../agent-activity-tree.ts`                                 | Flattening, collapse, windows, and keyboard row math         |
-| `.../use-agent-activity-group-collapse.ts`                   | Which groups are collapsed, persisted to `localStorage`      |
+| `.../hooks/use-agent-activity-group-collapse.ts`             | Which groups are collapsed, persisted to `localStorage`      |
 | `.../session/create-session-menu.tsx`                        | The New Session row (`ActivitySessionCreationMenu`)          |
-| `.../use-agent-activity-clock.ts`                            | The subscription to the shared window clock                  |
+| `.../hooks/use-agent-activity-clock.ts`                      | The subscription to the shared window clock                  |
+| `.../hooks/use-agent-attention-count.ts`                     | The tally the badge and the Zen Mode attention dot both read |
 | `.../agent-activity-view.tsx`, `agent-activity-row-item.tsx` | Rendering, roving focus, and mark-read                       |
 | `.../agent-activity-commands.ts`                             | `session.focusNextAttention`                                 |
 | `e2e/agent-activity.e2e.ts`                                  | The cross-Project workflow through a real launch             |
