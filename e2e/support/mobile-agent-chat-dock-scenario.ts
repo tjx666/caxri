@@ -4,19 +4,18 @@ import { AGENT_CHAT_GOAL_COMMAND } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { waitForCheck, withVisibleKeyboard } from './mobile-agent-chat-helpers';
 import {
-    observeMobileNode,
+    checkBounds,
+    hasCheck,
+    waitForCheck,
+    withVisibleKeyboard,
+} from './mobile-agent-chat-helpers';
+import {
+    mobileSemantics,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
-
-/**
- * The whole folded row in the case's `zh-CN` locale: the goal's status, then the two running shells named as background
- * work (`chat.tasks.backgroundWork`). An exact match also proves the bare `2 个运行中` is gone.
- */
-const FOLDED_LINE = '进行中的目标 · 后台工作 2';
 
 const runningShells = (snapshot: AgentChatSnapshot): number =>
     (snapshot.tasks ?? []).filter((task) => task.kind === 'shell' && task.status === 'running')
@@ -24,8 +23,8 @@ const runningShells = (snapshot: AgentChatSnapshot): number =>
 
 /**
  * `MOB-CHAT-DOCK-FOLD-01`: a Claude Code Chat pursuing a goal with two background shells running. With the keyboard
- * down the goal bar and the `2 Background work` badge stack above the composer; with the keyboard up they fold into one
- * summary row that names the background work, so its count never reads as a count of goals.
+ * down the goal bar and the `2 Background work` row stack above the composer, and with the keyboard up they stay as
+ * they are: background work does not count toward folding, so no summary row replaces the goal bar.
  *
  * The fake's goal query streams for minutes (`fake-claude-goal.ts`), so the scenario interrupts it once the goal is
  * set; like real Claude Code, the interrupt keeps the goal and the background shells.
@@ -74,26 +73,40 @@ export async function executeMobileChatDockFoldScenario(
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-goal');
         await capture(environment, 'keyboard-down', artifacts);
+        const composerDown = checkBounds(
+            await mobileSemantics(serial),
+            'agent-chat-composer-input',
+        );
+        if (!composerDown) throw new Error('The composer is not laid out');
 
-        // The fixture IME draws no keyboard and reports none to the app, so the emulator's own keyboard folds the dock.
-        const folded = { isNamed: false };
+        // The fixture IME draws no keyboard and reports none to the app, so the emulator's own keyboard is the one up.
+        const dock = { isUnfolded: false };
         await withVisibleKeyboard(serial, async () => {
             await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-            await waitForCheck(serial, 'agent-chat-dock-summary');
+            // Only the app's own keyboard layout lifts the composer, so a lifted composer proves the app saw the
+            // keyboard; without it the summary's absence below would pass before the dock ever had a chance to fold.
+            const nodes = await waitForMobile(
+                () => mobileSemantics(serial),
+                (current) => {
+                    const composer = checkBounds(current, 'agent-chat-composer-input');
+                    return composer !== undefined && composer.top < composerDown.top - 300;
+                },
+            );
+            dock.isUnfolded =
+                hasCheck(nodes, 'agent-chat-goal') &&
+                hasCheck(nodes, 'agent-chat-tasks') &&
+                !hasCheck(nodes, 'agent-chat-dock-summary');
             await capture(environment, 'keyboard-up', artifacts);
-            const line = await observeMobileNode(serial, 'agent-chat-dock-summary-text', {
-                kind: 'equals',
-                value: FOLDED_LINE,
-            });
-            folded.isNamed = line.exists && line.textMatches === true;
         });
-        if (!folded.isNamed) {
+        if (!dock.isUnfolded) {
             // Keep the captures citable in the failed round before failing it.
-            await finish(environment, artifacts, { folded: 'unnamed', status: 'failed' });
-            throw new Error(`The folded dock does not read "${FOLDED_LINE}"`);
+            await finish(environment, artifacts, { folded: 'summary', status: 'failed' });
+            throw new Error(
+                'The dock folded a goal with only background work while the keyboard was up',
+            );
         }
 
-        await finish(environment, artifacts, { folded: 'summary', status: 'passed' });
+        await finish(environment, artifacts, { folded: 'none', status: 'passed' });
     } finally {
         await fixture.stop();
     }

@@ -4,10 +4,9 @@ import { agentChatActivity } from '@caxri/protocol';
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import { agentChatGoalBarView } from './agent-chat-goal';
-import { agentChatTaskPill } from './agent-chat-tasks';
 
 /**
- * Which docked rows (goal, activity, queue, background work) the Chat has right now, as one line of text each.
+ * Which docked rows (goal, activity, queue) the Chat has right now, as one line of text each.
  */
 export interface AgentChatDockSummary {
     /**
@@ -22,8 +21,12 @@ export interface AgentChatDockSummary {
 
 /**
  * The folded form of the goal bar, status row, and queue card. Built from the snapshot alone, so it reads the same
- * facts the three rows read: the goal's status (`Pursuing goal`), what the turn is doing, the queue count, and the
- * running background work. A saved copy has none of them, as each row hides on one.
+ * facts the three rows read: the goal's status (`Pursuing goal`), what the turn is doing, and the queue count. A saved
+ * copy has none of them, as each row hides on one.
+ *
+ * Running background work neither counts as a row nor gets a segment: a goal with background work alone stays unfolded,
+ * since one goal bar and one background work row fit beside the keyboard and a merged line only obscured which was
+ * which. When other rows fold the status row, its background work stays one tap away.
  */
 export const agentChatDockSummary = (
     snapshot: AgentChatSnapshot | undefined,
@@ -48,9 +51,6 @@ export const agentChatDockSummary = (
     const activity = agentChatActivity(snapshot, provider, {}, t);
     if (activity && activity.kind !== 'starting') segments.push(activity.text);
     if (queueCount > 0) segments.push(`${t('chat.queue.queued')} ${queueCount}`);
-    const running = agentChatTaskPill(snapshot, t)?.running ?? [];
-    // `N running` alone reads as N goals beside the goal segment, so name the work like the queue segment does.
-    if (running.length > 0) segments.push(`${t('chat.tasks.backgroundWork')} ${running.length}`);
     return { segments, isStacked: segments.length >= 2 };
 };
 

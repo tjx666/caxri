@@ -46,14 +46,14 @@ describe('agentChatDockSummary', () => {
         ).toEqual({ segments: ['Pursuing goal', 'Queued 3'], isStacked: true });
     });
 
-    it('names the running background work instead of a bare running count', () => {
+    it('leaves a goal with only running background work unfolded', () => {
         const task = { id: 'task-1', kind: 'shell', status: 'running', title: 'bun test' };
         expect(
             agentChatDockSummary(
                 snapshot({ goal, tasks: [task, { ...task, id: 'task-2' }] } as never),
                 options,
-            ).segments,
-        ).toEqual(['Pursuing goal', 'Background work 2']);
+            ),
+        ).toEqual({ segments: ['Pursuing goal'], isStacked: false });
     });
 });
 
