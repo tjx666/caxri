@@ -123,7 +123,7 @@ import {
     chooseProjectFolder,
     chooseSessionTerminalKind,
     confirmPendingSession,
-    pressHeadingNewSession,
+    pressSplitNewSession,
 } from '../session-creation-commands';
 
 /**
@@ -373,11 +373,11 @@ describe('Session creation commands', () => {
         expect(requestedMethods()).toEqual(['session.create', 'session.create']);
     });
 
-    describe('the Project heading press', () => {
+    describe('a split New Session press', () => {
         it('opens the list before any Agent was picked', () => {
             mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
 
-            pressHeadingNewSession('project-1');
+            pressSplitNewSession('project-1', 'heading');
 
             expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
             expect(mocks.caxriRequest).not.toHaveBeenCalled();
@@ -391,7 +391,7 @@ describe('Session creation commands', () => {
             await mocks.tryCommand.mock.results[0]?.value;
             mocks.caxriRequest.mockClear();
 
-            pressHeadingNewSession('project-2');
+            pressSplitNewSession('project-2', 'heading');
             await mocks.tryCommand.mock.results[1]?.value;
 
             expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
@@ -409,7 +409,7 @@ describe('Session creation commands', () => {
             await mocks.tryCommand.mock.results[0]?.value;
             mocks.caxriRequest.mockClear();
 
-            pressHeadingNewSession('project-1');
+            pressSplitNewSession('project-1', 'heading');
             await mocks.tryCommand.mock.results[1]?.value;
 
             expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
@@ -426,7 +426,7 @@ describe('Session creation commands', () => {
             await mocks.tryCommand.mock.results[1]?.value;
             mocks.caxriRequest.mockClear();
 
-            pressHeadingNewSession('project-1');
+            pressSplitNewSession('project-1', 'heading');
             await mocks.tryCommand.mock.results[2]?.value;
 
             expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
@@ -435,11 +435,34 @@ describe('Session creation commands', () => {
             });
         });
 
+        it('opens the Activity row’s own list when nothing was picked yet', () => {
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+
+            pressSplitNewSession('project-1', 'activity');
+
+            expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'activity');
+            expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        });
+
+        it('repeats the last pick from the Activity row in its targeted Project', async () => {
+            useLastAgentChoiceStore.setState({ kind: 'codex' });
+            mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+
+            pressSplitNewSession('project-2', 'activity');
+            await mocks.tryCommand.mock.results[0]?.value;
+
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+                projectId: 'project-2',
+                defaultAgent: 'codex',
+            });
+            expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
+        });
+
         it('prefers a configured default Agent over the last pick', async () => {
             useLastAgentChoiceStore.setState({ kind: 'codex' });
             mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'claude' } });
 
-            pressHeadingNewSession('project-1');
+            pressSplitNewSession('project-1', 'heading');
             await mocks.tryCommand.mock.results[0]?.value;
 
             expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {

@@ -2,7 +2,7 @@ import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
 import type { ProjectRecord, TerminalKind } from '@caxri/protocol';
-import { History, SquareDashed, SquarePen } from 'lucide-react';
+import { ChevronDown, History, SquareDashed, SquarePen } from 'lucide-react';
 
 import {
     Menu,
@@ -33,7 +33,7 @@ import {
     chooseActivitySessionProject,
     chooseSessionTerminalKind,
     openSessionCreationMenu,
-    pressHeadingNewSession,
+    pressSplitNewSession,
 } from './session-creation-commands';
 
 /**
@@ -220,7 +220,7 @@ function SessionCreationMenu({
                               anchor === 'heading'
                                   ? () => {
                                         closeCreateSessionMenu();
-                                        pressHeadingNewSession(project.id);
+                                        pressSplitNewSession(project.id, 'heading');
                                     }
                                   : undefined,
                       })
@@ -394,11 +394,12 @@ export function EmptyProjectSessionMenu({
  * the only pointer entry to a new Session (the Project heading's pencil) is gone while the queue is showing.
  *
  * The row targets the Project the user last picked here, else the selected Session's, named on its trailing edge so the
- * press never lands somewhere unexpected. A press always opens the list, never a direct create: the list is also where
- * the user switches to another Project, so a press that skipped it would leave no way to reach the others. With more
- * than one Project the list leads with a Project choice (T3 Code's sidebar New thread asks for the Project the same
- * way); picking one re-targets the Agent choices below it, keeps the menu open, and stays the row's target after the
- * menu closes.
+ * press never lands somewhere unexpected. It is split like the heading's pencil: the row's press repeats the default
+ * Agent or the last pick in that Project, and its trailing chevron opens the list, which is also where the user
+ * switches to another Project, so every Project stays one press away. With nothing to repeat the row's press opens the
+ * same list. With more than one Project the list leads with a Project choice (T3 Code's sidebar New thread asks for the
+ * Project the same way); picking one re-targets the Agent choices below it, keeps the menu open, and stays the row's
+ * target after the menu closes.
  */
 export function ActivitySessionCreationMenu({
     defaultProject,
@@ -413,10 +414,21 @@ export function ActivitySessionCreationMenu({
             : undefined,
     );
     const { t } = useTranslation();
-    // Same remembered pick the Project heading marks: the list has no split press, but "Last used" still saves a scan.
+    const settings = useSettings();
+    const defaultAgent = settings?.['session.defaultAgent'];
+    const openInChat = settings?.['session.openAgentsInChat'];
     const lastChoice = useLastAgentChoiceStore((state) => state.kind);
+    const sessionCreateShortcut = useCommandShortcut('session.create');
     const project =
         projects.find((candidate) => candidate.id === claimedProjectId) ?? defaultProject;
+    const splitKind = defaultAgent ?? lastChoice;
+    const splitLabel = splitKind
+        ? newSessionActionLabel(
+              { kind: splitKind, surface: newAgentSurface(splitKind, openInChat) },
+              resolveAgentIcon(splitKind).label,
+              t,
+          )
+        : undefined;
     /**
      * Same orphaned-claim guard as `SessionCreationMenu`: switching the side bar back to the Project tree unmounts this
      * row without Base UI reporting a close.
@@ -428,53 +440,87 @@ export function ActivitySessionCreationMenu({
         },
         [],
     );
-    return (
-        <Menu
-            open={claimedProjectId !== undefined}
-            onOpenChange={(nextOpen) => {
-                if (nextOpen) openSessionCreationMenu(project.id, 'activity');
-                else closeCreateSessionMenu();
-            }}
+    const isOpen = claimedProjectId !== undefined;
+    const press = (
+        <button
+            type="button"
+            className="agent-activity-new-session flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l-md border-0 bg-transparent px-2 text-xs text-foreground hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+            aria-label={
+                splitLabel
+                    ? t('session.create.actionInProject', {
+                          action: splitLabel,
+                          project: project.title,
+                      })
+                    : t('session.create.newInProject', { project: project.title })
+            }
+            onClick={() => pressSplitNewSession(project.id, 'activity')}
         >
-            <MenuTrigger
-                render={
-                    <button
-                        type="button"
-                        className="agent-activity-new-session flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-xs text-foreground hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none aria-expanded:bg-state-hover"
-                        aria-label={t('session.create.newInProject', { project: project.title })}
-                    >
-                        <SquarePen className="flex-none text-muted" size={13} />
-                        <span className="flex-none">{t('session.create.newSession')}</span>
-                        <span className="ml-auto min-w-0 truncate text-muted">{project.title}</span>
-                    </button>
-                }
-            />
-            <MenuContent
-                aria-label={t('session.create.newInProject', { project: project.title })}
-                align="start"
+            <SquarePen className="flex-none text-muted" size={13} />
+            <span className="flex-none">{t('session.create.newSession')}</span>
+            <span className="ml-auto min-w-0 truncate text-muted">{project.title}</span>
+        </button>
+    );
+    return (
+        <div className={cn('flex h-7 w-full items-stretch rounded-md', isOpen && 'bg-state-hover')}>
+            {splitLabel ? (
+                <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
+                    {press}
+                </Tooltip>
+            ) : (
+                press
+            )}
+            <Menu
+                open={isOpen}
+                onOpenChange={(nextOpen) => {
+                    if (nextOpen) openSessionCreationMenu(project.id, 'activity');
+                    else closeCreateSessionMenu();
+                }}
             >
-                {projects.length > 1 && (
-                    <>
-                        <MenuGroup>
-                            <MenuGroupLabel>{t('session.create.projectLabel')}</MenuGroupLabel>
-                            <MenuRadioGroup
-                                value={project.id}
-                                onValueChange={(projectId: string) =>
-                                    chooseActivitySessionProject(projectId)
-                                }
-                            >
-                                {projects.map((candidate) => (
-                                    <MenuRadioItem key={candidate.id} value={candidate.id}>
-                                        <span className="flex-1 truncate">{candidate.title}</span>
-                                    </MenuRadioItem>
-                                ))}
-                            </MenuRadioGroup>
-                        </MenuGroup>
-                        <MenuSeparator />
-                    </>
-                )}
-                <SessionCreationMenuItems project={project} repeatedKind={lastChoice} />
-            </MenuContent>
-        </Menu>
+                <MenuTrigger
+                    render={
+                        <button
+                            type="button"
+                            className="agent-activity-new-session-options flex w-7 flex-none cursor-pointer items-center justify-center rounded-r-md border-0 bg-transparent text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                            aria-label={t('session.create.chooseInProject', {
+                                project: project.title,
+                            })}
+                        >
+                            <ChevronDown size={13} />
+                        </button>
+                    }
+                />
+                <MenuContent
+                    aria-label={t('session.create.newInProject', { project: project.title })}
+                    align="end"
+                >
+                    {projects.length > 1 && (
+                        <>
+                            <MenuGroup>
+                                <MenuGroupLabel>{t('session.create.projectLabel')}</MenuGroupLabel>
+                                <MenuRadioGroup
+                                    value={project.id}
+                                    onValueChange={(projectId: string) =>
+                                        chooseActivitySessionProject(projectId)
+                                    }
+                                >
+                                    {projects.map((candidate) => (
+                                        <MenuRadioItem key={candidate.id} value={candidate.id}>
+                                            <span className="flex-1 truncate">
+                                                {candidate.title}
+                                            </span>
+                                        </MenuRadioItem>
+                                    ))}
+                                </MenuRadioGroup>
+                            </MenuGroup>
+                            <MenuSeparator />
+                        </>
+                    )}
+                    <SessionCreationMenuItems
+                        project={project}
+                        repeatedKind={splitKind ?? undefined}
+                    />
+                </MenuContent>
+            </Menu>
+        </div>
     );
 }
