@@ -120,6 +120,33 @@ describe('Claude transcript history', () => {
         ]);
     });
 
+    it('does not stretch a turn to the time of a title record a fork appended', () => {
+        const operations = claudeHistoryOperations(
+            jsonl([
+                {
+                    type: 'user',
+                    uuid: 'u1',
+                    timestamp: '2026-10-11T10:00:00.000Z',
+                    message: { role: 'user', content: 'hi' },
+                },
+                {
+                    type: 'assistant',
+                    uuid: 'a1',
+                    timestamp: '2026-10-11T10:00:05.000Z',
+                    message: { id: 'a1', content: [{ type: 'text', text: 'Hello' }] },
+                },
+                {
+                    type: 'custom-title',
+                    customTitle: 'x (fork)',
+                    timestamp: '2026-10-11T11:00:00.000Z',
+                },
+            ]),
+            false,
+        );
+        const state = operations.find((operation) => operation.op === 'state');
+        expect(state?.op === 'state' && state.state.turns?.[0]?.durationMs).toBe(5_000);
+    });
+
     it('restores how messages were delivered and skips queued notifications and peer messages', () => {
         const queuedUuid = 'a3c1e2f0-1b2c-8c01-9d4e-0123456789ab';
         const operations = claudeHistoryOperations(

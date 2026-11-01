@@ -192,6 +192,39 @@ describe('AgentChatService fork', () => {
         expect(userTexts(service.read(forked.terminalId))).toEqual(['first']);
     });
 
+    it('keeps each turn duration of a forked Claude conversation, not the time of the fork', async () => {
+        const context = await threeTurns('claude');
+        const { service, terminal, createSession } = context;
+        const transcriptPath = await claudeTranscriptPath(context.claudeConfigDirectory);
+        // Date the transcript an hour back, three seconds a record, so a timestamp the fork writes stands out.
+        const base = Date.now() - 3_600_000;
+        let index = 0;
+        const lines = (await readFile(transcriptPath, 'utf8'))
+            .trimEnd()
+            .split('\n')
+            // The fake CLI writes `turn_duration` like the interactive CLI; an SDK-driven Chat never does.
+            .filter((line) => !line.includes('"turn_duration"'))
+            .map((line) => {
+                const record = JSON.parse(line) as Record<string, unknown>;
+                if (typeof record.timestamp !== 'string') return line;
+                index += 1;
+                return JSON.stringify({
+                    ...record,
+                    timestamp: new Date(base + index * 3_000).toISOString(),
+                });
+            });
+        await writeFile(transcriptPath, `${lines.join('\n')}\n`);
+
+        await service.restart(terminal.id);
+        const durations = (id: string) => service.read(id).turns.map((turn) => turn.durationMs);
+        const source = durations(terminal.id);
+        expect(source.every((duration) => duration !== undefined && duration < 60_000)).toBe(true);
+
+        const forked = await service.fork(terminal.id, undefined, createSession);
+        await service.restart(forked.terminalId);
+        expect(durations(forked.terminalId)).toEqual(source);
+    });
+
     it('refuses to fork a Claude transcript above the size limit', async () => {
         const context = await threeTurns('claude');
         const { terminal, messageId } = context;

@@ -34,7 +34,7 @@ export class ClaudeTurnClock {
         at: number | undefined,
         openedTurn?: AgentChatTurn,
     ): void {
-        if (at === undefined) return;
+        if (at === undefined || isSessionMetadataRecord(record)) return;
         if (openedTurn) {
             this.settle();
             this.clock = {
@@ -80,4 +80,12 @@ function isWakeRecord(record: Record<string, unknown>): boolean {
         record.attachment.type === 'queued_command' &&
         !isHumanQueuedClaudePrompt(record.attachment)
     );
+}
+
+/**
+ * Session bookkeeping that Claude Code and the Agent SDK append outside any turn, for example the title a fork writes
+ * with the time of the fork. It says nothing about when the Agent worked, so it never moves the clock.
+ */
+function isSessionMetadataRecord(record: Record<string, unknown>): boolean {
+    return ['custom-title', 'content-replacement', 'relocated'].includes(record.type as string);
 }
