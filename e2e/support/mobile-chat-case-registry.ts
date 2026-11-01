@@ -12,7 +12,7 @@ export type MobileChatCaseHandler = (
 const CASES_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), 'mobile-chat-cases');
 
 /**
- * Lists the handler modules a Chat case may live in: every `mobile-chat-cases/<group>.ts` except tests.
+ * Lists the handler modules a self-registered case may live in: every `mobile-chat-cases/<group>.ts` except tests.
  */
 export function mobileChatCaseGroups(directory = CASES_DIRECTORY): string[] {
     return readdirSync(directory)
@@ -43,8 +43,7 @@ export async function collectMobileChatCaseHandlers(
             throw new Error(`mobile-chat-cases/${groups[index]}.ts must export handlers`);
         }
         for (const [caseId, handler] of Object.entries(module.handlers)) {
-            if (collected.has(caseId))
-                throw new Error(`Duplicate Agent Chat case handler: ${caseId}`);
+            if (collected.has(caseId)) throw new Error(`Duplicate Android case handler: ${caseId}`);
             collected.set(caseId, handler);
         }
     }
@@ -52,7 +51,8 @@ export async function collectMobileChatCaseHandlers(
 }
 
 /**
- * Runs the Agent Chat Acceptance case `environment.caseId` through the handler its own group module registered.
+ * Runs the self-registered Android Acceptance case `environment.caseId` through the handler its own group module
+ * registered.
  */
 export async function executeMobileAgentChatCase(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -60,7 +60,7 @@ export async function executeMobileAgentChatCase(
 ): Promise<void> {
     const handler = (await collectMobileChatCaseHandlers()).get(environment.caseId);
     if (!handler) {
-        throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
+        throw new Error(`Unsupported Playwright mobile Acceptance case: ${environment.caseId}`);
     }
     return handler(environment, artifacts);
 }

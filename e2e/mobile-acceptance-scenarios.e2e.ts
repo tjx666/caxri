@@ -645,10 +645,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
             );
             break;
         default:
-            if (!environment.caseId.startsWith('MOB-CHAT-'))
-                throw new Error(
-                    `Unsupported Playwright mobile Acceptance case: ${environment.caseId}`,
-                );
+            // Self-registered feature cases; the registry rejects an id no group module handles.
             await executeMobileAgentChatCase({ ...environment, remoteVideoPath }, artifacts);
     }
 });
