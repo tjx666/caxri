@@ -23,6 +23,7 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
     'viewContainers.files.menu.copyRelativePath': '复制相对路径',
     'viewContainers.files.menu.copyName': '复制文件名',
     'viewContainers.files.menu.moveToTrash': '移到废纸篓',
+    'viewContainers.files.menu.moveManyToTrash': '将 {{count}} 项移到废纸篓',
     'viewContainers.files.busyReason': '忙碌：此处正在进行文件操作',
     'viewContainers.files.nothingToPaste': '没有可粘贴的内容',
     'viewContainers.files.newFileName': '新文件名',
@@ -46,7 +47,8 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
     'viewContainers.files.conflict.folderDescription':
         '此文件夹中已存在名为“{{name}}”的项。文件夹不能替换其他项，也不能被替换；请选择保留两者，以新名称移动它。',
     'viewContainers.files.conflict.fileDescription':
-        '此文件夹中已存在名为“{{name}}”的项。替换会覆盖现有文件，且无法撤销。',
+        '此文件夹中已存在名为“{{name}}”的项。替换会把现有文件移到废纸篓，之后可立即撤销。',
+    'viewContainers.files.conflict.applyToAll': '应用到其余所有项',
     'viewContainers.files.conflict.keepBoth': '保留两者',
     'viewContainers.files.conflict.replace': '替换',
     'viewContainers.files.creating': '正在创建…',
@@ -56,6 +58,9 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
     'viewContainers.files.creatingInBackground': '正在后台创建…',
     'viewContainers.files.renamingInBackground': '正在后台重命名…',
     'viewContainers.files.movingInBackground': '正在后台移动…',
+    'viewContainers.files.trashed': '已将“{{name}}”移到废纸篓',
+    'viewContainers.files.trashedMany': '已将 {{count}} 项移到废纸篓',
+    'viewContainers.files.nothingToUndo': '“文件”中没有可撤销的操作',
     'viewContainers.files.trashedUnsaved':
         '已将“{{name}}”移到废纸篓。未保存的更改已丢弃，只能恢复最后保存的版本。',
     'viewContainers.files.trashedUnsavedMany':

@@ -76,9 +76,9 @@ function HandoffDocument({ document }: { document: AgentChatHandoff }) {
  * package Server Core builds without asking the provider anything; "Continue anyway" lifts the guard for the rest of
  * the window, for a user who knows better (another account signed in, the last percent is enough). The headline folds
  * the explanation and hand-off document away, remembered per Chat like the strip sections, so a long document does not
- * keep the transcript short. The action buttons stay below the fold: while the guard blocks sending they are the only
- * way forward, so folding never hides them. The row replaces the context alerts, whose Compact and new-Chat actions the
- * guard refuses too.
+ * keep the transcript short. The action buttons and the auto-continue line they cancel stay below the fold: while the
+ * guard blocks sending they are the only way forward, so folding never hides them. The row replaces the context alerts,
+ * whose Compact and new-Chat actions the guard refuses too.
  */
 export function AgentChatUsageGuardCard({
     guard,
@@ -150,20 +150,21 @@ export function AgentChatUsageGuardCard({
                 kind="agent-chat-usage-guard"
             >
                 <div className="flex min-w-0 flex-col gap-2 pt-0.5 pl-5.5">
-                    <div>
-                        <div className="text-muted">
-                            {t('agentChat.usageGuard.detail', {
-                                reset: localizedLimitReset(guard.resetsAt, now, t),
-                            })}
-                            {offer.used && ` ${t('agentChat.usageGuard.used')}`}
-                        </div>
-                        {guard.autoContinue && (
-                            <AgentChatAutoContinueLine autoContinue={guard.autoContinue} />
-                        )}
+                    <div className="text-muted">
+                        {t('agentChat.usageGuard.detail', {
+                            reset: localizedLimitReset(guard.resetsAt, now, t),
+                        })}
+                        {offer.used && ` ${t('agentChat.usageGuard.used')}`}
                     </div>
                     {guard.document && <HandoffDocument document={guard.document} />}
                 </div>
             </DisclosureMotion>
+            {/* Outside the fold: Stop waiting cancels this wait, so the line it names stays next to the button. */}
+            {guard.autoContinue && (
+                <div className="pt-1.5 pl-5.5">
+                    <AgentChatAutoContinueLine autoContinue={guard.autoContinue} />
+                </div>
+            )}
             <div className="flex min-w-0 flex-wrap items-center gap-2 pt-1.5 pl-5.5">
                 {offer.generate && (
                     <Tooltip

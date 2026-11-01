@@ -21,6 +21,10 @@ import { useOpenSession } from './use-open-session';
  */
 export interface AgentChatReplyAction {
     availability: AgentChatReplyAvailability;
+    /**
+     * Later turns running the action replaces; the menu asks for confirmation first when above zero.
+     */
+    laterTurns?: number;
     run: () => void;
 }
 
@@ -149,14 +153,18 @@ export function useAgentChatReplyActions({
                     const { t } = latest.current;
                     try {
                         await Clipboard.setStringAsync(text);
-                        showToast('success', t('conversation.message.copied'));
+                        showToast('success', t('chat.reply.copied'));
                     } catch {
                         showToast('error', t('conversation.message.copyFailed'));
                     }
                 }),
             share: (replyId) =>
                 withText(replyId, async (text) => {
-                    await Share.share({ message: text });
+                    try {
+                        await Share.share({ message: text });
+                    } catch {
+                        showToast('error', latest.current.t('chat.reply.shareFailed'));
+                    }
                 }),
             selectText: (replyId) => latest.current.onSelectText(message(replyId)),
             fork: (turnId) => {
@@ -189,6 +197,7 @@ export function useAgentChatReplyActions({
                 if (!target) return;
                 return {
                     availability: isLive ? target.availability : offline(),
+                    laterTurns: target.laterTurns,
                     run: () =>
                         withText(target.itemId, async (text) => {
                             const { chat, t: translate } = latest.current;

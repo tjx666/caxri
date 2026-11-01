@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { translate, useLocaleStore } from '../../../i18n';
 import type { SettingRowDescriptor, SettingsCategory } from '../settings-registry';
 import { getSettingsRegistry } from '../settings-registry';
-import { buildSettingsList, countRowsByCategory, filterSettingsRows } from '../settings-search';
+import {
+    buildSettingsList,
+    countHiddenAdvancedRows,
+    countRowsByCategory,
+    filterSettingsRows,
+} from '../settings-search';
 
 const row = (
     id: string,
@@ -229,5 +234,25 @@ describe('countRowsByCategory', () => {
         // A filtered-out subcategory has no anchor entry, so its TOC button disappears while
         // searching instead of navigating to a heading that is absent from the filtered list.
         expect(counts['agents:Codex']).toBeUndefined();
+    });
+});
+
+describe('modified advanced rows', () => {
+    const rows = [
+        row('basic', 'general', 'a'),
+        row('adv-modified', 'general', 'b', undefined, true),
+        row('adv-default', 'general', 'c', undefined, true),
+    ];
+    const options = { showAdvanced: false, modifiedRowIds: new Set(['adv-modified']) };
+
+    it('lists a modified advanced row while advanced rows are hidden', () => {
+        expect(filterSettingsRows(rows, '', options).map((r) => r.id)).toEqual([
+            'basic',
+            'adv-modified',
+        ]);
+    });
+
+    it('counts only the advanced rows left out', () => {
+        expect(countHiddenAdvancedRows(rows, options)).toBe(1);
     });
 });

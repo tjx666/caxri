@@ -10,6 +10,7 @@ import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../../edi
 import { copyItem, invalidateDirectory, moveFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
+import type { FileConflictBatch } from './file-conflict-dialog-store';
 import { outermostPaths } from './file-tree-selection';
 import type { FileMoveSource, ResourceExplorerClient } from './resource-explorer-client';
 import { activeResourceExplorerScope } from './resource-explorer-scope-store';
@@ -119,11 +120,13 @@ export async function moveFiles(
     source?: FileMoveSource,
 ): Promise<ReadonlyArray<MutableFileEntry & { previousPath: string }>> {
     const moved: Array<MutableFileEntry & { previousPath: string }> = [];
-    for (const path of outermostPaths(paths)) {
-        if (parentDirectoryPath(path) === directory) continue;
+    const queue = outermostPaths(paths).filter((path) => parentDirectoryPath(path) !== directory);
+    const batch: FileConflictBatch = { remaining: queue.length };
+    for (const path of queue) {
+        batch.remaining -= 1;
         // Sequential: each entry may raise its own conflict prompt.
         // eslint-disable-next-line no-await-in-loop -- see above
-        const entry = await moveFile(client, sessionId, path, directory, source);
+        const entry = await moveFile(client, sessionId, path, directory, source, batch);
         if (entry) moved.push(entry);
     }
     return moved;

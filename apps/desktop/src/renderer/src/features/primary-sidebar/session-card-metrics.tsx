@@ -4,6 +4,18 @@ import { useSessionCardGlance } from './hooks/use-session-card-glance';
 import { sessionCardMetrics } from './session-card-glance';
 
 /**
+ * The metric labels as plain text for the row's accessible description. Mounted only while the card is open, so it
+ * shares the card's own reads (same query keys) and a closed row still subscribes to nothing; before a reading arrives
+ * it is empty.
+ */
+export function SessionCardMetricsDescription({ sessionId }: { sessionId: string }) {
+    const { t } = useTranslation();
+    const { cost, resources } = useSessionCardGlance(sessionId);
+    const labels = sessionCardMetrics(resources, cost, t).map((metric) => `${metric.label}.`);
+    return labels.length > 0 ? ` ${labels.join(' ')}` : null;
+}
+
+/**
  * Live CPU and memory plus all-time spend, read when the card opens. While the first read is in flight an Agent Session
  * reserves the line with a placeholder, since it almost always has spend to show, so the card does not grow a line
  * under the pointer; a shell Session reserves nothing and simply gains the line if a reading arrives.

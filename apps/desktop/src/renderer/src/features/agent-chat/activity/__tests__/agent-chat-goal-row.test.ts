@@ -1,7 +1,11 @@
 import type { AgentChatActivity } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { agentChatGoalSpend, agentChatLiveGoalActivity } from '../agent-chat-goal-row';
+import {
+    agentChatGoalAutoExpandKey,
+    agentChatGoalSpend,
+    agentChatLiveGoalActivity,
+} from '../agent-chat-goal-row';
 
 const working: AgentChatActivity = {
     kind: 'working',
@@ -34,5 +38,18 @@ describe('agentChatGoalSpend', () => {
         expect(agentChatGoalSpend({ objective: 'ship it' }, usage)).toBe(usage);
         expect(agentChatGoalSpend({ objective: 'another goal' }, usage)).toBeUndefined();
         expect(agentChatGoalSpend({ objective: 'ship it' }, undefined)).toBeUndefined();
+    });
+});
+
+describe('agentChatGoalAutoExpandKey', () => {
+    it('keys only unfinished goals that carry a reason', () => {
+        const goal = { objective: 'Ship', reason: 'Tests fail' } as const;
+        expect(agentChatGoalAutoExpandKey({ ...goal, status: 'failed' })).toBe('failed:Ship');
+        expect(agentChatGoalAutoExpandKey({ ...goal, status: 'blocked' })).toBe('blocked:Ship');
+        expect(agentChatGoalAutoExpandKey({ ...goal, status: 'budgetLimited' })).toBe(
+            'budgetLimited:Ship',
+        );
+        expect(agentChatGoalAutoExpandKey({ ...goal, status: 'complete' })).toBeUndefined();
+        expect(agentChatGoalAutoExpandKey({ objective: 'Ship', status: 'failed' })).toBeUndefined();
     });
 });

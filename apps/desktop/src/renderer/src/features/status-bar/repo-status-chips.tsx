@@ -13,7 +13,6 @@ import { StructuredTooltip } from '../../components/structured-tooltip';
 import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { textClipboard } from '../../lib/clipboard';
-import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
 import { pullRequestChecksPresentation } from '../primary-sidebar/session-pull-request';
@@ -21,6 +20,7 @@ import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
 import { MismatchDot } from './mismatch-dot';
+import { PullRequestChecksGlyph } from './pull-request-checks-glyph';
 import {
     pullRequestAriaLabel,
     pullRequestElsewhereBranch,
@@ -120,13 +120,13 @@ function PullRequestUnavailableHint({
 }
 
 /**
- * The checks dot's fill per tone, the same tones the sidebar hover card colors its CI line with.
+ * The checks glyph's text color per tone, the same tones the sidebar hover card colors its CI line with.
  */
-const CHECKS_DOT_CLASS = {
-    danger: 'bg-danger',
-    neutral: 'bg-muted',
-    success: 'bg-success',
-    warning: 'bg-warning',
+const CHECKS_TONE_CLASS = {
+    danger: 'text-danger',
+    neutral: 'text-muted',
+    success: 'text-success',
+    warning: 'text-warning',
 } as const;
 
 /**
@@ -171,13 +171,9 @@ function PullRequestStatus({
         >
             #{pullRequest.number}
             {checks && (
-                <span
-                    aria-hidden="true"
-                    className={cn(
-                        'ml-1 inline-block size-1.5 rounded-full',
-                        CHECKS_DOT_CLASS[checks.tone],
-                    )}
-                    data-pull-request-checks={checks.key}
+                <PullRequestChecksGlyph
+                    checksKey={checks.key}
+                    toneClassName={CHECKS_TONE_CLASS[checks.tone]}
                 />
             )}
         </StatusItem>

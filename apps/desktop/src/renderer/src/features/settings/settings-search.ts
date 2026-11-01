@@ -20,6 +20,33 @@ export interface SettingsRowFilterOptions {
      * Advanced rows a focus request is scrolling to, listed even while advanced rows are hidden so the request lands.
      */
     revealedRowIds?: ReadonlySet<string>;
+    /**
+     * Advanced rows whose value differs from the default. They stay listed while advanced rows are hidden, so a changed
+     * value never disappears from the list that edits it.
+     */
+    modifiedRowIds?: ReadonlySet<string>;
+}
+
+function isRowListedWithoutAdvanced(
+    row: SettingRowDescriptor,
+    { revealedRowIds, modifiedRowIds }: SettingsRowFilterOptions,
+): boolean {
+    return (
+        !row.advanced ||
+        revealedRowIds?.has(row.id) === true ||
+        modifiedRowIds?.has(row.id) === true
+    );
+}
+
+/**
+ * How many advanced rows the list leaves out while Show advanced settings is off and no query is typed, for the muted
+ * "N advanced settings hidden" line by the switch.
+ */
+export function countHiddenAdvancedRows(
+    rows: readonly SettingRowDescriptor[],
+    options: SettingsRowFilterOptions,
+): number {
+    return rows.filter((row) => !isRowListedWithoutAdvanced(row, options)).length;
 }
 
 /**
@@ -30,13 +57,14 @@ export interface SettingsRowFilterOptions {
 export function filterSettingsRows(
     rows: readonly SettingRowDescriptor[],
     query: string,
-    { showAdvanced = true, revealedRowIds }: SettingsRowFilterOptions = {},
+    options: SettingsRowFilterOptions = {},
 ): SettingRowDescriptor[] {
+    const { showAdvanced = true } = options;
     const tokens = query.toLowerCase().split(/\s+/u).filter(Boolean);
     if (tokens.length > 0)
         return rows.filter((row) => tokens.every((token) => row.haystack.includes(token)));
     if (showAdvanced) return [...rows];
-    return rows.filter((row) => !row.advanced || revealedRowIds?.has(row.id) === true);
+    return rows.filter((row) => isRowListedWithoutAdvanced(row, options));
 }
 
 /**

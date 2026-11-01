@@ -80,11 +80,10 @@ describe('locateAgentChatFindMatch', () => {
 });
 
 describe('canAgentChatFindSearchEarlier', () => {
-    it('offers earlier history only for a query that found nothing while more can load', () => {
-        expect(canAgentChatFindSearchEarlier('bug', 0, true)).toBe(true);
-        expect(canAgentChatFindSearchEarlier('bug', 2, true)).toBe(false);
-        expect(canAgentChatFindSearchEarlier('bug', 0, false)).toBe(false);
-        expect(canAgentChatFindSearchEarlier('', 0, true)).toBe(false);
+    it('offers earlier history for any query while more can load', () => {
+        expect(canAgentChatFindSearchEarlier('bug', true)).toBe(true);
+        expect(canAgentChatFindSearchEarlier('bug', false)).toBe(false);
+        expect(canAgentChatFindSearchEarlier('', true)).toBe(false);
     });
 });
 
@@ -99,7 +98,9 @@ describe('agentChatFindCountLabel', () => {
         expect(agentChatFindCountLabel('a', 0, 0, translate, { isPartial: true })).toBe(
             'No results in loaded messages',
         );
-        expect(agentChatFindCountLabel('a', 2, 0, translate, { isPartial: true })).toBe('1/2');
+        expect(agentChatFindCountLabel('a', 2, 0, translate, { isPartial: true })).toBe(
+            '1/2 · loaded messages',
+        );
     });
 });
 

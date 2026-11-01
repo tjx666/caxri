@@ -18,11 +18,11 @@ import { secretAnswerFailure, secretRequestAnswer } from './agent-secrets-summar
 
 /**
  * Asks the user for a secret an Agent requested with `caxri secret request`, from anywhere in the window and for Chat
- * and PTY Agents alike. It sits in the bottom-right corner above the status bar and never takes focus by itself, so a
- * request arriving mid-typing cannot capture keystrokes meant for an editor or Terminal. One request shows at a time,
- * oldest first; the rest wait behind it. A request leaves when it is answered, when the Agent stops waiting, or when it
- * expires, all through `agentSecrets.changed`. The card follows T3 Code's secret request (see
- * `.agents/skills/competitors/references/feature-references.md`).
+ * and PTY Agents alike. It sits in the top-right corner under the title bar, clear of the Chat composer's Send, Stop,
+ * and model controls, and never takes focus by itself, so a request arriving mid-typing cannot capture keystrokes meant
+ * for an editor or Terminal. One request shows at a time, oldest first; the rest wait behind it. A request leaves when
+ * it is answered, when the Agent stops waiting, or when it expires, all through `agentSecrets.changed`. The card
+ * follows T3 Code's secret request (see `.agents/skills/competitors/references/feature-references.md`).
  */
 export function SecretRequestCards() {
     const query = useCaxriQuery('secrets.requests.list', {});
@@ -30,7 +30,7 @@ export function SecretRequestCards() {
     const current = requests.toSorted((left, right) => left.createdAt - right.createdAt).at(0);
     if (!current) return null;
     return (
-        <div className="pointer-events-none fixed right-4 bottom-10 z-40 flex w-[min(400px,92vw)] flex-col items-stretch">
+        <div className="pointer-events-none fixed top-10 right-4 z-40 flex w-[min(400px,92vw)] flex-col items-stretch">
             <SecretRequestCard key={current.id} moreCount={requests.length - 1} request={current} />
         </div>
     );
@@ -149,6 +149,11 @@ function SecretRequestCard({
                     />
                     {t('agentSecrets.request.allProjects')}
                 </label>
+                {project && !isGlobal && (
+                    <p className="m-0 text-[11px] text-muted">
+                        {t('agentSecrets.request.saveForProject', { project: project.title })}
+                    </p>
+                )}
                 <p className="m-0 text-[11px] text-muted">{t('agentSecrets.request.privacy')}</p>
                 {failure && (
                     <p className="m-0 text-[11px] text-danger" role="alert">

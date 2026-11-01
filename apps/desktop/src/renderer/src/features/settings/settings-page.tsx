@@ -12,6 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
+import { Button } from '../../components/ui/button';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
@@ -121,13 +122,18 @@ export function SettingsPage(properties: SettingsPageProperties) {
 
     useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
 
-    const { showAdvanced, visibleRows } = useVisibleSettingsRows(rows, query, {
-        trustedDomainsFocusRequestId,
-        gitExclusionsFocusRequestId: properties.gitExclusionsFocusRequestId,
-        rowFocusRequest: properties.rowFocusRequest,
-        agentActionsFocusRequest: properties.agentActionsFocusRequest,
-        agentExecutableFocusRequest: properties.agentExecutableFocusRequest,
-    });
+    const { showAdvanced, visibleRows, hiddenAdvancedCount } = useVisibleSettingsRows(
+        rows,
+        query,
+        { argvConfig, settings },
+        {
+            trustedDomainsFocusRequestId,
+            gitExclusionsFocusRequestId: properties.gitExclusionsFocusRequestId,
+            rowFocusRequest: properties.rowFocusRequest,
+            agentActionsFocusRequest: properties.agentActionsFocusRequest,
+            agentExecutableFocusRequest: properties.agentExecutableFocusRequest,
+        },
+    );
     const isFiltered = isSearching || !showAdvanced;
     const list = useMemo(
         () => buildSettingsList(categories, visibleRows),
@@ -307,6 +313,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
                 inputRef={searchInputReference}
                 query={query}
                 showAdvanced={showAdvanced}
+                hiddenAdvancedCount={hiddenAdvancedCount}
                 totalCount={rows.length}
                 visibleCount={visibleRows.length}
                 onQueryChange={changeQuery}
@@ -327,9 +334,16 @@ export function SettingsPage(properties: SettingsPageProperties) {
                 onWheel={releasePinnedAnchor}
             >
                 {list.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-[12px] text-muted">
-                        {t('settings.page.noMatches', { query: query.trim() })}
-                    </p>
+                    <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
+                        <p className="m-0 text-[12px] text-muted">
+                            {t('settings.page.noMatches', { query: query.trim() })}
+                        </p>
+                        {isSearching && (
+                            <Button size="sm" variant="secondary" onClick={() => changeQuery('')}>
+                                {t('settings.page.clearSearchAction')}
+                            </Button>
+                        )}
+                    </div>
                 ) : (
                     <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
                         {virtualItems.map((virtualItem) => {

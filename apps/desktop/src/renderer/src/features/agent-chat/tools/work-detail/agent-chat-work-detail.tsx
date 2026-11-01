@@ -66,6 +66,7 @@ function OutputView({
         <CodeView
             className={OUTPUT_CLASS_NAME}
             code={output}
+            copyLabel={t('agentChat.workGroup.copyOutput')}
             defaultWrapped={isWrapped}
             isPaintable={!isRunning}
             label={t('agentChat.workGroup.output')}

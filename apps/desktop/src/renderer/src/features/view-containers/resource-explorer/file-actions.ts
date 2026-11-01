@@ -9,7 +9,12 @@ import { getSelectedSession, getSessionProjectId } from '../../../stores/selecto
 import { describeFailure, describeFailureKey, pushToast, tryCommand } from '../../../stores/toasts';
 import { openFile } from '../../editor/document-commands';
 import { isControlledViewOperationQuery } from '../view-operation-client';
-import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog-store';
+import type { FileConflictBatch } from './file-conflict-dialog-store';
+import {
+    batchConflictChoice,
+    isFolderGatedConflict,
+    requestFileConflictChoice,
+} from './file-conflict-dialog-store';
 import {
     clearFailureToastSuppression,
     didFileMutationReconcile,
@@ -297,7 +302,8 @@ function attemptMove(
  * Availability of Replace is gated on both sides of the collision actually being plain files, fetched fresh via
  * `files.list` (Server can only atomically overwrite a file target, never a folder; see `assertReplaceableMove` in
  * `mutations.ts`). Replace retries with `conflict: 'replace'`; Keep Both retries with `conflict: 'rename'` (the
- * existing auto-suffix "name copy" behavior); Cancel resolves with no retry and no toast, leaving a cut clipboard entry
+ * existing auto-suffix "name copy" behavior); a multi-move's `batch` lets the prompt's "Apply to all remaining" answer
+ * the later conflicts without asking again; Cancel resolves with no retry and no toast, leaving a cut clipboard entry
  * armed for another attempt elsewhere. Every retry is a fresh, unregistered operation id on the normal
  * (non-propagating) toast path, so its own success or failure explains itself the same way any other file mutation
  * does.
@@ -317,6 +323,7 @@ export async function moveFile(
     path: string,
     directory: string,
     source?: FileMoveSource,
+    batch?: FileConflictBatch,
 ): Promise<MethodResult<'files.move'> | undefined> {
     try {
         return await attemptMove(client, sessionId, path, directory, 'reject', true, source);
@@ -333,10 +340,17 @@ export async function moveFile(
             entryKind(client, directory, name),
             entryKind(client, parentDirectoryPath(path), name),
         ]);
-        const choice = await requestFileConflictChoice({
-            name,
-            folderGated: isFolderGatedConflict(sourceKind, targetKind),
-        });
+        const folderGated = isFolderGatedConflict(sourceKind, targetKind);
+        let choice = batchConflictChoice(batch, folderGated);
+        if (!choice) {
+            const decision = await requestFileConflictChoice({
+                name,
+                folderGated,
+                ...(batch && batch.remaining > 0 && { remaining: batch.remaining }),
+            });
+            ({ choice } = decision);
+            if (choice !== 'cancel' && batch && decision.shouldApplyToAll) batch.choice = choice;
+        }
         if (choice === 'cancel') return undefined;
         const moved = await attemptMove(
             client,

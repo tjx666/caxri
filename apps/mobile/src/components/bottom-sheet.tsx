@@ -181,6 +181,7 @@ export const SheetAction = ({
     onPress,
     testID,
     theme,
+    tone = 'default',
 }: {
     busy?: boolean;
     /**
@@ -195,6 +196,10 @@ export const SheetAction = ({
     onPress: () => void;
     testID: string;
     theme: MobileTheme;
+    /**
+     * `danger` is for an action that removes something, such as Delete; it colors the glyph and label with `danger`.
+     */
+    tone?: 'danger' | 'default';
 }) => (
     <Pressable
         accessibilityRole="button"
@@ -210,10 +215,22 @@ export const SheetAction = ({
         {busy ? (
             <Spinner color={theme.muted} />
         ) : (
-            <Icon color={theme.muted} opacity={disabled ? 0.4 : 1} size={20} />
+            <Icon
+                color={tone === 'danger' ? theme.danger : theme.muted}
+                opacity={disabled ? 0.4 : 1}
+                size={20}
+            />
         )}
         <View style={styles.actionBody}>
-            <Text style={[styles.actionText, { color: theme.text, opacity: disabled ? 0.4 : 1 }]}>
+            <Text
+                style={[
+                    styles.actionText,
+                    {
+                        color: tone === 'danger' ? theme.danger : theme.text,
+                        opacity: disabled ? 0.4 : 1,
+                    },
+                ]}
+            >
                 {label}
             </Text>
             {detail ? (

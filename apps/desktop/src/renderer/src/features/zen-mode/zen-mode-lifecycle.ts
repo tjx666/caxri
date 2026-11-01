@@ -20,6 +20,17 @@ export function parsePersistedZenMode(raw: unknown): PersistedZenMode {
     return { isActive, enteredFullScreen: isActive && value.enteredFullScreen === true };
 }
 
+const launch = { isRestored: false };
+
+/**
+ * True while the current Zen Mode is the one this launch restored (`zen.restore`) and the user has not yet entered or
+ * left Zen by hand. The exit button reads it to stay visible until the user moves or types, since a restored window
+ * gives no entry gesture that would have told them how to leave.
+ */
+export function isZenRestoredAtLaunch(): boolean {
+    return launch.isRestored;
+}
+
 export interface ZenFullScreenPlan {
     /**
      * The state to request from Main, or `undefined` when the window should stay as it is.
@@ -58,6 +69,7 @@ export function startZenModeLifecycle(options: {
 }): () => void {
     const persisted = parsePersistedZenMode(readLocalStorageJson(STORAGE_KEY));
     let isEnteredFullScreen = false;
+    launch.isRestored = false;
     const persist = (): void => {
         writeLocalStorageJson(STORAGE_KEY, {
             isActive: useChromeLayoutStore.getState().zenMode,
@@ -75,12 +87,14 @@ export function startZenModeLifecycle(options: {
         // Main restores the window's own full screen state, so Zen only has to remember that it owned it.
         isEnteredFullScreen = persisted.enteredFullScreen;
         useChromeLayoutStore.getState().toggleZenMode();
+        launch.isRestored = true;
     } else {
         persist();
     }
 
     const unsubscribeZen = useChromeLayoutStore.subscribe((state, previous) => {
         if (state.zenMode === previous.zenMode) return;
+        launch.isRestored = false;
         const plan = planZenFullScreen(state.zenMode ? 'enter' : 'leave', {
             isEnabled: options.isFullScreenEnabled(),
             isFullScreen: useWorkbenchStore.getState().isFullScreen,
@@ -98,6 +112,7 @@ export function startZenModeLifecycle(options: {
         persist();
     });
     return () => {
+        launch.isRestored = false;
         unsubscribeZen();
         unsubscribeFullScreen();
     };

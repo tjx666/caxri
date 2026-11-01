@@ -11,6 +11,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import type { NewSessionViewState } from '../hooks/use-new-session';
 import {
+    isNewSessionAvailabilityOffline,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
     newSessionSurfaceDescription,
@@ -30,15 +31,22 @@ const NewSessionAgentChoice = ({
     const { t } = useTranslation();
     const agent = state.agents.find((candidate) => candidate.kind === kind);
     const disabled = !agent?.available || state.isAvailabilityError || state.isAvailabilityLoading;
-    const reason = newSessionAgentReason(
-        {
-            agent,
-            isConnected: state.status === 'connected',
-            isError: state.isAvailabilityError,
-            isLoading: state.isAvailabilityLoading,
-        },
-        t,
-    );
+    // While offline the group states the reconnect hint once; a card only carries its own reason.
+    const reason = isNewSessionAvailabilityOffline({
+        agent,
+        isConnected: state.status === 'connected',
+        isError: state.isAvailabilityError,
+    })
+        ? undefined
+        : newSessionAgentReason(
+              {
+                  agent,
+                  isConnected: state.status === 'connected',
+                  isError: state.isAvailabilityError,
+                  isLoading: state.isAvailabilityLoading,
+              },
+              t,
+          );
     return (
         <NewSessionChoice
             detail={reason}
@@ -117,6 +125,13 @@ export const NewSessionSelections = ({
     const [query, setQuery] = useState('');
     const { t } = useTranslation();
     if (state.projects.length === 0) return null;
+    const isAgentListOffline = NEW_SESSION_AGENT_ORDER.every((kind) =>
+        isNewSessionAvailabilityOffline({
+            agent: state.agents.find((candidate) => candidate.kind === kind),
+            isConnected: state.status === 'connected',
+            isError: state.isAvailabilityError,
+        }),
+    );
     const needle = query.trim().toLocaleLowerCase();
     const projects = needle
         ? state.projects.filter(
@@ -131,6 +146,14 @@ export const NewSessionSelections = ({
                 <Text style={[styles.groupLabel, { color: theme.muted }]}>
                     {t('sessions.new.agentGroup')}
                 </Text>
+                {isAgentListOffline ? (
+                    <Text
+                        style={[styles.groupHint, { color: theme.muted }]}
+                        testID="new-session-agents-offline"
+                    >
+                        {t('sessions.new.availabilityReconnect')}
+                    </Text>
+                ) : null}
                 <View style={styles.agentGrid}>
                     {NEW_SESSION_AGENT_ORDER.map((kind) => (
                         <NewSessionAgentChoice key={kind} kind={kind} state={state} theme={theme} />

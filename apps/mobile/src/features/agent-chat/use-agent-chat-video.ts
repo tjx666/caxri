@@ -74,6 +74,9 @@ export const useAgentChatVideoStream = (target: AgentChatVideoTarget, isEnabled:
     return {
         url: query.data ?? null,
         isError: query.isError,
+        retry: () => {
+            void query.refetch();
+        },
         isMissing:
             query.error instanceof MobileGatewayRequestError && query.error.code === 'NOT_FOUND',
     };

@@ -14,7 +14,7 @@ export const usage: TranslatedNamespace<typeof source> = {
     'usage.loadFailed': '无法从这台电脑读取 Agent 用量。',
     'usage.loading': '正在读取 Agent 用量…',
     'usage.noLimit': '暂无限额读数。{{agent}} 运行时才会上报；使用 API key 时没有限额。',
-    'usage.noLimitClaude': '暂无限额读数。Claude Code 只有在它的 Chat 运行时才会上报。',
+    'usage.noLimitClaude': '暂无限额读数。Claude Code 只有在它的对话运行时才会上报。',
     'usage.noSpeed': '还没有测量到回复。',
     'usage.offline': '重新连接后即可查看 Agent 用量。',
     'usage.open': 'Agent 用量',

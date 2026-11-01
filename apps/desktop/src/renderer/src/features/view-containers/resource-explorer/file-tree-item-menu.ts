@@ -94,7 +94,9 @@ function multiSelectionMenu({
         },
         CONTEXT_MENU_SEPARATOR,
         {
-            label: translate('viewContainers.files.menu.moveToTrash'),
+            label: translate('viewContainers.files.menu.moveManyToTrash', {
+                count: actionPaths.length,
+            }),
             shortcut: 'cmd+backspace',
             onSelect: confirmTrash,
         },

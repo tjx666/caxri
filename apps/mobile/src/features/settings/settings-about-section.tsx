@@ -26,6 +26,7 @@ export const SettingsAboutSection = ({ theme }: { theme: MobileTheme }) => {
                 accessibilityHint={canCheck ? t('update.checkHint') : undefined}
                 label={t('settings.version')}
                 onPress={canCheck ? checkNow : undefined}
+                showsChevron
                 testID="settings-app-version"
                 theme={theme}
                 value={[version ?? t('settings.unknown'), checkLabel].filter(Boolean).join(' · ')}

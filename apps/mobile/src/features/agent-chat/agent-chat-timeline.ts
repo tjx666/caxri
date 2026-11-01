@@ -138,6 +138,11 @@ export type AgentChatTimelineEntry =
           status: AgentChatTurn['status'];
           stoppedBy?: AgentChatTurn['stoppedBy'];
           /**
+           * Set on a failed turn whose usage limit has an automatic continuation scheduled: the failure is a wait, so
+           * the row reads muted instead of as an error.
+           */
+          continuationScheduled?: true;
+          /**
            * Whether the row toggles the turn's folded work, which then follows it as ordinary entries. Absent when the
            * turn had nothing to fold (a prompt and its reply), so the row only says how the turn went.
            */
@@ -309,6 +314,9 @@ function finishedTurnEntries(
      * A turn split by steered messages gets a row per fold, each timed by its own segment; only the last says how the
      * turn ended, as on Desktop.
      */
+    const continuationScheduled = visible.some(
+        (item) => item.type === 'notice' && item.usageLimit?.autoContinue?.status === 'waiting',
+    );
     const row = (
         fold: 'collapsed' | 'expanded' | undefined,
         segment: AgentChatTurnFoldSegment = WHOLE_TURN,
@@ -332,6 +340,7 @@ function finishedTurnEntries(
             ),
             status,
             ...(stoppedBy && { stoppedBy }),
+            ...(hasOutcome && continuationScheduled && { continuationScheduled: true as const }),
             ...(fold && { fold }),
         };
     };
@@ -512,13 +521,15 @@ export function holdEndedTurnsOpen(
 
 /**
  * The semantic tone of a finished turn's footer, as Desktop tones its fold row: a failed turn is `danger`, one that
- * stopped without the user asking `warning`, and a completed turn or one the user stopped stays quiet.
+ * stopped without the user asking `warning`, a failure the Chat will continue past on its own (a scheduled usage-limit
+ * continuation) `muted`, and a completed turn or one the user stopped stays quiet.
  */
 export function agentChatTurnTone(
     status: AgentChatTurn['status'],
     stoppedBy?: AgentChatTurn['stoppedBy'],
+    isContinuationScheduled = false,
 ): 'danger' | 'muted' | 'warning' {
-    if (status === 'failed') return 'danger';
+    if (status === 'failed') return isContinuationScheduled ? 'muted' : 'danger';
     return status === 'interrupted' && stoppedBy !== 'user' ? 'warning' : 'muted';
 }
 

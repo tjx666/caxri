@@ -140,7 +140,9 @@ test('Environment monitoring keeps optional signals off and reports configured e
         await expect(environmentPage.getByText('203.0.113.10', { exact: true })).toBeVisible();
         await expect(environmentPage.getByText('Current warnings')).toBeVisible();
         await expect(environmentPage.getByRole('button', { name: 'Check Now' })).toBeVisible();
-        await expect(environmentPage.getByRole('button', { name: 'Use Current IP' })).toBeVisible();
+        await expect(
+            environmentPage.getByRole('button', { name: 'Accept Current IP as Expected' }),
+        ).toBeVisible();
         await running.page.mouse.move(0, 0);
         await warning.hover();
         await expect(warningTooltip).toContainText(

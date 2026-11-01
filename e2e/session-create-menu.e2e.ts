@@ -140,17 +140,17 @@ test('arrow keys reach the empty-Project New Session row and follow the Session 
 });
 
 /**
- * Import from History opens Session search on the conversations not yet in Caxri, ranking the menu's Project first; a
+ * Import Conversation opens Session search on the conversations not yet in Caxri, ranking the menu's Project first; a
  * plain reopen afterwards starts from the default filters again (github.com/tjx666/caxri/issues/3153).
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('Import from History opens Session search on conversations not in Caxri', async ({}, testInfo) => {
+test('Import Conversation opens Session search on conversations not in Caxri', async ({}, testInfo) => {
     const { directory, running } = await emptyProject();
     try {
         await running.page.locator('.empty-project').click();
         await running.page
             .getByRole('menu')
-            .getByRole('menuitem', { name: 'Import from History…' })
+            .getByRole('menuitem', { name: 'Import Conversation…' })
             .click();
 
         const statusFilter = (filter: string) =>

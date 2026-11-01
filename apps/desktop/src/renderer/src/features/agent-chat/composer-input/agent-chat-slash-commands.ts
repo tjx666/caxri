@@ -1,13 +1,21 @@
-import type { AgentAction, AgentChatAppCommand, AgentChatCommand } from '@caxri/protocol';
+import type {
+    AgentAction,
+    AgentChatAppCommand,
+    AgentChatCommand,
+    TerminalRecord,
+} from '@caxri/protocol';
 import {
     AGENT_CHAT_APP_COMMANDS,
     AGENT_CHAT_GOAL_COMMAND,
     AGENT_CHAT_SESSION_HANDOFF_COMMAND,
     agentChatAppCommandAction,
     agentChatSessionHandoffAction,
+    agentProviderCatalog,
+    isChatTerminal,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
+import { sessionForkBlocker } from '../../session/session-agent-commands';
 
 /**
  * The Desktop Chat composer's slash-command and skill menu helpers that are Desktop-only. Runnable commands are the
@@ -90,6 +98,45 @@ export interface AgentChatAppCommandState {
      */
     hasSession: boolean;
     isPinned: boolean;
+    /**
+     * Display name of the Chat's Agent, for "Not supported by {{agent}}"; absent reads "this Agent".
+     */
+    agentName?: string;
+    /**
+     * The real cause behind each unavailable command, from {@link agentChatAppCommandCauses}. A command without an entry
+     * keeps its default reason.
+     */
+    causes?: AgentChatAppCommandCauses;
+}
+
+/**
+ * Why an app command is unavailable: the provider or Terminal kind cannot do it (`provider`, permanent for this Chat),
+ * or the Chat has not loaded the control yet (`loading`, transient).
+ */
+type AgentChatAppCommandCause = 'provider' | 'loading';
+type AgentChatAppCommandCauses = Partial<Record<AgentChatAppCommand, AgentChatAppCommandCause>>;
+
+/**
+ * Splits the unavailable `/model`, `/plan`, `/btw`, and `/fork` rows into a provider limit and a transient state, from
+ * what the Terminal record says. A Chat of a provider that supports the command only lacks the control until it loads;
+ * a missing Agent, a non-Chat surface, or a provider without the capability never gets it.
+ */
+export function agentChatAppCommandCauses(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'provider' | 'surface'> | undefined,
+): AgentChatAppCommandCauses {
+    const provider = terminal?.provider;
+    const isChat = provider !== undefined && terminal !== undefined && isChatTerminal(terminal);
+    const loadingOrProvider: AgentChatAppCommandCause = isChat ? 'loading' : 'provider';
+    const forkBlocker = sessionForkBlocker(terminal);
+    return {
+        model: loadingOrProvider,
+        plan: loadingOrProvider,
+        btw:
+            provider && isChat && agentProviderCatalog[provider].capabilities.chatSideQuestion
+                ? 'loading'
+                : 'provider',
+        ...(forkBlocker && forkBlocker !== 'noConversation' && { fork: 'provider' as const }),
+    };
 }
 
 function isAgentChatAppCommandAvailable(
@@ -160,15 +207,27 @@ function agentChatAppCommandDescription(
     }
 }
 
-function agentChatAppCommandUnavailableReason(command: AgentChatAppCommand, t: Translate): string {
+function agentChatAppCommandUnavailableReason(
+    command: AgentChatAppCommand,
+    state: AgentChatAppCommandState,
+    t: Translate,
+): string {
+    const cause = state.causes?.[command];
+    if (cause === 'loading') return t('agentChat.slash.app.unavailableLoading');
     switch (command) {
         case 'model':
         case 'plan':
         case 'btw': {
-            return t('agentChat.slash.app.unavailableAgent');
+            return t('agentChat.slash.app.unavailableAgent', {
+                agent: state.agentName ?? t('agentChat.slash.app.thisAgent'),
+            });
         }
         case 'fork': {
-            return t('agentChat.slash.app.unavailableFork');
+            return cause === 'provider'
+                ? t('agentChat.slash.app.unavailableAgent', {
+                      agent: state.agentName ?? t('agentChat.slash.app.thisAgent'),
+                  })
+                : t('agentChat.slash.app.unavailableFork');
         }
         default: {
             return t('agentChat.slash.app.unavailableSession');
@@ -187,7 +246,10 @@ export function agentChatAppCommandUnavailable(
     return new Map(
         AGENT_CHAT_APP_COMMANDS.filter(
             (command) => !isAgentChatAppCommandAvailable(command, state),
-        ).map((command) => [`/${command}`, agentChatAppCommandUnavailableReason(command, t)]),
+        ).map((command) => [
+            `/${command}`,
+            agentChatAppCommandUnavailableReason(command, state, t),
+        ]),
     );
 }
 

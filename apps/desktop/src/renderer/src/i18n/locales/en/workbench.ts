@@ -1,5 +1,6 @@
 export const workbench = {
     'workbench.welcome.addProject': 'Add Project',
+    'workbench.welcome.firstRunHint': 'Add a folder to start your first Session.',
     'workbench.welcome.newSession': 'New Session in {{project}}',
     'workbench.welcome.commandPalette': 'Command Palette',
     'workbench.welcome.keyboardShortcuts': 'Keyboard Shortcuts',

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createToastStore, TOAST_DURATION_MS } from '../toast-store';
+import { createToastStore, TOAST_DURATION_MS, TOAST_ERROR_DURATION_MS } from '../toast-store';
 
 const fakeTimers = () => {
     const pending = new Map<number, { callback: () => void; delayMs: number }>();
@@ -28,6 +28,12 @@ describe('toast store', () => {
         expect(timer?.delayMs).toBe(TOAST_DURATION_MS);
         timer?.callback();
         expect(store.getSnapshot()).toBeUndefined();
+    });
+
+    it('keeps an error toast longer than a success', () => {
+        const { pending, timers } = fakeTimers();
+        createToastStore(timers).show('error', 'Failed');
+        expect(pending.values().next().value?.delayMs).toBe(TOAST_ERROR_DURATION_MS);
     });
 
     it('replaces the current toast and restarts the timer', () => {

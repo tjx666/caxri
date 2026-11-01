@@ -164,7 +164,7 @@ describe('Move to Trash cleanup', () => {
         });
     });
 
-    it('reports no unsaved changes for a clean file', async () => {
+    it('reports no unsaved changes for a clean file and confirms with an info toast', async () => {
         useWorkbenchStore.setState({
             bootstrap: {
                 sessions: [session('session-a', 'project-1')],
@@ -198,6 +198,6 @@ describe('Move to Trash cleanup', () => {
             paths: ['/project/source.txt'],
             hasUnsavedChanges: false,
         });
-        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'info' }));
+        expect(getToasts()).toContainEqual(expect.objectContaining({ type: 'info' }));
     });
 });

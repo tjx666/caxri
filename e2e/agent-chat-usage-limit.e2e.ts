@@ -66,7 +66,7 @@ test('a Claude Chat that used up its 5-hour limit continues in Codex in a new Se
         await expect(rowStatus).toHaveAccessibleDescription(/^Continues automatically at /u);
         await page.screenshot({ path: testInfo.outputPath('usage-limit-recovery.png') });
         // Cancel ends the wait and leaves the rest of the card as it was.
-        await notice.getByRole('button', { name: 'Cancel' }).click();
+        await notice.getByRole('button', { name: 'Stop waiting' }).click();
         await expect(wait).toHaveCount(0);
         await expect(rowStatus).toHaveCount(0);
         await expect(notice.getByRole('button', { name: 'Continue now' })).toHaveCount(0);
@@ -116,7 +116,7 @@ test('a Claude Chat at 99% of its weekly usage refuses new messages and writes o
         const guard = chat.locator('[data-agent-chat-usage-guard]');
         await expect(guard).toContainText('Claude is at 99% of its weekly limit');
         await expect(guard).toContainText(/Caxri paused new requests, resets in/u);
-        await expect(chat.getByRole('button', { name: 'Open in another Agent' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Continue in another Agent' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('usage-guard.png') });
 
         // Enter does nothing while the guard holds; the message stays in the composer.
@@ -137,7 +137,7 @@ test('a Claude Chat at 99% of its weekly usage refuses new messages and writes o
         await fold.click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
         await expect(document).toHaveCount(0);
-        await expect(chat.getByRole('button', { name: 'Open in another Agent' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Continue in another Agent' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('usage-guard-folded.png') });
         await fold.click();
         await expect(document).toBeVisible();
@@ -261,7 +261,7 @@ test('a turn the weekly guard stopped waits for the reset on the guard card and 
         await expect(rowStatus).toHaveAccessibleName('Waiting for limit reset');
         await page.screenshot({ path: testInfo.outputPath('usage-guard-wait.png') });
 
-        await guard.getByRole('button', { name: 'Cancel' }).click();
+        await guard.getByRole('button', { name: 'Stop waiting' }).click();
         await expect(wait).toHaveCount(0);
         await expect(rowStatus).toHaveCount(0);
         // Only Claude is installed here, so the guard's other way forward reads as unavailable.

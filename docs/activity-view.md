@@ -81,7 +81,7 @@ Project as soon as the menu closed. `session.create` opens the same menu on the 
 creating directly, because the list is also where another Project is chosen: with more than one
 Project it leads with a **Project** choice that re-targets the Agent options below it and keeps the
 menu open, after T3 Code's sidebar New thread, which asks for the Project the same way. The Agent
-options, Empty Session, and Import from History are the Project heading's own list.
+options, Empty Session, and Import Conversation are the Project heading's own list.
 
 `Cmd+N` (`session.create`) reaches the same menu: while the side bar shows Activity,
 `openSessionCreationMenu` hands a Project-heading claim to this row's `activity` anchor, since no

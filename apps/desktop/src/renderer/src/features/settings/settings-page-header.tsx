@@ -13,6 +13,7 @@ export function SettingsPageHeader({
     query,
     onQueryChange,
     showAdvanced,
+    hiddenAdvancedCount,
     totalCount,
     visibleCount,
 }: {
@@ -20,6 +21,7 @@ export function SettingsPageHeader({
     query: string;
     onQueryChange: (query: string) => void;
     showAdvanced: boolean;
+    hiddenAdvancedCount: number;
     totalCount: number;
     visibleCount: number;
 }) {
@@ -42,6 +44,15 @@ export function SettingsPageHeader({
                             total: totalCount,
                             visible: visibleCount,
                         })}
+                    </p>
+                ) : hiddenAdvancedCount > 0 ? (
+                    <p className="m-0 text-[11px] text-muted">
+                        {t(
+                            hiddenAdvancedCount === 1
+                                ? 'settings.page.advancedHiddenOne'
+                                : 'settings.page.advancedHiddenOther',
+                            { count: hiddenAdvancedCount },
+                        )}
                     </p>
                 ) : (
                     <span />

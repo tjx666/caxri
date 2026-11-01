@@ -54,11 +54,7 @@ export function AgentChatFindBar({
     onSearchEarlier?: () => void;
 }) {
     const { t } = useTranslation();
-    const canSearchEarlier = canAgentChatFindSearchEarlier(
-        query,
-        count,
-        onSearchEarlier !== undefined,
-    );
+    const canSearchEarlier = canAgentChatFindSearchEarlier(query, onSearchEarlier !== undefined);
     const isEmpty = query !== '' && count === 0;
     const isSearching = isEmpty && (isLoadingEarlier || isAutoLoading);
     const hasLoadFailed = isEmpty && hasEarlierLoadFailed && !isSearching && canSearchEarlier;
@@ -72,7 +68,7 @@ export function AgentChatFindBar({
                 })}
                 focusRevision={focusRevision}
                 hasMatches={count > 0}
-                inputLabel={t('agentChat.find.label')}
+                inputLabel={t('agentChat.find.input')}
                 isDocked
                 isNoMatch={query !== '' && count === 0}
                 query={query}

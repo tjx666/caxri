@@ -21,6 +21,16 @@ export const dismissAgentChatCacheNotice = (terminalId: string, lastResponseAt: 
     dismissedResponseAt.set(terminalId, lastResponseAt);
 };
 
+/**
+ * Per Chat Terminal, the context size (`totalTokens`) at which the user dismissed the nearly-full notice. The notice
+ * returns once usage grows past that reading, and the entry is forgotten when the pressure ends (a compaction).
+ */
+const dismissedPressureTokens = new Map<string, number>();
+
+export const dismissAgentChatPressureNotice = (terminalId: string, totalTokens: number): void => {
+    dismissedPressureTokens.set(terminalId, totalTokens);
+};
+
 export interface AgentChatContextNotice {
     /**
      * One line per notice, the cache line first.
@@ -39,6 +49,10 @@ export interface AgentChatContextNotice {
      * Present while a cache notice shows: the reply the Dismiss button holds the notice for.
      */
     dismissAt?: number;
+    /**
+     * Present while the nearly-full line shows: the context size the Dismiss button holds that line for.
+     */
+    dismissPressureAt?: number;
 }
 
 /**
@@ -59,7 +73,13 @@ export function agentChatContextNotice(
         usage.lastResponseAt,
         dismissedResponseAt.get(terminalId),
     );
-    const { cache, pressure } = alerts;
+    const { cache } = alerts;
+    const dismissedTokens = dismissedPressureTokens.get(terminalId);
+    if (!alerts.pressure) dismissedPressureTokens.delete(terminalId);
+    const pressure =
+        alerts.pressure && (dismissedTokens === undefined || usage.totalTokens > dismissedTokens)
+            ? alerts.pressure
+            : undefined;
     const lines: string[] = [];
     if (cache) {
         const cost =
@@ -89,5 +109,6 @@ export function agentChatContextNotice(
         tone: pressure || cache?.state !== 'expired' ? 'warning' : 'muted',
         isContextFull: pressure !== undefined,
         dismissAt: cache ? usage.lastResponseAt : undefined,
+        dismissPressureAt: pressure ? usage.totalTokens : undefined,
     };
 }

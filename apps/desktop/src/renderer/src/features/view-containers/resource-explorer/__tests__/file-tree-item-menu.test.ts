@@ -148,11 +148,11 @@ describe('fileTreeItemMenu', () => {
             'Copy Path',
             'Copy Relative Path',
             '---',
-            'Move to Trash',
+            'Move 2 Items to Trash',
         ]);
         actions.get(items.find((item) => item.label === 'Cut')!.id!)?.();
         expect(menu.copyEntries).toHaveBeenCalledWith('cut');
-        actions.get(items.find((item) => item.label === 'Move to Trash')!.id!)?.();
+        actions.get(items.find((item) => item.label === 'Move 2 Items to Trash')!.id!)?.();
         expect(menu.confirmTrash).toHaveBeenCalledOnce();
     });
 

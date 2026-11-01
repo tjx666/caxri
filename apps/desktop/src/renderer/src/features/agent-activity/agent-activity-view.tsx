@@ -37,7 +37,10 @@ import {
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
 import { useAgentActivityClock } from './use-agent-activity-clock';
-import { useAgentActivityGroupCollapse } from './use-agent-activity-group-collapse';
+import {
+    useAgentActivityAutoExpand,
+    useAgentActivityGroupCollapse,
+} from './use-agent-activity-group-collapse';
 
 const NO_RECORDS: never[] = [];
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
@@ -168,6 +171,7 @@ export function AgentActivityView() {
             new Map(groups.map((group) => [group.id, agentActivityHeadingPresentation(group, t)])),
         [groups, t],
     );
+    useAgentActivityAutoExpand(headings, groupCollapse.collapsedGroupIds, groupCollapse.expand);
     /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
      * name, a state phrase, and this, inside a side bar the user can drag down to 180px; "8 minutes ago" costs roughly
@@ -207,7 +211,10 @@ export function AgentActivityView() {
             <div className="flex min-h-0 flex-1 flex-col">
                 <AgentActivityNewSessionBar />
                 <div className="agent-activity-empty flex min-h-0 flex-1 items-center justify-center p-6 text-center text-xs text-muted">
-                    {t('agentActivity.empty')}
+                    <div className="flex flex-col gap-1">
+                        <span>{t('agentActivity.empty')}</span>
+                        <span>{t('agentActivity.emptyHint')}</span>
+                    </div>
                 </div>
             </div>
         );

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 
 import type { CommandId } from '@caxri/protocol';
-import { formatShortcut } from '@caxri/protocol';
 import { ExternalLink, Plus, SquarePen } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -59,14 +58,15 @@ function WelcomeRow({
     const shortcut = useCommandShortcut(commandId);
     return (
         <li>
-            <button
-                className="flex h-7 w-full cursor-pointer items-center justify-between gap-6 rounded-md border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                type="button"
+            <Button
+                className="h-7 w-full justify-between gap-6 px-2 text-left text-[12px] font-normal text-muted"
+                size="sm"
+                variant="ghost"
                 onClick={onSelect}
             >
                 <span>{label}</span>
                 {shortcut ? <ShortcutBadge compact shortcut={shortcut} /> : trailing}
-            </button>
+            </Button>
         </li>
     );
 }
@@ -105,12 +105,19 @@ export function WelcomeView() {
                     <Plus aria-hidden="true" size={14} />
                     {t('workbench.welcome.addProject')}
                     {addProjectShortcut && (
-                        <span className="ml-1 opacity-70">
-                            {formatShortcut(addProjectShortcut)}
-                        </span>
+                        <ShortcutBadge
+                            compact
+                            className="ml-1 opacity-70"
+                            shortcut={addProjectShortcut}
+                        />
                     )}
                 </Button>
             </div>
+            {!hasProject && (
+                <p className="m-0 -mt-3 text-[12px] text-muted">
+                    {t('workbench.welcome.firstRunHint')}
+                </p>
+            )}
             <ul className="m-0 flex w-75 max-w-full list-none flex-col gap-0.5 p-0">
                 <WelcomeRow
                     commandId="commandPalette.open"

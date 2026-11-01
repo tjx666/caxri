@@ -197,10 +197,12 @@ function ContextPageHeader({
             <Tooltip content={t('agentChat.contextPage.refresh')}>
                 <Button
                     aria-label={t('agentChat.contextPage.refresh')}
-                    disabled={isFetching}
+                    aria-disabled={isFetching || undefined}
                     size="icon"
                     variant="ghost"
-                    onClick={onRefresh}
+                    onClick={() => {
+                        if (!isFetching) onRefresh();
+                    }}
                 >
                     <RefreshCw
                         aria-hidden="true"

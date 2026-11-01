@@ -16,21 +16,27 @@ import type { MobileTheme } from '../../theme/tokens';
 export const AgentChatDockSummaryRow = ({
     isExpanded,
     onToggle,
+    queue,
     segments,
     theme,
 }: {
     isExpanded: boolean;
     onToggle: () => void;
+    /**
+     * The queue count, pinned after the line so a long status never truncates it.
+     */
+    queue?: string;
     segments: readonly string[];
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     const line = segments.join(' · ');
+    const label = [...segments, ...(queue ? [queue] : [])].join(' · ');
     return (
         <Card padded={false} style={styles.dock} theme={theme}>
             <Pressable
                 accessibilityHint={t(isExpanded ? 'chat.dock.collapse' : 'chat.dock.expand')}
-                accessibilityLabel={line}
+                accessibilityLabel={label}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isExpanded }}
                 onPress={onToggle}
@@ -45,6 +51,14 @@ export const AgentChatDockSummaryRow = ({
                 >
                     {line}
                 </Text>
+                {queue ? (
+                    <Text
+                        style={[styles.queue, { color: theme.muted }]}
+                        testID="agent-chat-dock-summary-queue"
+                    >
+                        {queue}
+                    </Text>
+                ) : null}
                 <ChevronDown
                     color={theme.muted}
                     size={16}
@@ -68,6 +82,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: mobileSpace.md,
     },
     line: { ...mobileType.meta, flex: 1, minWidth: 0 },
+    queue: { ...mobileType.meta, fontVariant: ['tabular-nums'], flexShrink: 0 },
     chevronOpen: { transform: [{ rotate: '180deg' }] },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

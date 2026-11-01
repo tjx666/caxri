@@ -137,7 +137,11 @@ function ApprovalBody({
                             size="sm"
                             variant={
                                 decision === 'accept'
-                                    ? 'default'
+                                    ? // A card that asks the user to review elsewhere first (the waiting popup's
+                                      // file change) leaves Open Session as the primary action.
+                                      reviewHint
+                                        ? 'secondary'
+                                        : 'default'
                                     : decision === 'decline'
                                       ? 'ghost'
                                       : 'secondary'
@@ -158,7 +162,6 @@ function ApprovalBody({
                             {label}
                         </Button>
                     );
-                    if (decision === 'acceptForSession') return button;
                     return (
                         <Tooltip
                             content={hint ?? label}

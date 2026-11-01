@@ -5,6 +5,7 @@ import { pathBasename } from '@caxri/utils';
 import { translate } from '../../../../i18n';
 import { parentDirectoryPath } from '../../../../lib/file-path';
 import { getSelectedSession, getSessionProjectId } from '../../../../stores/selectors';
+import type { ToastOptions } from '../../../../stores/toasts';
 import { describeFailureKey, pushToast, tryCommand } from '../../../../stores/toasts';
 import {
     closeOpenEditorsUnderPath,
@@ -64,6 +65,11 @@ export async function trashFiles(
         item.undoToken ? [{ name: item.name, undoToken: item.undoToken }] : [],
     );
     rememberUndoableTrash({ items: receipts, sessionId });
+    /**
+     * A batch that stopped part way already says so in its error toast, which then carries the Undo itself unless the
+     * unsaved-changes warning below does.
+     */
+    const showsCompletion = items.length > 0 && (!failure || hasUnsavedChanges);
     if (failure)
         pushToast(
             'error',
@@ -73,31 +79,69 @@ export async function trashFiles(
                 total: paths.length,
                 reason: failure.message,
             }),
+            showsCompletion ? undefined : trashUndoAction(sessionId, receipts),
         );
     /**
-     * A Trash that can be taken back (Cmd+Z in the tree) needs no notice: the rows disappearing are the feedback. Only
-     * a Trash that discarded unsaved edits says so, in a persistent warning, since those edits are the one thing the
-     * Trash cannot give back. The notification's Undo button covers one receipt; a batch is taken back with Cmd+Z.
+     * Always confirmed with a toast carrying Undo: Cmd+Z in the tree is hidden behind row focus, so the rows
+     * disappearing alone left the user no visible way back. A Trash that discarded unsaved edits says so in a
+     * persistent warning instead, since those edits are the one thing the Trash cannot give back.
      */
-    if (hasUnsavedChanges) {
-        const single = items.length === 1 ? items[0] : undefined;
+    if (showsCompletion)
         pushToast(
-            'warning',
-            single
-                ? translate('viewContainers.files.trashedUnsaved', { name: single.name })
-                : translate('viewContainers.files.trashedUnsavedMany', { count: items.length }),
+            hasUnsavedChanges ? 'warning' : 'info',
+            trashedToastMessage(items, hasUnsavedChanges),
             {
-                persist: true,
-                ...(single?.undoToken && {
-                    action: {
-                        id: 'files.undoTrash',
-                        params: { sessionId, undoToken: single.undoToken, name: single.name },
-                    },
-                }),
+                ...(hasUnsavedChanges && { persist: true }),
+                ...trashUndoAction(sessionId, receipts),
             },
         );
-    }
     return items.map((item) => item.path);
+}
+
+/**
+ * The confirmation text for a finished Trash move: names the item for a single entry and counts a batch, with the
+ * unsaved-changes caveat when edits were discarded.
+ */
+export function trashedToastMessage(
+    items: ReadonlyArray<{ name: string }>,
+    hasUnsavedChanges: boolean,
+): string {
+    if (items.length === 1)
+        return translate(
+            hasUnsavedChanges
+                ? 'viewContainers.files.trashedUnsaved'
+                : 'viewContainers.files.trashed',
+            { name: items[0].name },
+        );
+    return translate(
+        hasUnsavedChanges
+            ? 'viewContainers.files.trashedUnsavedMany'
+            : 'viewContainers.files.trashedMany',
+        { count: items.length },
+    );
+}
+
+/**
+ * The toast Undo action for a Trash move: the single-receipt action for one entry, the batch action for several, and
+ * nothing when the Server issued no receipt.
+ */
+export function trashUndoAction(
+    sessionId: string,
+    receipts: ReadonlyArray<{ name: string; undoToken: string }>,
+): Pick<ToastOptions, 'action'> {
+    if (receipts.length === 0) return {};
+    if (receipts.length === 1)
+        return {
+            action: {
+                id: 'files.undoTrash',
+                params: {
+                    sessionId,
+                    undoToken: receipts[0].undoToken,
+                    name: receipts[0].name,
+                },
+            },
+        };
+    return { action: { id: 'files.undoTrashMany', params: { sessionId, items: [...receipts] } } };
 }
 
 /**
@@ -161,6 +205,11 @@ export async function didUndoTrashedFile(
 }
 
 /**
+ * Restores started by `undoLatestTrash` that have not settled yet; keeps a repeated Cmd+Z quiet meanwhile.
+ */
+const restoresInFlight = new Set<symbol>();
+
+/**
  * Cmd+Z in the Files tree: takes back the latest Move to Trash of `sessionId` (every entry of a multi-selection Trash)
  * if no later file operation made it stale. Returns the Trash it took back, or `undefined` when there was nothing to
  * undo, so the caller only swallows the keystroke when it acted on it.
@@ -170,29 +219,54 @@ export function undoLatestTrash(
     sessionId: string,
 ): UndoableTrash | undefined {
     const trash = undoableTrashFor(sessionId);
-    if (!trash) return undefined;
+    if (!trash) {
+        /**
+         * A repeat press while the first restore still runs finds the slot already claimed; that is not "nothing to
+         * undo", so stay silent instead of stacking a misleading toast per auto-repeat.
+         */
+        if (restoresInFlight.size === 0)
+            pushToast('info', translate('viewContainers.files.nothingToUndo'));
+        return undefined;
+    }
     /**
      * Claim the slot before the async restore: a second Cmd+Z (double press or key auto-repeat) would otherwise send
      * the same receipts again and show an error toast beside the success one. A name conflict is the one retryable
      * failure, so those receipts go back into the slot, unless a later operation already filled it.
      */
     forgetUndoableTrash();
+    const restore = Symbol('restore');
+    restoresInFlight.add(restore);
     void (async () => {
-        const restored: string[] = [];
-        const conflicted: Array<UndoableTrash['items'][number]> = [];
-        for (const item of trash.items) {
-            // Sequential so two receipts for the same folder never race on its listing.
-            // eslint-disable-next-line no-await-in-loop -- see above
-            const path = await restoreTrashedItem(client, item.undoToken, item.name, () =>
-                conflicted.push(item),
-            );
-            if (path !== undefined) restored.push(path);
+        try {
+            await restoreTrashedItems(client, trash);
+        } finally {
+            restoresInFlight.delete(restore);
         }
-        revealRestoredPaths(restored);
-        if (conflicted.length > 0 && !undoableTrashFor(trash.sessionId))
-            rememberUndoableTrash({ items: conflicted, sessionId: trash.sessionId });
     })();
     return trash;
+}
+
+/**
+ * Restores every receipt of one Trash move, one after another, and reveals what came back. A name conflict is the one
+ * retryable failure, so those receipts go back into the Cmd+Z slot, unless a later operation already filled it.
+ */
+export async function restoreTrashedItems(
+    client: ResourceExplorerClient,
+    trash: UndoableTrash,
+): Promise<void> {
+    const restored: string[] = [];
+    const conflicted: Array<UndoableTrash['items'][number]> = [];
+    for (const item of trash.items) {
+        // Sequential so two receipts for the same folder never race on its listing.
+        // eslint-disable-next-line no-await-in-loop -- see above
+        const path = await restoreTrashedItem(client, item.undoToken, item.name, () =>
+            conflicted.push(item),
+        );
+        if (path !== undefined) restored.push(path);
+    }
+    revealRestoredPaths(restored);
+    if (conflicted.length > 0 && !undoableTrashFor(trash.sessionId))
+        rememberUndoableTrash({ items: conflicted, sessionId: trash.sessionId });
 }
 
 /**

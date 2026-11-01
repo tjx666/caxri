@@ -42,6 +42,7 @@ import {
 import {
     didUndoReplacedMove,
     didUndoTrashedFile,
+    restoreTrashedItems,
 } from '../features/view-containers/resource-explorer/trash/file-trash-actions';
 import { activeResourceExplorerClient } from '../features/view-containers/resource-explorer-catalog-client';
 import { translate } from '../i18n';
@@ -161,6 +162,18 @@ export const toastActionHandlers: ToastActionHandlers = {
             // Fire-and-forget: didUndoTrashedFile reports every outcome itself.
             void tryCommand(translate('viewContainers.files.restoreFailed'), async () =>
                 didUndoTrashedFile(await activeResourceExplorerClient(), undoToken, name),
+            );
+        },
+    },
+    'files.undoTrashMany': {
+        unavailable: ({ sessionId }) =>
+            hasSession(sessionId)
+                ? undefined
+                : translate('toasts.actionUnavailable.missingSession'),
+        run: ({ items, sessionId }) => {
+            // Fire-and-forget: restoreTrashedItems reports every outcome itself.
+            void tryCommand(translate('viewContainers.files.restoreFailed'), async () =>
+                restoreTrashedItems(await activeResourceExplorerClient(), { items, sessionId }),
             );
         },
     },

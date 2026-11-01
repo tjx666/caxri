@@ -23,6 +23,7 @@ export const viewContainersFiles = {
     'viewContainers.files.menu.copyRelativePath': 'Copy Relative Path',
     'viewContainers.files.menu.copyName': 'Copy Name',
     'viewContainers.files.menu.moveToTrash': 'Move to Trash',
+    'viewContainers.files.menu.moveManyToTrash': 'Move {{count}} Items to Trash',
     'viewContainers.files.busyReason': 'Busy — a file operation is in progress here',
     'viewContainers.files.nothingToPaste': 'Nothing to paste',
     'viewContainers.files.newFileName': 'New file name',
@@ -46,7 +47,8 @@ export const viewContainersFiles = {
     'viewContainers.files.conflict.folderDescription':
         'An item named "{{name}}" already exists in this folder. Folders cannot replace or be replaced — keep both to move it under a new name.',
     'viewContainers.files.conflict.fileDescription':
-        'An item named "{{name}}" already exists in this folder. Replacing it overwrites the existing file and cannot be undone.',
+        'An item named "{{name}}" already exists in this folder. Replace moves the existing file to Trash; you can undo it right after.',
+    'viewContainers.files.conflict.applyToAll': 'Apply to all remaining',
     'viewContainers.files.conflict.keepBoth': 'Keep Both',
     'viewContainers.files.conflict.replace': 'Replace',
     'viewContainers.files.creating': 'Creating item…',
@@ -56,6 +58,9 @@ export const viewContainersFiles = {
     'viewContainers.files.creatingInBackground': 'Creating item in background…',
     'viewContainers.files.renamingInBackground': 'Renaming item in background…',
     'viewContainers.files.movingInBackground': 'Moving item in background…',
+    'viewContainers.files.trashed': 'Moved "{{name}}" to Trash',
+    'viewContainers.files.trashedMany': 'Moved {{count}} items to Trash',
+    'viewContainers.files.nothingToUndo': 'Nothing to undo in Files',
     'viewContainers.files.trashedUnsaved':
         "Moved '{{name}}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.",
     'viewContainers.files.trashedUnsavedMany':

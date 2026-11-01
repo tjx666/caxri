@@ -27,6 +27,7 @@ import { useColorizedCode } from './use-colorized-code';
 export function CodeView({
     className,
     code,
+    copyLabel,
     defaultWrapped = false,
     isCollapsible = false,
     isPaintable = true,
@@ -39,6 +40,11 @@ export function CodeView({
      */
     className?: string;
     code: string;
+    /**
+     * Accessible name of the Copy button, for a block whose content is not code (`Copy output`). Defaults to `Copy
+     * code`.
+     */
+    copyLabel?: string;
     /**
      * Starts soft-wrapped, for text that reads as prose; the toggle still switches it.
      */
@@ -77,7 +83,7 @@ export function CodeView({
             {onRun && <RunButton onRun={onRun} />}
             <CopyIconButton
                 copy={() => writeToClipboardWithFeedback(textClipboard, code)}
-                label={t('core.copy.code')}
+                label={copyLabel ?? t('core.copy.code')}
             />
         </>
     );

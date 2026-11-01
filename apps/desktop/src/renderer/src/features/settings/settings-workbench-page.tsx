@@ -225,13 +225,14 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                                 <SlidersHorizontal size={14} />
                             </ToggleGroupItem>
                         </Tooltip>
-                        <Tooltip content={t('settings.page.view.source')}>
+                        <Tooltip content={t('settings.page.view.sourceHint')}>
                             <ToggleGroupItem
-                                aria-label={t('settings.page.view.source')}
+                                aria-label={t('settings.page.view.sourceLabel')}
                                 size="dense"
                                 value="source"
                             >
                                 <Braces size={14} />
+                                {t('settings.page.view.sourceLabel')}
                             </ToggleGroupItem>
                         </Tooltip>
                     </ToggleGroup>

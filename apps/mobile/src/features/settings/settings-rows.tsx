@@ -38,6 +38,7 @@ export const SettingsRow = ({
     isLast = false,
     label,
     onPress,
+    showsChevron = false,
     testID,
     theme,
     value,
@@ -49,6 +50,10 @@ export const SettingsRow = ({
     isLast?: boolean;
     label: string;
     onPress?: () => void;
+    /**
+     * Draws a trailing chevron so a row whose tap runs an action (a version check) reads as tappable, not as a fact.
+     */
+    showsChevron?: boolean;
     testID: string;
     theme: MobileTheme;
     value: string;
@@ -71,6 +76,7 @@ export const SettingsRow = ({
             <Text numberOfLines={1} style={[styles.rowValue, { color: valueColor ?? theme.muted }]}>
                 {value}
             </Text>
+            {showsChevron && onPress ? <ChevronRight color={theme.muted} size={18} /> : null}
         </View>
         {detail ? (
             <Text style={[styles.rowDetail, { color: detailColor ?? theme.muted }]}>{detail}</Text>
@@ -116,7 +122,10 @@ export const SettingsLinkRow = ({
 
 const styles = StyleSheet.create({
     section: { gap: mobileSpace.sm },
-    sectionTitle: { paddingHorizontal: mobileSpace.xs },
+    /**
+     * The i18n title is sentence case so a screen reader reads words; the heading shows it uppercase.
+     */
+    sectionTitle: { paddingHorizontal: mobileSpace.xs, textTransform: 'uppercase' },
     row: {
         gap: mobileSpace.xs,
         minHeight: mobileControl.row,

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../../i18n';
 import {
     agentChatAppCommandActions,
+    agentChatAppCommandCauses,
     agentChatAppCommandUnavailable,
     agentChatBuiltInActions,
     agentChatCaxriInvocations,
@@ -173,6 +174,43 @@ describe('Goal mode', () => {
             ]);
             expect(unavailable.get('/fork')).toBe('Available after the first message in this Chat');
             expect(agentChatAppCommandUnavailable(everything, translate).size).toBe(0);
+        });
+
+        it('tells a provider limit from a Chat that has not loaded yet', () => {
+            const lacking = {
+                ...everything,
+                canChangeModel: false,
+                canFork: false,
+                agentName: 'Codex',
+            };
+            const chat = { agentSessionId: 'a', provider: 'codex', surface: 'chat' } as const;
+            const loading = agentChatAppCommandUnavailable(
+                { ...lacking, causes: agentChatAppCommandCauses(chat) },
+                translate,
+            );
+            expect(loading.get('/model')).toBe('Available once the Chat loads');
+            const shell = agentChatAppCommandUnavailable(
+                { ...lacking, causes: agentChatAppCommandCauses(undefined) },
+                translate,
+            );
+            expect(shell.get('/model')).toBe('Not supported by Codex');
+            expect(shell.get('/fork')).toBe('Not supported by Codex');
+        });
+
+        it('reports a provider limit for /fork and /btw on a Chat whose provider lacks them', () => {
+            const chat = { agentSessionId: 'a', provider: 'antigravity', surface: 'chat' } as const;
+            const unavailable = agentChatAppCommandUnavailable(
+                {
+                    ...everything,
+                    canOpenSideChat: false,
+                    canFork: false,
+                    agentName: 'Antigravity',
+                    causes: agentChatAppCommandCauses(chat),
+                },
+                translate,
+            );
+            expect(unavailable.get('/fork')).toBe('Not supported by Antigravity');
+            expect(unavailable.get('/btw')).toBe('Not supported by Antigravity');
         });
 
         it('tags Caxri-run invocations, including /new-session', () => {

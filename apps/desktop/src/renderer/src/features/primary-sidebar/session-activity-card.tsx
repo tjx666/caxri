@@ -25,7 +25,7 @@ import {
     currentSessionActivityPresentation,
     sessionActivityPresentation,
 } from './session-activity';
-import { SessionCardMetrics } from './session-card-metrics';
+import { SessionCardMetrics, SessionCardMetricsDescription } from './session-card-metrics';
 import { SessionCardPullRequest } from './session-card-pull-request';
 import { sessionCardStatusLine } from './session-card-status';
 import { sessionPullRequestPresentation } from './session-pull-request';
@@ -175,6 +175,7 @@ export function SessionActivityCard({
                 {accessibleDescription}{' '}
                 <LastActiveText sentence timestamp={session.sessionActivityAt} />
                 {unreadSentence ? ` ${unreadSentence}` : undefined}
+                {visible && <SessionCardMetricsDescription sessionId={session.id} />}
             </span>
             {/*
              * A glance, after the Codex app's thread list: which Session, which Agent, how recently, which Project, and

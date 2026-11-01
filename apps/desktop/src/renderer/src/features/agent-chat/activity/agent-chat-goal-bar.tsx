@@ -12,7 +12,7 @@ import { cn } from '../../../lib/utilities';
 import { goalTimeFigures } from './agent-chat-elapsed-time';
 import { AgentChatGoalActions } from './agent-chat-goal-actions';
 import type { AgentChatWorkingActivity } from './agent-chat-goal-row';
-import { agentChatGoalSpend } from './agent-chat-goal-row';
+import { agentChatGoalAutoExpandKey, agentChatGoalSpend } from './agent-chat-goal-row';
 import { AgentChatRollingTime } from './agent-chat-rolling-time';
 import { AgentChatTurnMetricList } from './agent-chat-turn-metric-list';
 
@@ -108,6 +108,13 @@ export function AgentChatGoalBar({
 }) {
     const { t } = useTranslation();
     const [isExpanded, setExpanded] = useState(false);
+    const [autoExpandedKey, setAutoExpandedKey] = useState<string | undefined>();
+    // Opens the reason once when the goal ends unfinished; the same outcome never reopens after a manual collapse.
+    const autoExpandKey = goal ? agentChatGoalAutoExpandKey(goal) : undefined;
+    if (autoExpandKey !== undefined && autoExpandKey !== autoExpandedKey) {
+        setAutoExpandedKey(autoExpandKey);
+        setExpanded(true);
+    }
     if (!goal) return null;
     const runningTurnStartedAt =
         turnId === undefined ? undefined : turns?.find((turn) => turn.id === turnId)?.startedAt;

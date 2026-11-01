@@ -67,12 +67,17 @@ describe('agentChatReplyRetry', () => {
     it('sends the turn’s own message again, refused while a turn runs', () => {
         expect(agentChatReplyRetry(snapshot(), 't2', translate)).toEqual({
             itemId: 'u2',
+            laterTurns: 0,
             availability: { canRun: true },
         });
         expect(
             agentChatReplyRetry(snapshot({ activeTurnId: 't3' }), 't2', translate)?.availability,
         ).toEqual({ canRun: false, reason: translate('chat.edit.stopToEdit') });
         expect(agentChatReplyRetry(snapshot(), 'missing', translate)).toBeUndefined();
+    });
+
+    it('counts the later turns that sending again replaces', () => {
+        expect(agentChatReplyRetry(snapshot(), 't1', translate)?.laterTurns).toBe(1);
     });
 });
 

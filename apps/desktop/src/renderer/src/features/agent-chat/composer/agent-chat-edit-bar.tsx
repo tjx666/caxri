@@ -49,7 +49,7 @@ function EditBar({
     const isFilesDisabled = filesUnsupportedReason !== undefined;
     return (
         <div
-            className="flex h-8 min-w-0 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
+            className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
             data-agent-chat-composer-strip-row=""
             data-agent-chat-edit-bar=""
         >
@@ -86,6 +86,16 @@ function EditBar({
                     <X className="size-3.5" />
                 </Button>
             </Tooltip>
+            {!shouldRestoreFiles && !isFilesDisabled && (
+                <>
+                    {/* Forces the note onto its own row, then indents it by the leading icon's width and the row gap. */}
+                    <span aria-hidden className="basis-full" />
+                    <span aria-hidden className="size-3.5 shrink-0" />
+                    <p className="m-0 min-w-0 flex-1 pb-1.5 text-[11px] text-muted">
+                        {t('agentChat.edit.filesStay')}
+                    </p>
+                </>
+            )}
         </div>
     );
 }

@@ -76,7 +76,11 @@ const UsageLimitContent = ({
     const { locale, t } = useTranslation();
     const now = useMinuteClock();
     const scope = use(AgentChatUsageActionScope);
-    const reset = agentChatUsageLimitReset(usageLimit, now, t);
+    // A scheduled continuation already names the wait and its clock time; a second "Resets in" would repeat it.
+    const reset =
+        usageLimit.autoContinue?.status === 'waiting'
+            ? undefined
+            : agentChatUsageLimitReset(usageLimit, now, t);
     const detail = agentChatNoticeMessage(item, t);
     // A later turn failed on the limit too and carries the wait (Desktop collapses it the same way).
     if (usageLimit.superseded)

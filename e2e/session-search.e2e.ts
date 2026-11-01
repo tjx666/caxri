@@ -293,7 +293,7 @@ test('Session search finds open, archived, and external conversations and acts o
 
         // The selected result previews its messages without adding the conversation to Caxri.
         const preview = search.dialog.getByRole('region', { name: 'Conversation preview' });
-        await expect(preview).toContainText('Not in Caxri yet. Previewing does not add it.');
+        await expect(preview).toContainText('Not imported yet. Previewing does not import it.');
         await expect(preview).toContainText('Draft the overdue invoice reminder email');
         await expect(preview.locator('[data-session-search-preview-match]')).toContainText(
             'invoice',
@@ -425,7 +425,7 @@ test('Session search finds an Agent Chat conversation by message text and opens 
         await search.input.press('Enter');
         await expect(search.dialog).toHaveCount(0);
         const find = page.locator(VISIBLE_SESSION).getByRole('search', { name: 'Find in Chat' });
-        await expect(find.getByRole('textbox', { name: 'Find in Chat' })).toHaveValue(
+        await expect(find.getByRole('textbox', { name: 'Search text' })).toHaveValue(
             'probe with only 21',
         );
         await expect(find.getByText('1/1')).toBeVisible();

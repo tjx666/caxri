@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SESSION_ACTIVITY_GROUP_ORDER } from '@caxri/protocol';
 
 import { usePinnedCollapse } from '../primary-sidebar/hooks/use-pinned-collapse';
+import { groupsToAutoExpand } from './agent-activity-auto-expand';
 import type { AgentActivityGroupId } from './agent-activity-rows';
 
 const STORAGE_KEY = 'caxri.agent-activity-collapsed-groups';
@@ -86,4 +87,30 @@ export function useAgentActivityGroupCollapse(): {
         [expandPinned],
     );
     return { collapsedGroupIds, expand, toggle };
+}
+
+/**
+ * Reopens a collapsed "Needs attention" or "Failed" group when its count rises, so a Session that just arrived is not
+ * hidden. Counts come from the headings so the rule follows the number the user sees; `groupsToAutoExpand` owns the
+ * rule itself.
+ */
+export function useAgentActivityAutoExpand(
+    headings: ReadonlyMap<AgentActivityGroupId, { count?: number }>,
+    collapsedGroupIds: ReadonlySet<AgentActivityGroupId>,
+    expandGroup: (groupId: AgentActivityGroupId) => void,
+): void {
+    // Adjusted during render rather than in an effect (React's "storing information from previous renders"): the
+    // expansion lands in the same commit as the count that caused it. `expandGroup` only reopens "Needs attention" or
+    // "Failed", whose state is this component's own `useState`, so the update stays local.
+    const [observed, setObserved] = useState<{
+        counts?: ReadonlyMap<AgentActivityGroupId, number>;
+        headings?: ReadonlyMap<AgentActivityGroupId, { count?: number }>;
+    }>({});
+    if (observed.headings !== headings) {
+        const counts = new Map<AgentActivityGroupId, number>();
+        for (const [groupId, heading] of headings) counts.set(groupId, heading.count ?? 0);
+        for (const groupId of groupsToAutoExpand(observed.counts, counts, collapsedGroupIds))
+            expandGroup(groupId);
+        setObserved({ counts, headings });
+    }
 }

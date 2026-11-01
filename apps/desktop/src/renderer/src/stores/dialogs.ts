@@ -14,7 +14,8 @@ export type SettingsView =
     | 'notifications'
     | 'git-exclusions'
     | 'agent-suspension'
-    | 'claude-windows';
+    | 'claude-windows'
+    | 'environment-routes';
 
 /**
  * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the

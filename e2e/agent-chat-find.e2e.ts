@@ -41,7 +41,7 @@ test('Cmd+F finds text in a Chat, steps through matches, and opens a folded turn
         await message.focus();
         await page.keyboard.press('Meta+f');
         const find = session.getByRole('search', { name: 'Find in Chat' });
-        const input = find.getByRole('textbox', { name: 'Find in Chat' });
+        const input = find.getByRole('textbox', { name: 'Search text' });
         await expect(input).toBeFocused();
 
         // A new query starts at the first match at or below the top of the view. The latest turn is pinned to the

@@ -6,6 +6,8 @@ import {
     projectChipRevealOffset,
     projectChipShift,
     projectDropIndex,
+    projectMoveActions,
+    projectMoveTarget,
     projectReorder,
 } from '../project-order';
 
@@ -103,5 +105,25 @@ describe('projectChipRevealOffset', () => {
 
     it('scrolls back to the start for All', () => {
         expect(projectChipRevealOffset(undefined, 400, 1000)).toBe(0);
+    });
+});
+
+describe('projectMoveActions', () => {
+    const labels = { earlier: 'Earlier', later: 'Later' };
+
+    it('offers only the moves a chip can make', () => {
+        expect(projectMoveActions(0, 3, labels).map(({ name }) => name)).toEqual(['moveLater']);
+        expect(projectMoveActions(1, 3, labels).map(({ name }) => name)).toEqual([
+            'moveEarlier',
+            'moveLater',
+        ]);
+        expect(projectMoveActions(2, 3, labels).map(({ name }) => name)).toEqual(['moveEarlier']);
+        expect(projectMoveActions(0, 1, labels)).toEqual([]);
+    });
+
+    it('maps an action to the neighboring index', () => {
+        expect(projectMoveTarget('moveEarlier', 2)).toBe(1);
+        expect(projectMoveTarget('moveLater', 2)).toBe(3);
+        expect(projectMoveTarget('activate', 2)).toBeNull();
     });
 });

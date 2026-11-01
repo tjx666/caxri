@@ -1,4 +1,4 @@
-import type { KeyboardEvent, PointerEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import { useState } from 'react';
 
 import { formatTokens } from '@caxri/protocol';
@@ -9,6 +9,14 @@ import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { agentChatMessageFullTime } from '../../transcript/agent-chat-time';
 import type { ContextTurnAnalysis, ContextTurnPoint } from './turn-analysis';
+import {
+    focusTurnChartPointer,
+    INITIAL_TURN_CHART_FOCUS,
+    moveTurnChartKeyboard,
+    releaseTurnChartCursor,
+    toggleTurnChartPin,
+    turnChartFocusIndex,
+} from './turn-chart-focus';
 
 /**
  * The window after every request as a stacked column: the starting context, then what the conversation added by source.
@@ -77,18 +85,24 @@ function TurnChart({
 }) {
     const { t } = useTranslation();
     const { points, largestGrowthIndex } = analysis;
-    const [focusIndex, setFocusIndex] = useState<number>();
+    const [focus, setFocus] = useState(INITIAL_TURN_CHART_FOCUS);
+    const focusIndex = turnChartFocusIndex(focus);
     const max = Math.max(1, autoCompactThreshold ?? 0, ...points.map((point) => point.prompt));
     // Clamped because a refresh can shorten the history while a column is still selected.
     const index = clamp(focusIndex ?? points.length - 1, 0, points.length - 1);
     const point = points[index];
     const columnWidth = 100 / points.length;
-    const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const columnAt = (event: MouseEvent<HTMLDivElement>): number => {
         const box = event.currentTarget.getBoundingClientRect();
         const column = Math.floor(((event.clientX - box.left) / box.width) * points.length);
-        setFocusIndex(clamp(column, 0, points.length - 1));
+        return clamp(column, 0, points.length - 1);
     };
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setFocus((current) => toggleTurnChartPin(current, index, true));
+            return;
+        }
         const target = {
             ArrowLeft: index - 1,
             ArrowRight: index + 1,
@@ -97,17 +111,18 @@ function TurnChart({
         }[event.key];
         if (target === undefined) return;
         event.preventDefault();
-        setFocusIndex(clamp(target, 0, points.length - 1));
+        setFocus((current) => moveTurnChartKeyboard(current, target, points.length));
     };
     return (
         <div>
             <TurnReadout
                 isLargest={index === largestGrowthIndex}
                 point={point}
+                isAnnounced={focus.isKeyboard}
                 position={index + 1}
             />
             <div className="flex gap-2">
-                <div className="flex h-28 flex-col justify-between text-right text-[10px] text-muted tabular-nums">
+                <div className="flex h-28 flex-col justify-between text-right text-[11px] text-muted tabular-nums">
                     <span>{formatTokens(max)}</span>
                     <span>0</span>
                 </div>
@@ -116,10 +131,15 @@ function TurnChart({
                     className="relative h-28 min-w-0 flex-1 cursor-crosshair rounded-sm border-b border-border focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
                     role="group"
                     tabIndex={0}
-                    onBlur={() => setFocusIndex(undefined)}
+                    onBlur={() => setFocus(releaseTurnChartCursor)}
+                    onClick={(event) =>
+                        setFocus((current) => toggleTurnChartPin(current, columnAt(event), false))
+                    }
                     onKeyDown={onKeyDown}
-                    onPointerLeave={() => setFocusIndex(undefined)}
-                    onPointerMove={onPointerMove}
+                    onPointerLeave={() => setFocus(releaseTurnChartCursor)}
+                    onPointerMove={(event) =>
+                        setFocus((current) => focusTurnChartPointer(current, columnAt(event)))
+                    }
                 >
                     <span
                         aria-hidden
@@ -163,7 +183,7 @@ function TurnChart({
                     )}
                 </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pl-8 text-[10px] whitespace-nowrap text-muted">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pl-8 text-[11px] whitespace-nowrap text-muted">
                 {PARTS.map((part) => (
                     <span key={part} className="inline-flex items-center gap-1">
                         <span
@@ -231,16 +251,21 @@ function TurnReadout({
     point,
     position,
     isLargest,
+    isAnnounced,
 }: {
     point: ContextTurnPoint;
     position: number;
     isLargest: boolean;
+    /**
+     * Whether a change of this readout is announced: only after a keyboard move, never for each pointer move.
+     */
+    isAnnounced: boolean;
 }) {
     const { t } = useTranslation();
     const { turn } = point;
     return (
         <div
-            aria-live="polite"
+            aria-live={isAnnounced ? 'polite' : 'off'}
             className="mb-2 flex min-h-10 flex-col gap-1 text-[11px] text-muted tabular-nums"
         >
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

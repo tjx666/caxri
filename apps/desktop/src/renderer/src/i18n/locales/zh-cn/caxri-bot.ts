@@ -116,7 +116,7 @@ export const caxriBot: TranslatedNamespace<typeof source> = {
         '完全访问：Caxri Bot 及其启动的 Agent 会直接编辑文件和运行命令，不再询问。',
     'caxriBot.start.surfaceLabel': '运行方式',
     'caxriBot.start.surface': '在 Terminal 中运行。启动后可从标题栏切换到对话。',
-    'caxriBot.start.backgroundLabel': '窗口',
+    'caxriBot.start.backgroundLabel': '关闭后',
     'caxriBot.start.background':
         '关闭此窗口后，Caxri Bot 及其 Agent 会继续运行。可通过“更多 > 停止 Caxri Bot”停止。',
     'caxriBot.start.action': '启动 Caxri Bot',

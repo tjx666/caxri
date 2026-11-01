@@ -16,6 +16,7 @@ export const newSessionStyles = StyleSheet.create({
         width: '100%',
     },
     group: { gap: mobileSpace.sm, marginTop: mobileSpace.lg },
+    groupHint: { ...mobileType.meta },
     groupLabel: { ...mobileType.meta, fontWeight: '700', marginBottom: mobileSpace.xxs },
     choice: {
         alignItems: 'center',

@@ -7,12 +7,14 @@ import { Check, RefreshCw, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { ReportCard, StatTile } from '../../components/report-card';
 import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
 import { usePolledQuery } from '../../hooks/use-polled-query';
 import type { Translate, TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { formatDateTime } from '../../lib/locale-format';
 import { cn } from '../../lib/utilities';
 import { caxriQueryKey, queryClient } from '../../queries/client';
+import { openSettings } from '../../stores/dialogs';
 import { tryCommand } from '../../stores/toasts';
 import { checkEnvironmentNow, useCurrentEnvironmentIp } from './environment-monitor-client';
 import type { EnvironmentChange, EnvironmentChangeField } from './environment-monitor-presentation';
@@ -87,19 +89,16 @@ function signalValue(t: Translate, value: boolean | undefined): string {
     return t(key);
 }
 
-function Signal({ label, value }: { label: string; value: boolean | undefined }) {
+/**
+ * A flag the third-party profile reports. Unreported flags get no chip; the Alert `warning` treatment keeps the color
+ * one shared token set.
+ */
+function Signal({ label }: { label: string }) {
     const { t } = useTranslation();
     return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-1 text-[11px]',
-                value === true &&
-                    'border-[color-mix(in_srgb,var(--warning)_45%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)] text-warning',
-                value !== true && 'text-muted',
-            )}
-        >
-            <span className="font-medium text-foreground">{label}</span>
-            {signalValue(t, value)}
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-warning px-2 py-1 text-[11px] text-warning">
+            <span className="font-medium">{label}</span>
+            {t('environment.value.reported')}
         </span>
     );
 }
@@ -128,6 +127,7 @@ function CurrentExitCard({ state }: { state: EnvironmentMonitorState }) {
 
     const profile = observation.profile;
     const available = profile.status === 'available' ? profile : undefined;
+    const reportedSignals = SIGNALS.filter(({ field }) => available?.signals[field] === true);
     return (
         <ReportCard
             title={t('environment.current.title')}
@@ -172,9 +172,14 @@ function CurrentExitCard({ state }: { state: EnvironmentMonitorState }) {
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
                 <RiskScore value={available?.riskScore} />
-                {SIGNALS.map(({ field, labelKey }) => (
-                    <Signal key={field} label={t(labelKey)} value={available?.signals[field]} />
+                {reportedSignals.map(({ field, labelKey }) => (
+                    <Signal key={field} label={t(labelKey)} />
                 ))}
+                {available !== undefined && reportedSignals.length === 0 && (
+                    <span className="inline-flex items-center px-1 py-1 text-[11px] text-muted">
+                        {t('environment.signal.noneReported')}
+                    </span>
+                )}
             </div>
             <div className="mt-3 text-[11px] leading-[1.45] text-muted">
                 {profile.status === 'available'
@@ -280,9 +285,18 @@ function ChecksCard({ state }: { state: EnvironmentMonitorState }) {
                         </span>
                     </div>
                     {state.mihomo.routes.length === 0 ? (
-                        <p className="mt-1 mb-0 text-[11px] text-muted">
-                            {t('environment.checks.routesNotConfigured')}
-                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                            <p className="m-0 text-[11px] text-muted">
+                                {t('environment.checks.routesNotConfigured')}
+                            </p>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openSettings('environment-routes')}
+                            >
+                                {t('environment.checks.editInSettings')}
+                            </Button>
+                        </div>
                     ) : (
                         <div className="mt-2 grid gap-2">
                             {state.mihomo.routes.map((route) => (
@@ -333,7 +347,7 @@ function ChecksCard({ state }: { state: EnvironmentMonitorState }) {
 
 export function EnvironmentWorkbenchPage({ headerAction }: { headerAction?: ReactNode } = {}) {
     const { t } = useTranslation();
-    const [busy, setBusy] = useState<'check' | 'useIp'>();
+    const [busy, setBusy] = useState<'check' | 'useIp' | undefined>('check');
     const query = usePolledQuery('environmentMonitor.read', undefined, {
         label: 'environmentMonitor.read',
         intervalMs: STATUS_POLL_INTERVAL_MS,
@@ -352,6 +366,10 @@ export function EnvironmentWorkbenchPage({ headerAction }: { headerAction?: Reac
             .catch((error: unknown) => {
                 // The polled query below owns the visible error state; this keeps the cause for diagnostics.
                 console.error('environmentMonitor.check failed on mount', error);
+            })
+            .finally(() => {
+                // The mount check drives the same busy spinner as Check Now; a user action started meanwhile keeps its own.
+                if (!isDisposed) setBusy((current) => (current === 'check' ? undefined : current));
             });
         return () => {
             isDisposed = true;
@@ -389,14 +407,16 @@ export function EnvironmentWorkbenchPage({ headerAction }: { headerAction?: Reac
                 </div>
                 <div className="flex items-center gap-2">
                     {state?.canUseCurrentIp && (
-                        <Button
-                            aria-disabled={Boolean(busy)}
-                            size="sm"
-                            variant="secondary"
-                            onClick={async () => update('useIp', useCurrentEnvironmentIp)}
-                        >
-                            {t('environment.useCurrentIp')}
-                        </Button>
+                        <Tooltip content={t('environment.useCurrentIpHint')}>
+                            <Button
+                                aria-disabled={Boolean(busy)}
+                                size="sm"
+                                variant="secondary"
+                                onClick={async () => update('useIp', useCurrentEnvironmentIp)}
+                            >
+                                {t('environment.useCurrentIp')}
+                            </Button>
+                        </Tooltip>
                     )}
                     <Button
                         aria-disabled={Boolean(busy)}

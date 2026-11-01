@@ -58,12 +58,14 @@ export function agentChatReplyRetry(
     snapshot: ReplySnapshot | undefined,
     turnId: string,
     t: Translate,
-): { itemId: string; availability: AgentChatReplyAvailability } | undefined {
+): { itemId: string; laterTurns: number; availability: AgentChatReplyAvailability } | undefined {
     const itemId = snapshot && turnPromptId(snapshot, turnId);
     if (!itemId) return undefined;
     const edit = agentChatMessageEditAvailability(snapshot, itemId, t);
     return {
         itemId,
+        // The turns after this one that sending again replaces too; Retry confirms before dropping them.
+        laterTurns: edit.canEdit ? Math.max(0, edit.removedTurns - 1) : 0,
         availability: edit.canEdit ? { canRun: true } : { canRun: false, reason: edit.reason },
     };
 }

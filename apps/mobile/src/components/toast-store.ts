@@ -6,6 +6,11 @@ import { notifyListeners } from '../lib/notify-listeners';
 export const TOAST_DURATION_MS = 3000;
 
 /**
+ * How long an error toast stays: longer than a success, since it carries a reason the reader may need to read.
+ */
+export const TOAST_ERROR_DURATION_MS = 6000;
+
+/**
  * `success` confirms an action that finished (a copy); `error` reports one that could not (a preview or link that would
  * not open). The tone only picks the icon and its color; the sentence always says what happened.
  */
@@ -62,7 +67,10 @@ export const createToastStore = (timers: ToastTimers = systemTimers) => {
             if (handle !== undefined) timers.clear(handle);
             current = { detail, id: nextId, message, tone };
             nextId += 1;
-            handle = timers.set(dismiss, TOAST_DURATION_MS);
+            handle = timers.set(
+                dismiss,
+                tone === 'error' ? TOAST_ERROR_DURATION_MS : TOAST_DURATION_MS,
+            );
             emit();
         },
         subscribe: (listener: () => void) => {

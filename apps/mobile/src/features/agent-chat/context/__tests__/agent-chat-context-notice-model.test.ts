@@ -4,6 +4,7 @@ import { translate } from '../../../../i18n';
 import {
     agentChatContextNotice,
     dismissAgentChatCacheNotice,
+    dismissAgentChatPressureNotice,
 } from '../agent-chat-context-notice-model';
 
 const MINUTE = 60_000;
@@ -59,5 +60,19 @@ describe('agentChatContextNotice', () => {
                 translate,
             )?.lines,
         ).toHaveLength(1);
+    });
+
+    it('offers Dismiss for the nearly-full line alone and brings it back when usage grows', () => {
+        const full = { ...usage, totalTokens: 180_000 };
+        const now = 10 * MINUTE;
+        const notice = agentChatContextNotice(full, now, 't-pressure', translate);
+        expect(notice?.dismissAt).toBeUndefined();
+        expect(notice?.dismissPressureAt).toBe(180_000);
+        dismissAgentChatPressureNotice('t-pressure', 180_000);
+        expect(agentChatContextNotice(full, now, 't-pressure', translate)).toBeUndefined();
+        expect(
+            agentChatContextNotice({ ...full, totalTokens: 190_000 }, now, 't-pressure', translate)
+                ?.dismissPressureAt,
+        ).toBe(190_000);
     });
 });

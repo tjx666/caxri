@@ -2,7 +2,6 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentChatTurnTone,
     buildAgentChatTimeline,
     toggleAgentChatExpansion,
     withAgentChatAwaitingReply,
@@ -475,15 +474,6 @@ describe('toggleAgentChatExpansion', () => {
         const opened = toggleAgentChatExpansion(new Set(['t1']), 't2');
         expect([...opened]).toEqual(['t1', 't2']);
         expect([...toggleAgentChatExpansion(opened, 't1')]).toEqual(['t2']);
-    });
-});
-
-describe('agentChatTurnTone', () => {
-    it('tones a failed turn as danger and a stopped one as a warning', () => {
-        expect(agentChatTurnTone('completed')).toBe('muted');
-        expect(agentChatTurnTone('failed')).toBe('danger');
-        expect(agentChatTurnTone('interrupted')).toBe('warning');
-        expect(agentChatTurnTone('interrupted', 'user')).toBe('muted');
     });
 });
 

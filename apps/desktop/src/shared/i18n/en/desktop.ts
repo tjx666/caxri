@@ -46,7 +46,8 @@ export const desktop = {
 
     'desktop.trash.title': 'Move to Trash',
     'desktop.trash.message': "Move '{{name}}' to the Trash?",
-    'desktop.trash.detail': '{{path}}\n\nYou can recover this item from the Trash.',
+    'desktop.trash.detail':
+        '{{path}}\n\nYou can recover this item from the Trash. Press Cmd+Z in Files to undo.',
     'desktop.trash.detailUnsaved':
         '{{path}}\n\nThis file has unsaved changes in the editor. Only the last saved version can be recovered from the Trash.',
     'desktop.trash.detailSshHost':
@@ -54,7 +55,8 @@ export const desktop = {
     'desktop.trash.detailSshHostUnsaved':
         "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}. This file has unsaved changes in the editor; only the last saved version can be recovered.",
     'desktop.trash.messageMany': 'Move {{count}} items to the Trash?',
-    'desktop.trash.detailMany': '{{path}}\n\nYou can recover these items from the Trash.',
+    'desktop.trash.detailMany':
+        '{{path}}\n\nYou can recover these items from the Trash. Press Cmd+Z in Files to undo.',
     'desktop.trash.detailUnsavedMany':
         '{{path}}\n\nSome of these files have unsaved changes in the editor. Only their last saved versions can be recovered from the Trash.',
     'desktop.trash.detailSshHostMany':

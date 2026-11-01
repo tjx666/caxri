@@ -89,6 +89,7 @@ function ProcessListMessage({
     hasSnapshot,
     isRefreshing,
     onRetry,
+    onShowAll,
 }: {
     error?: ProcessExplorerError;
     filter: string;
@@ -97,6 +98,7 @@ function ProcessListMessage({
     hasSnapshot: boolean;
     isRefreshing: boolean;
     onRetry: () => void;
+    onShowAll: () => void;
 }) {
     const { t } = useTranslation();
     if (error)
@@ -124,7 +126,16 @@ function ProcessListMessage({
     if (!hasProcesses)
         return <div className={processMessageClassName}>{t('processExplorer.list.empty')}</div>;
     if (!hasRows && !filter.trim())
-        return <div className={processMessageClassName}>{t('processExplorer.list.noScope')}</div>;
+        return (
+            <div
+                className={cn(processMessageClassName, 'content-center justify-items-center gap-2')}
+            >
+                <p className="m-0">{t('processExplorer.list.noScope')}</p>
+                <Button size="sm" variant="secondary" onClick={onShowAll}>
+                    {t('processExplorer.list.showAll')}
+                </Button>
+            </div>
+        );
     if (!hasRows)
         return (
             <div className={processMessageClassName}>
@@ -304,6 +315,7 @@ export function ProcessExplorerApp() {
                                 hasSnapshot={snapshot !== undefined}
                                 isRefreshing={refreshing}
                                 onRetry={refresh}
+                                onShowAll={() => setScopes([...PROCESS_SCOPES])}
                             />
                             {rows.map((row) => (
                                 <ProcessRow

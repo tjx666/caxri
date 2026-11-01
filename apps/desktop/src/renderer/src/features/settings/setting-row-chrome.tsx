@@ -114,10 +114,13 @@ export function SettingRowChrome({
             className="group/setting relative rounded-md px-3 py-2 hover:bg-state-hover-quiet"
         >
             {modified && (
-                <span
-                    aria-hidden="true"
-                    className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-state-marker"
-                />
+                <Tooltip content={t('settings.page.modified')}>
+                    <span
+                        aria-label={t('settings.page.modified')}
+                        role="img"
+                        className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-state-marker"
+                    />
+                </Tooltip>
             )}
             {fullWidth ? (
                 <Field className="gap-2">

@@ -24,7 +24,7 @@ export const desktopUpdate = {
     'desktopUpdate.impact.terminalsOne': '1 Terminal',
     'desktopUpdate.impact.terminalsOther': '{{count}} Terminals',
     'desktopUpdate.impact.working': 'Agents still working: {{titles}}.',
-    'desktopUpdate.label': 'Caxri',
+    'desktopUpdate.label': 'Caxri on this computer',
     'desktopUpdate.manualInstall':
         'Install this one on your computer by opening the downloaded disk image.',
     'desktopUpdate.rateLimited': 'Try again later',

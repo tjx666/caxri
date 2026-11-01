@@ -36,6 +36,7 @@ export const useAgentChatDock = (chat: AgentChatController, provider: string) =>
             isStacked: summary.isStacked,
         }),
         isSummaryShown: isKeyboardShown && summary.isStacked,
+        queue: summary.queue,
         segments: summary.segments,
         toggle: (): void => setExpanded((current) => !current),
     };

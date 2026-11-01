@@ -33,7 +33,7 @@ export const agentChatUsageLimit = {
         "Won't continue automatically while the weekly limit is nearly reached",
     'agentChat.usageLimit.auto.continueNow': 'Continue now',
     'agentChat.usageLimit.auto.continue': 'Continue',
-    'agentChat.usageLimit.auto.cancel': 'Cancel',
+    'agentChat.usageLimit.auto.cancel': 'Stop waiting',
     'agentChat.usageLimit.auto.cancelTooltip': 'Stop waiting; the Chat stays as it is',
     'agentChat.usageLimit.auto.continueFailed': "Couldn't continue this Chat",
     'agentChat.usageLimit.auto.cancelFailed': "Couldn't cancel the automatic continuation",
@@ -64,7 +64,7 @@ export const agentChatUsageLimit = {
     'agentChat.usageGuard.generating': 'Writing the hand-off…',
     'agentChat.usageGuard.used': 'This account already wrote a hand-off this week',
     'agentChat.usageGuard.generateFailed': "Couldn't generate a hand-off",
-    'agentChat.usageGuard.openElsewhere': 'Open in another Agent',
+    'agentChat.usageGuard.openElsewhere': 'Continue in another Agent',
     'agentChat.usageGuard.continueAnyway': 'Continue anyway',
     'agentChat.usageGuard.continueAnywayTooltip':
         'Resume requests on this {{provider}} account until the weekly limit resets. This spends the allowance reserved for a hand-off',
@@ -72,12 +72,12 @@ export const agentChatUsageLimit = {
     'agentChat.usageGuard.document': 'Hand-off document',
     'agentChat.usageGuard.copy': 'Copy hand-off',
     'agentChat.usageGuard.failed.rejected':
-        'The hand-off was refused. Open in another Agent still carries this conversation',
+        'The hand-off was refused. Continue in another Agent still carries this conversation',
     'agentChat.usageGuard.failed.timeout':
-        'The hand-off timed out. Open in another Agent still carries this conversation',
+        'The hand-off timed out. Continue in another Agent still carries this conversation',
     'agentChat.usageGuard.failed.unavailable':
-        'The hand-off could not start. Open in another Agent still carries this conversation',
+        'The hand-off could not start. Continue in another Agent still carries this conversation',
     'agentChat.usageGuard.failed.empty':
-        'The hand-off came back empty. Open in another Agent still carries this conversation',
+        'The hand-off came back empty. Continue in another Agent still carries this conversation',
     'agentChat.usageGuard.continuedIn': 'Continued in',
 } as const;

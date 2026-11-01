@@ -156,7 +156,7 @@ function AgentActivityMarkReadButton({
 }) {
     const { t } = useTranslation();
     return (
-        <Tooltip content={t('agentActivity.markRead')}>
+        <Tooltip content={t('agentActivity.markRead')} shortcut="delete">
             <button
                 aria-label={t('agentActivity.markSessionRead', { title: sessionTitle })}
                 aria-keyshortcuts="Delete"
