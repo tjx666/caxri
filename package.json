@@ -119,13 +119,13 @@
             "e2e/support/clipboard-capability.type-test.ts": [
                 "exports"
             ],
-            "e2e/support/mobile-chat-case-loader.playwright.config.ts": [
+            "e2e/support/mobile-android-case-loader.playwright.config.ts": [
                 "exports"
             ],
-            "e2e/support/mobile-chat-cases/*.ts": [
+            "e2e/support/mobile-android-case-handlers/*.ts": [
                 "exports"
             ],
-            "scripts/mobile-android-chat-cases/*.ts": [
+            "scripts/mobile-android-case-definitions/*.ts": [
                 "exports"
             ],
             "e2e/support/server-database/*.ts": [
@@ -147,8 +147,8 @@
             ".": {
                 "entry": [
                     ".agents/skills/acceptance/scripts/capture-renderer.ts",
-                    "e2e/support/mobile-chat-cases/*.ts",
-                    "scripts/mobile-android-chat-cases/*.ts",
+                    "e2e/support/mobile-android-case-handlers/*.ts",
+                    "scripts/mobile-android-case-definitions/*.ts",
                     "e2e/support/server-database/*-seed.ts",
                     "e2e/support/server-database/timeline-read.ts",
                     ".agents/skills/acceptance/scripts/fixture-preflight.ts",
@@ -165,8 +165,8 @@
                     ".agents/skills/promo-images/scripts/promo-compose.ts",
                     ".agents/skills/promo-images/scripts/promo-playwright.config.ts",
                     "e2e/support/clipboard-capability.type-test.ts",
-                    "e2e/support/mobile-chat-case-loader.playwright.config.ts",
-                    "e2e/support/mobile-chat-case-loader.probe.ts",
+                    "e2e/support/mobile-android-case-loader.playwright.config.ts",
+                    "e2e/support/mobile-android-case-loader.probe.ts",
                     "scripts/ssh-link-throttle.ts",
                     "scripts/reporters/e2e-receipt-reporter.ts",
                     "scripts/fixtures/e2e-census.fixture.ts",

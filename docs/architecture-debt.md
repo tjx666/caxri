@@ -38,14 +38,6 @@ Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answe
 
 Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and the entries below need their own design or measurement.
 
-### AD-taxonomy-android-case-registration: [OPEN · Architecture debt · M]
-
-- **Summary:** An Agent adding an Android Acceptance case finds two registration paths: the central hand-written case table plus dispatcher switch, and the self-registration added in [PR caxri#3393](https://github.com/tjx666/caxri/pull/3393); the self-registration directories' names do not match their content.
-- **Evidence:** `e2e/mobile-acceptance-scenarios.e2e.ts` dispatches built-in cases through a `switch (environment.caseId)`, while `e2e/support/mobile-chat-case-registry.ts` collects self-registering cases from `e2e/support/mobile-chat-cases/`, which now also holds non-Chat cases such as `device-actions.ts`.
-- **Tracking:** [issue caxri#3407](https://github.com/tjx666/caxri/issues/3407)
-- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
-- **Remediation target / Acceptance:** Migrate the remaining table cases to self-registration, delete the table and switch, and rename `mobile-chat-cases/` and its registry to match their content.
-
 ### AD-perf-antigravity-sync-reads: [OPEN · Coverage or observability gap · M]
 
 - **Summary:** Usage scanning and external-conversation discovery read an Antigravity conversation database through synchronous better-sqlite3 on the Server Core event loop, bounded by rows (up to 50,000 step rows with protobuf blobs) rather than bytes, and the cost on a long conversation is unmeasured.
@@ -73,6 +65,14 @@ Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [iss
 - **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-02 @ 3f2a6b37b
 - **Resolved:** 2026-11-02 via [issue caxri#3406](https://github.com/tjx666/caxri/issues/3406).
 - **Remediation target / Acceptance:** One shared navigation resolver over a flattened row model that every tree uses.
+
+### AD-taxonomy-android-case-registration: [RESOLVED · Architecture debt · M]
+
+- **Summary:** An Agent adding an Android Acceptance case found two registration paths, a central case table plus a dispatcher switch and the self-registration added in [PR caxri#3393](https://github.com/tjx666/caxri/pull/3393), and the self-registration directories carried Chat-era names.
+- **Evidence:** Every case now lives in a group module under `scripts/mobile-android-case-definitions/`, with its handler in the same-named module under `e2e/support/mobile-android-case-handlers/`; `e2e/mobile-acceptance-scenarios.e2e.ts` only calls `executeMobileAndroidCase`. Covered by `e2e/support/mobile-android-case-registry.test.ts` and `scripts/__tests__/mobile-android-case-collector.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-02 @ 93eec4b97
+- **Resolved:** 2026-11-02 via [issue caxri#3407](https://github.com/tjx666/caxri/issues/3407).
+- **Remediation target / Acceptance:** One registration path; the case table and switch are gone, and the directories and registry are named for Android cases.
 
 ### AD-perf-chat-history-transcript-cache: [RESOLVED · Confirmed defect · S]
 
@@ -1402,7 +1402,7 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-11-01)
 
-`AD-perf-antigravity-sync-reads` → `AD-taxonomy-android-case-registration` → `AD-perf-renderer-hang-debugger-attach`.
+`AD-perf-antigravity-sync-reads` → `AD-perf-renderer-hang-debugger-attach`.
 
 ## Historical priority guide (all resolved)
 
