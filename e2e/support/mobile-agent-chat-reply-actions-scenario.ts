@@ -5,9 +5,11 @@ import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import { scrollTimelineUntil, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
+    androidBounds,
+    mobileSemantics,
     observeMobileNode,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -79,6 +81,27 @@ const TURN_GAP_MS = 65_000;
  */
 const minuteOf = (timestamp: number): string =>
     `:${String(new Date(timestamp).getMinutes()).padStart(2, '0')}`;
+
+/**
+ * Drags the timeline toward earlier messages until a reply's whole bar (Copy through Sources) is on screen. The latest
+ * turn opens at the top of the Chat, so an earlier reply's bar starts above the screen, where Android still lists its
+ * controls but a tap would land on whatever covers them.
+ */
+const showBar = (serial: string, turnId: string) =>
+    scrollTimelineUntil(serial, async () => {
+        const nodes = await mobileSemantics(serial);
+        const frame = nodes.find(({ checkId }) => checkId === 'conversation-view');
+        const view = frame && androidBounds(frame.bounds);
+        return ['copy', 'more', 'sources'].every((action) => {
+            const node = nodes.find(
+                ({ checkId }) => checkId === `agent-chat-reply-${action}-${turnId}`,
+            );
+            const bounds = node && androidBounds(node.bounds);
+            return Boolean(
+                view && bounds && bounds.top >= view.top && bounds.bottom <= view.bottom,
+            );
+        });
+    });
 
 /**
  * Opens a reply's More menu and proves its heading reads today at that reply's own minute.
@@ -155,6 +178,15 @@ export async function executeMobileChatReplyActionsScenario(
                 // eslint-disable-next-line no-await-in-loop -- each control is checked on the same settled screen.
                 await waitForCheck(serial, `agent-chat-reply-${action}-${turnId}`);
         await waitForNoCheck(serial, `agent-chat-reply-sources-${thanked}`);
+
+        // The latest turn opens at the top of the screen, so its bar is checked first.
+        await openMoreMenu(serial, thanked, thankedAt);
+        await capture(environment, 'more-menu-latest', artifacts);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await waitForNoCheck(serial, 'agent-chat-reply-time');
+
+        // The searched turn sits above it; every step on its bar starts with that bar on screen.
+        await showBar(serial, searched);
         // Favicons load from the sites; give them a moment before the settled capture.
         await new Promise((resolve) => setTimeout(resolve, 3000));
         await capture(environment, 'action-bars', artifacts);
@@ -163,11 +195,7 @@ export async function executeMobileChatReplyActionsScenario(
         await waitForCheck(serial, 'toast');
         await capture(environment, 'copied', artifacts);
 
-        await openMoreMenu(serial, thanked, thankedAt);
-        await capture(environment, 'more-menu-latest', artifacts);
-        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
-        await waitForNoCheck(serial, 'agent-chat-reply-time');
-
+        await showBar(serial, searched);
         await openMoreMenu(serial, searched, searchedAt);
         await waitForCheck(serial, 'agent-chat-reply-fork');
         await waitForCheck(serial, 'agent-chat-reply-retry');
@@ -180,6 +208,7 @@ export async function executeMobileChatReplyActionsScenario(
         await tapMobileCheckByBounds(serial, 'conversation-message-select-done');
         await waitForNoCheck(serial, 'conversation-message-sheet');
 
+        await showBar(serial, searched);
         await tapMobileCheckByBounds(serial, `agent-chat-reply-sources-${searched}`);
         await waitForCheck(serial, 'agent-chat-sources-sheet');
         await waitForCheck(serial, `agent-chat-source-${LINKS.length - 1}`);
@@ -188,6 +217,7 @@ export async function executeMobileChatReplyActionsScenario(
         await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
         await waitForNoCheck(serial, 'agent-chat-sources-sheet');
 
+        await showBar(serial, searched);
         const before = await sessionIds(fixture.running.page);
         await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${searched}`);
         await waitForCheck(serial, 'agent-chat-reply-fork');
