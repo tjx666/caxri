@@ -14,9 +14,7 @@ import {
     MOBILE_TRANSPORT_VERSION,
     mobilePairingResultSchema,
     mobilePublicKey,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
-    openMobileFrame,
     parseMobilePairingLink,
     RELAY_PROTOCOL_VERSION,
     relayAccessKey,
@@ -36,6 +34,7 @@ import {
     authorizeMethod,
     connectDevice,
     nextMessage,
+    openServerFrame,
     registryFixture,
     subscriptionOptions,
 } from './gateway-client.fixture';
@@ -157,18 +156,11 @@ async function pairOverSocket(socket: WebSocket, link: MobilePairingLink) {
             confirmation,
         }),
     );
-    const frame = mobileSealedFrameSchema.parse(await resultMessage);
-    const plaintext = openMobileFrame(
-        keys.serverToClient,
-        {
-            connectionId: transcript.connectionId,
-            counter: frame.counter,
-            deviceId: challenge.deviceId,
-            direction: 'server-to-client',
-        },
-        decodeHex(frame.ciphertext),
+    const result = openServerFrame(
+        { connectionId: transcript.connectionId, deviceId: challenge.deviceId, keys },
+        await resultMessage,
     );
-    return mobilePairingResultSchema.parse(JSON.parse(new TextDecoder().decode(plaintext)));
+    return mobilePairingResultSchema.parse(result);
 }
 
 describe('MobileGateway over a real Relay', () => {

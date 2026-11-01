@@ -12,12 +12,9 @@ import {
     mobilePairingResultSchema,
     mobilePublicKey,
     mobileRevokedSchema,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
     mobileVersionMismatchSchema,
-    openMobileFrame,
     parseMobilePairingLink,
-    sealMobileFrame,
 } from '@caxri/mobile-transport';
 import type { CommandAdapter } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
@@ -28,8 +25,10 @@ import {
     authorizeMethod,
     connectDevice,
     nextMessage,
+    openServerFrame,
     openSocket,
     registryFixture,
+    sealClientFrame,
     subscriptionOptions,
 } from './gateway-client.fixture';
 
@@ -627,56 +626,21 @@ describe('MobileGateway', () => {
             confirmation: encodeHex(clientConfirmation),
         });
         socket.send(JSON.stringify(confirmationFrame));
-        const pairedFrame = mobileSealedFrameSchema.parse(await pairedFrameMessage);
-        const pairedPlaintext = openMobileFrame(
-            keys.serverToClient,
-            {
-                connectionId: transcript.connectionId,
-                counter: pairedFrame.counter,
-                deviceId: challenge.deviceId,
-                direction: 'server-to-client',
-            },
-            decodeHex(pairedFrame.ciphertext),
+        const pairedResult = openServerFrame(
+            { connectionId: transcript.connectionId, deviceId: challenge.deviceId, keys },
+            await pairedFrameMessage,
         );
-        const pairedSource = new TextDecoder().decode(pairedPlaintext);
-        const paired = mobilePairingResultSchema.parse(JSON.parse(pairedSource));
+        const paired = mobilePairingResultSchema.parse(pairedResult);
         expect(paired).toMatchObject({ deviceId: challenge.deviceId, projectIds: ['project-1'] });
 
         const sendRequest = async (counter: number, request: unknown) => {
             const replyMessage = nextMessage(socket);
-            const requestSource = JSON.stringify({ type: 'request', request });
-            const requestPlaintext = new TextEncoder().encode(requestSource);
-            const requestCiphertext = sealMobileFrame(
-                keys.clientToServer,
-                {
-                    connectionId: transcript.connectionId,
-                    counter,
-                    deviceId: paired.deviceId,
-                    direction: 'client-to-server',
-                },
-                requestPlaintext,
-            );
-            const requestFrame = {
-                type: 'sealed',
-                version: MOBILE_TRANSPORT_VERSION,
-                connectionId: challenge.connectionId,
-                counter,
-                ciphertext: encodeHex(requestCiphertext),
+            const peer = { connectionId: transcript.connectionId, deviceId: paired.deviceId, keys };
+            socket.send(sealClientFrame(peer, counter, { type: 'request', request }));
+            const payload = openServerFrame(peer, await replyMessage) as {
+                type: string;
+                reply: unknown;
             };
-            socket.send(JSON.stringify(requestFrame));
-            const frame = mobileSealedFrameSchema.parse(await replyMessage);
-            const replyPlaintext = openMobileFrame(
-                keys.serverToClient,
-                {
-                    connectionId: transcript.connectionId,
-                    counter: frame.counter,
-                    deviceId: paired.deviceId,
-                    direction: 'server-to-client',
-                },
-                decodeHex(frame.ciphertext),
-            );
-            const replySource = new TextDecoder().decode(replyPlaintext);
-            const payload = JSON.parse(replySource) as { type: string; reply: unknown };
             expect(payload.type).toBe('reply');
             return payload.reply;
         };
@@ -713,19 +677,11 @@ describe('MobileGateway', () => {
             socket.once('close', (code) => resolve(code)),
         );
         await gateway.revoke(paired.deviceId, paired.generation);
-        const revokedFrame = mobileSealedFrameSchema.parse(await revokedMessage);
-        const revokedPlaintext = openMobileFrame(
-            keys.serverToClient,
-            {
-                connectionId: transcript.connectionId,
-                counter: revokedFrame.counter,
-                deviceId: paired.deviceId,
-                direction: 'server-to-client',
-            },
-            decodeHex(revokedFrame.ciphertext),
+        const revokedResult = openServerFrame(
+            { connectionId: transcript.connectionId, deviceId: paired.deviceId, keys },
+            await revokedMessage,
         );
-        const revokedSource = new TextDecoder().decode(revokedPlaintext);
-        const revokedPayload = mobileRevokedSchema.parse(JSON.parse(revokedSource));
+        const revokedPayload = mobileRevokedSchema.parse(revokedResult);
         expect(revokedPayload).toEqual({
             type: 'revoked',
             deviceId: paired.deviceId,

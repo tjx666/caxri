@@ -41,22 +41,38 @@ a stale or optimistic client cannot widen its own authority.
 
 ## Application frames
 
+The handshake, `version-mismatch`, and update recovery are JSON text messages. Since version 5,
+every frame after authentication is one binary WebSocket message, built by `sealMobilePayload` in
+`packages/mobile-transport/src/sealed-frame.ts`:
+
+```text
+wire       [version u8][counter u48 BE][AES-256-GCM ciphertext]
+plaintext  [flags u8][jsonLength u32 BE][UTF-8 JSON][chunk bytes]
+```
+
+The connection ID is not repeated per frame; the AES-GCM additional data binds it, so a frame moved
+to another connection fails to open. A payload's top-level `chunk` (`Uint8Array`) travels as raw
+trailing bytes with flag bit 0 set, so Terminal output crosses the wire at its own size; the
+version 4 encoding hex-encoded it inside the JSON and then hex-encoded the ciphertext inside a JSON
+envelope, which put about four bytes on the wire for every Terminal byte. Alma made the same move for its remote connection (JSON plus base64 to a binary inner frame negotiated in the handshake); Caxri bumps the transport version instead of negotiating, since no compatibility release exists yet. Either side closes a
+connection that sends a text frame after authentication or a binary frame before it.
+
 The shared transport package validates each outer frame. `request.request` and `reply.reply` are
 then validated by the protocol package at their respective endpoints. They keep the existing
 `CommandRequestEnvelope` and `CommandReplyEnvelope`; `reply.reply.id` is the single correlation key
 for commands, subscribe, and unsubscribe.
 
-| Direction       | Frame                                                                             | Meaning                                                             |
-| --------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Client → Server | `request {request}`                                                               | Invoke one authorized command.                                      |
-| Client → Server | `subscribe {id,resource}`                                                         | Create a subscription; reply result is `{subscriptionId}`.          |
-| Client → Server | `unsubscribe {id,subscriptionId}`                                                 | Remove a subscription; reply result is `{}`.                        |
-| Client → Server | `heartbeat {nonce}`                                                               | Probe the authenticated connection.                                 |
-| Server → Client | `reply {reply}`                                                                   | Command or subscription acknowledgement, including protocol errors. |
-| Server → Client | `event {subscriptionId,sequence,kind}`                                            | Content-free invalidation or resync notice.                         |
-| Server → Client | `stream {subscriptionId,sequence,kind,generation,chunkIndex,chunkCount,chunkHex}` | Terminal snapshot or live output chunks.                            |
-| Server → Client | `heartbeat-ack {nonce}`                                                           | Echo the client's probe nonce.                                      |
-| Server → Client | `revoked`                                                                         | Final encrypted revocation notice, followed by close.               |
+| Direction       | Frame                                                                          | Meaning                                                             |
+| --------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Client → Server | `request {request}`                                                            | Invoke one authorized command.                                      |
+| Client → Server | `subscribe {id,resource}`                                                      | Create a subscription; reply result is `{subscriptionId}`.          |
+| Client → Server | `unsubscribe {id,subscriptionId}`                                              | Remove a subscription; reply result is `{}`.                        |
+| Client → Server | `heartbeat {nonce}`                                                            | Probe the authenticated connection.                                 |
+| Server → Client | `reply {reply}`                                                                | Command or subscription acknowledgement, including protocol errors. |
+| Server → Client | `event {subscriptionId,sequence,kind}`                                         | Content-free invalidation or resync notice.                         |
+| Server → Client | `stream {subscriptionId,sequence,kind,generation,chunkIndex,chunkCount,chunk}` | Terminal snapshot or live output chunks.                            |
+| Server → Client | `heartbeat-ack {nonce}`                                                        | Echo the client's probe nonce.                                      |
+| Server → Client | `revoked`                                                                      | Final encrypted revocation notice, followed by close.               |
 
 Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, `{kind:'changes',sessionId}`,
 `{kind:'extensionViews',sessionId}`, `{kind:'terminal',terminalId}`, `{kind:'agentChat',terminalId}`,
@@ -75,7 +91,7 @@ zero for each subscription and increases across both `event` and `stream`. Dashb
 conversation events use `dashboard.changed` and `conversation.changed`; they carry no Session,
 Project, transcript, or Terminal content. Clients re-query an authoritative snapshot after a hint.
 Terminal snapshots are UTF-8 JSON of `TerminalSnapshot|null`; output is UTF-8 text. Both split into
-at most 24 KiB of raw bytes per `chunkHex` frame. A subscribe reply is sent before the first
+at most 24 KiB of raw bytes per `chunk` frame. A subscribe reply is sent before the first
 snapshot chunk. Snapshot chunks carry `nextHostSequence`; output chunks carry `hostSequence`.
 The client assembles a snapshot before applying later output. Each Terminal subscription has its
 own wire sequence, while Host sequence and generation detect source loss or Terminal restart.

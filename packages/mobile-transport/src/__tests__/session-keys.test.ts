@@ -54,11 +54,11 @@ describe('mobile session keys', () => {
             serverToClient: encodeHex(client.serverToClient),
             transcriptHash: encodeHex(client.transcriptHash),
         }).toEqual({
-            clientToServer: '15ac6eeb3907110817b12dd7e4818bf3c2c02e6845323c26cffea512d7023054',
-            confirmation: '6c37cf4a99acb839365e9c02eae22fe972fc04230ef5d09bb59163c842ace67f',
-            serverProof: 'c3a690dee6271b5a6730bcad541756b9edd4f4fc6d8011de7400595dcf295f8a',
-            serverToClient: '8e157e07eea2eac79b67e59cda9d25fb1ae53cf11c616dabf6e37a57cfb8a27f',
-            transcriptHash: '46c2b27fd746bb0f9b3fc7bc2e007b5b14c494dda7448ffbb5b4bad686304924',
+            clientToServer: 'f40ba4d91783e57dcfb3b0d5c0948bbf470956f9d3a0f93e26025a8ef8724070',
+            confirmation: 'f767769620832f00a10a6cea50749610d28959c149159bdb57dde9bfcbe59d70',
+            serverProof: '94cc043d4ed2690f1452855d348eb3bbfb1bb4289a8d2b711115d39c9ebd329d',
+            serverToClient: 'b7851c1a85bebc2777fa9260e0e81c19d499e54d318af1674d7d54c7503cce7f',
+            transcriptHash: 'd87a14553739949f3cfb8962baca356d290dbdce96901574ae8c864a6075b4f9',
         });
     });
 

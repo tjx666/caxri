@@ -10,9 +10,7 @@ import {
     mobileClientConfirmationSchema,
     mobilePairingResultSchema,
     mobilePublicKey,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
-    openMobileFrame,
     parseMobilePairingLink,
 } from '@caxri/mobile-transport';
 import type { CommandAdapter } from '@caxri/protocol';
@@ -24,6 +22,7 @@ import {
     authorizeMethod,
     connectDevice,
     nextMessage,
+    openServerFrame,
     openSocket,
     registryFixture,
     subscriptionOptions,
@@ -213,19 +212,11 @@ describe('MobileGateway diagnostics', () => {
                     }),
                 ),
             );
-            const pairedFrame = mobileSealedFrameSchema.parse(await pairedFrameMessage);
-            const pairedPlaintext = openMobileFrame(
-                keys.serverToClient,
-                {
-                    connectionId: transcript.connectionId,
-                    counter: pairedFrame.counter,
-                    deviceId: challenge.deviceId,
-                    direction: 'server-to-client',
-                },
-                decodeHex(pairedFrame.ciphertext),
+            const pairedResult = openServerFrame(
+                { connectionId: transcript.connectionId, deviceId: challenge.deviceId, keys },
+                await pairedFrameMessage,
             );
-            const pairedResultSource = new TextDecoder().decode(pairedPlaintext);
-            mobilePairingResultSchema.parse(JSON.parse(pairedResultSource));
+            mobilePairingResultSchema.parse(pairedResult);
             succeedingSocket.close();
         } finally {
             await gateway.close();
@@ -359,6 +350,38 @@ describe('MobileGateway diagnostics', () => {
         }
         expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.failure', {
             fields: { reason: 'replayRejected' },
+        });
+    });
+
+    it('closes an authenticated connection that sends a text frame instead of a sealed binary frame', async () => {
+        const registry = registryFixture();
+        const record = registry.preparePair({
+            displayName: 'Test tablet',
+            platform: 'android',
+            projectIds: ['project-1'],
+        });
+        await registry.commitPair(record);
+        const write = vi.fn();
+        const gateway = new MobileGateway({
+            ...subscriptionOptions,
+            adapters: { server: { invoke: vi.fn() } },
+            authorizePairedDeviceMethod: authorizeMethod,
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            registry,
+            logger: { write },
+            selectAddress: () => '127.0.0.1',
+        });
+        try {
+            const client = await connectDevice(gateway, record);
+            const closed = new Promise<number>((resolve) => client.socket.once('close', resolve));
+            client.socket.send(JSON.stringify({ type: 'heartbeat', nonce: 'aa'.repeat(16) }));
+            await closed;
+        } finally {
+            await gateway.close();
+        }
+        expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.failure', {
+            fields: { reason: 'invalidFrame' },
         });
     });
 

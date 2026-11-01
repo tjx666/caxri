@@ -1,13 +1,4 @@
-import { Buffer } from 'node:buffer';
-
-import {
-    decodeHex,
-    encodeHex,
-    MOBILE_TRANSPORT_VERSION,
-    mobileSealedFrameSchema,
-    openMobileFrame,
-    sealMobileFrame,
-} from '@caxri/mobile-transport';
+import { decodeSealedFrame, openMobilePayload, sealMobilePayload } from '@caxri/mobile-transport';
 import WebSocket from 'ws';
 
 import type { GatewaySession } from './gateway-session';
@@ -20,62 +11,26 @@ const FINAL_FRAME_CLOSE_TIMEOUT_MS = 1_000;
 export class MobileFrameReplayRejected extends Error {}
 
 /**
- * Opens one sealed frame from the phone and returns its parsed application payload.
+ * Opens one binary sealed frame from the phone and returns its parsed application payload.
  */
-export const openSessionPayload = (session: GatewaySession, raw: unknown): unknown => {
-    const frame = mobileSealedFrameSchema.parse(raw);
-    if (frame.connectionId !== session.connection.connectionId)
-        throw new Error('Encrypted frame connection identity changed');
+export const openSessionPayload = (session: GatewaySession, frame: Uint8Array): unknown => {
+    const { ciphertext, counter } = decodeSealedFrame(frame);
     // Narrowed to a distinct error type so the outer catch can log `replayRejected` instead of folding a replayed
     // or out-of-order counter into the generic `invalidFrame` bucket it shares with malformed payloads.
     try {
-        session.inbound.assertAndAdvance(frame.counter);
+        session.inbound.assertAndAdvance(counter);
     } catch (error) {
         throw new MobileFrameReplayRejected(error instanceof Error ? error.message : undefined);
     }
-    const plaintext = openMobileFrame(
+    return openMobilePayload(
         session.keys.clientToServer,
         {
             connectionId: session.transcript.connectionId,
-            counter: frame.counter,
+            counter,
             deviceId: session.deviceId,
             direction: 'client-to-server',
         },
-        decodeHex(frame.ciphertext),
-    );
-    return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
-};
-
-interface ServerSealedPayloadContext {
-    connectionId: Uint8Array;
-    connectionIdHex: string;
-    counter: number;
-    deviceId: string;
-    key: Uint8Array;
-}
-
-const createServerSealedPayload = (
-    context: ServerSealedPayloadContext,
-    payload: unknown,
-): string => {
-    const ciphertext = sealMobileFrame(
-        context.key,
-        {
-            connectionId: context.connectionId,
-            counter: context.counter,
-            deviceId: context.deviceId,
-            direction: 'server-to-client',
-        },
-        new TextEncoder().encode(JSON.stringify(payload)),
-    );
-    return JSON.stringify(
-        mobileSealedFrameSchema.parse({
-            type: 'sealed',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId: context.connectionIdHex,
-            counter: context.counter,
-            ciphertext: encodeHex(ciphertext),
-        }),
+        ciphertext,
     );
 };
 
@@ -86,12 +41,12 @@ const createServerSealedPayload = (
  */
 export const sendFinalSealedPayload = async (
     socket: WebSocket,
-    sourceFrame: string,
+    sourceFrame: Uint8Array,
     maximumBufferedBytes: number,
 ): Promise<'closed' | 'failed'> => {
     if (
         socket.readyState !== WebSocket.OPEN ||
-        socket.bufferedAmount + Buffer.byteLength(sourceFrame, 'utf8') > maximumBufferedBytes
+        socket.bufferedAmount + sourceFrame.byteLength > maximumBufferedBytes
     )
         return 'failed';
     return new Promise<'closed' | 'failed'>((resolve) => {
@@ -109,7 +64,7 @@ export const sendFinalSealedPayload = async (
         socket.once('close', onClose);
         timeout.handle = setTimeout(() => settle('failed'), FINAL_FRAME_CLOSE_TIMEOUT_MS);
         timeout.handle.unref();
-        socket.send(sourceFrame, (error) => {
+        socket.send(sourceFrame, { binary: true }, (error) => {
             if (error) {
                 settle('failed');
                 return;
@@ -122,14 +77,14 @@ export const sendFinalSealedPayload = async (
 /**
  * Seals one server-to-client payload with the session's key and takes the next outbound counter.
  */
-export const sealSessionPayload = (session: GatewaySession, payload: unknown): string =>
-    createServerSealedPayload(
+export const sealSessionPayload = (session: GatewaySession, payload: unknown): Uint8Array =>
+    sealMobilePayload(
+        session.keys.serverToClient,
         {
             connectionId: session.transcript.connectionId,
-            connectionIdHex: session.connection.connectionId,
             counter: session.outbound.take(),
             deviceId: session.deviceId,
-            key: session.keys.serverToClient,
+            direction: 'server-to-client',
         },
         payload,
     );

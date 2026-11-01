@@ -1,20 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    MOBILE_GATEWAY_MAX_FRAME_BYTES,
-    MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES,
-    MOBILE_GATEWAY_MAX_WIRE_BYTES,
-    MOBILE_TRANSPORT_VERSION,
-    mobileSealedFrameSchema,
-} from '../contract';
-import { encodeHex } from '../encoding';
+import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '../contract';
 import {
     MOBILE_STREAM_CHUNK_MAX_BYTES,
     mobileClientPayloadSchema,
     mobileServerPayloadSchema,
     mobileSubscribeResultSchema,
 } from '../messages';
-import { sealMobileFrame } from '../sealed-frame';
+import { sealMobilePayload } from '../sealed-frame';
 
 describe('mobile application messages', () => {
     it('validates a generation-fenced Terminal snapshot, ordered output, and source-gap recovery', () => {
@@ -27,7 +20,7 @@ describe('mobile application messages', () => {
             nextHostSequence: 7,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: '6e756c6c',
+            chunk: new TextEncoder().encode('null'),
         };
         const output = {
             type: 'stream',
@@ -38,7 +31,7 @@ describe('mobile application messages', () => {
             hostSequence: 7,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: '6162',
+            chunk: new TextEncoder().encode('ab'),
         };
         expect(mobileServerPayloadSchema.safeParse(snapshot).success).toBe(true);
         expect(mobileServerPayloadSchema.safeParse(output).success).toBe(true);
@@ -114,7 +107,7 @@ describe('mobile application messages', () => {
                 hostSequence: 0,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: '6162',
+                chunk: new TextEncoder().encode('ab'),
             },
             { type: 'heartbeat-ack', nonce: 'aa'.repeat(16) },
             { type: 'revoked', deviceId: `device_${'44'.repeat(16)}`, generation: 1 },
@@ -142,12 +135,9 @@ describe('mobile application messages', () => {
             hostSequence: Number.MAX_SAFE_INTEGER,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: 'ab'.repeat(MOBILE_STREAM_CHUNK_MAX_BYTES),
+            chunk: new Uint8Array(MOBILE_STREAM_CHUNK_MAX_BYTES).fill(0xab),
         });
-        expect(new TextEncoder().encode(JSON.stringify(payload)).length).toBeLessThanOrEqual(
-            MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES,
-        );
-        const ciphertext = sealMobileFrame(
+        const frame = sealMobilePayload(
             new Uint8Array(32).fill(7),
             {
                 connectionId: new Uint8Array(16).fill(8),
@@ -155,24 +145,17 @@ describe('mobile application messages', () => {
                 deviceId: 'd'.repeat(200),
                 direction: 'server-to-client',
             },
-            new TextEncoder().encode(JSON.stringify(payload)),
+            payload,
         );
-        expect(ciphertext.length).toBeLessThanOrEqual(MOBILE_GATEWAY_MAX_FRAME_BYTES);
-        const frame = mobileSealedFrameSchema.parse({
-            type: 'sealed',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId: '08'.repeat(16),
-            counter: 2 ** 48 - 1,
-            ciphertext: encodeHex(ciphertext),
-        });
-        expect(new TextEncoder().encode(JSON.stringify(frame)).length).toBeLessThanOrEqual(
-            MOBILE_GATEWAY_MAX_WIRE_BYTES,
-        );
+        expect(frame.length).toBeLessThanOrEqual(MOBILE_GATEWAY_MAX_WIRE_BYTES);
         expect(
             mobileServerPayloadSchema.safeParse({
                 ...payload,
-                chunkHex: 'ab'.repeat(MOBILE_STREAM_CHUNK_MAX_BYTES + 1),
+                chunk: new Uint8Array(MOBILE_STREAM_CHUNK_MAX_BYTES + 1),
             }).success,
+        ).toBe(false);
+        expect(
+            mobileServerPayloadSchema.safeParse({ ...payload, chunk: 'ab'.repeat(8) }).success,
         ).toBe(false);
     });
 });

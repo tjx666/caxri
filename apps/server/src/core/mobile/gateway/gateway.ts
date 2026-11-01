@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { createServer } from 'node:http';
@@ -58,7 +57,7 @@ import {
     openSessionPayload,
     sealSessionPayload,
 } from './sealed-payload';
-import { messageByteLength, messageText } from './socket-message';
+import { messageByteLength, messageBytes, messageText } from './socket-message';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
 import { MobileUpdateDownloads } from './update-downloads';
@@ -480,10 +479,6 @@ export class MobileGateway {
         socket.on('error', () => terminate('transportError'));
         socket.on('message', (data, isBinary) => {
             if (!isAcceptingMessages) return;
-            if (isBinary) {
-                terminate('binaryFrame');
-                return;
-            }
             const releaseQueueCapacity = queueBudget.tryAcquire(messageByteLength(data));
             if (!releaseQueueCapacity) {
                 terminate('inboundCapacity');
@@ -494,6 +489,16 @@ export class MobileGateway {
                 await previousMessage;
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- disable/revoke can terminate this socket while the previous frame is awaiting I/O.
                 if (!isAcceptingMessages) return;
+                // Handshake is JSON text, then binary sealed frames; decided in the queue since they may trail `confirm`.
+                if (isReady) {
+                    if (!isBinary) throw new Error('Expected a binary sealed frame');
+                    session?.application?.accept(openSessionPayload(session, messageBytes(data)));
+                    return;
+                }
+                if (isBinary) {
+                    terminate('binaryFrame');
+                    return;
+                }
                 const raw = JSON.parse(messageText(data)) as unknown;
                 if (!session) {
                     if (recovery) {
@@ -554,36 +559,32 @@ export class MobileGateway {
                     session.timing.challengeAt = this.#now();
                     return;
                 }
-                if (!isReady) {
-                    session.timing.confirmAt ??= this.#now();
-                    const app = await authenticateConnection(
-                        this.#authenticationDependencies,
-                        session,
-                        socket,
-                        raw,
-                        () => isAcceptingMessages,
-                        terminate,
-                    );
-                    if (!app) return;
-                    session.application = app;
-                    isReady = true;
-                    session.readyAt = this.#now();
-                    this.#diagnostics.connectionEstablished(
-                        session.deviceId,
-                        session.route,
-                        handshakeTimingFields(session.timing, session.readyAt),
-                    );
-                    this.#handshakes = Math.max(0, this.#handshakes - 1);
-                    clearTimeout(timer);
-                    const active =
-                        this.#activeByDevice.get(session.deviceId) ??
-                        new Map<WebSocket, GatewaySession>();
-                    active.set(socket, session);
-                    this.#activeByDevice.set(session.deviceId, active);
-                    this.#notifyConnectionCount();
-                    return;
-                }
-                session.application?.accept(openSessionPayload(session, raw));
+                session.timing.confirmAt ??= this.#now();
+                const app = await authenticateConnection(
+                    this.#authenticationDependencies,
+                    session,
+                    socket,
+                    raw,
+                    () => isAcceptingMessages,
+                    terminate,
+                );
+                if (!app) return;
+                session.application = app;
+                isReady = true;
+                session.readyAt = this.#now();
+                this.#diagnostics.connectionEstablished(
+                    session.deviceId,
+                    session.route,
+                    handshakeTimingFields(session.timing, session.readyAt),
+                );
+                this.#handshakes = Math.max(0, this.#handshakes - 1);
+                clearTimeout(timer);
+                const active =
+                    this.#activeByDevice.get(session.deviceId) ??
+                    new Map<WebSocket, GatewaySession>();
+                active.set(socket, session);
+                this.#activeByDevice.set(session.deviceId, active);
+                this.#notifyConnectionCount();
             })();
             queue = (async (): Promise<void> => {
                 try {
@@ -661,14 +662,13 @@ export class MobileGateway {
         const sourceFrame = sealSessionPayload(session, payload);
         if (
             socket.readyState !== 1 ||
-            socket.bufferedAmount + Buffer.byteLength(sourceFrame, 'utf8') >
-                MOBILE_GATEWAY_MAX_WIRE_BYTES * 2
+            socket.bufferedAmount + sourceFrame.byteLength > MOBILE_GATEWAY_MAX_WIRE_BYTES * 2
         ) {
             this.#terminate(socket, 'outboundCapacity');
             onSent?.(new Error('Mobile socket cannot accept another frame'));
             return;
         }
-        socket.send(sourceFrame, (error) => {
+        socket.send(sourceFrame, { binary: true }, (error) => {
             if (error) this.#terminate(socket, 'sendFailed');
             onSent?.(error);
         });

@@ -2,10 +2,29 @@ import { z } from 'zod';
 
 import { relayHostIdSchema, relayUrlSchema } from './relay.js';
 
-export const MOBILE_TRANSPORT_VERSION = 4 as const;
+export const MOBILE_TRANSPORT_VERSION = 5 as const;
+/**
+ * Largest AES-GCM ciphertext (plaintext plus the 16-byte tag) one sealed frame may carry.
+ */
 export const MOBILE_GATEWAY_MAX_FRAME_BYTES = 64 * 1024;
-export const MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES = MOBILE_GATEWAY_MAX_FRAME_BYTES - 16;
-export const MOBILE_GATEWAY_MAX_WIRE_BYTES = MOBILE_GATEWAY_MAX_FRAME_BYTES * 2 + 2_048;
+/**
+ * Bytes a sealed plaintext spends before its JSON payload: a flags byte and the JSON length (`sealed-frame.ts`).
+ */
+export const MOBILE_SEALED_PLAINTEXT_PREFIX_BYTES = 5;
+/**
+ * Budget for one payload's JSON plus its raw `chunk` bytes, after the AES-GCM tag and the plaintext prefix.
+ */
+export const MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES =
+    MOBILE_GATEWAY_MAX_FRAME_BYTES - 16 - MOBILE_SEALED_PLAINTEXT_PREFIX_BYTES;
+/**
+ * Binary sealed frame header: the transport version and a 48-bit big-endian counter.
+ */
+export const MOBILE_SEALED_FRAME_HEADER_BYTES = 7;
+/**
+ * Largest WebSocket message either side accepts: a full sealed frame, with headroom for the small JSON handshake and
+ * update-recovery text frames.
+ */
+export const MOBILE_GATEWAY_MAX_WIRE_BYTES = MOBILE_GATEWAY_MAX_FRAME_BYTES + 2_048;
 export const PAIRING_SECRET_BYTES = 32;
 export const SESSION_KEY_BYTES = 32;
 export const HANDSHAKE_NONCE_BYTES = 32;
@@ -143,14 +162,6 @@ export const mobileClientConfirmationSchema = z.strictObject({
     version: z.literal(MOBILE_TRANSPORT_VERSION),
     connectionId: fixedHex(16),
     confirmation: fixedHex(32),
-});
-
-export const mobileSealedFrameSchema = z.strictObject({
-    type: z.literal('sealed'),
-    version: z.literal(MOBILE_TRANSPORT_VERSION),
-    connectionId: fixedHex(16),
-    counter: z.number().int().min(0).max(MOBILE_MAX_FRAME_COUNTER),
-    ciphertext: z.string().regex(/^[0-9a-f]{32,131072}$/u),
 });
 
 export const mobilePairingResultSchema = z.strictObject({
