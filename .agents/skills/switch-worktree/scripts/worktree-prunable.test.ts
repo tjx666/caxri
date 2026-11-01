@@ -4,8 +4,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { addPlannedWorktree } from './planned-worktree';
 import { runCapture } from './process';
-import { createWorktree, listWorktreeStatus } from './worktree';
+import { listWorktreeStatus } from './worktree';
 
 const temporaryDirectories: string[] = [];
 
@@ -53,8 +54,16 @@ afterEach(async () => {
 describe('switch-worktree list with a prunable registration', () => {
     it('lists the remaining worktrees when a registered one lost its directory', async () => {
         const root = await createFixture();
-        const kept = await createWorktree({ branch: 'docs/kept', cwd: root, install: fakeInstall });
-        const gone = await createWorktree({ branch: 'docs/gone', cwd: root, install: fakeInstall });
+        const kept = await addPlannedWorktree({
+            branch: 'docs/kept',
+            cwd: root,
+            install: fakeInstall,
+        });
+        const gone = await addPlannedWorktree({
+            branch: 'docs/gone',
+            cwd: root,
+            install: fakeInstall,
+        });
         await rm(gone.path, { recursive: true, force: true });
 
         const statuses = await listWorktreeStatus(root);

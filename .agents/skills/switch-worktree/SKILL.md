@@ -94,30 +94,42 @@ explicitly requests or confirms that split.
 ## Create or resolve a checkout
 
 Resolve and reuse an existing checkout whenever the current delivery already owns one. Starting a
-new delivery from the primary checkout runs `create` directly. A session that already owns a task
+new delivery from the primary checkout runs the creation flow below directly. A session that already owns a task
 worktree needs the user's explicit request, or their confirmation after the agent explains why the
 current worktree cannot own the change, before creating a second one.
 
-Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
-prepare native `node-pty` artifacts, and initialize an isolated Caxri profile:
+Creating a checkout takes three commands, each its own shell call:
 
 ```bash
-bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create feat/example
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts plan feat/example
+git worktree add -b feat/example <printed path> origin/main   # the first printed line, verbatim
+bun run <absolute script path> create feat/example              # the second printed line, verbatim
 ```
 
-The project `PreToolUse` hook denies a raw `git worktree add` in this repository: such a checkout
-has no dependencies, so project hooks, lint, and tests fail there.
+1. `plan` validates the name, fetches `origin/main`, and prints the exact `git worktree add` plus the
+   `create` follow-up. For a local branch with no checkout it prints `git worktree add <path>
+<branch>`; for a branch already checked out it prints only the follow-up.
+2. Run the printed `git worktree add` yourself as its own shell command. Caxri moves the Agent
+   Session to a new worktree by classifying that literal command, so a `git` spawned inside a script
+   leaves the Session on the primary checkout. The project `PreToolUse` hook denies any
+   other `git worktree add`: a checkout outside the managed directory never gets dependencies.
+3. Run the printed `create` follow-up verbatim. It adopts the checkout: identity, isolated profile,
+   `ni`, and native `node-pty` artifacts. Rerunning it repairs a failed installation.
+4. In Claude Code, call `EnterWorktree` with `path` set to the new checkout. Caxri follows that tool
+   too and keeps the Chat resumable, and later tool calls run there. Other harnesses bind each tool
+   call to the printed path.
 
-Use `--base <ref>` only when the task explicitly requires another baseline. Allowed new-branch
-prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new name that already
-exists on `origin` is refused, since its push would be rejected or overwrite that branch.
+Use `--base <ref>` on `plan` only when the task explicitly requires another baseline. Allowed
+new-branch prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new
+name that already exists on `origin` is refused, since its push would be rejected or overwrite that
+branch.
 
-`create` holds the shared repository lock while it fetches and adds the worktree, and another
-session waits for it only 10 seconds before failing with `Timed out waiting for switch-worktree
-operation PID <pid>`. That failure created nothing: confirm the PID is a sibling's live
-`switch-worktree` (`ps -o pid=,command= -p <pid>`), let it finish, and rerun the same `create`.
-Running `create` in the background only avoids the calling tool's own timeout; it does not extend
-the 10-second lock wait.
+`plan` and `create` hold the shared repository lock while they fetch or prepare the checkout, and
+another session waits for it only 10 seconds before failing with `Timed out waiting for
+switch-worktree operation PID <pid>`. That failure changed nothing: confirm the PID is a sibling's
+live `switch-worktree` (`ps -o pid=,command= -p <pid>`), let it finish, and rerun the same command.
+Running it in the background only avoids the calling tool's own timeout; it does not extend the
+10-second lock wait.
 
 Resolve an existing branch or worktree path with:
 
@@ -125,9 +137,11 @@ Resolve an existing branch or worktree path with:
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts switch feat/example
 ```
 
-The command prints the target path. Use that path as the working directory for later tool calls;
-do not expect a child process to change the parent shell's directory. If Git already has the branch
-checked out elsewhere, reuse the reported path.
+The command prints the target path and repairs a managed checkout's installation; a local branch
+with no checkout fails and points at `plan`. Use that path as the working directory for later tool
+calls (in Claude Code, `EnterWorktree` with `path`); do not expect a child process to change the
+parent shell's directory. If Git already has the branch checked out elsewhere, reuse the reported
+path.
 
 After a completed PR has merged, a genuinely new delivery may reuse that linked worktree on a
 fresh branch from `origin/main`:

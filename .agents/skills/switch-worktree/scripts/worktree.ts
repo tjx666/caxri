@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 
@@ -20,7 +20,7 @@ import {
     worktreeIdentity,
     writeJsonAtomic,
 } from './repo';
-import { assertBranchContainsBase, assertRemoteBranchAbsent, hasBranch } from './worktree-branch';
+import { hasBranch } from './worktree-branch';
 import { explicitCdpPort, resolveWorktreeCdpPort } from './worktree-cdp-port';
 import type {
     DevelopmentLaunchOptions,
@@ -75,7 +75,6 @@ export interface DoctorResult {
 }
 
 export interface CreateOptions {
-    base?: string;
     branch: string;
     cwd: string;
     install?: (path: string) => Promise<void>;
@@ -91,19 +90,6 @@ export interface StopResult {
     path: string;
     stopped: Array<{ command: string; pid: number }>;
     survivors: Array<{ closedReason?: SignalFailureReason; command: string; pid: number }>;
-}
-
-async function didCommandSucceed(
-    command: string,
-    arguments_: string[],
-    cwd: string,
-): Promise<boolean> {
-    try {
-        await runCapture(command, arguments_, cwd);
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 async function isRealDirectory(path: string): Promise<boolean> {
@@ -274,14 +260,20 @@ export function resolveExistingTarget(
 export type ResolvedWorktree =
     { kind: 'ready'; status: WorktreeStatus } | { identity: string; kind: 'install'; path: string };
 
+/**
+ * `shouldAdopt` lets `create` claim a checkout the Agent just added with a raw `git worktree add`, which has no
+ * switch-worktree identity yet; `switch` keeps leaving an unmanaged checkout untouched.
+ */
 async function repairManagedWorktree(
     context: RepoContext,
     worktree: WorktreeRecord,
+    shouldAdopt = false,
 ): Promise<ResolvedWorktree> {
     const status = await inspectOne(context, worktree, await inspectDesktopLease(context.root));
     if (
-        !status.managed ||
-        (status.dependencies === 'ready' &&
+        (!shouldAdopt && !status.managed) ||
+        (status.managed &&
+            status.dependencies === 'ready' &&
             status.profile &&
             (await hasElectronBinaryArtifacts(worktree.path)))
     ) {
@@ -317,47 +309,36 @@ export function assertSemanticBranch(branch: string): void {
     }
 }
 
+/**
+ * Turns the checkout the caller added from `planWorktree` into a managed worktree: identity, isolated profile,
+ * dependencies, and native artifacts. Re-running it repairs an incomplete installation.
+ */
 export async function createWorktree(options: CreateOptions): Promise<WorktreeStatus> {
-    assertSemanticBranch(options.branch);
     const context = await repoContext(options.cwd);
     const install = options.install ?? installWorktreeDependencies;
     const resolved = await withRepoLock(context, async (): Promise<ResolvedWorktree> => {
-        const worktrees = await listWorktrees(context);
-        await assertBranchContainsBase(context.root, options.branch, options.base);
-        const existing = worktrees.find((worktree) => worktree.branch === options.branch);
-        if (existing) return repairManagedWorktree(context, existing);
-        if (
-            !(await didCommandSucceed(
-                'git',
-                ['check-ref-format', '--branch', options.branch],
-                context.root,
-            ))
-        ) {
-            throw new CommandError(`Invalid branch name: ${options.branch}`, 2);
-        }
-
-        const path = worktreeDirectory(context, options.branch);
-        await mkdir(resolve(path, '..'), { recursive: true });
-        if (await isPathPresent(path)) {
-            throw new CommandError(`Worktree path already exists: ${path}`);
-        }
-        const isExists = await hasBranch(context.root, options.branch);
-        if (isExists) {
-            await runCapture('git', ['worktree', 'add', path, options.branch], context.root);
-        } else {
-            await assertRemoteBranchAbsent(context.root, options.branch);
-            const base = options.base ?? 'origin/main';
-            if (!options.base)
-                await runCapture('git', ['fetch', '--quiet', 'origin', 'main'], context.root);
-            await runCapture(
-                'git',
-                ['worktree', 'add', '-b', options.branch, path, base],
-                context.root,
+        const existing = (await listWorktrees(context)).find(
+            (worktree) => worktree.branch === options.branch,
+        );
+        if (!existing) throw missingWorktreeError(options.branch);
+        if (resolve(existing.path) !== resolve(worktreeDirectory(context, options.branch))) {
+            throw new CommandError(
+                `${options.branch} is checked out at ${existing.path}, outside the managed worktree directory. ` +
+                    `Run \`switch ${options.branch}\` to use it as is.`,
+                2,
             );
         }
-        return { identity: await prepareManagedWorktree(context, path), kind: 'install', path };
+        return repairManagedWorktree(context, existing, true);
     });
     return finishManagedWorktree(context, resolved, install);
+}
+
+function missingWorktreeError(branch: string): CommandError {
+    return new CommandError(
+        `No worktree has ${branch} checked out. Run \`plan ${branch}\`, run the git worktree add it prints as its ` +
+            'own shell command, then run create.',
+        2,
+    );
 }
 
 export async function switchWorktree(
@@ -371,12 +352,7 @@ export async function switchWorktree(
         if (current) return repairManagedWorktree(context, current);
         if (!(await hasBranch(context.root, target)))
             throw new CommandError(`No worktree or local branch matches: ${target}`, 2);
-        const path = worktreeDirectory(context, target);
-        if (await isPathPresent(path))
-            throw new CommandError(`Worktree path already exists: ${path}`);
-        await mkdir(resolve(path, '..'), { recursive: true });
-        await runCapture('git', ['worktree', 'add', path, target], context.root);
-        return { identity: await prepareManagedWorktree(context, path), kind: 'install', path };
+        throw missingWorktreeError(target);
     });
     return finishManagedWorktree(context, resolved, install);
 }

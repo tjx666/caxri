@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { addPlannedWorktree } from './planned-worktree';
 import { runCapture } from './process';
-import { createWorktree } from './worktree';
 import { reuseWorktree } from './worktree-reuse';
 
 const temporaryDirectories: string[] = [];
@@ -47,7 +47,7 @@ async function fakeInstall(path: string): Promise<void> {
  * A worktree whose single delivery commit was squash-merged into `origin/main`, which then advanced once more.
  */
 async function createMergedWorktree(root: string, branch: string): Promise<string> {
-    const { path } = await createWorktree({ branch, cwd: root, install: fakeInstall });
+    const { path } = await addPlannedWorktree({ branch, cwd: root, install: fakeInstall });
     await writeFile(join(path, 'feature.txt'), 'feature\n', 'utf8');
     await git(path, 'add', 'feature.txt');
     await git(path, 'commit', '-m', 'feature');
@@ -100,7 +100,7 @@ describe('switch-worktree reuse', () => {
 
     it('refuses a branch that was pushed but never merged into origin/main', async () => {
         const root = await createFixture();
-        const { path } = await createWorktree({
+        const { path } = await addPlannedWorktree({
             branch: 'feat/open-delivery',
             cwd: root,
             install: fakeInstall,

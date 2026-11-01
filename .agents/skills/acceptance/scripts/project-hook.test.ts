@@ -16,6 +16,7 @@ import {
 interface EvaluationOverrides {
     acceptanceRuntimeExists?: boolean;
     cwd?: string;
+    managedWorktreeParent?: string;
     projectRoot?: string;
 }
 
@@ -39,6 +40,7 @@ const evaluate = (command: string, overrides: EvaluationOverrides = {}) =>
         acceptanceRuntimeExists: true,
         command,
         cwd: projectRoot,
+        managedWorktreeParent: '/tmp/caxri-worktrees',
         projectRoot,
         ...overrides,
     });
@@ -229,10 +231,11 @@ describe('Caxri Acceptance project hook', () => {
         }
     });
 
-    test('routes worktree creation through switch-worktree', () => {
+    test('allows only the planned git worktree add into the managed directory', () => {
         for (const command of [
-            'git worktree add -b docs/x ../caxri-worktrees/x origin/main',
             'cd /tmp/caxri && git -C /tmp/caxri worktree add ../x main',
+            'git worktree add -b docs/x ../caxri-worktrees/x/nested origin/main',
+            'git worktree add -b docs/x /tmp/caxri-worktrees/ok origin/main && git worktree add ../x',
             'git -c core.hooksPath=/dev/null worktree add ../x',
             'bash -lc "git worktree add ../x"',
             'echo $(git worktree add ../x)',
@@ -241,8 +244,17 @@ describe('Caxri Acceptance project hook', () => {
                 ruleId: 'caxri-raw-worktree-add',
             });
         }
+        expect(
+            evaluate('git worktree add -b docs/x /tmp/caxri-worktrees/x origin/main', {
+                acceptanceRuntimeExists: false,
+                managedWorktreeParent: '/tmp/other-worktrees',
+            }),
+        ).toMatchObject({ ruleId: 'caxri-raw-worktree-add' });
         for (const command of [
-            'bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create fix/x',
+            'git worktree add -b docs/x ../caxri-worktrees/x origin/main',
+            "git worktree add --lock --reason 'agent task' -b docs/x /tmp/caxri-worktrees/x origin/main",
+            'git -C /tmp worktree add caxri-worktrees/x docs/x',
+            'bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts plan fix/x',
             'git worktree list --porcelain',
             'git worktree prune',
             "grep -rn 'git worktree add' .agents",

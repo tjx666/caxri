@@ -30,7 +30,7 @@ export async function assertBranchContainsBase(
         return;
     throw new CommandError(
         `Branch ${branch} already exists and does not contain ${base}, so --base would be ignored. ` +
-            `Choose a new branch name, or run \`switch ${branch}\` to resume the existing branch.`,
+            `Choose a new branch name, or run \`plan ${branch}\` without --base to resume the existing branch.`,
         2,
     );
 }

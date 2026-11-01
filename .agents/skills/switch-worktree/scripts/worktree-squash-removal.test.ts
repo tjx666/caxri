@@ -4,8 +4,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { addPlannedWorktree } from './planned-worktree';
 import { runCapture } from './process';
-import { createWorktree, removeWorktree } from './worktree';
+import { removeWorktree } from './worktree';
 
 const temporaryDirectories: string[] = [];
 
@@ -52,7 +53,7 @@ afterEach(async () => {
 
 describe('switch-worktree squash removal', () => {
     async function createSquashMergedWorktree(root: string, branch: string) {
-        const created = await createWorktree({ branch, cwd: root, install: fakeInstall });
+        const created = await addPlannedWorktree({ branch, cwd: root, install: fakeInstall });
         await writeFile(join(created.path, 'first.txt'), 'first\n', 'utf8');
         await git(created.path, 'add', 'first.txt');
         await git(created.path, 'commit', '-m', 'first squash candidate');
@@ -105,7 +106,7 @@ describe('switch-worktree squash removal', () => {
     it('rejects a unique commit after its remote branch is deleted', async () => {
         const fixture = await createFixture();
         const branch = 'chore/deleted-unmerged-branch';
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch,
             cwd: fixture.root,
             install: fakeInstall,
@@ -123,7 +124,7 @@ describe('switch-worktree squash removal', () => {
 
     it('rejects a unique commit retained only on another remote', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/fork-only-branch',
             cwd: fixture.root,
             install: fakeInstall,
