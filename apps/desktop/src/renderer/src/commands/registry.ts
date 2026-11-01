@@ -47,6 +47,7 @@ export interface CommandContext {
         compactWarm(): void;
         interruptAndCompact(): void;
         enterAirplaneMode(): void;
+        restoreQuitStopped(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
         deleteSelected(): void;

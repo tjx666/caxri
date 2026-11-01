@@ -3,7 +3,6 @@ import './definitions';
 import type { CommandId } from '@caxri/protocol';
 import { listPaneTerminalIds, paneSplitBlockedReason, paneTabIdsToClose } from '@caxri/protocol';
 
-import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import {
     canRunAgentChatComposerCommand,
     runAgentChatComposerCommand,
@@ -17,7 +16,6 @@ import {
     focusAgentChatWaiting,
 } from '../features/agent-chat/waiting/agent-chat-waiting-focus';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
-import { takeBackFromBot } from '../features/caxri-bot/bot-handover-commands';
 import { openBotHandover } from '../features/caxri-bot/bot-handover-store';
 import { stopBotFromWorkbench } from '../features/caxri-bot/bot-stop-commands';
 import { reopenClosedItem } from '../features/closed-items/commands';
@@ -68,39 +66,12 @@ import {
     revealSecondarySidebar,
     toggleSecondarySidebar,
 } from '../features/secondary-sidebar/secondary-sidebar-visibility';
-import { enterAirplaneMode } from '../features/session/airplane-mode/airplane-mode-commands';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
-    detachSelectedSession,
-    resumeSelectedSession,
-} from '../features/session/session-agent-commands';
-import {
-    archiveSelectedSession,
-    openArchivedSessions,
-} from '../features/session/session-archive-commands';
-import {
-    canNavigateSessionHistory,
-    deleteSelectedSession,
     moveTerminalToNewSession,
-    navigateSessionHistory,
     openSelectedProjectInExternalEditor,
-    openSelectedSessionPullRequest,
-    selectAdjacentSession,
-    switchMruSession,
 } from '../features/session/session-commands';
-import {
-    compactWarmSessions,
-    interruptAndCompactSessions,
-} from '../features/session/session-compaction-commands';
-import {
-    beginSessionCreation,
-    chooseProjectFolder,
-} from '../features/session/session-creation-commands';
-import {
-    renameSelectedSession,
-    renameSelectedSessionWithAi,
-} from '../features/session/session-rename-commands';
-import { openPinnedSessionAtPosition } from '../features/session/session-window-commands';
+import { chooseProjectFolder } from '../features/session/session-creation-commands';
 import {
     canCloseSettingsPage,
     didCloseSettingsForTabClose,
@@ -168,6 +139,7 @@ import { useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
 import type { CommandContext } from './registry';
 import { getRegisteredCommand } from './registry';
+import { sessionCommandContext } from './session-command-context';
 
 export type { CommandContext } from './registry';
 
@@ -259,34 +231,7 @@ const commandContext: CommandContext = {
         hideSelected: hideSelectedProject,
         remove: deleteProject,
     },
-    session: {
-        create: () => {
-            const project = selectSelectedProject(getBootstrap());
-            if (project) beginSessionCreation(project.id);
-            else void chooseProjectFolder();
-        },
-        archiveSelected: archiveSelectedSession,
-        compactWarm: compactWarmSessions,
-        interruptAndCompact: interruptAndCompactSessions,
-        enterAirplaneMode,
-        canNavigateHistory: canNavigateSessionHistory,
-        deleteSelected: deleteSelectedSession,
-        detachSelected: detachSelectedSession,
-        focusNextAttention: focusNextAttentionSession,
-        navigateHistory: navigateSessionHistory,
-        openArchived: openArchivedSessions,
-        openPinned: openPinnedSessionAtPosition,
-        openPullRequestSelected: openSelectedSessionPullRequest,
-        renameSelected: renameSelectedSession,
-        renameSelectedWithAi: renameSelectedSessionWithAi,
-        resumeSelected: resumeSelectedSession,
-        selectAdjacent: selectAdjacentSession,
-        switchMru: switchMruSession,
-        takeBackSelectedFromBot: () => {
-            const session = getSelectedSession();
-            if (session) takeBackFromBot(session.id);
-        },
-    },
+    session: sessionCommandContext,
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         create: () => void createDefaultTerminal(),

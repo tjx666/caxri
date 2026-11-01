@@ -201,16 +201,16 @@ function authorizeAgentSessionManagement(
 }
 
 /**
- * The user's Session rename and parking handlers, Terminate All, plus the Agent entry to the same operations. An Agent
- * goes through exactly the code the sidebar runs (provider title synchronization, Terminal parking, Chat shutdown)
- * after admission.
+ * The user's Session rename and parking handlers, plus the Agent entry to the same operations. Terminate All is
+ * composed with the Session maintenance slice, which records what a quit stops (`createSessionMaintenanceServices`). An
+ * Agent goes through exactly the code the sidebar runs (provider title synchronization, Terminal parking, Chat
+ * shutdown) after admission.
  */
 export function createSessionHandlers(
     database: CaxriDatabase,
     parking: SessionParkingOptions,
     renames: Pick<SessionRenameService, 'rename'>,
 ): ReturnType<typeof createSessionParkingHandlers> &
-    ReturnType<typeof createTerminateAllHandler> &
     Pick<
         DomainHandlers,
         'agent.session.manageInternal' | 'session.rename' | 'session.updateState'
@@ -218,7 +218,6 @@ export function createSessionHandlers(
     const parkingHandlers = createSessionParkingHandlers(parking);
     return {
         ...parkingHandlers,
-        ...createTerminateAllHandler(parking),
         'session.rename': ({ sessionId, title }, signal, finalizeDurably) =>
             renames.rename(sessionId, title, signal, finalizeDurably),
         'session.updateState': (state) => {

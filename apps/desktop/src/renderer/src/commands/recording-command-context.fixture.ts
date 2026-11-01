@@ -42,6 +42,7 @@ export function recordingContext(): { calls: string[]; context: CommandContext }
                 compactWarm: record('session.compactWarm'),
                 interruptAndCompact: record('session.interruptAndCompact'),
                 enterAirplaneMode: record('session.enterAirplaneMode'),
+                restoreQuitStopped: record('session.restoreQuitStopped'),
                 canNavigateHistory: () => true,
                 create: record('session.create'),
                 focusNextAttention: record('session.focusNextAttention'),

@@ -12,6 +12,7 @@ import {
     identifierSchema,
     lastDatabaseRebuildSchema,
     persistedWindowStateSchema,
+    quitStoppedSessionsSchema,
     windowKeySchema,
     windowOpenSessionsSchema,
 } from '@caxri/protocol';
@@ -80,6 +81,10 @@ const appStateValueSchemas = {
      * `session/airplane-mode.ts`.
      */
     airplaneMode: airplaneModeStateSchema.omit({ compaction: true }),
+    /**
+     * What the last quit's "Stop Tasks" ended, offered to `session.restoreQuitStopped`. See `session/quit-restore.ts`.
+     */
+    quitStoppedSessions: quitStoppedSessionsSchema,
     mobileGateway: z.strictObject({
         accessEnabled: z.literal(true).optional(),
         preferredPort: z.number().int().min(1).max(65_535).optional(),

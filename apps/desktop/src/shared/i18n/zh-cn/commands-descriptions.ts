@@ -24,6 +24,8 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
         '打断所有正在运行的 Agent 回合并立即压缩对话，Agent 保持空闲',
     'commands.description.session.enterAirplaneMode':
         '先压缩空闲的 Agent 对话，再停止所有 Agent，直到你恢复它们，离线时不会有 Agent 反复重试请求',
+    'commands.description.session.restoreQuitStopped':
+        '重新启动上次选择「退出并停止任务」时停止的 Agent，并让当时仍在工作的 Agent 继续',
     'commands.description.session.detach': '停止所选会话的 Agent 终端，以便其他客户端恢复同一对话',
     'commands.description.session.resume': '重新启动所选会话中已分离的 Agent 终端并恢复其对话',
     'commands.description.session.openPullRequest':

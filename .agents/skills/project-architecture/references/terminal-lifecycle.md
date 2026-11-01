@@ -88,7 +88,10 @@ and starts Chats on the same Server. `Quit Caxri` stops an idle Server without p
 it asks whether to terminate every Terminal and Agent process before `host.stop`, keep work attached to
 the background Server, or cancel; the non-destructive keep-running choice is the default. Terminating
 before quitting is the same `terminal.terminateAll`; the Server's terminal shutdown is the `host.stop`
-that follows, whose orderly shutdown then finds nothing left to mark `interrupted`. Other connected clients are called out in the stop
+that follows, whose orderly shutdown then finds nothing left to mark `interrupted`. That terminate carries
+`reason: 'serverStop'` and first records what it stops, so
+[Restore Sessions Stopped at Last Quit](../../../../docs/session-quit-restore.md) can relaunch exactly those
+`stopped` Terminals later; `Terminate and Close` passes `windowClose` and records nothing. Other connected clients are called out in the stop
 warning, and an idle Server remains alive without prompting when another client is connected. System
 shutdown and explicit Desktop relaunch preserve work without prompting. Dead Terminals remain visible
 and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is

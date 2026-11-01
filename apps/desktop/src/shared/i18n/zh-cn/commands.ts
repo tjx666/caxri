@@ -36,6 +36,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.session.compactWarm': '压缩最近空闲的会话',
     'commands.session.interruptAndCompact': '打断并压缩所有会话',
     'commands.session.enterAirplaneMode': '进入飞行模式',
+    'commands.session.restoreQuitStopped': '恢复上次退出时停止的会话',
     'commands.session.detach': '分离 Agent',
     'commands.session.resume': '恢复 Agent',
     'commands.session.openPullRequest': '打开 Pull Request',

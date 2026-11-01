@@ -4,10 +4,15 @@ import type { AgentChatService } from './agent-chat';
 import type { AgentEnvironment, CompactionReadiness } from './agents';
 import type { DomainHandlers } from './domain-services';
 import type { SessionParkingOptions } from './parking-handlers';
-import { detachSessionAgents } from './parking-handlers';
+import { createTerminateAllHandler, detachSessionAgents } from './parking-handlers';
 import { isPtyTerminal } from './pty-guard';
-import { AirplaneMode, SessionCompaction, SessionInterruptCompaction } from './session';
-import type { TerminalSuspensionService } from './terminal';
+import {
+    AirplaneMode,
+    QuitRestore,
+    SessionCompaction,
+    SessionInterruptCompaction,
+} from './session';
+import type { TerminalRestoreOptions, TerminalSuspensionService } from './terminal';
 import { createInterruptedTerminalRestorer, TerminalRestoreSupervisor } from './terminal';
 
 /**
@@ -26,6 +31,13 @@ type RestorerOptions = Omit<
  */
 const AIRPLANE_MODE_CONTINUE_PROMPT =
     'Continue where you left off. Caxri Airplane Mode stopped this Agent before going offline, so your last turn was interrupted and any background subagents or commands were stopped; rerun what you still need.';
+
+/**
+ * What a restored Agent that the last quit's "Quit and Stop Tasks" stopped mid-work receives
+ * (`session.restoreQuitStopped`).
+ */
+const QUIT_RESTORE_CONTINUE_PROMPT =
+    'Continue where you left off. Caxri was quit with "Quit and Stop Tasks" while you were working, so your last turn was interrupted and any background subagents or commands were stopped; rerun what you still need.';
 
 /**
  * What an Agent whose turn Airplane Mode interrupted receives when the user cancels before anything stopped.
@@ -119,32 +131,59 @@ export function createSessionMaintenanceServices(options: {
         ...options.restorerOptions,
         terminalRestores: restores,
     });
+    const hasLiveAgent = (sessionId: string): boolean =>
+        agentChat.liveCount(sessionId) > 0 ||
+        database
+            .listTerminals(sessionId)
+            .some(
+                (terminal) =>
+                    terminal.provider !== undefined &&
+                    terminals.processId(terminal.id) !== undefined,
+            );
+    const isWorking = (sessionId: string): boolean => {
+        if (isTurnActive(sessionId)) return true;
+        const terminal = primaryAgent(sessionId);
+        if (!terminal) return false;
+        if (!isPtyTerminal(terminal))
+            return (
+                agentChat.hasActiveTurn(terminal.id) || agentChat.states.hasRunningTasks(sessionId)
+            );
+        // Claude's background subagents, workflows, monitors, and non-server background commands
+        // (`agentBackgroundWork`); a dev server left running in the background does not count.
+        return coordinator.agentOperation(terminal.id) === 'background';
+    };
+    /**
+     * The same relaunch as `session.resume`, without moving any window's selection. `continuePrompt` is submitted to
+     * the primary Agent as it resumes, for an Agent that was stopped mid-work.
+     */
+    const resumeStoppedSession = async (
+        sessionId: string,
+        continuePrompt: string | undefined,
+        restoreOptions: Pick<TerminalRestoreOptions, 'includeDetached' | 'stoppedTerminalIds'>,
+    ): Promise<void> => {
+        await parking.mobileTerminalMutations.runSessions([sessionId], () =>
+            agentChat.resumeSession(sessionId),
+        );
+        const terminal = continuePrompt === undefined ? undefined : primaryAgent(sessionId);
+        await restoreSession(sessionId, {
+            ...restoreOptions,
+            ...(terminal &&
+                continuePrompt !== undefined &&
+                isPtyTerminal(terminal) && {
+                    agentPrompt: { terminalId: terminal.id, text: continuePrompt },
+                }),
+        });
+        // A Chat queues the message behind its own start, so it can be sent right after `resumeSession`.
+        if (terminal && continuePrompt !== undefined && !isPtyTerminal(terminal))
+            await agentChat.send(terminal.id, { text: continuePrompt });
+        parking.sendFullStateChange('session.resume');
+    };
     const airplaneMode = new AirplaneMode({
         database,
         compact: () => compaction.run(),
         isCompacting: (terminalId) => coordinator.maintenanceTurns.holds(terminalId),
-        hasLiveAgent: (sessionId) =>
-            agentChat.liveCount(sessionId) > 0 ||
-            database
-                .listTerminals(sessionId)
-                .some(
-                    (terminal) =>
-                        terminal.provider !== undefined &&
-                        terminals.processId(terminal.id) !== undefined,
-                ),
-        isWorking: (sessionId) => {
-            if (isTurnActive(sessionId)) return true;
-            const terminal = primaryAgent(sessionId);
-            if (!terminal) return false;
-            if (!isPtyTerminal(terminal))
-                return (
-                    agentChat.hasActiveTurn(terminal.id) ||
-                    agentChat.states.hasRunningTasks(sessionId)
-                );
-            // Claude's background subagents, workflows, monitors, and non-server background commands
-            // (`agentBackgroundWork`); a dev server left running in the background does not count.
-            return coordinator.agentOperation(terminal.id) === 'background';
-        },
+        hasLiveAgent,
+        isWorking,
         interrupt: didInterruptTurn,
         isTurnRunning,
         continueLive: async (sessionId) => {
@@ -168,30 +207,36 @@ export function createSessionMaintenanceServices(options: {
             await detachSessionAgents(parking, sessionId);
             parking.sendFullStateChange('session.detach');
         },
-        resume: async (sessionId, shouldContinue) => {
-            // The same relaunch as `session.resume`, without moving any window's selection.
-            await parking.mobileTerminalMutations.runSessions([sessionId], () =>
-                agentChat.resumeSession(sessionId),
-            );
-            const terminal = shouldContinue ? primaryAgent(sessionId) : undefined;
-            await restoreSession(sessionId, {
-                includeDetached: true,
-                ...(terminal &&
-                    isPtyTerminal(terminal) && {
-                        agentPrompt: {
-                            terminalId: terminal.id,
-                            text: AIRPLANE_MODE_CONTINUE_PROMPT,
-                        },
-                    }),
-            });
-            // A Chat queues the message behind its own start, so it can be sent right after `resumeSession`.
-            if (terminal && !isPtyTerminal(terminal))
-                await agentChat.send(terminal.id, { text: AIRPLANE_MODE_CONTINUE_PROMPT });
-            parking.sendFullStateChange('session.resume');
-        },
+        resume: (sessionId, shouldContinue) =>
+            resumeStoppedSession(
+                sessionId,
+                shouldContinue ? AIRPLANE_MODE_CONTINUE_PROMPT : undefined,
+                { includeDetached: true },
+            ),
         publish: (state) => send({ event: 'session.airplaneModeChanged', payload: state }),
         logger,
     });
+    const quitRestore = new QuitRestore({
+        database,
+        livePtyIds: (sessionId) =>
+            database
+                .listTerminals(sessionId)
+                .filter(
+                    (terminal) =>
+                        isPtyTerminal(terminal) && terminals.processId(terminal.id) !== undefined,
+                )
+                .map((terminal) => terminal.id),
+        hasLiveChat: (sessionId) => agentChat.liveCount(sessionId) > 0,
+        isWorking,
+        resume: (sessionId, stoppedTerminalIds, shouldContinue) =>
+            resumeStoppedSession(
+                sessionId,
+                shouldContinue ? QUIT_RESTORE_CONTINUE_PROMPT : undefined,
+                { stoppedTerminalIds },
+            ),
+        logger,
+    });
+    const terminateAll = createTerminateAllHandler(parking)['terminal.terminateAll'];
     const interruptCompaction = new SessionInterruptCompaction({
         listSessionIds: () =>
             database
@@ -215,7 +260,9 @@ export function createSessionMaintenanceServices(options: {
         | 'session.enterAirplaneMode'
         | 'session.exitAirplaneMode'
         | 'session.interruptAndCompact'
+        | 'session.restoreQuitStopped'
         | 'session.skipAirplaneModeCompaction'
+        | 'terminal.terminateAll'
     > = {
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
         'session.interruptAndCompact': (_parameters, signal) => interruptCompaction.run(signal),
@@ -223,6 +270,14 @@ export function createSessionMaintenanceServices(options: {
         'session.skipAirplaneModeCompaction': () => airplaneMode.skipCompaction(),
         'session.exitAirplaneMode': ({ sessionIds }) => airplaneMode.exit(sessionIds),
         'session.airplaneModeStatus': () => airplaneMode.status(),
+        'session.restoreQuitStopped': () => quitRestore.restore(),
+        /**
+         * A quit samples what is still live before stopping it, so `session.restoreQuitStopped` can bring it back.
+         */
+        'terminal.terminateAll': async (parameters, ...rest) => {
+            if (parameters.reason === 'serverStop') quitRestore.record();
+            return terminateAll(parameters, ...rest);
+        },
     };
     return {
         handlers,

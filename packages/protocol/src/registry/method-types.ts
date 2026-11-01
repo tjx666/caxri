@@ -344,6 +344,7 @@ export const effectfulCommandRecovery = {
     'session.enterAirplaneMode': 'durable',
     'session.skipAirplaneModeCompaction': 'memory',
     'session.exitAirplaneMode': 'durable',
+    'session.restoreQuitStopped': 'durable',
     'session.conversationReference': 'memory',
     'session.importConversation': 'durable',
     'session.reopenConversation': 'durable',

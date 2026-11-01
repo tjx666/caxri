@@ -153,6 +153,7 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.compactWarm', (context) => context.session.compactWarm()),
     fromCatalog('session.interruptAndCompact', (context) => context.session.interruptAndCompact()),
     fromCatalog('session.enterAirplaneMode', (context) => context.session.enterAirplaneMode()),
+    fromCatalog('session.restoreQuitStopped', (context) => context.session.restoreQuitStopped()),
     fromCatalog('session.detach', (context) => context.session.detachSelected()),
     fromCatalog('session.resume', (context) => context.session.resumeSelected()),
     fromCatalog('session.openPullRequest', (context) => context.session.openPullRequestSelected()),

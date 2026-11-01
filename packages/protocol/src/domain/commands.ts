@@ -35,6 +35,7 @@ export const commandIds = [
     'session.compactWarm',
     'session.interruptAndCompact',
     'session.enterAirplaneMode',
+    'session.restoreQuitStopped',
     'session.detach',
     'session.resume',
     'session.openPullRequest',

@@ -227,6 +227,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['wall-clock'],
         why: 'Three assertions on the batch-compaction result toast before its real 4s auto-dismissal.',
     },
+    'e2e/session-quit-restore.e2e.ts': {
+        reasons: ['wall-clock'],
+        why: 'Two assertions on the restore result toast before its real 4s auto-dismissal.',
+    },
     'e2e/session-rename-pending.e2e.ts': {
         reasons: ['wall-clock'],
         why: "1s assertions and a not-yet-renamed check race the fake Agent's real 4s timer.",

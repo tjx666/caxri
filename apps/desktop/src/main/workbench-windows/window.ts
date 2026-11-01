@@ -168,7 +168,8 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
                       logger()?.write('error', logEventCatalog.window.closeFailed, {
                           fields: { error: message },
                       }),
-                  terminateAll: () => supervisor().request('terminal.terminateAll'),
+                  terminateAll: () =>
+                      supervisor().request('terminal.terminateAll', { reason: 'windowClose' }),
               })
             : /**
                * A tear-off window closes like a tab: its unsaved Editor buffers are decided, then its strip is released. It never

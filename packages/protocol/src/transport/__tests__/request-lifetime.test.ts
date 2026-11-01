@@ -156,6 +156,7 @@ const shortLivedDurableMethods = new Set<string>([
     'session.dismissWorkbenchCandidate',
     'session.enterAirplaneMode',
     'session.exitAirplaneMode',
+    'session.restoreQuitStopped',
     'session.importConversation',
     'session.markRead',
     'session.rename',

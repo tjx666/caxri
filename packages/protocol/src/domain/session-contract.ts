@@ -21,6 +21,7 @@ import {
     sessionArchiveWorktreeConfirmationSchema,
     sessionArchiveWorktreePlanSchema,
 } from './session/session-archive-worktree.js';
+import { sessionRestoreQuitStoppedResultSchema } from './session/session-quit-restore.js';
 import {
     sessionAgentHistoryResultSchema,
     sessionReopenConversationParametersSchema,
@@ -122,6 +123,16 @@ export const sessionMethods = {
         ...commandPolicy('server', 'read'),
         params: z.object({}),
         result: airplaneModeStateSchema,
+    },
+    /**
+     * Relaunches the Sessions the last quit's "Stop Tasks" ended, on their bound conversations, and tells the Agents
+     * that were still working to continue (docs/session-quit-restore.md). Consumes the record: a second call restores
+     * nothing.
+     */
+    'session.restoreQuitStopped': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({}),
+        result: sessionRestoreQuitStoppedResultSchema,
     },
     /**
      * Finds Agent conversations across every provider's history on this machine, open, archived, or never in Caxri, by
