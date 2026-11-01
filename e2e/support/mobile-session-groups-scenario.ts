@@ -24,6 +24,16 @@ const IDLE_SESSION_COUNT = 11;
  */
 const DRIFT_DP = 16;
 
+/**
+ * Long enough for a released swipe's spring-back and its scheduled filter switch to finish.
+ */
+const SETTLE_MS = 600;
+
+const pause = (ms: number) =>
+    new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+    });
+
 type Fixture = Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
 
 /**
@@ -84,6 +94,9 @@ export async function executeMobileSessionSwipeScenario(
     try {
         const ids = await pairWithIdleSessions(fixture);
         await waitForCheck(serial, 'session-group-idle');
+        // All eleven rows overflow the phone, so the drifting drag below has a list that can really scroll.
+        await tapMobileCheckByBounds(serial, 'session-group-reveal-idle');
+        await waitForNoCheck(serial, 'session-group-reveal-idle');
         const nodes = await mobileSemantics(serial);
         const target = ids.find((id) => checkBounds(nodes, `session-row-${id}`));
         const row = target && checkBounds(nodes, `session-row-${target}`);
@@ -107,6 +120,9 @@ export async function executeMobileSessionSwipeScenario(
             String(y - lift),
             '400',
         ]);
+        const lifted = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
+        if (lifted && lifted.top >= row.top)
+            throw new Error('The drifting drag did not scroll the list');
         await capture(environment, 'after-drifting-scroll-up', artifacts);
         await adbShell(serial, [
             'input',
@@ -130,6 +146,30 @@ export async function executeMobileSessionSwipeScenario(
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForCheck(serial, 'session-group-idle');
 
+        // A short, slow drag on one row: past the old Archive reveal (half its 84dp action) but short of a Project switch.
+        const settled = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
+        if (!settled) throw new Error('The idle Session row left the screen');
+        const rowY = String(Math.floor((settled.top + settled.bottom) / 2));
+        const rowWidth = settled.right - settled.left;
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            String(Math.floor(settled.left + rowWidth * 0.75)),
+            rowY,
+            String(Math.floor(settled.left + rowWidth * 0.6)),
+            rowY,
+            '800',
+        ]);
+        await pause(SETTLE_MS);
+        const afterRowDrag = await mobileSemantics(serial);
+        if (afterRowDrag.some(({ checkId }) => checkId.startsWith('session-swipe-archive-')))
+            throw new Error('A row swipe still revealed Archive');
+        if (checkBounds(afterRowDrag, `session-row-${target}`)?.left !== settled.left)
+            throw new Error('A row swipe left the row shifted sideways');
+        if (!isFilterSelected(afterRowDrag, 'project-filter-all'))
+            throw new Error('A short row drag switched Project');
+        await capture(environment, 'short-row-drag', artifacts);
+
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
         await swipeList(serial, 0.8, 0.2);
         await waitForMobile(
@@ -139,8 +179,15 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'swiped-to-project', artifacts);
         // The phone only sees one Project, so it is the last chip and a further left swipe has nowhere to go.
         await swipeList(serial, 0.8, 0.2);
-        if (!isFilterSelected(await mobileSemantics(serial), projectChip))
-            throw new Error('A left swipe past the last Project left it');
+        // The switch is scheduled after release, so a wrong wrap-around would land late; watch for it.
+        for (let sample = 0; sample < 3; sample += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each sample is a timed observation of the same screen.
+            await pause(SETTLE_MS);
+            // eslint-disable-next-line no-await-in-loop -- see above.
+            if (!isFilterSelected(await mobileSemantics(serial), projectChip))
+                throw new Error('A left swipe past the last Project left it');
+        }
+        await capture(environment, 'swiped-past-last', artifacts);
         await swipeList(serial, 0.2, 0.8);
         await waitForMobile(
             () => mobileSemantics(serial),
@@ -151,6 +198,7 @@ export async function executeMobileSessionSwipeScenario(
             driftingScroll: 'scrolled-without-switching-project',
             leftSwipe: 'all-to-project',
             leftSwipeAtLastProject: 'stayed',
+            shortRowDrag: 'no-archive-no-switch',
             rightSwipe: 'project-to-all',
             status: 'passed',
         });
