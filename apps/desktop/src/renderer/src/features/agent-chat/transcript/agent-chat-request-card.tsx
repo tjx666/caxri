@@ -23,7 +23,11 @@ import { AgentChatMessage } from '../messages/agent-chat-message';
 import { AGENT_CHAT_APPROVAL_ATTRIBUTE } from '../permissions/agent-chat-approval-commands';
 import { useAgentChatApprovalKeys } from '../permissions/use-agent-chat-approval-keys';
 import { AgentChatFileChanges } from '../turns/agent-chat-file-changes';
-import { agentChatCommandCwd, isApprovalClickGuarded } from './agent-chat-presentation';
+import {
+    agentChatCommandCwd,
+    agentChatRequestPaths,
+    isApprovalClickGuarded,
+} from './agent-chat-presentation';
 import { AgentChatQuestionForm } from './questions/agent-chat-question-form';
 
 /**
@@ -34,6 +38,38 @@ import { AgentChatQuestionForm } from './questions/agent-chat-question-form';
 function ApprovalFiles({ item }: { item: AgentChatItem | undefined }) {
     if (item?.type !== 'fileChange' || item.changes.length === 0) return null;
     return <AgentChatFileChanges changes={item.changes} expandAtMost={1} status={item.status} />;
+}
+
+/**
+ * The files a file-change approval names, for a surface without its timeline item (the waiting popup): the user sees
+ * the scope before Apply without opening the Session.
+ */
+function ApprovalPaths({
+    paths,
+    projectRoot,
+}: {
+    paths: readonly string[] | undefined;
+    projectRoot: string | undefined;
+}) {
+    const { t } = useTranslation();
+    const { moreCount, shown } = agentChatRequestPaths(paths, projectRoot);
+    if (shown.length === 0) return null;
+    return (
+        <ul className="m-0 flex list-none flex-col gap-0.5 p-0 font-mono text-[11px] text-foreground">
+            {shown.map(({ label, path }) => (
+                <li key={path} className="min-w-0">
+                    <Tooltip content={path}>
+                        <span className="block truncate">{label}</span>
+                    </Tooltip>
+                </li>
+            ))}
+            {moreCount > 0 && (
+                <li className="font-sans text-muted">
+                    {t('agentChat.request.morePaths', { count: moreCount })}
+                </li>
+            )}
+        </ul>
+    );
 }
 
 const APPROVAL_PRE_CLASS_NAME =
@@ -125,6 +161,9 @@ function ApprovalBody({
             )}
             {request.kind === 'fileChange' && <ApprovalFiles item={linkedItem} />}
             {request.reason && <p className="m-0 text-muted">{request.reason}</p>}
+            {request.kind === 'fileChange' && linkedItem?.type !== 'fileChange' && (
+                <ApprovalPaths paths={request.paths} projectRoot={projectRoot} />
+            )}
             {reviewHint && <p className="m-0 text-muted">{reviewHint}</p>}
             <div className="flex flex-wrap gap-2">
                 {choices.map(({ decision, hint, label }) => {

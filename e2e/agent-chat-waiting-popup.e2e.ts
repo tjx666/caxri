@@ -159,3 +159,37 @@ test('Chats that are not on screen ask through the waiting popup, one request at
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('A file-change request in the waiting popup names the files it would change', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-waiting-files-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        const popup = page.locator('[data-agent-chat-waiting="card"]');
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const editing = page.locator(VISIBLE_SESSION);
+        await editing.getByRole('textbox', { name: 'Message' }).fill('please edit the notes');
+        await editing.getByRole('textbox', { name: 'Message' }).press('Enter');
+        await expect(
+            editing.getByRole('region', { name: 'Apply these file changes?' }),
+        ).toBeVisible();
+
+        await createAdditionalShellSession(page);
+        // The popup has no timeline to show the diff from, so it lists the file, relative to the Project.
+        await expect(popup).toContainText('Open the Session to review the changes');
+        await expect(
+            popup.getByRole('listitem').filter({ hasText: /^notes\.txt$/u }),
+        ).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('waiting-popup-file-change.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

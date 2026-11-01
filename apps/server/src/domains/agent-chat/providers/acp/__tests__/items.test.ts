@@ -212,6 +212,24 @@ describe('Grok Build permissions', () => {
         });
     });
 
+    it('names the files an edit approval would change', () => {
+        expect(
+            mapGrokPermission(
+                call({
+                    kind: 'edit',
+                    content: [
+                        { type: 'diff', path: '/repo/a.ts', newText: 'a' },
+                        { type: 'diff', path: '/repo/b.ts', oldText: 'b', newText: 'c' },
+                    ],
+                }),
+                [PERMISSION_OPTIONS[0]],
+            ),
+        ).toMatchObject({ kind: 'fileChange', paths: ['/repo/a.ts', '/repo/b.ts'] });
+        expect(
+            mapGrokPermission(call({ kind: 'edit' }), [PERMISSION_OPTIONS[0]]),
+        ).not.toHaveProperty('paths');
+    });
+
     it('answers with the matching option, or cancelled when none matches', () => {
         expect(acpPermissionOutcome(PERMISSION_OPTIONS, 'acceptForSession')).toEqual({
             outcome: { outcome: 'selected', optionId: 'always-allow' },

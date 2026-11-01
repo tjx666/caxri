@@ -364,7 +364,10 @@ export function mapClaudeApproval(
             ...(command && { command }),
         };
     }
-    if (FILE_TOOLS.has(toolName)) return { ...base, kind: 'fileChange', itemId: id };
+    if (FILE_TOOLS.has(toolName)) {
+        const path = clip(filePath(fields), 4_096);
+        return { ...base, kind: 'fileChange', itemId: id, ...(path && { paths: [path] }) };
+    }
     // An approval decides on the arguments themselves, so it never shows a readable digest of them in their place.
     const summary =
         toolName === 'ExitPlanMode'

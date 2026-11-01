@@ -1,6 +1,8 @@
 /* eslint-disable unicorn/max-nested-calls -- Declarative Zod schemas intentionally compose bounded validators inline. */
 import { z } from 'zod';
 
+import { MAX_AGENT_CHAT_FILE_CHANGES } from './agent-chat-limits.js';
+
 /**
  * Questions one Agent Chat question request may ask at once.
  */
@@ -51,6 +53,12 @@ export const agentChatRequestSchema = z.discriminatedUnion('kind', [
     z.strictObject({
         ...approvalBase,
         kind: z.literal('fileChange'),
+        /**
+         * Files the change would touch, as the provider names them (usually absolute). Set when the provider says which
+         * files before asking, so a surface without the linked timeline item (the waiting popup) can still show the
+         * scope; absent when it does not.
+         */
+        paths: z.array(z.string().min(1).max(4_096)).max(MAX_AGENT_CHAT_FILE_CHANGES).optional(),
     }),
     /**
      * Any other tool the provider asks before running (a web fetch, an MCP tool), for providers that gate tools rather
