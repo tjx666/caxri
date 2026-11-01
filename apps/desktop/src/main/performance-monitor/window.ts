@@ -58,9 +58,10 @@ interface PerformanceMonitorWindowOptions {
 /**
  * Owns the detached Performance Monitor window. It measures nothing itself: the monitored Workbench's Renderer samples
  * its own frames and publishes them here, and Main relays them. Keeping the monitor in a separate window is what lets
- * the Workbench reload while the monitor stays up and times that reload from Main's side. No `webContents.debugger`
- * attach happens anywhere in this path, because an attached debugger changes the page's visibility behaviour and would
- * distort the very frame rate being read.
+ * the Workbench reload while the monitor stays up and times that reload from Main's side. The monitor never drives the
+ * debugger protocol itself: its own Page or Emulation commands would distort the very frame rate being read. The
+ * Workbench's hang sampler (`renderer-diagnostics/renderer-hang-stack.ts`) keeps only the Debugger domain enabled,
+ * which leaves visibility and background timer throttling unchanged.
  */
 export class PerformanceMonitorWindowController {
     private window?: BrowserWindow;
