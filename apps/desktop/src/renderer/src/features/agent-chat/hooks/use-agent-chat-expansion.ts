@@ -2,6 +2,7 @@ import {
     createContext,
     useContext,
     useEffect,
+    useMemo,
     useRef,
     useState,
     useSyncExternalStore,
@@ -26,6 +27,18 @@ export interface AgentChatExpansion {
 }
 
 export const AgentChatExpansionContext = createContext<AgentChatExpansion | undefined>(undefined);
+
+/**
+ * The value a timeline host provides on `AgentChatExpansionContext`: which rows the user expanded, kept for the host's
+ * lifetime so a row stays open when the timeline rebuilds it (a finished turn folding, a live row joining a summary
+ * group), and `onUserToggle`, the scroll view's anchor, so toggling one holds it in place instead of following.
+ */
+export function useAgentChatExpansionHost(
+    onUserToggle: (element: HTMLElement) => void,
+): AgentChatExpansion {
+    const [state] = useState(() => new AgentChatExpansionState());
+    return useMemo(() => ({ state, onUserToggle }), [onUserToggle, state]);
+}
 
 /**
  * One disclosure's expanded state. It opens by default when `isDefaultExpanded` holds or when the user expanded any of

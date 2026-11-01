@@ -1,3 +1,5 @@
+import type { ComponentProps } from 'react';
+
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { Reply, Sparkles, X } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
@@ -10,7 +12,9 @@ import { Button } from '../../../../components/ui/button';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
 import { motionDurationMs, motionEasing } from '../../../../lib/motion';
+import { AgentChatJumpToLatest } from '../agent-chat-jump-to-latest';
 import {
+    shouldCueAwayRecap,
     useAgentChatAwayRecapStore,
     useVisibleAgentChatAwayRecap,
 } from './agent-chat-away-recap-store';
@@ -68,6 +72,26 @@ export function AgentChatAwayRecap({
                 )}
             </AnimatePresence>
         </LazyMotion>
+    );
+}
+
+/**
+ * A Chat's Jump to latest, cued while this Chat's away recap waits below the view (`shouldCueAwayRecap`).
+ */
+export function AgentChatJumpToLatestWithRecap({
+    snapshot,
+    terminalId,
+    ...properties
+}: Omit<ComponentProps<typeof AgentChatJumpToLatest>, 'hasRecapCue'> & {
+    snapshot: AgentChatSnapshot | undefined;
+    terminalId: string;
+}) {
+    const recap = useVisibleAgentChatAwayRecap(snapshot, terminalId);
+    return (
+        <AgentChatJumpToLatest
+            {...properties}
+            hasRecapCue={shouldCueAwayRecap(recap, properties.isLatestInView)}
+        />
     );
 }
 

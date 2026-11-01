@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AgentProviderCatalogEntry } from '@caxri/protocol';
 
@@ -28,8 +28,10 @@ import { useAgentChatComposerSnapshot } from './composer-snapshot/use-agent-chat
 import { AgentChatFindScope } from './find/agent-chat-find-scope';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { useAgentChatEditActions } from './hooks/use-agent-chat-edit';
-import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
-import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
+import {
+    AgentChatExpansionContext,
+    useAgentChatExpansionHost,
+} from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
@@ -52,9 +54,7 @@ import {
     isAgentChatMessageRailShown,
 } from './rail/agent-chat-rail-marks';
 import { useAgentChatMessageRail } from './rail/hooks/use-agent-chat-message-rail';
-import { AgentChatExpansionState } from './transcript/agent-chat-expansion';
 import { AgentChatHistoryHead } from './transcript/agent-chat-history-head';
-import { AgentChatJumpToLatest } from './transcript/agent-chat-jump-to-latest';
 import {
     agentChatEmptyHint,
     agentChatEmptyMessage,
@@ -64,11 +64,10 @@ import {
 } from './transcript/agent-chat-presentation';
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { isAgentChatAwaitingReplyInTimeline } from './transcript/agent-chat-timeline';
-import { AgentChatAwayRecap } from './transcript/away-recap/agent-chat-away-recap';
 import {
-    shouldCueAwayRecap,
-    useVisibleAgentChatAwayRecap,
-} from './transcript/away-recap/agent-chat-away-recap-store';
+    AgentChatAwayRecap,
+    AgentChatJumpToLatestWithRecap,
+} from './transcript/away-recap/agent-chat-away-recap';
 import { useAgentChatTailFirstMount } from './transcript/mount/use-agent-chat-tail-first-mount';
 import { AgentChatTimelineBody } from './transcript/timeline/agent-chat-timeline-body';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
@@ -204,17 +203,8 @@ function AgentChatPaneContent({
         latestPromptId: snapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
         turnSelector: AGENT_CHAT_TURN_SELECTOR,
     });
-    /**
-     * Which rows the user expanded, kept for the Chat's lifetime so a row stays open when the timeline rebuilds it (a
-     * finished turn folding, a live row joining a summary group). Toggling one holds it in place instead of following.
-     */
-    const [expansionState] = useState(() => new AgentChatExpansionState());
-    const expansion = useMemo<AgentChatExpansion>(
-        () => ({ state: expansionState, onUserToggle: anchor }),
-        [anchor, expansionState],
-    );
+    const expansion = useAgentChatExpansionHost(anchor);
     const focusComposer = useCallback(() => inputReference.current?.focus(), []);
-    const awayRecap = useVisibleAgentChatAwayRecap(snapshot, terminalId);
     /**
      * A cited file resolves exactly like a path printed in a Terminal: against the Projects this Chat Terminal may
      * reach, with the same candidate picker when several match.
@@ -403,10 +393,11 @@ function AgentChatPaneContent({
                         marks={railMarks}
                         onJump={rail.jumpTo}
                     />
-                    <AgentChatJumpToLatest
+                    <AgentChatJumpToLatestWithRecap
                         focusTarget={inputReference}
-                        hasRecapCue={shouldCueAwayRecap(awayRecap, isLatestInView)}
                         isLatestInView={isLatestInView}
+                        snapshot={snapshot}
+                        terminalId={terminalId}
                         onJump={jumpToLatest}
                     />
                 </AgentChatFindScope>

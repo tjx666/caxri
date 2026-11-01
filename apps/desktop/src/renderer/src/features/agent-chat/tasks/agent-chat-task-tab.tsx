@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import {
@@ -24,8 +24,10 @@ import {
     stopAgentChatTask,
     useAgentChatTaskStopStore,
 } from '../agent-chat-commands';
-import type { AgentChatExpansion } from '../hooks/use-agent-chat-expansion';
-import { AgentChatExpansionContext } from '../hooks/use-agent-chat-expansion';
+import {
+    AgentChatExpansionContext,
+    useAgentChatExpansionHost,
+} from '../hooks/use-agent-chat-expansion';
 import { useAgentChatHistory } from '../hooks/use-agent-chat-history';
 import { useAgentChatOpenFile } from '../hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from '../hooks/use-agent-chat-scroll';
@@ -33,7 +35,6 @@ import { useAgentChatTask } from '../hooks/use-agent-chat-task';
 import { useLoadingStyle } from '../loading';
 import { AgentChatSelectionToolbar } from '../messages/agent-chat-selection-toolbar';
 import { AgentChatStatusGlyph } from '../tools/agent-chat-status-glyph';
-import { AgentChatExpansionState } from '../transcript/agent-chat-expansion';
 import { AgentChatHistoryHead } from '../transcript/agent-chat-history-head';
 import { AgentChatJumpToLatest } from '../transcript/agent-chat-jump-to-latest';
 import { agentChatSettledChunks } from '../transcript/agent-chat-settled-chunks';
@@ -203,15 +204,8 @@ function TaskTimeline({
      */
     const isEarlierHidden =
         !history.hasMore && (history.history.isLoaded ? history.history.truncated : truncated);
-    /**
-     * Rows the user expanded stay open as the subagent's timeline rebuilds them, and toggling one holds it in place
-     * instead of following, exactly as in the parent Chat.
-     */
-    const [expansionState] = useState(() => new AgentChatExpansionState());
-    const expansion = useMemo<AgentChatExpansion>(
-        () => ({ state: expansionState, onUserToggle: anchor }),
-        [anchor, expansionState],
-    );
+    // Rows the user expanded stay open and hold in place, exactly as in the parent Chat.
+    const expansion = useAgentChatExpansionHost(anchor);
     const openFile = useAgentChatOpenFile(terminalId);
     return (
         <div className="relative h-full min-h-0">
