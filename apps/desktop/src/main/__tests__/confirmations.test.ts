@@ -146,6 +146,7 @@ describe('trash prompt', () => {
         const options = trashPrompt({ items: [notes] });
         expect(options.message).toBe("Move 'notes.md' to the Trash?");
         expect(options.detail).toContain('You can recover this item from the Trash.');
+        expect(options.detail).toContain('Press Cmd+Z in Files to undo.');
     });
 
     /**
@@ -163,7 +164,7 @@ describe('trash prompt', () => {
         });
         expect(options.message).toBe('Move 2 items to the Trash?');
         expect(options.detail).toBe(
-            '/tmp/notes.md\n/tmp/todo.md\n\nYou can recover these items from the Trash.',
+            '/tmp/notes.md\n/tmp/todo.md\n\nYou can recover these items from the Trash. Press Cmd+Z in Files to undo.',
         );
     });
 

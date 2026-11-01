@@ -1,12 +1,18 @@
 import type { TerminalRecord } from '@caxri/protocol';
-import { Gauge } from 'lucide-react';
+import { Gauge, X } from 'lucide-react';
 
 import { useClockTick } from '@/hooks/use-clock-tick';
 
+import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { localizedLimitReset } from '../../lib/usage-format';
+import {
+    hideUsageGuardForADay,
+    isUsageGuardHidden,
+    useUsageGuardHiddenStore,
+} from './terminal-usage-guard-hidden';
 
 /**
  * The pane row telling a PTY Agent that its provider's account is at the weekly usage guard (issue #2608). It is
@@ -17,9 +23,11 @@ import { localizedLimitReset } from '../../lib/usage-format';
 export function TerminalUsageGuard({ terminal }: { terminal: TerminalRecord | undefined }) {
     const { t } = useTranslation();
     const now = useClockTick('minute');
+    const hiddenUntil = useUsageGuardHiddenStore((state) => state.hiddenUntil);
     if (!terminal?.provider) return null;
+    const { provider } = terminal;
     const guard = terminal.usageGuard;
-    if (!guard) return null;
+    if (!guard || isUsageGuardHidden(hiddenUntil, terminal.provider, now)) return null;
     const detail = t('terminal.usageGuard.detail', {
         reset: localizedLimitReset(guard.resetsAt, now, t),
     });
@@ -39,6 +47,17 @@ export function TerminalUsageGuard({ terminal }: { terminal: TerminalRecord | un
             </span>
             <Tooltip content={detail}>
                 <span className="min-w-0 truncate">{detail}</span>
+            </Tooltip>
+            <Tooltip content={t('terminal.usageGuard.hide')}>
+                <Button
+                    aria-label={t('terminal.usageGuard.hide')}
+                    className="ml-auto size-5 shrink-0 rounded-md text-muted enabled:hover:text-foreground"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => hideUsageGuardForADay(provider, Date.now())}
+                >
+                    <X aria-hidden className="size-3" />
+                </Button>
             </Tooltip>
         </div>
     );

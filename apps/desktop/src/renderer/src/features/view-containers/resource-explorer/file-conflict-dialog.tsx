@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 import { Button } from '../../../components/ui/button';
+import { Checkbox } from '../../../components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -25,12 +26,18 @@ export function FileConflictDialog() {
     const request = useFileConflictDialogStore((state) => state.request);
     const contentReference = useRef<HTMLDivElement>(null);
     const isOpen = Boolean(request);
+    const [shouldApplyToAll, setShouldApplyToAll] = useState(false);
+    const resolve = (choice: Parameters<typeof resolveFileConflictChoice>[0]) => {
+        // Cancel only ever answers the current entry; "Apply to all" must not silently cancel the rest of the batch.
+        resolveFileConflictChoice(choice, choice !== 'cancel' && shouldApplyToAll);
+        setShouldApplyToAll(false);
+    };
 
     return (
         <Dialog
             open={isOpen}
             onOpenChange={(nextOpen) => {
-                if (!nextOpen) resolveFileConflictChoice('cancel');
+                if (!nextOpen) resolve('cancel');
             }}
         >
             {request && (
@@ -58,25 +65,28 @@ export function FileConflictDialog() {
                             )}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="flex justify-end gap-2 p-4">
-                        <Button
-                            variant="secondary"
-                            onClick={() => resolveFileConflictChoice('keep-both')}
-                        >
+                    <div className="flex items-center justify-end gap-2 p-4">
+                        {(request.remaining ?? 0) > 0 && (
+                            <label className="mr-auto flex cursor-pointer items-center gap-2 text-[12px] text-muted">
+                                <Checkbox
+                                    checked={shouldApplyToAll}
+                                    onCheckedChange={(next) => setShouldApplyToAll(next === true)}
+                                />
+                                {t('viewContainers.files.conflict.applyToAll')}
+                            </label>
+                        )}
+                        <Button variant="secondary" onClick={() => resolve('keep-both')}>
                             {t('viewContainers.files.conflict.keepBoth')}
                         </Button>
                         <Button
                             data-conflict-cancel
                             variant="secondary"
-                            onClick={() => resolveFileConflictChoice('cancel')}
+                            onClick={() => resolve('cancel')}
                         >
                             {t('common.cancel')}
                         </Button>
                         {!request.folderGated && (
-                            <Button
-                                variant="danger"
-                                onClick={() => resolveFileConflictChoice('replace')}
-                            >
+                            <Button onClick={() => resolve('replace')}>
                                 {t('viewContainers.files.conflict.replace')}
                             </Button>
                         )}

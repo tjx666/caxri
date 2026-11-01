@@ -15,11 +15,33 @@ export interface FileConflictRequest {
      * folder-specific copy instead of offering a choice Server would just reject.
      */
     folderGated: boolean;
+    /**
+     * How many entries of the same batch are still queued behind this one. The dialog offers "Apply to all remaining"
+     * only when it is above zero.
+     */
+    remaining?: number;
+}
+
+/**
+ * The user's answer: the choice, and whether it also applies to every remaining entry of the batch.
+ */
+export interface FileConflictDecision {
+    shouldApplyToAll: boolean;
+    choice: FileConflictChoice;
+}
+
+/**
+ * Carries a batch's "Apply to all remaining" answer across the entries of one multi-move so later conflicts skip the
+ * dialog. `choice` is set once the user ticked the box.
+ */
+export interface FileConflictBatch {
+    choice?: FileConflictChoice;
+    remaining: number;
 }
 
 interface FileConflictDialogState {
     request?: FileConflictRequest;
-    resolve?: (choice: FileConflictChoice) => void;
+    resolve?: (decision: FileConflictDecision) => void;
 }
 
 /**
@@ -40,9 +62,11 @@ export const useFileConflictDialogStore = createStore<FileConflictDialogState>(
  */
 export function requestFileConflictChoice(
     request: FileConflictRequest,
-): Promise<FileConflictChoice> {
+): Promise<FileConflictDecision> {
     return new Promise((resolve) => {
-        useFileConflictDialogStore.getState().resolve?.('cancel');
+        useFileConflictDialogStore
+            .getState()
+            .resolve?.({ choice: 'cancel', shouldApplyToAll: false });
         useFileConflictDialogStore.setState({ request, resolve });
     });
 }
@@ -50,11 +74,26 @@ export function requestFileConflictChoice(
 /**
  * Resolves the pending prompt and closes the dialog; a no-op once already resolved.
  */
-export function resolveFileConflictChoice(choice: FileConflictChoice): void {
+export function resolveFileConflictChoice(
+    choice: FileConflictChoice,
+    shouldApplyToAll = false,
+): void {
     const { resolve } = useFileConflictDialogStore.getState();
     if (!resolve) return;
     useFileConflictDialogStore.setState({ request: undefined, resolve: undefined });
-    resolve(choice);
+    resolve({ choice, shouldApplyToAll });
+}
+
+/**
+ * The choice a batch already settled for this conflict, or `undefined` when the dialog must open. Replace never carries
+ * over to a folder-gated conflict, since Server would reject it; that one asks again.
+ */
+export function batchConflictChoice(
+    batch: FileConflictBatch | undefined,
+    isFolderGated: boolean,
+): FileConflictChoice | undefined {
+    if (!batch?.choice) return undefined;
+    return isFolderGated && batch.choice === 'replace' ? undefined : batch.choice;
 }
 
 /**

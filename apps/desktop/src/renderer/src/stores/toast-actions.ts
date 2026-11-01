@@ -92,6 +92,13 @@ export interface ToastActionParameters {
      */
     'files.undoTrash': { sessionId: string; undoToken: string; name: string };
     /**
+     * Puts back every item of one multi-selection Move to Trash. Same receipts as `files.undoTrash`, one per entry.
+     */
+    'files.undoTrashMany': {
+        sessionId: string;
+        items: Array<{ name: string; undoToken: string }>;
+    };
+    /**
      * Reverses a Files Replace move: moves the file back, then returns the overwritten file from the Trash. `undoToken`
      * is Server's opaque Trash receipt; Server decides whether the overwritten file can still be restored.
      */
@@ -179,6 +186,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'editor.retrySave': 'common.retry',
     'files.undoReplace': 'toasts.action.undo',
     'files.undoTrash': 'toasts.action.undo',
+    'files.undoTrashMany': 'toasts.action.undo',
     'github.open': 'toasts.action.openOnGitHub',
     'processExplorer.open': 'toasts.action.viewDetails',
     'session.unarchive': 'toasts.action.undo',

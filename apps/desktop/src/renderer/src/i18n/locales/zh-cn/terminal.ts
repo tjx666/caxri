@@ -69,7 +69,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.hookSuggestion.dontAskAgain': '不再提示',
     'terminal.usageGuard.headline': '{{provider}} 已用掉每周额度的 {{percent}}%',
     'terminal.usageGuard.detail':
-        '此账号的对话已暂停，{{reset}}。此终端仍会继续运行，最后 1% 可能被耗尽。',
+        '此账号的对话已暂停，直到额度重置（{{reset}}）。此终端仍会继续运行。',
+    'terminal.usageGuard.hide': '隐藏一天',
     'terminal.hookSuggestion.dismiss': '关闭',
     'terminal.hookSuggestion.enableFailed': '无法开启生命周期 Hook',
     'terminal.hookSuggestion.dontAskAgainFailed': '无法保存生命周期 Hook 提示设置',

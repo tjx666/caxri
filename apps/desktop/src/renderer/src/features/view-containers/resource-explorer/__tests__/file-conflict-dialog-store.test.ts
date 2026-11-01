@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    batchConflictChoice,
     isFolderGatedConflict,
     requestFileConflictChoice,
     resolveFileConflictChoice,
@@ -37,7 +38,7 @@ describe('requestFileConflictChoice / resolveFileConflictChoice', () => {
         });
 
         resolveFileConflictChoice('replace');
-        await expect(promise).resolves.toBe('replace');
+        await expect(promise).resolves.toEqual({ choice: 'replace', shouldApplyToAll: false });
     });
 
     it('resolves the pending prompt and closes the dialog', async () => {
@@ -45,7 +46,7 @@ describe('requestFileConflictChoice / resolveFileConflictChoice', () => {
 
         resolveFileConflictChoice('keep-both');
 
-        await expect(promise).resolves.toBe('keep-both');
+        await expect(promise).resolves.toEqual({ choice: 'keep-both', shouldApplyToAll: false });
         expect(useFileConflictDialogStore.getState().request).toBeUndefined();
         expect(useFileConflictDialogStore.getState().resolve).toBeUndefined();
     });
@@ -54,14 +55,14 @@ describe('requestFileConflictChoice / resolveFileConflictChoice', () => {
         const stale = requestFileConflictChoice({ name: 'first.txt', folderGated: false });
         const fresh = requestFileConflictChoice({ name: 'second.txt', folderGated: false });
 
-        await expect(stale).resolves.toBe('cancel');
+        await expect(stale).resolves.toEqual({ choice: 'cancel', shouldApplyToAll: false });
         expect(useFileConflictDialogStore.getState().request).toEqual({
             name: 'second.txt',
             folderGated: false,
         });
 
         resolveFileConflictChoice('replace');
-        await expect(fresh).resolves.toBe('replace');
+        await expect(fresh).resolves.toEqual({ choice: 'replace', shouldApplyToAll: false });
     });
 
     it('is a no-op once the pending request is already resolved', () => {
@@ -78,5 +79,33 @@ describe('requestFileConflictChoice / resolveFileConflictChoice', () => {
         resolveFileConflictChoice('replace');
 
         expect(resolve).not.toHaveBeenCalled();
+    });
+});
+
+describe('batchConflictChoice', () => {
+    it('asks until the user ticks Apply to all remaining', () => {
+        expect(batchConflictChoice(undefined, false)).toBeUndefined();
+        expect(batchConflictChoice({ remaining: 2 }, false)).toBeUndefined();
+    });
+
+    it('reuses the batch choice for later conflicts', () => {
+        expect(batchConflictChoice({ choice: 'keep-both', remaining: 1 }, true)).toBe('keep-both');
+        expect(batchConflictChoice({ choice: 'replace', remaining: 1 }, false)).toBe('replace');
+    });
+
+    it('asks again when Replace cannot apply to a folder conflict', () => {
+        expect(batchConflictChoice({ choice: 'replace', remaining: 1 }, true)).toBeUndefined();
+    });
+
+    it('carries Apply to all remaining out of the prompt', async () => {
+        const promise = requestFileConflictChoice({
+            name: 'foo.txt',
+            folderGated: false,
+            remaining: 2,
+        });
+
+        resolveFileConflictChoice('keep-both', true);
+
+        await expect(promise).resolves.toEqual({ choice: 'keep-both', shouldApplyToAll: true });
     });
 });

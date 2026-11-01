@@ -72,7 +72,8 @@ export const terminal = {
     'terminal.hookSuggestion.dontAskAgain': "Don't Ask Again",
     'terminal.usageGuard.headline': '{{provider}} is at {{percent}}% of its weekly limit',
     'terminal.usageGuard.detail':
-        'Chats on this account are paused, {{reset}}. This Terminal keeps running; the last percent may run out.',
+        'Chats on this account are paused until the limit resets ({{reset}}). This Terminal keeps running.',
+    'terminal.usageGuard.hide': 'Hide for a day',
     'terminal.hookSuggestion.dismiss': 'Dismiss',
     'terminal.hookSuggestion.enableFailed': 'Could not turn on lifecycle hooks',
     'terminal.hookSuggestion.dontAskAgainFailed':

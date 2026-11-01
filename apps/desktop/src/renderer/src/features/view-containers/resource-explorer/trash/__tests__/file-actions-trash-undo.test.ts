@@ -13,7 +13,13 @@ import { dismissToast, getToasts } from '../../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../../stores/workbench';
 import { duplicateFile } from '../../file-actions';
 import type { ResourceExplorerClient } from '../../resource-explorer-client';
-import { didUndoTrashedFile, trashFiles, undoLatestTrash } from '../file-trash-actions';
+import {
+    didUndoTrashedFile,
+    trashedToastMessage,
+    trashFiles,
+    trashUndoAction,
+    undoLatestTrash,
+} from '../file-trash-actions';
 import { forgetUndoableTrash, undoableTrashFor } from '../undoable-trash';
 
 const client = {
@@ -37,13 +43,13 @@ afterEach(() => {
 
 describe('Move to Trash notification', () => {
     /**
-     * Cmd+Z takes a Trash move back, and the row leaving the tree is the feedback, so a plain Trash says nothing. Only
-     * one that discarded unsaved edits warns (covered in `file-actions.test.ts`).
+     * Cmd+Z is only reachable with a tree row focused, so every Trash confirms with a toast that carries Undo. One that
+     * discarded unsaved edits warns instead (covered in `file-actions.test.ts`).
      */
     it.each([
         ['an Undo receipt', 'receipt-1'],
         ['no Undo receipt', undefined],
-    ])('trashes a saved file without a toast, with %s', async (_label, undoToken) => {
+    ])('confirms a saved file with an Undo toast, with %s', async (_label, undoToken) => {
         useWorkbenchStore.setState({
             bootstrap: {
                 sessions: [
@@ -72,7 +78,10 @@ describe('Move to Trash notification', () => {
             '/project/source.txt',
         ]);
 
-        expect(getToasts()).toEqual([]);
+        const [toast] = getToasts();
+        expect(getToasts()).toHaveLength(1);
+        expect(toast).toMatchObject({ type: 'info', title: 'Moved "source.txt" to Trash' });
+        expect(Boolean(toast.action)).toBe(undoToken !== undefined);
     });
 });
 
@@ -224,6 +233,16 @@ describe('Cmd+Z after Move to Trash', () => {
         await vi.waitFor(() => expect(undoLatestTrash(client, 'session-a')).toBeUndefined());
     });
 
+    it('says so when Cmd+Z has nothing to undo', () => {
+        forgetUndoableTrash();
+
+        expect(undoLatestTrash(client, 'session-a')).toBeUndefined();
+
+        expect(getToasts()).toEqual([
+            expect.objectContaining({ type: 'info', title: 'Nothing to undo in Files' }),
+        ]);
+    });
+
     it('takes back only the newest of two Trash moves', async () => {
         await trash('a.txt', 'receipt-a');
         await trash('b.txt', 'receipt-b');
@@ -264,7 +283,7 @@ describe('Cmd+Z after Move to Trash', () => {
 
         expect(undoLatestTrash(client, 'session-a')).toBeDefined();
         await vi.waitFor(() => expect(undoableTrashFor('session-a')).toBeDefined());
-        expect(getToasts()).toHaveLength(1);
+        expect(getToasts()).toHaveLength(2);
         expect(undoLatestTrash(client, 'session-a')).toBeDefined();
         // Let the retry settle on the same conflict before the mocks reset.
         await vi.waitFor(() => expect(undoableTrashFor('session-a')).toBeDefined());
@@ -294,5 +313,26 @@ describe('Cmd+Z after Move to Trash', () => {
         await didUndoTrashedFile(client, 'receipt-a', 'a.txt');
 
         expect(undoLatestTrash(client, 'session-a')).toBeUndefined();
+    });
+});
+
+describe('Trash confirmation helpers', () => {
+    it('names one item and counts a batch', () => {
+        expect(trashedToastMessage([{ name: 'a.txt' }], false)).toBe('Moved "a.txt" to Trash');
+        expect(trashedToastMessage([{ name: 'a' }, { name: 'b' }], false)).toBe(
+            'Moved 2 items to Trash',
+        );
+    });
+
+    it('offers the single-receipt Undo for one entry and the batch Undo for several', () => {
+        const one = { name: 'a.txt', undoToken: 'r-a' };
+        const two = { name: 'b.txt', undoToken: 'r-b' };
+
+        expect(trashUndoAction('session-a', [])).toEqual({});
+        expect(trashUndoAction('session-a', [one]).action?.id).toBe('files.undoTrash');
+        expect(trashUndoAction('session-a', [one, two]).action).toEqual({
+            id: 'files.undoTrashMany',
+            params: { sessionId: 'session-a', items: [one, two] },
+        });
     });
 });
