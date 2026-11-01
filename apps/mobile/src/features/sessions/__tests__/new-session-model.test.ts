@@ -6,6 +6,7 @@ import {
     availableNewSessionAgent,
     canCreateNewSession,
     forgetNewSessionProject,
+    isNewSessionAvailabilityOffline,
     markUncertainSessionsChecked,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
@@ -122,6 +123,37 @@ describe('New Session choices', () => {
         const checked = markUncertainSessionsChecked(uncertain);
         expect(checked).toEqual({ ...uncertain, checkedSessions: true });
         expect(acknowledgeCheckedUncertainCreate(checked)).toEqual({ kind: 'idle' });
+    });
+
+    it('reports the offline Agent list once instead of per card', () => {
+        expect(
+            isNewSessionAvailabilityOffline({
+                agent: undefined,
+                isConnected: false,
+                isError: false,
+            }),
+        ).toBe(true);
+        expect(
+            isNewSessionAvailabilityOffline({
+                agent: { available: true },
+                isConnected: false,
+                isError: false,
+            }),
+        ).toBe(false);
+        expect(
+            isNewSessionAvailabilityOffline({
+                agent: undefined,
+                isConnected: true,
+                isError: false,
+            }),
+        ).toBe(false);
+        expect(
+            isNewSessionAvailabilityOffline({
+                agent: undefined,
+                isConnected: false,
+                isError: true,
+            }),
+        ).toBe(false);
     });
 
     it('asks to reconnect instead of checking forever while offline without an answer', () => {

@@ -22,7 +22,7 @@ import { TermuxSettingRow } from '../device-actions/termux-setting-row';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { allMobileSessions } from '../sessions/hooks/use-session-polling';
 import { SettingsAboutSection } from './settings-about-section';
-import { connectionStatusLabel, deviceRoleDetails } from './settings-model';
+import { connectionStatusView, deviceRoleDetails } from './settings-model';
 import { SettingsRow, SettingsSection } from './settings-rows';
 
 /**
@@ -33,7 +33,8 @@ export const SettingsScreen = () => {
     const router = useRouter();
     const theme = useMobileTheme();
     const { t } = useTranslation();
-    const { status } = useMobileClient();
+    const { relayFailure, route, status } = useMobileClient();
+    const connection = connectionStatusView(status, route, relayFailure, t);
     const { sessions } = useHostSessions();
     const role = sessions.deviceRole ? deviceRoleDetails(sessions.deviceRole, t) : null;
     const forget = useConfirmForgetComputer();
@@ -71,11 +72,12 @@ export const SettingsScreen = () => {
                         value={sessions.hostDisplayName}
                     />
                     <SettingsRow
+                        detail={connection.detail}
                         isLast={!desktopUpdateRows}
                         label={t('settings.status')}
                         testID="settings-connection-status"
                         theme={theme}
-                        value={connectionStatusLabel(status, t)}
+                        value={connection.value}
                         valueColor={status === 'connected' ? theme.success : theme.muted}
                     />
                     {desktopUpdateRows ? (

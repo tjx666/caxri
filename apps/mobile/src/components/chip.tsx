@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ComponentType, ReactNode } from 'react';
+import type { AccessibilityActionEvent, AccessibilityActionInfo } from 'react-native';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import type { LucideProps } from 'lucide-react-native';
@@ -21,12 +22,14 @@ import type { MobileTheme } from '../theme/tokens';
  * such as a merged pull request reads from the glyph, not from a differently shaped pill.
  */
 export const Chip = ({
+    accessibilityActions,
     accessibilityHint,
     accessibilityLabel,
     children,
     disabled = false,
     icon: Icon,
     label,
+    onAccessibilityAction,
     onPress,
     selected = false,
     testID,
@@ -34,6 +37,10 @@ export const Chip = ({
     tint,
     trailing,
 }: {
+    /**
+     * Extra screen-reader actions, such as moving a Project chip earlier or later where a drag is not possible.
+     */
+    accessibilityActions?: readonly AccessibilityActionInfo[];
     accessibilityHint?: string;
     accessibilityLabel?: string;
     /**
@@ -46,6 +53,7 @@ export const Chip = ({
     disabled?: boolean;
     icon?: ComponentType<LucideProps>;
     label?: string;
+    onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
     onPress: () => void;
     selected?: boolean;
     testID: string;
@@ -59,12 +67,14 @@ export const Chip = ({
     const foreground = selected ? theme.primaryForeground : (tint ?? theme.text);
     return (
         <Pressable
+            accessibilityActions={accessibilityActions}
             accessibilityHint={accessibilityHint}
             accessibilityLabel={accessibilityLabel ?? label}
             accessibilityRole="button"
             accessibilityState={{ disabled, selected }}
             disabled={disabled}
             hitSlop={chipHitSlop}
+            onAccessibilityAction={onAccessibilityAction}
             onPress={onPress}
             style={({ pressed }) => [
                 styles.chip,

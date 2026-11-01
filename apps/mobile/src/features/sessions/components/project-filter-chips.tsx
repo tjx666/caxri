@@ -25,6 +25,8 @@ import {
     projectChipRevealOffset,
     projectChipShift,
     projectDropIndex,
+    projectMoveActions,
+    projectMoveTarget,
 } from '../project-order';
 
 /**
@@ -209,6 +211,8 @@ export const ProjectFilterChips = ({
                     onDragStart={() => setDragging(true)}
                     onDrop={drop}
                     onLayout={measure}
+                    onMove={onMoveProject}
+                    projectCount={projects.length}
                     project={project}
                     reorderHint={onMoveProject ? t('sessions.home.projectReorderHint') : undefined}
                     selected={activeProjectId === project.id}
@@ -226,7 +230,9 @@ const ProjectChip = ({
     onDragStart,
     onDrop,
     onLayout,
+    onMove,
     project,
+    projectCount,
     reorderHint,
     selected,
     theme,
@@ -237,7 +243,9 @@ const ProjectChip = ({
     onDragStart: () => void;
     onDrop: (projectId: string, from: number, to: number) => void;
     onLayout: (index: number, event: LayoutChangeEvent) => void;
+    onMove?: (projectId: string, toIndex: number) => void;
     project: ProjectFilterChoice;
+    projectCount: number;
     /**
      * Present only when the chip can be dragged.
      */
@@ -245,7 +253,13 @@ const ProjectChip = ({
     selected: boolean;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const { from, scrollOffset, scrollStart, slots, to, translation } = drag;
+    // A drag needs a held touch and fine motor control, so a screen reader moves the chip one place at a time instead.
+    const moveActions = projectMoveActions(index, projectCount, {
+        earlier: t('sessions.home.projectMoveEarlier'),
+        later: t('sessions.home.projectMoveLater'),
+    });
     const pan = usePanGesture({
         activateAfterLongPress: PICK_UP_DELAY_MS,
         enabled: reorderHint !== undefined,
@@ -330,9 +344,14 @@ const ProjectChip = ({
         <GestureDetector gesture={pan}>
             <Animated.View onLayout={(event) => onLayout(index, event)} style={animatedStyle}>
                 <Chip
+                    accessibilityActions={onMove ? moveActions : undefined}
                     accessibilityHint={reorderHint}
                     accessibilityLabel={project.title}
                     label={project.title}
+                    onAccessibilityAction={(event) => {
+                        const target = projectMoveTarget(event.nativeEvent.actionName, index);
+                        if (target !== null) onMove?.(project.id, target);
+                    }}
                     onPress={() => onChoose(project.id)}
                     selected={selected}
                     testID={`project-filter-${project.id}`}

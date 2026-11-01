@@ -150,8 +150,9 @@ const TreeRow = ({
     const [isExpanded, setExpanded] = useState(item.collapsibleState === 'expanded');
     const isCollapsible = item.collapsibleState !== 'none';
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
-    // Inline actions change state (a merge cannot be undone), so only a control device gets them, like the merge sheet.
-    const actions = deviceRole === 'control' ? (item.actions ?? []) : [];
+    // Inline actions change state (a merge cannot be undone), so only a control device can run them, like the merge
+    // sheet; the others see them disabled with the reason instead of silently missing.
+    const actions = item.actions ?? [];
     return (
         <View>
             <View style={styles.treeRowLine}>
@@ -194,6 +195,7 @@ const TreeRow = ({
                             <TreeItemActionButton
                                 key={`${action.command.id}:${action.command.title}`}
                                 action={action}
+                                deviceRole={deviceRole}
                                 onOpenChat={onOpenChat}
                                 sessionId={sessionId}
                                 testID={`tree-row-action-${position}-${index}`}

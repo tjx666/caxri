@@ -138,8 +138,9 @@ export async function executeMobileSessionAgentActionsScenario(
 }
 
 /**
- * `MOB-CHAT-SESSION-AGENT-ACTIONS-02` (#3238): offline, the sheet's Agent entries disable and say the phone must
- * reconnect. Hand Over needs the menu state, which an offline phone cannot read, so it is absent rather than disabled.
+ * `MOB-CHAT-SESSION-AGENT-ACTIONS-02` (#3238): offline, every sheet entry that needs Caxri (the Agent entries plus Pin,
+ * Rename, Archive, and Delete) disables under one reconnect hint. Hand Over needs the menu state, which an offline
+ * phone cannot read, so it is absent rather than disabled.
  */
 export async function executeMobileSessionAgentActionsOfflineScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -157,7 +158,14 @@ export async function executeMobileSessionAgentActionsOfflineScenario(
         isNetworkDisabled = true;
         await openSheet(serial, sessionId, 'session-agent-actions-offline');
         const nodes = await mobileSemantics(serial);
-        for (const id of ['session-action-restart', 'session-action-detach']) {
+        for (const id of [
+            'session-action-pin',
+            'session-action-rename',
+            'session-action-restart',
+            'session-action-detach',
+            'session-action-archive',
+            'session-action-delete',
+        ]) {
             const node = nodes.find(({ checkId }) => checkId === id);
             if (!node) throw new Error(`${id} is missing offline`);
             if (node.enabled) throw new Error(`${id} stayed enabled offline`);

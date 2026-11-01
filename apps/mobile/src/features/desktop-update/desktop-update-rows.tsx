@@ -35,6 +35,7 @@ export const DesktopUpdateRows = ({
                 isLast={!update}
                 label={t('desktopUpdate.label')}
                 onPress={versionCheck}
+                showsChevron
                 testID="settings-desktop-version"
                 theme={theme}
                 value={versionFailure ?? version.value}
@@ -48,6 +49,7 @@ export const DesktopUpdateRows = ({
                     isLast
                     label={update.label}
                     onPress={pressFor(update.action)}
+                    showsChevron
                     testID="settings-desktop-update"
                     theme={theme}
                     value=""

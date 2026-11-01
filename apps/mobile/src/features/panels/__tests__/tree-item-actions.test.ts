@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runTreeAction, treeActionTint } from '../tree-item-actions';
+import { runTreeAction, treeActionBlocker, treeActionTint } from '../tree-item-actions';
 
 const t = ((key: string, values?: Record<string, unknown>) =>
     `${key}${values ? JSON.stringify(values) : ''}`) as never;
@@ -129,5 +129,18 @@ describe('treeActionTint', () => {
         expect(treeActionTint('success', theme)).toBe('green');
         expect(treeActionTint('danger', theme)).toBe('red');
         expect(treeActionTint(undefined, theme)).toBe('gray');
+    });
+});
+
+describe('treeActionBlocker', () => {
+    it('blocks a state-changing action unless a control device is connected', () => {
+        expect(treeActionBlocker('caxri.sendToAgent', 'control', true)).toBeNull();
+        expect(treeActionBlocker('caxri.sendToAgent', 'reply', true)).toBe('needsControl');
+        expect(treeActionBlocker('caxri.sendToAgent', null, true)).toBe('needsControl');
+        expect(treeActionBlocker('caxri.sendToAgent', 'control', false)).toBe('offline');
+    });
+
+    it('never blocks the local open-in-browser action', () => {
+        expect(treeActionBlocker('caxri.openExternal', 'view', false)).toBeNull();
     });
 });

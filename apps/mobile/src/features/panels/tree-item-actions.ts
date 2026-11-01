@@ -36,6 +36,23 @@ export const treeActionTint = (
     }
 };
 
+/**
+ * Why an inline action cannot run on this device right now: only a control device changes state (a merge cannot be
+ * undone), and a command runs on the computer, so it needs a live connection. `caxri.openExternal` runs locally in the
+ * system browser and never changes anything, so nothing blocks it. The reasons reuse the pull request sheet's copy.
+ */
+export type TreeActionBlocker = 'needsControl' | 'offline';
+
+export const treeActionBlocker = (
+    commandId: string,
+    deviceRole: 'control' | 'reply' | 'view' | null,
+    isConnected: boolean,
+): TreeActionBlocker | null => {
+    if (commandId === OPEN_EXTERNAL_COMMAND) return null;
+    if (deviceRole !== 'control') return 'needsControl';
+    return isConnected ? null : 'offline';
+};
+
 export interface TreeActionDependencies {
     execute: (
         commandId: string,

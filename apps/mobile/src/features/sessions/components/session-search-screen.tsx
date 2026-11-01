@@ -149,8 +149,9 @@ export const SessionSearchScreen = () => {
     const router = useRouter();
     const { t } = useTranslation();
     const theme = useMobileTheme();
-    const { hostId, sessions, ui } = useHostSessions();
-    const search = useSessionSearch(activeProjectFilter(ui.projectId, sessions.projects));
+    const { hostId, sessions, setProjectId, ui } = useHostSessions();
+    const scopeProjectId = activeProjectFilter(ui.projectId, sessions.projects);
+    const search = useSessionSearch(scopeProjectId);
     const { response } = search;
     const management = useSessionManagement();
     /**
@@ -158,6 +159,7 @@ export const SessionSearchScreen = () => {
      */
     const [now] = useState(Date.now);
     const projectTitles = new Map(sessions.projects.map(({ id, title }) => [id, title]));
+    const scopeTitle = scopeProjectId === null ? undefined : projectTitles.get(scopeProjectId);
     const openEntry = useCallback(
         (entry: MobileSessionSearchEntry, action: SessionSearchRowAction): void => {
             const href =
@@ -246,6 +248,19 @@ export const SessionSearchScreen = () => {
                     />
                 ))}
             </View>
+            {scopeTitle === undefined ? null : (
+                <View style={styles.scope} testID="session-search-scope">
+                    <Text numberOfLines={1} style={[styles.scopeText, { color: theme.muted }]}>
+                        {t('sessions.search.scope', { project: scopeTitle })}
+                    </Text>
+                    <Chip
+                        label={t('sessions.search.searchAll')}
+                        onPress={() => setProjectId(null)}
+                        testID="session-search-all-projects"
+                        theme={theme}
+                    />
+                </View>
+            )}
             {notice ? (
                 <Text style={[styles.notice, { color: theme.muted }]} testID="session-search-index">
                     {notice}
@@ -337,6 +352,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: mobileSpace.lg,
         paddingTop: mobileSpace.xs,
     },
+    scope: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        paddingBottom: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+    },
+    scopeText: { ...mobileType.meta, flexShrink: 1 },
     notice: {
         ...mobileType.meta,
         paddingBottom: mobileSpace.sm,

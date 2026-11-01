@@ -36,6 +36,11 @@ const FORK_BLOCKER_REASONS = {
     notChat: 'sessions.actions.forkNeedsChat',
 } as const satisfies Record<SessionForkBlocker, TranslationKey>;
 
+const CONTINUE_BLOCKER_REASONS = {
+    noAgent: 'sessions.actions.noAgent',
+    notChat: 'sessions.actions.continueNeedsChat',
+} as const satisfies Record<SessionForkBlocker, TranslationKey>;
+
 /**
  * The Session actions of a control device, from a long-pressed row or the Session menu. Rename, Continue in Another
  * Agent, Delete, and the Agent group's Restart, Detach, and Reopen swap the sheet body for their own step instead of
@@ -103,6 +108,7 @@ const SessionActionsBody = ({
     const terminalId = session.primaryTerminal?.id;
     const forkBlocker = sessionForkBlocker(session.primaryTerminal);
     const forkReason = forkBlocker && t(FORK_BLOCKER_REASONS[forkBlocker]);
+    const continueReason = forkBlocker && t(CONTINUE_BLOCKER_REASONS[forkBlocker]);
     const backToMenu = (): void => {
         management.clearError();
         if (initialMode === 'menu') setMode('menu');
@@ -199,8 +205,17 @@ const SessionActionsBody = ({
                         />
                     ) : (
                         <View style={styles.actions}>
+                            {isConnected ? null : (
+                                <Text
+                                    style={[styles.offline, { color: theme.muted }]}
+                                    testID="session-agent-actions-offline"
+                                >
+                                    {t('sessions.detail.reconnectForActions')}
+                                </Text>
+                            )}
                             <SheetAction
                                 busy={isBusy && management.pending?.action === 'pin'}
+                                disabled={!isConnected}
                                 icon={isPinned ? PinOff : Pin}
                                 label={t(
                                     isPinned ? 'sessions.actions.unpin' : 'sessions.actions.pin',
@@ -216,6 +231,7 @@ const SessionActionsBody = ({
                                 theme={theme}
                             />
                             <SheetAction
+                                disabled={!isConnected}
                                 icon={Pencil}
                                 label={t('sessions.actions.rename')}
                                 onPress={() => setMode('rename')}
@@ -225,7 +241,7 @@ const SessionActionsBody = ({
                             <SheetAction
                                 busy={isBusy && management.pending?.action === 'fork'}
                                 detail={forkReason}
-                                disabled={forkBlocker !== undefined}
+                                disabled={!isConnected || forkBlocker !== undefined}
                                 icon={GitFork}
                                 label={t('sessions.actions.fork')}
                                 onPress={() => {
@@ -240,8 +256,8 @@ const SessionActionsBody = ({
                                 theme={theme}
                             />
                             <SheetAction
-                                detail={forkReason}
-                                disabled={forkBlocker !== undefined}
+                                detail={continueReason}
+                                disabled={!isConnected || forkBlocker !== undefined}
                                 icon={Forward}
                                 label={t('sessions.actions.continue')}
                                 onPress={() => setMode('continue')}
@@ -260,6 +276,7 @@ const SessionActionsBody = ({
                             />
                             <SheetAction
                                 busy={isBusy && management.pending?.action === 'archive'}
+                                disabled={!isConnected}
                                 icon={Archive}
                                 label={t('sessions.actions.archive')}
                                 onPress={() => {
@@ -270,12 +287,15 @@ const SessionActionsBody = ({
                                 testID="session-action-archive"
                                 theme={theme}
                             />
+                            <View style={[styles.divider, { backgroundColor: theme.border }]} />
                             <SheetAction
+                                disabled={!isConnected}
                                 icon={Trash2}
                                 label={t('sessions.actions.delete')}
                                 onPress={() => setMode('delete')}
                                 testID="session-action-delete"
                                 theme={theme}
+                                tone="danger"
                             />
                             <SheetCancel
                                 onPress={dismiss}
@@ -301,6 +321,12 @@ const SessionActionsBody = ({
 
 const styles = StyleSheet.create({
     actions: { paddingTop: mobileSpace.xs },
+    divider: { height: StyleSheet.hairlineWidth, marginVertical: mobileSpace.xs },
+    offline: {
+        ...mobileType.meta,
+        paddingHorizontal: mobileSpace.sm,
+        paddingBottom: mobileSpace.xs,
+    },
     error: { ...mobileType.meta, paddingHorizontal: mobileSpace.sm, paddingTop: mobileSpace.md },
 });
 

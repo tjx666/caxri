@@ -71,7 +71,9 @@ export const SessionGroupHeader = ({
             testID={`session-group-${group}`}
         >
             <Icon color={theme.muted} size={13} strokeWidth={2.25} />
-            <SectionLabel theme={theme}>{label}</SectionLabel>
+            <SectionLabel style={styles.label} theme={theme}>
+                {label}
+            </SectionLabel>
             {isCollapsed ? (
                 <Text style={[styles.count, { color: theme.muted }]}>{count}</Text>
             ) : null}
@@ -125,6 +127,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: mobileSpace.lg,
         paddingTop: mobileSpace.lg,
     },
+    /**
+     * The i18n label is sentence case so a screen reader reads words; the heading shows it uppercase.
+     */
+    label: { textTransform: 'uppercase' },
     count: { ...mobileType.caption, fontVariant: ['tabular-nums'], fontWeight: '600' },
     fill: { flex: 1 },
     reveal: {

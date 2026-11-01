@@ -10,7 +10,7 @@ import {
 
 describe('filterSessionEntries', () => {
     const entries = [
-        { id: 'header:attention', label: 'NEEDS ATTENTION', type: 'header' },
+        { id: 'header:attention', label: 'Needs attention', type: 'header' },
         { id: 'one', session: { projectId: 'alpha' }, type: 'session' },
         { id: 'header:working', label: 'WORKING', type: 'header' },
         { id: 'two', session: { projectId: 'beta' }, type: 'session' },

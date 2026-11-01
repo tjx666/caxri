@@ -3,6 +3,8 @@ import type { MobileDeviceRole } from '@caxri/protocol';
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
+import type { MobileGatewayRouteKind } from '../connection/gateway-routes';
+import type { MobileRelayFailureKind } from '../connection/relay-failure';
 
 /**
  * The role's name and the capability it adds over the role below it.
@@ -52,5 +54,37 @@ export const connectionStatusLabel = (
             return t('settings.status.storageError');
         case 'unpaired':
             return t('settings.status.notPaired');
+    }
+};
+
+/**
+ * The Settings Status row: the connection state, plus the route a live connection took ("Connected · via Relay") or the
+ * Relay's refusal while it is down, in the same sentences the Sessions connection banner uses.
+ */
+export const connectionStatusView = (
+    status: MobileConnectionStatus,
+    route: MobileGatewayRouteKind | null,
+    relayFailure: MobileRelayFailureKind | null,
+    t: Translate = translate,
+): { detail: string | undefined; value: string } => {
+    const label = connectionStatusLabel(status, t);
+    if (status === 'connected') {
+        return {
+            detail: undefined,
+            value:
+                route === null
+                    ? label
+                    : `${label} · ${t(route === 'relay' ? 'settings.status.viaRelay' : 'settings.status.direct')}`,
+        };
+    }
+    switch (relayFailure) {
+        case 'host-offline':
+            return { detail: t('sessions.banner.hostOffline'), value: label };
+        case 'unauthorized':
+            return { detail: t('sessions.banner.relayUnauthorized'), value: label };
+        case 'busy':
+            return { detail: t('sessions.banner.relayBusy'), value: label };
+        case null:
+            return { detail: undefined, value: label };
     }
 };

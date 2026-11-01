@@ -111,14 +111,6 @@ export const SessionAgentSheetActions = ({
                     theme={theme}
                 />
             ) : null}
-            {isConnected ? null : (
-                <Text
-                    style={[styles.status, { color: theme.muted }]}
-                    testID="session-agent-actions-offline"
-                >
-                    {t('sessions.detail.reconnectForActions')}
-                </Text>
-            )}
         </>
     );
 };

@@ -216,6 +216,21 @@ export const newSessionAgentReason = (
 };
 
 /**
+ * Whether the whole Agent list is waiting on a reconnect: offline with no availability answer for the Agent, so every
+ * card would repeat the same "Reconnect to check availability." line. The screen shows it once above the cards and
+ * leaves the cards bare. A load error keeps its own per-card wording.
+ */
+export const isNewSessionAvailabilityOffline = ({
+    agent,
+    isConnected,
+    isError,
+}: {
+    agent: { available: boolean } | undefined;
+    isConnected: boolean;
+    isError: boolean;
+}): boolean => !isError && !agent && !isConnected;
+
+/**
  * Plain wording for a Session create the Server explicitly refused, by error code. The Server's own message is
  * diagnostic text written for logs, so it never reaches this screen.
  */

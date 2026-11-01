@@ -134,3 +134,22 @@ export const projectChipRevealOffset = (
     const maxOffset = Math.max(0, contentWidth - viewportWidth);
     return Math.min(maxOffset, Math.max(0, slot.x + slot.width / 2 - viewportWidth / 2));
 };
+
+/**
+ * The screen-reader actions of a Project chip that moves one place along the strip: none at an end it cannot pass.
+ * Names are the stable ids `projectMoveTarget` reads back; labels are what the reader announces.
+ */
+export const projectMoveActions = (
+    index: number,
+    count: number,
+    labels: { earlier: string; later: string },
+): Array<{ label: string; name: 'moveEarlier' | 'moveLater' }> => [
+    ...(index > 0 ? [{ label: labels.earlier, name: 'moveEarlier' as const }] : []),
+    ...(index < count - 1 ? [{ label: labels.later, name: 'moveLater' as const }] : []),
+];
+
+/**
+ * The index a chip moves to for a screen-reader action, or `null` for any other action.
+ */
+export const projectMoveTarget = (actionName: string, index: number): number | null =>
+    actionName === 'moveEarlier' ? index - 1 : actionName === 'moveLater' ? index + 1 : null;

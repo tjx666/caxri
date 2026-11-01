@@ -182,6 +182,7 @@ export const SessionMenuActionEntries = ({
                 session={session}
                 theme={theme}
             />
+            <PopoverDivider theme={theme} />
             <PopoverAction
                 disabled={!isConnected}
                 icon={Trash2}
