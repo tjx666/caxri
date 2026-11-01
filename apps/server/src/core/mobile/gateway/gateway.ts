@@ -10,7 +10,6 @@ import {
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
     mobileClientHelloSchema,
-    mobileRevokedSchema,
     mobileServerHelloSchema,
     serializeMobilePairingLink,
 } from '@caxri/mobile-transport';
@@ -39,6 +38,7 @@ import { hasMobileAttentionRecipient } from './attention-recipient';
 import type { AuthenticateConnectionDependencies } from './authenticate-connection';
 import { authenticateConnection, connectionOptions } from './authenticate-connection';
 import { bindMobileGatewayServer } from './bind';
+import { DeviceActionBroker, deviceActionListeners } from './device-actions';
 import type {
     MobileConnectionEnd,
     MobileConnectionRoute,
@@ -51,12 +51,12 @@ import { beginMobileHandshake, versionMismatchFrame } from './handshake';
 import { handshakeTimingFields } from './handshake-timing';
 import { MobilePairingLedger } from './pairing-ledger';
 import { adoptCurrentPairedPrincipal, currentPrincipalAdapter } from './principal-grant';
+import { sendRevokedAndClose } from './revoked-close';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import {
     MobileFrameReplayRejected,
     openSessionPayload,
     sealSessionPayload,
-    sendFinalSealedPayload,
 } from './sealed-payload';
 import { messageByteLength, messageText } from './socket-message';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
@@ -103,6 +103,10 @@ export class MobileGateway {
     readonly #stopObserverEvents?: () => void;
     readonly #stopHostExit?: () => void;
     readonly #relay: MobileRelayRoute;
+    /**
+     * Pairs actions pushed to a connected phone (`caxri device`) with the phone's answer.
+     */
+    readonly deviceActions: DeviceActionBroker;
     #addresses?: string[];
     #handshakes = 0;
     #port?: number;
@@ -141,6 +145,13 @@ export class MobileGateway {
             ...(options.logger && { logger: options.logger }),
             now: this.#now,
             ...(options.relayTiming && { timing: options.relayTiming }),
+        });
+        this.deviceActions = new DeviceActionBroker({
+            listeners: () => deviceActionListeners(this.#activeByDevice),
+            now: this.#now,
+            randomId: () => encodeHex(this.#random(16)),
+            report: (kind, outcome, durationMs, reason) =>
+                this.#diagnostics.deviceAction(kind, outcome, durationMs, reason),
         });
         this.#authenticationDependencies = {
             context: (session) => this.#context(session),
@@ -350,10 +361,13 @@ export class MobileGateway {
             } finally {
                 this.#revokingDevices.delete(deviceId);
             }
-            for (const session of activeSessions.values()) session.application?.close();
+            for (const session of activeSessions.values()) {
+                session.application?.close();
+                this.deviceActions.connectionClosed(session.connection.connectionId);
+            }
             await Promise.all(
                 [...activeSessions].map(([socket, session]) =>
-                    this.#sendRevokedAndClose(socket, session),
+                    sendRevokedAndClose(socket, session),
                 ),
             );
         } finally {
@@ -372,6 +386,7 @@ export class MobileGateway {
         this.#sourceAttempts.clear();
         this.#updateDownloads.clear();
         for (const app of this.#applications()) app.close();
+        this.deviceActions.close();
         for (const socket of this.#sockets) {
             this.#disabledSockets.add(socket);
             socket.terminate();
@@ -443,6 +458,7 @@ export class MobileGateway {
             if (!isReady) this.#handshakes = Math.max(0, this.#handshakes - 1);
             if (!session) return;
             session.application?.close();
+            this.deviceActions.connectionClosed(session.connection.connectionId);
             if (session.readyAt !== undefined)
                 this.#diagnostics.connectionEnded(
                     session.deviceId,
@@ -656,25 +672,6 @@ export class MobileGateway {
             if (error) this.#terminate(socket, 'sendFailed');
             onSent?.(error);
         });
-    }
-
-    /**
-     * A revocation is disclosed only over the already authenticated session. The bounded close handshake preserves wire
-     * ordering for the encrypted control frame without letting a backpressured client delay Desktop indefinitely.
-     */
-    async #sendRevokedAndClose(socket: WebSocket, session: GatewaySession): Promise<void> {
-        const revoked = mobileRevokedSchema.parse({
-            type: 'revoked',
-            deviceId: session.deviceId,
-            generation: session.generation,
-        });
-        const sourceFrame = sealSessionPayload(session, revoked);
-        const maxBytes = MOBILE_GATEWAY_MAX_WIRE_BYTES * 2;
-        const closeResult = await sendFinalSealedPayload(socket, sourceFrame, maxBytes);
-        if (closeResult === 'failed') {
-            session.application?.close();
-            socket.terminate();
-        }
     }
 
     #terminate(socket: WebSocket, reason: MobileGatewayFailureReason): void {

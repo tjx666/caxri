@@ -1,18 +1,15 @@
-import type {
-    MobileEventPayload,
-    MobileStreamPayload,
-    MobileSubscriptionResource,
-} from '@caxri/mobile-transport';
+import type { MobileEventPayload, MobileSubscriptionResource } from '@caxri/mobile-transport';
 import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
-import type { Principal, ServerEvent } from '@caxri/protocol';
+import type { ServerEvent } from '@caxri/protocol';
 import { assertNever, CaxriError, clipAgentChatPatchForMobile } from '@caxri/protocol';
 
-import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
+import type { TerminalObserverEvent } from '../../../domains/terminal';
 import type {
-    MobileGatewayFailureReason,
-    MobileTerminalResyncReason,
-    MobileTerminalTeardownReason,
-} from './diagnostics';
+    MobileSubscriptionOptions,
+    PushPayload,
+    QueuedBody,
+    Subscription,
+} from './subscription-types';
 import { MobileTerminalObserver } from './terminal-observer';
 
 const MAXIMUM_SUBSCRIPTIONS = 32;
@@ -20,81 +17,6 @@ const MAXIMUM_TERMINAL_SUBSCRIPTIONS = 4;
 const MAXIMUM_PENDING_FRAMES = 32;
 const MAXIMUM_PENDING_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 8;
 const MAXIMUM_CONNECTION_PENDING_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 16;
-
-interface Subscription {
-    active: boolean;
-    activated: boolean;
-    /**
-     * Whether the subscribe passed authorization. A dashboard pushes from then on, before its acknowledgement; the
-     * phone holds those pushes until it has the subscription ID.
-     */
-    authorized: boolean;
-    /**
-     * The Session's Project root an Agent Chat subscription names changed files against.
-     */
-    agentChatProjectRoot?: string;
-    /**
-     * Set while the root is resolved again after a Session's Workbench Project changed (an Agent's worktree was
-     * followed or the user picked another root). Patches published meanwhile ask the phone to re-read instead, because
-     * a read resolves the current root and a patch clipped with the old one would name the same file differently.
-     */
-    agentChatRootRefresh?: symbol;
-    /**
-     * Releases what the subscription registered as a phone watching an Agent (a Conversation or an Agent Chat).
-     */
-    closeWatch?: () => void;
-    id: string;
-    /**
-     * The latest change published before the phone saw this subscription's acknowledgement. It is sent as one re-read
-     * hint on activation, because the phone may have sent its first read alongside the subscribe and taken a snapshot
-     * older than the change.
-     */
-    missed?: { body: QueuedBody; event: ServerEvent };
-    pendingBytes: number;
-    pendingFrames: number;
-    resource: MobileSubscriptionResource;
-    sequence: number;
-    tail: Promise<void>;
-    terminal?: MobileTerminalObserver;
-}
-
-type PushPayload = MobileEventPayload;
-
-/**
- * What one queued event will send, decided when it is queued so its byte cost is known up front.
- */
-type QueuedBody =
-    | {
-          kind:
-              | 'dashboard.changed'
-              | 'conversation.changed'
-              | 'changes.changed'
-              | 'extensionViews.changed'
-              | 'agentChat.changed'
-              | 'botInbox.changed';
-      }
-    | { kind: 'agentChat.patch'; patch: unknown };
-
-export interface MobileSubscriptionOptions {
-    authorize: (principal: Principal, resource: MobileSubscriptionResource) => Promise<void>;
-    currentPrincipal: () => Principal;
-    matches: (
-        principal: Principal,
-        resource: MobileSubscriptionResource,
-        event: ServerEvent,
-    ) => Promise<boolean>;
-    randomId: () => string;
-    send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
-    reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
-    reportTerminalTeardownFailure?: (reason: MobileTerminalTeardownReason) => void;
-    reportHumanSteer?: (terminalId: string) => void;
-    terminate: (reason?: MobileGatewayFailureReason) => void;
-    connectionId: string;
-    beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
-    beginAgentChat?: (principal: Principal, terminalId: string) => Promise<() => void>;
-    agentChatProjectRoot?: (principal: Principal, terminalId: string) => Promise<string>;
-    terminalExecution?: TerminalExecutionPort;
-}
 
 /**
  * Owns one socket's subscriptions and isolates each subscription's output budget.
@@ -349,6 +271,51 @@ export class MobileGatewaySubscriptions {
         return false;
     }
 
+    /**
+     * Whether the phone acknowledged a `deviceActions` subscription that is still open.
+     */
+    acceptsDeviceActions(): boolean {
+        return this.#deviceActionSubscription() !== undefined;
+    }
+
+    /**
+     * Pushes one action on the `deviceActions` subscription, after anything already queued on it. Returns false when
+     * the phone is not listening, so the caller fails at once instead of waiting for an answer that cannot come.
+     */
+    deliverDeviceAction(request: unknown): boolean {
+        const subscription = this.#deviceActionSubscription();
+        if (!subscription) return false;
+        subscription.tail = (async (previous: Promise<void>): Promise<void> => {
+            try {
+                await previous;
+                if (!this.#isActive(subscription)) return;
+                const sequence = subscription.sequence++;
+                const kind = 'deviceAction.requested';
+                await this.#options.send({
+                    type: 'event',
+                    subscriptionId: subscription.id,
+                    sequence,
+                    kind,
+                    request,
+                });
+            } catch {
+                this.#options.terminate('sendFailed');
+            }
+        })(subscription.tail);
+        return true;
+    }
+
+    #deviceActionSubscription(): Subscription | undefined {
+        return this.#subscriptions
+            .values()
+            .find(
+                (item) =>
+                    this.#isActive(item) &&
+                    item.activated &&
+                    item.resource.kind === 'deviceActions',
+            );
+    }
+
     publish(event: ServerEvent): void {
         if (this.#closed) return;
         const changedSessionIds =
@@ -419,7 +386,8 @@ export class MobileGatewaySubscriptions {
                     this.#deliver(subscription, event, { kind: 'botInbox.changed' });
                 break;
             }
-            case 'terminal': {
+            case 'terminal':
+            case 'deviceActions': {
                 break;
             }
             default: {

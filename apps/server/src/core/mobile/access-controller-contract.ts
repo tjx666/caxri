@@ -123,7 +123,11 @@ export type MobileControlRequest = Extract<
             | 'mobile.files.write'
             | 'mobile.update.check'
             | 'mobile.update.prepare'
-            | 'mobile.diagnostics.reportExit';
+            | 'mobile.diagnostics.reportExit'
+            | 'mobile.deviceAction.targets'
+            | 'mobile.deviceAction.openUrl'
+            | 'mobile.deviceAction.exec'
+            | 'mobile.deviceAction.complete';
     }
 >;
 type MobileDesktopOperation = Extract<

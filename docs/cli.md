@@ -172,6 +172,10 @@ let an Agent use a secret the user saved in Caxri without the value entering the
 They require the baseline `secrets.use` capability and bind to the caller's own Project; the human
 CLI has no secret commands. See [Agent secrets](agent-secrets.md).
 
+`device list`, `device open <url>`, and `device exec -- <command>` open a link on the paired phone
+or run a command in Termux on it. They require the `devices.control` capability, which the human
+CLI and every Agent Endpoint hold. See [Mobile device actions](mobile/device-actions.md).
+
 Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
 operations (`agent dispatch` and `agent control`), and owner-only simulated input
 (`terminal send`). They do not alias or fall back to one another. See

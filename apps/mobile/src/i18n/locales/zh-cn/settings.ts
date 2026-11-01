@@ -33,6 +33,18 @@ export const settings: TranslatedNamespace<typeof source> = {
     'settings.status.storageError': '已保存的配对信息不可用',
     'settings.status.unverified': '配对未验证',
     'settings.status.updateRequired': '需要更新',
+    'settings.termux': 'Termux 命令',
+    'settings.termux.hint': '开启或关闭 Termux 命令。',
+    'settings.termux.missing': '未安装 Termux',
+    'settings.termux.missingDetail':
+        '从 F-Droid 或 GitHub 安装 Termux 后，电脑才能在这里运行命令。',
+    'settings.termux.off': '关闭',
+    'settings.termux.offDetail':
+        '允许电脑通过 caxri device exec 在 Termux 中运行命令。Termux 还需要在 ~/.termux/termux.properties 中设置 allow-external-apps=true。',
+    'settings.termux.on': '开启',
+    'settings.termux.onDetail': 'Caxri 打开时，电脑可以在这台手机的 Termux 中运行命令。',
+    'settings.termux.permissionDenied':
+        'Android 未允许 Caxri 运行 Termux 命令。请在 Android 设置 › 应用 › Caxri › 权限中允许。',
     'settings.title': '设置',
     'settings.unknown': '未知',
     'settings.version': '版本',

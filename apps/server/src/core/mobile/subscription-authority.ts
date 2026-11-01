@@ -26,6 +26,9 @@ export const mobileSubscriptionMethod = (resource: MobileSubscriptionResource): 
         case 'extensionViews': {
             return 'mobile.tree.children';
         }
+        case 'deviceActions': {
+            return 'mobile.deviceAction.complete';
+        }
         default: {
             return 'mobile.dashboard';
         }
@@ -57,7 +60,8 @@ export async function authorizeMobileSubscriptionResource(
             return;
         }
         case 'dashboard':
-        case 'botInbox': {
+        case 'botInbox':
+        case 'deviceActions': {
             return;
         }
         default: {
@@ -81,6 +85,8 @@ export async function isMobileSubscriptionEvent(
             return event.event === 'state.changed' || event.event === 'sessionPullRequests.changed';
         case 'botInbox':
             return event.event === 'botInbox.changed';
+        case 'deviceActions':
+            return false;
         case 'terminal':
             return (
                 event.event === 'terminal.output' &&

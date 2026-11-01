@@ -29,6 +29,12 @@ const mobileSubscriptionResourceSchema = z.discriminatedUnion('kind', [
      * `mobile.botInbox.list`.
      */
     z.strictObject({ kind: z.literal('botInbox') }),
+    /**
+     * Actions the computer asks this phone to carry out (open a link, run a Termux command). Unlike the content-free
+     * resources, each `deviceAction.requested` event carries the action; the phone answers it with
+     * `mobile.deviceAction.complete`.
+     */
+    z.strictObject({ kind: z.literal('deviceActions') }),
 ]);
 
 export const mobileSubscribeResultSchema = z.strictObject({ subscriptionId: identifierSchema });
@@ -88,6 +94,16 @@ export const mobileEventPayloadSchema = z.union([
          * transport only frames it.
          */
         patch: z.unknown(),
+    }),
+    z.strictObject({
+        type: z.literal('event'),
+        subscriptionId: identifierSchema,
+        sequence: sequenceSchema,
+        kind: z.literal('deviceAction.requested'),
+        /**
+         * A `DeviceActionRequest`, validated by the app against the protocol schema; the transport only frames it.
+         */
+        request: z.unknown(),
     }),
     z.strictObject({
         type: z.literal('event'),

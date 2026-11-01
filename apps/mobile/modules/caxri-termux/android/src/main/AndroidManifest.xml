@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Termux's dangerous permission for its RUN_COMMAND service; asked only when the user turns on Termux commands. -->
+  <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+  <!-- Android 11+ hides other packages unless they are declared here. -->
+  <queries>
+    <package android:name="com.termux" />
+  </queries>
+</manifest>

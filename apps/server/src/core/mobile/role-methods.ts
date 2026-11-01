@@ -22,6 +22,11 @@ const mobileEveryRoleMethods = [
      */
     'mobile.diagnostics.reportExit',
     /**
+     * Answering an action the computer pushed to this phone reports what the phone itself did; it reads no Desktop
+     * data.
+     */
+    'mobile.deviceAction.complete',
+    /**
      * A video a Chat message cites is part of a message every role can read; showing and playing it changes nothing.
      */
     'mobile.video.read',

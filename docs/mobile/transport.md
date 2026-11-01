@@ -60,12 +60,15 @@ for commands, subscribe, and unsubscribe.
 
 Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, `{kind:'changes',sessionId}`,
 `{kind:'extensionViews',sessionId}`, `{kind:'terminal',terminalId}`, `{kind:'agentChat',terminalId}`,
-and `{kind:'botInbox'}`. An extension views subscription requires `mobile.tree.children` and an authorized Session;
+`{kind:'botInbox'}`, and `{kind:'deviceActions'}`. An extension views subscription requires `mobile.tree.children` and an authorized Session;
 it receives a content-free `extensionViews.changed` for each `viewContainers.treeChanged` scoped to that Session,
 and the phone re-reads the extension tree it is showing in place. Server Core also refreshes a Session's
 Git and Status views only while a Desktop window shows it or a phone holds this subscription. A
 Bot Inbox subscription receives a content-free `botInbox.changed` for every
-`botInbox.changed` Server event and requires the `mobile.botInbox.list` grant. An Agent Chat subscription
+`botInbox.changed` Server event and requires the `mobile.botInbox.list` grant. A device actions
+subscription is the one event that carries a body: `deviceAction.requested` holds an action for the
+phone to run, which it answers with `mobile.deviceAction.complete`; see
+[device actions](device-actions.md). An Agent Chat subscription
 carries `agentChat.patch` events holding a frame-sized patch, or a content-free `agentChat.changed`
 when a patch cannot fit; see [Agent Chat](../agent-chat.md#mobile). The Server chooses opaque subscription IDs. `sequence` starts at
 zero for each subscription and increases across both `event` and `stream`. Dashboard and
