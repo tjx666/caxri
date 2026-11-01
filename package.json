@@ -119,6 +119,9 @@
             "e2e/support/clipboard-capability.type-test.ts": [
                 "exports"
             ],
+            "e2e/support/mobile-chat-case-loader.playwright.config.ts": [
+                "exports"
+            ],
             "e2e/support/mobile-chat-cases/*.ts": [
                 "exports"
             ],
@@ -162,6 +165,8 @@
                     ".agents/skills/promo-images/scripts/promo-compose.ts",
                     ".agents/skills/promo-images/scripts/promo-playwright.config.ts",
                     "e2e/support/clipboard-capability.type-test.ts",
+                    "e2e/support/mobile-chat-case-loader.playwright.config.ts",
+                    "e2e/support/mobile-chat-case-loader.probe.ts",
                     "scripts/ssh-link-throttle.ts",
                     "scripts/reporters/e2e-receipt-reporter.ts",
                     "scripts/fixtures/e2e-census.fixture.ts",
