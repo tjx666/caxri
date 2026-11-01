@@ -21,23 +21,31 @@ import { cn } from '../../../lib/utilities';
  * The scroll view runs on under the button and dissolves into a bottom fade drawn with it (DESIGN.md "Scroll edge
  * cues"): ending the view above the button left a blank band that read as the button hiding the conversation. The fade
  * is inset by the 8px scrollbar rail so it never dims the thumb.
+ *
+ * `hasRecapCue` adds an accent dot and names the waiting away recap in the label (`shouldCueAwayRecap`): the recap card
+ * sits at the end of the transcript, so a user who returns scrolled up would otherwise never see it.
  */
 export function AgentChatJumpToLatest({
     focusTarget,
+    hasRecapCue = false,
     isLatestInView,
     onJump,
 }: {
     focusTarget: RefObject<{ focus: (options?: FocusOptions) => void } | null>;
+    hasRecapCue?: boolean;
     isLatestInView: boolean;
     onJump: () => void;
 }) {
     const { t } = useTranslation();
+    const label = t(
+        hasRecapCue ? 'agentChat.timeline.jumpToRecap' : 'agentChat.timeline.jumpToLatest',
+    );
     return (
         <>
             {!isLatestInView && <ScrollFade className="right-2" edge="bottom" fill="background" />}
-            <Tooltip hoverOnly content={t('agentChat.timeline.jumpToLatest')} side="top">
+            <Tooltip hoverOnly content={label} side="top">
                 <Button
-                    aria-label={t('agentChat.timeline.jumpToLatest')}
+                    aria-label={label}
                     className={cn(
                         'absolute bottom-2 left-1/2 z-10 size-8 -translate-x-1/2 rounded-full shadow-[0_8px_24px_var(--shadow)] transition-[background,opacity,translate] motion-reduce:transition-none',
                         isLatestInView
@@ -53,6 +61,13 @@ export function AgentChatJumpToLatest({
                     }}
                 >
                     <ArrowDown aria-hidden="true" className="size-4" />
+                    {hasRecapCue && (
+                        <span
+                            aria-hidden="true"
+                            className="absolute top-0 right-0 size-2 rounded-full bg-accent ring-2 ring-background"
+                            data-agent-chat-recap-cue=""
+                        />
+                    )}
                 </Button>
             </Tooltip>
         </>
