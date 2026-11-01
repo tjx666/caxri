@@ -71,7 +71,13 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         join(shellHome, '.zshenv'),
         `print -r -- env:\${+functions[__caxri_finish_startup]} >> ${JSON.stringify(shellLog)}\n`,
     );
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        // An Agent Terminal keeps a bash `SHELL`, and hosted macOS runners export one; the startup files above are zsh's.
+        env: { SHELL: '/bin/zsh' },
+    });
     try {
         await createProjectSession(running.page, 'codex');
         const pane = running.page.locator('.terminal-pane');
