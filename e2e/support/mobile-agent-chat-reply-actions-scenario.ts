@@ -16,14 +16,14 @@ import {
     waitForMobile,
 } from './mobile-android';
 
-export const PROMPT = 'Which Expo SDK should we target?';
+const PROMPT = 'Which Expo SDK should we target?';
 const FOLLOW_UP = 'thanks';
 
 /**
  * Public pages the search lists, in Claude Code's `WebSearch` result shape (`Links: [...]`), so Server Core records
  * them as the call's sources. Their favicons load from the sites themselves when the emulator is online.
  */
-export const LINKS = [
+const LINKS = [
     { title: 'Expo SDK changelog', url: 'https://expo.dev/changelog' },
     { title: 'React Native blog', url: 'https://reactnative.dev/blog' },
     { title: 'Android Developers: Releases', url: 'https://developer.android.com/about/versions' },
@@ -33,7 +33,7 @@ export const LINKS = [
 /**
  * The first turn searches the web, so its reply ends with Sources; the second turn only answers, so its bar has none.
  */
-export const script: FakeClaudeScript = {
+const script: FakeClaudeScript = {
     turns: [
         {
             prompt: PROMPT,
