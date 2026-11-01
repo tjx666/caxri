@@ -23,7 +23,9 @@ async function boundsInsideWorkArea(
     const workArea = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
     const margin = 20;
     const width = Math.min(preferred.width, workArea.width - margin * 2);
-    const height = Math.min(preferred.height, workArea.height - margin * 2);
+    // The top offset is two margins, so the bottom keeps two as well: a window ending on the work area's edge came back
+    // shorter on a hosted runner's small display.
+    const height = Math.min(preferred.height, workArea.height - margin * 4);
     return { x: workArea.x + margin, y: workArea.y + margin * 2, width, height };
 }
 
