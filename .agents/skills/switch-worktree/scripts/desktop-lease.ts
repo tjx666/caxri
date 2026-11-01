@@ -54,6 +54,12 @@ export interface DesktopLeaseOptions {
      * Bounded active-owner wait; every retry reacquires the repository lock before attempting an atomic claim.
      */
     waitMs?: number;
+    /**
+     * Called with the current holder's description when a wait starts and again every minute it continues. A caller
+     * whose output is captured (an Agent running `check --e2e`) otherwise sat 44 minutes behind a sibling's lease with
+     * nothing on screen saying who held the desktop.
+     */
+    onWait?: (holder: string, waitedMs: number) => void;
 }
 
 /**
@@ -277,12 +283,17 @@ export async function acquireDesktopLease(
                 ...(waitMs > 0 && { timeoutMs: Math.max(10_000, deadline - Date.now()) }),
             },
         );
+    let nextWaitNoticeAt = Date.now();
     /* eslint-disable no-await-in-loop -- each retry must acquire the repository lock and attempt atomic creation. */
     for (;;) {
         try {
             return await acquireOnce();
         } catch (error) {
             if (waitMs === 0 || !(error instanceof DesktopLeaseBusyError)) throw error;
+            if (Date.now() >= nextWaitNoticeAt) {
+                options.onWait?.(error.message, Date.now() - (deadline - waitMs));
+                nextWaitNoticeAt = Date.now() + 60_000;
+            }
             const remaining = deadline - Date.now();
             if (remaining <= 0)
                 throw new CommandError(`${error.message} Waited ${waitMs / 1000}s.`);

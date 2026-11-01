@@ -45,6 +45,7 @@ import { writeJsonAtomic } from './atomic-json';
 import { execFileAsync } from './exec';
 import type { CliOptions } from './watch-ci-arguments';
 import { parseArguments } from './watch-ci-arguments';
+import { printE2EFailures } from './watch-ci-e2e-failures';
 import { didPrRunsSucceed, resolvePrRuns } from './watch-ci-pr';
 import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
 
@@ -192,6 +193,14 @@ export function newlyFailedJobs(alreadyNotified: string[], jobs: WatchedJob[]): 
                 !notified.has(job.name),
         )
         .map((job) => job.name);
+}
+
+/**
+ * Whether a settled run has a failed E2E job whose log carries public `test-end` events worth summarizing.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export function hasFailedE2EJob(jobs: WatchedJob[]): boolean {
+    return jobs.some((job) => /\be2e\b/i.test(job.name) && FAILURE_CONCLUSIONS.has(job.conclusion));
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
@@ -511,6 +520,9 @@ async function didRunSucceed(
         if (isRunSettled(state)) {
             // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
             await notify(formatCiNotification(state), state.url);
+            if (hasFailedE2EJob(state.jobs))
+                // eslint-disable-next-line no-await-in-loop -- terminal summary; the loop exits right after
+                await printE2EFailures(runId);
             return isSkippedSuccess
                 ? isSuccessfulConclusion(state.conclusion)
                 : state.conclusion === 'success';

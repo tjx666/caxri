@@ -44,6 +44,21 @@ describe('switch-worktree desktop --wait', () => {
         ).rejects.toThrow('--wait requires whole seconds');
     });
 
+    it('reports the current holder while it waits for a busy lease', async () => {
+        const root = await createRepo();
+        const first = await acquireDesktopLease(root, 'Acceptance');
+        const notices: string[] = [];
+        const waiting = acquireDesktopLease(root, 'check --e2e', process.pid, {
+            waitMs: 10_000,
+            onWait: (holder) => notices.push(holder),
+        });
+        await expect.poll(() => notices.length).toBe(1);
+        await releaseDesktopLease(first);
+        await releaseDesktopLease(await waiting);
+
+        expect(notices[0]).toContain('Desktop is in use by Acceptance');
+    });
+
     it('runs its command once a busy lease is released', async () => {
         const root = await createRepo();
         const first = await acquireDesktopLease(root, 'Acceptance');
