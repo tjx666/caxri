@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import type { showToast } from '../../../components/toast-store';
 import type { Translate } from '../../../i18n';
 import {
     continuationChoices,
     sessionForkBlocker,
     sessionRenameDraft,
+    showArchiveUndo,
 } from '../session-management-model';
 
 describe('sessionRenameDraft', () => {
@@ -58,5 +60,32 @@ describe('continuationChoices', () => {
             t,
         );
         expect(choice.reason).toMatch(/^sessions\.continue\.usageLimitedUntil /u);
+    });
+});
+
+describe('showArchiveUndo', () => {
+    const t = ((key: string) => key) as Translate;
+
+    it('offers Undo that restores the Session', () => {
+        const show = vi.fn();
+        const restore = vi.fn(() => Promise.resolve());
+        showArchiveUndo({ restore, show, t });
+        const [tone, message, , action] = show.mock.calls[0] as Parameters<typeof showToast>;
+        expect([tone, message, action?.label]).toEqual([
+            'success',
+            'sessions.manage.archived',
+            'sessions.manage.undo',
+        ]);
+        action?.onPress();
+        expect(restore).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports a failed Undo', async () => {
+        const show = vi.fn();
+        showArchiveUndo({ restore: () => Promise.reject(new Error('offline')), show, t });
+        (show.mock.calls[0]?.[3] as { onPress: () => void }).onPress();
+        await vi.waitFor(() =>
+            expect(show).toHaveBeenCalledWith('error', 'sessions.manage.restoreFailed'),
+        );
     });
 });

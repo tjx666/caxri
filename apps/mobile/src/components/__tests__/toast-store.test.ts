@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createToastStore, TOAST_DURATION_MS, TOAST_ERROR_DURATION_MS } from '../toast-store';
+import {
+    createToastStore,
+    TOAST_ACTION_DURATION_MS,
+    TOAST_DURATION_MS,
+    TOAST_ERROR_DURATION_MS,
+} from '../toast-store';
 
 const fakeTimers = () => {
     const pending = new Map<number, { callback: () => void; delayMs: number }>();
@@ -71,5 +76,30 @@ describe('toast store', () => {
         unsubscribe();
         store.show('success', 'b');
         expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps a toast with an action long enough to reach it, and runs it once', () => {
+        const { pending, timers } = fakeTimers();
+        const store = createToastStore(timers);
+        const onPress = vi.fn();
+        store.show('success', 'Session archived', undefined, { label: 'Undo', onPress });
+        expect(pending.values().next().value?.delayMs).toBe(TOAST_ACTION_DURATION_MS);
+        const id = store.getSnapshot()?.id ?? -1;
+        store.runAction(id);
+        expect(onPress).toHaveBeenCalledTimes(1);
+        expect(store.getSnapshot()).toBeUndefined();
+        store.runAction(id);
+        expect(onPress).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores an action press for a toast that was already replaced', () => {
+        const store = createToastStore(fakeTimers().timers);
+        const onPress = vi.fn();
+        store.show('success', 'Session archived', undefined, { label: 'Undo', onPress });
+        const stale = store.getSnapshot()?.id ?? -1;
+        store.show('success', 'Link copied');
+        store.runAction(stale);
+        expect(onPress).not.toHaveBeenCalled();
+        expect(store.getSnapshot()).toMatchObject({ message: 'Link copied' });
     });
 });

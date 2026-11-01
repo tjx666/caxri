@@ -225,6 +225,8 @@ export const sessions = {
     'sessions.list.waiting': 'Waiting',
     'sessions.list.working': 'Working',
     'sessions.manage.archiveFailed': 'Unable to archive this Session',
+    'sessions.manage.archived': 'Session archived',
+    'sessions.manage.undo': 'Undo',
     'sessions.manage.continueFailed': 'Unable to continue in that Agent',
     'sessions.manage.deleteFailed': 'Unable to delete this Session',
     'sessions.manage.forkFailed': 'Conversation could not be forked',
