@@ -49,7 +49,8 @@ export const agentChatDockSummary = (
     if (activity && activity.kind !== 'starting') segments.push(activity.text);
     if (queueCount > 0) segments.push(`${t('chat.queue.queued')} ${queueCount}`);
     const running = agentChatTaskPill(snapshot, t)?.running ?? [];
-    if (running.length > 0) segments.push(t('chat.tasks.runningCount', { count: running.length }));
+    // `N running` alone reads as N goals beside the goal segment, so name the work like the queue segment does.
+    if (running.length > 0) segments.push(`${t('chat.tasks.backgroundWork')} ${running.length}`);
     return { segments, isStacked: segments.length >= 2 };
 };
 
