@@ -6,6 +6,7 @@ import { MAX_AGENT_CHAT_IMAGES } from '../agent/agent-chat-limits.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { agentChatHistoryPageSchema } from '../agent/agent-chat-patch-contract.js';
 import { agentChatTaskSnapshotSchema } from '../agent/agent-chat-task-contract.js';
+import { agentChatImagePendingSchema } from '../agent/images/agent-chat-image-contract.js';
 import { identifierSchema } from '../domain/identifiers.js';
 import { agentUsageReadoutSchema, usageNoticeSchema } from '../domain/usage-contract.js';
 import type { MethodSpec } from '../transport/method-spec.js';
@@ -114,7 +115,8 @@ export const mobileAgentChatMethods = {
     /**
      * One chunk of an image a user message carried: its thumbnail, or the original read from the provider's record like
      * `agentChat.readImage`. The phone's window drops thumbnails (see `clipAgentChatItemForMobile`), so it reads them
-     * here as each message scrolls into view. Resolves `null` when no such image or thumbnail exists.
+     * here as each message scrolls into view. Resolves `{ pending: true }` while the provider's record does not hold
+     * the message yet (see `agentChatImagePendingSchema`), and `null` when no such image or thumbnail exists.
      */
     'mobile.agentChat.readImage': {
         ...commandPolicy('server', 'read', ['sessions.read']),
@@ -135,6 +137,7 @@ export const mobileAgentChatMethods = {
                 chunkIndex: z.number().int().nonnegative(),
                 chunkCount: z.number().int().positive(),
             })
+            .or(agentChatImagePendingSchema)
             .nullable(),
     },
     /**

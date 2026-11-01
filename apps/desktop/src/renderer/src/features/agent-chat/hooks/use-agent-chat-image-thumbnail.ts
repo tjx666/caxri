@@ -1,3 +1,10 @@
+import type { AgentChatImagePending } from '@caxri/protocol';
+import {
+    agentChatImageRetryDelay,
+    isAgentChatImagePending,
+    settleAgentChatImageAnswer,
+} from '@caxri/protocol';
+import type { Query } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
@@ -14,11 +21,21 @@ export interface AgentChatImageSource {
 }
 
 /**
+ * Asks again, with a growing delay, for an image whose message the provider's record does not hold yet: Claude Code
+ * records a message sent mid-turn only once the running turn takes it in.
+ */
+function retryWhilePending(query: Query<string | AgentChatImagePending | null>): number | false {
+    return isAgentChatImagePending(query.state.data)
+        ? agentChatImageRetryDelay(query.state.dataUpdateCount)
+        : false;
+}
+
+/**
  * The preview of an image a resumed conversation knows only by count: the original comes back from the provider's
  * record (`agentChat.readImage`) and is shrunk here exactly like a newly attached image. Only the thumbnail is cached,
- * never the multi-megabyte original, and a sent message's images never change, so it is read once. `thumbnail` is
- * `undefined` while loading, and for good when the record no longer has the image; `status` tells the two apart so the
- * placeholder can say which.
+ * never the multi-megabyte original, and a sent message's images never change, so it is read once (or until the record
+ * holds the message, see {@link retryWhilePending}). `thumbnail` is `undefined` while loading, and for good when the
+ * record no longer has the image; `status` tells the two apart so the placeholder can say which.
  */
 export function useAgentChatImageThumbnail(source: AgentChatImageSource | undefined): {
     thumbnail: string | undefined;
@@ -27,18 +44,26 @@ export function useAgentChatImageThumbnail(source: AgentChatImageSource | undefi
     const parameters = source ?? { terminalId: '', itemId: '', index: 0 };
     const query = useQuery({
         queryKey: [...caxriQueryKey('agentChat.readImage', parameters), 'thumbnail'],
-        queryFn: async () => {
-            const image = await caxri.request('agentChat.readImage', parameters);
+        queryFn: async ({ client, queryKey }) => {
+            const image = settleAgentChatImageAnswer(
+                await caxri.request('agentChat.readImage', parameters),
+                client.getQueryState(queryKey)?.dataUpdateCount ?? 0,
+            );
+            if (image && 'pending' in image) return image;
             return image ? agentChatImageThumbnail(image) : null;
         },
         enabled: source !== undefined,
+        refetchInterval: retryWhilePending,
         staleTime: Infinity,
         retry: false,
     });
-    const thumbnail = query.data ?? undefined;
+    const thumbnail = typeof query.data === 'string' ? query.data : undefined;
     if (thumbnail) return { thumbnail, status: 'ready' };
     if (source === undefined) return { thumbnail, status: 'idle' };
-    return { thumbnail, status: query.isPending ? 'loading' : 'unavailable' };
+    return {
+        thumbnail,
+        status: query.isPending || isAgentChatImagePending(query.data) ? 'loading' : 'unavailable',
+    };
 }
 
 /**
@@ -54,14 +79,19 @@ export function useAgentChatImageOriginal(
     const parameters = source ?? { terminalId: '', itemId: '', index: 0 };
     const query = useQuery({
         queryKey: [...caxriQueryKey('agentChat.readImage', parameters), 'original'],
-        queryFn: async () => {
-            const image = await caxri.request('agentChat.readImage', parameters);
+        queryFn: async ({ client, queryKey }) => {
+            const image = settleAgentChatImageAnswer(
+                await caxri.request('agentChat.readImage', parameters),
+                client.getQueryState(queryKey)?.dataUpdateCount ?? 0,
+            );
+            if (image && 'pending' in image) return image;
             return image ? `data:${image.mediaType};base64,${image.data}` : null;
         },
         enabled: isEnabled && source !== undefined,
+        refetchInterval: retryWhilePending,
         staleTime: Infinity,
         gcTime: 0,
         retry: false,
     });
-    return query.data ?? undefined;
+    return typeof query.data === 'string' ? query.data : undefined;
 }

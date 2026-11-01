@@ -1,4 +1,4 @@
-import type { AgentChatMessageInput, AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatMessageInput, AgentChatResponse, AgentChatSnapshot } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
 
 import { pageRequest } from './helpers';
@@ -17,6 +17,10 @@ export interface MobileAgentChatDriver {
     configure(change: { planMode: boolean }): Promise<void>;
     interrupt(): Promise<void>;
     read(): Promise<AgentChatSnapshot>;
+    /**
+     * Answers a request the Agent waits on, as the paired Desktop's request card does.
+     */
+    respond(requestId: string, response: AgentChatResponse): Promise<void>;
     /**
      * Runs a provider command such as `/goal` through the paired Desktop's public Chat action.
      */
@@ -51,6 +55,8 @@ export function createMobileAgentChatDriver(page: Page, terminalId: string): Mob
             pageRequest<void>(page, 'agentChat.configure', { terminalId, ...change }),
         interrupt: () => pageRequest<void>(page, 'agentChat.interrupt', { terminalId }),
         read: () => pageRequest<AgentChatSnapshot>(page, 'agentChat.read', { terminalId }),
+        respond: (requestId, response) =>
+            pageRequest<void>(page, 'agentChat.respond', { terminalId, requestId, response }),
         runCommand: (command) =>
             pageRequest<void>(page, 'agentChat.runCommand', { terminalId, ...command }),
         send: (message) => pageRequest<void>(page, 'agentChat.send', { terminalId, ...message }),

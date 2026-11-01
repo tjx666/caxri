@@ -1,5 +1,11 @@
 import { useState } from 'react';
 
+import type { AgentChatImagePending } from '@caxri/protocol';
+import {
+    agentChatImageRetryDelay,
+    isAgentChatImagePending,
+    settleAgentChatImageAnswer,
+} from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { File, Paths } from 'expo-file-system';
@@ -34,7 +40,8 @@ const writeOriginal = async (
 
 /**
  * One image of a Chat message, read on demand: a thumbnail as a data URI, or an original as a cached file. Images in a
- * sent message never change, so a loaded one is never refetched, like Desktop's thumbnail fallback.
+ * sent message never change, so a loaded one is never refetched, like Desktop's thumbnail fallback. One whose message
+ * the provider's record does not hold yet (`isWaiting`) is asked for again with a growing delay until it is.
  */
 export const useAgentChatImage = (target: AgentChatImageTarget, isEnabled = true) => {
     const { connectionScopeKey, request, status } = useMobileClient();
@@ -52,25 +59,34 @@ export const useAgentChatImage = (target: AgentChatImageTarget, isEnabled = true
             target.index,
             target.variant,
         ],
-        queryFn: async (): Promise<string | null> => {
+        queryFn: async ({ client, queryKey }): Promise<string | AgentChatImagePending | null> => {
             setProgress(0);
-            const image = await readAgentChatImage(
-                (chunkIndex) => request('mobile.agentChat.readImage', { ...target, chunkIndex }),
-                setProgress,
+            const image = settleAgentChatImageAnswer(
+                await readAgentChatImage(
+                    (chunkIndex) =>
+                        request('mobile.agentChat.readImage', { ...target, chunkIndex }),
+                    setProgress,
+                ),
+                client.getQueryState(queryKey)?.dataUpdateCount ?? 0,
             );
-            if (!image) return null;
+            if (!image || 'pending' in image) return image;
             return target.variant === 'original'
                 ? writeOriginal(target, image)
                 : agentChatImageDataUri(image);
         },
+        refetchInterval: (current) =>
+            isAgentChatImagePending(current.state.data)
+                ? agentChatImageRetryDelay(current.state.dataUpdateCount)
+                : false,
         refetchOnReconnect: false,
         refetchOnWindowFocus: false,
         retry: false,
         staleTime: Infinity,
     });
     return {
-        uri: query.data ?? null,
+        uri: typeof query.data === 'string' ? query.data : null,
         isLoading: query.isPending && query.fetchStatus !== 'idle',
+        isWaiting: isAgentChatImagePending(query.data),
         isMissing: query.isSuccess && query.data === null,
         isError: query.isError,
         progress,

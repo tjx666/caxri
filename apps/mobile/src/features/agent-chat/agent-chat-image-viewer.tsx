@@ -469,12 +469,15 @@ const MessageImagePage = ({
                     {t('chat.image.previewNote')}
                 </Text>
             ) : null}
-            {original.isLoading ? (
+            {original.isLoading || original.isWaiting ? (
                 <View pointerEvents="none" style={styles.center}>
                     <Spinner color={theme.onScrim} size={36} />
-                    <Text style={[styles.status, { color: theme.onScrim }]}>
-                        {Math.round(original.progress * 100)}%
-                    </Text>
+                    {/* Waiting for the Agent to record the message has no progress to show. */}
+                    {original.isLoading ? (
+                        <Text style={[styles.status, { color: theme.onScrim }]}>
+                            {Math.round(original.progress * 100)}%
+                        </Text>
+                    ) : null}
                 </View>
             ) : null}
             {content.message ? (

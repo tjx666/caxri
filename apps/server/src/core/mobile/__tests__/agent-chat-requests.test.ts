@@ -230,6 +230,29 @@ describe('mobile Agent Chat requests', () => {
         await expect(read('original', 1, 2)).rejects.toMatchObject({ code: 'VALIDATION' });
     });
 
+    it('answers pending for an original the record lacks yet, and asks Core again next time', async () => {
+        const domain = domainFixture({ surface: 'chat', original: { pending: true } });
+        const read = () =>
+            invoke(
+                {
+                    method: 'mobile.agentChat.readImage',
+                    params: {
+                        terminalId: 'terminal-1',
+                        itemId: 'queued-message-1',
+                        index: 0,
+                        variant: 'original',
+                        chunkIndex: 0,
+                    },
+                },
+                domain,
+            );
+        expect(await read()).toEqual({ pending: true });
+        expect(await read()).toEqual({ pending: true });
+        expect(
+            domain.request.mock.calls.filter(([method]) => method === 'agentChat.readImage'),
+        ).toHaveLength(2);
+    });
+
     it('forwards a model, effort, or ultracode switch through Core admission without inventing the other fields', async () => {
         const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
         const domain = domainFixture({ surface: 'chat' });

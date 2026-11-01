@@ -2,6 +2,7 @@ import type {
     AgentChatContinuationTarget,
     AgentChatHistoryPage,
     AgentChatImageMediaType,
+    AgentChatImagePending,
     AgentChatRequest,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
@@ -151,7 +152,7 @@ const RECENT_ORIGINAL_LIFETIME_MS = 60_000;
 async function readOriginal(
     domainService: ServerDomainService,
     target: { terminalId: string; itemId: string; index: number },
-): Promise<ImageData | null> {
+): Promise<ImageData | AgentChatImagePending | null> {
     const key = JSON.stringify([target.terminalId, target.itemId, target.index]);
     const now = Date.now();
     for (const [cached, entry] of recentOriginals)
@@ -159,6 +160,8 @@ async function readOriginal(
     const hit = recentOriginals.get(key);
     if (hit) return hit.image;
     const image = await domainService.request('agentChat.readImage', target);
+    // A message not recorded yet is asked about again shortly, and must not keep answering `pending` once it is.
+    if (image && 'pending' in image) return image;
     recentOriginals.set(key, { image, expiresAt: now + RECENT_ORIGINAL_LIFETIME_MS });
     while (recentOriginals.size > RECENT_ORIGINALS_LIMIT)
         recentOriginals.delete(recentOriginals.keys().next().value!);
@@ -230,6 +233,7 @@ export async function invokeMobileAgentChatRequest(
     | AgentChatTaskSnapshot
     | AgentUsageReadout
     | (ImageData & { chunkIndex: number; chunkCount: number })
+    | AgentChatImagePending
     | { requests: AgentChatRequest[] }
     | { text: string }
     | { text: string; imageCount: number; hasReferences: boolean }
@@ -288,7 +292,7 @@ export async function invokeMobileAgentChatRequest(
                     ? await readOriginal(domainService, { terminalId, itemId, index })
                     : thumbnail;
             reauthorize();
-            if (!image) return null;
+            if (!image || 'pending' in image) return image;
             const chunkCount = Math.max(
                 1,
                 Math.ceil(image.data.length / MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH),
