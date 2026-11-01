@@ -74,8 +74,8 @@ export class CodexRequestBroker {
             ...(turnId && { turnId: clip(turnId, 200) }),
             ...(amendment && { execpolicyAmendment: amendment }),
         });
-        const mapped: AgentChatRequest = mapCodexRequest(kind, key, request.params);
-        const { requests } = this.host.read();
+        const { items, requests } = this.host.read();
+        const mapped: AgentChatRequest = mapCodexRequest(kind, key, request.params, items);
         this.host.apply([
             {
                 op: 'state',

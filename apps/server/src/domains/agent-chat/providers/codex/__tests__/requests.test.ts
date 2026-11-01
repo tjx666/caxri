@@ -1,14 +1,14 @@
-import type { AgentChatRequest } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatRequest } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentChatSessionHost } from '../../../chat-provider';
 import type { JsonRpcConnection } from '../../../json-rpc-connection';
 import { CodexRequestBroker } from '../requests';
 
-function fixture() {
+function fixture(items: AgentChatItem[] = []) {
     let requests: AgentChatRequest[] = [];
     const host = {
-        read: () => ({ requests }),
+        read: () => ({ items, requests }),
         apply: vi.fn(
             (operations: Array<{ op: string; state?: { requests: AgentChatRequest[] } }>) => {
                 for (const operation of operations)
@@ -22,7 +22,7 @@ function fixture() {
     const respond = vi.fn();
     const connection = { respond, respondError: vi.fn() } as unknown as JsonRpcConnection;
     const broker = new CodexRequestBroker(host, () => 'thread');
-    return { broker, connection, respond };
+    return { broker, connection, readRequests: () => requests, respond };
 }
 
 const command = (extra: Record<string, unknown>) => ({
@@ -60,5 +60,37 @@ describe('CodexRequestBroker acceptAlways', () => {
         // The request stays pending so the user can still answer it.
         broker.respond(connection, 'cmd', { kind: 'decision', decision: 'accept' });
         expect(respond).toHaveBeenCalledWith(7, { decision: 'accept' });
+    });
+});
+
+describe('CodexRequestBroker file changes', () => {
+    it('names the files of the item a file-change approval gates', () => {
+        const { broker, connection, readRequests } = fixture([
+            {
+                id: 'edit-1',
+                type: 'fileChange',
+                status: 'running',
+                changes: [
+                    { path: '/repo/a.ts', kind: 'update', diff: '' },
+                    { path: '/repo/b.ts', kind: 'add', diff: '' },
+                ],
+            },
+        ]);
+        const fileChange = (itemId: string) => ({
+            id: itemId,
+            method: 'item/fileChange/requestApproval',
+            params: { itemId, turnId: 't' },
+        });
+        broker.receive(connection, fileChange('edit-1'));
+        broker.receive(connection, fileChange('edit-2'));
+        expect(readRequests()).toEqual([
+            {
+                id: 'edit-1',
+                itemId: 'edit-1',
+                kind: 'fileChange',
+                paths: ['/repo/a.ts', '/repo/b.ts'],
+            },
+            { id: 'edit-2', itemId: 'edit-2', kind: 'fileChange' },
+        ]);
     });
 });

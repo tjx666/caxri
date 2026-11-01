@@ -1,5 +1,10 @@
 import type { AgentChatSnapshot, ProcessState } from '@caxri/protocol';
-import { agentChatFailureMessage, CAXRI_SKILL_NAME, projectRelativePath } from '@caxri/protocol';
+import {
+    agentChatFailureMessage,
+    CAXRI_SKILL_NAME,
+    projectDisplayPath,
+    projectRelativePath,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import type { SuggestionMenuKeyAction } from '../../../lib/suggestion-options';
@@ -540,4 +545,26 @@ export function isApprovalClickGuarded({
 }): boolean {
     if (detail === 0 || armDelayMs <= 0) return false;
     return elapsedMs < armDelayMs;
+}
+
+/**
+ * Paths a file-change approval lists before "+N more", so the decision buttons stay close.
+ */
+const AGENT_CHAT_REQUEST_PATHS_SHOWN = 5;
+
+/**
+ * The files a file-change approval names, as a waiting surface lists them: relative to the Project when inside it (the
+ * full path stays available for a tooltip), at most {@link AGENT_CHAT_REQUEST_PATHS_SHOWN}, plus how many more.
+ */
+export function agentChatRequestPaths(
+    paths: readonly string[] | undefined,
+    projectRoot: string | undefined,
+): { moreCount: number; shown: Array<{ label: string; path: string }> } {
+    const all = paths ?? [];
+    return {
+        moreCount: Math.max(0, all.length - AGENT_CHAT_REQUEST_PATHS_SHOWN),
+        shown: all
+            .slice(0, AGENT_CHAT_REQUEST_PATHS_SHOWN)
+            .map((path) => ({ label: projectDisplayPath(path, projectRoot), path })),
+    };
 }

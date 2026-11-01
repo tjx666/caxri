@@ -408,6 +408,7 @@ export function mapCodexRequest(
     kind: CodexRequestKind,
     id: string,
     parameters: Json,
+    items: readonly AgentChatItem[] = [],
 ): AgentChatRequest {
     switch (kind) {
         case 'command': {
@@ -427,7 +428,16 @@ export function mapCodexRequest(
             };
         }
         case 'fileChange': {
-            return { ...approvalFields(id, parameters), kind };
+            const fields = approvalFields(id, parameters);
+            // Codex's approval names only the item; the files come from that item, which Codex starts before asking.
+            const item = items.find(
+                (candidate) => candidate.id === fields.itemId && candidate.type === 'fileChange',
+            );
+            const paths =
+                item?.type === 'fileChange'
+                    ? item.changes.flatMap(({ path }) => (path ? [path] : []))
+                    : [];
+            return { ...fields, kind, ...(paths.length > 0 && { paths }) };
         }
         case 'question': {
             const questions = Array.isArray(parameters.questions) ? parameters.questions : [];

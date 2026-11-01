@@ -317,6 +317,31 @@ describe('Claude item mapping', () => {
         });
     });
 
+    it('names the file a file-tool approval would change', () => {
+        expect(
+            mapClaudeApproval('t3', 'Edit', { file_path: '/repo/a.ts' }, { canRemember: false }),
+        ).toEqual({
+            id: 't3',
+            itemId: 't3',
+            kind: 'fileChange',
+            paths: ['/repo/a.ts'],
+            decisions: ['accept', 'decline'],
+        });
+        expect(
+            mapClaudeApproval(
+                't4',
+                'NotebookEdit',
+                { notebook_path: '/repo/n.ipynb' },
+                {
+                    canRemember: false,
+                },
+            ),
+        ).toMatchObject({ paths: ['/repo/n.ipynb'] });
+        expect(mapClaudeApproval('t5', 'Write', {}, { canRemember: false })).not.toHaveProperty(
+            'paths',
+        );
+    });
+
     it('keys question answers by question text', () => {
         const input = {
             questions: [{ question: 'Which?', header: 'H', options: [] }, { question: 'Why?' }],

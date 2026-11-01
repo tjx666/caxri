@@ -17,6 +17,7 @@ import {
     agentChatEmptyHint,
     agentChatEscapeAction,
     agentChatRecoveryNotice,
+    agentChatRequestPaths,
     agentChatResumeFailureDetail,
     agentChatSendAction,
     agentChatSubmitDelivery,
@@ -451,5 +452,34 @@ describe('agentChatDeliveryCaption', () => {
         );
         expect(agentChatDeliveryCaption('queued', translate)).toBeUndefined();
         expect(agentChatDeliveryCaption(undefined, translate)).toBeUndefined();
+    });
+});
+
+describe('agentChatRequestPaths', () => {
+    it('names files inside the Project relative to it and keeps outside ones absolute', () => {
+        expect(agentChatRequestPaths(['/repo/src/a.ts', '/tmp/b.ts'], '/repo')).toEqual({
+            moreCount: 0,
+            shown: [
+                { label: 'src/a.ts', path: '/repo/src/a.ts' },
+                { label: '/tmp/b.ts', path: '/tmp/b.ts' },
+            ],
+        });
+    });
+
+    it('lists five and counts the rest', () => {
+        const paths = Array.from({ length: 8 }, (_, index) => `/repo/f${index}.ts`);
+        const { moreCount, shown } = agentChatRequestPaths(paths, '/repo');
+        expect(shown.map(({ label }) => label)).toEqual([
+            'f0.ts',
+            'f1.ts',
+            'f2.ts',
+            'f3.ts',
+            'f4.ts',
+        ]);
+        expect(moreCount).toBe(3);
+    });
+
+    it('lists nothing when the provider named no files', () => {
+        expect(agentChatRequestPaths(undefined, '/repo')).toEqual({ moreCount: 0, shown: [] });
     });
 });

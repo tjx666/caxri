@@ -263,8 +263,14 @@ export function mapAcpPermission(
             ...(reason && { reason: clip(reason, 2_000) }),
         };
     }
-    if (call.kind === 'edit' || diffChanges(call.content).length > 0)
-        return { ...base, kind: 'fileChange' };
+    const changes = diffChanges(call.content);
+    const paths = changes.flatMap(({ path }) => (path ? [path] : []));
+    if (call.kind === 'edit' || changes.length > 0)
+        return {
+            ...base,
+            kind: 'fileChange',
+            ...(paths.length > 0 && { paths }),
+        };
     const { name, subject } = presentation.nameAndSubject(call);
     return {
         ...base,
