@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { TerminalKind } from '@caxri/protocol';
 import { agentProviderSchema, terminalKindSchema } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
-import { Settings2, ShieldAlert, SquareDashed } from 'lucide-react';
+import { LogIn, Settings2, ShieldAlert, SquareDashed } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -23,13 +23,18 @@ import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSettings } from '../../stores/selectors';
 import { useAgentAvailability } from '../terminal/hooks/use-agent-availability';
-import { agentReadinessHint, newAgentSurface } from '../terminal/new-terminal-agent';
+import {
+    agentReadinessHint,
+    agentSignInCommand,
+    newAgentSurface,
+} from '../terminal/new-terminal-agent';
 import { setDefaultAgent, shouldMakeDefault } from './default-agent-preference';
 import { AgentChoiceMarker, OpenInChatSwitch } from './open-in-chat-menu-item';
 import {
     cancelPendingSession,
     configurePendingAgent,
     confirmPendingSession,
+    confirmPendingSignIn,
 } from './session-creation-commands';
 
 /**
@@ -117,6 +122,10 @@ function CreateSessionChoices() {
                      */
                     const isUnavailable = issue === 'notInstalled';
                     const hint = agentReadinessHint(kind, issue, t);
+                    const signInCommand = agentSignInCommand(kind, issue);
+                    const signInLabel = t('terminal.new.signInAgent', {
+                        agent: resolveAgentIcon(kind).label,
+                    });
                     const provider = agentProviderSchema.safeParse(kind);
                     const configureLabel = t('session.createDialog.configureAgent', {
                         agent: resolveAgentIcon(kind).label,
@@ -171,6 +180,20 @@ function CreateSessionChoices() {
                                         onClick={() => configurePendingAgent(provider.data)}
                                     >
                                         <Settings2 aria-hidden="true" size={14} />
+                                    </button>
+                                </Tooltip>
+                            )}
+                            {/* The signed-out twin of the configure corner: same place, the action that fixes it. */}
+                            {signInCommand && (
+                                <Tooltip content={signInLabel} side="top">
+                                    <button
+                                        aria-label={signInLabel}
+                                        className="absolute top-1 right-1 grid size-6 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted outline-none hover:bg-state-hover hover:text-foreground focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]"
+                                        data-agent-sign-in={kind}
+                                        type="button"
+                                        onClick={() => confirmPendingSignIn(signInCommand)}
+                                    >
+                                        <LogIn aria-hidden="true" size={14} />
                                     </button>
                                 </Tooltip>
                             )}

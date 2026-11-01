@@ -10,6 +10,7 @@ import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
+import { typeAgentSignInCommand } from '../terminal/agent-sign-in';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
 import {
     rememberActivitySessionProject,
@@ -18,8 +19,15 @@ import {
 import { rememberLastAgentChoice, useLastAgentChoiceStore } from './last-agent-choice-store';
 import { selectProject } from './session-commands';
 
-async function createSession(projectId: string, defaultAgent: TerminalKind | null): Promise<void> {
-    await tryCommand(
+/**
+ * Resolves the new Session's Terminal id, or `undefined` for a Session without one or a failure (already reported in a
+ * toast).
+ */
+function createSession(
+    projectId: string,
+    defaultAgent: TerminalKind | null,
+): Promise<string | undefined> {
+    return tryCommand(
         translate('session.errors.createFailed'),
         async () => {
             /**
@@ -32,28 +40,29 @@ async function createSession(projectId: string, defaultAgent: TerminalKind | nul
                       getBootstrap()?.settings['session.openAgentsInChat'],
                   )
                 : 'pty';
-            await caxri.request('session.create', {
+            const created = await caxri.request('session.create', {
                 projectId,
                 defaultAgent,
                 ...(surface === 'chat' && { surface }),
             });
             clearPendingSession();
+            return created.terminal?.id;
         },
         { refresh: refreshWorkbench },
     );
 }
 
-async function createProjectSession(
+function createProjectSession(
     rootPath: string,
     defaultAgent: TerminalKind | null,
-): Promise<void> {
-    await tryCommand(translate('session.errors.createProjectFailed'), async () => {
+): Promise<string | undefined> {
+    return tryCommand(translate('session.errors.createProjectFailed'), async () => {
         const project = await caxri.request('project.create', { rootPath });
         /**
          * Keeps the Agent-choice dialog open, now anchored to the created Project.
          */
         useDialogStore.getState().askAgentForProject(project.id);
-        await createSession(project.id, defaultAgent);
+        return createSession(project.id, defaultAgent);
     });
 }
 
@@ -146,6 +155,24 @@ export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind 
     rememberLastAgentChoice(kind);
     // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
     void createSession(projectId, kind);
+}
+
+/**
+ * A New Session menu's "Sign in…" on a signed-out Agent: a Shell Session in the Project with the Agent's sign-in
+ * command typed at its prompt (`typeAgentSignInCommand`). It is not remembered as the last pick: the user still wants
+ * the Agent, not a Shell, once signed in.
+ */
+export function chooseSessionSignIn(projectId: string, command: string): void {
+    useDialogStore.getState().closeCreateSessionMenu();
+    void signInInNewSession(createSession(projectId, 'shell'), command);
+}
+
+async function signInInNewSession(
+    creation: Promise<string | undefined>,
+    command: string,
+): Promise<void> {
+    const terminalId = await creation;
+    if (terminalId) await typeAgentSignInCommand(terminalId, command);
 }
 
 /**
@@ -244,7 +271,7 @@ export function resumePendingSession(): void {
  */
 const pendingConfirmation: { current: Promise<void> | undefined } = { current: undefined };
 
-async function settleConfirmation(creation: Promise<void>): Promise<void> {
+async function settleConfirmation(creation: Promise<unknown>): Promise<void> {
     try {
         await creation;
     } finally {
@@ -254,13 +281,27 @@ async function settleConfirmation(creation: Promise<void>): Promise<void> {
 
 export function confirmPendingSession(kind: TerminalKind | null): void {
     if (pendingConfirmation.current) return;
-    const { pendingRoot, pendingProjectId } = useDialogStore.getState();
     rememberLastAgentChoice(kind);
+    const creation = createPendingSession(kind);
+    if (creation) pendingConfirmation.current = settleConfirmation(creation);
+}
+
+/**
+ * The Agent-choice dialog's "Sign in…" on a signed-out Agent tile; see `chooseSessionSignIn`.
+ */
+export function confirmPendingSignIn(command: string): void {
+    if (pendingConfirmation.current) return;
+    const creation = createPendingSession('shell');
+    if (creation)
+        pendingConfirmation.current = settleConfirmation(signInInNewSession(creation, command));
+}
+
+function createPendingSession(kind: TerminalKind | null): Promise<string | undefined> | undefined {
+    const { pendingRoot, pendingProjectId } = useDialogStore.getState();
     // Both `createProjectSession` and `createSession` funnel their own failures into a toast via `tryCommand`.
-    const creation = pendingRoot
+    return pendingRoot
         ? createProjectSession(pendingRoot, kind)
         : pendingProjectId
           ? createSession(pendingProjectId, kind)
           : undefined;
-    if (creation) pendingConfirmation.current = settleConfirmation(creation);
 }
