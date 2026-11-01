@@ -3,20 +3,20 @@
     "armed": true,
     "source": "runner",
     "spec": "e2e/agent-chat-switch.performance.e2e.ts",
-    "recordedAt": "2026-10-31T23:30:33.339Z",
-    "commit": "ca9a03b436cff7826667f020671cf493e4671662",
-    "provenance": "44 agent-chat-session-switch receipts from GitHub-hosted macos-15 performance-samples runs 41245949323 (29) and 41250478424 (15), both on main commit ca9a03b43; derived 2026-10-31",
+    "recordedAt": "2026-11-01T16:42:04.965Z",
+    "commit": "65c8758658ce542790b3b2c4771304d998664065",
+    "provenance": "44 agent-chat-session-switch receipts from GitHub-hosted macos-15 performance-samples runs 41245949323 (29) and 41250478424 (15), both on main commit ca9a03b43; derived 2026-10-31; uncached primary-sidebar renders.p50 and hiddenStreaming.workbench.actualDurationMs re-derived from 40 receipts of performance-samples run 41320651948 on commit 65c875865 after the spec began waiting for a quiet sidebar, 2026-11-02",
     "metrics": {
         "hiddenStreaming.workbench.actualDurationMs": {
             "kind": "continuous",
-            "median": 1.9,
-            "mad": 0.5,
+            "median": 2.2,
+            "mad": 0.6,
             "k": 5,
             "relativeMargin": 0.5,
             "absoluteMarginMs": 1,
-            "historicalMaxMs": 3.5,
-            "thresholdMs": 7.6,
-            "sampleCount": 44
+            "historicalMaxMs": 10.8,
+            "thresholdMs": 17.2,
+            "sampleCount": 40
         },
         "scenarios.cached.interactiveMs.p50": {
             "kind": "continuous",
@@ -438,14 +438,14 @@
         },
         "scenarios.uncached.react.surfaces.primary-sidebar.renders.p50": {
             "kind": "discrete",
-            "median": 2,
+            "median": 3,
             "mad": 0,
             "k": 5,
             "relativeMargin": 0,
             "absoluteMarginMs": 0,
-            "historicalMaxMs": 2,
-            "thresholdMs": 2,
-            "sampleCount": 44
+            "historicalMaxMs": 3,
+            "thresholdMs": 3,
+            "sampleCount": 40
         },
         "scenarios.uncached.react.surfaces.secondary-sidebar.actualDurationMs.p50": {
             "kind": "continuous",
