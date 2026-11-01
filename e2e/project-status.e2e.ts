@@ -116,7 +116,8 @@ esac
         const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
         await statusTab.click();
         await expect(statusTab.locator('img')).toHaveCount(0);
-        await expect(statusTab.locator('svg')).toHaveCount(1);
+        // The fixture's failed check can already have raised the tab's error badge, whose glyph is an svg too.
+        await expect(statusTab.locator('svg:not([data-view-container-badge] svg)')).toHaveCount(1);
         await expect(
             running.page.locator('.panel-caption-title', { hasText: 'Project Status' }),
         ).toHaveCount(1);
@@ -430,8 +431,7 @@ esac
         );
         /**
          * The keyboard steps above left focus on the pull request row, and a focus-opened card stays open by design so
-         * its links remain reachable. Dismiss it before hovering, otherwise the interactive card covers the rows
-         * below.
+         * its links remain reachable. Dismiss it before hovering, or the card covers the rows below.
          */
         await running.page.keyboard.press('Escape');
         await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);

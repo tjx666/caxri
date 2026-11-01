@@ -443,8 +443,10 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
                 uncached: summarize(uncachedSamples),
                 cold: summarize(coldSamples),
             },
+            // `sidebarRenders` only gates the quiet wait; the public receipt schema rejects unknown keys.
             hiddenStreaming: {
-                ...hiddenStreaming,
+                commitCount: hiddenStreaming.commitCount,
+                workbench: hiddenStreaming.workbench,
                 keptAliveStreaming: summarize([keptAliveStreaming]),
             },
             /**

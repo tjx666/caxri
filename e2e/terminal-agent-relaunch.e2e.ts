@@ -51,14 +51,15 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
     await writeFile(
         join(shellHome, '.zshrc'),
         [
-            'kill -INT $$',
-            'alias cc=codex',
-            // Records which commands reached zsh and how they ended, never their output.
+            // Records which commands reached zsh and how they ended, never their output. Registered before the
+            // interrupt, whose delivery point zsh may defer past later lines.
             'autoload -Uz add-zsh-hook',
             `caxri_e2e_preexec() { print -r -- "run:$1" >> ${JSON.stringify(shellLog)} }`,
             `caxri_e2e_precmd() { print -r -- "status:$?" >> ${JSON.stringify(shellLog)} }`,
             'add-zsh-hook preexec caxri_e2e_preexec',
             'add-zsh-hook precmd caxri_e2e_precmd',
+            'kill -INT $$',
+            'alias cc=codex',
             '',
         ].join('\n'),
     );
