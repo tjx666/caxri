@@ -92,6 +92,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    how existing content renders (a path becoming a pill, a long message clamped behind "Show more")
    breaks text assertions the same way: search `e2e/` for specs reading that content and run them.
    Rendering sent paths as pills left `agent-chat-handoff.e2e.ts` matching the full path on `main`.
+   A diff that adds, removes, or reorders rows in a menu or list breaks positional locators whose
+   text and test IDs never changed: search `e2e/` for that list's row IDs (`agent-chat-command-0`)
+   and run every match, an Android `MOB-*` scenario through the mobile Acceptance runner. Putting
+   `/new-session` first left MOB-CHAT-10 picking it instead of `/compact` on `main`.
    A change to a shared fixture under `e2e/support/` (profile defaults, launch helpers) reaches
    every spec that relies on what it changed: search `e2e/` for specs reading that value or helper
    and list them too. Changing `e2e/support/e2e-profile.ts` defaults while listing only
@@ -149,7 +153,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling
    survives offline windows with capped backoff. The command exits 0 only when every watched run
    succeeded.
-   In Claude Code, execute the watcher in a background shell. Redirect its output to a run-specific
+   In Claude Code, execute the watcher in a background shell with `timeout: 7200000`: the 30-minute
+   default stopped a `--pr` watcher while a unit shard was still running. Redirect its output to a run-specific
    path such as `/tmp/watch-ci-<run-id>.log` or `/tmp/watch-ci-pr-<number>-<short-sha>.log`, never a generic name like `/tmp/watch-ci.log`:
    sibling sessions write their own watchers there too, and an overwritten log reports another
    PR's run as yours. A `--pr` watcher keeps watching the head it started on after a later push,
