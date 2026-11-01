@@ -35,6 +35,10 @@ export const capabilityIds = [
     'secrets.use',
     'bot',
     'desktop.window',
+    /**
+     * Asks a paired phone to open a link or run a Termux command (`mobile.deviceAction.*`).
+     */
+    'devices.control',
 ] as const;
 
 export const capabilitySchema = z.enum(capabilityIds);

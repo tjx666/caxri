@@ -214,6 +214,17 @@ export class MobileGatewayDiagnostics {
     }
 
     /**
+     * Actions are human- or Agent-paced and each one is a deliberate request, so every one logs immediately.
+     */
+    deviceAction(kind: string, outcome: string, durationMs: number, reason?: string): void {
+        this.logger?.write(
+            outcome === 'opened' || outcome === 'exited' ? 'info' : 'warn',
+            logEventCatalog.mobileGateway.deviceAction,
+            { fields: { kind, outcome, durationMs, ...(reason && { reason }) } },
+        );
+    }
+
+    /**
      * Recovery is human-paced (a phone stuck on an old transport) and each attempt is already bounded by TCP admission,
      * so every outcome logs immediately, like pairing.
      */

@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import { RouteErrorScreen } from '../src/components/route-error-screen';
 import { ToastHost } from '../src/components/toast';
 import { MobileClientProvider } from '../src/features/connection/mobile-client-provider';
+import { DeviceActionListener } from '../src/features/device-actions/device-action-listener';
 import { PreviousExitReporter } from '../src/features/diagnostics/previous-exit-reporter';
 import { expoReadCache } from '../src/features/read-cache/expo-read-cache';
 import { ReadCacheContext } from '../src/features/read-cache/read-cache-context';
@@ -89,6 +90,7 @@ export default function RootLayout() {
                             </ThemeProvider>
                             <ToastHost />
                             <PreviousExitReporter />
+                            <DeviceActionListener />
                         </MobileClientProvider>
                     </ReadCacheContext.Provider>
                 </QueryClientProvider>

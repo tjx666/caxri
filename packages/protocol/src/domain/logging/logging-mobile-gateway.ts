@@ -54,6 +54,13 @@ export const mobileGatewayLogEvents = {
      * stack, or content.
      */
     previousExit: 'mobile_gateway.previous_exit',
+    /**
+     * One record per action a CLI or Agent asked a phone to carry out: its `kind` (`openUrl`, `termuxExec`), a closed
+     * `outcome` (`opened`, `exited`, `failed` with the phone's closed `reason`, or `no-listener`, `ambiguous-target`,
+     * `disconnected`, `answer-timeout` when no answer came), and `durationMs`. Never the URL, the command, or its
+     * output.
+     */
+    deviceAction: 'mobile_gateway.device_action',
     enabled: 'mobile_gateway.enabled',
     disabled: 'mobile_gateway.disabled',
     /**

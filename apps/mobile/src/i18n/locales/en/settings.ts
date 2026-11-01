@@ -29,6 +29,19 @@ export const settings = {
     'settings.status.storageError': 'Saved pairing unavailable',
     'settings.status.unverified': 'Pairing not verified',
     'settings.status.updateRequired': 'Update required',
+    'settings.termux': 'Termux commands',
+    'settings.termux.hint': 'Turns Termux commands on or off.',
+    'settings.termux.missing': 'Termux not installed',
+    'settings.termux.missingDetail':
+        'Install Termux from F-Droid or GitHub to let your computer run commands here.',
+    'settings.termux.off': 'Off',
+    'settings.termux.offDetail':
+        'Lets your computer run commands in Termux with caxri device exec. Termux also needs allow-external-apps=true in ~/.termux/termux.properties.',
+    'settings.termux.on': 'On',
+    'settings.termux.onDetail':
+        'Your computer can run commands in Termux on this phone while Caxri is open.',
+    'settings.termux.permissionDenied':
+        'Android did not allow Caxri to run Termux commands. Allow it in Android settings › Apps › Caxri › Permissions.',
     'settings.title': 'Settings',
     'settings.unknown': 'Unknown',
     'settings.version': 'Version',

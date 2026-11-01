@@ -445,7 +445,8 @@ describe('operatorContext', () => {
         expect(context.capabilities).toContain('settings.delegation.write');
         expect(context.capabilities).toContain('agents.delegation.access');
         expect(context.capabilities).toContain('bot');
-        expect(context.capabilities).toHaveLength(21);
+        expect(context.capabilities).toContain('devices.control');
+        expect(context.capabilities).toHaveLength(22);
     });
 
     it('derives the principal id from the profile id it is given', () => {

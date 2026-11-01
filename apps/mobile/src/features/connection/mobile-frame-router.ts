@@ -42,6 +42,8 @@ const isMessageForResource = (
             return message.kind === 'agentChat.patch' || message.kind === 'agentChat.changed';
         case 'botInbox':
             return message.kind === 'botInbox.changed';
+        case 'deviceActions':
+            return message.kind === 'deviceAction.requested';
         default:
             return assertNever(resource, 'Unhandled mobile subscription message');
     }

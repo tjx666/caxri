@@ -40,7 +40,8 @@ the Terminal Host spawn request. Server Core stores only its digest and fences e
 Endpoint, generation, and launch identity; restart, exit, close, deletion, Server Core crash, and
 expiry revoke it. The inherited Agent credential supplies same-Project read capabilities, visible
 delegation (`agents.delegate`), Project registration (`projects.write`), and secret use
-(`secrets.use`, bound to the caller's own Project; see `docs/agent-secrets.md`) by default, while bounded
+(`secrets.use`, bound to the caller's own Project; see `docs/agent-secrets.md`), and paired-phone
+actions (`devices.control`; see `docs/mobile/device-actions.md`) by default, while bounded
 generation grants add debug, business-write, or Agent-control capabilities. Every Agent Chat process
 carries an Endpoint the same way, so a Chat Agent never falls back to the owner's identity.
 Cross-Session delegation is ordinary Agent work: do not make a general delegation capability

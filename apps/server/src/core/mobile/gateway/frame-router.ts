@@ -147,6 +147,14 @@ export class MobileGatewayFrameRouter {
         return !this.#closed && this.#subscriptions.watchesExtensionViews(sessionId);
     }
 
+    acceptsDeviceActions(): boolean {
+        return !this.#closed && this.#subscriptions.acceptsDeviceActions();
+    }
+
+    deliverDeviceAction(request: unknown): boolean {
+        return !this.#closed && this.#subscriptions.deliverDeviceAction(request);
+    }
+
     publishObserverEvent(event: TerminalObserverEvent): void {
         if (!this.#closed) this.#subscriptions.publishObserverEvent(event);
     }

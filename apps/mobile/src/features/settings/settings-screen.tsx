@@ -17,6 +17,8 @@ import { useConfirmForgetComputer } from '../connection/use-confirm-forget-compu
 import { desktopUpdateView } from '../desktop-update/desktop-update-model';
 import { DesktopUpdateRows } from '../desktop-update/desktop-update-rows';
 import { useDesktopUpdate } from '../desktop-update/use-desktop-update';
+import { isTermuxSupported } from '../device-actions/termux-native';
+import { TermuxSettingRow } from '../device-actions/termux-setting-row';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { allMobileSessions } from '../sessions/hooks/use-session-polling';
 import { SettingsAboutSection } from './settings-about-section';
@@ -88,12 +90,13 @@ export const SettingsScreen = () => {
                 <SettingsSection theme={theme} title={t('settings.section.thisDevice')}>
                     <SettingsRow
                         detail={role?.description}
-                        isLast
+                        isLast={!isTermuxSupported}
                         label={t('settings.access')}
                         testID="settings-access-level"
                         theme={theme}
                         value={role?.label ?? t('settings.unknown')}
                     />
+                    {isTermuxSupported ? <TermuxSettingRow theme={theme} /> : null}
                 </SettingsSection>
                 <SettingsAboutSection theme={theme} />
                 <Button

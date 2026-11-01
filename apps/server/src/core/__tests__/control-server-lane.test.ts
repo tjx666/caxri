@@ -194,6 +194,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.chatWatch.unwatchInternal': 'ordered',
     'mobile.chatWatch.watchInternal': 'ordered',
     'mobile.botInbox.reply': 'ordered',
+    'mobile.deviceAction.complete': 'ordered',
     'mobile.botInbox.replyInternal': 'ordered',
     'mobile.desktopUpdate.download': 'ordered',
     'mobile.desktopUpdate.install': 'ordered',
@@ -363,6 +364,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'claudeWindow.update': 'self-serialized',
     'files.copy': 'self-serialized',
     'environmentMonitor.checkNow': 'self-serialized',
+    'mobile.deviceAction.exec': 'self-serialized',
+    'mobile.deviceAction.openUrl': 'self-serialized',
     'session.rename': 'self-serialized',
     'terminal.prepareLongPaste': 'self-serialized',
 };

@@ -1,5 +1,9 @@
 import type { CaxriMethod } from '@caxri/protocol';
-import { CaxriError, MAX_DELEGATION_WAIT_TIMEOUT_MS } from '@caxri/protocol';
+import {
+    CaxriError,
+    DEVICE_EXEC_MAX_TIMEOUT_MS,
+    MAX_DELEGATION_WAIT_TIMEOUT_MS,
+} from '@caxri/protocol';
 
 export interface ParsedCliArguments {
     connectTimeoutMs: number;
@@ -30,6 +34,7 @@ const LONG_POLL_TIMEOUT_CEILINGS: Partial<Record<CaxriMethod, number>> = {
     'agent.delegation.wait': MAX_DELEGATION_WAIT_TIMEOUT_MS,
     'agent.dispatch.wait': MAX_REQUEST_TIMEOUT_MS,
     'agent.message.wait': MAX_REQUEST_TIMEOUT_MS,
+    'mobile.deviceAction.exec': DEVICE_EXEC_MAX_TIMEOUT_MS,
 };
 
 function takeValue(argv: readonly string[], index: number, option: string): [string, number] {

@@ -5,6 +5,7 @@ import { BOT_COMMANDS } from './bot';
 import { DELEGATION_COMMANDS } from './delegation';
 import { DELEGATION_ACCESS_COMMANDS } from './delegation-access';
 import { DELEGATION_IMPORT_COMMAND } from './delegation-import';
+import { DEVICE_COMMANDS } from './device';
 import { HOST_COMMANDS } from './host';
 import {
     agentGrant,
@@ -292,6 +293,7 @@ export const CLI_COMMANDS = [
     },
     ...RECORD_COMMANDS,
     ...SECRET_COMMANDS,
+    ...DEVICE_COMMANDS,
     {
         kind: 'remote',
         path: ['terminal', 'send'],

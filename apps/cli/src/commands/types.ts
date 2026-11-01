@@ -14,6 +14,7 @@ export const CLI_GROUPS = [
     { name: 'agent', summary: 'Use generation-scoped Agent endpoints.' },
     { name: 'bot', summary: 'Coordinate Agents across Projects from Caxri Bot.' },
     { name: 'secret', summary: 'Use the secrets the user saved for Agents.' },
+    { name: 'device', summary: 'Open links and run Termux commands on a paired phone.' },
     { name: 'skills', summary: 'Inspect and install Caxri Agent skills.' },
 ] as const;
 

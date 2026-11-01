@@ -1,6 +1,6 @@
 ---
 name: caxri-cli
-description: Operate and debug the current Caxri Server through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, use an API key or token the user saved without asking for it in chat, or verify which capabilities and commands are available.
+description: Operate and debug the current Caxri Server through its version-matched CLI contract. Use when an Agent needs to inspect Caxri Projects or Sessions, start a task in a new Session of any added Project and follow its result, add a folder as a Project, validate Settings, collect redacted diagnostics, exchange bounded peer messages, dispatch or control an Agent, steer a Terminal with human authority, use an API key or token the user saved without asking for it in chat, open a link or run a Termux command on the user's paired phone, or verify which capabilities and commands are available.
 ---
 
 # Caxri CLI
@@ -12,7 +12,7 @@ Inside a Caxri Terminal or Agent Chat, the `CAXRI_CLI` environment variable name
 matches the Server which started you. Run `"${CAXRI_CLI:-caxri}"` wherever this guide writes `caxri`:
 a `caxri` found on `PATH` can belong to another installed version that lacks newer commands.
 
-<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,bot,diagnostics.read,projects.read,projects.write,secrets.use,sessions.read,settings.read,settings.write,terminals.steer -->
+<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,bot,devices.control,diagnostics.read,projects.read,projects.write,secrets.use,sessions.read,settings.read,settings.write,terminals.steer -->
 
 ## Start with live introspection
 
@@ -83,6 +83,27 @@ caxri secret request OPENAI_API_KEY --reason "Run the eval script against the Op
 - `secret exec` replaces an exact copy of a secret (4 characters or longer) in the command's output
   with `[secret:NAME]`, but it cannot see files or network traffic. Do not echo, log, or `env`-dump a
   secret inside `secret exec`, and never read the secret store directly.
+
+## Act on the user's phone
+
+When the user asks you to open something on their phone, or to run a command on their Android phone,
+use the phone paired with this Caxri. It must be connected with Caxri Mobile open:
+
+```bash
+caxri device list --json
+caxri device open https://example.com/page --json
+caxri device exec --json --timeout 60000 -- termux-battery-status
+```
+
+- With one connected phone, `--device` is optional; with several, pass `--device <deviceId>` from
+  `device list`.
+- `device exec` runs the command in Termux in the background; everything after `--` is the command.
+  With `--json` it exits `0` and the result carries `exitCode`, `stdout`, `stderr`, and `truncated`;
+  read `exitCode` instead of the process exit status.
+- A failure's `details.reason` says what to tell the user: `offline` (open Caxri on the phone),
+  `disabled` (turn on Settings › Termux commands on the phone), `termux-missing`, `permission-denied`,
+  `termux-error` (often `allow-external-apps=true` missing in `~/.termux/termux.properties`), or
+  `timeout` (raise `--timeout`, at most 600000).
 
 ## Read Project state and debug safely
 

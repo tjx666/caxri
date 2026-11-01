@@ -26,6 +26,7 @@ import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { invokeMobileDesktopUpdateRequest } from './desktop-update-requests';
+import { invokeMobileDeviceActionRequest } from './device-action-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { createMobileExitReports } from './exit-report';
 import { invokeMobileFileRequest } from './file-requests';
@@ -517,6 +518,17 @@ export const openMobileAccessController = (options: {
                         activeGateway.prepareUpdateDownload(context, source),
                     );
                 }
+                case 'mobile.deviceAction.targets':
+                case 'mobile.deviceAction.openUrl':
+                case 'mobile.deviceAction.exec':
+                case 'mobile.deviceAction.complete':
+                    return invokeMobileDeviceActionRequest(
+                        request,
+                        context,
+                        registry,
+                        activeGateway,
+                        (method) => currentPairedPrincipal(context.principal, method),
+                    );
                 case 'mobile.diagnostics.reportExit': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
                     return reportExit(principal.deviceId, request.params);

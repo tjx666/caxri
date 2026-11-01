@@ -357,6 +357,7 @@ export function operatorContext(profileId: string): CommandExecutionContext {
     return {
         capabilities: [
             'desktop.window',
+            'devices.control',
             'diagnostics.read',
             'agents.read',
             'agents.control',

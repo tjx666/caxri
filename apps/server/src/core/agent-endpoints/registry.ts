@@ -46,6 +46,11 @@ const BASELINE_CAPABILITIES = [
     'secrets.use',
     'sessions.read',
     'terminals.read',
+    /**
+     * Open a link or run a Termux command on the owner's paired phone. The phone's own "Termux commands" switch, off by
+     * default, is the gate for running commands.
+     */
+    'devices.control',
 ] as const satisfies readonly Capability[];
 
 const GRANT_CAPABILITIES = {

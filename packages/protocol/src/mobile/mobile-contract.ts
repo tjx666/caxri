@@ -14,7 +14,7 @@ import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
-import { mobileDeviceRoleSchema } from './device-role.js';
+import { mobileDeviceIdSchema, mobileDeviceRoleSchema } from './device-role.js';
 import { mobileAccessStatusSchema } from './mobile-access-contract.js';
 import { mobileAgentChatMethods } from './mobile-agent-chat-contract.js';
 import { mobileAgentChatForkMethods } from './mobile-agent-chat-fork-contract.js';
@@ -33,6 +33,7 @@ import {
 } from './mobile-changes-contract.js';
 import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
 import { mobileDesktopUpdateMethods } from './mobile-desktop-update-contract.js';
+import { mobileDeviceActionMethods } from './mobile-device-action-contract.js';
 import { mobileDiagnosticsMethods } from './mobile-diagnostics-contract.js';
 import {
     MAX_MOBILE_FILE_ATTACHMENTS,
@@ -67,7 +68,7 @@ import { mobileUpdateMethods } from './mobile-update-contract.js';
 import { mobileVideoMethods } from './mobile-video-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
-export { mobileDeviceRoleSchema } from './device-role.js';
+export { mobileDeviceIdSchema, mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-access-contract.js';
 export * from './mobile-agent-chat-contract.js';
 export type { MobileContinuationOrigin } from './mobile-agent-chat-fork-contract.js';
@@ -79,6 +80,7 @@ export * from './mobile-bot-inbox-contract.js';
 export * from './mobile-changes-contract.js';
 export * from './mobile-dashboard-session-contract.js';
 export * from './mobile-desktop-update-contract.js';
+export * from './mobile-device-action-contract.js';
 export * from './mobile-diagnostics-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-file-upload-contract.js';
@@ -98,7 +100,6 @@ export * from './mobile-timeline-message-contract.js';
 export * from './mobile-update-contract.js';
 
 const noParameters = z.strictObject({}).default({});
-export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
 /**
  * How long a freshly created pairing code stays valid. The Server ledger enforces it and the Desktop steps card quotes
@@ -425,6 +426,7 @@ export const mobileMethods = {
     ...mobileBotInboxMethods,
     ...mobileHostStatusMethods,
     ...mobileDesktopUpdateMethods,
+    ...mobileDeviceActionMethods,
     ...mobilePreviewMethods,
     ...mobileVideoMethods,
 } as const satisfies Record<string, MethodSpec>;

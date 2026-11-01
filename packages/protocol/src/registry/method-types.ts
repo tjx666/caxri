@@ -215,6 +215,12 @@ export const effectfulCommandRecovery = {
     'mobile.desktopUpdate.download': 'memory',
     'mobile.desktopUpdate.install': 'memory',
     'mobile.diagnostics.reportExit': 'memory',
+    /**
+     * A retried request must not open the link or run the command a second time, and the reply carries command output.
+     */
+    'mobile.deviceAction.openUrl': 'memory',
+    'mobile.deviceAction.exec': 'memory',
+    'mobile.deviceAction.complete': 'memory',
     'mobile.preview.open': 'memory',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',
