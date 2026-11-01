@@ -1,5 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { Sparkles, X } from 'lucide-react';
+import { Reply, Sparkles, X } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -12,27 +12,29 @@ import { useTranslation } from '../../../../i18n';
 import { motionDurationMs, motionEasing } from '../../../../lib/motion';
 import {
     useAgentChatAwayRecapStore,
-    visibleAgentChatAwayRecap,
+    useVisibleAgentChatAwayRecap,
 } from './agent-chat-away-recap-store';
 
 /**
  * The away recap at the end of the transcript: a one-line "where this stands, what comes next" the Server asked the
  * Agent for on the side while the user was elsewhere (`ChatAwayRecap`). It sits after the last reply as a quiet card,
  * labelled so it never reads as the Agent's own message, and leaves when the Chat replies again, starts a turn, or the
- * user closes it.
+ * user closes it. Reply moves focus to the composer, so reading the recap leads straight into the next message instead
+ * of ending at a card that can only be closed.
  *
  * It fades and rises in on the overlay tokens, and fades out when it clears; reduced motion skips both.
  */
 export function AgentChatAwayRecap({
+    onReply,
     snapshot,
     terminalId,
 }: {
+    onReply: () => void;
     snapshot: AgentChatSnapshot | undefined;
     terminalId: string;
 }) {
-    const dismissedAt = useAgentChatAwayRecapStore((state) => state.dismissed[terminalId]);
     const dismiss = useAgentChatAwayRecapStore((state) => state.dismiss);
-    const recap = visibleAgentChatAwayRecap(snapshot, dismissedAt);
+    const recap = useVisibleAgentChatAwayRecap(snapshot, terminalId);
     const shouldReduceMotion = useShouldReduceMotion();
     const enter = shouldReduceMotion
         ? { duration: 0 }
@@ -60,6 +62,7 @@ export function AgentChatAwayRecap({
                             generatedAt={recap.generatedAt}
                             text={recap.text}
                             onDismiss={() => dismiss(terminalId, recap.generatedAt)}
+                            onReply={onReply}
                         />
                     </m.div>
                 )}
@@ -71,10 +74,12 @@ export function AgentChatAwayRecap({
 function AwayRecapCard({
     generatedAt,
     onDismiss,
+    onReply,
     text,
 }: {
     generatedAt: number;
     onDismiss: () => void;
+    onReply: () => void;
     text: string;
 }) {
     const { t } = useTranslation();
@@ -90,10 +95,14 @@ function AwayRecapCard({
                 <span className="font-medium">{t('agentChat.awayRecap.label')}</span>
                 <span aria-hidden="true">·</span>
                 <span className="min-w-0 truncate">{age}</span>
+                <Button className="-my-1 ml-auto" size="sm" variant="ghost" onClick={onReply}>
+                    <Reply aria-hidden="true" className="size-3.5" />
+                    {t('agentChat.awayRecap.reply')}
+                </Button>
                 <Tooltip content={t('agentChat.awayRecap.dismiss')}>
                     <Button
                         aria-label={t('agentChat.awayRecap.dismiss')}
-                        className="-my-1 ml-auto size-6"
+                        className="-my-1 size-6"
                         size="icon"
                         variant="ghost"
                         onClick={onDismiss}

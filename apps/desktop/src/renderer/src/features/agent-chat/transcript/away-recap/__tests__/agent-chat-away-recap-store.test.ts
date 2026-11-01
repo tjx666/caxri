@@ -2,6 +2,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+    shouldCueAwayRecap,
     useAgentChatAwayRecapStore,
     visibleAgentChatAwayRecap,
 } from '../agent-chat-away-recap-store';
@@ -53,5 +54,18 @@ describe('visibleAgentChatAwayRecap', () => {
                 dismissedAt,
             ),
         ).toEqual(next);
+    });
+});
+
+describe('shouldCueAwayRecap', () => {
+    it('cues Jump to latest only while a recap waits below the view', () => {
+        expect(shouldCueAwayRecap(recap, false)).toBe(true);
+        expect(shouldCueAwayRecap(recap, true)).toBe(false);
+        expect(shouldCueAwayRecap(undefined, false)).toBe(false);
+    });
+
+    it('drops the cue once the user closed that recap', () => {
+        const closed = visibleAgentChatAwayRecap(snapshot(), recap.generatedAt);
+        expect(shouldCueAwayRecap(closed, false)).toBe(false);
     });
 });

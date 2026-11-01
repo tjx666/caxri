@@ -65,6 +65,10 @@ import {
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
 import { isAgentChatAwaitingReplyInTimeline } from './transcript/agent-chat-timeline';
 import { AgentChatAwayRecap } from './transcript/away-recap/agent-chat-away-recap';
+import {
+    shouldCueAwayRecap,
+    useVisibleAgentChatAwayRecap,
+} from './transcript/away-recap/agent-chat-away-recap-store';
 import { useAgentChatTailFirstMount } from './transcript/mount/use-agent-chat-tail-first-mount';
 import { AgentChatTimelineBody } from './transcript/timeline/agent-chat-timeline-body';
 import { AgentChatTurnAnnouncer } from './turns/agent-chat-turn-announcer';
@@ -210,6 +214,7 @@ function AgentChatPaneContent({
         [anchor, expansionState],
     );
     const focusComposer = useCallback(() => inputReference.current?.focus(), []);
+    const awayRecap = useVisibleAgentChatAwayRecap(snapshot, terminalId);
     /**
      * A cited file resolves exactly like a path printed in a Terminal: against the Projects this Chat Terminal may
      * reach, with the same candidate picker when several match.
@@ -364,7 +369,11 @@ function AgentChatPaneContent({
                                     />
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>
-                            <AgentChatAwayRecap snapshot={snapshot} terminalId={terminalId} />
+                            <AgentChatAwayRecap
+                                snapshot={snapshot}
+                                terminalId={terminalId}
+                                onReply={focusComposer}
+                            />
                             <AgentChatEmptyState
                                 hint={
                                     processState !== 'detached' &&
@@ -396,6 +405,7 @@ function AgentChatPaneContent({
                     />
                     <AgentChatJumpToLatest
                         focusTarget={inputReference}
+                        hasRecapCue={shouldCueAwayRecap(awayRecap, isLatestInView)}
                         isLatestInView={isLatestInView}
                         onJump={jumpToLatest}
                     />

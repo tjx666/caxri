@@ -37,3 +37,25 @@ export function visibleAgentChatAwayRecap(
     if (!recap || recap.generatedAt === dismissedAt) return undefined;
     return recap;
 }
+
+/**
+ * The recap this Chat shows at the end of its transcript right now, reading the closed recaps from the window's store.
+ */
+export function useVisibleAgentChatAwayRecap(
+    snapshot: AgentChatSnapshot | undefined,
+    terminalId: string,
+): NonNullable<AgentChatSnapshot['awayRecap']> | undefined {
+    const dismissedAt = useAgentChatAwayRecapStore((state) => state.dismissed[terminalId]);
+    return visibleAgentChatAwayRecap(snapshot, dismissedAt);
+}
+
+/**
+ * Whether "Jump to latest" carries the recap cue: a recap waits at the end of the transcript and the end is out of
+ * view, so the user returning to an earlier position would otherwise never learn it is there.
+ */
+export function shouldCueAwayRecap(
+    recap: NonNullable<AgentChatSnapshot['awayRecap']> | undefined,
+    isLatestInView: boolean,
+): boolean {
+    return recap !== undefined && !isLatestInView;
+}
