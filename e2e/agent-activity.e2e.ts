@@ -394,11 +394,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
 
         /*
          * Activity replaces the Project tree, so it carries its own New Session entry. It targets the selected
-         * Session's Project, and its list re-targets another Project without closing.
+         * Session's Project, and its chevron's list re-targets another Project without closing.
          */
         const newSessionRow = page.locator('.agent-activity-new-session');
+        const newSessionOptions = page.locator('.agent-activity-new-session-options');
         await expect(newSessionRow).toContainText('service-integration-platform-workspace');
-        await newSessionRow.click();
+        await newSessionOptions.click();
         const creationMenu = page.getByRole('menu');
         await expect(creationMenu.getByRole('menuitemradio')).toHaveCount(PROJECT_NAMES.length);
         await creationMenu.getByRole('menuitemradio', { name: 'web-client-portal' }).click();
@@ -415,6 +416,26 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                         .length,
             )
             .toBe(sessionCountBefore + 1);
+        await expect(creationMenu).toHaveCount(0);
+
+        // Once an Agent was picked from a list, the row's own press repeats it in the targeted Project in one click.
+        await newSessionOptions.click();
+        await creationMenu.getByRole('menuitem', { name: /^Shell/ }).click();
+        await expect(creationMenu).toHaveCount(0);
+        const sessionCountBeforePress = (
+            await pageRequest<{ sessions: unknown[] }>(page, 'app.bootstrap')
+        ).sessions.length;
+        await newSessionRow.hover();
+        await expect(page.locator('.tooltip-popup')).toContainText('New Shell');
+        await expect(newSessionRow).toHaveAccessibleName(/ in web-client-portal$/);
+        await newSessionRow.click();
+        await expect
+            .poll(
+                async () =>
+                    (await pageRequest<{ sessions: unknown[] }>(page, 'app.bootstrap')).sessions
+                        .length,
+            )
+            .toBe(sessionCountBeforePress + 1);
         await expect(creationMenu).toHaveCount(0);
 
         // Every group heading is a disclosure: collapsing one keeps its heading and count, and drops its rows.

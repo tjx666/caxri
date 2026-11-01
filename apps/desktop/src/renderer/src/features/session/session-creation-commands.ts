@@ -83,24 +83,25 @@ export function beginSessionCreation(
 }
 
 /**
- * The Terminal a press on the Project heading's New Session button starts: the configured default Agent, else the kind
- * the user last picked from a New Session list. `undefined` means the press opens the list instead. Only the heading
- * falls back to the last pick, because its hover still offers the full list; the empty-Project row and the
- * `session.create` command keep "Ask each time" literal.
+ * The Terminal a press on a split New Session control starts (the Project heading's pencil and the Activity view's
+ * row): the configured default Agent, else the kind the user last picked from a New Session list. `undefined` means the
+ * press opens the list instead. Only the split controls fall back to the last pick, because each still offers the full
+ * list beside its press; the empty-Project row and the `session.create` command keep "Ask each time" literal.
  */
-function headingPressKind(): TerminalKind | undefined {
+function splitPressKind(): TerminalKind | undefined {
     return (
         getBootstrap()?.settings['session.defaultAgent'] ?? useLastAgentChoiceStore.getState().kind
     );
 }
 
 /**
- * Handles a press on the Project heading's New Session button; see `headingPressKind`.
+ * Handles a press on a split New Session control; see `splitPressKind`. With nothing to repeat it opens that control's
+ * own list.
  */
-export function pressHeadingNewSession(projectId: string): void {
-    const kind = headingPressKind();
+export function pressSplitNewSession(projectId: string, anchor: 'heading' | 'activity'): void {
+    const kind = splitPressKind();
     if (!kind) {
-        openSessionCreationMenu(projectId, 'heading');
+        openSessionCreationMenu(projectId, anchor);
         return;
     }
     // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
