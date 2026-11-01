@@ -133,11 +133,12 @@ export async function executeMobileChatSourcesReturnScenario(
         const frame = sheet && androidBounds(sheet.bounds);
         if (!frame) throw new Error('The Sources list has no bounds');
         const x = String(Math.round((frame.left + frame.right) / 2));
+        // Start well above the screen's bottom edge: a swipe from there is Android's gesture-navigation Home swipe.
         await adbShell(serial, [
             'input',
             'swipe',
             x,
-            String(frame.bottom - 80),
+            String(frame.bottom - 500),
             x,
             String(frame.top + 300),
             '600',
