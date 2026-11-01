@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { identifierSchema } from '../../domain/identifiers.js';
 import { commandPolicy } from '../../transport/method-spec.js';
-import { agentChatImageMediaTypeSchema, agentChatThumbnailSchema } from '../agent-chat-contract.js';
+import { agentChatImageMediaTypeSchema, agentChatThumbnailSchema } from '../agent-chat-images.js';
 import { MAX_AGENT_CHAT_IMAGE_BYTES, MAX_AGENT_CHAT_IMAGES } from '../agent-chat-limits.js';
 
 /**
