@@ -136,6 +136,8 @@ export function resolveE2EWorkerIsolation(environment: NodeJS.ProcessEnv): E2EWo
     return {
         coordinatorToken,
         leaseNamespace: `e2e-worker-${parallelIndex}`,
-        workerNamespace: `parallel-safe-${parallelIndex}`,
+        // Not `parallel-safe-N`: the worker directory is part of every temporary path a spec types into a Chat, and the
+        // fake Codex plays its `parallel` scenario for any message containing that word, so the default reply never came.
+        workerNamespace: `worker-${parallelIndex}`,
     };
 }

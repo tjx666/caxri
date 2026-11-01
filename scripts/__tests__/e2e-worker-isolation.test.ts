@@ -37,8 +37,18 @@ describe('E2E worker isolation', () => {
         ).toEqual({
             coordinatorToken: '01234567-89ab-cdef-0123-456789abcdef',
             leaseNamespace: 'e2e-worker-1',
-            workerNamespace: 'parallel-safe-1',
+            workerNamespace: 'worker-1',
         });
+    });
+
+    it('keeps fake-agent scenario keywords out of the worker directory name', () => {
+        // Specs type temporary paths into fake Chats, and the fake Codex picks a scenario by substring (`parallel`).
+        const { workerNamespace } = resolveE2EWorkerIsolation({
+            CAXRI_E2E_POOL: 'parallel-safe',
+            CAXRI_E2E_COORDINATOR_TOKEN: '01234567-89ab-cdef-0123-456789abcdef',
+            TEST_PARALLEL_INDEX: '2',
+        });
+        expect(workerNamespace).not.toContain('parallel');
     });
 
     it('uses the repository-wide lease outside the parallel-safe pool', () => {

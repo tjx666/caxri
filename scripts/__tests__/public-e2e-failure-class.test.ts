@@ -115,6 +115,26 @@ describe('classifyE2EFailure', () => {
         expect(JSON.stringify(failure)).not.toContain('private');
     });
 
+    it('classifies a matcher that printed no Received line because the element never appeared', () => {
+        const failure = classifyE2EFailure(
+            [
+                {
+                    message: [
+                        'expect(locator).toBeVisible() failed',
+                        '',
+                        `Locator: getByText('${sentinel}')`,
+                        'Expected: visible',
+                        'Timeout: 15000ms',
+                        'Error: element(s) not found',
+                    ].join('\n'),
+                    stack: stack(`Object.<anonymous> (${specFile}:42:7)`),
+                },
+            ],
+            context(),
+        );
+        expect(failure).toMatchObject({ matcher: 'toBeVisible', received: 'not-found' });
+    });
+
     it('records how a locator resolved and the numbers of a finite numeric mismatch, never text', () => {
         const classify = (message: string) =>
             classifyE2EFailure([{ message }], context({ testTimeoutMs: 120_000 }));

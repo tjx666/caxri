@@ -203,10 +203,20 @@ const io: FakeCodexIo = {
     serverRequest,
 };
 
+/**
+ * The message with absolute paths removed, which is what the keyword scenarios match on. A cited path carries the
+ * runner's temporary root (hosted E2E workers live under `caxri-e2e-parallel-safe-N`), so matching it would let the
+ * directory name pick a scenario: `parallel` played the explore scenario instead of the quoting reply. A URL keeps its
+ * text because its `/` follows `:` or another `/`, and a single-segment slash command such as `/btw` is not a path.
+ */
+function withoutAbsolutePaths(said: string): string {
+    return said.replaceAll(/(?<![\w:/.])\/[^\s/"'`)\]]+(?:\/[^\s"'`)\]]+)+/gu, ' ');
+}
+
 async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | null) {
     const said = input.map((entry) => entry.text ?? '').join('\n');
     // A delegation pointer selects no scenario: its "task" says `ask`, a `dispatch-` ID says `patch`.
-    const text = said.startsWith('Read the delegated task from ') ? '' : said;
+    const text = said.startsWith('Read the delegated task from ') ? '' : withoutAbsolutePaths(said);
     const imageCount = input.filter((entry) => entry.type === 'image').length;
     const user = { type: 'userMessage', id: crypto.randomUUID(), clientId, content: input };
     startItem(turn, user);
@@ -351,7 +361,7 @@ function handle(message: RpcMessage) {
             const input = (parameters.input ?? []) as FakeInput[];
             const said = input.map((entry) => entry.text ?? '').join('\n');
             // A scripted prompt bypasses the keyword scenarios, so "Install" never trips `stall`.
-            const text = findScriptedTurn(script, said) ? '' : said;
+            const text = findScriptedTurn(script, said) ? '' : withoutAbsolutePaths(said);
             if (text.includes('lost')) return;
             const clientId =
                 typeof parameters.clientUserMessageId === 'string' && !text.includes('unpaired')

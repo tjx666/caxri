@@ -43,8 +43,10 @@ if (!process.argv.includes('--resume')) {
   const ready = setInterval(() => { try {
     const settings = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8'));
     if (!settings.hooks?.UserPromptSubmit?.length) return;
-    clearInterval(ready);
+    // Retry until the bridge exits 0: a delivery that raced the Server registering this launch exits non-zero and is
+    // otherwise lost for good, leaving the Session without the running turn the test waits for.
     cp.execFileSync('/bin/sh', ['-c', settings.hooks.UserPromptSubmit[0].hooks[0].command], { env: process.env, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: id }), stdio: ['pipe', 'ignore', 'ignore'] });
+    clearInterval(ready);
   } catch {} }, 50);
 }
 process.stdout.write('Fake Claude ready\r\n');

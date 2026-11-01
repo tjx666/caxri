@@ -409,6 +409,10 @@ function parseMessage(rawMessage: string): ParsedMessage {
         )
             parsed.numbers = { expected, received };
     }
+    // Playwright prints `Error: element(s) not found` instead of a `Received:` line when a visibility or attachment
+    // matcher never found its element.
+    if (!parsed.received && /^Error: element\(s\) not found$/mu.test(message))
+        parsed.received = 'not-found';
     if (/strict mode violation/u.test(message)) parsed.received = 'wrong-count';
     else if (/element is not attached to the DOM|Element is not attached/iu.test(message))
         parsed.received = 'detached';

@@ -91,7 +91,10 @@ test('Caxri Bot Terminal links URLs and files, opening a file through the Workbe
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
         providers: {
-            codex: { startupOutput: `Edited ${fileLink} see https://example.com/bot` },
+            // The trailing newline keeps the cursor off the wrapped row: xterm does not reflow the cursor line
+            // (`reflowCursorLine` is false), so any later fit that narrows the pane (hosted displays are smaller than
+            // the 100-column host default) would cut characters out of the middle of the path.
+            codex: { startupOutput: `Edited ${fileLink} see https://example.com/bot\r\n` },
         },
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });

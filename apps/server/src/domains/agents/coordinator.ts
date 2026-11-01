@@ -413,8 +413,8 @@ export class AgentCoordinator {
 
     /**
      * Opens a bounded promotion, reactivation, or provider-switch candidate for one submitted command line. A Shell
-     * accepts any inspectable command; an inactive Agent Terminal also accepts its bound provider, while a live Agent
-     * ignores that direct command. The independent foreground-process probe must still confirm every durable change.
+     * accepts any inspectable command; an inactive Agent Terminal also accepts its bound provider; a live Agent ignores
+     * it. Input follows the acknowledged write, so it replays the output hook for a quiet Agent that already started.
      */
     private openPromotionCandidate(terminalId: string, command: string): void {
         const terminal = this.database.getTerminal(terminalId);
@@ -426,7 +426,7 @@ export class AgentCoordinator {
             return;
         }
         this.shellPromotionCandidates.set(terminalId, decision);
-        if (decision.provider) this.refreshes.schedule(terminalId);
+        this.observeOutput(terminalId, this.processIdentityProbe.currentPid(terminalId));
     }
 
     agentOperation(terminalId: string): AgentOperation | undefined {
