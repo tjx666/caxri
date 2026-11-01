@@ -27,8 +27,8 @@ const runningShells = (snapshot: AgentChatSnapshot): number =>
  * down the goal bar and the `2 Background work` badge stack above the composer; with the keyboard up they fold into one
  * summary row that names the background work, so its count never reads as a count of goals.
  *
- * The fake's goal query streams for about 30 seconds and then ends with the goal still set (`fake-claude-goal.ts`), so
- * the captures wait for a still screen.
+ * The fake's goal query streams for minutes (`fake-claude-goal.ts`), so the scenario interrupts it once the goal is
+ * set; like real Claude Code, the interrupt keeps the goal and the background shells.
  */
 export async function executeMobileChatDockFoldScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -59,8 +59,16 @@ export async function executeMobileChatDockFoldScenario(
         });
         await waitForMobile(
             () => chat.read(),
-            (snapshot) => snapshot.goal?.status === 'active' && !snapshot.activeTurnId,
-            90_000,
+            (snapshot) => snapshot.goal?.status === 'active' && snapshot.activeTurnId !== undefined,
+        );
+        // An interrupted turn keeps the goal active and the shells running, and leaves a still screen to capture.
+        await chat.interrupt();
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                snapshot.goal?.status === 'active' &&
+                !snapshot.activeTurnId &&
+                runningShells(snapshot) === 2,
         );
 
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
