@@ -12,7 +12,7 @@ import {
 } from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a signed-out Agent reads Signed out in the New Terminal menu and says how to sign in', async ({}, testInfo) => {
+test('a signed-out Agent reads Signed out in the New Terminal menu and offers to sign it in', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-sign-in-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -34,6 +34,7 @@ test('a signed-out Agent reads Signed out in the New Terminal menu and says how 
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
             'Claude',
             'CodexSigned out',
+            'Sign in…',
             'Grok BuildNot installed',
             'AntigravityNot installed',
             'Shell',
@@ -45,6 +46,16 @@ test('a signed-out Agent reads Signed out in the New Terminal menu and says how 
             }),
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-sign-in-required-menu.png') });
+
+        // Sign in opens a Shell Terminal with the command typed and waiting for Return.
+        await terminalMenu.getByRole('menuitem', { name: 'Sign in to Codex…' }).click();
+        await expect(terminalMenu).toBeHidden();
+        const session = page.locator(VISIBLE_SESSION);
+        await expect(session.getByRole('tab', { name: /^Shell/u })).toHaveCount(2);
+        await expect(session.locator('.xterm-rows').filter({ visible: true })).toContainText(
+            'codex login',
+        );
+        await page.screenshot({ path: testInfo.outputPath('agent-sign-in-terminal.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { force: true, recursive: true });

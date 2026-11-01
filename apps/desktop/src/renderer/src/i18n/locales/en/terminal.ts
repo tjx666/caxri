@@ -266,6 +266,8 @@ export const terminal = {
     'terminal.new.defaultMarker': 'Default',
     'terminal.new.notInstalledMarker': 'Not installed',
     'terminal.new.signedOutMarker': 'Signed out',
+    'terminal.new.signIn': 'Sign in…',
+    'terminal.new.signInAgent': 'Sign in to {{agent}}…',
     'terminal.new.signInHint.claude':
         'Claude Code is signed out. Run "claude auth login" in a Terminal, or start it and use /login.',
     'terminal.new.signInHint.codex': 'Codex is signed out. Run "codex login" in a Terminal.',

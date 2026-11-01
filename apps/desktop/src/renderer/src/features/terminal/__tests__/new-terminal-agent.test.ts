@@ -7,6 +7,7 @@ import {
     agentChoiceMarker,
     agentReadinessHint,
     agentReadinessIssues,
+    agentSignInCommand,
     isSameNewTerminalTarget,
     newAgentSurface,
     newSessionActionLabel,
@@ -296,5 +297,19 @@ describe('Agent readiness annotations', () => {
         );
         expect(agentReadinessHint('codex', 'signInRequired', translate)).toContain('codex login');
         expect(agentReadinessHint('claude', undefined, translate)).toBeUndefined();
+    });
+});
+
+describe('agentSignInCommand', () => {
+    it('offers the command that signs a signed-out Claude Code or Codex in', () => {
+        expect(agentSignInCommand('claude', 'signInRequired')).toBe('claude auth login');
+        expect(agentSignInCommand('codex', 'signInRequired')).toBe('codex login');
+    });
+
+    it('offers nothing for an Agent that is signed in, missing, or has no known sign-in command', () => {
+        expect(agentSignInCommand('claude', undefined)).toBeUndefined();
+        expect(agentSignInCommand('codex', 'notInstalled')).toBeUndefined();
+        expect(agentSignInCommand('grok', 'signInRequired')).toBeUndefined();
+        expect(agentSignInCommand('shell', 'signInRequired')).toBeUndefined();
     });
 });

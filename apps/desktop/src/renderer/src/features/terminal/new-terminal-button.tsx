@@ -20,6 +20,7 @@ import { AgentChoiceMenuItems } from '../session/agent-choice-menu-items';
 import { OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { openAgentSignInTerminal } from './agent-sign-in';
 import {
     isSameNewTerminalTarget,
     newAgentSurface,
@@ -81,6 +82,14 @@ export function NewTerminalButton({
                 defaultAgent={defaultAgent}
                 openInChat={openInChat}
                 onChoose={create}
+                onSignIn={
+                    session &&
+                    ((command) => {
+                        void openAgentSignInTerminal(session.id, command, {
+                            ...(paneId && { paneId }),
+                        });
+                    })
+                }
             />
             <MenuSeparator />
             <OpenInChatMenuItem />

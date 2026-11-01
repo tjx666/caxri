@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
         copyFilePath: vi.fn(() => Promise.resolve()),
         dropSessions: vi.fn(),
         getBootstrap: vi.fn(),
+        typeAgentSignInCommand: vi.fn(() => Promise.resolve()),
         openCreateSessionMenu: vi.fn(),
         pendingProjectId: undefined as string | undefined,
         pendingRoot: undefined as string | undefined,
@@ -60,6 +61,9 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+vi.mock('../../terminal/agent-sign-in', () => ({
+    typeAgentSignInCommand: mocks.typeAgentSignInCommand,
+}));
 vi.mock('../../../lib/copy-file-path', () => ({ copyFilePath: mocks.copyFilePath }));
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('../../../queries/client', () => ({
@@ -121,8 +125,10 @@ import {
     beginSessionCreation,
     chooseActivitySessionProject,
     chooseProjectFolder,
+    chooseSessionSignIn,
     chooseSessionTerminalKind,
     confirmPendingSession,
+    confirmPendingSignIn,
     pressSplitNewSession,
 } from '../session-creation-commands';
 
@@ -479,6 +485,46 @@ describe('Session creation commands', () => {
 
             expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
             expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Sign in on a signed-out Agent', () => {
+        beforeEach(() => {
+            mocks.typeAgentSignInCommand.mockClear();
+            useLastAgentChoiceStore.setState({ kind: undefined });
+        });
+
+        it('opens a Shell Session in the menu Project with the command typed, without remembering Shell', async () => {
+            mocks.caxriRequest.mockImplementationOnce(() =>
+                Promise.resolve({ session: { id: 'session-1' }, terminal: { id: 'terminal-1' } }),
+            );
+
+            chooseSessionSignIn('project-1', 'codex login');
+            await mocks.tryCommand.mock.results[0]?.value;
+            await vi.waitFor(() => expect(mocks.typeAgentSignInCommand).toHaveBeenCalled());
+
+            expect(mocks.closeCreateSessionMenu).toHaveBeenCalled();
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+                projectId: 'project-1',
+                defaultAgent: 'shell',
+            });
+            expect(mocks.typeAgentSignInCommand).toHaveBeenCalledWith('terminal-1', 'codex login');
+            expect(useLastAgentChoiceStore.getState().kind).toBeUndefined();
+        });
+
+        it('signs in from the Agent-choice dialog in its pending Project', async () => {
+            mocks.pendingProjectId = 'project-2';
+            mocks.caxriRequest.mockImplementationOnce(() =>
+                Promise.resolve({ session: { id: 'session-2' }, terminal: { id: 'terminal-2' } }),
+            );
+
+            confirmPendingSignIn('claude auth login');
+            await vi.waitFor(() =>
+                expect(mocks.typeAgentSignInCommand).toHaveBeenCalledWith(
+                    'terminal-2',
+                    'claude auth login',
+                ),
+            );
         });
     });
 });

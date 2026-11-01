@@ -221,6 +221,26 @@ export function agentReadinessHint(
 }
 
 /**
+ * The command that signs each Agent in, for the menus' "Sign in…" action. Only Claude Code and Codex report a sign-in
+ * status (`sign-in-status.ts` on the Server), so only they can be shown signed out and only they need one.
+ */
+const AGENT_SIGN_IN_COMMANDS: Partial<Record<TerminalKind, string>> = {
+    claude: 'claude auth login',
+    codex: 'codex login',
+};
+
+/**
+ * The command a signed-out Agent row offers to type into a new Terminal, or `undefined` when the row offers no "Sign
+ * in…" action: the Agent is not signed out, or Caxri does not know how it signs in.
+ */
+export function agentSignInCommand(
+    kind: TerminalKind,
+    issue: AgentReadinessIssue | undefined,
+): string | undefined {
+    return issue === 'signInRequired' ? AGENT_SIGN_IN_COMMANDS[kind] : undefined;
+}
+
+/**
  * Every kind the split button's dropdown offers, in catalog order, with the configured default marked. Each Agent
  * appears once; `surface` says whether choosing it opens a Chat under the current preference. Nothing here depends on
  * what was picked last, so the list a user learns once stays where they learned it.

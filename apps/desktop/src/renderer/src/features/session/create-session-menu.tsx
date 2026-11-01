@@ -31,6 +31,7 @@ import { OpenInChatMenuItem } from './open-in-chat-menu-item';
 import {
     beginSessionCreation,
     chooseActivitySessionProject,
+    chooseSessionSignIn,
     chooseSessionTerminalKind,
     openSessionCreationMenu,
     pressSplitNewSession,
@@ -77,6 +78,7 @@ function SessionCreationMenuItems({
                 openInChat={openInChat}
                 repeatedKind={repeatedKind}
                 onChoose={(kind) => chooseSessionTerminalKind(project.id, kind)}
+                onSignIn={(command) => chooseSessionSignIn(project.id, command)}
             />
             <MenuSeparator />
             {/**
