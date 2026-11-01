@@ -11,8 +11,14 @@ final: unlike an `interrupted` Terminal left by an orderly shutdown, nothing rel
 next start or on Session selection. Without help, the user would have to remember which Sessions
 were running and restart each one by hand.
 
+The next launch offers to bring them back: once the Renderer attaches, it reads
+`session.quitStoppedCount`, and when that is above zero it shows a persistent notice, "2 Sessions
+were stopped at the last quit.", with a **Restore** button. The notice stays until the user
+handles or closes it, so Zen Mode does not filter it, and it is checked once per Renderer
+launch. Reading the count never consumes the record: closing the notice leaves
 **Session: Restore Sessions Stopped at Last Quit** in the Desktop command palette (also found by
-searching `resume`, `reopen`, or `quit`) brings them back in one step.
+searching `resume`, `reopen`, or `quit`), which brings them back in one step too. The count leaves
+out Sessions deleted or archived since the quit, since a restore would only skip them.
 
 ## What is recorded
 
@@ -60,6 +66,8 @@ how many were skipped; with no record it says no Sessions were stopped at the la
 ## Diagnostics
 
 `session.quit_stopped_recorded` logs `sessionCount` and `workingCount` at every server stop.
+`session.quit_stopped_offered` logs the launch notice's read: `count` (what a restore would
+relaunch), `recordedCount`, and `recordAgeMs`; it never consumes the record.
 `session.quit_stopped_restored` logs `restored`, `continued`, `skipped`, `durationMs`, and
 `recordAgeMs` (time since the quit). A record that cannot be written logs
 `session.quit_stopped_record_failed` with its `errorCode`; the stop still proceeds. None carries a

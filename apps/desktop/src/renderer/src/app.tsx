@@ -54,6 +54,7 @@ import { useSessionNavigationHistory } from './features/session/hooks/use-sessio
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
 import { didSelectSession } from './features/session/session-commands';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
+import { offerQuitStoppedRestore } from './features/session/session-quit-restore-commands';
 import { SessionSearchDialog } from './features/session/session-search/session-search-dialog';
 import { subscribeClaudeWindowsDefaultNotice } from './features/settings/claude-windows/claude-windows-default-notice';
 import { SettingsPageHost } from './features/settings/settings-page-host';
@@ -242,6 +243,9 @@ export function App() {
     useRuntimeQueryInvalidation();
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
     useEffect(() => subscribeClaudeWindowsDefaultNotice(), []);
+    useEffect(() => {
+        if (isAttached) void offerQuitStoppedRestore();
+    }, [isAttached]);
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
     useEffect(() => subscribeShareRequests(), []);

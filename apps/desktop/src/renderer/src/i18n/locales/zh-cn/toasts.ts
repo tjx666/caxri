@@ -34,6 +34,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.action.copyDetails': '复制详细信息',
     'toasts.action.copyCommand': '复制命令',
     'toasts.action.restoreDiscardedChanges': '恢复我的更改',
+    'toasts.action.restore': '恢复',
     'toasts.action.revealInFinder': '在访达中显示',
     'toasts.action.openOnGitHub': '在 GitHub 上打开',
     'toasts.action.viewDetails': '查看详细信息',

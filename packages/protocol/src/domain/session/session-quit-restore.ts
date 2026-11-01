@@ -40,3 +40,10 @@ export const sessionRestoreQuitStoppedResultSchema = z.object({
     skipped: z.number().int().nonnegative(),
 });
 export type SessionRestoreQuitStoppedResult = z.infer<typeof sessionRestoreQuitStoppedResultSchema>;
+
+export const sessionQuitStoppedCountResultSchema = z.object({
+    /**
+     * Recorded Sessions a restore would still relaunch: those deleted or archived since the quit are left out.
+     */
+    count: z.number().int().nonnegative(),
+});

@@ -170,6 +170,8 @@ export const session = {
     'session.rename.noConversation': 'This Session has no Agent conversation to name it from.',
 
     // Restore what the last quit stopped
+    'session.quitRestore.noticeOne': '{{count}} Session was stopped at the last quit.',
+    'session.quitRestore.noticeOther': '{{count}} Sessions were stopped at the last quit.',
     'session.quitRestore.progress': 'Restoring Sessions stopped at the last quit…',
     'session.quitRestore.failed': 'Could not restore Sessions stopped at the last quit',
     'session.quitRestore.none': 'Nothing left to restore.',
