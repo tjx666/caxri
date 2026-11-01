@@ -4,7 +4,7 @@
 export const agentChatContext = {
     'agentChat.context.details': 'Details',
     'agentChat.contextPage.unsupported': 'Context details are available for Claude Code Chats only',
-    'agentChat.contextPage.terminalClosed': 'Terminal closed',
+    'agentChat.contextPage.terminalClosed': 'Chat closed',
     'agentChat.contextPage.updated': 'updated {{time}}',
     'agentChat.contextPage.refresh': 'Refresh',
     'agentChat.contextPage.refreshFailed': 'Refresh failed',

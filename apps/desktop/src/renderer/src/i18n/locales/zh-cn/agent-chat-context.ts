@@ -5,7 +5,7 @@ import type { agentChatContext as source } from '../en/agent-chat-context';
 export const agentChatContext: TranslatedNamespace<typeof source> = {
     'agentChat.context.details': '详情',
     'agentChat.contextPage.unsupported': '上下文详情仅支持 Claude Code 对话',
-    'agentChat.contextPage.terminalClosed': '终端已关闭',
+    'agentChat.contextPage.terminalClosed': '对话已关闭',
     'agentChat.contextPage.updated': '{{time}}更新',
     'agentChat.contextPage.refresh': '刷新',
     'agentChat.contextPage.refreshFailed': '刷新失败',

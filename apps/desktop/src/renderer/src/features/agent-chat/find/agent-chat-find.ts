@@ -100,20 +100,18 @@ export function agentChatFindCountLabel(
     if (count === 0 && isSearching) return t('agentChat.find.searching');
     if (count === 0)
         return t(isPartial ? 'agentChat.find.noResultsLoaded' : 'agentChat.find.noResults');
-    return `${activeIndex + 1}/${count}`;
+    const position = `${activeIndex + 1}/${count}`;
+    // A partial history makes the count look complete; say it only covers what is loaded.
+    return isPartial ? `${position}${t('agentChat.find.loadedSuffix')}` : position;
 }
 
 /**
- * Whether the find bar offers Search earlier messages: a query found nothing in the loaded messages and older history
- * can still be loaded, so the empty result is not a dead end. History that cannot be shown in Chat at all (`truncated`)
- * offers nothing to load.
+ * Whether the find bar offers Search earlier messages: a query is typed and older history can still be loaded. It stays
+ * offered when the loaded messages already match, because those matches do not cover the older history. History that
+ * cannot be shown in Chat at all (`truncated`) offers nothing to load.
  */
-export function canAgentChatFindSearchEarlier(
-    query: string,
-    count: number,
-    canLoadEarlier: boolean,
-): boolean {
-    return query !== '' && count === 0 && canLoadEarlier;
+export function canAgentChatFindSearchEarlier(query: string, canLoadEarlier: boolean): boolean {
+    return query !== '' && canLoadEarlier;
 }
 
 /**

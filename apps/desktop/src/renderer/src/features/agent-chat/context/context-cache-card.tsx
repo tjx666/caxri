@@ -221,7 +221,7 @@ function CacheTimeline({
                 )}
             </div>
             <div className="flex gap-2">
-                <div className="flex h-24 flex-col justify-between text-right text-[10px] text-muted tabular-nums">
+                <div className="flex h-24 flex-col justify-between text-right text-[11px] text-muted tabular-nums">
                     <span>{formatTokens(max)}</span>
                     <span>0</span>
                 </div>
@@ -279,13 +279,13 @@ function CacheTimeline({
               The two timestamps sit on their own row and wrap instead of truncating, so a narrow tab still shows both
               times in full. The legend gets a row below, each label on one line so a CJK label cannot break mid-word.
             */}
-            <div className="mt-1 flex flex-wrap justify-between gap-x-3 pl-8 text-[10px] text-muted tabular-nums">
+            <div className="mt-1 flex flex-wrap justify-between gap-x-3 pl-8 text-[11px] text-muted tabular-nums">
                 <span>{agentChatMessageFullTime(points[0].at, t.locale)}</span>
                 <span className="text-right">
                     {agentChatMessageFullTime(points.at(-1)!.at, t.locale)}
                 </span>
             </div>
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pl-8 text-[10px] whitespace-nowrap text-muted">
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pl-8 text-[11px] whitespace-nowrap text-muted">
                 <span className="inline-flex items-center gap-1">
                     <span aria-hidden className="h-2 w-px shrink-0 bg-danger/70" />
                     {t('agentChat.contextPage.cache.legendMiss')}
