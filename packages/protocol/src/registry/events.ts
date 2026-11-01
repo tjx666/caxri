@@ -303,26 +303,23 @@ export const serverEventPayloads = {
      * - `selected` / `authorized`: the user switched roots through the picker, the candidate prompt, or Main's
      *   confirmation. Nothing needs to be announced; they already know.
      * - `followed`, an Agent entered a proven linked worktree and `workbench.newWorktreeBehavior` allowed Caxri to move
-     *   the Session with it. The user did not ask for this, and the only other cue is the folder name in the status
-     *   bar, so the Renderer owes them a notice with an undo. Keeping this distinct from `selected` / `authorized` is
-     *   the entire reason the Renderer can tell "you did this" from "an Agent did this": collapsing these values back
-     *   into one silently restores that gap.
-     * - `fallback`: Caxri returned the Session to its own Project after the active worktree became unusable.
+     *   the Session with it. The Renderer stays silent here too: the user watched the Agent create or enter the
+     *   worktree, and the Session row and status bar already show where it landed.
+     * - `fallback`: Caxri returned the Session to its own Project after the active worktree became unusable. This is the
+     *   one change the Renderer announces.
      *
      * `followed` is deliberately not a fourth spelling of the authorization step. Both steps (selecting an already
      * authorized Project, or registering one first) happen on the user's path _and_ on the Agent's, so the step alone
      * can never identify the origin. Server keeps the two apart internally (`commitSelection` takes an explicit
-     * `origin` and logs both), and only collapses them here, where the Renderer needs one decision.
+     * `origin` and logs both), and only collapses them here.
      *
-     * Both non-user reasons carry their destination title because the Renderer cannot resolve it yet: the destination
-     * Project may have been registered by this very change, and the snapshot refresh has not landed when this event
-     * arrives.
+     * A fallback carries the title of the Project it returned to because the Renderer cannot rely on its snapshot yet:
+     * the refresh triggered by the accompanying `state.changed` has not landed when this event arrives.
      */
     'workbench.changed': z.object({
         sessionId: identifierSchema,
         workbenchRootProjectId: identifierSchema,
         reason: z.enum(['selected', 'authorized', 'followed', 'fallback']),
-        followedProjectTitle: z.string().min(1).max(1_024).optional(),
         returnedProjectTitle: z.string().min(1).max(1_024).optional(),
     }),
     'settings.changed': configChangedSchema,

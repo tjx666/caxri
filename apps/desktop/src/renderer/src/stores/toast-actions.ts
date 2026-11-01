@@ -143,18 +143,6 @@ export interface ToastActionParameters {
      * Opens the release page of the version Caxri just updated to.
      */
     'updates.releaseNotes': { version: string; releaseUrl?: string };
-    'workbench.undoFollowedRoot': {
-        sessionId: string;
-        /**
-         * The root to return to.
-         */
-        projectId: string;
-        /**
-         * The root the Agent moved to. Undo means "take back that move", so it stops applying the moment the Session is
-         * somewhere else: by then returning would be a third move the user never asked for.
-         */
-        followedProjectId: string;
-    };
 }
 
 export type ToastActionId = keyof ToastActionParameters;
@@ -207,7 +195,6 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'updates.show': 'toasts.action.showUpdate',
     'updates.install': 'updates.action.restartToUpdate',
     'updates.releaseNotes': 'updates.toast.releaseNotes',
-    'workbench.undoFollowedRoot': 'toasts.action.undo',
 };
 
 export interface ToastActionHandler<Id extends ToastActionId> {

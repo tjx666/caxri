@@ -116,11 +116,6 @@ export const core = {
         '{{count}} configuration files have errors and their defaults are in use. First: {{first}}',
     'core.workbenchRoot.fallback':
         'The active worktree is no longer available. Returned to {{title}}.',
-    'core.workbenchRoot.followedNamed': 'Switched to worktree "{{title}}" — an Agent moved there.',
-    'core.workbenchRoot.followed': 'Switched to another worktree — an Agent moved there.',
-    'core.workbenchRoot.undoNamed': 'Undo the switch to worktree {{title}}',
-    'core.workbenchRoot.undo': 'Undo the switch to another worktree',
-    'core.workbenchRoot.undoFailed': 'Unable to return to the previous Workbench Root',
 
     // stores/automatic-naming-notice.ts
     'core.automaticNaming.sandboxBoundaryConflict':

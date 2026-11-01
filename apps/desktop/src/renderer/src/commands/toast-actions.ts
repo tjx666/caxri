@@ -52,7 +52,6 @@ import { getBootstrap } from '../stores/selectors';
 import type { ToastActionHandlers } from '../stores/toast-actions';
 import { copyFeedbackKey, copyWithToastFeedback } from '../stores/toast-copy-feedback';
 import { pushToast, tryCommand } from '../stores/toasts';
-import { undoFollowedWorkbenchRoot } from '../stores/workbench-root-notice';
 import { executeCommand } from './execute';
 
 /**
@@ -201,28 +200,4 @@ export const toastActionHandlers: ToastActionHandlers = {
     'updates.show': { run: showUpdateDialog },
     'updates.install': { run: installUpdate },
     'updates.releaseNotes': { run: openReleaseNotes },
-    'workbench.undoFollowedRoot': {
-        /**
-         * Undo takes back one specific move, so a third root means it no longer applies: returning from somewhere the
-         * user chose afterwards would be another switch nobody asked for, and re-rooting a Session re-roots the Files
-         * tree, Source Control, Project Status and the editor at once.
-         *
-         * Both ends of that move count as still applying. The snapshot is only caught up to the followed root once the
-         * `state.changed` that accompanies the switch lands, which is after this notice is raised, so in the first
-         * moments the Session still reads as the root the undo returns to, and refusing then would kill the live button
-         * for the four seconds it is on screen.
-         */
-        unavailable: ({ followedProjectId, projectId, sessionId }) => {
-            const session = getBootstrap()?.sessions.find((entry) => entry.id === sessionId);
-            if (!session) return translate('toasts.actionUnavailable.missingSession');
-            const current = session.workbenchRootProjectId;
-            return current === followedProjectId || current === projectId
-                ? undefined
-                : translate('toasts.actionUnavailable.sessionMovedOn');
-        },
-        run: ({ projectId, sessionId }) => {
-            // Fire-and-forget: undoFollowedWorkbenchRoot funnels every failure into its own error toast.
-            void undoFollowedWorkbenchRoot(sessionId, projectId);
-        },
-    },
 };

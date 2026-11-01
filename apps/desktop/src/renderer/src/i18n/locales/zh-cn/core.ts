@@ -95,11 +95,6 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.configurationErrors.multiple':
         '{{count}} 个配置文件有错误，已改用默认值。首个错误：{{first}}',
     'core.workbenchRoot.fallback': '当前 Worktree 已不可用。已返回到 {{title}}。',
-    'core.workbenchRoot.followedNamed': '已切换到 Worktree“{{title}}”：有 Agent 移动到了那里。',
-    'core.workbenchRoot.followed': '已切换到另一个 Worktree：有 Agent 移动到了那里。',
-    'core.workbenchRoot.undoNamed': '撤销切换到 Worktree {{title}}',
-    'core.workbenchRoot.undo': '撤销切换到另一个 Worktree',
-    'core.workbenchRoot.undoFailed': '无法返回之前的工作台根目录',
 
     'core.automaticNaming.sandboxBoundaryConflict':
         '{{subject}}：项目沙箱边界阻止了自动命名。请选择更具体的项目文件夹，然后重启 Agent。',

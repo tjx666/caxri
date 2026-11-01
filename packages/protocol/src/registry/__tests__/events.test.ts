@@ -121,24 +121,24 @@ describe('workbench.changed payload', () => {
         ).toBe(false);
     });
 
-    it('carries the destination title of an Agent-driven switch', () => {
+    it('carries the title of the Project a fallback returned to', () => {
         expect(
             serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
                 workbenchRootProjectId: 'project-1',
-                reason: 'followed',
-                followedProjectTitle: 'feature-entered',
+                reason: 'fallback',
+                returnedProjectTitle: 'Owner Project',
             }),
         ).toMatchObject({
             success: true,
-            data: { reason: 'followed', followedProjectTitle: 'feature-entered' },
+            data: { reason: 'fallback', returnedProjectTitle: 'Owner Project' },
         });
         expect(
             serverEventPayloads['workbench.changed'].safeParse({
                 sessionId: 'session-1',
                 workbenchRootProjectId: 'project-1',
-                reason: 'followed',
-                followedProjectTitle: '',
+                reason: 'fallback',
+                returnedProjectTitle: '',
             }).success,
         ).toBe(false);
     });
