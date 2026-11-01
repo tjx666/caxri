@@ -4,9 +4,13 @@ import { AGENT_CHAT_GOAL_COMMAND } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, waitForCheck, withVisibleKeyboard } from './mobile-agent-chat-helpers';
 import {
-    adbShell,
+    checkBounds,
+    hasCheck,
+    waitForCheck,
+    withVisibleKeyboard,
+} from './mobile-agent-chat-helpers';
+import {
     mobileSemantics,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -69,22 +73,30 @@ export async function executeMobileChatDockFoldScenario(
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-goal');
         await capture(environment, 'keyboard-down', artifacts);
+        const composerDown = checkBounds(
+            await mobileSemantics(serial),
+            'agent-chat-composer-input',
+        );
+        if (!composerDown) throw new Error('The composer is not laid out');
 
         // The fixture IME draws no keyboard and reports none to the app, so the emulator's own keyboard is the one up.
         const dock = { isUnfolded: false };
         await withVisibleKeyboard(serial, async () => {
             await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-            await waitForMobile(
-                () => adbShell(serial, ['dumpsys', 'input_method']),
-                (state) => /\bmInputShown=true\b/u.test(state),
+            // Only the app's own keyboard layout lifts the composer, so a lifted composer proves the app saw the
+            // keyboard; without it the summary's absence below would pass before the dock ever had a chance to fold.
+            const nodes = await waitForMobile(
+                () => mobileSemantics(serial),
+                (current) => {
+                    const composer = checkBounds(current, 'agent-chat-composer-input');
+                    return composer !== undefined && composer.top < composerDown.top - 300;
+                },
             );
-            await waitForCheck(serial, 'agent-chat-composer-input');
-            const nodes = await mobileSemantics(serial);
-            await capture(environment, 'keyboard-up', artifacts);
             dock.isUnfolded =
                 hasCheck(nodes, 'agent-chat-goal') &&
                 hasCheck(nodes, 'agent-chat-tasks') &&
                 !hasCheck(nodes, 'agent-chat-dock-summary');
+            await capture(environment, 'keyboard-up', artifacts);
         });
         if (!dock.isUnfolded) {
             // Keep the captures citable in the failed round before failing it.
