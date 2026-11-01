@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clearAndroidAppDataIfInstalled } from '../../apps/mobile/scripts/android-device-bridge';
+import { clearAndroidAppDataIfInstalled } from '../../apps/mobile/scripts/android-app-data';
 import {
     assertMobileAcceptanceSourceIdentity,
     captureMobileAcceptanceCommand,

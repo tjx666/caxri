@@ -13,7 +13,7 @@ import {
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { assertDecodablePng } from '../.agents/skills/acceptance/scripts/png-integrity';
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report-case-plan';
-import { clearAndroidAppDataIfInstalled } from '../apps/mobile/scripts/android-device-bridge';
+import { clearAndroidAppDataIfInstalled } from '../apps/mobile/scripts/android-app-data';
 import { writeJsonAtomic, writeTextAtomic } from './atomic-json';
 import type { mobileAndroidAcceptanceCase } from './mobile-android-cases';
 
