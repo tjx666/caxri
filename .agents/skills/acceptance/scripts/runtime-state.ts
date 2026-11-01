@@ -6,11 +6,7 @@ import process from 'node:process';
 import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
 
-import {
-    CAXRI_ANDROID_PACKAGE,
-    clearAndroidAppDataIfInstalled,
-    runAndroidAdb,
-} from '../../../../apps/mobile/scripts/android-device-bridge';
+import { clearAndroidAppDataIfInstalled } from '../../../../apps/mobile/scripts/android-app-data';
 import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
@@ -535,16 +531,25 @@ const ANDROID_PROFILE_IDENTITY =
  */
 export async function isAcceptanceProfileCleared(
     profileIdentity: string,
-    runDevice: (serial: string, arguments_: string[]) => string = (serial, arguments_) =>
-        runAndroidAdb(serial, arguments_, { timeoutMs: 30_000 }),
+    runDevice?: (serial: string, arguments_: string[]) => string,
 ): Promise<boolean> {
     if (profileIdentity.startsWith('android-emulator:')) {
         const match = ANDROID_PROFILE_IDENTITY.exec(profileIdentity);
         if (!match?.groups) throw new Error('Android acceptance profile identity is malformed');
         const { serial } = match.groups;
+        // Loaded only here: `scripts/mobile-acceptance-runtime.ts` reaches this module from the Playwright Android
+        // scenarios, and a static import pulls `apps/mobile` (CommonJS) modules into that graph. They load
+        // `scripts/mobile-acceptance-check-id.ts` as CommonJS first, so the Chat case registry's later ESM import of it
+        // fails with `does not provide an export named 'isAndroidCheckId'` and breaks every `MOB-CHAT-*` case.
+        const { CAXRI_ANDROID_PACKAGE, runAndroidAdb } =
+            await import('../../../../apps/mobile/scripts/android-device-bridge');
+        const run =
+            runDevice ??
+            ((device: string, arguments_: string[]) =>
+                runAndroidAdb(device, arguments_, { timeoutMs: 30_000 }));
         try {
             clearAndroidAppDataIfInstalled(CAXRI_ANDROID_PACKAGE, (arguments_) =>
-                runDevice(serial, arguments_),
+                run(serial, arguments_),
             );
             return true;
         } catch {
