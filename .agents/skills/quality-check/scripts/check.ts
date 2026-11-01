@@ -348,6 +348,11 @@ async function runE2E(
         try {
             lease = await acquireDesktopLease(root, 'check --e2e', process.pid, {
                 waitMs: waitSeconds * 1000,
+                onWait: (holder, waitedMs) => {
+                    process.stderr.write(
+                        `check --e2e: waiting ${Math.round(waitedMs / 1000)}s for the desktop lease. ${holder}\n`,
+                    );
+                },
             });
         } catch (error) {
             throw checkErrorForDesktopLease(error);
