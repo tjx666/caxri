@@ -151,6 +151,8 @@ test('real mode rejects unsafe launch args and interactive Agent input', async (
         executable,
         `#!${process.execPath}\n` +
             `const fs = require('node:fs');\n` +
+            // The Server probes sign-in status (`codex login status`) under the real-mode policy; that is not a launch.
+            `if (process.argv[2] === 'login') process.exit(0);\n` +
             `if (process.argv.includes('--version')) { process.stdout.write('synthetic-codex 1.0\\n'); process.exit(0); }\n` +
             `fs.writeFileSync(${JSON.stringify(launchMarker)}, JSON.stringify(process.argv.slice(2)));\n` +
             `process.stdin.setRawMode?.(true); process.stdin.resume();\n` +
@@ -245,6 +247,8 @@ test('real mode cannot bypass its Agent policy through a Shell Terminal', async 
     await writeFile(
         executable,
         `#!${process.execPath}\n` +
+            // The Server probes sign-in status (`codex login status`) under the real-mode policy; that is not a launch.
+            `if (process.argv[2] === 'login') process.exit(0);\n` +
             `require('node:fs').writeFileSync(${JSON.stringify(launchMarker)}, 'launched');\n`,
         'utf8',
     );

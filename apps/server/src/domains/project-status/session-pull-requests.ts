@@ -12,7 +12,11 @@ import { logEventCatalog, mapWithConcurrency, SingleFlight } from '@caxri/system
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
-import { runBackgroundUnlessLoaded } from '../../observability/background-work';
+import {
+    runAsBackgroundWork,
+    runBackgroundUnlessLoaded,
+} from '../../observability/background-work';
+import type { BackgroundLoadGate } from '../../observability/machine-load';
 import type { AgentEnvironment } from '../agents';
 import { agentProviderStateRoot, defaultAgentEnvironment } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -38,6 +42,18 @@ import type {
     SessionUpdate,
 } from './session-pull-request-entries';
 import { isSettled, pullRequestKey, wasMergedBefore } from './session-pull-request-entries';
+import {
+    BRANCH_DISCOVERY_JSON_FIELDS,
+    FAILURE_TTL_MS,
+    FORCED_RECORD_MAX_AGE_MS,
+    INTEGRATION_BRANCHES,
+    MAX_BRANCH_CANDIDATES,
+    MAX_CONCURRENT_LOOKUPS,
+    MAX_PULL_REQUEST_ENTRIES,
+    MISSING_TTL_MS,
+    OPEN_TTL_MS,
+    SETTLED_TTL_MS,
+} from './session-pull-request-limits';
 import type { SessionPullRequestResolution } from './session-pull-request-parse';
 import {
     isRowChanged,
@@ -45,43 +61,6 @@ import {
     selectBranchPullRequest,
 } from './session-pull-request-parse';
 import { VercelDeploymentStore } from './vercel-store';
-
-/**
- * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
- * re-confirms every fifteen minutes. A branch with no PR is re-queried every five minutes: the Agent usually opens the
- * PR from inside its own transcript, which the cheap local scan catches on the next sweep without any `gh` call.
- */
-const OPEN_TTL_MS = 60_000;
-const SETTLED_TTL_MS = 15 * 60_000;
-const MISSING_TTL_MS = 5 * 60_000;
-/**
- * A failed lookup retries on the status-bar's minute cadence so recovery clears the unknown state automatically.
- * Rate-limited calls still use the source-level circuit breaker to avoid wasteful requests.
- */
-const FAILURE_TTL_MS = 60_000;
-const MAX_CONCURRENT_LOOKUPS = 4;
-/**
- * How old a shared pull-request record a forced Session refresh still accepts. The focus refresh re-reads the Status
- * panel first, which refetches the same pull request moments earlier; accepting that record avoids paying a second `gh
- * pr view` for it while still rejecting anything fetched before the window regained focus.
- */
-const FORCED_RECORD_MAX_AGE_MS = 5_000;
-const MAX_PULL_REQUEST_ENTRIES = 256;
-/**
- * Integration branches never carry the Session's own delivery, and querying them would cost a `gh` call per sweep.
- */
-const INTEGRATION_BRANCHES = new Set(['main', 'master', 'develop', 'dev', 'trunk', 'HEAD']);
-/**
- * Branch discovery only has to answer "which pull request is this branch's?", so it asks for identity and nothing else.
- * `statusCheckRollup` here used to multiply the query's GraphQL cost by every candidate returned; the selected pull
- * request's checks now come from the shared record, which the Status panel and status bar read too.
- */
-const BRANCH_DISCOVERY_JSON_FIELDS = 'number,state,isDraft';
-/**
- * Enough candidates to rank an open pull request above a merged and a closed one for the same branch, without paying
- * for a page of history nobody renders.
- */
-const MAX_BRANCH_CANDIDATES = '5';
 
 export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;
@@ -96,6 +75,10 @@ export interface SessionPullRequestServiceOptions {
      */
     github?: GitHubPullRequestStore;
     now?: () => number;
+    /**
+     * Load gate for the stale-entry sweep a snapshot starts. Defaults to the machine-wide monitor; injected by tests.
+     */
+    load?: BackgroundLoadGate;
     /**
      * Hears each Session whose resolved pull request changed lifecycle state or identity, with the previous projection
      * (absent the first time this Server Core resolved the Session, so a pull request that was already merged before
@@ -702,15 +685,25 @@ export class SessionPullRequestService {
         const pullRequests: SessionPullRequests['pullRequests'] = {};
         const unavailable: NonNullable<SessionPullRequests['unavailable']> = {};
         let isStale = false;
+        let isMissing = false;
         for (const session of this.activeSessions()) {
             const entry = this.currentEntry(session);
+            if (!entry) isMissing = true;
             if (!entry || entry.expiresAt <= now) isStale = true;
             if (entry?.value) pullRequests[session.id] = entry.value;
             if (entry?.unavailable) unavailable[session.id] = entry.unavailable;
         }
         // Fire-and-forget: the sweep logs its own failure and emits the change event. A loaded machine keeps the last
-        // projection, and the Renderer's next poll asks again.
-        if (isStale) runBackgroundUnlessLoaded('pull-request-sweep', () => this.refresh());
+        // projection of an expired entry, and the Renderer's next poll asks again. A Session with no entry at all
+        // (new, or rebound to another root or Agent) has no projection to keep, so deferring would hide its pull
+        // request for a whole poll interval; that sweep always runs.
+        if (isMissing) void runAsBackgroundWork('pull-request-sweep', () => this.refresh());
+        else if (isStale)
+            runBackgroundUnlessLoaded(
+                'pull-request-sweep',
+                () => this.refresh(),
+                this.options.load,
+            );
         return {
             pullRequests,
             ...(Object.keys(unavailable).length > 0 && { unavailable }),

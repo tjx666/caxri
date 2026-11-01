@@ -157,12 +157,14 @@ test('Codex durable turn activity repairs a lost start hook', async ({}, testInf
         .run(agentSessionId, canonicalRoot, 'Start hook recovery', createdAt, createdAt, 42, 0);
     threadIndex.close();
     const turnHistory = new Database(join(state, 'thread_history_1.sqlite'));
+    // Modern Codex stores carry `started_at`; the orphan guard needs it to tell a stale `inProgress` baseline row
+    // (older than the process) from a live turn, so a fixture without it flaps to running on the second probe.
     turnHistory.exec(
-        'CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, rollout_ordinal INTEGER, status TEXT, completed_at INTEGER)',
+        'CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, rollout_ordinal INTEGER, status TEXT, completed_at INTEGER, started_at INTEGER)',
     );
     turnHistory
-        .prepare('INSERT INTO thread_turns VALUES (?, ?, ?, ?, ?)')
-        .run(agentSessionId, baselineTurnId, 1, 'inProgress', null);
+        .prepare('INSERT INTO thread_turns VALUES (?, ?, ?, ?, ?, ?)')
+        .run(agentSessionId, baselineTurnId, 1, 'inProgress', null, 1);
     turnHistory.close();
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -191,7 +193,7 @@ process.stdin.on('data', () => {
   if (step === 1) {
     childProcess.execFileSync('/usr/bin/sqlite3', [
       process.env.CODEX_SQLITE_HOME + '/thread_history_1.sqlite',
-      "INSERT INTO thread_turns VALUES ('${agentSessionId}', '${activeTurnId}', 2, 'inProgress', NULL)",
+      "INSERT INTO thread_turns VALUES ('${agentSessionId}', '${activeTurnId}', 2, 'inProgress', NULL, unixepoch())",
     ]);
     process.stdout.write('New turn replaced stale running baseline\r\n');
   } else if (step === 2) {
@@ -203,7 +205,7 @@ process.stdin.on('data', () => {
   } else if (step === 3) {
     childProcess.execFileSync('/usr/bin/sqlite3', [
       process.env.CODEX_SQLITE_HOME + '/thread_history_1.sqlite',
-      "INSERT INTO thread_turns VALUES ('${agentSessionId}', '${hookedTurnId}', 3, 'inProgress', NULL)",
+      "INSERT INTO thread_turns VALUES ('${agentSessionId}', '${hookedTurnId}', 3, 'inProgress', NULL, unixepoch())",
     ]);
     invokeHook('UserPromptSubmit', '${hookedTurnId}');
     process.stdout.write('Hooked turn started\r\n');
@@ -217,7 +219,7 @@ process.stdin.on('data', () => {
   } else if (step === 5) {
     childProcess.execFileSync('/usr/bin/sqlite3', [
       process.env.CODEX_SQLITE_HOME + '/thread_history_1.sqlite',
-      "INSERT INTO thread_turns VALUES ('${agentSessionId}', '${lostStartTurnId}', 4, 'inProgress', NULL)",
+      "INSERT INTO thread_turns VALUES ('${agentSessionId}', '${lostStartTurnId}', 4, 'inProgress', NULL, unixepoch())",
     ]);
     process.stdout.write('Turn started without hook\r\n');
   } else if (step === 6) {

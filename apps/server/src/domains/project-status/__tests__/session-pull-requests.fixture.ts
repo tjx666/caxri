@@ -103,6 +103,7 @@ export interface Harness {
 export async function harness(options: {
     branch?: string;
     gh?: (arguments_: readonly string[]) => Promise<string>;
+    load?: SessionPullRequestServiceOptions['load'];
     now?: () => number;
     onPullRequestChanged?: SessionPullRequestServiceOptions['onPullRequestChanged'];
     sessions?: SessionRecord[];
@@ -155,6 +156,7 @@ export async function harness(options: {
         {
             agentEnvironment: { homeDirectory: home, variables: {} },
             emit: (event) => emitted.push(event),
+            load: options.load,
             now: options.now,
             onPullRequestChanged: options.onPullRequestChanged,
             settings: options.settings,

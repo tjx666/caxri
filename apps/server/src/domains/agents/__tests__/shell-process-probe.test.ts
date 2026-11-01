@@ -89,40 +89,6 @@ describe('ShellProcessProbe', () => {
         }
     });
 
-    it('gives an alias relaunch the direct Agent budget', async () => {
-        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-        const startedAt = Date.now();
-        const candidate: ShellPromotionCandidate = {
-            attempts: 0,
-            expiresAt: Number.MAX_SAFE_INTEGER,
-            extendedProbeBudget: true,
-            nextProcessProbeAt: 0,
-            origin: 'input',
-            processProbes: 0,
-            startedAt,
-        };
-        let calls = 0;
-        const detect = vi.fn(() => Promise.resolve(++calls > 6 ? ('codex' as const) : undefined));
-        const onConfirmed = vi.fn(() => true);
-        const probe = new ShellProcessProbe({
-            detect,
-            intervalMs: 5,
-            isCurrent: () => true,
-            isWatchCurrent: () => false,
-            onConfirmed,
-            logger: { write: vi.fn() },
-            onExhausted: vi.fn(),
-            onInactive: vi.fn(),
-        });
-        try {
-            probe.observe('terminal', 42, candidate);
-            await vi.advanceTimersByTimeAsync(1_000);
-            expect(onConfirmed).toHaveBeenCalledWith('terminal', 'codex', candidate);
-        } finally {
-            probe.close();
-        }
-    });
-
     it('backs off a direct Agent command after its fast retries and stops at the total cap', async () => {
         vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
         const startedAt = Date.now();

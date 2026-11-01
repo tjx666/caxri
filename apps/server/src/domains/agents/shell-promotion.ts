@@ -28,12 +28,6 @@ export interface ShellPromotionCandidate {
     lifecycleSignal?: AgentLifecycleSignal;
     attempts: number;
     expiresAt: number;
-    /**
-     * Grants the direct-Agent probe budget to a command that names no provider. Set when the user relaunches the bound
-     * provider through an alias after it exited: the exec chain (alias, wrapper, then the Agent) can outlast the fast
-     * retries on a loaded host, and every probe in that gap samples the bare Shell.
-     */
-    extendedProbeBudget?: boolean;
     nextProcessProbeAt: number;
     /**
      * How the candidate was opened. Only an input-opened candidate (the user submitted a command at the prompt) may be
@@ -161,8 +155,5 @@ export function decideInputPromotionCandidate(
             terminal.lastAgentProcessState === 'running')
     )
         return 'ignore';
-    const candidate = inputPromotionCandidate(provider, startedAt);
-    return !provider && terminal.provider && terminal.lastAgentProcessState === 'stopped'
-        ? { ...candidate, extendedProbeBudget: true }
-        : candidate;
+    return inputPromotionCandidate(provider, startedAt);
 }

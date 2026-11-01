@@ -27,6 +27,16 @@ const failureKinds = [
     'unknown',
 ] as const;
 
+const numericMatchers: ReadonlySet<string> = new Set([
+    'toBe',
+    'toBeCloseTo',
+    'toBeGreaterThan',
+    'toBeGreaterThanOrEqual',
+    'toBeLessThan',
+    'toBeLessThanOrEqual',
+    'toEqual',
+    'toHaveCount',
+]);
 const failureMatchers = [
     'toBe',
     'toBeAttached',
@@ -111,7 +121,24 @@ const failureLocatorKinds = [
     'chain',
 ] as const;
 
-const timeoutBucketsMs = [1000, 5000, 10_000, 30_000, 60_000] as const;
+/**
+ * How a locator assertion's target resolved when the assertion gave up. `wrong-count` also covers a strict-mode
+ * violation (several matches), and `detached` an element that left the DOM mid-assertion.
+ */
+const failureReceivedKinds = [
+    'not-found',
+    'hidden',
+    'wrong-count',
+    'wrong-value',
+    'detached',
+] as const;
+
+/**
+ * 15 s is the E2E `expect` timeout, so it gets its own bucket instead of reading as 30 s.
+ */
+const timeoutBucketsMs = [1000, 5000, 10_000, 15_000, 30_000, 60_000] as const;
+const maxNumericEvidence = 1_000_000_000_000;
+const numericEvidencePattern = /^-?\d{1,12}(?:\.\d{1,6})?$/u;
 const frameSchema = z.string().regex(/^e2e\/[a-z\d._/-]{1,200}\.ts:\d{1,7}$/u);
 const maxTimeoutMs = 3_600_000;
 
@@ -135,7 +162,17 @@ export const publicE2EFailureClassSchema = z.strictObject({
     matcher: z.enum(failureMatchers).optional(),
     negated: z.boolean().optional(),
     receiver: z.enum(['locator', 'page', 'value', 'poll']).optional(),
-    received: z.enum(['not-found', 'hidden', 'wrong-value']).optional(),
+    /**
+     * The two numbers of a finite numeric mismatch (`toBe`, `toBeCloseTo`, `toHaveCount`, ...). Numbers carry no text,
+     * so they may be public; a non-numeric side drops the whole field.
+     */
+    numbers: z
+        .strictObject({
+            expected: z.number().min(-maxNumericEvidence).max(maxNumericEvidence),
+            received: z.number().min(-maxNumericEvidence).max(maxNumericEvidence),
+        })
+        .optional(),
+    received: z.enum(failureReceivedKinds).optional(),
     structuralHash: z.string().regex(/^[a-f\d]{64}$/u),
     timeoutMs: z.number().int().min(0).max(maxTimeoutMs).optional(),
 });
@@ -301,8 +338,9 @@ interface ParsedMessage {
     locatorKind?: (typeof failureLocatorKinds)[number];
     matcher?: (typeof failureMatchers)[number];
     negated?: boolean;
+    numbers?: { expected: number; received: number };
     receiver?: 'locator' | 'page' | 'value' | 'poll';
-    received?: 'not-found' | 'hidden' | 'wrong-value';
+    received?: (typeof failureReceivedKinds)[number];
     timedOut?: boolean;
     timeoutMs?: number;
 }
@@ -317,6 +355,17 @@ function lineValue(message: string, prefixes: readonly string[]): string | undef
         if (prefix) return line.slice(prefix.length).trim();
     }
     return undefined;
+}
+
+/**
+ * A finite number from an `Expected:` or `Received:` line, or nothing for any other text. The anchored pattern is what
+ * keeps a string, a path, or a regular expression from ever passing as a number.
+ */
+function numericLine(message: string, prefix: 'Expected:' | 'Received:'): number | undefined {
+    const text = lineValue(message, [prefix]);
+    if (text === undefined || !numericEvidencePattern.test(text)) return undefined;
+    const value = Number(text);
+    return Number.isFinite(value) && Math.abs(value) <= maxNumericEvidence ? value : undefined;
 }
 
 function parseMessage(rawMessage: string): ParsedMessage {
@@ -346,9 +395,25 @@ function parseMessage(rawMessage: string): ParsedMessage {
                 ? 'not-found'
                 : /^(?:hidden|<hidden>)$/u.test(receivedLine.trim())
                   ? 'hidden'
-                  : 'wrong-value';
+                  : parsed.matcher === 'toHaveCount' && numericEvidencePattern.test(receivedLine)
+                    ? 'wrong-count'
+                    : 'wrong-value';
         }
+        const expected = numericLine(message, 'Expected:');
+        const received = numericLine(message, 'Received:');
+        // Only matchers that compare values the spec computed: a text or value matcher would publish page content.
+        if (
+            expected !== undefined &&
+            received !== undefined &&
+            numericMatchers.has(parsed.matcher ?? 'other')
+        )
+            parsed.numbers = { expected, received };
     }
+    if (/strict mode violation/u.test(message)) parsed.received = 'wrong-count';
+    else if (/element is not attached to the DOM|Element is not attached/iu.test(message))
+        parsed.received = 'detached';
+    else if (!parsed.received && /unexpected value "hidden"/u.test(message))
+        parsed.received = 'hidden';
     if (/while waiting on the predicate/u.test(message)) parsed.receiver = 'poll';
     const assertionTimeout = /^Timeout: +(\d{1,9})ms$/mu.exec(message)?.[1];
     const pollTimeout = /Timeout (\d{1,9})ms exceeded while waiting on the predicate/u.exec(
@@ -458,6 +523,7 @@ export function classifyE2EFailure(
         ...(parsed.locatorKind && { locatorKind: parsed.locatorKind }),
         ...(parsed.matcher && { matcher: parsed.matcher }),
         ...(parsed.matcher && { negated: parsed.negated ?? false }),
+        ...(parsed.numbers && { numbers: parsed.numbers }),
         ...(parsed.receiver && { receiver: parsed.receiver }),
         ...(parsed.received && { received: parsed.received }),
         ...(timeoutMs !== undefined && { timeoutMs }),

@@ -115,6 +115,94 @@ describe('classifyE2EFailure', () => {
         expect(JSON.stringify(failure)).not.toContain('private');
     });
 
+    it('records how a locator resolved and the numbers of a finite numeric mismatch, never text', () => {
+        const classify = (message: string) =>
+            classifyE2EFailure([{ message }], context({ testTimeoutMs: 120_000 }));
+        expect(
+            classify(
+                [
+                    'expect(received).toBeCloseTo(expected, precision)',
+                    '',
+                    'Expected: 492',
+                    'Received: 486.5',
+                    '',
+                    'Expected precision:    0',
+                ].join('\n'),
+            ),
+        ).toMatchObject({ matcher: 'toBeCloseTo', numbers: { expected: 492, received: 486.5 } });
+        expect(
+            classify(
+                [
+                    'expect(locator).toHaveCount(expected) failed',
+                    '',
+                    `Locator: locator('.${sentinel}')`,
+                    'Expected: 0',
+                    'Received: 1',
+                    'Timeout: 15000ms',
+                ].join('\n'),
+            ),
+        ).toMatchObject({
+            numbers: { expected: 0, received: 1 },
+            received: 'wrong-count',
+            timeoutMs: 15_000,
+        });
+        expect(
+            classify(
+                [
+                    'expect(locator).toBeVisible() failed',
+                    '',
+                    `Locator: getByText('${sentinel}')`,
+                    'Expected: visible',
+                    'Received: hidden',
+                    'Timeout: 5000ms',
+                ].join('\n'),
+            ),
+        ).toMatchObject({ received: 'hidden' });
+        expect(
+            classify(
+                [
+                    'expect(locator).toBeVisible() failed',
+                    '',
+                    `Locator: getByText('${sentinel}')`,
+                    `Error: strict mode violation: getByText('${sentinel}') resolved to 2 elements`,
+                    'Timeout: 5000ms',
+                ].join('\n'),
+            ),
+        ).toMatchObject({ received: 'wrong-count' });
+        expect(
+            classify(
+                [
+                    'expect(locator).toBeVisible() failed',
+                    '',
+                    `Locator: getByText('${sentinel}')`,
+                    'Expected: visible',
+                    'Received: <element(s) not found>',
+                    'Call log:',
+                    '  - Element is not attached to the DOM',
+                    'Timeout: 5000ms',
+                ].join('\n'),
+            ),
+        ).toMatchObject({ received: 'detached' });
+        const textual = classify(fixtures.valueMismatch);
+        expect(textual).not.toHaveProperty('numbers');
+        const hostile = classify(
+            ['expect(received).toBe(expected)', 'Expected: 12abc', 'Received: 7'].join('\n'),
+        );
+        expect(hostile).not.toHaveProperty('numbers');
+        const pageValue = classify(
+            [
+                'expect(locator).toHaveValue(expected) failed',
+                '',
+                `Locator: getByRole('textbox')`,
+                'Expected: 12345',
+                'Received: 67890',
+                'Timeout: 5000ms',
+            ].join('\n'),
+        );
+        expect(pageValue).not.toHaveProperty('numbers');
+        expect(JSON.stringify([textual, hostile])).not.toContain(sentinel);
+    });
+
     it('detects negation, chained locators, and buckets an odd timeout', () => {
         const failure = classifyE2EFailure([{ message: fixtures.locatorText }], context());
         expect(failure).toMatchObject({
@@ -147,7 +235,7 @@ describe('classifyE2EFailure', () => {
             expect(JSON.stringify(failure)).not.toContain(sentinel);
         }
         expect(kinds[1][1]).toMatchObject({ receiver: 'poll', matcher: 'toBeTruthy' });
-        expect(kinds[2][1]).toMatchObject({ action: 'click', timeoutMs: 30_000 });
+        expect(kinds[2][1]).toMatchObject({ action: 'click', timeoutMs: 15_000 });
         expect(kinds[3][1]).toMatchObject({ timeoutMs: 120_000 });
     });
 
@@ -265,7 +353,8 @@ describe('classifyE2EFailure', () => {
     it('buckets timeouts and keeps the configured test timeout exact', () => {
         expect(bucketTimeoutMs(1, 120_000)).toBe(1000);
         expect(bucketTimeoutMs(4999, 120_000)).toBe(5000);
-        expect(bucketTimeoutMs(15_000, 120_000)).toBe(30_000);
+        expect(bucketTimeoutMs(15_000, 120_000)).toBe(15_000);
+        expect(bucketTimeoutMs(15_001, 120_000)).toBe(30_000);
         expect(bucketTimeoutMs(61_000, 120_000)).toBe(120_000);
         expect(bucketTimeoutMs(900_000, 900_000)).toBe(900_000);
         expect(bucketTimeoutMs(NaN)).toBeUndefined();

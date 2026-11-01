@@ -41,7 +41,7 @@ type ProcessWatchEndReason =
  * and an unknown command is usually not an Agent at all.
  */
 function processProbeBudget(candidate: ShellPromotionCandidate): number {
-    return candidate.origin === 'input' && (candidate.provider || candidate.extendedProbeBudget)
+    return candidate.origin === 'input' && candidate.provider
         ? MAX_DIRECT_AGENT_PROCESS_PROBES
         : MAX_PROCESS_PROBES;
 }

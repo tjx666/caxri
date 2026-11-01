@@ -285,7 +285,7 @@ the local output before the worktree-owned process is stopped.
 **Failure class (issue #3351).** A failed `test-end` event and each public receipt failure also carry a
 `failureClass`, produced only by `scripts/reporters/public-e2e-failure-class.ts`: closed enums and bounded integers
 for the failure `kind`, the assertion `matcher` (allowlist, else `other`), `negated`, `receiver`, `locatorKind` (the
-prefix before `(`), `received` (`not-found`, `hidden`, `wrong-value`), the bucketed `timeoutMs`, up to three
+prefix before `(`), `received` (how the locator resolved: `not-found`, `hidden`, `wrong-count`, `wrong-value`, `detached`), `numbers` (expected and received, only when both are finite numbers), the bucketed `timeoutMs` (15 s has its own bucket), up to three
 `e2e/`-only `path:line` frames, the last completed `launchStage`, an unrequested Electron exit code or fatal signal,
 `locationSource` (`spec`, `helper`, `none`, so a missing `failureLocation` reads as "no e2e frame" rather than "not
 collected"), and a `structuralHash` that groups failures differing only in dynamic text. `launchCaxriApp` records the

@@ -32,17 +32,26 @@ async function box(locator: Locator) {
 }
 
 /**
- * Where the transcript's text starts: its centered column's left edge plus the column's left padding.
+ * Where the transcript's text starts: its centered column's left edge plus the column's left padding. With
+ * `shouldIgnoreScrollbar`, a classic scrollbar's width is added back as half of it: the column is centered in the log's
+ * client width, so a layout-taking scrollbar (hosted macOS runners have no pointing device and show legacy scrollbars,
+ * unlike the overlay ones on a developer machine) shifts it left by half the bar once the transcript overflows, which
+ * is not the rail moving the transcript.
  */
-function contentLeft(log: Locator): Promise<number> {
-    return log.evaluate((element) => {
+function contentLeft(log: Locator, shouldIgnoreScrollbar = false): Promise<number> {
+    return log.evaluate((element, isScrollbarIgnored) => {
         const column = element.firstElementChild;
         if (!(column instanceof HTMLElement)) throw new Error('Expected a transcript column');
+        const scrollbarShift =
+            isScrollbarIgnored && element instanceof HTMLElement
+                ? (element.offsetWidth - element.clientWidth) / 2
+                : 0;
         return (
             column.getBoundingClientRect().left +
-            Number(getComputedStyle(column).paddingLeft.replace('px', ''))
+            Number(getComputedStyle(column).paddingLeft.replace('px', '')) +
+            scrollbarShift
         );
-    });
+    }, shouldIgnoreScrollbar);
 }
 
 /**
@@ -101,8 +110,9 @@ test('The message rail previews each tick in one fixed-size card for pointer and
             }, width);
         await setWindowWidth(1800);
         await send(MESSAGES[0], /You said: Fix the flaky build/u);
-        const transcriptLeft = () => contentLeft(chat.getByRole('log'));
-        const leftWithoutRail = await transcriptLeft();
+        const transcriptLeft = (shouldIgnoreScrollbar = false) =>
+            contentLeft(chat.getByRole('log'), shouldIgnoreScrollbar);
+        const leftWithoutRail = await transcriptLeft(true);
         await send(MESSAGES[1], /You said: Summarize topic0/u);
         await send(MESSAGES[2], /You said: Open/u);
         const rail = chat.getByRole('navigation', { name: 'Messages' });
@@ -110,11 +120,11 @@ test('The message rail previews each tick in one fixed-size card for pointer and
         await expect(ticks).toHaveCount(3);
 
         // A wide Chat's centered column already clears the rail, so its appearing never moves the transcript.
-        expect(await transcriptLeft()).toBeCloseTo(leftWithoutRail, 0);
+        expect(await transcriptLeft(true)).toBeCloseTo(leftWithoutRail, 0);
         // A narrow Chat loses that margin, and the transcript then pads past the ticks instead of running under them.
         await setWindowWidth(900);
         await expect
-            .poll(transcriptLeft)
+            .poll(() => transcriptLeft())
             .toBeGreaterThanOrEqual((await box(rail)).x + (await box(rail)).width);
         await page.screenshot({ path: testInfo.outputPath('rail-narrow-transcript.png') });
         await setWindowWidth(1800);
