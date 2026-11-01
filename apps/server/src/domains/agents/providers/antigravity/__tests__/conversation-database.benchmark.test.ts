@@ -20,7 +20,7 @@ import { encodeMessage } from './fixtures/conversation-database';
 const STEPS = 50_000;
 const TOOL_PAYLOAD_BYTES = 4096;
 const MESSAGE_CHARS = 2000;
-const RUNS = 5;
+const RUNS = 11;
 
 function writeLargeConversation(path: string): void {
     const database = new Database(path);
