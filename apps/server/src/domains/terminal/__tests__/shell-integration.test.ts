@@ -69,6 +69,36 @@ describe('ShellIntegrationService', () => {
         },
     );
 
+    it('guards the managed return against one interrupt even when startup left another trap', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-startup-trap-'));
+        temporaryDirectories.push(directory);
+        await ShellIntegrationService.create(directory);
+        // Stands in for a trap the system startup files set before Caxri's .zshenv runs.
+        const result = spawnSync(
+            '/bin/zsh',
+            [
+                '-f',
+                '-c',
+                'function TRAPUSR1() { :; }; source "$1"; print TRAP:${+functions[TRAPINT]}',
+                'zsh',
+                join(directory, 'shell-integration', '.zshenv'),
+            ],
+            {
+                env: {
+                    PATH: '/usr/bin:/bin',
+                    CAXRI_AGENT_LAUNCHER_RUNTIME: '/usr/bin/true',
+                    CAXRI_AGENT_LAUNCHER_ENTRY: 'fixture',
+                    CAXRI_AGENT_LAUNCHER_SOCKET: 'fixture',
+                    CAXRI_AGENT_LAUNCHER_ID: 'fixture',
+                    CAXRI_AGENT_LAUNCHER_TOKEN: 'fixture',
+                },
+                encoding: 'utf8',
+                timeout: 5_000,
+            },
+        );
+        expect(result.stdout).toContain('TRAP:1');
+    });
+
     it('maps zsh and bash to controlled content-free OSC 133 startup scripts', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-shell-integration-'));
         temporaryDirectories.push(directory);
