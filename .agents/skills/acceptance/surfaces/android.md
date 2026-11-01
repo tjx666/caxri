@@ -46,7 +46,9 @@ another installer before attributing the interruption to an app crash.
 
 The guarded release runner holds a repository-wide lock for that emulator serial from build and
 installation through fixture IME restoration and device cleanup. If another worktree owns the
-serial, wait for its run to finish before starting another round. Do not select the fixture IME or
+serial, the runner fails after 10 seconds; to wait for that round instead, set
+`CAXRI_MOBILE_ACCEPTANCE_SERIAL_LOCK_WAIT=<seconds>` (1 to 1800, counted against the runner's
+overall deadline). Never poll the holder's PID or wrap the runner in a retry loop. Do not select the fixture IME or
 clear the package outside the serial lock while another Acceptance run is active.
 After the APK build the runner waits up to twenty minutes for another worktree's active desktop
 lease, logging the holder and the waited time; in a measured round that wait (about 270s) outlasted

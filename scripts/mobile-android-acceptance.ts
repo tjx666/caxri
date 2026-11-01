@@ -52,6 +52,10 @@ import {
 } from './mobile-android-native-init';
 import { buildAndroidAcceptanceRelease } from './mobile-android-release-build';
 import { bindAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
+import {
+    androidSerialLockWaitMs,
+    withAndroidSerialLockWaitHint,
+} from './mobile-android-serial-lock';
 
 const root = resolve(import.meta.dirname, '..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
@@ -68,6 +72,8 @@ const reportDirectory = (() => {
     if (!value) throw new Error('CAXRI_MOBILE_ACCEPTANCE_REPORT_DIR is required');
     return value;
 })();
+const serialLockWait = process.env.CAXRI_MOBILE_ACCEPTANCE_SERIAL_LOCK_WAIT;
+const serialLockWaitMs = androidSerialLockWaitMs(serialLockWait);
 const caseIds = parseMobileAndroidCaseIds(
     process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_IDS ?? process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID,
 );
@@ -454,7 +460,7 @@ for (const [index, planned] of plannedCases.entries()) {
     }
 }
 
-await withRepoLock(
+const serialLockedRound = withRepoLock(
     await repoContext(root),
     async () => {
         const acceptanceBuildEnvironment = {
@@ -573,5 +579,11 @@ await withRepoLock(
                 ? caseFailure
                 : new Error('Android Acceptance case failed');
     },
-    { namespace: `android-${serial}` },
+    // The wait counts against the overall deadline, so 1800 seconds still leaves an hour for the round itself.
+    { namespace: `android-${serial}`, timeoutMs: serialLockWaitMs },
 );
+try {
+    await serialLockedRound;
+} catch (error) {
+    throw withAndroidSerialLockWaitHint(error, serialLockWait);
+}
