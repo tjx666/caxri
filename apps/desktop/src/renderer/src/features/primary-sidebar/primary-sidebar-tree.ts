@@ -4,6 +4,9 @@
  * workflow (see the `unit-testing` skill).
  */
 
+import type { TreeNavigation, TreeRowModel, TreeVerticalKey } from '../../lib/tree-navigation';
+import { treeNavigationTarget, treeVerticalTargetId } from '../../lib/tree-navigation';
+
 export interface PrimarySidebarProjectNode {
     /**
      * True when the Session window hides at least one Session, which is what puts the reveal row on screen.
@@ -230,7 +233,14 @@ export function flattenPrimarySidebarRows(
     return rows;
 }
 
-export type PrimarySidebarVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
+/**
+ * Project (and Pinned) headings sit at the top level, their Session, reveal, and "New Session" rows one level in, and a
+ * Session's subagent rows one level further.
+ */
+const primarySidebarRowModel: TreeRowModel<PrimarySidebarTreeRow> = {
+    depthOf: (row) =>
+        row.kind === 'project' ? 0 : row.kind === 'subagent' || row.kind === 'subagentMore' ? 2 : 1,
+};
 
 /**
  * Returns the row id roving focus should move to for Up/Down/Home/End, or `undefined` when the key does not move focus
@@ -239,15 +249,9 @@ export type PrimarySidebarVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home'
 export function nextPrimarySidebarRowId(
     rows: readonly PrimarySidebarTreeRow[],
     activeRowId: string | undefined,
-    key: PrimarySidebarVerticalKey,
+    key: TreeVerticalKey,
 ): string | undefined {
-    if (rows.length === 0) return undefined;
-    if (key === 'Home') return rows[0]?.id;
-    if (key === 'End') return rows.at(-1)?.id;
-    const currentIndex = rows.findIndex((row) => row.id === activeRowId);
-    if (currentIndex === -1) return rows[0]?.id;
-    const nextIndex = currentIndex + (key === 'ArrowDown' ? 1 : -1);
-    return nextIndex >= 0 && nextIndex < rows.length ? rows[nextIndex]?.id : undefined;
+    return treeVerticalTargetId(rows, activeRowId, key, primarySidebarRowModel);
 }
 
 export interface PrimarySidebarHorizontalIntent {
@@ -259,23 +263,6 @@ export interface PrimarySidebarHorizontalIntent {
      * Present when Left/Right should move roving focus to a different row.
      */
     focusRowId?: string;
-}
-
-/**
- * Row id of the first row nested under a Project heading, or `undefined` when the Project renders none.
- * `flattenPrimarySidebarRows` emits a Project's rows immediately after its heading, so the candidate is always the next
- * row; it is still tested against the owning Project so a Project with nothing below it cannot step into the next
- * Project's heading.
- */
-function firstPrimarySidebarChildRowId(
-    rows: readonly PrimarySidebarTreeRow[],
-    projectRow: PrimarySidebarTreeRow,
-): string | undefined {
-    const index = rows.findIndex((candidate) => candidate.id === projectRow.id);
-    if (index === -1) return undefined;
-    const next = rows.at(index + 1);
-    if (!next) return undefined;
-    return next.kind !== 'project' && next.projectId === projectRow.projectId ? next.id : undefined;
 }
 
 /**
@@ -293,12 +280,19 @@ export function primarySidebarHorizontalIntent(
     isExpanded: boolean,
     key: 'ArrowLeft' | 'ArrowRight',
 ): PrimarySidebarHorizontalIntent {
-    if (row.kind !== 'project')
-        return key === 'ArrowLeft' ? { focusRowId: row.parentRowId ?? row.projectId } : {};
+    const index = rows.findIndex((candidate) => candidate.id === row.id);
+    const targetId = (action: TreeNavigation): string | undefined => {
+        const target = treeNavigationTarget(rows, index, action, primarySidebarRowModel);
+        return target === undefined ? undefined : rows[target].id;
+    };
+    if (row.kind !== 'project') {
+        const parentId = key === 'ArrowLeft' ? targetId('parent') : undefined;
+        return parentId ? { focusRowId: parentId } : {};
+    }
     if (key === 'ArrowLeft') return isExpanded ? { expanded: false } : {};
     if (!isExpanded) return { expanded: true };
-    const firstChildRowId = firstPrimarySidebarChildRowId(rows, row);
-    return firstChildRowId ? { focusRowId: firstChildRowId } : {};
+    const firstChildId = targetId('firstChild');
+    return firstChildId ? { focusRowId: firstChildId } : {};
 }
 
 /**

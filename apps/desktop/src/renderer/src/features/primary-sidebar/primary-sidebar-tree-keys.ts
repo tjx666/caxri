@@ -1,23 +1,13 @@
 import type { KeyboardEvent } from 'react';
 
+import { isTreeVerticalKey } from '../../lib/tree-navigation';
 import { archiveSession } from '../session/session-archive-commands';
-import type { PrimarySidebarTreeRow, PrimarySidebarVerticalKey } from './primary-sidebar-tree';
+import type { PrimarySidebarTreeRow } from './primary-sidebar-tree';
 import {
     nextPrimarySidebarRowId,
     primarySidebarArchiveIntent,
     primarySidebarHorizontalIntent,
 } from './primary-sidebar-tree';
-
-const PRIMARY_SIDEBAR_VERTICAL_KEYS: readonly PrimarySidebarVerticalKey[] = [
-    'ArrowDown',
-    'ArrowUp',
-    'Home',
-    'End',
-];
-
-function isPrimarySidebarVerticalKey(key: string): key is PrimarySidebarVerticalKey {
-    return (PRIMARY_SIDEBAR_VERTICAL_KEYS as readonly string[]).includes(key);
-}
 
 interface PrimarySidebarTreeKeyOptions {
     focusRow: (rowId: string) => void;
@@ -52,7 +42,7 @@ export function handlePrimarySidebarTreeKey(
     const rowElement = target.closest<HTMLElement>('[data-row-id]');
     const rowId = rowElement?.dataset.rowId;
     if (!rowId) return;
-    if (isPrimarySidebarVerticalKey(event.key)) {
+    if (isTreeVerticalKey(event.key)) {
         const nextRowId = nextPrimarySidebarRowId(rows, rowId, event.key);
         if (!nextRowId) return;
         event.preventDefault();

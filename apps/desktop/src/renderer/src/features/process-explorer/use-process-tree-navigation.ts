@@ -1,7 +1,8 @@
 import type { FocusEvent, KeyboardEvent, RefObject } from 'react';
 import { useMemo, useState } from 'react';
 
-import type { ProcessRowVerticalKey, ProcessTreeNode, ProcessTreeRow } from './process-tree';
+import { isTreeVerticalKey } from '../../lib/tree-navigation';
+import type { ProcessTreeNode, ProcessTreeRow } from './process-tree';
 import {
     flattenProcessTree,
     nextProcessRowIndex,
@@ -10,17 +11,6 @@ import {
     setProcessNodeExpanded,
     setProcessSubtreeExpanded,
 } from './process-tree';
-
-const PROCESS_VERTICAL_KEYS: readonly ProcessRowVerticalKey[] = [
-    'ArrowDown',
-    'ArrowUp',
-    'Home',
-    'End',
-];
-
-function isProcessVerticalKey(key: string): key is ProcessRowVerticalKey {
-    return (PROCESS_VERTICAL_KEYS as readonly string[]).includes(key);
-}
 
 /**
  * Expansion, the single roving Tab stop, and keyboard navigation for the process treegrid.
@@ -92,7 +82,7 @@ export function useProcessTreeNavigation({
         const index = rows.indexOf(row);
         if (index === -1) return;
         const { key } = event;
-        if (isProcessVerticalKey(key)) {
+        if (isTreeVerticalKey(key)) {
             const nextIndex = nextProcessRowIndex(rows, index, key);
             if (nextIndex === undefined) return;
             event.preventDefault();
