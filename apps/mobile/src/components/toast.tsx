@@ -8,6 +8,7 @@ import { Check, CircleAlert } from 'lucide-react-native';
 
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../theme/scale';
 import { useMobileTheme } from '../theme/use-mobile-theme';
+import { Button } from './button';
 import { toastStore } from './toast-store';
 
 /**
@@ -18,8 +19,9 @@ const COMPOSER_CLEARANCE = mobileControl.primary + mobileSpace.lg * 2 + mobileSp
 
 /**
  * Renders the app's one toast, mounted once in the root layout. A small card at the bottom, above the safe area and the
- * Composer; it never takes touches. Android reads it through a polite live region; iOS has none, so the sentence is
- * announced once when it appears. Motion follows the system's reduce-motion setting.
+ * Composer; it takes no touches except on its action button (Undo after an archive), which stays a 48dp target. Android
+ * reads it through a polite live region; iOS has none, so the sentence is announced once when it appears. Motion
+ * follows the system's reduce-motion setting.
  */
 export const ToastHost = () => {
     const toast = useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot);
@@ -34,7 +36,7 @@ export const ToastHost = () => {
     const Icon = toast.tone === 'success' ? Check : CircleAlert;
     return (
         <View
-            pointerEvents="none"
+            pointerEvents={toast.action ? 'box-none' : 'none'}
             style={[styles.host, { bottom: insets.bottom + COMPOSER_CLEARANCE }]}
         >
             <Animated.View
@@ -52,6 +54,15 @@ export const ToastHost = () => {
                         <Text style={[styles.detail, { color: theme.muted }]}>{toast.detail}</Text>
                     ) : null}
                 </View>
+                {toast.action ? (
+                    <Button
+                        label={toast.action.label}
+                        onPress={() => toastStore.runAction(toast.id)}
+                        testID="toast-action"
+                        theme={theme}
+                        variant="secondary"
+                    />
+                ) : null}
             </Animated.View>
         </View>
     );

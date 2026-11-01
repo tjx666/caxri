@@ -6,11 +6,12 @@ import type {
     MobileReopenableConversation,
 } from '@caxri/protocol';
 
+import { showToast } from '../../../components/toast-store';
 import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useHostSessions } from '../components/host-sessions-provider';
 import { BOT_HANDOVER_REJECTION_REASONS } from '../session-agent-menu';
-import { sessionManagementErrorMessage } from '../session-management-model';
+import { sessionManagementErrorMessage, showArchiveUndo } from '../session-management-model';
 
 type Action =
     | 'archive'
@@ -88,14 +89,27 @@ export const useSessionManagement = () => {
         [request, run, t],
     );
     const archive = useCallback(
-        (sessionId: string) =>
-            run(
+        async (sessionId: string) => {
+            const isArchived = await run(
                 'archive',
                 sessionId,
                 () => request('mobile.session.archive', { sessionId }),
                 t('sessions.manage.archiveFailed'),
-            ),
-        [request, run, t],
+            );
+            // The Undo outlives the sheet that archived, so it talks to the client and the list directly rather than
+            // through this hook's `pending` and `error`.
+            if (isArchived)
+                showArchiveUndo({
+                    restore: async () => {
+                        await request('mobile.session.restore', { sessionId });
+                        await sessions.refresh();
+                    },
+                    show: showToast,
+                    t,
+                });
+            return isArchived;
+        },
+        [request, run, sessions, t],
     );
     const restore = useCallback(
         (sessionId: string) =>

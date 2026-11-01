@@ -11,6 +11,19 @@ export const TOAST_DURATION_MS = 3000;
 export const TOAST_ERROR_DURATION_MS = 6000;
 
 /**
+ * How long a toast with an action stays: long enough to notice the button, reach it, and press it.
+ */
+export const TOAST_ACTION_DURATION_MS = 8000;
+
+/**
+ * One button on a toast, such as Undo after an archive. Pressing it also removes the toast.
+ */
+export interface ToastAction {
+    label: string;
+    onPress: () => void;
+}
+
+/**
  * `success` confirms an action that finished (a copy); `error` reports one that could not (a preview or link that would
  * not open). The tone only picks the icon and its color; the sentence always says what happened.
  */
@@ -21,6 +34,7 @@ export type ToastTone = 'error' | 'success';
  * announcement even when the text is identical.
  */
 export interface ToastState {
+    action?: ToastAction;
     /**
      * An optional second line, such as the reason a preview did not open.
      */
@@ -34,6 +48,11 @@ export interface ToastTimers {
     clear: (handle: unknown) => void;
     set: (callback: () => void, delayMs: number) => unknown;
 }
+
+const toastDuration = (tone: ToastTone, action: ToastAction | undefined) => {
+    if (action) return TOAST_ACTION_DURATION_MS;
+    return tone === 'error' ? TOAST_ERROR_DURATION_MS : TOAST_DURATION_MS;
+};
 
 const systemTimers: ToastTimers = {
     clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
@@ -63,15 +82,22 @@ export const createToastStore = (timers: ToastTimers = systemTimers) => {
     return {
         dismiss,
         getSnapshot: (): ToastState | undefined => current,
-        show: (tone: ToastTone, message: string, detail?: string) => {
+        show: (tone: ToastTone, message: string, detail?: string, action?: ToastAction) => {
             if (handle !== undefined) timers.clear(handle);
-            current = { detail, id: nextId, message, tone };
+            current = { action, detail, id: nextId, message, tone };
             nextId += 1;
-            handle = timers.set(
-                dismiss,
-                tone === 'error' ? TOAST_ERROR_DURATION_MS : TOAST_DURATION_MS,
-            );
+            handle = timers.set(dismiss, toastDuration(tone, action));
             emit();
+        },
+        /**
+         * Runs the action of the toast on screen and removes it; a stale press for a toast already replaced does
+         * nothing.
+         */
+        runAction: (id: number) => {
+            const action = current?.id === id ? current.action : undefined;
+            if (!action) return;
+            dismiss();
+            action.onPress();
         },
         subscribe: (listener: () => void) => {
             listeners.add(listener);

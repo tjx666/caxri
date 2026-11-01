@@ -215,6 +215,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.list.waiting': '等待中',
     'sessions.list.working': '运行中',
     'sessions.manage.archiveFailed': '无法归档此会话',
+    'sessions.manage.archived': '会话已归档',
+    'sessions.manage.undo': '撤销',
     'sessions.manage.continueFailed': '无法在该 Agent 中继续',
     'sessions.manage.deleteFailed': '无法删除此会话',
     'sessions.manage.forkFailed': '无法分叉对话',

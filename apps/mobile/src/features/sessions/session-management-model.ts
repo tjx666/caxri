@@ -1,6 +1,7 @@
 import type { AgentChatContinuationTarget, AgentProvider } from '@caxri/protocol';
 import { sessionRenameTitleSchema } from '@caxri/protocol';
 
+import type { showToast } from '../../components/toast-store';
 import type { Translate } from '../../i18n';
 import { resetText } from '../agent-chat/agent-chat-plan-limits';
 import { mobileErrorMessage } from '../connection/mobile-error-message';
@@ -18,6 +19,34 @@ export const sessionRenameDraft = (draft: string, currentTitle: string): string 
 
 export const sessionManagementErrorMessage = (error: unknown, fallback: string): string =>
     mobileErrorMessage(error, fallback);
+
+/**
+ * Confirms an archive with a toast whose Undo restores the Session, so a mistaken tap is one press away from undone
+ * instead of a trip to the archived list. A failed Undo reports why; the Session then stays archived.
+ */
+export const showArchiveUndo = ({
+    restore,
+    show,
+    t,
+}: {
+    restore: () => Promise<unknown>;
+    show: typeof showToast;
+    t: Translate;
+}): void => {
+    show('success', t('sessions.manage.archived'), undefined, {
+        label: t('sessions.manage.undo'),
+        onPress: async () => {
+            try {
+                await restore();
+            } catch (error) {
+                show(
+                    'error',
+                    sessionManagementErrorMessage(error, t('sessions.manage.restoreFailed')),
+                );
+            }
+        },
+    });
+};
 
 /**
  * Why Fork Session and Continue in Another Agent cannot act on a Session, as Desktop's `sessionForkBlocker` decides:
