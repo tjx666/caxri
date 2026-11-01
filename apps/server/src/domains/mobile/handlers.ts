@@ -112,6 +112,11 @@ export function createMobileDomainHandlers(options: {
      */
     autoAllow?: Partial<PermissionAutoAllowAccess>;
     git: GitService;
+    /**
+     * Upload roots. The Server passes directories under its profile: each store sweeps unknown entries in its root, so
+     * a root shared with another Server (a dev worktree beside the installed app) would delete that Server's cited
+     * files. The shared `tmpdir()` defaults exist only for fixtures.
+     */
     imageDirectory?: string;
     fileDirectory?: string;
     queue: MobileTerminalMutationQueue;

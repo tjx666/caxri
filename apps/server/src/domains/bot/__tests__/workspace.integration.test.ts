@@ -1,7 +1,9 @@
 import { Buffer } from 'node:buffer';
+import { execFile } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
@@ -49,6 +51,36 @@ describe('prepareBotWorkspace', () => {
         expect(instructions).toContain('(Truncated: read `memory/lessons.md` for the rest');
         expect(instructions).not.toContain('�');
         expect(Buffer.byteLength(instructions)).toBeLessThan(BOT_PROJECT_DOC_MAX_BYTES);
+    });
+
+    it('skips a memory path that is not a regular file instead of blocking the start', async () => {
+        const userData = await profile();
+        const { path } = await prepareBotWorkspace(userData);
+        const lessons = join(path, 'memory', 'lessons.md');
+        await rm(lessons);
+        await promisify(execFile)('mkfifo', [lessons]);
+
+        await prepareBotWorkspace(userData);
+
+        const instructions = await readFile(join(path, 'AGENTS.md'), 'utf8');
+        expect(instructions).toContain('### memory/repositories.md');
+        expect(instructions).not.toContain('### memory/lessons.md');
+    });
+
+    it('notes the cut when only trailing whitespace follows the budget', async () => {
+        const userData = await profile();
+        const { path } = await prepareBotWorkspace(userData);
+        const line = '- keep\n';
+        const head = line.repeat(Math.floor(BOT_MEMORY_EMBED_BYTES / line.length));
+        await writeFile(
+            join(path, 'memory', 'lessons.md'),
+            `${head}${' '.repeat(BOT_MEMORY_EMBED_BYTES)}\n- beyond the budget\n`,
+        );
+
+        await prepareBotWorkspace(userData);
+
+        const instructions = await readFile(join(path, 'AGENTS.md'), 'utf8');
+        expect(instructions).toContain('(Truncated: read `memory/lessons.md` for the rest');
     });
 
     it('moves memory notes kept under the legacy workspace name and leaves an existing workspace alone', async () => {

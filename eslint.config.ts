@@ -572,6 +572,7 @@ export default defineConfig(
         files: [
             'apps/server/src/domains/agents/**/*.ts',
             'apps/server/src/domains/agent-chat/**/*.ts',
+            'apps/server/src/domains/bot/**/*.ts',
             'apps/desktop/src/main/external-activation/**/*.ts',
             'scripts/fixtures/eslint/bounded-external-reads/**/*.ts',
         ],
@@ -692,6 +693,22 @@ export default defineConfig(
         },
         rules: {
             'caxri/no-render-translate': 'error',
+        },
+    },
+    /**
+     * Base UI loops (React error 185) when one Popover registers several triggers; see
+     * `.agents/skills/project-architecture/references/stack-baseline.md`.
+     */
+    {
+        files: [
+            'apps/desktop/src/renderer/src/**/*.tsx',
+            'scripts/fixtures/eslint/single-popover-trigger/**/*.tsx',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/single-popover-trigger': 'error',
         },
     },
     /**

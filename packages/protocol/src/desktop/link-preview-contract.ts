@@ -26,7 +26,8 @@ export const linkPreviewDesktopMethods = {
             title: z.string().max(MAX_LINK_PREVIEW_TITLE_LENGTH).optional(),
             description: z.string().max(MAX_LINK_PREVIEW_DESCRIPTION_LENGTH).optional(),
             /**
-             * An absolute HTTPS URL the Renderer loads as an `<img>`; the CSP already admits HTTPS images.
+             * An absolute HTTPS URL on a public host, which the Renderer loads as an `<img>` (the CSP already admits
+             * HTTPS images). Main drops one whose host is loopback, private, or resolves to such an address.
              */
             imageUrl: httpsUrl.optional(),
         }),

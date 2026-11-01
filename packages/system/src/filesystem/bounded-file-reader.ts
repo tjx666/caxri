@@ -23,6 +23,12 @@ export interface BoundedRegularFileReadOptions {
      */
     inspect?: (metadata: Stats) => void;
     notRegularFileMessage?: string;
+    /**
+     * `reject` (the default) fails an oversized file with `CAPACITY`. `truncate` returns its first `maxBytes + 1` bytes
+     * instead, for a caller that embeds only a head and tells the reader the rest was cut; the extra byte is how it
+     * detects the cut.
+     */
+    oversize?: 'reject' | 'truncate';
     openFile?: OpenRegularFile;
     /**
      * `follow` (the default) resolves a final symlink, since user-selected themes and provider-owned configuration
@@ -65,11 +71,14 @@ export async function readBoundedRegularFile(
                 'IO',
                 options.notRegularFileMessage ?? 'Path is not a regular file',
             );
-        if (stats.size > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
+        const isTruncate = options.oversize === 'truncate';
+        if (!isTruncate && stats.size > maxBytes)
+            throw capacityError(maxBytes, options.capacityMessage);
         await options.beforeRead?.();
 
         const buffer = await readFileHandleUpTo(file, stats.size, maxBytes);
-        if (buffer.length > maxBytes) throw capacityError(maxBytes, options.capacityMessage);
+        if (!isTruncate && buffer.length > maxBytes)
+            throw capacityError(maxBytes, options.capacityMessage);
         return buffer;
     } finally {
         await file.close();

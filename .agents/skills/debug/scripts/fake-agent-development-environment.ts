@@ -33,6 +33,8 @@ import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { parseArgs, promisify } from 'node:util';
 
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
 
 import {
@@ -42,7 +44,7 @@ import {
     fakeGrokChatAgentMode,
 } from '../../../../e2e/support/agent-chat-fixture';
 
-const PROVIDERS = ['claude', 'codex', 'grok', 'antigravity'] as const;
+const PROVIDERS = agentProviderIds;
 /**
  * Keys beyond {@link e2eAgentEnvironmentKeys} that keep the dev instance's own home directory inside the fixture.
  */
@@ -54,7 +56,7 @@ const HOME_ISOLATION_KEYS = [
     'XDG_DATA_HOME',
 ] as const;
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../../..');
-type FakeChatProvider = (typeof PROVIDERS)[number];
+type FakeChatProvider = AgentProvider;
 
 function shellQuote(value: string): string {
     return `'${value.replaceAll("'", String.raw`'\''`)}'`;
@@ -153,14 +155,15 @@ async function main(): Promise<void> {
     const controlDirectory = join(directory, 'control');
     await mkdir(controlDirectory, { recursive: true });
     await writeFile(join(controlDirectory, 'ai-naming'), '');
-    const mode =
-        provider === 'claude'
-            ? await fakeClaudeChatAgentMode(userData, controlDirectory, scriptPath)
-            : provider === 'codex'
-              ? await fakeCodexChatAgentMode(directory, userData, { scriptPath })
-              : provider === 'grok'
-                ? await fakeGrokChatAgentMode(directory, userData)
-                : await fakeAntigravityChatAgentMode(directory, userData);
+    // A Record, not a ternary chain, so a provider added to the catalog fails typecheck here instead of silently
+    // launching another provider's fake.
+    const fakeModes: Record<AgentProvider, () => ReturnType<typeof fakeGrokChatAgentMode>> = {
+        claude: () => fakeClaudeChatAgentMode(userData, controlDirectory, scriptPath),
+        codex: () => fakeCodexChatAgentMode(directory, userData, { scriptPath }),
+        grok: () => fakeGrokChatAgentMode(directory, userData),
+        antigravity: () => fakeAntigravityChatAgentMode(directory, userData),
+    };
+    const mode = await fakeModes[provider]();
     const environment = await createE2EAgentEnvironment({
         fixtureRoot: join(userData, 'e2e-agents'),
         mode,

@@ -1826,8 +1826,10 @@ popup itself hold focus until then.
 - Right-click menus are native OS menus. A surface attaches one with `useContextMenu` or
   `ContextMenuTrigger` and a builder that returns plain entries when the menu opens; Main shows it
   through `contextMenu.show` and hands back only the chosen entry, once the menu has closed, so an
-  action that opens an inline input (Rename, New File) keeps focus there. Entries carry a `shortcut`
-  hint from the live keybinding table (`readCommandShortcut`) instead of a literal, and a chord
+  action that opens an inline input (Rename, New File) keeps focus there. An entry for a registered
+  command takes its `shortcut` hint from the live keybinding table (`readCommandShortcut`) instead of
+  a literal; a fixed row-local key that no keybinding owns (`Enter` to rename a focused row) may
+  stay literal. A chord
   sequence renders inside the label because a native accelerator cannot express one. A native menu
   has no tooltip, so a disabled entry that is not self-explanatory carries a short `disabledReason`
   sentence ("Nothing to paste"): macOS 14.4 and later show it as a smaller second line under the

@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, relative, resolve } from 'node:path';
 
@@ -62,6 +70,29 @@ function lockfiles(directory: string, scanRoot = directory): string[] {
             found.push(path);
     }
     return found;
+}
+
+/**
+ * Every dependency entry of the root and each workspace member manifest, as `{ path, name, range }`.
+ */
+function manifestDependencies(): Array<{ path: string; name: string; range: string }> {
+    const groups = ['apps', 'extensions', 'packages'];
+    const members = groups.flatMap((group) =>
+        readdirSync(join(root, group), { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => join(group, entry.name, 'package.json')),
+    );
+    const paths = ['package.json', ...members].filter((path) => existsSync(join(root, path)));
+    return paths.flatMap((path) => {
+        const manifest = JSON.parse(readFileSync(join(root, path), 'utf8')) as Record<
+            string,
+            Record<string, string> | undefined
+        >;
+        const fields = ['dependencies', 'devDependencies', 'optionalDependencies'];
+        return fields.flatMap((field) =>
+            Object.entries(manifest[field] ?? {}).map(([name, range]) => ({ path, name, range })),
+        );
+    });
 }
 
 /**
@@ -204,6 +235,28 @@ describe('pnpm dependency contract', () => {
         } finally {
             rmSync(fixture, { force: true, recursive: true });
         }
+    });
+
+    it('gives each dependency one range across the workspace manifests', () => {
+        /**
+         * Expo-managed packages that `apps/mobile` holds on the SDK-recommended range while Desktop tracks the latest
+         * release (stack-baseline.md exceptions).
+         */
+        const mobileExceptions = new Set(['@types/react', 'react', 'react-dom', 'typescript']);
+        const catalog = workspace.catalog ?? {};
+        const ranges = new Map<string, Set<string>>();
+        const catalogDrift: string[] = [];
+        for (const { path, name, range } of manifestDependencies()) {
+            if (range.startsWith('workspace:')) continue;
+            if (range !== 'catalog:' && name in catalog) catalogDrift.push(`${path} ${name}`);
+            if (mobileExceptions.has(name) && path.startsWith('apps/mobile/')) continue;
+            ranges.set(name, (ranges.get(name) ?? new Set()).add(range));
+        }
+
+        expect(catalogDrift).toEqual([]);
+        expect([...ranges].filter(([, values]) => values.size > 1).map(([name]) => name)).toEqual(
+            [],
+        );
     });
 
     it('keeps the root private orchestrator free of product runtime dependencies', () => {

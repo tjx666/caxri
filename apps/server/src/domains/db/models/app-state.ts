@@ -196,8 +196,16 @@ export class AppStateModel {
         return row ? parseAppStateValue(key, row.valueJson) : undefined;
     }
 
+    /**
+     * Validates against the same schema `get` reads with, so a value past a schema bound (a list longer than its
+     * `.max()`) fails here instead of being stored and making every later read throw. The previous cell stays intact on
+     * failure.
+     */
     set<K extends AppStateKey>(key: K, value: AppStateValue<K>): void {
-        const valueJson = JSON.stringify(value);
+        const result = appStateValueSchemas[key].safeParse(value);
+        if (!result.success)
+            throw new CaxriError('VALIDATION', `Invalid app state value for ${key}`);
+        const valueJson = JSON.stringify(result.data);
         this.database
             .insert(appState)
             .values({ key, valueJson })

@@ -23,6 +23,7 @@ import { ChatSubagentSummaries } from './chat-subagent-summaries';
 import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 import type { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
+import { forgetParsedTranscript } from './history/read';
 import { ChatFollowUpQueue } from './queue/follow-up-queue';
 import { forgetTaskRevisions } from './tasks/projections';
 
@@ -307,6 +308,8 @@ export class ChatStates {
         }
         if (isClosed) {
             forgetTaskRevisions(this.taskRevisionFloors, terminalId);
+            // A closed Chat never pages its history again; its parsed transcript would otherwise sit out the TTL.
+            forgetParsedTranscript(terminalId);
             if (!this.options.database.getTerminal(terminalId))
                 this.revisionFloors.delete(terminalId);
         }
