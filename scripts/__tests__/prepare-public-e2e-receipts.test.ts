@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -11,6 +12,7 @@ import {
     toPublicE2EPoolReceipt,
 } from '../prepare-public-e2e-receipts';
 import { createE2EPoolReceipt, stableErrorIdentity } from '../reporters/e2e-receipt-reporter';
+import { classifyE2EFailure } from '../reporters/public-e2e-failure-class';
 
 const roots: string[] = [];
 
@@ -224,6 +226,54 @@ describe('public E2E receipts', () => {
         ]) {
             expect(raw).not.toContain(forbidden);
         }
+    });
+
+    it('carries the closed failure class onto hashed and missing-error failures', () => {
+        const failureClass = classifyE2EFailure(
+            [
+                {
+                    message:
+                        "expect(locator).toBeVisible() failed\n\nLocator: getByRole('button')\nTimeout: 5000ms",
+                },
+            ],
+            { file: `${process.cwd()}/e2e/example.e2e.ts`, status: 'failed' },
+        );
+        const receipt = failingPoolReceipt();
+        receipt.tests.push({
+            ...receipt.tests[0],
+            errorIdentity: null,
+            id: 'second',
+            location: 'e2e/second.e2e.ts:5:2',
+            verdict: 'timeout',
+        });
+        for (const test of receipt.tests) test.failureClass = failureClass;
+        receipt.failed = 1;
+        receipt.timedOut = 1;
+        receipt.finished = 2;
+        receipt.planned = 2;
+        receipt.specs.push({
+            durationMs: 1,
+            path: 'e2e/second.e2e.ts',
+            testIds: ['second'],
+            verdict: 'timeout',
+        });
+        const projected = toPublicE2EPoolReceipt(receipt);
+        expect(projected.failures.map((failure) => failure.classification)).toEqual([
+            'stable-error-hash',
+            'missing-error',
+        ]);
+        for (const failure of projected.failures)
+            expect(failure.failureClass).toMatchObject({ kind: 'assertion-timeout' });
+        expect(publicE2EPoolReceiptSchema.safeParse(projected).success).toBe(true);
+    });
+
+    it('rejects a failure class that carries text', () => {
+        const receipt = failingPoolReceipt();
+        receipt.tests[0].failureClass = {
+            ...classifyE2EFailure([], { file: 'x', status: 'failed' }),
+            message: 'private',
+        } as never;
+        expect(() => toPublicE2EPoolReceipt(receipt)).toThrow();
     });
 
     it('stages a strictly validated Renderer performance receipt', async () => {

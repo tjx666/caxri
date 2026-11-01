@@ -7,6 +7,9 @@ import process from 'node:process';
 import type { FullConfig, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
 
 import { writeJsonAtomic } from '../atomic-json';
+import type { PublicE2EFailureClass } from './public-e2e-failure-class';
+import { classifyTestResult, primaryErrorMessage } from './public-e2e-failure-class';
+import { readPublicE2ELaunch } from './public-e2e-launch';
 
 type E2ETestVerdict = 'fail' | 'pass' | 'skipped' | 'timeout' | 'unknown';
 
@@ -18,6 +21,11 @@ export interface E2ETestReceipt {
      */
     durationMs: number;
     errorIdentity: string | null;
+    /**
+     * Closed-enum classification of the last failed attempt; never carries error text. See
+     * `public-e2e-failure-class.ts`.
+     */
+    failureClass?: PublicE2EFailureClass;
     /**
      * The first failed attempt of a test that Playwright retried, so a retry that ends green cannot erase the failure.
      * Only `e2e/startup.performance.e2e.ts` retries, and only in the Release pools (see that spec and issue #1418).
@@ -390,7 +398,7 @@ class E2EReceiptReporter implements Reporter {
     onTestEnd(test: TestCase, result: TestResult): void {
         const planned = this.planned.get(test.id);
         if (!planned) return;
-        const error = result.error?.message ?? result.errors[0]?.message;
+        const error = primaryErrorMessage(result);
         // Retries replay the same test id, so accumulate rather than overwrite: the pool really did spend both attempts.
         planned.durationMs += Math.max(0, Math.round(result.duration));
         planned.artifacts = result.attachments
@@ -402,6 +410,7 @@ class E2EReceiptReporter implements Reporter {
          */
         if (result.status === 'interrupted') {
             planned.errorIdentity = null;
+            delete planned.failureClass;
             planned.verdict = 'unknown';
             this.appendProgress({ test: planned, type: 'end' });
             return;
@@ -416,6 +425,13 @@ class E2EReceiptReporter implements Reporter {
                 verdict: planned.verdict,
             };
         planned.errorIdentity = error ? stableErrorIdentity(error) : null;
+        const failureClass = classifyTestResult(result, {
+            file: test.location.file,
+            launch: readPublicE2ELaunch(result.annotations),
+            testTimeoutMs: test.timeout,
+        });
+        if (failureClass) planned.failureClass = failureClass;
+        else delete planned.failureClass;
         planned.verdict =
             result.status === 'passed'
                 ? 'pass'

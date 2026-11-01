@@ -18,7 +18,8 @@ import {
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Files folder dropped into Agent Chat shows as a pill, keeps its absolute path, and stays a pill once sent', async ({}, testInfo) => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-path-pill-'));
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-path-pill-'));
+    const directory = await realpath(created);
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
     const hooks = join(root, '.githooks');

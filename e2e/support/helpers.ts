@@ -34,7 +34,7 @@ import {
 import { closeE2EApp } from './desktop-lease-lifecycle.ts';
 import { prepareE2EProfile, withE2EAgentSurfaceBaseline } from './e2e-profile.ts';
 import type { E2EApp } from './electron-app.ts';
-import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
+import { flushE2EErrorToasts, recordE2ELaunchStage, registerE2ELaunch } from './error-gate.ts';
 import { releaseE2EHost } from './host-shutdown.ts';
 import type { E2EAgentMode, LaunchCaxriOptions } from './launch-options.ts';
 import { openProjectNewSessionMenu } from './project-new-session-menu.ts';
@@ -124,7 +124,7 @@ export function launchCaxriApp(
 ): Promise<RunningCaxriWithClipboard>;
 export function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri>;
 export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<RunningCaxri> {
-    const markStage = createE2ELaunchTimer(options.onLaunchStage);
+    const markStage = createE2ELaunchTimer(recordE2ELaunchStage(options.onLaunchStage));
     await assertE2EBuildIsFresh(options.executablePath);
     markStage('freshnessMs');
     const {

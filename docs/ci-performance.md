@@ -641,6 +641,11 @@ wall time alone hides it.
   `test-results/public-receipts/`. The projection removes titles, test IDs, artifact paths,
   timestamps, and arbitrary error text. It retains a stable error hash when available and otherwise
   emits the closed `missing-error` classification, so each failed or timed-out test remains visible.
+  Both variants may carry a `failureClass` (closed enums, bounded integers, up to three `e2e/` frames, the
+  last completed launch stage, an unrequested Electron exit, and a structural hash) built by
+  `scripts/reporters/public-e2e-failure-class.ts`, the only reporter module that reads error text, and it never
+  emits any of it. The public `test-end` event carries the same object, so a failure with no spec frame still says
+  whether it was a launch failure, a process exit, or a helper throw.
   Workflow upload paths name individual JSON files: raw Playwright output, progress journals, traces,
   screenshots, DOM snapshots, Terminal content, and auxiliary receipts never leave the disposable
   hosted runner.

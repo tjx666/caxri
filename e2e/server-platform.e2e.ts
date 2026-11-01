@@ -1,16 +1,17 @@
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToServer, ensureServer } from '@caxri/client/supervise';
+import { ensureServer } from '@caxri/client/supervise';
 import { createE2EAgentEnvironment } from '@caxri/system';
 
 import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { stopE2EHost } from './support/host-shutdown.ts';
 import { openSettingsPage, revealSettingsSection } from './support/settings.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
@@ -52,53 +53,6 @@ function runCli(arguments_: readonly string[], environment: NodeJS.ProcessEnv): 
             },
         );
     });
-}
-
-async function stopHost(userDataPath: string): Promise<void> {
-    let client: Awaited<ReturnType<typeof connectToServer>> | undefined;
-    try {
-        client = await connectToServer(userDataPath, 2_000);
-    } catch {
-        client = undefined;
-    }
-    if (!client) return;
-    let pid: number | undefined;
-    try {
-        pid = (await client.request('host.status', {})).pid;
-        try {
-            await client.request('host.stop', { confirmLivePtys: true });
-        } catch {
-            // Ignore stop failures; the poll below confirms the Host actually shut down.
-        }
-    } finally {
-        client.close();
-    }
-    const manifestPath = join(userDataPath, 'host', 'manifest.json');
-    await expect
-        .poll(
-            async () => {
-                let isManifestExists: boolean;
-                try {
-                    await access(manifestPath);
-                    isManifestExists = true;
-                } catch {
-                    isManifestExists = false;
-                }
-                let isProcessExists: boolean;
-                try {
-                    // `pid` is always defined here: its only assignment (`host.status` above) is
-                    // unguarded by a `catch`, so a failure there would already have aborted this
-                    // function before reaching this poll.
-                    if (pid) process.kill(pid, 0);
-                    isProcessExists = true;
-                } catch {
-                    isProcessExists = false;
-                }
-                return { manifestExists: isManifestExists, processExists: isProcessExists };
-            },
-            { timeout: 5_000 },
-        )
-        .toEqual({ manifestExists: false, processExists: false });
 }
 
 test('authorizes an external caller before Desktop attaches and revokes it across a Server restart', async () => {
@@ -248,7 +202,7 @@ test('authorizes an external caller before Desktop attaches and revokes it acros
         });
         await running.app.close();
         running = undefined;
-        await stopHost(userData);
+        await stopE2EHost(userData);
         const restarted = await ensureServer(
             userData,
             { artifactRoot: serverArtifactRoot, environment: hostEnvironment },
@@ -289,7 +243,7 @@ test('authorizes an external caller before Desktop attaches and revokes it acros
         expect(denied.code).not.toBe(0);
     } finally {
         await running?.app.close();
-        await stopHost(userData);
+        await stopE2EHost(userData);
         await rm(directory, { recursive: true, force: true });
     }
 });
@@ -438,7 +392,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
         } catch {
             // Ignore close failures; the assertions above already produced the test result.
         }
-        await stopHost(userData);
+        await stopE2EHost(userData);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

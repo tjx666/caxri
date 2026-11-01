@@ -6,8 +6,26 @@ import type { AppSettings } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { openCaxriBot } from './support/caxri-bot.ts';
+import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+
+/**
+ * A rectangle of at most the preferred size that is offset from the origin yet stays inside the primary display's work
+ * area. The reopen path clamps a remembered rectangle into the work area (`clampBoundsToWorkArea`), so a fixed
+ * rectangle larger than a small hosted display would come back shrunk and the equality assertion would fail without a
+ * product defect.
+ */
+async function boundsInsideWorkArea(
+    app: E2EApp,
+    preferred: { width: number; height: number },
+): Promise<{ x: number; y: number; width: number; height: number }> {
+    const workArea = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
+    const margin = 20;
+    const width = Math.min(preferred.width, workArea.width - margin * 2);
+    const height = Math.min(preferred.height, workArea.height - margin * 2);
+    return { x: workArea.x + margin, y: workArea.y + margin * 2, width, height };
+}
 
 /**
  * `window.zoomLevel` is one app-wide setting. Caxri Bot opens at it, follows every change, and keeps its traffic lights
@@ -250,7 +268,7 @@ test('Caxri Bot window reopens where it was closed', async ({}) => {
         await createShellSession(running.page);
         await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
-        const moved = { x: 40, y: 60, width: 900, height: 600 };
+        const moved = await boundsInsideWorkArea(running.app, { width: 900, height: 600 });
         await running.app.evaluate(({ BrowserWindow }, bounds) => {
             BrowserWindow.getAllWindows()
                 .find((window) => window.webContents.getURL().includes('caxri-bot.html'))
@@ -308,7 +326,7 @@ test('Caxri Bot window reopens at its remembered bounds across an app restart', 
         await createShellSession(running.page);
         await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
-        const moved = { x: 50, y: 70, width: 1_000, height: 700 };
+        const moved = await boundsInsideWorkArea(running.app, { width: 1_000, height: 700 });
         await running.app.evaluate(({ BrowserWindow }, bounds) => {
             BrowserWindow.getAllWindows()
                 .find((window) => window.webContents.getURL().includes('caxri-bot.html'))
