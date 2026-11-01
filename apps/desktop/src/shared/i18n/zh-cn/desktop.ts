@@ -11,6 +11,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.menu.window': '窗口',
     'desktop.menu.help': '帮助',
     'desktop.menu.about': '关于 Caxri',
+    'desktop.menu.viewUpdate': '查看更新…',
     'desktop.menu.hide': '隐藏 Caxri',
     'desktop.menu.hideOthers': '隐藏其他',
     'desktop.menu.showAll': '全部显示',

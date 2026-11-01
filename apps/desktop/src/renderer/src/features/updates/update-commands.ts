@@ -89,7 +89,15 @@ async function runManualCheck(): Promise<void> {
     acknowledgeAvailableUpdate();
 }
 
+/**
+ * Once a verified download is waiting, the menu reads `View Update…` (`buildAppMenuTemplate`) and the command only
+ * reopens the dialog on it instead of starting another check.
+ */
 export function checkForUpdates(): void {
+    if (useUpdateStore.getState().state?.status === 'ready') {
+        showUpdateDialog();
+        return;
+    }
     useUpdateStore.getState().setOpen(true);
     // Fire-and-forget: `requestState` reports failures through `tryCommand`'s own toast, so this
     // synchronous-looking wrapper never needs to await the outcome.

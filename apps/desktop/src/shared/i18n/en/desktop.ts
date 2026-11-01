@@ -11,6 +11,7 @@ export const desktop = {
     'desktop.menu.window': 'Window',
     'desktop.menu.help': 'Help',
     'desktop.menu.about': 'About Caxri',
+    'desktop.menu.viewUpdate': 'View Update…',
     'desktop.menu.hide': 'Hide Caxri',
     'desktop.menu.hideOthers': 'Hide Others',
     'desktop.menu.showAll': 'Show All',
