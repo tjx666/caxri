@@ -35,4 +35,14 @@ describe('withAndroidBundleEnvironmentInput', () => {
         expect(source).toContain("it.key.startsWith('EXPO_PUBLIC_')");
         expect(applyAndroidBundleEnvironmentInput(source)).toBe(source);
     });
+
+    it('declares workspace package sources as bundle task inputs', () => {
+        const source = applyAndroidBundleEnvironmentInput('android {\n}\n');
+
+        expect(source).toContain("new File(rootProject.projectDir, '../../../packages')");
+        expect(source).toContain("['src', 'dist'].each");
+        expect(source).toContain('inputs.files(fileTree(dir: new File(packageDir, sub)');
+        expect(source).toContain("inputs.files(new File(packageDir, 'package.json'))");
+        expect(source).toContain('**/__tests__/**');
+    });
 });
