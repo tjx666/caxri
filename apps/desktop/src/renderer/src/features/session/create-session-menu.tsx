@@ -30,6 +30,7 @@ import { useLastAgentChoiceStore } from './last-agent-choice-store';
 import { OpenInChatMenuItem } from './open-in-chat-menu-item';
 import {
     beginSessionCreation,
+    chooseActivitySessionProject,
     chooseSessionTerminalKind,
     openSessionCreationMenu,
     pressHeadingNewSession,
@@ -392,11 +393,12 @@ export function EmptyProjectSessionMenu({
  * The Activity view's New Session row and its menu. The Activity body replaces the Project tree, so without this row
  * the only pointer entry to a new Session (the Project heading's pencil) is gone while the queue is showing.
  *
- * The row targets the Project `session.create` would use (the selected Session's), named on its trailing edge so the
+ * The row targets the Project the user last picked here, else the selected Session's, named on its trailing edge so the
  * press never lands somewhere unexpected. A press always opens the list, never a direct create: the list is also where
  * the user switches to another Project, so a press that skipped it would leave no way to reach the others. With more
  * than one Project the list leads with a Project choice (T3 Code's sidebar New thread asks for the Project the same
- * way); picking one re-targets the Agent choices below it and keeps the menu open.
+ * way); picking one re-targets the Agent choices below it, keeps the menu open, and stays the row's target after the
+ * menu closes.
  */
 export function ActivitySessionCreationMenu({
     defaultProject,
@@ -456,7 +458,7 @@ export function ActivitySessionCreationMenu({
                             <MenuRadioGroup
                                 value={project.id}
                                 onValueChange={(projectId: string) =>
-                                    openSessionCreationMenu(projectId, 'activity')
+                                    chooseActivitySessionProject(projectId)
                                 }
                             >
                                 {projects.map((candidate) => (

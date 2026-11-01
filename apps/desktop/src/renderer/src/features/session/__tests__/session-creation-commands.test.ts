@@ -115,9 +115,11 @@ vi.mock('../../../stores/workbench', () => ({
 
 import type { CreateSessionAnchor } from '../../../stores/dialogs';
 import { useEnvironmentStore } from '../../../stores/environment';
+import { useActivitySessionProjectStore } from '../activity-session-project-store';
 import { useLastAgentChoiceStore } from '../last-agent-choice-store';
 import {
     beginSessionCreation,
+    chooseActivitySessionProject,
     chooseProjectFolder,
     chooseSessionTerminalKind,
     confirmPendingSession,
@@ -158,6 +160,7 @@ describe('Session creation commands', () => {
         mocks.primarySidebarVisible = true;
         mocks.primarySidebarActivityMode = false;
         useLastAgentChoiceStore.setState({ kind: undefined });
+        useActivitySessionProjectStore.setState({ projectId: undefined });
     });
 
     afterEach(() => {
@@ -287,6 +290,18 @@ describe('Session creation commands', () => {
         beginSessionCreation('project-1');
 
         expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'activity');
+    });
+
+    it('opens the Activity New Session row on the Project last picked there', () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
+        mocks.primarySidebarActivityMode = true;
+
+        chooseActivitySessionProject('project-2');
+        mocks.openCreateSessionMenu.mockClear();
+        beginSessionCreation('project-1');
+
+        expect(useActivitySessionProjectStore.getState().projectId).toBe('project-2');
+        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-2', 'activity');
     });
 
     it('leaves the Primary Side Bar alone when the default Agent short-circuits the choice', async () => {

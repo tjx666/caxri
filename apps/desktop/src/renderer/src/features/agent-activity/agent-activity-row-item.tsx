@@ -10,7 +10,7 @@ import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import { useSessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
-import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
+import { SessionPinButton, sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { AgentActivityRowTrigger } from './agent-activity-row-trigger';
@@ -119,11 +119,20 @@ export function AgentActivityRowItem({
                     trigger={trigger}
                     worktreeProject={worktreeProject}
                 />
-                {canMarkRead && !isRenaming && (
-                    <AgentActivityMarkReadButton
-                        sessionTitle={sessionTitleForDisplay(session.title, t)}
-                        onMarkRead={onMarkRead}
-                    />
+                {!isRenaming && (
+                    /*
+                     * The Project tree's hover-action cluster: Pin/Unpin on every row, so a pinned Session is unpinned
+                     * here without the context menu, then mark-read when the row has something unread.
+                     */
+                    <div className="agent-activity-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100">
+                        <SessionPinButton session={session} />
+                        {canMarkRead && (
+                            <AgentActivityMarkReadButton
+                                sessionTitle={sessionTitleForDisplay(session.title, t)}
+                                onMarkRead={onMarkRead}
+                            />
+                        )}
+                    </div>
                 )}
             </div>
         </SessionRowMenu>
@@ -151,10 +160,7 @@ function AgentActivityMarkReadButton({
             <button
                 aria-label={t('agentActivity.markSessionRead', { title: sessionTitle })}
                 aria-keyshortcuts="Delete"
-                className={cn(
-                    sessionRowActionButton,
-                    'agent-activity-mark-read absolute top-1/2 right-1 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover/activity-row:opacity-100 focus-visible:opacity-100',
-                )}
+                className={cn(sessionRowActionButton, 'agent-activity-mark-read')}
                 tabIndex={-1}
                 type="button"
                 onClick={(event) => {

@@ -11,6 +11,10 @@ import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
+import {
+    rememberActivitySessionProject,
+    useActivitySessionProjectStore,
+} from './activity-session-project-store';
 import { rememberLastAgentChoice, useLastAgentChoiceStore } from './last-agent-choice-store';
 import { selectProject } from './session-commands';
 
@@ -112,11 +116,24 @@ export function openSessionCreationMenu(projectId: string, anchor: CreateSession
     if (!isPrimarySidebarShown(layout)) layout.setPrimarySidebarVisible(true);
     /**
      * While the side bar shows Activity no Project heading is mounted, so a heading claim (the default for the command
-     * palette, the native menu, and the shortcut) would open nothing; the Activity view's New Session row takes it.
+     * palette, the native menu, and the shortcut) would open nothing; the Activity view's New Session row takes it, and
+     * opens on the Project that row names (its remembered pick) so the shortcut and the row agree. A remembered Project
+     * that is no longer listed falls back inside the row to its own default.
      */
-    const resolvedAnchor =
-        anchor === 'heading' && layout.primarySidebarActivityMode ? 'activity' : anchor;
-    useDialogStore.getState().openCreateSessionMenu(projectId, resolvedAnchor);
+    if (anchor === 'heading' && layout.primarySidebarActivityMode) {
+        const remembered = useActivitySessionProjectStore.getState().projectId;
+        useDialogStore.getState().openCreateSessionMenu(remembered ?? projectId, 'activity');
+        return;
+    }
+    useDialogStore.getState().openCreateSessionMenu(projectId, anchor);
+}
+
+/**
+ * Re-targets the open Activity New Session list at another Project and remembers it as that row's target.
+ */
+export function chooseActivitySessionProject(projectId: string): void {
+    rememberActivitySessionProject(projectId);
+    openSessionCreationMenu(projectId, 'activity');
 }
 
 /**

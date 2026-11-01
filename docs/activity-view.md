@@ -51,10 +51,11 @@ is a raised hand rather than a bell because the Status Bar's notification center
 An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
 event in a group is always its first row.
 
-Every heading after the first draws a hairline above itself with extra space, and headings use the
-foreground color in semibold with a muted count. Before that a heading was one muted 11px line,
+Every heading after the first draws a hairline above itself with 24px of space, and headings use the
+foreground color in 12px semibold with a muted count. Before that a heading was one muted 11px line,
 about as tall as a row's own second line, so the groups ran together into one long list and the end
-of **Needs attention** was hard to find. Paseo spaces its status groups the same way.
+of **Needs attention** was hard to find; a 12px gap with an 11px label still let Pinned, Needs
+attention, and Working read as one list. Paseo spaces its status groups the same way.
 
 Every group collapses from its heading to that heading and its count, and the choice persists across
 launches (`useAgentActivityGroupCollapse`). Pinned shares the Project tree Pinned group's record, so
@@ -72,8 +73,11 @@ T3 Code windows its Settled shelf the same way.
 The Activity body replaces the Project tree, which holds the only other pointer entry to a new
 Session (the Project heading's pencil). The queue therefore keeps a **New Session** row above its
 scroller, outside the tree because it is not a row of the queue, and it does not scroll away. Its
-trailing edge names the target Project: the one `session.create` uses (the selected Session's), or
-the first listed Project when that one is hidden. A press opens the New Session list rather than
+trailing edge names the target Project: the one the user last picked in this row's list, else the
+selected Session's, else the first listed Project. The pick is remembered on this device
+(`activity-session-project-store.ts`), so closing the menu without choosing an Agent, selecting
+another Session, or relaunching keeps it; before that the row reverted to the selected Session's
+Project as soon as the menu closed. `session.create` opens the same menu on the same Project. A press opens the New Session list rather than
 creating directly, because the list is also where another Project is chosen: with more than one
 Project it leads with a **Project** choice that re-targets the Agent options below it and keeps the
 menu open, after T3 Code's sidebar New thread, which asks for the Project the same way. The Agent
@@ -210,12 +214,13 @@ from the top, through the same `useScrollEdge` binding
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md#scroll-cue)), so every side bar body
 signals hidden content above identically.
 
-An unread row's mark-read button follows the Project tree's hover-action rule: the same `--elevated`
-chip, centered on the right edge with a **Mark as Read** tooltip, and on hover the row's text makes
-room and fades before it instead of painting under it. It reserves no width at rest, because a slot
-held for a hover-only action would cost every unread row the width its Project name needs at the
-side bar's minimum width. On a row with a pull request the button covers the glyph's slot, and the
-glyph hides while the button shows.
+Every row's hover actions follow the Project tree's hover-action rule: the same `--elevated` chips,
+centered on the right edge, and on hover the row's text makes room and fades before them instead of
+painting under them. Every row offers **Pin** or **Unpin** (the Project tree's own button,
+`SessionPinButton`), so a pinned Session leaves Pinned without the context menu; an unread row adds
+**Mark as Read** after it. They reserve no width at rest, because a slot held for a hover-only
+action would cost every row the width its Project name needs at the side bar's minimum width. On a
+row with a pull request the chips cover the glyph's slot, and the glyph hides while they show.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
 same in either body of the side bar. Neither the glyph nor the Project name carries a tooltip of its

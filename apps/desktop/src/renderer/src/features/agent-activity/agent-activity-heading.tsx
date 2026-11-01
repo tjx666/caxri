@@ -79,7 +79,7 @@ export function AgentActivityHeading({
             aria-expanded={expanded}
             aria-level={1}
             aria-selected={false}
-            className="agent-activity-heading group/activity-heading relative mt-3 flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-foreground select-none before:pointer-events-none before:absolute before:inset-x-2 before:-top-2 before:h-px before:bg-border first:mt-0 first:before:hidden hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+            className="agent-activity-heading group/activity-heading relative mt-6 flex h-7 flex-none cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-foreground select-none before:pointer-events-none before:absolute before:inset-x-2 before:-top-3.5 before:h-px before:bg-border first:mt-0 first:before:hidden hover:bg-state-hover focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
             data-activity-group={group.id}
             data-row-id={group.id}
             data-expanded={expanded}
