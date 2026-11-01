@@ -7,7 +7,7 @@ import {
 import { readCappedBody } from '@caxri/system';
 
 import type { ManualRedirectFetch, PublicHttpsFetch, ResolveHost } from './public-https-fetch';
-import { createPublicHttpsFetch } from './public-https-fetch';
+import { createPublicHttpsFetch, isPublicHttpsUrl } from './public-https-fetch';
 
 type LinkPreview = MethodResult<'links.preview'>;
 
@@ -151,8 +151,24 @@ async function readHead(response: Response): Promise<string> {
     return html;
 }
 
+/**
+ * Drops a share image whose host is not public. The Renderer loads `imageUrl` itself as an `<img>`, so a public page
+ * declaring `og:image` on a loopback or private host would otherwise make Chromium request it on hover, past the
+ * vetting the page fetch got. Redirects the image itself answers with stay Chromium's, the same residual DNS-rebinding
+ * scope `createPublicHttpsFetch` documents.
+ */
+async function withPublicImage(
+    preview: LinkPreview,
+    resolveHost: ResolveHost,
+): Promise<LinkPreview> {
+    if (!preview.imageUrl || (await isPublicHttpsUrl(new URL(preview.imageUrl), resolveHost)))
+        return preview;
+    return { ...preview, imageUrl: undefined };
+}
+
 async function fetchPreview(
     fetch: PublicHttpsFetch,
+    resolveHost: ResolveHost,
     url: string,
 ): Promise<LinkPreview | undefined> {
     try {
@@ -168,7 +184,10 @@ async function fetchPreview(
             void response.body?.cancel().catch(() => {});
             return {};
         }
-        return parseLinkPreview(await readHead(response), result.url);
+        return await withPublicImage(
+            parseLinkPreview(await readHead(response), result.url),
+            resolveHost,
+        );
     } catch {
         // Offline, blocked, timed out, or refused: the card shows the host alone, which is all a missing preview costs.
         return undefined;
@@ -194,7 +213,7 @@ export function createLinkPreviews(fetch: ManualRedirectFetch, resolveHost: Reso
      * eviction may already have replaced it with a newer attempt for the same URL.
      */
     async function settle(url: string, entry: PromiseWithResolvers<LinkPreview>): Promise<void> {
-        const result = await fetchPreview(publicFetch, url);
+        const result = await fetchPreview(publicFetch, resolveHost, url);
         if (!result && cache.get(url) === entry.promise) cache.delete(url);
         entry.resolve(result ?? {});
     }

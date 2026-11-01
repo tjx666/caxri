@@ -34,6 +34,7 @@ test('workspace file and directory links open and save without replacing links',
     const root = join(testDirectory, 'project');
     const shared = join(testDirectory, 'shared');
     await Promise.all([mkdir(root), mkdir(shared)]);
+    await mkdir(join(root, 'empty-folder'));
     await writeFile(join(shared, 'config.txt'), 'shared fixture\n');
     await Promise.all([
         symlink('../shared/config.txt', join(root, 'linked-config.txt')),
@@ -46,6 +47,14 @@ test('workspace file and directory links open and save without replacing links',
     try {
         await createProjectSession(running.page);
         const tree = running.page.getByRole('tree', { name: 'Files' });
+        // ArrowRight on an expanded empty folder has no child to enter, so focus stays instead of jumping to a sibling.
+        const emptyFolder = tree.getByRole('treeitem', { name: /^empty-folder/ });
+        await emptyFolder.focus();
+        await emptyFolder.press('ArrowRight');
+        await expect(emptyFolder).toHaveAttribute('aria-expanded', 'true');
+        await expect(tree.getByText('Empty folder')).toBeVisible();
+        await emptyFolder.press('ArrowRight');
+        await expect(emptyFolder).toBeFocused();
         await tree.getByRole('treeitem', { name: /^linked-config\.txt/ }).dblclick();
         const tab = running.page.locator('.work-tab', { hasText: 'linked-config.txt' });
         await expect(tab).toBeVisible();

@@ -116,6 +116,28 @@ describe('createLinkPreviews', () => {
     });
 
     it.each([
+        ['a loopback literal', 'https://127.0.0.1:8443/x.png', publicHost],
+        ['localhost', 'https://localhost/x.png', publicHost],
+        [
+            'a name resolving to a private address',
+            'https://intranet.example/x.png',
+            (host: string) =>
+                Promise.resolve([host === 'intranet.example' ? '192.168.1.1' : '203.0.113.7']),
+        ],
+    ])(
+        'drops a share image on %s so the Renderer never requests it',
+        async (_label, image, resolveHost) => {
+            const fetch = vi.fn(() =>
+                htmlResponse(
+                    `<head><title>Post</title><meta property="og:image" content="${image}"></head>`,
+                ),
+            );
+            const preview = createLinkPreviews(fetch, resolveHost);
+            await expect(preview('https://a.example/post')).resolves.toEqual({ title: 'Post' });
+        },
+    );
+
+    it.each([
         ['an internal address', 'https://169.254.169.254/latest/meta-data'],
         ['plain HTTP', plainHttpUrl()],
     ])('refuses a redirect to %s without requesting it', async (_label, location) => {

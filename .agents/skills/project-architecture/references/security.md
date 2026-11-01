@@ -92,7 +92,8 @@ threat model.
   outright failure is not cached.
 - **Link previews** (`links.preview`, `apps/desktop/src/main/link-previews.ts`): `GET` of the linked
   `https:` URL only while the user hovers that link's card. 5 s timeout, reads at most 256 KiB and
-  stops at `</head>`, parses only title, description, and an `https:` share image; cached per URL
+  stops at `</head>`, parses only title, description, and an `https:` share image whose host passes
+  the same public-address check (the Renderer loads that image itself); cached per URL
   with the same 256-entry, insertion-order eviction and no caching of outright failures.
 - **Agent provider status** (`agentProviderStatus.read`,
   `packages/system/src/network/agent-provider-status.ts`): the fixed public Statuspage endpoints for

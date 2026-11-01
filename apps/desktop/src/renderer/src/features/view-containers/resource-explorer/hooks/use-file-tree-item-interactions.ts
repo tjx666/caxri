@@ -419,11 +419,11 @@ export function useFileTreeItemInteractions({
         if (event.key === 'ArrowRight') {
             if (!isDirectory && entry.kind !== 'symlink') return;
             event.preventDefault();
-            // Collapsed -> expand in place; already expanded -> move focus into the first child,
-            // matching the standard ARIA treeview keyboard pattern.
+            // Collapsed -> expand in place; already expanded -> move focus into the first child (none for an empty
+            // folder, which keeps focus), matching the standard ARIA treeview keyboard pattern.
             if (!expanded) {
                 void activateEntry({ directoriesOnly: true });
-            } else navigator.move(entry.path, 'next');
+            } else navigator.move(entry.path, 'firstChild');
             return;
         }
         if (event.key === 'ArrowLeft') {

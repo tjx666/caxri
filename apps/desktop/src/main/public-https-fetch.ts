@@ -73,7 +73,7 @@ export function isPublicAddress(address: string): boolean {
  * fails while the request succeeds. A name this machine cannot resolve also cannot make a direct connection reach a
  * local service, and when the network is down the request itself fails and the caller retries.
  */
-async function isPublicHttpsUrl(url: URL, resolveHost: ResolveHost): Promise<boolean> {
+export async function isPublicHttpsUrl(url: URL, resolveHost: ResolveHost): Promise<boolean> {
     if (url.protocol !== 'https:') return false;
     // WHATWG URL keeps IPv6 literals bracketed and already normalizes shorthand IPv4 such as `2130706433`.
     const hostname = url.hostname.replace(/^\[(.*)\]$/u, '$1').toLowerCase();

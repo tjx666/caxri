@@ -1137,7 +1137,9 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   (`apps/desktop/src/main/link-previews.ts`): public hosts only (a loopback, private, or
   link-local URL, or a redirect to one or to plain HTTP, is never requested and keeps the globe and
   a card without a preview), the HTML head only, at most 256 KiB, a 5 s timeout,
-  Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and a per-app-lifetime
+  Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images on a public host only (the
+  Renderer loads the image itself, so Main drops one whose host is loopback, private, or resolves to
+  such an address), and a per-app-lifetime
   cache of 256 URLs that evicts the oldest inserted entry (a repeat hover does not refresh it; an
   outright network failure is not cached). A page that declares nothing keeps the card's link summary.
 - A settled reply's `#123` or uppercase Linear identifier (`ENG-123`) renders as that web link when

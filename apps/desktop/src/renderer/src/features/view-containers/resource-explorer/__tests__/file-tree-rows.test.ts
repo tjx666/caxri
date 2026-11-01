@@ -121,6 +121,23 @@ describe('fileTreeNavigationTarget', () => {
         expect(fileTreeNavigationTarget(nested, 0, 'parent')).toBeUndefined();
     });
 
+    it('steps into an expanded folder only when it has an entry', () => {
+        const tree = flatten(
+            {
+                '/p': [directory('/p/empty'), directory('/p/src'), file('/p/readme.md')],
+                '/p/empty': [],
+                '/p/src': [file('/p/src/a.ts')],
+            },
+            ['/p/empty', '/p/src'],
+            { composingDirectory: '/p/src' },
+        ).rows;
+        // 0: /p/empty, 1: empty notice, 2: /p/src, 3: create, 4: /p/src/a.ts, 5: /p/readme.md
+
+        expect(fileTreeNavigationTarget(tree, 0, 'firstChild')).toBeUndefined();
+        expect(fileTreeNavigationTarget(tree, 2, 'firstChild')).toBe(4);
+        expect(fileTreeNavigationTarget(tree, 5, 'firstChild')).toBeUndefined();
+    });
+
     it('lands focus past a removed folder, or before the last row', () => {
         const tree = flatten(
             {
