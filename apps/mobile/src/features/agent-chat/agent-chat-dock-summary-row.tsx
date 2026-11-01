@@ -38,7 +38,11 @@ export const AgentChatDockSummaryRow = ({
                 testID="agent-chat-dock-summary"
             >
                 <Layers color={theme.muted} size={16} />
-                <Text numberOfLines={1} style={[styles.line, { color: theme.text }]}>
+                <Text
+                    numberOfLines={1}
+                    style={[styles.line, { color: theme.text }]}
+                    testID="agent-chat-dock-summary-text"
+                >
                     {line}
                 </Text>
                 <ChevronDown
