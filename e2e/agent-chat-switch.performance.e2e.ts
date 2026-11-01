@@ -4,6 +4,13 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
+import type { ChatSwitchScenario } from './support/agent-chat-switch-budgets.ts';
+import {
+    CACHED_FRAME_BUDGET,
+    REACT_BUDGETS,
+    reactBudget,
+    READABLE_P50_CEILING_MS,
+} from './support/agent-chat-switch-budgets.ts';
 import type { ChatSwitchSample, RendererSurface } from './support/agent-chat-switch-samples.ts';
 import {
     countChatReads,
@@ -42,19 +49,6 @@ const ITERATIONS = Number(process.env.CAXRI_AGENT_CHAT_SWITCH_BENCHMARK_ITERATIO
  */
 const COLD_ITERATIONS = Number(process.env.CAXRI_AGENT_CHAT_SWITCH_BENCHMARK_COLD_ITERATIONS ?? 3);
 /**
- * Hard ceilings on the p50 time from the click until the conversation is readable, from issue #2215: a kept-alive Chat
- * within 100 ms, a Chat whose provider must start and resume its thread after a Server Core restart within one second.
- * The runner-derived baseline (`scripts/performance-baseline.agent-chat-switch.json`) is the tighter, statistical gate
- * once armed; these only catch a switch that became unusably slow.
- */
-const READABLE_P50_CEILING_MS = { keptAlive: 100, cold: 1000 };
-/**
- * Longest frame gap and Long Animation Frame a remount of a cached Chat may show. Mounting the whole timeline in one
- * frame measured 82-104 ms and 77-99 ms on 2026-10-30; mounting the tail first measured 36-48 ms and none. The budget
- * sits between them with room for runner noise; it is not the 34 ms (two frames) the experience aims for.
- */
-const CACHED_FRAME_BUDGET = { maxFrameGapMs: 65, longestAnimationFrameMs: 50 };
-/**
  * Frames sampled after a click before the switch counts as stuck. Far beyond any healthy load; it only bounds the run.
  */
 const MAXIMUM_SAMPLED_FRAMES = 600;
@@ -77,46 +71,6 @@ const HIDDEN_STREAM_WINDOW_MS = 5000;
  * measured 1,368 renders and 134 ms on 2026-10-21; a frozen Chat measured 5 renders and 0.6 ms.
  */
 const HIDDEN_STREAM_BUDGET = { renders: 40, actualDurationMs: 10 };
-
-type ChatSwitchScenario = 'keptAlive' | 'cached' | 'uncached' | 'cold';
-
-/**
- * Per-surface React budgets, calibrated from three profiling runs on 2026-10-20 (`docs/renderer-performance.md`). The
- * kept-alive Workbench budget is the one that guards the experience: a switch back to a mounted Chat that renders its
- * transcript again costs about as much as the `cached` remount.
- */
-/*
- * The Workbench render budgets of `cached` and `uncached` count the idle backfill of the tail-first mount
- * (`use-agent-chat-tail-first-mount.ts`): a 16-turn Chat mounts 4 entries, then 6 more per idle commit, and each commit
- * renders the pane tree a few times. That trades a few more renders for a short first frame (82-104 ms down to 36-48 ms
- * on 2026-10-30). Measured 24-25 cached and 27-30 uncached on a quiet runner; the budgets leave about 20% for noise.
- * Renders before the tail-first mount were 9-10 and 17-20. Duration budgets are unchanged and still bound the total cost.
- */
-const REACT_BUDGETS: Record<
-    ChatSwitchScenario,
-    Record<RendererSurface, { renders: number; actualDurationMs: number }>
-> = {
-    keptAlive: {
-        'primary-sidebar': { renders: 4, actualDurationMs: 5 },
-        'workbench': { renders: 8, actualDurationMs: 5 },
-        'secondary-sidebar': { renders: 8, actualDurationMs: 5 },
-    },
-    cached: {
-        'primary-sidebar': { renders: 4, actualDurationMs: 5 },
-        'workbench': { renders: 30, actualDurationMs: 60 },
-        'secondary-sidebar': { renders: 8, actualDurationMs: 5 },
-    },
-    uncached: {
-        'primary-sidebar': { renders: 4, actualDurationMs: 5 },
-        'workbench': { renders: 36, actualDurationMs: 90 },
-        'secondary-sidebar': { renders: 10, actualDurationMs: 5 },
-    },
-    cold: {
-        'primary-sidebar': { renders: 4, actualDurationMs: 5 },
-        'workbench': { renders: 36, actualDurationMs: 90 },
-        'secondary-sidebar': { renders: 10, actualDurationMs: 5 },
-    },
-};
 
 /**
  * React work the Workbench commits over a quiet window with no interaction, bracketed as a Renderer scenario.
@@ -520,9 +474,10 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
                     `${label} was painted away from the latest reply`,
                 ).toBeLessThanOrEqual(1);
             }
-            const budgets = Object.entries(REACT_BUDGETS[name]);
-            for (const [surface, budget] of budgets) {
-                const measured = scenarios[name].react.surfaces[surface as RendererSurface];
+            const surfaces = Object.keys(REACT_BUDGETS[name]) as RendererSurface[];
+            for (const surface of surfaces) {
+                const budget = reactBudget(name, surface);
+                const measured = scenarios[name].react.surfaces[surface];
                 expect(measured.renders.p50, `${name} ${surface} renders`).toBeLessThanOrEqual(
                     budget.renders,
                 );

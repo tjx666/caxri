@@ -713,8 +713,8 @@ jobs:
         run: >-
           bun run scripts/performance-baseline-gate.ts --receipt
           test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
-      # No runner-derived baseline exists yet, so this records a NO-BASELINE verdict until one is derived and armed
-      # from the uploaded receipts (docs/ci-performance.md).
+      # The committed baseline is armed and derived from 44 same-image macos-15 receipts (docs/ci-performance.md), so
+      # a gated metric past its threshold fails this step.
       - name: Run Agent Chat switch performance baseline gate
         id: agent-chat-switch-performance-baseline
         if: always() && steps.agent-chat-switch-performance.outcome != 'skipped'
@@ -1106,8 +1106,8 @@ jobs:
         run: >-
           bun run scripts/performance-baseline-gate.ts --receipt
           test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
-      # No runner-derived baseline exists yet, so this records a NO-BASELINE verdict until one is derived and armed
-      # from the uploaded receipts (docs/ci-performance.md).
+      # The committed baseline is armed and derived from 44 same-image macos-15 receipts (docs/ci-performance.md), so
+      # a gated metric past its threshold fails this step.
       - name: Run Agent Chat switch performance baseline gate
         id: agent-chat-switch-performance-baseline
         if: always() && steps.agent-chat-switch-performance.outcome != 'skipped'
