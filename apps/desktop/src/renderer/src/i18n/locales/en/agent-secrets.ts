@@ -11,6 +11,9 @@ export const agentSecrets = {
     'agentSecrets.request.decline': 'Decline',
     'agentSecrets.request.openSession': 'Open Session',
     'agentSecrets.request.more': '{{count}} more waiting',
+    'agentSecrets.request.minimize': 'Minimize',
+    'agentSecrets.request.chip': 'Secret requests · {{count}}',
+    'agentSecrets.request.chipLabel': 'Secret requests, {{count}} waiting. Show',
     'agentSecrets.request.failed': 'Could not answer the request. Try again.',
     'agentSecrets.request.gone': 'The Agent stopped waiting for this secret.',
     'agentSecrets.settings.empty':
