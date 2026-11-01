@@ -58,6 +58,10 @@ export const viewContainersFiles = {
     'viewContainers.files.movingInBackground': 'Moving item in background…',
     'viewContainers.files.trashedUnsaved':
         "Moved '{{name}}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.",
+    'viewContainers.files.trashedUnsavedMany':
+        'Moved {{count}} items to Trash. Unsaved changes were discarded; only the last saved versions can be restored.',
+    'viewContainers.files.trashedPartly':
+        "Moved {{count}} of {{total}} items to Trash, then stopped at '{{name}}': {{reason}}",
     'viewContainers.files.restoreFailed': 'Unable to restore item from Trash',
     'viewContainers.files.restoreConflict':
         "Couldn't restore '{{name}}': something with that name already exists at its old place. The copy in Trash was left untouched.",

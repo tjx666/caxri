@@ -79,7 +79,10 @@ async function didApplyStep(sessionId: string, step: AgentChatUndoStep): Promise
             return true;
         }
         case 'trash': {
-            const result = await caxri.request('files.trash', { sessionId, path: step.path });
+            const result = await caxri.request('files.trash', {
+                sessionId,
+                paths: [step.path],
+            });
             return !('canceled' in result);
         }
         case 'restore': {

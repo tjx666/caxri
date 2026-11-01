@@ -4,6 +4,8 @@ import { parentDirectoryPath } from '../../../lib/file-path';
 import { createStore } from '../../../lib/store';
 import { queryClient } from '../../../queries/client';
 import { useWorkbenchStore } from '../../../stores/workbench';
+import type { FileTreeSelection } from './file-tree-selection';
+import { isPathInSelection, selectPath, selectPaths } from './file-tree-selection';
 import {
     knownDirectoryChildrenFromQueries,
     scopedValue,
@@ -45,7 +47,10 @@ export interface ResourceExplorerScopeState {
     expandedByScope: Record<string, string[]>;
     focusByScope: Record<string, string | undefined>;
     revealByScope: Record<string, { path: string; revision: number } | undefined>;
-    selectionByScope: Record<string, string | undefined>;
+    /**
+     * Each scope's selection: one row, or several after Cmd- and Shift-clicks. See {@link FileTreeSelection}.
+     */
+    selectionByScope: Record<string, FileTreeSelection | undefined>;
 }
 
 export const useResourceExplorerScopeStore = createStore<ResourceExplorerScopeState>(
@@ -105,7 +110,11 @@ export const rowSelectors = {
     },
     isPathSelected(state: ResourceExplorerScopeState, path: string): boolean {
         const { scopeId } = state.activeScope ?? {};
-        return scopeId !== undefined && state.selectionByScope[scopeId] === path;
+        return scopeId !== undefined && isPathInSelection(state.selectionByScope[scopeId], path);
+    },
+    isPathSelectionLead(state: ResourceExplorerScopeState, path: string): boolean {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId !== undefined && state.selectionByScope[scopeId]?.lead === path;
     },
     hasScopeSelection(state: ResourceExplorerScopeState): boolean {
         const { scopeId } = state.activeScope ?? {};
@@ -119,6 +128,10 @@ export function useIsPathExpanded(path: string): boolean {
 
 export function useIsPathSelected(path: string): boolean {
     return useResourceExplorerScopeStore((state) => rowSelectors.isPathSelected(state, path));
+}
+
+export function useIsPathSelectionLead(path: string): boolean {
+    return useResourceExplorerScopeStore((state) => rowSelectors.isPathSelectionLead(state, path));
 }
 
 export function useHasScopeSelection(): boolean {
@@ -141,18 +154,32 @@ export function useActiveRevealRequest(): { path: string; revision: number } | u
 }
 
 /**
- * The active scope's selected path, which the tree keeps mounted so the roving Tab stop survives scrolling.
+ * The active scope's selection lead, which the tree keeps mounted so the roving Tab stop survives scrolling.
  */
 export function useActiveSelectedPath(): string | undefined {
     return useResourceExplorerScopeStore((state) => {
         const { scopeId } = state.activeScope ?? {};
-        return scopeId === undefined ? undefined : state.selectionByScope[scopeId];
+        return scopeId === undefined ? undefined : state.selectionByScope[scopeId]?.lead;
     });
 }
 
+/**
+ * Reads a scope's selection outside render, for an event handler that applies to the whole selection.
+ */
+export function scopeSelection(scopeId: string): FileTreeSelection | undefined {
+    return useResourceExplorerScopeStore.getState().selectionByScope[scopeId];
+}
+
+/**
+ * Selects `path` alone (a plain click, a reveal, a rename), or clears the selection with `undefined`.
+ */
 export function setScopeSelectedPath(scopeId: string, path: string | undefined): void {
+    setScopeSelection(scopeId, path === undefined ? undefined : selectPath(path));
+}
+
+export function setScopeSelection(scopeId: string, selection: FileTreeSelection | undefined): void {
     useResourceExplorerScopeStore.setState((state) => ({
-        selectionByScope: setScopedValue(state.selectionByScope, scopeId, path),
+        selectionByScope: setScopedValue(state.selectionByScope, scopeId, selection),
     }));
 }
 
@@ -190,10 +217,26 @@ export function didRevealPathInScope(scopeId: string, projectRoot: string, path:
                 path,
                 revision: (state.revealByScope[scopeId]?.revision ?? 0) + 1,
             }),
-            selectionByScope: setScopedValue(state.selectionByScope, scopeId, path),
+            selectionByScope: setScopedValue(state.selectionByScope, scopeId, selectPath(path)),
         };
     });
     return true;
+}
+
+/**
+ * Shows the entries a paste, drop, or restore just produced: the last one is revealed like {@link didRevealPathInScope},
+ * and all of them become the selection, so a multi-item paste stays selected for the next action. A path that cannot be
+ * revealed (the Project root, or outside it) is still selected.
+ */
+export function revealPathsInScope(
+    scopeId: string,
+    projectRoot: string,
+    paths: readonly string[],
+): void {
+    const last = paths.at(-1);
+    if (last === undefined) return;
+    didRevealPathInScope(scopeId, projectRoot, last);
+    setScopeSelection(scopeId, selectPaths(paths, last));
 }
 
 /**

@@ -1,32 +1,50 @@
-import type { Dispatch, DragEvent, KeyboardEvent, RefObject, SetStateAction } from 'react';
+import type {
+    Dispatch,
+    DragEvent,
+    KeyboardEvent,
+    MouseEvent,
+    RefObject,
+    SetStateAction,
+} from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
 import { translate, useTranslation } from '../../../../i18n';
-import { dragPath, osFilePaths } from '../../../../lib/file-drag';
+import { dragPaths, osFilePaths, startFilePathDrag } from '../../../../lib/file-drag';
 import { resolveEntryKind } from '../../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../../lib/file-path';
 import { tryCommand } from '../../../../stores/toasts';
 import { openFileForSession } from '../../../editor/document-commands';
 import { useResourceExplorerClient } from '../../controlled-view-context';
-import { didTrashFile, duplicateFile, moveFile, undoLatestTrash } from '../file-actions';
+import { duplicateFile } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
 import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
-import { importOsFiles, pasteIntoDirectory, rememberFile } from '../file-paste-actions';
+import { importOsFiles, moveFiles, pasteIntoDirectory, rememberFiles } from '../file-paste-actions';
 import type { EditRequest } from '../file-tree-item-types';
 import { useFileTreeNavigator } from '../file-tree-navigation-context';
 import {
+    clickSelection,
+    outermostPaths,
+    pathAfterRemoval,
+    selectionActionPaths,
+    selectPath,
+    selectRange,
+} from '../file-tree-selection';
+import {
     activeResourceExplorerScope,
-    didRevealPathInScope,
+    revealPathsInScope,
+    scopeSelection,
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
+    setScopeSelection,
     setScopeSubtreeExpanded,
     useResourceExplorerScopeStore,
 } from '../resource-explorer-scope-store';
 import { isFileTreeDirectory } from '../resource-explorer-state';
+import { trashFiles, undoLatestTrash } from '../trash/file-trash-actions';
 import { fileTreeDropDirectory } from '../tree-row/file-drop-target';
 
 export interface UseFileTreeItemInteractionsOptions {
@@ -40,7 +58,10 @@ export interface UseFileTreeItemInteractionsOptions {
     hasSelection: boolean;
     index: number;
     isFocusRequested: boolean;
-    isSelected: boolean;
+    /**
+     * Whether this row leads the selection; only the lead is a Tab stop, however many rows are selected.
+     */
+    isSelectionLead: boolean;
     projectId: string;
     projectRoot: string;
     setEditing: (editing?: EditRequest) => void;
@@ -53,8 +74,15 @@ export interface UseFileTreeItemInteractionsResult {
         recursive?: boolean;
         directoriesOnly?: boolean;
     }) => Promise<void>;
+    /**
+     * The entries a row action applies to: the whole selection when this row is part of a multi-selection, otherwise
+     * this row alone. Read when the action runs, so a menu built for a stale selection still acts on the current one.
+     */
+    actionPaths: () => readonly string[];
+    clickEntry: (event: MouseEvent) => void;
     clipboard: FileClipboardEntry | undefined;
     confirmTrash: () => Promise<void>;
+    copyEntries: (mode: FileClipboardEntry['mode']) => void;
     dragBlocked: boolean;
     dropIntoDirectory: (event: DragEvent) => void;
     duplicateBlocked: boolean;
@@ -80,7 +108,13 @@ export interface UseFileTreeItemInteractionsResult {
      */
     rowDescriptionId: string;
     rowRef: RefObject<HTMLButtonElement | null>;
+    /**
+     * Right-click keeps a multi-selection the row belongs to, so the menu acts on all of it, and otherwise selects the
+     * row alone, as VS Code's Explorer does.
+     */
+    selectForContextMenu: () => void;
     setIsDropTarget: Dispatch<SetStateAction<boolean>>;
+    startDrag: (event: DragEvent) => void;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
 }
@@ -102,7 +136,7 @@ export function useFileTreeItemInteractions({
     hasSelection,
     index,
     isFocusRequested,
-    isSelected,
+    isSelectionLead,
     projectId,
     projectRoot,
     setEditing,
@@ -136,7 +170,7 @@ export function useFileTreeItemInteractions({
      * Roving tabindex: exactly one row in the whole tree is a Tab stop. The selected row owns it; with no selection,
      * the very first root-level row is the fallback so Tab always lands somewhere sensible instead of nowhere.
      */
-    const isRovingTabStop = hasSelection ? isSelected : depth === 0 && index === 0;
+    const isRovingTabStop = hasSelection ? isSelectionLead : depth === 0 && index === 0;
 
     const setExpanded = (
         isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
@@ -149,12 +183,35 @@ export function useFileTreeItemInteractions({
         if (scope) setScopeSelectedPath(scope.scopeId, path);
     };
     /**
-     * Selects a pasted or dropped entry and scrolls the tree to it, since a paste into a long folder lands off-screen.
+     * Selects pasted or dropped entries and scrolls the tree to the last, since a paste into a long folder lands
+     * off-screen.
      */
-    const revealPath = (path: string): void => {
+    const revealPaths = (paths: ReadonlyArray<{ path: string }>): void => {
         const scope = activeResourceExplorerScope();
-        if (scope && !didRevealPathInScope(scope.scopeId, projectRoot, path))
-            setScopeSelectedPath(scope.scopeId, path);
+        if (scope)
+            revealPathsInScope(
+                scope.scopeId,
+                projectRoot,
+                paths.map((each) => each.path),
+            );
+    };
+    /**
+     * Selected entries inside a folder collapsed since are left out, as VS Code drops them: an action covers only the
+     * rows the user can see highlighted.
+     */
+    const actionPaths = (): readonly string[] => {
+        const scope = activeResourceExplorerScope();
+        if (!scope) return [entry.path];
+        return selectionActionPaths(scopeSelection(scope.scopeId), entry.path).filter(
+            (path) => path === entry.path || navigator.entryFor(path) !== undefined,
+        );
+    };
+    const copyEntries = (mode: FileClipboardEntry['mode']): void => {
+        rememberFiles(actionPaths(), mode);
+    };
+    const selectForContextMenu = (): void => {
+        const scope = activeResourceExplorerScope();
+        if (scope && actionPaths().length === 1) setScopeSelectedPath(scope.scopeId, entry.path);
     };
     const startRename = (): void => {
         if (isEditable) setEditing({ kind: 'rename', entry });
@@ -184,7 +241,8 @@ export function useFileTreeItemInteractions({
             if (
                 intent !== activation.current ||
                 activeResourceExplorerScope()?.scopeId !== scopeId ||
-                useResourceExplorerScopeStore.getState().selectionByScope[scopeId] !== entry.path
+                useResourceExplorerScopeStore.getState().selectionByScope[scopeId]?.lead !==
+                    entry.path
             )
                 return;
             setResolvedKind(kind);
@@ -206,11 +264,62 @@ export function useFileTreeItemInteractions({
     const openEntry = (): void => {
         void activateEntry();
     };
+    const clickEntry = (event: MouseEvent): void => {
+        const scope = activeResourceExplorerScope();
+        if (!scope) return;
+        const { isActivating, selection } = clickSelection(
+            scopeSelection(scope.scopeId),
+            entry.path,
+            event,
+            navigator.visiblePaths(),
+        );
+        if (isActivating) {
+            void activateEntry({ preview: true, toggleDirectory: true, recursive: event.altKey });
+            return;
+        }
+        setScopeSelection(scope.scopeId, selection);
+        /**
+         * A Cmd-click that removed this row leaves it focused but unselected, so Cmd+C or Cmd+Backspace would act on it
+         * rather than on the highlighted rows. Focus follows the lead instead.
+         */
+        if (selection && !selection.paths.includes(entry.path))
+            setScopeFocusPath(scope.scopeId, selection.lead);
+    };
+    /**
+     * Shift+Arrow grows or shrinks the range from the anchor to the row the arrow lands on, and moves focus there.
+     */
+    const extendSelection = (action: 'next' | 'previous'): void => {
+        const scope = activeResourceExplorerScope();
+        const target = navigator.pathFor(entry.path, action);
+        if (!scope || target === undefined) return;
+        const current = scopeSelection(scope.scopeId) ?? selectPath(entry.path);
+        setScopeSelection(scope.scopeId, selectRange(current, target, navigator.visiblePaths()));
+        navigator.move(entry.path, action);
+    };
+    /**
+     * Drags the whole selection when this row is part of it. A symlink is a reference only, never moved, so a drag that
+     * carries one inserts paths into a Terminal or Chat but cannot move anything in Files.
+     */
+    const startDrag = (event: DragEvent): void => {
+        const dragged = actionPaths().map((path) => ({
+            path,
+            entry: path === entry.path ? entry : navigator.entryFor(path),
+        }));
+        startFilePathDrag(
+            event.dataTransfer,
+            dragged.map((item) => ({
+                path: item.path,
+                isDirectory:
+                    item.entry?.kind === 'directory' || item.entry?.linkKind === 'directory',
+            })),
+            dragged.every((item) => item.entry !== undefined && item.entry.kind !== 'symlink'),
+        );
+    };
     const pasteIntoEntry = async (): Promise<void> => {
         const scope = activeResourceExplorerScope();
         if (!scope) return;
         const pasted = await pasteIntoDirectory(client, scope.sessionId, pasteDirectory);
-        if (pasted) revealPath(pasted.path);
+        if (pasted.length > 0) revealPaths(pasted);
     };
     const duplicateEntry = async (): Promise<void> => {
         const scope = activeResourceExplorerScope();
@@ -225,11 +334,15 @@ export function useFileTreeItemInteractions({
          * Resolved before the row disappears. The removed row held the keyboard focus, so without a new target the
          * focus drops to the page and Cmd+Z (Undo Move to Trash) would no longer reach the Files tree.
          */
+        const paths = actionPaths();
         const survivor =
             rowReference.current === document.activeElement
-                ? navigator.pathFor(entry.path, 'afterRemoval')
+                ? paths.length === 1
+                    ? navigator.pathFor(entry.path, 'afterRemoval')
+                    : pathAfterRemoval(navigator.visiblePaths(), paths)
                 : undefined;
-        if (await didTrashFile(client, scope.sessionId, entry.path)) {
+        const trashed = await trashFiles(client, scope.sessionId, outermostPaths(paths));
+        if (trashed.length > 0) {
             setSelectedPath(undefined);
             setEditing(undefined);
             if (survivor !== undefined) setScopeFocusPath(scope.scopeId, survivor);
@@ -245,29 +358,35 @@ export function useFileTreeItemInteractions({
         if (isPasteBlocked) return;
         const scope = activeResourceExplorerScope();
         if (!scope) return;
-        const source = dragPath(event);
-        // Dropping an item on a sibling row (or its own folder) targets the folder it already lives in: moving it
-        // there would only raise a conflict with itself, so the drop does nothing.
-        if (source && parentDirectoryPath(source) === target) return;
-        const dropped = source
-            ? await moveFile(client, scope.sessionId, source, target)
-            : await importOsFiles(
-                  client,
-                  scope.sessionId,
-                  osFilePaths(event.dataTransfer.files),
-                  target,
-              );
-        if (dropped) revealPath(dropped.path);
+        const sources = dragPaths(event);
+        // Dropping items on a sibling row (or their own folder) targets the folder they already live in: `moveFiles`
+        // skips those, since moving them there would only raise a conflict with themselves.
+        const dropped =
+            sources.length > 0
+                ? await moveFiles(client, scope.sessionId, sources, target)
+                : await importOsFiles(
+                      client,
+                      scope.sessionId,
+                      osFilePaths(event.dataTransfer.files),
+                      target,
+                  );
+        if (dropped.length > 0) revealPaths(dropped);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-        if (event.key === 'ArrowDown') {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
-            navigator.move(entry.path, 'next');
+            const action = event.key === 'ArrowDown' ? 'next' : 'previous';
+            if (event.shiftKey) extendSelection(action);
+            else navigator.move(entry.path, action);
             return;
         }
-        if (event.key === 'ArrowUp') {
+        if (event.key === 'Escape') {
+            // Escape narrows a multi-selection to this row; with one row selected the key is left to the window.
+            const scope = activeResourceExplorerScope();
+            if (!scope || actionPaths().length === 1) return;
             event.preventDefault();
-            navigator.move(entry.path, 'previous');
+            event.stopPropagation();
+            setScopeSelectedPath(scope.scopeId, entry.path);
             return;
         }
         if (event.key === 'Home') {
@@ -319,17 +438,17 @@ export function useFileTreeItemInteractions({
         event.stopPropagation();
         switch (key) {
             case 'backspace': {
-                // confirmTrash funnels its own failures into a toast via didTrashFile, nothing to
+                // confirmTrash funnels its own failures into a toast via trashFiles, nothing to
                 // await here.
                 void confirmTrash();
                 break;
             }
             case 'c': {
-                rememberFile(entry.path, 'copy');
+                copyEntries('copy');
                 break;
             }
             case 'x': {
-                rememberFile(entry.path, 'cut');
+                copyEntries('cut');
                 break;
             }
             default: {
@@ -357,9 +476,12 @@ export function useFileTreeItemInteractions({
     }, [isFocusRequested, isRenaming]);
 
     return {
+        actionPaths,
         activateEntry,
+        clickEntry,
         clipboard,
         confirmTrash,
+        copyEntries,
         dragBlocked: isDragBlocked,
         dropIntoDirectory,
         duplicateBlocked: isDuplicateBlocked,
@@ -381,7 +503,9 @@ export function useFileTreeItemInteractions({
         pasteIntoEntry,
         rowDescriptionId,
         rowRef: rowReference,
+        selectForContextMenu,
         setIsDropTarget,
+        startDrag,
         startCreate,
         startRename,
     };

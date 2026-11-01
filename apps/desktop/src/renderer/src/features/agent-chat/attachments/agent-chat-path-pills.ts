@@ -7,7 +7,7 @@ import {
 } from '@caxri/protocol';
 
 import {
-    isDirectoryDrag,
+    draggedDirectoryPaths,
     isOsFileReferenceRefused,
     PROJECT_PATH_DRAG_TYPE,
     terminalDragPaths,
@@ -36,12 +36,13 @@ export function agentChatDropPathPills(event: DragEvent): AgentChatPathPill[] {
     const { dataTransfer } = event;
     const projectPath = dataTransfer.getData(PROJECT_PATH_DRAG_TYPE);
     const editorPath = dataTransfer.getData(EDITOR_PATH_DRAG_TYPE);
+    const directories = draggedDirectoryPaths(dataTransfer);
     const references: Array<Pick<AgentChatPathPill, 'kind' | 'path'>> = projectPath
         ? [{ kind: 'directory', path: projectPath }]
         : editorPath
           ? [{ kind: 'file', path: editorPath }]
           : terminalDragPaths(event, []).map((path) => ({
-                kind: isDirectoryDrag(dataTransfer) ? 'directory' : 'file',
+                kind: directories.has(path) ? 'directory' : 'file',
                 path,
             }));
     return references.map(({ kind, path }) => agentChatPathPill(path, kind));

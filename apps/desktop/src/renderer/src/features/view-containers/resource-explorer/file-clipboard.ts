@@ -2,10 +2,13 @@ import { createStore } from '../../../lib/store';
 
 export interface FileClipboardEntry {
     mode: 'copy' | 'cut';
-    path: string;
     /**
-     * The Session the item was cut or copied in. Server Core authorizes `path` against that Session's root, so a paste
-     * can land in any Project.
+     * Every entry cut or copied together (one row, or a multi-selection without entries nested in another of them).
+     */
+    paths: readonly string[];
+    /**
+     * The Session the items were cut or copied in. Server Core authorizes `paths` against that Session's root, so a
+     * paste can land in any Project.
      */
     sessionId: string;
 }

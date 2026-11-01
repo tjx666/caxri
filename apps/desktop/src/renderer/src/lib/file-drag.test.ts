@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useEnvironmentStore } from '../stores/environment';
 import {
-    dragPath,
+    dragPaths,
     FILE_TREE_DRAG_TYPE,
     fileTreeDropEffect,
     hasDraggedPath,
@@ -34,32 +34,48 @@ function fakeDragEvent(data: Record<string, string>): DragEvent {
     } as unknown as DragEvent;
 }
 
-describe('dragPath', () => {
+describe('dragPaths', () => {
     it('keeps Project roots absolute and separate from Files move payloads', () => {
         const event = fakeDragEvent({ [PROJECT_PATH_DRAG_TYPE]: "/repo/a 'quoted' folder" });
         expect(projectTerminalInput(event.dataTransfer)).toBe(
             String.raw`'/repo/a '\''quoted'\'' folder'`,
         );
         expect(hasDraggedPath(event)).toBe(false);
-        expect(dragPath(event)).toBeUndefined();
+        expect(dragPaths(event)).toEqual([]);
         expect(projectTerminalInput(fakeDragEvent({}).dataTransfer)).toBeUndefined();
     });
     it('reads back the path stored under the custom MIME type', () => {
         const event = fakeDragEvent({ [FILE_TREE_DRAG_TYPE]: '/repo/src/index.ts' });
 
-        expect(dragPath(event)).toBe('/repo/src/index.ts');
+        expect(dragPaths(event)).toEqual(['/repo/src/index.ts']);
     });
 
-    it('returns undefined when the custom MIME type carries no path', () => {
+    it('reads back every path of a dragged multi-selection in order', () => {
+        const data: Record<string, string> = {};
+        startFilePathDrag(
+            {
+                setData: (type: string, value: string) => {
+                    data[type] = value;
+                },
+            } as DataTransfer,
+            [{ path: '/repo/b.ts' }, { isDirectory: true, path: '/repo/a' }],
+            true,
+        );
+        const event = fakeDragEvent(data);
+        expect(dragPaths(event)).toEqual(['/repo/b.ts', '/repo/a']);
+        expect(terminalDragPaths(event)).toEqual(['/repo/b.ts', '/repo/a']);
+    });
+
+    it('returns no paths when the custom MIME type carries none', () => {
         const event = fakeDragEvent({ 'text/plain': 'not a caxri drag' });
 
-        expect(dragPath(event)).toBeUndefined();
+        expect(dragPaths(event)).toEqual([]);
     });
 
-    it('returns undefined when the custom MIME type is present but empty', () => {
+    it('returns no paths when the custom MIME type is present but empty', () => {
         const event = fakeDragEvent({ [FILE_TREE_DRAG_TYPE]: '' });
 
-        expect(dragPath(event)).toBeUndefined();
+        expect(dragPaths(event)).toEqual([]);
     });
 });
 
@@ -142,13 +158,13 @@ describe('Terminal file references', () => {
                 data[type] = value;
             },
         } as DataTransfer;
-        startFilePathDrag(transfer, '/repo/linked folder', false);
+        startFilePathDrag(transfer, [{ path: '/repo/linked folder' }], false);
         const event = fakeDragEvent(data);
         expect(transfer.effectAllowed).toBe('copy');
         expect(hasTerminalDraggedPath(event)).toBe(true);
         expect(terminalDragPaths(event)).toEqual(['/repo/linked folder']);
         expect(hasDraggedPath(event)).toBe(false);
-        expect(dragPath(event)).toBeUndefined();
+        expect(dragPaths(event)).toEqual([]);
     });
 
     it('retains ordinary Files move and Terminal insertion payloads', () => {
@@ -159,7 +175,7 @@ describe('Terminal file references', () => {
                 data[type] = value;
             },
         } as DataTransfer;
-        startFilePathDrag(transfer, '/repo/file.txt', true);
+        startFilePathDrag(transfer, [{ path: '/repo/file.txt' }], true);
         const event = fakeDragEvent(data);
         expect(transfer.effectAllowed).toBe('copyMove');
         expect(hasTerminalDraggedPath(event)).toBe(true);
@@ -298,7 +314,7 @@ describe('OS file references in an SSH Host window', () => {
                     data[type] = value;
                 },
             } as DataTransfer,
-            '/home/me/repo/src/main.ts',
+            [{ path: '/home/me/repo/src/main.ts' }],
             false,
         );
         expect(terminalDragPaths(fakeDragEvent(data))).toEqual(['/home/me/repo/src/main.ts']);

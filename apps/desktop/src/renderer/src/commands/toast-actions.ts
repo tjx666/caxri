@@ -42,7 +42,7 @@ import {
 import {
     didUndoReplacedMove,
     didUndoTrashedFile,
-} from '../features/view-containers/resource-explorer/file-actions';
+} from '../features/view-containers/resource-explorer/trash/file-trash-actions';
 import { activeResourceExplorerClient } from '../features/view-containers/resource-explorer-catalog-client';
 import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';

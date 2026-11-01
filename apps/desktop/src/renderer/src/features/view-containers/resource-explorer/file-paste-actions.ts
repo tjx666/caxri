@@ -1,4 +1,4 @@
-import type { MethodResult, MutableFileEntry } from '@caxri/protocol';
+import type { MutableFileEntry } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
 import { readClipboardFilePaths, writeClipboardText } from '../../../lib/clipboard';
@@ -10,26 +10,29 @@ import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../../edi
 import { copyItem, invalidateDirectory, moveFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
-import type { ResourceExplorerClient } from './resource-explorer-client';
+import { outermostPaths } from './file-tree-selection';
+import type { FileMoveSource, ResourceExplorerClient } from './resource-explorer-client';
 import { activeResourceExplorerScope } from './resource-explorer-scope-store';
 
 /**
- * Arms Cut or Copy for a later paste, in this Project or another one.
+ * Arms Cut or Copy of one entry or a whole multi-selection for a later paste, in this Project or another one.
  *
- * The path also goes to the system clipboard as text. Besides letting it be pasted elsewhere as a path, that replaces
- * whatever Finder copied earlier, so a later Paste takes this item rather than a stale Finder copy: the tree pastes
- * Finder's files whenever the system clipboard still holds them (`pasteIntoDirectory`).
+ * The paths also go to the system clipboard as text, one per line. Besides letting them be pasted elsewhere as paths,
+ * that replaces whatever Finder copied earlier, so a later Paste takes these items rather than a stale Finder copy: the
+ * tree pastes Finder's files whenever the system clipboard still holds them (`pasteIntoDirectory`).
  */
-export function rememberFile(path: string, mode: FileClipboardEntry['mode']): void {
+export function rememberFiles(paths: readonly string[], mode: FileClipboardEntry['mode']): void {
     const scope = activeResourceExplorerScope();
-    if (!scope) return;
-    useFileClipboardStore.getState().set({ mode, path, sessionId: scope.sessionId });
-    void writePathToClipboard(path);
+    if (!scope || paths.length === 0) return;
+    useFileClipboardStore
+        .getState()
+        .set({ mode, paths: outermostPaths(paths), sessionId: scope.sessionId });
+    void writePathsToClipboard(paths);
 }
 
-async function writePathToClipboard(path: string): Promise<void> {
+async function writePathsToClipboard(paths: readonly string[]): Promise<void> {
     try {
-        await writeClipboardText(path);
+        await writeClipboardText(paths.join('\n'));
     } catch {
         // Best effort: a failed write only means an older Finder copy may still win the next paste.
     }
@@ -37,13 +40,13 @@ async function writePathToClipboard(path: string): Promise<void> {
 
 /**
  * Cmd+V or Paste into `directory`: files Finder put on the system clipboard win, since copying in Caxri replaces them
- * ({@link rememberFile}); otherwise the item cut or copied in Caxri.
+ * ({@link rememberFiles}); otherwise the items cut or copied in Caxri. Returns every entry that landed, in order.
  */
 export async function pasteIntoDirectory(
     client: ResourceExplorerClient,
     sessionId: string,
     directory: string,
-): Promise<MutableFileEntry | MethodResult<'files.move'> | undefined> {
+): Promise<readonly MutableFileEntry[]> {
     // An SSH Host window takes no Finder files, as with a drop (see `isOsFileReferenceRefused`).
     const finderPaths = isOsFileReferenceRefused()
         ? []
@@ -51,22 +54,30 @@ export async function pasteIntoDirectory(
     if (finderPaths && finderPaths.length > 0)
         return importOsFiles(client, sessionId, finderPaths, directory);
     const clipboard = useFileClipboardStore.getState().entry;
-    return clipboard ? pasteFile(client, sessionId, directory, clipboard) : undefined;
+    return clipboard ? pasteFiles(client, sessionId, directory, clipboard) : [];
 }
 
-export async function pasteFile(
+export async function pasteFiles(
     client: ResourceExplorerClient,
     sessionId: string,
     directory: string,
     clipboard: FileClipboardEntry,
-): Promise<MutableFileEntry | MethodResult<'files.move'> | undefined> {
-    // Named whenever the item was cut or copied in another Session: its Project, or its worktree, can differ.
+): Promise<readonly MutableFileEntry[]> {
+    // Named whenever the items were cut or copied in another Session: its Project, or its worktree, can differ.
     const source =
         clipboard.sessionId === sessionId
             ? undefined
             : ({ kind: 'session', sessionId: clipboard.sessionId } as const);
-    if (clipboard.mode === 'copy')
-        return copyItem(client, sessionId, clipboard.path, directory, source);
+    if (clipboard.mode === 'copy') {
+        const copied: MutableFileEntry[] = [];
+        for (const path of clipboard.paths) {
+            // Sequential so every copy picks its own free name in `directory`.
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const entry = await copyItem(client, sessionId, path, directory, source);
+            if (entry) copied.push(entry);
+        }
+        return copied;
+    }
     const sourceProjectId = getSessionProjectId(clipboard.sessionId);
     const isLeavesProject =
         sourceProjectId !== undefined && sourceProjectId !== getSessionProjectId(sessionId);
@@ -74,14 +85,47 @@ export async function pasteFile(
      * A move reconciles open editors only in the destination Project, so a dirty tab in the source Project would keep
      * its old path and recreate the file there on save. Refused rather than silently dropping those edits.
      */
-    if (isLeavesProject && hasUnsavedChangesUnderPath(sourceProjectId, clipboard.path)) {
+    if (
+        isLeavesProject &&
+        clipboard.paths.some((path) => hasUnsavedChangesUnderPath(sourceProjectId, path))
+    ) {
         pushToast('error', translate('viewContainers.files.moveUnsavedToProject'));
-        return undefined;
+        return [];
     }
-    const moved = await moveFile(client, sessionId, clipboard.path, directory, source);
-    if (!moved) return undefined;
-    useFileClipboardStore.getState().clear();
-    if (isLeavesProject) await forgetSourceEditors(client, sourceProjectId, clipboard.path);
+    const moved = await moveFiles(client, sessionId, clipboard.paths, directory, source);
+    if (moved.length === 0) return moved;
+    // An entry that did not move (a canceled conflict, a failure) stays cut, so a second Paste can still take it.
+    const movedFrom = new Set(moved.map((entry) => entry.previousPath));
+    const left = clipboard.paths.filter((path) => !movedFrom.has(path));
+    if (left.length === 0) useFileClipboardStore.getState().clear();
+    else useFileClipboardStore.getState().set({ ...clipboard, paths: left });
+    if (isLeavesProject)
+        for (const entry of moved)
+            // eslint-disable-next-line no-await-in-loop -- one cleanup per moved entry, in order
+            await forgetSourceEditors(client, sourceProjectId, entry.previousPath);
+    return moved;
+}
+
+/**
+ * Moves each of `paths` into `directory` in turn (a dragged or cut multi-selection). Entries already in `directory`
+ * stay put, since moving them there would only raise a conflict with themselves; a conflict prompt or failure on one
+ * entry does not stop the rest. Returns every entry that moved.
+ */
+export async function moveFiles(
+    client: ResourceExplorerClient,
+    sessionId: string,
+    paths: readonly string[],
+    directory: string,
+    source?: FileMoveSource,
+): Promise<ReadonlyArray<MutableFileEntry & { previousPath: string }>> {
+    const moved: Array<MutableFileEntry & { previousPath: string }> = [];
+    for (const path of outermostPaths(paths)) {
+        if (parentDirectoryPath(path) === directory) continue;
+        // Sequential: each entry may raise its own conflict prompt.
+        // eslint-disable-next-line no-await-in-loop -- see above
+        const entry = await moveFile(client, sessionId, path, directory, source);
+        if (entry) moved.push(entry);
+    }
     return moved;
 }
 
@@ -103,20 +147,20 @@ async function forgetSourceEditors(
 
 /**
  * Copies files the user dropped or pasted from Finder into `directory`. Finder's items are only read, never moved, and
- * each keeps both copies on a name clash. Runs one at a time so every item picks its own free name; returns the last
- * one copied, for the caller to select.
+ * each keeps both copies on a name clash. Runs one at a time so every item picks its own free name; returns every item
+ * copied, for the caller to select.
  */
 export async function importOsFiles(
     client: ResourceExplorerClient,
     sessionId: string,
     paths: readonly string[],
     directory: string,
-): Promise<MutableFileEntry | undefined> {
-    let last: MutableFileEntry | undefined;
+): Promise<readonly MutableFileEntry[]> {
+    const copied: MutableFileEntry[] = [];
     for (const path of paths) {
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential on purpose; see above
-        const copied = await copyItem(client, sessionId, path, directory, { kind: 'external' }); // eslint-disable-line no-await-in-loop -- see above
-        if (copied) last = copied;
+        const entry = await copyItem(client, sessionId, path, directory, { kind: 'external' }); // eslint-disable-line no-await-in-loop -- see above
+        if (entry) copied.push(entry);
     }
-    return last;
+    return copied;
 }

@@ -79,7 +79,7 @@ import {
 import { requestWindowOr } from './request-window';
 import { installShellCommand, uninstallShellCommand } from './shell-command';
 import { createShellCommandEnvironment } from './shell-command-environment';
-import { moveAuthorizedItemToTrash } from './trash/dispatch';
+import { trashConfirmedItems } from './trash/dispatch';
 import type { UpdateService } from './updates/updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
@@ -337,47 +337,21 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return supervisor.request('bot.clearData', request.params);
             }
             case 'files.trash': {
-                const item = await supervisor.request('files.authorizeTrash', request.params);
                 const state = environment.get();
-                const result = await dialog.showMessageBox(
-                    mainWindow!,
-                    trashPrompt({
-                        ...item,
-                        hasUnsavedChanges: request.params.hasUnsavedChanges,
-                        host: state.kind === 'ssh' ? state.destination : undefined,
-                    }),
-                );
-                if (result.response !== 0) return { canceled: true };
-                /**
-                 * Reauthorize after the native dialog so a replaced path cannot inherit approval.
-                 */
-                const current = await supervisor.request('files.authorizeTrash', request.params);
-                if (
-                    current.path !== item.path ||
-                    current.device !== item.device ||
-                    current.inode !== item.inode ||
-                    current.root.path !== item.root.path ||
-                    current.root.device !== item.root.device ||
-                    current.root.inode !== item.root.inode
-                )
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'File or folder changed before it reached Trash',
-                    );
-                /**
-                 * Electron's Trash API is path-based, so authorization is repeated immediately before it. An SSH Host's
-                 * entry lives on the remote machine, whose Server moves it into that host's Trash and checks the
-                 * approved identity once more.
-                 */
-                return {
-                    ...item,
-                    ...(await moveAuthorizedItemToTrash(
-                        supervisor,
-                        request.params.sessionId,
-                        current,
-                        state.kind === 'ssh',
-                    )),
-                };
+                return trashConfirmedItems(supervisor, request.params, {
+                    isRemoteHost: state.kind === 'ssh',
+                    confirm: async (items) =>
+                        (
+                            await dialog.showMessageBox(
+                                mainWindow!,
+                                trashPrompt({
+                                    items,
+                                    hasUnsavedChanges: request.params.hasUnsavedChanges,
+                                    host: state.kind === 'ssh' ? state.destination : undefined,
+                                }),
+                            )
+                        ).response === 0,
+                });
             }
             case 'project.delete': {
                 const { projectId } = request.params;

@@ -209,6 +209,13 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                 const row = target === undefined ? undefined : current.at(target);
                 return row?.kind === 'entry' ? row.entry.path : undefined;
             },
+            entryFor: (path) => {
+                const { indexByPath: indexes, rows: current } = latestNavigation.current;
+                const index = indexes.get(path);
+                const row = index === undefined ? undefined : current.at(index);
+                return row?.kind === 'entry' ? row.entry : undefined;
+            },
+            visiblePaths: () => latestNavigation.current.indexByPath.keys().toArray(),
         }),
         [latestNavigation],
     );
@@ -311,6 +318,7 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                 <div
                     ref={scrollElement}
                     role="tree"
+                    aria-multiselectable
                     aria-label={t('viewContainers.files.treeLabel')}
                     className="file-list min-h-0 flex-1 overflow-auto"
                     data-scrolled="false"

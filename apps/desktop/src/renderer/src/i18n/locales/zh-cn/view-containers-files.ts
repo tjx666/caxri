@@ -58,6 +58,10 @@ export const viewContainersFiles: TranslatedNamespace<typeof source> = {
     'viewContainers.files.movingInBackground': '正在后台移动…',
     'viewContainers.files.trashedUnsaved':
         '已将“{{name}}”移到废纸篓。未保存的更改已丢弃，只能恢复最后保存的版本。',
+    'viewContainers.files.trashedUnsavedMany':
+        '已将 {{count}} 项移到废纸篓。未保存的更改已丢弃，只能恢复最后保存的版本。',
+    'viewContainers.files.trashedPartly':
+        '已将 {{total}} 项中的 {{count}} 项移到废纸篓，在“{{name}}”处停止：{{reason}}',
     'viewContainers.files.restoreFailed': '无法从废纸篓恢复',
     'viewContainers.files.restoreConflict':
         '无法恢复“{{name}}”：原位置已存在同名项目。废纸篓里的副本没有被改动。',

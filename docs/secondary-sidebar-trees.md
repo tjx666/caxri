@@ -44,7 +44,13 @@ of DOM.
   container is visible. A hidden Files view therefore renders nothing on a tab switch, a visible one
   re-renders only that follower, and revealing the container follows whichever tab is active by
   then. Refresh reads the active tab when pressed instead of subscribing to it.
-- **The Tab stop stays mounted.** The selected row, or the first row when nothing is selected,
+- **Selection is a set with a lead and an anchor.** `file-tree-selection.ts` owns the pure rules:
+  Cmd-click toggles a row, Shift-click and Shift+Arrow select the visible rows between the anchor
+  and the target, and Escape narrows to the focused row. Neither modifier opens a row. A row action
+  (Trash, Cut, Copy, Copy Path, drag) covers the whole selection when the row belongs to it, and
+  drops entries inside a selected folder first. Main confirms a Trash batch once, and one Cmd+Z
+  restores all of it.
+- **The Tab stop stays mounted.** The selection lead, or the first row when nothing is selected,
   always renders. So does the focused row. Tab can always re-enter the tree, and scrolling the
   focused row away does not drop focus to `<body>`.
 - **Accessibility.** Rows are flat `treeitem`s with `aria-level`, `aria-posinset`, and

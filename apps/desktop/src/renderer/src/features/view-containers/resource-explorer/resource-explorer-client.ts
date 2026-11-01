@@ -58,10 +58,10 @@ export interface ResourceExplorerClient {
         signal?: AbortSignal,
     ): Promise<MovedFileEntry>;
     trash(
-        path: string,
+        paths: readonly string[],
         options?: { hasUnsavedChanges?: boolean },
         signal?: AbortSignal,
-    ): Promise<(MutableFileEntry & { undoToken?: string }) | { canceled: true }>;
+    ): Promise<MethodResult<'files.trash'>>;
     /**
      * Puts an item `trash` reported an `undoToken` for back at its original path; rejects with `CONFLICT` rather than
      * overwrite something that now occupies it.
@@ -177,7 +177,11 @@ export function createResourceExplorerClient(viewId: string): ResourceExplorerCl
             ),
         restoreTrashed: (undoToken, signal) =>
             request('files.restoreTrashed', { sessionId: requireSessionId(), undoToken }, signal),
-        trash: (path, options, signal) =>
-            request('files.trash', { sessionId: requireSessionId(), path, ...options }, signal),
+        trash: (paths, options, signal) =>
+            request(
+                'files.trash',
+                { sessionId: requireSessionId(), paths: [...paths], ...options },
+                signal,
+            ),
     };
 }

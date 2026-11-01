@@ -13,7 +13,7 @@ import { useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
-import { createItem, didTrashFile, duplicateFile, moveFile, renameFile } from '../file-actions';
+import { createItem, duplicateFile, moveFile, renameFile } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import {
     resolveFileConflictChoice,
@@ -24,7 +24,7 @@ import {
     reconcileFileMutation,
 } from '../file-operation-reconciliation';
 import { useFileOperationStore } from '../file-operation-state';
-import { pasteFile } from '../file-paste-actions';
+import { pasteFiles } from '../file-paste-actions';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -41,18 +41,6 @@ function fileEntryListing(name: string): unknown[] {
 
 function session(id: string, projectId: string, workbenchRootProjectId = projectId) {
     return { id, projectId, workbenchRootProjectId };
-}
-
-function paneLayout(path: string) {
-    return {
-        root: {
-            type: 'pane',
-            id: 'pane-1',
-            tabs: [{ id: 'tab-1', resource: { kind: 'file', path } }],
-            activeTabId: 'tab-1',
-        },
-        activePaneId: 'pane-1',
-    };
 }
 
 /**
@@ -90,8 +78,8 @@ const client = {
     rename: (options: Parameters<ResourceExplorerClient['rename']>[0]) =>
         mocks.request('files.rename', { sessionId: 'session-a', ...options }),
     restoreTrashed: vi.fn(),
-    trash: (path: string, options?: Parameters<ResourceExplorerClient['trash']>[1]) =>
-        mocks.request('files.trash', { sessionId: 'session-a', path, ...options }),
+    trash: (paths: readonly string[], options?: Parameters<ResourceExplorerClient['trash']>[1]) =>
+        mocks.request('files.trash', { sessionId: 'session-a', paths, ...options }),
 } satisfies Record<keyof ResourceExplorerClient, unknown> as unknown as ResourceExplorerClient;
 
 beforeEach(() => vi.stubGlobal('window', globalThis));
@@ -267,150 +255,6 @@ describe('file action lifecycle', () => {
             }),
         ]);
     });
-
-    it('does not toast when Move to Trash is canceled', async () => {
-        mocks.request.mockResolvedValue({ canceled: true });
-
-        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(false);
-
-        expect(getToasts()).toEqual([]);
-    });
-
-    it('tells Main about unsaved changes and keeps a persistent notice that they were discarded', async () => {
-        useWorkbenchStore.setState({
-            bootstrap: {
-                sessions: [session('session-a', 'project-1')],
-                sessionStates: [
-                    {
-                        ...operationScope,
-                        desiredSecondarySidebarViewContainerId: 'caxri.files',
-                        paneLayout: paneLayout('/project/source.txt'),
-                    },
-                ],
-                terminals: [],
-            } as unknown as BootstrapState,
-        });
-        useSessionViewStore.getState().cacheDocument('session-a', {
-            path: '/project/source.txt',
-            content: 'unsaved',
-            dirty: true,
-            mtimeMs: 1,
-            size: 7,
-        });
-        mocks.request.mockResolvedValue({
-            kind: 'file',
-            name: 'source.txt',
-            path: '/project/source.txt',
-        });
-
-        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
-
-        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
-            sessionId: 'session-a',
-            path: '/project/source.txt',
-            hasUnsavedChanges: true,
-        });
-        expect(getToasts()).toContainEqual(
-            expect.objectContaining({
-                type: 'warning',
-                duration: Infinity,
-                title: "Moved 'source.txt' to Trash. Unsaved changes were discarded; only the last saved version can be restored.",
-            }),
-        );
-        expect(getToasts()).toHaveLength(1);
-    });
-
-    it('cleans the Workbench Root the confirmation was about, not the one in effect afterwards', async () => {
-        // An Agent creating a worktree switches a Session's root with no user action, and the confirmation dialog can be
-        // open for seconds. Re-deriving the root after the await would leave the trashed file's dirty buffer behind,
-        // which is exactly the resurrection #738 closed.
-        useWorkbenchStore.setState({
-            bootstrap: {
-                sessions: [session('session-a', 'project-1')],
-                sessionStates: [
-                    {
-                        ...operationScope,
-                        desiredSecondarySidebarViewContainerId: 'caxri.files',
-                        paneLayout: paneLayout('/project/source.txt'),
-                    },
-                ],
-                terminals: [],
-            } as unknown as BootstrapState,
-        });
-        useSessionViewStore.getState().cacheDocument('session-a', {
-            path: '/project/source.txt',
-            content: 'unsaved',
-            dirty: true,
-            mtimeMs: 1,
-            size: 7,
-        });
-        mocks.request.mockImplementation((method: string) => {
-            if (method !== 'files.trash') return Promise.resolve(null);
-            useWorkbenchStore.setState((state) => ({
-                bootstrap: {
-                    ...state.bootstrap!,
-                    // Only the Workbench Root moves; a Session's owner Project is fixed for its lifetime.
-                    sessions: [session('session-a', 'project-1', 'project-2')],
-                } as BootstrapState,
-            }));
-            return Promise.resolve({
-                kind: 'file',
-                name: 'source.txt',
-                path: '/project/source.txt',
-            });
-        });
-
-        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
-
-        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
-            sessionId: 'session-a',
-            path: '/project/source.txt',
-            hasUnsavedChanges: true,
-        });
-        expect(useSessionViewStore.getState().documents['session-a']).toEqual({});
-        // The durable snapshot cleanup has to name the same root: it is the only copy for a Session parked elsewhere.
-        expect(mocks.request).toHaveBeenCalledWith('session.workbenchRoot.forgetEditorPath', {
-            ...operationScope,
-            path: '/project/source.txt',
-        });
-    });
-
-    it('reports no unsaved changes for a clean file', async () => {
-        useWorkbenchStore.setState({
-            bootstrap: {
-                sessions: [session('session-a', 'project-1')],
-                sessionStates: [
-                    {
-                        ...operationScope,
-                        desiredSecondarySidebarViewContainerId: 'caxri.files',
-                        paneLayout: paneLayout('/project/source.txt'),
-                    },
-                ],
-                terminals: [],
-            } as unknown as BootstrapState,
-        });
-        useSessionViewStore.getState().cacheDocument('session-a', {
-            path: '/project/source.txt',
-            content: 'saved',
-            dirty: false,
-            mtimeMs: 1,
-            size: 5,
-        });
-        mocks.request.mockResolvedValue({
-            kind: 'file',
-            name: 'source.txt',
-            path: '/project/source.txt',
-        });
-
-        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
-
-        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
-            sessionId: 'session-a',
-            path: '/project/source.txt',
-            hasUnsavedChanges: false,
-        });
-        expect(getToasts()).not.toContainEqual(expect.objectContaining({ type: 'info' }));
-    });
 });
 
 describe('moveFile conflict prompt', () => {
@@ -583,11 +427,13 @@ describe('moveFile conflict prompt', () => {
             if (method === 'files.operation.get') return Promise.resolve(failed);
             return Promise.resolve(null);
         });
-        useFileClipboardStore.getState().set({ mode: 'cut', path: source, sessionId: 'session-a' });
+        useFileClipboardStore
+            .getState()
+            .set({ mode: 'cut', paths: [source], sessionId: 'session-a' });
 
-        const pastePromise = pasteFile(client, 'session-a', directory, {
+        const pastePromise = pasteFiles(client, 'session-a', directory, {
             mode: 'cut',
-            path: source,
+            paths: [source],
             sessionId: 'session-a',
         });
         await vi.waitFor(() => {
@@ -595,7 +441,7 @@ describe('moveFile conflict prompt', () => {
         });
         resolveFileConflictChoice('cancel');
 
-        await expect(pastePromise).resolves.toBeUndefined();
+        await expect(pastePromise).resolves.toEqual([]);
         expect(mocks.request).not.toHaveBeenCalledWith(
             'files.move',
             expect.objectContaining({ conflict: 'replace' }),
@@ -606,7 +452,7 @@ describe('moveFile conflict prompt', () => {
         );
         expect(useFileClipboardStore.getState().entry).toEqual({
             mode: 'cut',
-            path: source,
+            paths: [source],
             sessionId: 'session-a',
         });
         expect(getToasts().some((toast) => toast.type === 'error')).toBe(false);

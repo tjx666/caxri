@@ -6,14 +6,15 @@ const mocks = vi.hoisted(() => ({
     request: vi.fn<(method: string, parameters: Record<string, unknown>) => Promise<unknown>>(),
 }));
 
-vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+vi.mock('../../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
-import { queryClient } from '../../../../queries/client';
-import { dismissToast, getToasts } from '../../../../stores/toasts';
-import { useWorkbenchStore } from '../../../../stores/workbench';
-import { didTrashFile, didUndoTrashedFile, duplicateFile, undoLatestTrash } from '../file-actions';
-import type { ResourceExplorerClient } from '../resource-explorer-client';
-import { forgetUndoableTrash } from '../undoable-trash';
+import { queryClient } from '../../../../../queries/client';
+import { dismissToast, getToasts } from '../../../../../stores/toasts';
+import { useWorkbenchStore } from '../../../../../stores/workbench';
+import { duplicateFile } from '../../file-actions';
+import type { ResourceExplorerClient } from '../../resource-explorer-client';
+import { didUndoTrashedFile, trashFiles, undoLatestTrash } from '../file-trash-actions';
+import { forgetUndoableTrash, undoableTrashFor } from '../undoable-trash';
 
 const client = {
     viewId: 'files-view',
@@ -22,7 +23,8 @@ const client = {
     forgetEditorPath: () => Promise.resolve(null),
     restoreTrashed: (undoToken: string) =>
         mocks.request('files.restoreTrashed', { sessionId: 'session-a', undoToken }),
-    trash: (path: string) => mocks.request('files.trash', { sessionId: 'session-a', path }),
+    trash: (paths: readonly string[]) =>
+        mocks.request('files.trash', { sessionId: 'session-a', paths }),
 } as unknown as ResourceExplorerClient;
 
 afterEach(() => {
@@ -56,13 +58,19 @@ describe('Move to Trash notification', () => {
             } as unknown as BootstrapState,
         });
         mocks.request.mockResolvedValue({
-            kind: 'file',
-            name: 'source.txt',
-            path: '/project/source.txt',
-            ...(undoToken && { undoToken }),
+            items: [
+                {
+                    kind: 'file',
+                    name: 'source.txt',
+                    path: '/project/source.txt',
+                    ...(undoToken && { undoToken }),
+                },
+            ],
         });
 
-        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
+        await expect(trashFiles(client, 'session-a', ['/project/source.txt'])).resolves.toEqual([
+            '/project/source.txt',
+        ]);
 
         expect(getToasts()).toEqual([]);
     });
@@ -109,6 +117,78 @@ describe('Undo after Move to Trash', () => {
     });
 });
 
+function useSessionA(): void {
+    useWorkbenchStore.setState({
+        bootstrap: {
+            sessions: [
+                { id: 'session-a', projectId: 'project-1', workbenchRootProjectId: 'project-1' },
+            ],
+            sessionStates: [],
+            terminals: [],
+        } as unknown as BootstrapState,
+    });
+}
+
+describe('Move to Trash of a multi-selection', () => {
+    const trashed = (name: string) => ({
+        kind: 'file',
+        name,
+        path: `/project/${name}`,
+        undoToken: `receipt-${name}`,
+    });
+
+    it('takes the whole batch back with one Cmd+Z', async () => {
+        useSessionA();
+        mocks.request.mockResolvedValueOnce({ items: [trashed('a.txt'), trashed('b.txt')] });
+        await expect(
+            trashFiles(client, 'session-a', ['/project/a.txt', '/project/b.txt']),
+        ).resolves.toEqual(['/project/a.txt', '/project/b.txt']);
+        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
+            sessionId: 'session-a',
+            paths: ['/project/a.txt', '/project/b.txt'],
+        });
+        mocks.request.mockImplementation((method, parameters) =>
+            Promise.resolve(
+                method === 'files.restoreTrashed'
+                    ? trashed(String(parameters.undoToken).replace('receipt-', ''))
+                    : null,
+            ),
+        );
+
+        expect(undoLatestTrash(client, 'session-a')).toBeDefined();
+        await vi.waitFor(() =>
+            expect(
+                mocks.request.mock.calls
+                    .filter(([method]) => method === 'files.restoreTrashed')
+                    .map(([, parameters]) => parameters.undoToken),
+            ).toEqual(['receipt-a.txt', 'receipt-b.txt']),
+        );
+        await vi.waitFor(() => expect(undoLatestTrash(client, 'session-a')).toBeUndefined());
+    });
+
+    it('reports where a batch stopped and keeps what reached the Trash undoable', async () => {
+        useSessionA();
+        mocks.request.mockResolvedValueOnce({
+            items: [trashed('a.txt')],
+            failure: { path: '/project/b.txt', message: 'Permission denied' },
+        });
+
+        await expect(
+            trashFiles(client, 'session-a', ['/project/a.txt', '/project/b.txt']),
+        ).resolves.toEqual(['/project/a.txt']);
+
+        expect(getToasts()).toEqual([
+            expect.objectContaining({
+                type: 'error',
+                title: "Moved 1 of 2 items to Trash, then stopped at 'b.txt': Permission denied",
+            }),
+        ]);
+        expect(undoableTrashFor('session-a')?.items).toEqual([
+            { name: 'a.txt', undoToken: 'receipt-a.txt' },
+        ]);
+    });
+});
+
 describe('Cmd+Z after Move to Trash', () => {
     async function trash(name: string, undoToken: string | undefined): Promise<void> {
         useWorkbenchStore.setState({
@@ -125,12 +205,9 @@ describe('Cmd+Z after Move to Trash', () => {
             } as unknown as BootstrapState,
         });
         mocks.request.mockResolvedValueOnce({
-            kind: 'file',
-            name,
-            path: `/project/${name}`,
-            undoToken,
+            items: [{ kind: 'file', name, path: `/project/${name}`, undoToken }],
         });
-        await didTrashFile(client, 'session-a', `/project/${name}`);
+        await trashFiles(client, 'session-a', [`/project/${name}`]);
     }
 
     it('restores the latest Trash once, then has nothing left to undo', async () => {
@@ -186,8 +263,11 @@ describe('Cmd+Z after Move to Trash', () => {
         mocks.request.mockRejectedValue(new CaxriError('CONFLICT', 'a.txt already exists'));
 
         expect(undoLatestTrash(client, 'session-a')).toBeDefined();
-        await vi.waitFor(() => expect(getToasts()).toHaveLength(1));
+        await vi.waitFor(() => expect(undoableTrashFor('session-a')).toBeDefined());
+        expect(getToasts()).toHaveLength(1);
         expect(undoLatestTrash(client, 'session-a')).toBeDefined();
+        // Let the retry settle on the same conflict before the mocks reset.
+        await vi.waitFor(() => expect(undoableTrashFor('session-a')).toBeDefined());
     });
 
     it('sends one restore for a rapid double Cmd+Z and shows no error toast', async () => {

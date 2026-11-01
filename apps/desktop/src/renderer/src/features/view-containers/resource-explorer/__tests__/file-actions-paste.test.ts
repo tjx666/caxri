@@ -31,7 +31,13 @@ import { queryClient } from '../../../../queries/client';
 import { useEnvironmentStore } from '../../../../stores/environment';
 import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useFileClipboardStore } from '../file-clipboard';
-import { importOsFiles, pasteFile, pasteIntoDirectory, rememberFile } from '../file-paste-actions';
+import {
+    importOsFiles,
+    moveFiles,
+    pasteFiles,
+    pasteIntoDirectory,
+    rememberFiles,
+} from '../file-paste-actions';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
 import { setResourceExplorerActiveScope } from '../resource-explorer-scope-store';
 
@@ -95,27 +101,63 @@ describe('Cut or Copy across Projects', () => {
             sessionId: 'session-a',
         });
 
-        rememberFile('/a/notes.md', 'copy');
+        rememberFiles(['/a/notes.md'], 'copy');
 
         expect(useFileClipboardStore.getState().entry).toEqual({
             mode: 'copy',
-            path: '/a/notes.md',
+            paths: ['/a/notes.md'],
             sessionId: 'session-a',
         });
         expect(mocks.request).toHaveBeenCalledWith('clipboard.write', { text: '/a/notes.md' });
     });
 
+    it('arms a multi-selection without the entries inside a selected folder, and copies every path as text', () => {
+        stubRequests();
+        setResourceExplorerActiveScope({
+            projectId: 'project-a',
+            scopeId: 'session-a:project-a',
+            sessionId: 'session-a',
+        });
+
+        rememberFiles(['/a/docs', '/a/docs/guide.md', '/a/notes.md'], 'cut');
+
+        expect(useFileClipboardStore.getState().entry).toEqual({
+            mode: 'cut',
+            paths: ['/a/docs', '/a/notes.md'],
+            sessionId: 'session-a',
+        });
+        expect(mocks.request).toHaveBeenCalledWith('clipboard.write', {
+            text: '/a/docs\n/a/docs/guide.md\n/a/notes.md',
+        });
+    });
+
+    it('copies every armed entry into the target folder in order', async () => {
+        stubRequests();
+
+        await expect(
+            pasteFiles(client, 'session-a', '/a/docs', {
+                mode: 'copy',
+                paths: ['/a/notes.md', '/a/todo.md'],
+                sessionId: 'session-a',
+            }),
+        ).resolves.toMatchObject([{ path: '/a/docs/notes.md' }, { path: '/a/docs/todo.md' }]);
+        expect(copyRequests()).toEqual([
+            { path: '/a/notes.md', directory: '/a/docs' },
+            { path: '/a/todo.md', directory: '/a/docs' },
+        ]);
+    });
+
     it('names the source Session when pasting into another one, and nothing within the same Session', async () => {
         stubRequests();
 
-        await pasteFile(client, 'session-b', '/b', {
+        await pasteFiles(client, 'session-b', '/b', {
             mode: 'copy',
-            path: '/a/notes.md',
+            paths: ['/a/notes.md'],
             sessionId: 'session-a',
         });
-        await pasteFile(client, 'session-a', '/a/docs', {
+        await pasteFiles(client, 'session-a', '/a/docs', {
             mode: 'copy',
-            path: '/a/notes.md',
+            paths: ['/a/notes.md'],
             sessionId: 'session-a',
         });
 
@@ -131,7 +173,7 @@ describe('Cut or Copy across Projects', () => {
 });
 
 describe('Cut and paste into another Project', () => {
-    const cut = { mode: 'cut', path: '/a/notes.md', sessionId: 'session-a' } as const;
+    const cut = { mode: 'cut', paths: ['/a/notes.md'], sessionId: 'session-a' } as const;
 
     beforeEach(() => {
         stubRequests();
@@ -147,7 +189,7 @@ describe('Cut and paste into another Project', () => {
     it('closes and forgets the tabs the moved item left behind in its old Project', async () => {
         useFileClipboardStore.getState().set(cut);
 
-        await pasteFile(client, 'session-b', '/b', cut);
+        await pasteFiles(client, 'session-b', '/b', cut);
 
         expect(mocks.closeOpenEditorsUnderPath).toHaveBeenCalledWith('project-a', '/a/notes.md');
         expect(mocks.request).toHaveBeenCalledWith('editor.forget', {
@@ -160,7 +202,7 @@ describe('Cut and paste into another Project', () => {
     it('refuses while the item has unsaved edits in its old Project', async () => {
         mocks.dirtyPaths.add('project-a:/a/notes.md');
 
-        await expect(pasteFile(client, 'session-b', '/b', cut)).resolves.toBeUndefined();
+        await expect(pasteFiles(client, 'session-b', '/b', cut)).resolves.toEqual([]);
 
         expect(mocks.moveFile).not.toHaveBeenCalled();
         expect(getToasts()).toEqual([
@@ -174,19 +216,58 @@ describe('Cut and paste into another Project', () => {
     it('leaves the tabs to the move itself when both Sessions share a Project', async () => {
         mocks.projectIds.set('session-b', 'project-a');
 
-        await pasteFile(client, 'session-b', '/a/docs', cut);
+        await pasteFiles(client, 'session-b', '/a/docs', cut);
 
         expect(mocks.moveFile).toHaveBeenCalled();
         expect(mocks.closeOpenEditorsUnderPath).not.toHaveBeenCalled();
     });
 });
 
+describe('Moving a multi-selection', () => {
+    it('keeps a cut entry that did not move on the clipboard for the next Paste', async () => {
+        mocks.projectIds.set('session-a', 'project-a');
+        mocks.moveFile.mockImplementation((_client, _sessionId, path: string) =>
+            Promise.resolve(
+                path === '/a/b.md'
+                    ? undefined
+                    : { kind: 'file', name: 'a.md', path: '/c/a.md', previousPath: path },
+            ),
+        );
+        const cut = { mode: 'cut', paths: ['/a/a.md', '/a/b.md'], sessionId: 'session-a' } as const;
+        useFileClipboardStore.getState().set(cut);
+
+        await expect(pasteFiles(client, 'session-a', '/c', cut)).resolves.toHaveLength(1);
+
+        expect(useFileClipboardStore.getState().entry).toEqual({ ...cut, paths: ['/a/b.md'] });
+    });
+
+    it('moves only the outermost entries and leaves those already in the target folder', async () => {
+        mocks.moveFile.mockImplementation((_client, _sessionId, path: string) =>
+            Promise.resolve({ kind: 'file', name: 'x', path: `/b/x`, previousPath: path }),
+        );
+
+        await expect(
+            moveFiles(
+                client,
+                'session-a',
+                ['/a/docs', '/a/docs/guide.md', '/b/kept.md', '/a/notes.md'],
+                '/b',
+            ),
+        ).resolves.toHaveLength(2);
+
+        expect(mocks.moveFile.mock.calls.map((call) => call[2])).toEqual([
+            '/a/docs',
+            '/a/notes.md',
+        ]);
+    });
+});
+
 describe('Paste from Finder', () => {
-    it('copies every file Finder put on the clipboard and returns the last one', async () => {
+    it('copies every file Finder put on the clipboard and returns them all', async () => {
         stubRequests(['/Users/me/Desktop/a.png', '/Users/me/Desktop/b.png']);
         useFileClipboardStore
             .getState()
-            .set({ mode: 'copy', path: '/a/notes.md', sessionId: 'session-a' });
+            .set({ mode: 'copy', paths: ['/a/notes.md'], sessionId: 'session-a' });
 
         const pasted = await pasteIntoDirectory(client, 'session-a', '/a');
 
@@ -194,14 +275,14 @@ describe('Paste from Finder', () => {
             { path: '/Users/me/Desktop/a.png', directory: '/a', source: { kind: 'external' } },
             { path: '/Users/me/Desktop/b.png', directory: '/a', source: { kind: 'external' } },
         ]);
-        expect(pasted).toMatchObject({ path: '/a/b.png' });
+        expect(pasted).toMatchObject([{ path: '/a/a.png' }, { path: '/a/b.png' }]);
     });
 
     it('pastes the item cut or copied in Caxri when Finder copied nothing', async () => {
         stubRequests([]);
         useFileClipboardStore
             .getState()
-            .set({ mode: 'copy', path: '/a/notes.md', sessionId: 'session-a' });
+            .set({ mode: 'copy', paths: ['/a/notes.md'], sessionId: 'session-a' });
 
         await pasteIntoDirectory(client, 'session-a', '/a/docs');
 
@@ -220,7 +301,7 @@ describe('Paste from Finder', () => {
             },
         });
 
-        await expect(pasteIntoDirectory(client, 'session-a', '/a')).resolves.toBeUndefined();
+        await expect(pasteIntoDirectory(client, 'session-a', '/a')).resolves.toEqual([]);
 
         expect(mocks.request).not.toHaveBeenCalledWith('clipboard.readFilePaths', {});
         expect(copyRequests()).toEqual([]);

@@ -52,6 +52,15 @@ export const desktop = {
         "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}, where it can be recovered.",
     'desktop.trash.detailSshHostUnsaved':
         "{{path}}\n\nThe item moves to the SSH Host's Trash on {{host}}. This file has unsaved changes in the editor; only the last saved version can be recovered.",
+    'desktop.trash.messageMany': 'Move {{count}} items to the Trash?',
+    'desktop.trash.detailMany': '{{path}}\n\nYou can recover these items from the Trash.',
+    'desktop.trash.detailUnsavedMany':
+        '{{path}}\n\nSome of these files have unsaved changes in the editor. Only their last saved versions can be recovered from the Trash.',
+    'desktop.trash.detailSshHostMany':
+        "{{path}}\n\nThese items move to the SSH Host's Trash on {{host}}, where they can be recovered.",
+    'desktop.trash.detailSshHostUnsavedMany':
+        "{{path}}\n\nThese items move to the SSH Host's Trash on {{host}}. Some of these files have unsaved changes in the editor; only their last saved versions can be recovered.",
+    'desktop.trash.moreItems': '...and {{count}} more',
     'desktop.trash.confirm': 'Move to Trash',
 
     'desktop.shellCommand.installTitle': "Install 'caxri' Command",

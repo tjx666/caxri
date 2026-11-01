@@ -39,14 +39,27 @@ function pills(...list: AgentChatPathPill[]): Map<string, AgentChatPathPill> {
 describe('agentChatDropPathPills', () => {
     it('keeps a Files entry absolute and marks a folder', () => {
         const folder = transfer();
-        startFilePathDrag(folder, '/repo/.githooks', true, true);
+        startFilePathDrag(folder, [{ isDirectory: true, path: '/repo/.githooks' }], true);
         expect(agentChatDropPathPills(drop(folder))).toEqual([
             { kind: 'directory', path: '/repo/.githooks', token: '/repo/.githooks/' },
         ]);
         const file = transfer();
-        startFilePathDrag(file, '/repo/my notes.md', false);
+        startFilePathDrag(file, [{ path: '/repo/my notes.md' }], false);
         expect(agentChatDropPathPills(drop(file))).toEqual([
             { kind: 'file', path: '/repo/my notes.md', token: "'/repo/my notes.md'" },
+        ]);
+    });
+
+    it('turns a dragged multi-selection into one pill per entry', () => {
+        const selection = transfer();
+        startFilePathDrag(
+            selection,
+            [{ isDirectory: true, path: '/repo/src' }, { path: '/repo/README.md' }],
+            true,
+        );
+        expect(agentChatDropPathPills(drop(selection))).toEqual([
+            { kind: 'directory', path: '/repo/src', token: '/repo/src/' },
+            { kind: 'file', path: '/repo/README.md', token: '/repo/README.md' },
         ]);
     });
 });
