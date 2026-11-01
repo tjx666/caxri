@@ -153,8 +153,10 @@ setInterval(() => {
   for (const [name, event, payload] of actions) {
     const trigger = path.join(config, name);
     if (fired.has(name) || !fs.existsSync(trigger)) continue;
+    // unlinkSync is the claim: exactly one process removes the file and the other gets ENOENT. rmSync is not, because
+    // it checks the path before removing it and a removal that loses the race still returns successfully.
     try {
-      fs.rmSync(trigger);
+      fs.unlinkSync(trigger);
     } catch {
       continue;
     }
