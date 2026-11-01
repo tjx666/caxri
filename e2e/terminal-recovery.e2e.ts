@@ -91,6 +91,26 @@ async function waitForResizeBurstPair(
     return pair!;
 }
 
+/**
+ * The Server's record of one Terminal from `app.bootstrap`.
+ */
+async function bootstrapTerminal(
+    page: Page,
+    terminalId: string,
+): Promise<
+    { lastAgentProcessState?: string; lastProcessState?: string; processId?: number } | undefined
+> {
+    const bootstrap = await pageRequest<{
+        terminals: Array<{
+            id: string;
+            lastAgentProcessState?: string;
+            lastProcessState?: string;
+            processId?: number;
+        }>;
+    }>(page, 'app.bootstrap');
+    return bootstrap.terminals.find(({ id }) => id === terminalId);
+}
+
 async function typeTerminal(page: Page, command: string): Promise<void> {
     const input = page.locator(VISIBLE_TERMINAL_INPUT).last();
     await input.focus();
@@ -266,10 +286,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
         const terminalId = await pane.getAttribute('data-terminal-id');
         if (!terminalId) throw new Error('Terminal identity was not rendered');
         await expect(rows).toContainText('BACKPRESSURE_FIXTURE_READY');
-        const before = await pageRequest<{
-            terminals: Array<{ id: string; processId?: number }>;
-        }>(running.page, 'app.bootstrap');
-        const processId = before.terminals.find(({ id }) => id === terminalId)?.processId;
+        const processId = (await bootstrapTerminal(running.page, terminalId))?.processId;
         expect(typeof processId).toBe('number');
 
         await input.focus();
@@ -308,10 +325,7 @@ test('live Terminal restores the authoritative screen after Renderer output back
         await input.press('i');
         await expect(rows).toContainText('BACKPRESSURE_INPUT_READY');
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
-        const after = await pageRequest<{
-            terminals: Array<{ id: string; processId?: number }>;
-        }>(running.page, 'app.bootstrap');
-        expect(after.terminals.find(({ id }) => id === terminalId)?.processId).toBe(processId);
+        expect((await bootstrapTerminal(running.page, terminalId))?.processId).toBe(processId);
         await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
     } finally {
         try {
@@ -348,15 +362,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
 
         const terminalId = await pane.getAttribute('data-terminal-id');
         if (!terminalId) throw new Error('Terminal identity was not rendered');
-        const before = await pageRequest<{
-            terminals: Array<{
-                id: string;
-                lastAgentProcessState?: string;
-                lastProcessState?: string;
-                processId?: number;
-            }>;
-        }>(running.page, 'app.bootstrap');
-        const processId = before.terminals.find(({ id }) => id === terminalId)?.processId;
+        const processId = (await bootstrapTerminal(running.page, terminalId))?.processId;
         expect(typeof processId).toBe('number');
 
         /**
@@ -371,15 +377,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await expect(running.page.locator('[data-terminal-exit-state]')).toHaveCount(0);
         await expect
             .poll(async () => {
-                const bootstrap = await pageRequest<{
-                    terminals: Array<{
-                        id: string;
-                        lastAgentProcessState?: string;
-                        lastProcessState?: string;
-                        processId?: number;
-                    }>;
-                }>(running.page, 'app.bootstrap');
-                const terminal = bootstrap.terminals.find(({ id }) => id === terminalId);
+                const terminal = await bootstrapTerminal(running.page, terminalId);
                 return {
                     agent: terminal?.lastAgentProcessState,
                     process: terminal?.lastProcessState,
@@ -402,15 +400,18 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_ALIAS_READY\n'`,
         );
         await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
+        /**
+         * The first launch's banner is still on screen, so without clearing it the readiness check below passed before
+         * `cc` ran at all, and a hosted failure could not tell an alias that never started the Agent from a started
+         * Agent the Server never promoted.
+         */
+        await typeTerminal(running.page, 'clear');
+        await expect(rows).not.toContainText('FAKE_CODEX_READY');
         await typeTerminal(running.page, 'cc');
         await expect(rows).toContainText('FAKE_CODEX_READY');
         await expect
             .poll(async () => {
-                const bootstrap = await pageRequest<{
-                    terminals: Array<{ id: string; lastAgentProcessState?: string }>;
-                }>(running.page, 'app.bootstrap');
-                return bootstrap.terminals.find(({ id }) => id === terminalId)
-                    ?.lastAgentProcessState;
+                return (await bootstrapTerminal(running.page, terminalId))?.lastAgentProcessState;
             })
             .toBe('running');
 
@@ -424,11 +425,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await input.press('Control+C');
         await expect
             .poll(async () => {
-                const bootstrap = await pageRequest<{
-                    terminals: Array<{ id: string; lastAgentProcessState?: string }>;
-                }>(running.page, 'app.bootstrap');
-                return bootstrap.terminals.find(({ id }) => id === terminalId)
-                    ?.lastAgentProcessState;
+                return (await bootstrapTerminal(running.page, terminalId))?.lastAgentProcessState;
             })
             .toBe('stopped');
 

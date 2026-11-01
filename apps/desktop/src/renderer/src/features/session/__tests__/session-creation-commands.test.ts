@@ -124,6 +124,13 @@ import {
     pressHeadingNewSession,
 } from '../session-creation-commands';
 
+/**
+ * The methods sent so far, in order; the request double is declared without parameters.
+ */
+function requestedMethods(): string[] {
+    return (mocks.caxriRequest.mock.calls as unknown as Array<[string]>).map(([method]) => method);
+}
+
 describe('Session creation commands', () => {
     beforeEach(() => {
         vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
@@ -323,6 +330,32 @@ describe('Session creation commands', () => {
             projectId: 'project-2',
             defaultAgent: 'codex',
         });
+    });
+
+    it('ignores a second activation while the dialog is still creating its Session', async () => {
+        mocks.pendingRoot = '/projects/slow';
+        const project = Promise.withResolvers<{ id: string }>();
+        mocks.caxriRequest.mockImplementationOnce(() => project.promise);
+
+        confirmPendingSession('shell');
+        confirmPendingSession('shell');
+        project.resolve({ id: 'project-slow' });
+        await mocks.tryCommand.mock.results.at(-1)?.value;
+
+        expect(requestedMethods()).toEqual(['project.create', 'session.create']);
+    });
+
+    it('lets the still-open dialog retry once a failed creation settles', async () => {
+        mocks.pendingProjectId = 'project-3';
+        mocks.caxriRequest.mockImplementationOnce(() => Promise.reject(new Error('busy')));
+
+        confirmPendingSession('codex');
+        await mocks.tryCommand.mock.results[0]?.value;
+        await Promise.resolve();
+        confirmPendingSession('codex');
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(requestedMethods()).toEqual(['session.create', 'session.create']);
     });
 
     describe('the Project heading press', () => {
