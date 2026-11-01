@@ -244,15 +244,12 @@ export async function executeMobileChatComposerScenario(
         );
         await hideChatKeyboard(serial);
         await capture(environment, 'code-block-pasted', artifacts);
-        // Clears the pasted draft; the next keyword send checks the draft is exactly its word, so a leftover character
-        // fails there.
+        // Clears the pasted draft with Select All and one Delete; the next keyword send checks the draft is exactly its
+        // word, so a leftover character fails there. A burst of one Delete per character left the draft whole and the
+        // phone reconnecting.
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-        await adbShell(serial, [
-            'input',
-            'keyevent',
-            'KEYCODE_MOVE_END',
-            ...Array.from({ length: CODE_BLOCK_TS.length + 8 }, () => 'KEYCODE_DEL'),
-        ]);
+        await adbShell(serial, ['input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A']);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_DEL']);
         await hideChatKeyboard(serial);
 
         // A finished multi-step turn (#1882) with a failed command (#1601).
