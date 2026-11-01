@@ -10,4 +10,10 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-single-work-summary',
     },
+    'MOB-CHAT-WORK-GROUP-TITLE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-work-group-one-line-title',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

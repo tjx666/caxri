@@ -106,10 +106,9 @@ export const ConversationToolGroupView = ({
                         {summary}
                     </ShimmerText>
                 ) : (
-                    <Text
-                        numberOfLines={expanded ? undefined : 1}
-                        style={[styles.toolSubject, { color: theme.text }]}
-                    >
+                    // One line even when expanded, as Desktop's summary truncates: the rows below already name each call,
+                    // so a long running command would otherwise wrap here and then repeat in its own row.
+                    <Text numberOfLines={1} style={[styles.toolSubject, { color: theme.text }]}>
                         {summary}
                     </Text>
                 )}
