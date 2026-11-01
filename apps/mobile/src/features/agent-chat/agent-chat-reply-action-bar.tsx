@@ -1,9 +1,10 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { use, useRef, useState } from 'react';
+import { use, useCallback, useRef, useState } from 'react';
 import type { HostInstance } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWebSource } from '@caxri/protocol';
+import { useFocusEffect } from 'expo-router';
 import { Copy, Ellipsis, GitFork, RotateCcw, Share2, TextCursor } from 'lucide-react-native';
 
 import { ConfirmSheet } from '../../components/confirm-sheet';
@@ -20,6 +21,7 @@ import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
 import { agentChatReplyTime } from './agent-chat-reply-actions';
+import type { AgentChatSourcesPlace } from './agent-chat-sources-sheet';
 import { AgentChatSourceFavicon, AgentChatSourcesSheet } from './agent-chat-sources-sheet';
 import type { AgentChatReplyAction } from './use-agent-chat-reply-actions';
 import { AgentChatReplyActionsContext } from './use-agent-chat-reply-actions';
@@ -64,8 +66,22 @@ export const AgentChatReplyActionBar = ({
     const moreAnchor = useRef<HostInstance>(null);
     const popover = usePopoverAnchor(moreAnchor, { align: 'start', side: 'auto' });
     const [menu, setMenu] = useState<MoreMenu>();
-    const [isSourcesOpen, setSourcesOpen] = useState(false);
+    /**
+     * The open Sources list and where it stands; `undefined` while closed.
+     */
+    const [sourcesPlace, setSourcesPlace] = useState<AgentChatSourcesPlace>();
+    /**
+     * Where the reader left the Sources list for a page in the in-app browser, restored once this screen is back.
+     */
+    const placeBeforePage = useRef<AgentChatSourcesPlace>(undefined);
     const [retryToConfirm, setRetryToConfirm] = useState<AgentChatReplyAction>();
+    useFocusEffect(
+        useCallback(() => {
+            const place = placeBeforePage.current;
+            placeBeforePage.current = undefined;
+            if (place) setSourcesPlace(place);
+        }, []),
+    );
     if (!handlers) return null;
     const openMenu = () => {
         setMenu({
@@ -130,7 +146,7 @@ export const AgentChatReplyActionBar = ({
                     accessibilityLabel={`${t('chat.reply.sources')} (${sources.length})`}
                     accessibilityRole="button"
                     hitSlop={8}
-                    onPress={() => setSourcesOpen(true)}
+                    onPress={() => setSourcesPlace({ scrollY: 0 })}
                     style={({ pressed }) => [styles.sources, pressed && styles.pressed]}
                     testID={`agent-chat-reply-sources-${turnId}`}
                 >
@@ -227,9 +243,13 @@ export const AgentChatReplyActionBar = ({
                     tone="danger"
                 />
             ) : null}
-            {isSourcesOpen ? (
+            {sourcesPlace ? (
                 <AgentChatSourcesSheet
-                    onClose={() => setSourcesOpen(false)}
+                    onClose={() => setSourcesPlace(undefined)}
+                    onLeaveForPage={(place) => {
+                        placeBeforePage.current = place;
+                    }}
+                    place={sourcesPlace}
                     sources={sources}
                     theme={theme}
                 />

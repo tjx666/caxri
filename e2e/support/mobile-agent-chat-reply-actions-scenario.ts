@@ -16,14 +16,14 @@ import {
     waitForMobile,
 } from './mobile-android';
 
-const PROMPT = 'Which Expo SDK should we target?';
+export const PROMPT = 'Which Expo SDK should we target?';
 const FOLLOW_UP = 'thanks';
 
 /**
  * Public pages the search lists, in Claude Code's `WebSearch` result shape (`Links: [...]`), so Server Core records
  * them as the call's sources. Their favicons load from the sites themselves when the emulator is online.
  */
-const LINKS = [
+export const LINKS = [
     { title: 'Expo SDK changelog', url: 'https://expo.dev/changelog' },
     { title: 'React Native blog', url: 'https://reactnative.dev/blog' },
     { title: 'Android Developers: Releases', url: 'https://developer.android.com/about/versions' },
@@ -33,7 +33,7 @@ const LINKS = [
 /**
  * The first turn searches the web, so its reply ends with Sources; the second turn only answers, so its bar has none.
  */
-const script: FakeClaudeScript = {
+export const script: FakeClaudeScript = {
     turns: [
         {
             prompt: PROMPT,
@@ -66,7 +66,7 @@ const reply = (snapshot: AgentChatSnapshot, text: string) =>
             item.type === 'agentMessage' && item.text.startsWith(text),
     );
 
-const replyTurnId = (snapshot: AgentChatSnapshot, text: string): string | undefined =>
+export const replyTurnId = (snapshot: AgentChatSnapshot, text: string): string | undefined =>
     reply(snapshot, text)?.turnId;
 
 /**
@@ -87,7 +87,7 @@ const minuteOf = (timestamp: number): string =>
  * turn opens at the top of the Chat, so an earlier reply's bar starts above the screen, where Android still lists its
  * controls but a tap would land on whatever covers them.
  */
-const showBar = (serial: string, turnId: string) =>
+export const showBar = (serial: string, turnId: string) =>
     scrollTimelineUntil(serial, async () => {
         const nodes = await mobileSemantics(serial);
         const frame = nodes.find(({ checkId }) => checkId === 'conversation-view');
