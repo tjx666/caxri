@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { nextRevealedSessionCount } from '@caxri/protocol';
 
@@ -15,7 +15,6 @@ import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/pro
 import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
-import { groupsToAutoExpand } from './agent-activity-auto-expand';
 import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
@@ -38,7 +37,10 @@ import {
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
 import { useAgentActivityClock } from './use-agent-activity-clock';
-import { useAgentActivityGroupCollapse } from './use-agent-activity-group-collapse';
+import {
+    useAgentActivityAutoExpand,
+    useAgentActivityGroupCollapse,
+} from './use-agent-activity-group-collapse';
 
 const NO_RECORDS: never[] = [];
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
@@ -169,21 +171,7 @@ export function AgentActivityView() {
             new Map(groups.map((group) => [group.id, agentActivityHeadingPresentation(group, t)])),
         [groups, t],
     );
-    // A collapsed "Needs attention" or "Failed" group must not hide a Session that just arrived: reopen it when its count
-    // rises. Counts come from the headings so the rule follows the number the user sees.
-    const previousHeadingCounts = useRef<Map<AgentActivityGroupId, number>>(undefined);
-    const { collapsedGroupIds, expand: expandGroup } = groupCollapse;
-    useEffect(() => {
-        const current = new Map<AgentActivityGroupId, number>();
-        for (const [groupId, heading] of headings) current.set(groupId, heading.count ?? 0);
-        for (const groupId of groupsToAutoExpand(
-            previousHeadingCounts.current,
-            current,
-            collapsedGroupIds,
-        ))
-            expandGroup(groupId);
-        previousHeadingCounts.current = current;
-    }, [collapsedGroupIds, expandGroup, headings]);
+    useAgentActivityAutoExpand(headings, groupCollapse.collapsedGroupIds, groupCollapse.expand);
     /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
      * name, a state phrase, and this, inside a side bar the user can drag down to 180px; "8 minutes ago" costs roughly
