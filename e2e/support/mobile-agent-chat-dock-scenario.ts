@@ -13,9 +13,10 @@ import {
 } from './mobile-android';
 
 /**
- * How the folded row names the two running shells in the case's `zh-CN` locale (`chat.tasks.backgroundWork`).
+ * The whole folded row in the case's `zh-CN` locale: the goal's status, then the two running shells named as background
+ * work (`chat.tasks.backgroundWork`). An exact match also proves the bare `2 个运行中` is gone.
  */
-const BACKGROUND_SEGMENT = '后台工作 2';
+const FOLDED_LINE = '进行中的目标 · 后台工作 2';
 
 const runningShells = (snapshot: AgentChatSnapshot): number =>
     (snapshot.tasks ?? []).filter((task) => task.kind === 'shell' && task.status === 'running')
@@ -73,15 +74,15 @@ export async function executeMobileChatDockFoldScenario(
             await waitForCheck(serial, 'agent-chat-dock-summary');
             await capture(environment, 'keyboard-up', artifacts);
             const line = await observeMobileNode(serial, 'agent-chat-dock-summary-text', {
-                kind: 'includes',
-                value: BACKGROUND_SEGMENT,
+                kind: 'equals',
+                value: FOLDED_LINE,
             });
             folded.isNamed = line.exists && line.textMatches === true;
         });
         if (!folded.isNamed) {
             // Keep the captures citable in the failed round before failing it.
             await finish(environment, artifacts, { folded: 'unnamed', status: 'failed' });
-            throw new Error(`The folded dock does not read "${BACKGROUND_SEGMENT}"`);
+            throw new Error(`The folded dock does not read "${FOLDED_LINE}"`);
         }
 
         await finish(environment, artifacts, { folded: 'summary', status: 'passed' });
