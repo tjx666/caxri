@@ -1,20 +1,22 @@
 import { join } from 'node:path';
 
 import { connectToServer } from '@caxri/client/supervise';
+import type { MethodResult } from '@caxri/protocol';
 
 import { allowE2EErrors } from './error-gate.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck } from './mobile-agent-chat-helpers';
-import { tapMobileCheck } from './mobile-android';
+import { tapMobileCheck, waitForMobile } from './mobile-android';
 
 const LINK = 'https://example.com/';
 
-const errorReason = (error: unknown): unknown =>
-    typeof error === 'object' && error !== null
-        ? (Reflect.get(error, 'details') as { reason?: unknown } | undefined)?.reason
-        : undefined;
+const describeError = (error: unknown): string => {
+    if (typeof error !== 'object' || error === null) return `non-error ${String(error)}`;
+    const details = Reflect.get(error, 'details') as { reason?: unknown } | undefined;
+    return `${String(Reflect.get(error, 'code'))}/${String(details?.reason)}`;
+};
 
 /**
  * `MOB-DEVICE-ACTIONS-01`: with the phone paired and Caxri open, a CLI caller sees it online, `openUrl` opens the link
@@ -30,11 +32,13 @@ export async function executeMobileDeviceActionsScenario(
     const client = await connectToServer(join(fixture.testDirectory, 'user-data'), 5_000);
     try {
         const { deviceId } = await fixture.pair();
-        const { devices } = (await client.request('mobile.deviceAction.targets', {})) as {
-            devices: Array<{ deviceId: string; online: boolean }>;
-        };
-        if (devices.every((device) => !(device.deviceId === deviceId && device.online)))
-            throw new Error('The paired phone is not listed as online');
+        // The phone subscribes to actions a moment after pairing completes.
+        await waitForMobile(
+            () => client.request('mobile.deviceAction.targets', {}),
+            ({ devices }: MethodResult<'mobile.deviceAction.targets'>) =>
+                devices.some((device) => device.deviceId === deviceId && device.online),
+            15_000,
+        );
 
         const opened = await client.request('mobile.deviceAction.openUrl', { url: LINK });
         if (opened.deviceId !== deviceId) throw new Error('The link opened on another device');
@@ -46,16 +50,17 @@ export async function executeMobileDeviceActionsScenario(
         allowE2EErrors([
             { source: 'server-core', event: 'ipc.request_failed', code: 'FORBIDDEN', count: 1 },
         ]);
-        let refusal: unknown;
+        let refusal = 'not refused';
         try {
             await client.request('mobile.deviceAction.exec', { argv: ['uname', '-a'] });
         } catch (error) {
-            refusal = errorReason(error);
+            refusal = describeError(error);
         }
-        if (refusal !== 'disabled')
-            throw new Error(`exec was not refused as disabled: ${String(refusal)}`);
+        if (refusal !== 'FORBIDDEN/disabled')
+            throw new Error(`exec was not refused as FORBIDDEN/disabled: ${refusal}`);
 
         await tapMobileCheck(serial, 'computer-menu-button');
+        await waitForCheck(serial, 'settings-action');
         await tapMobileCheck(serial, 'settings-action');
         await waitForCheck(serial, 'settings-termux-commands');
         await capture(environment, 'settings', artifacts);
