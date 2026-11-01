@@ -128,6 +128,23 @@ function claudeTranscriptStore(
         return join(configDirectory, 'projects', key.projectKey, `${name}.jsonl`);
     };
     let skippedRecords = 0;
+    /**
+     * The timestamp of every record `load` returned, by uuid, so `append` can date a forked copy like its source.
+     */
+    const sourceTimestamps = new Map<string, unknown>();
+    /**
+     * The Agent SDK's `forkSession` stamps the last copied record with the time of the fork. Claude Code writes no
+     * `turn_duration` for an SDK-driven Chat, so replay times a turn from its records, and that one stamp would stretch
+     * the forked last turn to the fork time. A copy goes back to its source record's timestamp.
+     */
+    const restoreForkedTimestamp = (entry: SessionStoreEntry): SessionStoreEntry => {
+        const { forkedFrom } = entry as { forkedFrom?: { messageUuid?: unknown } };
+        const source =
+            typeof forkedFrom?.messageUuid === 'string'
+                ? sourceTimestamps.get(forkedFrom.messageUuid)
+                : undefined;
+        return typeof source === 'string' ? { ...entry, timestamp: source } : entry;
+    };
     return {
         get skippedRecords() {
             return skippedRecords;
@@ -147,7 +164,10 @@ function claudeTranscriptStore(
             for (const line of text.split('\n')) {
                 if (!line.trim()) continue;
                 try {
-                    entries.push(JSON.parse(line) as SessionStoreEntry);
+                    const entry = JSON.parse(line) as SessionStoreEntry;
+                    if (typeof entry.uuid === 'string')
+                        sourceTimestamps.set(entry.uuid, entry.timestamp);
+                    entries.push(entry);
                 } catch {
                     skippedRecords += 1;
                 }
@@ -157,7 +177,12 @@ function claudeTranscriptStore(
         async append(key, entries) {
             const path = file(key);
             await mkdir(dirname(path), { recursive: true });
-            await appendFile(path, entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''));
+            await appendFile(
+                path,
+                entries
+                    .map((entry) => `${JSON.stringify(restoreForkedTimestamp(entry))}\n`)
+                    .join(''),
+            );
         },
     };
 }
