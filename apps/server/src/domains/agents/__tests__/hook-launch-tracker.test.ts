@@ -22,6 +22,17 @@ describe('HookLaunchTracker', () => {
         });
         tracker.clear();
     });
+    it('keeps a hooked turn when the probed settled status predates it', () => {
+        let now = 1_000;
+        const tracker = new HookLaunchTracker(() => now);
+        tracker.markTurnStarted('terminal', 'launch');
+        now = 2_000;
+        expect(tracker.ownsProbe('terminal', 'launch', 'completed', undefined, 500)).toBe(true);
+        expect(tracker.isTurnInFlight('terminal', 'launch')).toBe(true);
+        expect(tracker.ownsProbe('terminal', 'launch', 'completed', undefined, 1_500)).toBe(false);
+        expect(tracker.isTurnInFlight('terminal', 'launch')).toBe(false);
+        tracker.clear();
+    });
     it('actively obtains three unknown observations before releasing a quiet turn', async () => {
         vi.useFakeTimers();
         const expired = vi.fn();

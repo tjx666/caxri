@@ -14,7 +14,7 @@ import {
     MAX_SHELL_PROMOTION_PROBES,
 } from './coordinator-constants';
 import type { AgentCoordinatorOptions } from './coordinator-options';
-import { createRecoveringHookLaunchTracker } from './hook-launch-tracker';
+import { createRecoveringHookLaunchTracker, orderedLatestTurnId } from './hook-launch-tracker';
 import { CodexHookSessionRebindTracker } from './hook-session-rebind';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 import { AgentIdleProof } from './idle-proof';
@@ -265,11 +265,8 @@ export class AgentCoordinator {
                     terminal.id,
                     launchId,
                     snapshot.status,
-                    agentTurnId === undefined &&
-                        terminal.provider === 'codex' &&
-                        snapshot.activitySource === 'latestTurn'
-                        ? snapshot.activityTurnId
-                        : undefined,
+                    orderedLatestTurnId(terminal.provider, agentTurnId, snapshot),
+                    snapshot.statusUpdatedAt,
                 );
             const { isRecordActivity, metadataSnapshot } = probeActivity(
                 this.metadataActivityBaselines,

@@ -1,6 +1,8 @@
-import type { AgentActivityState } from '@caxri/protocol';
+import type { AgentActivityState, AgentProvider } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+
+import type { AgentProbeSnapshot } from './contract';
 
 interface HookTurn {
     launchId: string;
@@ -27,6 +29,22 @@ export const HOOK_TURN_PRESERVE_MS = 30 * 60_000;
  */
 export const UNKNOWN_RECOVERY_MS = 2 * 60_000;
 export const UNKNOWN_RECOVERY_PROBES = 3;
+
+/**
+ * The latest durable turn a probe may use to supersede a hooked completion: only Codex orders its turn history, and an
+ * exact hook turn probe never takes this path.
+ */
+export function orderedLatestTurnId(
+    provider: AgentProvider,
+    agentTurnId: string | undefined,
+    snapshot: Pick<AgentProbeSnapshot, 'activitySource' | 'activityTurnId'>,
+): string | undefined {
+    return agentTurnId === undefined &&
+        provider === 'codex' &&
+        snapshot.activitySource === 'latestTurn'
+        ? snapshot.activityTurnId
+        : undefined;
+}
 
 interface HookTurnExpiry {
     reason: 'unknownEvidence' | 'hardTimeout';
@@ -190,7 +208,20 @@ export class HookLaunchTracker {
         launchId: string | undefined,
         status: AgentActivityState,
         latestTurnId?: string,
+        statusUpdatedAt?: number,
     ): boolean {
+        /**
+         * Provider metadata can still hold the pre-turn status (Claude's launch-time `idle`) when a probe runs after
+         * `turnStarted`. A settled status written before the turn began is stale, not the lost-Stop fallback.
+         */
+        if (
+            status !== 'unknown' &&
+            status !== 'running' &&
+            statusUpdatedAt !== undefined &&
+            this.isTurnInFlight(terminalId, launchId) &&
+            statusUpdatedAt < (this.turns.get(terminalId)?.startedAt ?? 0)
+        )
+            return true;
         if (status === 'unknown') this.observeUnknown(terminalId, launchId);
         else if (status === 'running') this.observeEvidence(terminalId, launchId);
         else this.observeSettled(terminalId, launchId);

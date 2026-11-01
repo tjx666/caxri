@@ -106,6 +106,7 @@ export async function readClaudeState(
     return {
         sessionId: typeof latest.sessionId === 'string' ? latest.sessionId : undefined,
         status: isStatusIsCurrentGeneration ? claudeStatus(latest.status) : undefined,
+        statusUpdatedAt: timestamp(latest.updatedAt) || undefined,
         ...(await resolveClaudeTitle(latest, configDirectory)),
     };
 }
