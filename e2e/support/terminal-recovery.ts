@@ -31,14 +31,17 @@ export async function typeTerminal(page: Page, command: string): Promise<void> {
 }
 
 /**
- * A fake Codex that reports readiness, then exits on Ctrl+C after printing `FAKE_CODEX_EXITED`.
+ * A fake Codex that reports readiness, then exits on Ctrl+C after printing `FAKE_CODEX_EXITED`. With `launchLog`, each
+ * launch appends a line there before printing, so a spec can tell an Agent that never started from one whose banner
+ * never reached the screen.
  */
-export function interruptibleAgentFixture(): string {
+export function interruptibleAgentFixture(launchLog?: string): string {
     return String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {
   process.stdout.write('caxri-fake-codex 1.0.0\n');
   process.exit(0);
 }
+${launchLog ? String.raw`require('node:fs').appendFileSync(${JSON.stringify(launchLog)}, 'launch\n');` : ''}
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
 process.stdin.on('data', (chunk) => {

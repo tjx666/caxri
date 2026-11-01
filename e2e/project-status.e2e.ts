@@ -8,7 +8,7 @@ import type { MessageBoxOptions } from 'electron';
 
 import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxri } from './support/helpers.ts';
-import { launchCaxri, openAddProjectDialog, pageRequest } from './support/helpers.ts';
+import { launchCaxri, openAddProjectDialog } from './support/helpers.ts';
 import { stubPackagedProjectDialog } from './support/packaged-project-dialog.ts';
 
 const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
@@ -107,12 +107,12 @@ esac
         await openAddProjectDialog(running.page);
         const dialog = running.page.getByRole('dialog');
         await dialog.getByRole('button', { name: 'Shell', exact: true }).click();
-        /**
-         * Hosted runs saw two cards; the failing line tells a second created Session from one Session rendered twice.
-         */
-        const bootstrap = () => pageRequest<{ sessions: unknown[] }>(running.page, 'app.bootstrap');
-        await expect.poll(async () => (await bootstrap()).sessions.length).toBe(1);
-        await expect(running.page.locator('.session-card')).toHaveCount(1);
+        // Hosted runs rendered two cards for one Session: a stale id fails one line, a twin the next.
+        const cards = running.page.locator('.session-card');
+        const ids = () =>
+            cards.evaluateAll((all) => new Set(all.map((card) => card.dataset.sessionId)).size);
+        await expect.poll(ids).toBe(1);
+        await expect(cards).toHaveCount(1);
         const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
         await statusTab.click();
         await expect(statusTab.locator('img')).toHaveCount(0);

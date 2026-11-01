@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -18,9 +18,17 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
+    const launchLog = join(testDirectory, 'codex-launches.log');
+    const launches = async () => {
+        try {
+            return (await readFile(launchLog, 'utf8')).split('\n').filter(Boolean).length;
+        } catch {
+            return 0;
+        }
+    };
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
-        providers: { codex: { executableSource: interruptibleAgentFixture() } },
+        providers: { codex: { executableSource: interruptibleAgentFixture(launchLog) } },
     });
     const shellHome = agentMode.environment.HOME;
     if (!shellHome) throw new Error('Fake Agent HOME was not isolated');
@@ -88,7 +96,10 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await typeTerminal(running.page, 'clear');
         await expect(rows).not.toContainText('FAKE_CODEX_READY');
         // Bare `cc` only: shell promotion skips any command containing `;`, `&`, `|`, or a redirect.
+        const launchesBefore = await launches();
         await typeTerminal(running.page, 'cc');
+        // Fails here when `cc` never started the fake Agent; past it, only the banner's rendering is missing.
+        await expect.poll(launches).toBe(launchesBefore + 1);
         await expect(rows).toContainText('FAKE_CODEX_READY');
         await expect.poll(agentState).toBe('running');
 

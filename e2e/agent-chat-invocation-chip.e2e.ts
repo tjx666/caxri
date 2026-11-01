@@ -51,6 +51,20 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
             .toBe('focused');
         await message.fill('/compact');
         await expect(chat.getByRole('listbox', { name: 'Commands and skills' })).toBeVisible();
+        /**
+         * The chip stays hidden only while the caret sits at the token's end. Hosted runs passed the focus check above
+         * yet still showed the chip; failing here means the caret moved, failing on the chip line means the editor's
+         * focus state disagreed with its `cm-focused` class.
+         */
+        await expect
+            .poll(() =>
+                message.evaluate(
+                    (element) =>
+                        (element as unknown as { composerSelection: { end: number } })
+                            .composerSelection.end,
+                ),
+            )
+            .toBe('/compact'.length);
         await expect(chip).toHaveCount(0);
         await message.pressSequentially(' now');
         await expect(chip).toBeVisible();
