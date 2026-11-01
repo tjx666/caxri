@@ -142,7 +142,9 @@ export async function executeMobileChatReplyActionsScenario(
             (item): item is Extract<AgentChatSnapshot['items'][number], { type: 'toolCall' }> =>
                 item.type === 'toolCall',
         )?.sources;
-        if (JSON.stringify(recorded) !== JSON.stringify(LINKS))
+        const pages = (sources: ReadonlyArray<{ url: string; title?: string }> | undefined) =>
+            sources?.map(({ title, url }) => `${url} ${title ?? ''}`).join('\n');
+        if (pages(recorded) !== pages(LINKS))
             throw new Error('Server Core did not record the searched pages with their titles');
 
         await fixture.pair();
