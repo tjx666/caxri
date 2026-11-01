@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { connectToServer } from '@caxri/client/supervise';
 import type { MethodResult } from '@caxri/protocol';
 
-import { allowE2EErrors } from './error-gate.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -47,10 +46,6 @@ export async function executeMobileDeviceActionsScenario(
         await capture(environment, 'opened-link', artifacts);
         await tapMobileCheck(serial, 'in-app-browser-close');
 
-        // The refused command reaches Server Core as one failed `mobile.deviceAction.exec` request.
-        allowE2EErrors([
-            { source: 'server-core', event: 'ipc.request_failed', code: 'FORBIDDEN', count: 1 },
-        ]);
         let refusal = 'not refused';
         try {
             await client.request('mobile.deviceAction.exec', { argv: ['uname', '-a'] });
