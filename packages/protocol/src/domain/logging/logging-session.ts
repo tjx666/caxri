@@ -76,6 +76,16 @@ export const sessionAirplaneModeLogEvents = {
     changed: 'session.airplane_mode_changed',
 } as const;
 
+/**
+ * Restoring what the last quit's "Stop Tasks" ended (`docs/session-quit-restore.md`): one record when a quit records it
+ * and one when the restore runs, with Session counts and the restore's duration. Never a title or Session content.
+ */
+export const sessionQuitRestoreLogEvents = {
+    recorded: 'session.quit_stopped_recorded',
+    recordFailed: 'session.quit_stopped_record_failed',
+    restored: 'session.quit_stopped_restored',
+} as const;
+
 export const sessionRenameLogEvents = {
     providerSyncSkipped: 'session_rename.provider_sync_skipped',
     providerTitleMismatch: 'session_rename.provider_title_mismatch',

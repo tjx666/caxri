@@ -161,6 +161,14 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.agent.noTranscript': '此 Agent 不在磁盘上保存对话记录',
     'session.rename.noConversation': '此会话没有可用于命名的 Agent 对话。',
 
+    // Restore what the last quit stopped
+    'session.quitRestore.progress': '正在恢复上次退出时停止的会话…',
+    'session.quitRestore.failed': '恢复上次退出时停止的会话失败',
+    'session.quitRestore.none': '上次退出时没有停止任何会话。',
+    'session.quitRestore.restoredOne': '已恢复 {{count}} 个会话。',
+    'session.quitRestore.restoredOther': '已恢复 {{count}} 个会话。',
+    'session.quitRestore.skipped': '{{headline}}{{count}} 个已删除、已归档或无法重启，已跳过。',
+
     // Warm-cache compaction
     'session.compaction.progress': '正在检查可进行热缓存压缩的会话…',
     'session.compaction.failed': '批量压缩失败',

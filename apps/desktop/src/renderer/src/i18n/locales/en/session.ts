@@ -167,6 +167,15 @@ export const session = {
     'session.agent.noTranscript': 'This Agent keeps no on-disk transcript',
     'session.rename.noConversation': 'This Session has no Agent conversation to name it from.',
 
+    // Restore what the last quit stopped
+    'session.quitRestore.progress': 'Restoring Sessions stopped at the last quit…',
+    'session.quitRestore.failed': 'Could not restore Sessions stopped at the last quit',
+    'session.quitRestore.none': 'No Sessions were stopped at the last quit.',
+    'session.quitRestore.restoredOne': 'Restored {{count}} Session.',
+    'session.quitRestore.restoredOther': 'Restored {{count}} Sessions.',
+    'session.quitRestore.skipped':
+        '{{headline}} Skipped {{count}} that were deleted, archived, or could not restart.',
+
     // Warm-cache compaction
     'session.compaction.progress': 'Checking Sessions for warm-cache compaction…',
     'session.compaction.failed': 'Batch compaction failed',

@@ -458,7 +458,7 @@ describe('Desktop Server connection recovery', () => {
 
         expect(client.requestServerOperation).toHaveBeenCalledWith(
             'terminal.terminateAll',
-            undefined,
+            { reason: 'serverStop' },
             undefined,
         );
         expect(client.request).toHaveBeenCalledWith('host.stop', { confirmLivePtys: true });

@@ -93,6 +93,7 @@ import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import { projectFolderBrowseMethods } from '../domain/project-folder-browse-contract.js';
 import { projectStatusMethods } from '../domain/project-status-contract.js';
+import { terminateAllReasonSchema } from '../domain/session/session-quit-restore.js';
 import { sessionInternalMethods, sessionMethods } from '../domain/session-contract.js';
 import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {
@@ -581,7 +582,14 @@ export const internalMethods = {
     ...terminalFileLinkInternalMethods,
     ...externalDocumentServerMethods,
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },
-    'terminal.terminateAll': { ...serverControl, params: noParameters, result: z.null() },
+    /**
+     * `reason: 'serverStop'` also records what it stopped for `session.restoreQuitStopped`.
+     */
+    'terminal.terminateAll': {
+        ...serverControl,
+        params: z.object({ reason: terminateAllReasonSchema.optional() }).default({}),
+        result: z.null(),
+    },
     'theme.importPath': {
         ...serverWrite,
         params: z.object({ path: pathSchema }),

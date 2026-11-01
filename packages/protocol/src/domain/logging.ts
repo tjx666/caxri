@@ -42,6 +42,7 @@ import {
     sessionCompactionLogEvents,
     sessionContextLogEvents,
     sessionPullRequestsLogEvents,
+    sessionQuitRestoreLogEvents,
     sessionRenameLogEvents,
     sessionSearchLogEvents,
 } from './logging/logging-session.js';
@@ -108,6 +109,7 @@ export const logEventCatalog = {
     processExplorer: processExplorerLogEvents,
     projectStatus: projectStatusLogEvents,
     sessionAirplaneMode: sessionAirplaneModeLogEvents,
+    sessionQuitRestore: sessionQuitRestoreLogEvents,
     sessionCompaction: sessionCompactionLogEvents,
     sessionContext: sessionContextLogEvents,
     sessionSearch: sessionSearchLogEvents,

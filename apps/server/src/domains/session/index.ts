@@ -16,6 +16,7 @@ export type { WorktreeTopologyReader } from './import-conversation';
 export { conversationProject, importExternalConversation } from './import-conversation';
 export { SessionInterruptCompaction } from './interrupt-compaction';
 export { createSessionMarkReadHandler } from './mark-read';
+export { QuitRestore } from './quit-restore';
 export { SessionRenameService } from './rename';
 export { createSessionRuntimeForgetter } from './runtime-teardown';
 export { SessionSearchService } from './search';

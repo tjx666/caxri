@@ -33,6 +33,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [agent-secrets.md](agent-secrets.md)                               | Secrets Agents use through `caxri secret` without seeing them       |
 | [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return          |
 | [airplane-mode.md](airplane-mode.md)                               | Compact, stop every Agent before going offline, resume on return    |
+| [session-quit-restore.md](session-quit-restore.md)                 | Relaunch the Sessions a quit's Stop Tasks ended, in one command     |
 | [antigravity.md](antigravity.md)                                   | Antigravity (`agy`) terminal and Chat integration                   |
 | [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                        |
 | [architecture-debt.md](architecture-debt.md)                       | Persistent architecture-debt audit ledger                           |

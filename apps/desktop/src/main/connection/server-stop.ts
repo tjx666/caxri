@@ -30,7 +30,11 @@ export async function stopAttachedServer(
     let didHostStopFail = false;
     let hostStopFailure: unknown;
     try {
-        await client.requestServerOperation('terminal.terminateAll', undefined, undefined);
+        await client.requestServerOperation(
+            'terminal.terminateAll',
+            { reason: 'serverStop' },
+            undefined,
+        );
     } catch (error) {
         didTerminationFail = true;
         terminationFailure = error;

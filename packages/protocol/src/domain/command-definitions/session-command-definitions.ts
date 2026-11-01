@@ -67,6 +67,14 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         keywords: ['offline', 'flight', 'network', 'stop agents', 'compact'],
     },
     {
+        id: 'session.restoreQuitStopped',
+        title: 'Restore Sessions Stopped at Last Quit',
+        category: 'Session',
+        description:
+            'Relaunch the Agents that quitting with Stop Tasks ended and tell the ones that were working to continue',
+        keywords: ['resume', 'reopen', 'relaunch', 'quit', 'stopped', 'restart'],
+    },
+    {
         id: 'session.detach',
         title: 'Detach Agent',
         category: 'Session',

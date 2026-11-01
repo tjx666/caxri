@@ -39,6 +39,7 @@ export const commands = {
     'commands.session.compactWarm': 'Compact Recently Idle Sessions',
     'commands.session.interruptAndCompact': 'Interrupt and Compact All Sessions',
     'commands.session.enterAirplaneMode': 'Enter Airplane Mode',
+    'commands.session.restoreQuitStopped': 'Restore Sessions Stopped at Last Quit',
     'commands.session.detach': 'Detach Agent',
     'commands.session.resume': 'Resume Agent',
     'commands.session.openPullRequest': 'Open Pull Request',

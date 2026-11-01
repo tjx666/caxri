@@ -273,6 +273,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.detach': 'ordered',
     'session.enterAirplaneMode': 'ordered',
     'session.exitAirplaneMode': 'ordered',
+    'session.restoreQuitStopped': 'ordered',
     'session.dismissWorkbenchCandidate': 'ordered',
     'session.importConversation': 'ordered',
     'session.importConversationInternal': 'ordered',

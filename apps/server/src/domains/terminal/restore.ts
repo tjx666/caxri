@@ -105,6 +105,11 @@ export interface TerminalRestoreOptions {
      * once it is ready without watching the PTY. Airplane Mode uses it to tell a stopped Agent to continue.
      */
     agentPrompt?: { terminalId: string; text: string };
+    /**
+     * `stopped` Terminals to relaunch anyway. `stopped` is otherwise final; only `session.restoreQuitStopped` names the
+     * ones the last quit's "Stop Tasks" ended.
+     */
+    stoppedTerminalIds?: ReadonlySet<string>;
 }
 
 /**
@@ -150,6 +155,9 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         options: TerminalRestoreOptions = {},
     ): Promise<void> {
         let interrupted: ReturnType<typeof database.listTerminals> = [];
+        const isNamedStopped = (terminal: TerminalRecord): boolean =>
+            terminal.lastProcessState === 'stopped' &&
+            options.stoppedTerminalIds?.has(terminal.id) === true;
         /**
          * Evaluated when the restore actually starts: a resume queued behind the selection restore must list Terminals
          * after that restore has changed their state, not before.
@@ -167,7 +175,9 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                     isPtyTerminal(terminal) &&
                     (terminal.lastProcessState === 'interrupted' ||
                         terminal.lastProcessState === 'suspended' ||
-                        (options.includeDetached && terminal.lastProcessState === 'detached')),
+                        (options.includeDetached === true &&
+                            terminal.lastProcessState === 'detached') ||
+                        isNamedStopped(terminal)),
             );
             return interrupted.map(
                 (terminal) =>
@@ -175,13 +185,16 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                         const delegated = delegatedAgentRestore(database, terminal, userDataPath);
                         const shouldRestoreAgent =
                             (delegated?.shouldRestoreAgent ?? true) &&
-                            [
+                            ([
                                 'detached',
                                 'interrupted',
                                 'running',
                                 'starting',
                                 'suspended',
-                            ].includes(terminal.lastAgentProcessState ?? 'stopped');
+                            ].includes(terminal.lastAgentProcessState ?? 'stopped') ||
+                                // A shell's Agent state is unset, so it restores as the shell it was.
+                                (isNamedStopped(terminal) &&
+                                    terminal.lastAgentProcessState === 'stopped'));
                         const resumeAgentSessionId = shouldRestoreAgent
                             ? await resumableAgentSessionId(
                                   { agentEnvironment, database, logger },
@@ -248,7 +261,8 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                             if (
                                 current?.lastProcessState === 'interrupted' ||
                                 current?.lastProcessState === 'suspended' ||
-                                current?.lastProcessState === 'detached'
+                                current?.lastProcessState === 'detached' ||
+                                (current !== undefined && isNamedStopped(current))
                             ) {
                                 database.updateTerminalState(
                                     terminal.id,
@@ -276,7 +290,8 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
             );
         };
         const restored = await terminalRestores.restore(sessionId, planOperations, {
-            afterActive: options.includeDetached === true,
+            afterActive:
+                options.includeDetached === true || options.stoppedTerminalIds !== undefined,
         });
         const restoredTerminalIds: string[] = [];
         for (const [index, terminal] of interrupted.entries())

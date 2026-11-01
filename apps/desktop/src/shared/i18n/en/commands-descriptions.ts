@@ -30,6 +30,8 @@ export const commandDescriptions = {
         'Interrupt every running Agent turn and compact the conversations at once, leaving the Agents idle',
     'commands.description.session.enterAirplaneMode':
         'Compact idle Agent conversations, then stop every Agent until you resume them, so none retries requests while offline',
+    'commands.description.session.restoreQuitStopped':
+        'Relaunch the Agents that quitting with Stop Tasks ended and tell the ones that were working to continue',
     'commands.description.session.detach':
         'Stop the selected Session’s Agent Terminals so another client can resume the same conversation',
     'commands.description.session.resume':
