@@ -60,6 +60,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             'add-zsh-hook precmd caxri_e2e_precmd',
             'kill -INT $$',
             'alias cc=codex',
+            `print -r -- rc:loaded >> ${JSON.stringify(shellLog)}`,
             '',
         ].join('\n'),
     );
@@ -106,6 +107,8 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             await typeTerminal(running.page, String.raw`printf 'RETURNED_%s\n' TO_SHELL`);
             await expect(rows).toContainText('RETURNED_TO_SHELL', { timeout: 3_000 });
         }).toPass({ timeout: 30_000 });
+        // Fails here, not at the alias check, when the queued interrupt aborted `.zshrc` before its alias.
+        await expect.poll(async () => (await logLines(shellLog)).includes('rc:loaded')).toBe(true);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
 
