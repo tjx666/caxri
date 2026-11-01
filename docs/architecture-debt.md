@@ -38,14 +38,6 @@ Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answe
 
 Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and the entries below need their own design or measurement.
 
-### AD-perf-antigravity-sync-reads: [OPEN · Coverage or observability gap · M]
-
-- **Summary:** Usage scanning and external-conversation discovery read an Antigravity conversation database through synchronous better-sqlite3 on the Server Core event loop, bounded by rows (up to 50,000 step rows with protobuf blobs) rather than bytes, and the cost on a long conversation is unmeasured.
-- **Evidence:** `apps/server/src/domains/agents/providers/antigravity/conversation-database.ts`, consumed by `apps/server/src/domains/agents/external-conversation-parsers.ts` (`readAntigravityConversation`, `readAntigravityConversationSummary`).
-- **Tracking:** [issue caxri#3408](https://github.com/tjx666/caxri/issues/3408)
-- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
-- **Remediation target / Acceptance:** Measure decode time on a large synthetic database; give the summary caller a narrow reader that skips blobs it does not need, and move a full decode off the event loop when it exceeds a frame budget.
-
 ### AD-perf-renderer-hang-debugger-attach: [OPEN · Coverage or observability gap · S]
 
 - **Summary:** The Renderer hang probe keeps `webContents.debugger` attached with the Debugger domain enabled for each window's lifetime; its steady-state cost and its interaction with a DevTools session are unmeasured.
@@ -73,6 +65,13 @@ Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [iss
 - **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-02 @ 93eec4b97
 - **Resolved:** 2026-11-02 via [issue caxri#3407](https://github.com/tjx666/caxri/issues/3407).
 - **Remediation target / Acceptance:** One registration path; the case table and switch are gone, and the directories and registry are named for Android cases.
+
+### AD-perf-antigravity-sync-reads: [RESOLVED · Coverage or observability gap · M]
+
+- **Summary:** Usage scanning and external-conversation discovery read an Antigravity conversation database through synchronous better-sqlite3 on the Server Core event loop, and the cost on a long conversation was unmeasured.
+- **Evidence:** `bun run benchmark:antigravity-read` times each reader on a synthetic 50,000-step conversation (the read cap): the full read takes a median 75 ms, the Usage scanner's `readAntigravityConversationUsage` 53 ms without selecting any `step_payload`, and discovery's `readAntigravityConversationHead` under 1 ms by stopping at the first prompt. A real conversation is far below the cap and scales linearly, so the full decode stays on the event loop; `conversation-database.test.ts` proves the narrow readers never select the columns they skip.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-02 @ 67e7115a2
+- **Resolved:** 2026-11-02 via [issue caxri#3408](https://github.com/tjx666/caxri/issues/3408).
 
 ### AD-perf-chat-history-transcript-cache: [RESOLVED · Confirmed defect · S]
 
@@ -1402,7 +1401,7 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-11-01)
 
-`AD-perf-antigravity-sync-reads` → `AD-perf-renderer-hang-debugger-attach`.
+`AD-perf-renderer-hang-debugger-attach`.
 
 ## Historical priority guide (all resolved)
 

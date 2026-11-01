@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import type { AgentEnvironment } from './contract';
 import {
     ANTIGRAVITY_SUBAGENT_SOURCE,
-    readAntigravityConversation,
+    readAntigravityConversationHead,
     readAntigravityConversationSummary,
 } from './providers/antigravity/conversation-database';
 import { isHostedClaudeEntrypoint } from './providers/claude/entrypoint';
@@ -586,11 +586,10 @@ function parseAntigravityConversation(
     candidate: ConversationCandidate,
     environment: AgentEnvironment,
 ): ConversationParse {
-    const conversation = readAntigravityConversation(candidate.path);
-    if (!conversation) return 'unreadable';
-    if (conversation.source === ANTIGRAVITY_SUBAGENT_SOURCE) return 'sidechain';
+    const head = readAntigravityConversationHead(candidate.path);
+    if (!head) return 'unreadable';
+    if (head.source === ANTIGRAVITY_SUBAGENT_SOURCE) return 'sidechain';
     const summary = readAntigravityConversationSummary(environment, candidate.providerSessionId);
     if (!summary) return 'missingMetadata';
-    const prompt = conversation.messages.find((message) => message.role === 'user')?.text;
-    return finishConversation(summary.cwd, summary.title, prompt);
+    return finishConversation(summary.cwd, summary.title, head.firstPrompt);
 }

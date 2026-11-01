@@ -185,14 +185,66 @@ function count(usage: readonly WireField[], number: number): number {
     return wireVarint(usage, number);
 }
 
+interface StepTimes {
+    activity: number[];
+    byIndex: Map<number, number>;
+}
+
+function readStepTime(times: StepTimes, index: number, metadataBlob: unknown): void {
+    const metadata = decodeWireFields(blob(metadataBlob));
+    const at = wireTimestampMs(wireMessage(metadata, StepMetadata.createdAt));
+    if (at === undefined) return;
+    times.activity.push(at);
+    times.byIndex.set(index, at);
+}
+
+function readSource(database: Database.Database): number | undefined {
+    const meta = database.prepare('SELECT source FROM trajectory_meta LIMIT 1').get() as
+        { source?: unknown } | undefined;
+    return typeof meta?.source === 'number' ? meta.source : undefined;
+}
+
+function readGenerations(database: Database.Database, times: StepTimes): AntigravityGeneration[] {
+    const rows = database
+        .prepare(`SELECT idx, data FROM gen_metadata ORDER BY idx LIMIT ${MAX_GENERATIONS}`)
+        .all() as Array<{ idx: number; data: unknown }>;
+    const generations: AntigravityGeneration[] = [];
+    for (const row of rows) {
+        const fields = decodeWireFields(blob(row.data));
+        const chatModel = wireMessage(fields, GeneratorMetadata.chatModel);
+        const usage = chatModel && wireMessage(chatModel, ChatModel.usage);
+        if (!usage) continue;
+        const stepIndex = wireRepeatedVarint(fields, GeneratorMetadata.stepIndices).at(0);
+        const at = stepIndex === undefined ? undefined : times.byIndex.get(stepIndex);
+        generations.push({
+            index: row.idx,
+            ...(at !== undefined && { at }),
+            model:
+                wireString(chatModel, ChatModel.responseModel).slice(0, MAX_MODEL_NAME_CHARS) ||
+                'unknown',
+            input: count(usage, ModelUsage.input),
+            output: count(usage, ModelUsage.output),
+            cacheRead: count(usage, ModelUsage.cacheRead),
+            cacheWrite: count(usage, ModelUsage.cacheWrite),
+            reasoning: count(usage, ModelUsage.thinkingOutput),
+        });
+    }
+    return generations;
+}
+
+function userStepText(payload: Uint8Array): string {
+    const input = wireMessage(decodeWireFields(payload), Step.userInput);
+    return input ? userText(input) : '';
+}
+
 /**
  * Reads one conversation database opened read-only. Returns `undefined` when it cannot be opened or holds no `steps`
- * table. Nothing here logs; callers keep the text out of diagnostics.
+ * table. Nothing here logs; callers keep the text out of diagnostics. Callers that need less than the visible messages
+ * use `readAntigravityConversationUsage` or `readAntigravityConversationHead`, which skip the message payloads.
  */
 export function readAntigravityConversation(path: string): AntigravityConversation | undefined {
     return withDatabase(path, (database) => {
-        const meta = database.prepare('SELECT source FROM trajectory_meta LIMIT 1').get() as
-            { source?: unknown } | undefined;
+        const source = readSource(database);
         const steps = database
             .prepare(
                 `SELECT idx, step_type, metadata,
@@ -207,57 +259,80 @@ export function readAntigravityConversation(path: string): AntigravityConversati
             payload: unknown;
         }>;
         const messages: AntigravityMessage[] = [];
-        const activity: number[] = [];
-        const stepTimes = new Map<number, number>();
+        const times: StepTimes = { activity: [], byIndex: new Map() };
         for (const step of steps) {
-            const metadata = decodeWireFields(blob(step.metadata));
-            const at = wireTimestampMs(wireMessage(metadata, StepMetadata.createdAt));
-            if (at !== undefined) {
-                activity.push(at);
-                stepTimes.set(step.idx, at);
-            }
+            readStepTime(times, step.idx, step.metadata);
             const payload = blob(step.payload);
             if (!payload) continue;
-            const fields = decodeWireFields(payload);
             if (step.step_type === STEP_TYPE_USER_INPUT) {
-                const input = wireMessage(fields, Step.userInput);
-                const text = input ? userText(input) : '';
+                const text = userStepText(payload);
                 if (text.trim()) messages.push({ role: 'user', text });
             } else {
-                const response = wireMessage(fields, Step.plannerResponse);
+                const response = wireMessage(decodeWireFields(payload), Step.plannerResponse);
                 const text = response ? plannerText(response) : '';
                 if (text.trim()) messages.push({ role: 'assistant', text });
             }
         }
-        const rows = database
-            .prepare(`SELECT idx, data FROM gen_metadata ORDER BY idx LIMIT ${MAX_GENERATIONS}`)
-            .all() as Array<{ idx: number; data: unknown }>;
-        const generations: AntigravityGeneration[] = [];
-        for (const row of rows) {
-            const fields = decodeWireFields(blob(row.data));
-            const chatModel = wireMessage(fields, GeneratorMetadata.chatModel);
-            const usage = chatModel && wireMessage(chatModel, ChatModel.usage);
-            if (!usage) continue;
-            const stepIndex = wireRepeatedVarint(fields, GeneratorMetadata.stepIndices).at(0);
-            const at = stepIndex === undefined ? undefined : stepTimes.get(stepIndex);
-            generations.push({
-                index: row.idx,
-                ...(at !== undefined && { at }),
-                model:
-                    wireString(chatModel, ChatModel.responseModel).slice(0, MAX_MODEL_NAME_CHARS) ||
-                    'unknown',
-                input: count(usage, ModelUsage.input),
-                output: count(usage, ModelUsage.output),
-                cacheRead: count(usage, ModelUsage.cacheRead),
-                cacheWrite: count(usage, ModelUsage.cacheWrite),
-                reasoning: count(usage, ModelUsage.thinkingOutput),
-            });
+        return {
+            ...(source !== undefined && { source }),
+            messages,
+            generations: readGenerations(database, times),
+            activity: times.activity,
+        };
+    });
+}
+
+/**
+ * The step times and per-call usage the Usage scanner bills, without selecting any `step_payload`: on a long
+ * conversation the payloads are most of the bytes, and none of them carry usage.
+ */
+export function readAntigravityConversationUsage(
+    path: string,
+): Pick<AntigravityConversation, 'activity' | 'generations'> | undefined {
+    return withDatabase(path, (database) => {
+        const steps = database
+            .prepare(`SELECT idx, metadata FROM steps ORDER BY idx LIMIT ${MAX_STEPS}`)
+            .all() as Array<{ idx: number; metadata: unknown }>;
+        const times: StepTimes = { activity: [], byIndex: new Map() };
+        for (const step of steps) readStepTime(times, step.idx, step.metadata);
+        return { activity: times.activity, generations: readGenerations(database, times) };
+    });
+}
+
+export interface AntigravityConversationHead {
+    source?: number;
+    /**
+     * The first non-empty user prompt, which names an external conversation that has no generated title.
+     */
+    firstPrompt?: string;
+}
+
+/**
+ * What external-conversation discovery needs: the source and the first prompt. Stops at the first prompt with text
+ * instead of decoding every step.
+ */
+export function readAntigravityConversationHead(
+    path: string,
+): AntigravityConversationHead | undefined {
+    return withDatabase(path, (database) => {
+        const source = readSource(database);
+        const prompts = database
+            .prepare(
+                `SELECT step_payload FROM steps WHERE step_type = ${STEP_TYPE_USER_INPUT}
+                ORDER BY idx LIMIT ${MAX_STEPS}`,
+            )
+            .iterate() as IterableIterator<{ step_payload: unknown }>;
+        let firstPrompt: string | undefined;
+        for (const row of prompts) {
+            const payload = blob(row.step_payload);
+            const text = payload ? userStepText(payload) : '';
+            if (!text.trim()) continue;
+            firstPrompt = text;
+            break;
         }
         return {
-            ...(typeof meta?.source === 'number' && { source: meta.source }),
-            messages,
-            generations,
-            activity,
+            ...(source !== undefined && { source }),
+            ...(firstPrompt !== undefined && { firstPrompt }),
         };
     });
 }
