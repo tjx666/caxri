@@ -11,6 +11,8 @@ export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.welcome.documentation': '文档',
     'workbench.closeEnvironment': '关闭环境信息',
     'workbench.exitZenMode': '退出禅模式',
+    'workbench.zenAttentionOne': '{{count}} 个会话在等你',
+    'workbench.zenAttentionOther': '{{count}} 个会话在等你',
     'workbench.resizePanel': '调整面板大小',
     'workbench.resizePrimarySidebar': '调整主侧边栏大小',
     'workbench.resizeSecondarySidebar': '调整辅助侧边栏大小',

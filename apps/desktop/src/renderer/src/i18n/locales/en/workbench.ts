@@ -7,6 +7,8 @@ export const workbench = {
     'workbench.welcome.documentation': 'Documentation',
     'workbench.closeEnvironment': 'Close Environment',
     'workbench.exitZenMode': 'Exit Zen Mode',
+    'workbench.zenAttentionOne': '{{count}} Session needs you',
+    'workbench.zenAttentionOther': '{{count}} Sessions need you',
     'workbench.resizePanel': 'Resize Panel',
     'workbench.resizePrimarySidebar': 'Resize Primary Side Bar',
     'workbench.resizeSecondarySidebar': 'Resize Secondary Side Bar',

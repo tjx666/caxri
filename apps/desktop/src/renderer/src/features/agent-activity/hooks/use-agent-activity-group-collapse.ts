@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SESSION_ACTIVITY_GROUP_ORDER } from '@caxri/protocol';
 
-import { usePinnedCollapse } from '../primary-sidebar/hooks/use-pinned-collapse';
-import { groupsToAutoExpand } from './agent-activity-auto-expand';
-import type { AgentActivityGroupId } from './agent-activity-rows';
+import { usePinnedCollapse } from '../../primary-sidebar/hooks/use-pinned-collapse';
+import { groupsToAutoExpand } from '../agent-activity-auto-expand';
+import type { AgentActivityGroupId } from '../agent-activity-rows';
 
 const STORAGE_KEY = 'caxri.agent-activity-collapsed-groups';
 

@@ -36,11 +36,11 @@ import {
     nextAgentActivityRowId,
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
-import { useAgentActivityClock } from './use-agent-activity-clock';
+import { useAgentActivityClock } from './hooks/use-agent-activity-clock';
 import {
     useAgentActivityAutoExpand,
     useAgentActivityGroupCollapse,
-} from './use-agent-activity-group-collapse';
+} from './hooks/use-agent-activity-group-collapse';
 
 const NO_RECORDS: never[] = [];
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);

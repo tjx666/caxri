@@ -2,8 +2,16 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import Database from 'better-sqlite3';
+
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, launchCaxriApp } from './support/helpers.ts';
+import {
+    createAdditionalShellSession,
+    createShellSession,
+    launchCaxri,
+    launchCaxriApp,
+    pageRequest,
+} from './support/helpers.ts';
 
 test('Zen Mode hides the chrome around the Terminal and a surface toggle leaves it', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-zen-mode-e2e-'));
@@ -61,7 +69,7 @@ async function writeZenSettings(userData: string): Promise<void> {
     );
 }
 
-test('Zen Mode leaves through the hover exit button and comes back after a restart', async () => {
+test('Zen Mode leaves through the hover exit button, comes back after a restart, and shows waiting Sessions', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-zen-mode-restore-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -69,16 +77,23 @@ test('Zen Mode leaves through the hover exit button and comes back after a resta
     await writeZenSettings(userData);
 
     const first = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    let waitingSessionId: string | undefined;
     try {
         await createShellSession(first.page);
-        const statusBar = first.page.locator('footer.statusbar');
+        ({ selectedSessionId: waitingSessionId } = await pageRequest<{
+            selectedSessionId?: string;
+        }>(first.page, 'app.bootstrap'));
+        // The second Session holds the selection, so the first one's attention survives the restart unacknowledged.
+        await createAdditionalShellSession(first.page);
         const exitButton = first.page.getByRole('button', { name: 'Exit Zen Mode' });
+        const statusBar = first.page.locator('footer.statusbar');
         await expect(statusBar).toBeVisible();
 
         await first.page.keyboard.press('Meta+k');
         await first.page.keyboard.press('z');
         await expect(statusBar).toHaveCount(0);
         await expect(exitButton).toHaveCSS('opacity', '0');
+        await expect(first.page.locator('[data-zen-attention-dot]')).toHaveCount(0);
         await exitButton.hover();
         await expect(exitButton).toHaveCSS('opacity', '1');
         await exitButton.click();
@@ -96,11 +111,30 @@ test('Zen Mode leaves through the hover exit button and comes back after a resta
         }
     }
 
+    const database = new Database(join(userData, 'caxri.db'));
+    database
+        .prepare(
+            `UPDATE sessions
+             SET attention_generation = 1, acknowledged_attention_generation = 0,
+                 last_attention_kind = 'waiting', agent_activity_state = 'waiting'
+             WHERE id = ?`,
+        )
+        .run(waitingSessionId);
+    database.close();
+
     // `launchCaxri` waits on the status bar's readiness attribute, and a restored Zen Mode has no status bar.
     const second = await launchCaxriApp({ userDataDir: userData, testRootPath: root });
     try {
         await expect(second.page.locator('.session-primary-sidebar')).toHaveCount(0);
         await expect(second.page.locator('footer.statusbar')).toHaveCount(0);
+        // Zen hid the Activity badge, so the dot is the only sign another Session waits; it reads the same tally.
+        const dot = second.page.locator('[data-zen-attention-dot]');
+        await expect(dot).toBeVisible();
+        await expect(
+            second.page.getByRole('button', { name: 'Exit Zen Mode' }),
+        ).toHaveAccessibleDescription('1 Session needs you');
+        await pageRequest(second.page, 'session.select', { sessionId: waitingSessionId });
+        await expect(dot).toHaveCount(0);
         await second.page.getByRole('button', { name: 'Exit Zen Mode' }).click({ force: true });
         await expect(second.page.locator('footer.statusbar')).toBeVisible();
     } finally {
