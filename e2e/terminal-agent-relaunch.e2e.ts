@@ -121,16 +121,25 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
          */
         await typeTerminal(running.page, 'clear');
         await expect(rows).not.toContainText('FAKE_CODEX_READY');
+        /**
+         * The screen clears before `clear` returns to the prompt, and a line typed in between never reached zsh on
+         * hosted runs. The shell hook logs a status once the prompt is back, so wait for it before typing.
+         */
+        await expect
+            .poll(async () => {
+                const lines = await logLines(shellLog);
+                const index = lines.lastIndexOf('run:clear');
+                return (
+                    index !== -1 &&
+                    lines.slice(index + 1).some((line) => line.startsWith('status:'))
+                );
+            })
+            .toBe(true);
         // Bare `cc` only: shell promotion skips any command containing `;`, `&`, `|`, or a redirect.
         const launchesBefore = await launches();
         await typeTerminal(running.page, 'cc');
-        /**
-         * Hosted runs showed `cc` never started the fake Agent. Each line below names one cause: zsh never received the
-         * command, it was not found (127), it could not execute (126), or it returned for another reason.
-         */
-        // `clear` reaching the log proves the hooks are installed, so a missing `cc` means zsh never received it.
-        await expect.poll(async () => (await logLines(shellLog)).includes('run:clear')).toBe(true);
         await expect.poll(async () => (await ccRun()).received).toBe(true);
+        // `cc` either starts the fake Agent or returns with a status: 127 is not found, 126 could not execute.
         await expect
             .poll(
                 async () =>

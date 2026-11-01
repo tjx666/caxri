@@ -65,8 +65,17 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
                 ),
             )
             .toBe('/compact'.length);
-        // Focus and caret both held on hosted runs, so the chip can only come from extra text after the token.
+        // Focus, caret, and text all held on hosted runs; fail here if the chip is in this editor, not another one.
         await expectComposerValue(message, '/compact');
+        await expect
+            .poll(() =>
+                message.evaluate(
+                    (element) =>
+                        element.closest('.cm-editor')?.querySelectorAll('.cm-invocation-chip')
+                            .length,
+                ),
+            )
+            .toBe(0);
         await expect(chip).toHaveCount(0);
         await message.pressSequentially(' now');
         await expect(chip).toBeVisible();
