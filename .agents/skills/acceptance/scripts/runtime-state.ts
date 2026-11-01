@@ -6,6 +6,11 @@ import process from 'node:process';
 import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
 
+import {
+    CAXRI_ANDROID_PACKAGE,
+    clearAndroidAppDataIfInstalled,
+    runAndroidAdb,
+} from '../../../../apps/mobile/scripts/android-device-bridge';
 import { writeJsonAtomic } from '../../../../scripts/atomic-json';
 
 const ACCEPTANCE_USER_DATA_PREFIX = 'caxri-acceptance-user-';
@@ -513,6 +518,40 @@ export async function isAcceptanceProfileIdentityRemoved(
         ownedUserData: true,
         userDataDir: join(temporaryRoot, profileIdentity),
     });
+}
+
+/**
+ * The Android launch identities the mobile runners record: `android-emulator:<serial>:com.caxri.mobile:<id>` for a case
+ * and `android-emulator:<serial>:setup-blocked:<id>` for a setup that never launched; both clear the Caxri app's data.
+ */
+const ANDROID_PROFILE_IDENTITY =
+    /^android-emulator:(?<serial>emulator-\d+):(?:com\.caxri\.mobile|setup-blocked):[\w-]+$/u;
+
+/**
+ * Whether a launch's isolated profile is cleared, as a receipt repair must prove before recording cleanup. A desktop
+ * profile is a temp directory that must be gone. An Android launch's profile is the app's data on the disposable
+ * emulator the plan names, so it is cleared again (or found never installed, as for a setup that stopped before the APK
+ * was) and counts only when the device answers; an unreachable emulator leaves the repair refused.
+ */
+export async function isAcceptanceProfileCleared(
+    profileIdentity: string,
+    runDevice: (serial: string, arguments_: string[]) => string = (serial, arguments_) =>
+        runAndroidAdb(serial, arguments_, { timeoutMs: 30_000 }),
+): Promise<boolean> {
+    if (profileIdentity.startsWith('android-emulator:')) {
+        const match = ANDROID_PROFILE_IDENTITY.exec(profileIdentity);
+        if (!match?.groups) throw new Error('Android acceptance profile identity is malformed');
+        const { serial } = match.groups;
+        try {
+            clearAndroidAppDataIfInstalled(CAXRI_ANDROID_PACKAGE, (arguments_) =>
+                runDevice(serial, arguments_),
+            );
+            return true;
+        } catch {
+            return false;
+        }
+    }
+    return isAcceptanceProfileIdentityRemoved(profileIdentity);
 }
 
 export async function removeOwnedUserData(

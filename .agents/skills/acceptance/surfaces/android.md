@@ -167,6 +167,12 @@ The receipt keeps only the first node per `testID`, so it cannot count repeated 
 buttons sharing `agent-chat-work-copy` read as one. Give each instance its own `testID` when a
 scenario must find or count it.
 
+`tapMobileCheckByBounds` refuses a control, or the row its `rowOffset` reaches, that is not wholly on
+screen (`is off screen`): Android still lists a control scrolled out of a list, and a tap at its bounds
+lands on whatever is drawn there. Pass `viewport: 'conversation-view'` for a Chat timeline control,
+whose top the header covers, and scroll it into view first, as `showBar` in
+`e2e/support/mobile-agent-chat-reply-actions-scenario.ts` does.
+
 Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible text, Session names,
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.

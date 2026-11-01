@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { errorCode, validateExistingReportDirectory, writeJsonAtomically } from './report-paths';
-import { isAcceptanceProfileIdentityRemoved } from './runtime-state';
+import { isAcceptanceProfileCleared } from './runtime-state';
 
 /**
  * Owns the per-case `assets/<case-id>-state-isolation.json` receipt: the frozen isolation contract, every launch's
@@ -59,7 +59,8 @@ export type LifecycleForcedCompletion = z.infer<typeof lifecycleForcedCompletion
 export interface RepairCaseLifecycleInput {
     caseId: string;
     /**
-     * Verifies an isolated profile identity is gone; injected so the repair stays testable without real profiles.
+     * Verifies an isolated profile identity is gone, clearing an Android app profile first; injected so the repair
+     * stays testable without real profiles or devices.
      */
     isProfileRemoved?: (profileIdentity: string) => Promise<boolean>;
     reason: string;
@@ -227,9 +228,11 @@ export async function forceCompleteCaseLifecycle(
 }
 
 /**
- * Recovers a receipt whose launch never completed without editing evidence by hand. An isolated launch is closed only
- * after its profile directory is verified gone, so the recorded cleanup stays true; a restart launch keeps its shared
- * profile and records no cleanup.
+ * Recovers a receipt without editing evidence by hand. A launch that never completed is closed; an isolated launch is
+ * closed only after its profile is verified gone, so the recorded cleanup stays true, while a restart launch keeps its
+ * shared profile and records no cleanup. An isolated launch that completed but whose cleanup failed (an Android
+ * emulator that died before `pm clear` ran) is amended with a `deferredCleanup` marker once the cleanup is verified
+ * now, keeping its original `completedAt`; without this the case could never be retried in the same round.
  */
 export async function repairCaseLifecycle(
     reportDirectory: string,
@@ -239,28 +242,39 @@ export async function repairCaseLifecycle(
     const directory = await validateExistingReportDirectory(reportDirectory);
     const path = join(directory, lifecycleEvidencePath(input.caseId));
     const reason = z.string().trim().min(1).parse(input.reason);
-    const isProfileRemoved = input.isProfileRemoved ?? isAcceptanceProfileIdentityRemoved;
+    const isProfileRemoved = input.isProfileRemoved ?? isAcceptanceProfileCleared;
     const receipt = caseLifecycleReceiptSchema.parse(JSON.parse(await readFile(path, 'utf8')));
     if (receipt.caseId !== input.caseId) {
         throw new Error('Acceptance lifecycle receipt does not match the requested case');
     }
-    const pendingLaunches = receipt.launches.filter(({ completedAt }) => completedAt === null);
-    if (pendingLaunches.length === 0) {
-        throw new Error('Acceptance lifecycle receipt has no pending launch to repair');
+    const isIsolated = receipt.stateIsolation.mode === 'isolated';
+    const repairable = receipt.launches.filter(
+        (launch) =>
+            launch.completedAt === null ||
+            (isIsolated && launch.cleanupRequested && !launch.cleanupCompleted),
+    );
+    if (repairable.length === 0) {
+        throw new Error(
+            'Acceptance lifecycle receipt has no pending launch or failed cleanup to repair',
+        );
     }
-    for (const launch of pendingLaunches) {
-        const isIsolated = receipt.stateIsolation.mode === 'isolated';
-        // eslint-disable-next-line no-await-in-loop -- each pending launch verifies its own profile before it is closed
+    for (const launch of repairable) {
+        // eslint-disable-next-line no-await-in-loop -- each launch verifies its own profile before it is closed
         if (isIsolated && !(await isProfileRemoved(launch.profileIdentity))) {
             throw new Error(
                 `Acceptance profile ${launch.profileIdentity} still exists; stop the instance before repairing its receipt`,
             );
         }
-        launch.cleanupRequested = isIsolated;
-        launch.cleanupCompleted = isIsolated;
-        launch.completedAt = completedAt;
-        launch.forcedCompletion = { reason, source: 'report-repair' };
+        if (launch.completedAt === null) {
+            launch.cleanupRequested = isIsolated;
+            launch.cleanupCompleted = isIsolated;
+            launch.completedAt = completedAt;
+            launch.forcedCompletion = { reason, source: 'report-repair' };
+        } else {
+            launch.cleanupCompleted = true;
+            launch.deferredCleanup = { reason, source: 'report-repair' };
+        }
     }
     await writeJsonAtomically(path, caseLifecycleReceiptSchema.parse(receipt));
-    return { path, repairedLaunchIds: pendingLaunches.map(({ id }) => id) };
+    return { path, repairedLaunchIds: repairable.map(({ id }) => id) };
 }

@@ -287,6 +287,10 @@ something other than the adapter, run
 `bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle --dir <round> --case-id <id> --reason "<why>"`.
 It closes the pending launch with the reason on record and, for an isolated case, only after
 verifying the profile directory is gone. See [#611](https://github.com/tjx666/caxri/issues/611).
+The same command closes a completed launch whose cleanup failed (`cleanupCompleted: false`, such as
+an Android emulator that died mid-case, which makes a retry fail with `must clean up before retry`):
+it records `deferredCleanup` once the profile is gone. For an Android profile it clears the app on
+that emulator first, so the emulator must be running again.
 
 ## Passing an Acceptance screenshot path positionally
 

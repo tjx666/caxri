@@ -291,6 +291,9 @@ bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle \
 
 For an isolated case the repair verifies the profile directory is already gone before it records
 cleanup; a restart launch is closed without claiming cleanup of its shared profile.
+It also closes an isolated launch that completed with `cleanupCompleted: false`, marking it
+`deferredCleanup` once the profile is verified gone; an Android profile is verified by clearing the
+app on its emulator.
 
 ## Closed vocabularies
 

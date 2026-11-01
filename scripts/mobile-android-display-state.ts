@@ -53,6 +53,15 @@ function rotation(source: string): number {
     return Number(value);
 }
 
+/**
+ * The size the emulator currently draws at, from `wm size`: the override a case set, otherwise the physical size.
+ */
+export function androidScreenSize(source: string): { height: number; width: number } {
+    const current = size(source, 'Override') ?? size(source, 'Physical');
+    if (!current) throw new Error('Android display size is unavailable');
+    return current;
+}
+
 export function parseAndroidDisplayState(source: AndroidDisplayStateSource): AndroidDisplayState {
     const physicalSize = size(source.size, 'Physical');
     if (!physicalSize) throw new Error('Android physical display size is unavailable');
