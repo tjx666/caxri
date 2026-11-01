@@ -1,6 +1,5 @@
 export const sessions = {
     'sessions.actions.archive': 'Archive',
-    'sessions.actions.archiveSession': 'Archive Session',
     'sessions.actions.close': 'Close Session actions',
     'sessions.actions.continue': 'Continue in Another Agent',
     'sessions.actions.continueEmpty': 'No other Agent can take this over',

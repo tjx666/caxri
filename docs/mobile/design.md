@@ -202,11 +202,12 @@ no background of its own keeps its default dark text readable.
   Inbox has open items and opens it; with none it is absent rather than an empty menu entry.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- On a control device, swiping a row left reveals its `Archive` action on a neutral elevated surface, not the danger color, because archiving is reversible from Archived Sessions. The swipe starts only after
-  `24dp` of sideways travel and a closed row ignores a rightward drag, so a vertical scroll that
-  drifts sideways keeps scrolling (`MOB-CHAT-27`). At most one row shows its action: starting to swipe another row, tapping a different row, or scrolling the list closes the
-  open row, and the tap that closes a row does not open that Session. Android Acceptance
-  `MOB-MOTION-02` records this.
+- Swiping the list left or right, including its empty state, moves to the next or previous Project
+  filter in chip order (All first) and stops at either end instead of wrapping. The list follows the
+  finger at a quarter of its travel and springs back; the swipe starts only after `24dp` of sideways
+  travel and gives way to a scroll that moves `16dp` vertically first, so a vertical scroll that
+  drifts sideways keeps scrolling (`MOB-CHAT-27`). The filter strip scrolls to center the selected
+  chip. Rows have no swipe action: archive from the long-press actions sheet.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 
 ## Session screen

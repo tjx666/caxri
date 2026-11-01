@@ -138,8 +138,8 @@ async function projectIcons(
 }
 
 /**
- * Drags a Session row leftward from its right side, away from the system Back gesture edges, to reveal its action. The
- * caller passes bounds it already knows, so no semantic read has to run right before the gesture.
+ * Drags a row leftward from its right side, away from the system Back gesture edges, to reveal its action. The caller
+ * passes bounds it already knows, so no semantic read has to run right before the gesture.
  */
 export async function swipeRowBoundsLeft(
     serial: string,
@@ -157,16 +157,6 @@ export async function swipeRowBoundsLeft(
         String(y),
         String(durationMs),
     ]);
-}
-
-/**
- * Reads the current bounds of the Session row `rowId`, then swipes it like `swipeRowBoundsLeft`.
- */
-async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
-    const row = (await mobileSemantics(serial)).find(({ checkId }) => checkId === rowId);
-    const bounds = row && androidBounds(row.bounds);
-    if (!bounds) throw new Error('Synthetic Session row is unavailable');
-    await swipeRowBoundsLeft(serial, bounds);
 }
 
 const sessionTitle = async (fixture: MobileAcceptanceFixture, sessionId: string) => {
@@ -226,17 +216,8 @@ async function sessionManagement(
     await waitFor(serial, (nodes) => hasCheck(nodes, row));
     await capture(environment, 'restored-home', artifacts, row);
 
-    const swipeArchive = `session-swipe-archive-${sessionId}`;
-    await swipeRowLeft(serial, row);
-    await waitFor(serial, (nodes) => hasCheck(nodes, swipeArchive));
-    await capture(environment, 'swipe-archive', artifacts, swipeArchive);
-    await tapMobileCheck(serial, swipeArchive);
-    await waitFor(serial, (nodes) => !hasCheck(nodes, row));
-    if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
-        throw new Error('The swiped Desktop Session was not archived');
     await finish(environment, artifacts, {
         archive: 'removed-from-home-and-archived-on-desktop',
-        swipeArchive: 'revealed-then-archived-on-desktop',
         rename: 'desktop-title-updated',
         restore: 'listed-then-restored-to-home',
         status: 'passed',

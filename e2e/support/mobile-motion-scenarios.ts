@@ -2,7 +2,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { pageRequest } from './helpers.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture.ts';
 import {
     adbShell,
@@ -28,13 +27,7 @@ import {
     conversationBaselineRecords,
     conversationLongToolRecords,
 } from './mobile-conversation-transcript.ts';
-import {
-    panelTransitions,
-    readRecordingBand,
-    readRecordingRedShares,
-} from './mobile-motion-analysis.ts';
-import { swipeRowBoundsLeft } from './mobile-ui-audit-scenarios.ts';
-import { assertStaysAbsent } from './mobile-ui-audit-support.ts';
+import { panelTransitions, readRecordingBand } from './mobile-motion-analysis.ts';
 
 type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
 
@@ -159,192 +152,6 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
 }
 
 /**
- * Share of an Archive action at which its row reads as open rather than sliding. When the newly swiped row is this far
- * open, the previously open row must already be below it.
- */
-const HALF_REVEALED = 0.5;
-
-/**
- * The second swipe drags slowly so its start and its release are far apart in the recording: a row that closes when the
- * next drag starts is gone before the next row is half open, while one that waits for the release stays fully open
- * through the drag.
- */
-const SLOW_SWIPE_MS = 1000;
-
-/**
- * Keeps at most one Session row open: starting to swipe a second row closes the first, a tap on another row closes the
- * open row without opening a Session, and scrolling the list closes it (#1280). The semantic tree only shows settled
- * states, so the recording is read frame by frame to prove the open row closes while the next row is still dragged.
- */
-async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) {
-    const { serial } = environment;
-    const remoteVideoPath = requireRemoteVideoPath();
-    const fixture = await createMobileAcceptanceFixture({ mode: 'conversation', serial });
-    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
-    try {
-        /**
-         * The list only scrolls when its rows are taller than the phone, so the Project gets extra empty Sessions.
-         */
-        const created: string[] = [];
-        for (let index = 1; index <= 14; index += 1) {
-            // eslint-disable-next-line no-await-in-loop -- Sessions are created one at a time in a stable order.
-            const { session } = await pageRequest<{ session: { id: string } }>(
-                fixture.running.page,
-                'session.create',
-                { defaultAgent: null, projectId: fixture.allowedProjectId },
-            );
-            // eslint-disable-next-line no-await-in-loop -- each title follows its own creation.
-            await pageRequest(fixture.running.page, 'session.rename', {
-                title: `Synthetic Session ${String(index).padStart(2, '0')}`,
-                sessionId: session.id,
-            });
-            created.push(session.id);
-        }
-        await fixture.pair();
-        const listed = await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) =>
-                nodes.filter(({ checkId }) => created.some((id) => checkId === `session-row-${id}`))
-                    .length >= 3,
-        );
-        const rows = listed
-            .filter(({ checkId }) => created.some((id) => checkId === `session-row-${id}`))
-            .map((node) => ({ bounds: androidBounds(node.bounds), id: node.checkId }))
-            .filter(
-                (row): row is { bounds: NonNullable<typeof row.bounds>; id: string } =>
-                    row.bounds !== null,
-            )
-            .toSorted((left, right) => left.bounds.top - right.bounds.top);
-        if (rows.length < 2) throw new Error('Two synthetic Session rows are not visible');
-        const [first, second] = rows;
-        const archiveOf = (rowId: string) =>
-            rowId.replace('session-row-', 'session-swipe-archive-');
-        const openArchives = (nodes: SemanticNodes) =>
-            nodes.filter(({ checkId }) => checkId.startsWith('session-swipe-archive-')).length;
-
-        /**
-         * Swipes reuse the row bounds read before recording. A semantic read right before a gesture can stall the first
-         * frames of the drag, which hides when the open row starts to close.
-         */
-        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
-        await pause(SETTLE_MS);
-        await swipeRowBoundsLeft(serial, first.bounds);
-        const firstOpen = await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) => hasCheck(nodes, archiveOf(first.id)),
-        );
-        const firstArchive = boundsOf(firstOpen, archiveOf(first.id));
-        await pause(SETTLE_MS);
-        await capture(environment, 'first-row-open', artifacts);
-
-        await swipeRowBoundsLeft(serial, second.bounds, SLOW_SWIPE_MS);
-        const secondOpen = await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) =>
-                hasCheck(nodes, archiveOf(second.id)) && !hasCheck(nodes, archiveOf(first.id)),
-        );
-        if (openArchives(secondOpen) !== 1) throw new Error('More than one Session row is open');
-        const secondArchive = boundsOf(secondOpen, archiveOf(second.id));
-        await pause(SETTLE_MS);
-        await capture(environment, 'second-row-open', artifacts);
-
-        /**
-         * The tap lands on the first row's title side, which a swipe action never covers.
-         */
-        await adbShell(serial, [
-            'input',
-            'tap',
-            String(Math.round(first.bounds.left + (first.bounds.right - first.bounds.left) * 0.25)),
-            String(Math.round((first.bounds.top + first.bounds.bottom) / 2)),
-        ]);
-        await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) => openArchives(nodes) === 0 && hasCheck(nodes, first.id),
-        );
-        await assertStaysAbsent(serial, ['session-detail']);
-        await capture(environment, 'tap-closed', artifacts);
-
-        await swipeRowBoundsLeft(serial, first.bounds);
-        await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) => hasCheck(nodes, archiveOf(first.id)),
-        );
-        await pause(SETTLE_MS);
-        const list = boundsOf(await mobileSemantics(serial), 'session-list');
-        const x = Math.round((list.left + list.right) / 2);
-        await adbShell(serial, [
-            'input',
-            'swipe',
-            String(x),
-            String(Math.round(list.top + (list.bottom - list.top) * 0.8)),
-            String(x),
-            String(Math.round(list.top + (list.bottom - list.top) * 0.45)),
-            '400',
-        ]);
-        const scrolled = await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) => openArchives(nodes) === 0,
-        );
-        const firstAfterScroll = scrolled.find(({ checkId }) => checkId === first.id);
-        const firstTop = firstAfterScroll && androidBounds(firstAfterScroll.bounds)?.top;
-        if (firstTop === first.bounds.top) throw new Error('The Session list did not scroll');
-        await pause(SETTLE_MS);
-        await capture(environment, 'scroll-closed', artifacts);
-        await recording.stop();
-        recording = undefined;
-        const analysis = await mkdtemp(join(tmpdir(), 'caxri-motion-'));
-        try {
-            const video = join(analysis, 'swipe-rows.mp4');
-            await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-            /**
-             * Once the list scrolls, other rows move under these regions, but none of them shows the danger colour.
-             */
-            const samples = await readRecordingRedShares(video, [firstArchive, secondArchive]);
-            const peak = (index: number) =>
-                Math.max(0, ...samples.map(({ shares }) => shares[index]));
-            const secondHalfOpen = samples.find(({ shares }) => shares[1] >= HALF_REVEALED);
-            if (!secondHalfOpen || peak(0) < HALF_REVEALED)
-                throw new Error('The recording does not show both Archive actions opening');
-            const firstWhenSecondHalfOpen = secondHalfOpen.shares[0];
-            if (firstWhenSecondHalfOpen >= HALF_REVEALED)
-                throw new Error(
-                    `The open Session row was still ${firstWhenSecondHalfOpen.toFixed(2)} revealed when the next row was half open`,
-                );
-            const bothRowsPeak = Math.max(0, ...samples.map(({ shares }) => Math.min(...shares)));
-            await finish(environment, artifacts, {
-                archiveReveal: {
-                    /**
-                     * Largest share of the Archive action both rows showed in the same frame, as the two cross.
-                     */
-                    bothRowsPeak: Number(bothRowsPeak.toFixed(2)),
-                    /**
-                     * Share of the first row's Archive action in the first frame where the second row is half open.
-                     */
-                    firstRowWhenSecondHalfOpen: Number(firstWhenSecondHalfOpen.toFixed(2)),
-                    halfRevealed: HALF_REVEALED,
-                    peaks: [Number(peak(0).toFixed(2)), Number(peak(1).toFixed(2))],
-                    recordedFrames: samples.length,
-                    secondSwipeMs: SLOW_SWIPE_MS,
-                },
-                openRows: {
-                    afterSecondSwipe: 1,
-                    afterTapOnAnotherRow: 0,
-                    afterListScroll: 0,
-                },
-                tapOnAnotherRow: 'closed-without-opening-session',
-                status: 'passed',
-                syntheticSessionCount: created.length,
-            });
-        } finally {
-            await rm(analysis, { force: true, recursive: true });
-        }
-    } finally {
-        await recording?.stop();
-        await fixture.stop();
-    }
-}
-
-/**
  * Opens a tool whose output is longer than the tool detail sheet: the sheet stays within its 65% height cap with the
  * Close button visible, and the output scrolls inside it (#1280).
  */
@@ -455,9 +262,6 @@ export async function executeMobileMotionScenario(
     switch (environment.caseId) {
         case 'MOB-MOTION-01':
             await tabSwitching(environment, artifacts);
-            break;
-        case 'MOB-MOTION-02':
-            await swipeRows(environment, artifacts);
             break;
         case 'MOB-MOTION-03':
             await longToolDetail(environment, artifacts);

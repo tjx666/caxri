@@ -20,7 +20,12 @@ import { useTranslation } from '../../../i18n';
 import { mobileSpace } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { ProjectChipSlot } from '../project-order';
-import { projectAutoScrollStep, projectChipShift, projectDropIndex } from '../project-order';
+import {
+    projectAutoScrollStep,
+    projectChipRevealOffset,
+    projectChipShift,
+    projectDropIndex,
+} from '../project-order';
 
 /**
  * Holding a chip this long picks it up; a shorter touch stays a tap, and moving first scrolls the strip.
@@ -138,6 +143,16 @@ export const ProjectFilterChips = ({
         drag.to.set(-1);
         drag.translation.set(0);
     }, [drag.from, drag.slots, drag.to, drag.translation, projectOrder, projects.length]);
+    const activeIndex = projects.findIndex(({ id }) => id === activeProjectId);
+    // Swiping the Session list can select a chip past the edge of the strip, so the strip follows the selection.
+    useEffect(() => {
+        const offset = projectChipRevealOffset(
+            activeIndex === -1 ? undefined : slotsReference.current.at(activeIndex),
+            viewportWidth.get(),
+            contentWidth.get(),
+        );
+        scrollReference.current?.scrollTo({ animated: true, x: offset });
+    }, [activeIndex, contentWidth, scrollReference, viewportWidth]);
     const drop = useCallback(
         (projectId: string, from: number, to: number) => {
             setDragging(false);
