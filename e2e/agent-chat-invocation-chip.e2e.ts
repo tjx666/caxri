@@ -65,6 +65,8 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
                 ),
             )
             .toBe('/compact'.length);
+        // Focus and caret both held on hosted runs, so the chip can only come from extra text after the token.
+        await expectComposerValue(message, '/compact');
         await expect(chip).toHaveCount(0);
         await message.pressSequentially(' now');
         await expect(chip).toBeVisible();

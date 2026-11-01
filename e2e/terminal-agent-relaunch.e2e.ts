@@ -128,6 +128,8 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
          * Hosted runs showed `cc` never started the fake Agent. Each line below names one cause: zsh never received the
          * command, it was not found (127), it could not execute (126), or it returned for another reason.
          */
+        // `clear` reaching the log proves the hooks are installed, so a missing `cc` means zsh never received it.
+        await expect.poll(async () => (await logLines(shellLog)).includes('run:clear')).toBe(true);
         await expect.poll(async () => (await ccRun()).received).toBe(true);
         await expect
             .poll(

@@ -107,11 +107,11 @@ esac
         await openAddProjectDialog(running.page);
         const dialog = running.page.getByRole('dialog');
         await dialog.getByRole('button', { name: 'Shell', exact: true }).click();
-        // Hosted runs rendered two cards for one Session: a stale id fails one line, a twin the next.
+        // Hosted runs rendered one Session's card twice: two Project groups fail one line, one group the next.
         const cards = running.page.locator('.session-card');
-        const ids = () =>
-            cards.evaluateAll((all) => new Set(all.map((card) => card.dataset.sessionId)).size);
-        await expect.poll(ids).toBe(1);
+        const groups = () =>
+            cards.evaluateAll((all) => new Set(all.map((c) => c.closest('.project-group'))).size);
+        await expect.poll(groups).toBe(1);
         await expect(cards).toHaveCount(1);
         const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
         await statusTab.click();
