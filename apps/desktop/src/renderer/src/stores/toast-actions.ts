@@ -110,6 +110,7 @@ export interface ToastActionParameters {
         previousPath: string;
     };
     'processExplorer.open': undefined;
+    'session.restoreQuitStopped': undefined;
     'session.unarchive': { sessionId: string };
     'settings.open': undefined;
     'settings.openNotifications': undefined;
@@ -189,6 +190,7 @@ export const toastActionLabelKeys: Record<ToastActionId, TranslationKey> = {
     'files.undoTrashMany': 'toasts.action.undo',
     'github.open': 'toasts.action.openOnGitHub',
     'processExplorer.open': 'toasts.action.viewDetails',
+    'session.restoreQuitStopped': 'toasts.action.restore',
     'session.unarchive': 'toasts.action.undo',
     'settings.open': 'toasts.action.openSettings',
     'settings.openNotifications': 'toasts.action.openSettings',

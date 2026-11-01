@@ -87,6 +87,29 @@ export class QuitRestore {
     }
 
     /**
+     * How many recorded Sessions a restore would still relaunch, read without consuming the record so a launch can
+     * offer it. Sessions deleted or archived since the quit are left out, since a restore would only skip them.
+     */
+    pendingCount(): number {
+        if (this.isRestoring) return 0;
+        const { database } = this.options;
+        const stored = database.getAppState('quitStoppedSessions');
+        if (!stored || stored.sessions.length === 0) return 0;
+        const count = stored.sessions.filter(({ sessionId }) => {
+            const session = database.getSession(sessionId);
+            return session !== undefined && session.archivedAt === undefined;
+        }).length;
+        this.options.logger.write('info', logEventCatalog.sessionQuitRestore.offered, {
+            fields: {
+                count,
+                recordAgeMs: this.now() - stored.stoppedAt,
+                recordedCount: stored.sessions.length,
+            },
+        });
+        return count;
+    }
+
+    /**
      * Consumes the record first, so a second request (or one from another client) restores nothing twice. Sessions run
      * one at a time: the restore supervisor serves a single Session and aborts the previous one.
      */

@@ -28,7 +28,7 @@ async function runPaletteCommand(page: Page, title: string): Promise<void> {
     await palette.getByText(title, { exact: true }).click();
 }
 
-test('restores the Terminal a quit with Stop Tasks ended, once', async () => {
+test('offers at launch to restore the Terminal a quit with Stop Tasks ended, once', async () => {
     const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-e2e-quit-restore-'));
     const testRootPath = join(userDataDirectory, 'project');
     await mkdir(testRootPath);
@@ -38,6 +38,8 @@ test('restores the Terminal a quit with Stop Tasks ended, once', async () => {
         let terminalId: string;
         try {
             await createShellSession(first.page);
+            // Nothing was stopped before this launch, so there is nothing to offer.
+            await expect(first.page.getByText(/stopped at the last quit\./u)).toHaveCount(0);
             const bootstrap = await pageRequest<BootstrapTerminals>(first.page, 'app.bootstrap');
             const terminal = bootstrap.terminals.find(
                 ({ sessionId }) => sessionId === bootstrap.selectedSessionId,
@@ -54,8 +56,13 @@ test('restores the Terminal a quit with Stop Tasks ended, once', async () => {
             const { page } = second;
             expect(await processState(page, terminalId)).toBe('stopped');
 
-            await runPaletteCommand(page, 'Restore Sessions Stopped at Last Quit');
+            const notice = page
+                .locator('[data-sonner-toast]')
+                .filter({ hasText: '1 Session was stopped at the last quit.' });
+            await expect(notice).toBeVisible();
+            await notice.getByRole('button', { name: 'Restore', exact: true }).click();
             await expect(page.getByText('Restored 1 Session.')).toBeVisible();
+            await expect(notice).toHaveCount(0);
             await expect.poll(() => processState(page, terminalId)).toBe('running');
             const evidence = test.info().outputPath('quit-restore-restored.png');
             await page.screenshot({ path: evidence });

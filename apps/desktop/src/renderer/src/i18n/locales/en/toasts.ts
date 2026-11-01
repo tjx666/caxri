@@ -35,6 +35,7 @@ export const toasts = {
     'toasts.action.copyDetails': 'Copy details',
     'toasts.action.copyCommand': 'Copy command',
     'toasts.action.restoreDiscardedChanges': 'Restore My Changes',
+    'toasts.action.restore': 'Restore',
     'toasts.action.revealInFinder': 'Reveal in Finder',
     'toasts.action.openOnGitHub': 'Open on GitHub',
     'toasts.action.viewDetails': 'View details',

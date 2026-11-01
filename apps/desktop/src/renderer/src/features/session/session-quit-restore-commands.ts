@@ -3,6 +3,7 @@ import type { SessionRestoreQuitStoppedResult } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { dismissToastsMatching, pushToast, tryCommand } from '../../stores/toasts';
+import { quitRestoreNoticeKey } from './session-quit-restore-notice';
 
 const restore = { running: false };
 
@@ -39,4 +40,30 @@ export async function restoreQuitStoppedSessions(): Promise<void> {
         dismissToastsMatching((message) => message === progressMessage);
         restore.running = false;
     }
+}
+
+const notice = { checked: false };
+
+/**
+ * Offers, once per launch, to restore what the last quit's "Quit and Stop Tasks" ended; otherwise the only way back is
+ * a Command Palette entry the user may not know. The notice persists until handled, which also keeps Zen Mode from
+ * filtering it. Reading the count never consumes the record, so dismissing the notice leaves the command available. The
+ * read runs after the first render and its failure stays silent: the notice is a hint, not a startup gate.
+ */
+export async function offerQuitStoppedRestore(): Promise<void> {
+    if (notice.checked) return;
+    notice.checked = true;
+    let count: number;
+    try {
+        ({ count } = await caxri.request('session.quitStoppedCount', {}));
+    } catch {
+        return;
+    }
+    const key = quitRestoreNoticeKey(count);
+    if (!key) return;
+    pushToast('info', translate(key, { count }), {
+        persist: true,
+        dismissOnSuccess: true,
+        action: { id: 'session.restoreQuitStopped' },
+    });
 }

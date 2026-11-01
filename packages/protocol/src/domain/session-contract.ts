@@ -21,7 +21,10 @@ import {
     sessionArchiveWorktreeConfirmationSchema,
     sessionArchiveWorktreePlanSchema,
 } from './session/session-archive-worktree.js';
-import { sessionRestoreQuitStoppedResultSchema } from './session/session-quit-restore.js';
+import {
+    sessionQuitStoppedCountResultSchema,
+    sessionRestoreQuitStoppedResultSchema,
+} from './session/session-quit-restore.js';
 import {
     sessionAgentHistoryResultSchema,
     sessionReopenConversationParametersSchema,
@@ -133,6 +136,15 @@ export const sessionMethods = {
         ...commandPolicy('server', 'control'),
         params: z.object({}),
         result: sessionRestoreQuitStoppedResultSchema,
+    },
+    /**
+     * How many Sessions `session.restoreQuitStopped` would bring back, read without consuming the record, so a launch
+     * can offer the restore.
+     */
+    'session.quitStoppedCount': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({}),
+        result: sessionQuitStoppedCountResultSchema,
     },
     /**
      * Finds Agent conversations across every provider's history on this machine, open, archived, or never in Caxri, by

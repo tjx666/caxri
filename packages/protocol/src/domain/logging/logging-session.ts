@@ -81,6 +81,7 @@ export const sessionAirplaneModeLogEvents = {
  * and one when the restore runs, with Session counts and the restore's duration. Never a title or Session content.
  */
 export const sessionQuitRestoreLogEvents = {
+    offered: 'session.quit_stopped_offered',
     recorded: 'session.quit_stopped_recorded',
     recordFailed: 'session.quit_stopped_record_failed',
     restored: 'session.quit_stopped_restored',

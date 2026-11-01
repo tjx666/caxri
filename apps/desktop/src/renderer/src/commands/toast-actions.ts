@@ -30,6 +30,7 @@ import {
 } from '../features/gpu/gpu-commands';
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { unarchiveSession } from '../features/session/session-archive-commands';
+import { restoreQuitStoppedSessions } from '../features/session/session-quit-restore-commands';
 import { turnOffClaudeWindows } from '../features/settings/claude-windows/claude-windows-default-notice';
 import { revealSelectedSessionWorkbench } from '../features/settings/settings-page-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
@@ -178,6 +179,12 @@ export const toastActionHandlers: ToastActionHandlers = {
         },
     },
     'processExplorer.open': { run: openProcessExplorer },
+    'session.restoreQuitStopped': {
+        // Fire-and-forget by the Toast contract: the restore reports its own progress and result.
+        run: () => {
+            void restoreQuitStoppedSessions();
+        },
+    },
     'session.unarchive': {
         // An archived Session can still be deleted outright, and restoring one that is gone would report a low-level
         // failure for something the user already did on purpose.
