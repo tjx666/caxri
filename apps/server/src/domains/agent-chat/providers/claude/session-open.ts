@@ -65,6 +65,11 @@ export function claudeQueryOptions({
         enableFileCheckpointing: true,
         includePartialMessages: true,
         includeHookEvents: true,
+        /**
+         * Claude Code echoes each prompt when it takes it in, which is when a steered prompt finally joins the turn
+         * (`ClaudeSteers`).
+         */
+        extraArgs: { 'replay-user-messages': null },
         // Subagent text and thinking reach the task tab, not only their tool calls.
         forwardSubagentText: true,
         /**

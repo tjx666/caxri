@@ -500,6 +500,41 @@ export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text
 }
 
 /**
+ * What Claude Code does when a background task finishes after the turn that started it ended: it reports the task and
+ * continues the conversation on its own, with no user message opening the turn.
+ */
+export async function runBackgroundContinuation(io: FakeClaudeIo) {
+    const startedAt = Date.now();
+    const outputFile = path.resolve('job.log');
+    io.send(
+        io.frame({
+            type: 'system',
+            subtype: 'task_notification',
+            task_id: 'fake-task',
+            status: 'completed',
+            output_file: outputFile,
+            summary: 'Background job finished',
+        }),
+    );
+    const toolUseId = `toolu_${crypto.randomUUID()}`;
+    io.assistant(`msg_${crypto.randomUUID()}`, {
+        type: 'tool_use',
+        id: toolUseId,
+        name: 'Bash',
+        input: { command: 'cat job.log', description: 'Read the job output' },
+    });
+    await delay(300);
+    const message = {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }],
+    };
+    io.send(io.frame({ type: 'user', message }));
+    io.record({ type: 'user', message });
+    await io.didStreamFully('The background job finished.', 0);
+    io.result(startedAt, 'done');
+}
+
+/**
  * The task side of a control request. `initialize` records which Agent SDK options the host declared, `interrupt` kills
  * background subagents and workflows unless the host declared `perTaskStopAffordance` and never a background shell (as
  * the real CLI does), and `stop_task` and `get_task_output` answer for a background task or fail like the real CLI for

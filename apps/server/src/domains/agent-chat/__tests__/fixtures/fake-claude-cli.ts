@@ -32,11 +32,12 @@
  * A message with images is answered with how many it received. `/compact` compacts the conversation, reporting `status:
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
  * reports `/compact`, `/review`, the built-in `/goal` (`fake-claude-goal.ts`), and the terminal-bound `/exit` as its
- * commands. A message steered with `priority: 'next'` is quoted with `[next]`. It lists an `opus` alias and a model
- * without effort control; `set_model` and an `effortLevel` flag setting change what the next init message and hook
- * input report. Ultracode is a flag setting offered only on models with effort control, and an effort change without an
- * `ultracode` key turns it off. A `fastMode` flag setting turns Fast mode on, which `initialize`, the init message, and
- * the result report.
+ * commands. A message steered with `priority: 'next'` is quoted with `[next]`. Under `--replay-user-messages` each
+ * prompt's uuid is echoed back when its turn starts to run it, which for a steered message is after the reply before
+ * it. It lists an `opus` alias and a model without effort control; `set_model` and an `effortLevel` flag setting change
+ * what the next init message and hook input report. Ultracode is a flag setting offered only on models with effort
+ * control, and an effort change without an `ultracode` key turns it off. A `fastMode` flag setting turns Fast mode on,
+ * which `initialize`, the init message, and the result report.
  *
  * A `side_question` control request is answered at once, even mid-turn, unless held (`fake-claude-side.ts`).
  *
@@ -84,7 +85,12 @@ import {
 import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import { loadFakeClaudeScriptOrExit } from './fake-claude-script.ts';
 import { answerSideQuestion, didHoldSideQuestion } from './fake-claude-side.ts';
-import { didStartBackgroundTask, runSubagent, taskControl } from './fake-claude-tasks.ts';
+import {
+    didStartBackgroundTask,
+    runBackgroundContinuation,
+    runSubagent,
+    taskControl,
+} from './fake-claude-tasks.ts';
 import { didRunUsageLimitScenario } from './fake-claude-usage-limit.ts';
 import { noteFakeClaudeWindowRequest } from './fake-claude-window.ts';
 import { didRunWorktreeScenario } from './fake-claude-worktree.ts';
@@ -113,6 +119,7 @@ function argument(name: string): string | undefined {
 }
 
 const resumeId = argument('--resume');
+const replaysUserMessages = process.argv.includes('--replay-user-messages');
 const sessionId = resumeId ?? argument('--session-id') ?? crypto.randomUUID();
 const configDirectory = process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
 const controlDirectory = process.env.FAKE_CLAUDE_CONTROL_DIR;
@@ -374,6 +381,15 @@ const scenarioIo: FakeClaudeIo = {
 async function runTurn({ text, content, priority, uuid, isAuto = false }: QueuedTurn) {
     const startedAt = Date.now();
     state.interrupted = false;
+    if (!isAuto && uuid && replaysUserMessages)
+        send(
+            frame({
+                type: 'user',
+                isReplay: true,
+                uuid,
+                message: { role: 'user', content: content ?? text },
+            }),
+        );
     if (!isAuto)
         record({
             type: 'user',
@@ -465,40 +481,9 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
     result(startedAt, 'done');
 }
 
-/**
- * What Claude Code does when a background task finishes after the turn that started it ended: it reports the task and
- * continues the conversation on its own, with no user message opening the turn.
- */
 async function continueAfterBackgroundTask() {
     state.turnRunning = true;
-    const startedAt = Date.now();
-    const outputFile = path.join(process.cwd(), 'job.log');
-    send(
-        frame({
-            type: 'system',
-            subtype: 'task_notification',
-            task_id: 'fake-task',
-            status: 'completed',
-            output_file: outputFile,
-            summary: 'Background job finished',
-        }),
-    );
-    const toolUseId = `toolu_${crypto.randomUUID()}`;
-    assistant(`msg_${crypto.randomUUID()}`, {
-        type: 'tool_use',
-        id: toolUseId,
-        name: 'Bash',
-        input: { command: 'cat job.log', description: 'Read the job output' },
-    });
-    await delay(300);
-    const message = {
-        role: 'user',
-        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }],
-    };
-    send(frame({ type: 'user', message }));
-    record({ type: 'user', message });
-    await didStreamFully('The background job finished.', 0);
-    result(startedAt, 'done');
+    await runBackgroundContinuation(scenarioIo);
     state.turnRunning = false;
     await drain();
 }

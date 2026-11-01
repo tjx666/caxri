@@ -8,6 +8,9 @@ import {
     readClaudeSubagentToolUseId,
     resolveClaudeConfigDirectory,
 } from '../../../agents';
+import { clip } from '../../chat-items';
+import type { ChatTaskHistory } from '../../chat-provider';
+import { claudeTaskHistoryOperations } from '../../history/claude-history';
 
 /**
  * Claude Code writes each subagent's conversation beside the session transcript: `<config>/projects/<project
@@ -30,7 +33,7 @@ const MAX_SUBAGENT_METAS = 1_000;
  */
 const MAX_SUBAGENT_TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 
-export interface ClaudeSubagentTranscript {
+interface ClaudeSubagentTranscript {
     toolUseId: string;
     content: string;
     truncated: boolean;
@@ -60,7 +63,7 @@ async function readTail(
  * Finds and reads the transcript of the subagent the parent tool call `toolUseId` started. Resolves `undefined` when
  * Claude Code recorded no such subagent or its files cannot be read.
  */
-export async function readClaudeSubagentTranscript(options: {
+async function readClaudeSubagentTranscript(options: {
     environment: NodeJS.ProcessEnv;
     cwd: string;
     sessionId: string;
@@ -96,4 +99,23 @@ export async function readClaudeSubagentTranscript(options: {
     } catch {
         return undefined;
     }
+}
+
+/**
+ * Rebuilds a subagent the Chat never streamed (an earlier process, a resumed conversation) from the transcript Claude
+ * Code wrote for it. A background shell keeps no record once its process is gone.
+ */
+export async function readClaudeTaskHistory(options: {
+    environment: NodeJS.ProcessEnv;
+    cwd: string;
+    sessionId: string;
+    taskId: string;
+}): Promise<ChatTaskHistory | undefined> {
+    const { taskId, ...location } = options;
+    const transcript = await readClaudeSubagentTranscript({ ...location, toolUseId: taskId });
+    if (!transcript) return undefined;
+    return {
+        taskId: clip(transcript.toolUseId, 200),
+        operations: claudeTaskHistoryOperations(transcript.content, transcript.truncated),
+    };
 }
