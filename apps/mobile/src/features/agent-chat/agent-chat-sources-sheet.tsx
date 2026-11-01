@@ -1,6 +1,11 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useEffect, useRef, useState } from 'react';
-import type { HostInstance, ScrollViewInstance } from 'react-native';
+import type {
+    HostInstance,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    ScrollViewInstance,
+} from 'react-native';
 import {
     AccessibilityInfo,
     Image,
@@ -106,6 +111,9 @@ export const AgentChatSourcesSheet = ({
     const openedRow = useRef<HostInstance>(null);
     const list = useRef<ScrollViewInstance>(null);
     const isRestored = useRef(!place?.scrollY);
+    const recordScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+        scrollY.current = event.nativeEvent.contentOffset.y;
+    };
     useEffect(() => {
         if (openedRow.current) AccessibilityInfo.sendAccessibilityEvent(openedRow.current, 'focus');
     }, []);
@@ -122,16 +130,17 @@ export const AgentChatSourcesSheet = ({
                     <SheetTitle theme={theme} title={t('chat.reply.sources')} />
                     <ScrollView
                         ref={list}
-                        // With `contentOffset` the list reopened at the top on Android (MOB-CHAT-SOURCES-RETURN-01), so the
-                        // place is restored once the rows have a height to scroll through.
+                        // Restored once the rows are laid out, so the offset applies against the full list.
                         onContentSizeChange={() => {
                             if (isRestored.current) return;
                             isRestored.current = true;
                             list.current?.scrollTo({ y: place?.scrollY ?? 0, animated: false });
                         }}
-                        onScroll={(event) => {
-                            scrollY.current = event.nativeEvent.contentOffset.y;
-                        }}
+                        // Android delivered only the first throttled `onScroll` of a swipe, so the place is also read
+                        // where the drag and its momentum come to rest.
+                        onMomentumScrollEnd={recordScroll}
+                        onScroll={recordScroll}
+                        onScrollEndDrag={recordScroll}
                         scrollEventThrottle={100}
                     >
                         {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A turn's web calls list at most 10 pages each, so a sheet holds tens of rows. */}
