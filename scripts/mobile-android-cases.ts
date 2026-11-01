@@ -425,8 +425,8 @@ const androidCases = {
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
 
 /**
- * Agent Chat cases (`MOB-CHAT-*`) register themselves: each `mobile-android-chat-cases/<group>.ts` exports its own
- * definitions, so adding a case never edits this shared list.
+ * Feature cases (`MOB-CHAT-*`, `MOB-DEVICE-ACTIONS-01`, ...) register themselves: each
+ * `mobile-android-chat-cases/<group>.ts` exports its own definitions, so adding a case never edits this shared list.
  */
 const androidChatCases = await collectAndroidChatCases();
 
@@ -441,7 +441,7 @@ const allAndroidCases: Record<string, MobileAndroidCaseDefinition> = {
     ...androidChatCases,
 };
 
-export type MobileAndroidAcceptanceCaseId = keyof typeof androidCases | `MOB-CHAT-${string}`;
+export type MobileAndroidAcceptanceCaseId = keyof typeof androidCases | `MOB-${string}`;
 export type MobileAndroidAcceptanceScenario = string;
 
 export function mobileAndroidAcceptanceCase(caseId: string): {

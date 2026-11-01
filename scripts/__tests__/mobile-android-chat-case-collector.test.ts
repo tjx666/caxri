@@ -31,12 +31,12 @@ describe('collectAndroidChatCases', () => {
         const collected = await collectAndroidChatCases(
             groupDirectory({
                 'a.ts': definition('MOB-CHAT-A-01'),
-                'b.ts': definition('MOB-CHAT-B-01'),
+                'b.ts': definition('MOB-DEVICE-B-01'),
             }),
         );
         expect(Object.keys(collected).toSorted((a, b) => a.localeCompare(b))).toEqual([
             'MOB-CHAT-A-01',
-            'MOB-CHAT-B-01',
+            'MOB-DEVICE-B-01',
         ]);
     });
 
@@ -46,14 +46,14 @@ describe('collectAndroidChatCases', () => {
             'b.ts': definition('MOB-CHAT-X-01'),
         });
         await expect(collectAndroidChatCases(directory)).rejects.toThrow(
-            'Duplicate Agent Chat case definition: MOB-CHAT-X-01',
+            'Duplicate Android case definition: MOB-CHAT-X-01',
         );
     });
 
-    it('rejects an id outside the Chat family and a module without cases', async () => {
-        const outside = groupDirectory({ 'a.ts': definition('MOB-OTHER-01') });
+    it('rejects a non-MOB id and a module without cases', async () => {
+        const outside = groupDirectory({ 'a.ts': definition('DESK-OTHER-01') });
         const empty = groupDirectory({ 'a.ts': 'export const x = 1;' });
-        await expect(collectAndroidChatCases(outside)).rejects.toThrow('must start with MOB-CHAT-');
+        await expect(collectAndroidChatCases(outside)).rejects.toThrow('must start with MOB-');
         await expect(collectAndroidChatCases(empty)).rejects.toThrow('must export cases');
     });
 });

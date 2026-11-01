@@ -5,7 +5,7 @@ import type { MobileAndroidCaseDefinition } from '../mobile-android-cases';
  * `e2e/support/mobile-chat-cases/device-actions.ts`.
  */
 export const cases = {
-    'MOB-CHAT-DEVICE-ACTIONS-01': {
+    'MOB-DEVICE-ACTIONS-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
         recordingOwner: 'scenario',

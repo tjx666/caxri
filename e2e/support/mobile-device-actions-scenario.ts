@@ -18,10 +18,9 @@ const describeError = (error: unknown): string => {
 };
 
 /**
- * `MOB-CHAT-DEVICE-ACTIONS-01`: with the phone paired and Caxri open, a CLI caller sees it online, `openUrl` opens the
- * link in the phone's in-app browser, and `exec` is refused with `disabled` while the phone's Termux commands setting
- * is off (its default). Settings then shows that row, off; the emulator has no Termux, so the row also says it is
- * missing.
+ * `MOB-DEVICE-ACTIONS-01`: with the phone paired and Caxri open, a CLI caller sees it online, `openUrl` opens the link
+ * in the phone's in-app browser, and `exec` is refused with `disabled` while the phone's Termux commands setting is off
+ * (its default). Settings then shows that row, off; the emulator has no Termux, so the row also says it is missing.
  */
 export async function executeMobileDeviceActionsScenario(
     environment: MobileAgentScenarioEnvironment,
