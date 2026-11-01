@@ -11,6 +11,7 @@ import type {
 // eslint-disable-next-line caxri/architecture-boundaries -- root E2E has no package link; this is the package public index.
 import {
     decodeHex,
+    decodeSealedFrame,
     deriveMobileSessionKeys,
     encodeHex,
     handshakeConfirmation,
@@ -19,11 +20,10 @@ import {
     mobileClientConfirmationSchema,
     mobilePairingResultSchema,
     mobilePublicKey,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
-    openMobileFrame,
+    openMobilePayload,
     parseMobilePairingLink,
-    sealMobileFrame,
+    sealMobilePayload,
 } from '../../packages/mobile-transport/src/index.ts';
 
 const TIMEOUT_MS = 10_000;
@@ -98,9 +98,13 @@ export async function pairMobileEncryptedPeer(pairingLink: string): Promise<Mobi
     const socket = await openPairingSocket(link.addresses, link.port);
     const queued: unknown[] = [];
     const waiting: Array<(value: unknown) => void> = [];
+    socket.binaryType = 'arraybuffer';
     socket.addEventListener('message', (event) => {
-        if (typeof event.data !== 'string') return;
-        const value: unknown = JSON.parse(event.data);
+        const data: unknown = event.data;
+        let value: unknown;
+        if (typeof data === 'string') value = JSON.parse(data);
+        else if (data instanceof ArrayBuffer) value = new Uint8Array(data);
+        else return;
         const release = waiting.shift();
         if (release) release(value);
         else queued.push(value);
@@ -171,21 +175,22 @@ export async function pairMobileEncryptedPeer(pairingLink: string): Promise<Mobi
         let receivedCounter = -1;
         let sentCounter = 0;
         const decode = (value: unknown): unknown => {
-            const frame = mobileSealedFrameSchema.parse(value);
-            if (frame.connectionId !== challenge.connectionId || frame.counter <= receivedCounter)
-                throw new Error('Synthetic mobile peer frame identity or counter changed');
-            receivedCounter = frame.counter;
-            const plain = openMobileFrame(
+            if (!(value instanceof Uint8Array))
+                throw new Error('Synthetic mobile peer expected a binary sealed frame');
+            const { ciphertext, counter } = decodeSealedFrame(value);
+            if (counter <= receivedCounter)
+                throw new Error('Synthetic mobile peer frame counter changed');
+            receivedCounter = counter;
+            return openMobilePayload(
                 keys.serverToClient,
                 {
                     connectionId: transcript.connectionId,
-                    counter: frame.counter,
+                    counter,
                     deviceId: challenge.deviceId,
                     direction: 'server-to-client',
                 },
-                decodeHex(frame.ciphertext),
+                ciphertext,
             );
-            return JSON.parse(new TextDecoder().decode(plain)) as unknown;
         };
         mobilePairingResultSchema.parse(decode(await nextWire()));
         const pending = new Map<
@@ -195,25 +200,18 @@ export async function pairMobileEncryptedPeer(pairingLink: string): Promise<Mobi
         const listeners = new Map<string, (event: ConversationEvent) => void>();
         let isClosed = false;
         const send = (value: unknown): void => {
-            const counter = sentCounter++;
-            const ciphertext = sealMobileFrame(
-                keys.clientToServer,
-                {
-                    connectionId: transcript.connectionId,
-                    counter,
-                    deviceId: challenge.deviceId,
-                    direction: 'client-to-server',
-                },
-                new TextEncoder().encode(JSON.stringify(value)),
+            socket.send(
+                sealMobilePayload(
+                    keys.clientToServer,
+                    {
+                        connectionId: transcript.connectionId,
+                        counter: sentCounter++,
+                        deviceId: challenge.deviceId,
+                        direction: 'client-to-server',
+                    },
+                    value,
+                ),
             );
-            const frame = mobileSealedFrameSchema.parse({
-                type: 'sealed',
-                version: MOBILE_TRANSPORT_VERSION,
-                connectionId: challenge.connectionId,
-                counter,
-                ciphertext: encodeHex(ciphertext),
-            });
-            socket.send(JSON.stringify(frame));
         };
         const sendWithReply = (id: string, payload: unknown): Promise<unknown> =>
             new Promise((resolve, reject) => {

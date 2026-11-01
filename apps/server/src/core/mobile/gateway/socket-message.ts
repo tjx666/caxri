@@ -8,6 +8,12 @@ export function messageText(data: RawData): string {
     return data.toString('utf8');
 }
 
+export function messageBytes(data: RawData): Uint8Array {
+    if (Array.isArray(data)) return Buffer.concat(data);
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    return data;
+}
+
 export function messageByteLength(data: RawData): number {
     if (Array.isArray(data)) return data.reduce((total, value) => total + value.byteLength, 0);
     return data.byteLength;

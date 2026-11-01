@@ -344,12 +344,10 @@ export class MobileTerminalObserver {
             nextHostSequence: this.#hostSequence,
             chunkIndex: index,
             chunkCount: count,
-            chunkHex: this.#snapshot
-                .subarray(
-                    index * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                    (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                )
-                .toString('hex'),
+            chunk: this.#snapshot.subarray(
+                index * MOBILE_STREAM_CHUNK_MAX_BYTES,
+                (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
+            ),
         });
         return index + 1 === count || this.#sendSnapshotChunk(generation, index + 1, count);
     }
@@ -404,12 +402,10 @@ export class MobileTerminalObserver {
             hostSequence,
             chunkIndex: index,
             chunkCount: count,
-            chunkHex: bytes
-                .subarray(
-                    index * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                    (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                )
-                .toString('hex'),
+            chunk: bytes.subarray(
+                index * MOBILE_STREAM_CHUNK_MAX_BYTES,
+                (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
+            ),
         });
         return (
             index + 1 === count ||

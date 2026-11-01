@@ -342,3 +342,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Dukou (closed product reference)
 
 - **Share to a Session from the macOS Share menu**: Receiving files forwarded from WeChat ("Forward to other apps") through a share extension. Evidence: `docs/share-menu.md`.
+
+## Alma (alma-relay MIT; app closed product reference)
+
+- **Binary sealed Mobile frames**: Replacing text-encoded bytes inside JSON with a binary inner frame that carries raw payload bytes after a small header. Evidence: `docs/mobile/transport.md` (Application frames); `packages/mobile-transport/src/sealed-frame.ts`.

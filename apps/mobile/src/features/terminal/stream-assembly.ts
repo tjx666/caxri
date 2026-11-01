@@ -1,4 +1,3 @@
-import { decodeHex } from '@caxri/mobile-transport';
 import type { TerminalSnapshot } from '@caxri/protocol';
 import { terminalSnapshotSchema } from '@caxri/protocol';
 
@@ -10,7 +9,7 @@ interface SnapshotChunk {
     nextHostSequence: number;
     chunkIndex: number;
     chunkCount: number;
-    chunkHex: string;
+    chunk: Uint8Array;
 }
 
 interface OutputChunk {
@@ -19,7 +18,7 @@ interface OutputChunk {
     hostSequence: number;
     chunkIndex: number;
     chunkCount: number;
-    chunkHex: string;
+    chunk: Uint8Array;
 }
 
 type TerminalChunk = SnapshotChunk | OutputChunk;
@@ -39,7 +38,7 @@ interface ChunkBuffer {
 const appendChunk = (buffer: ChunkBuffer, chunk: TerminalChunk): Uint8Array | null => {
     if (chunk.chunkCount !== buffer.chunkCount || chunk.chunkIndex !== buffer.chunks.length)
         throw new Error('Terminal stream chunks changed order');
-    const bytes = decodeHex(chunk.chunkHex);
+    const bytes = chunk.chunk;
     buffer.length += bytes.byteLength;
     if (buffer.length > MAXIMUM_ASSEMBLED_BYTES)
         throw new Error('Terminal stream exceeded its limit');

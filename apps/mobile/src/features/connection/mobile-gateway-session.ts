@@ -9,6 +9,7 @@ import type {
 } from '@caxri/mobile-transport';
 import {
     decodeHex,
+    decodeSealedFrame,
     deriveMobileSessionKeys,
     encodeHex,
     HANDSHAKE_NONCE_BYTES,
@@ -19,11 +20,10 @@ import {
     MobileFrameCounter,
     mobilePublicKey,
     MobileReplayGuard,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
     mobileVersionMismatchSchema,
-    openMobileFrame,
-    sealMobileFrame,
+    openMobilePayload,
+    sealMobilePayload,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 
@@ -35,8 +35,6 @@ import type { SocketReader } from './socket-reader';
 import { createSocketReader } from './socket-reader';
 
 export const HANDSHAKE_TIMEOUT_MS = 10_000;
-const textDecoder = new TextDecoder();
-const textEncoder = new TextEncoder();
 
 /**
  * Opens one socket to a paired computer over its direct addresses only. Update recovery and direct-route probes use it:
@@ -51,7 +49,6 @@ export const openSocket = async (
 
 export interface EstablishedSession {
     connectionId: Uint8Array;
-    connectionIdHex: string;
     deviceId: string;
     generation: number;
     inbound: MobileReplayGuard;
@@ -70,44 +67,35 @@ export const receiveSealed = async (
     session: EstablishedSession,
     timeoutMs?: number,
 ): Promise<unknown> => {
-    const frame = mobileSealedFrameSchema.parse(await session.reader.next(timeoutMs));
-    if (frame.connectionId !== session.connectionIdHex)
-        throw new Error('Connection identity changed.');
-    session.inbound.assertAndAdvance(frame.counter);
-    const plaintext = openMobileFrame(
+    const frame = await session.reader.next(timeoutMs);
+    if (!(frame instanceof Uint8Array)) throw new Error('Expected a binary sealed frame.');
+    const { ciphertext, counter } = decodeSealedFrame(frame);
+    session.inbound.assertAndAdvance(counter);
+    return openMobilePayload(
         session.keys.serverToClient,
-        {
-            connectionId: session.connectionId,
-            counter: frame.counter,
-            deviceId: session.deviceId,
-            direction: 'server-to-client',
-        },
-        decodeHex(frame.ciphertext),
-    );
-    const source = textDecoder.decode(plaintext);
-    return JSON.parse(source) as unknown;
-};
-
-export const sendSealed = (session: EstablishedSession, payload: unknown): void => {
-    const counter = session.outbound.take();
-    const ciphertext = sealMobileFrame(
-        session.keys.clientToServer,
         {
             connectionId: session.connectionId,
             counter,
             deviceId: session.deviceId,
-            direction: 'client-to-server',
+            direction: 'server-to-client',
         },
-        textEncoder.encode(JSON.stringify(payload)),
+        ciphertext,
     );
-    const frame = mobileSealedFrameSchema.parse({
-        type: 'sealed',
-        version: MOBILE_TRANSPORT_VERSION,
-        connectionId: session.connectionIdHex,
-        counter,
-        ciphertext: encodeHex(ciphertext),
-    });
-    session.socket.send(JSON.stringify(frame));
+};
+
+export const sendSealed = (session: EstablishedSession, payload: unknown): void => {
+    session.socket.send(
+        sealMobilePayload(
+            session.keys.clientToServer,
+            {
+                connectionId: session.connectionId,
+                counter: session.outbound.take(),
+                deviceId: session.deviceId,
+                direction: 'client-to-server',
+            },
+            payload,
+        ),
+    );
 };
 
 export const establish = async (input: {
@@ -178,7 +166,6 @@ export const establish = async (input: {
         socket.send(JSON.stringify(confirmation));
         return {
             connectionId: transcript.connectionId,
-            connectionIdHex: challenge.connectionId,
             deviceId: challenge.deviceId,
             generation: challenge.generation,
             inbound: new MobileReplayGuard(),

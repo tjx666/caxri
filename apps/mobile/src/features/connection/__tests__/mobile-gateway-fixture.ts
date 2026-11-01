@@ -1,6 +1,7 @@
 import type { HandshakeTranscript, MobileSessionKeys } from '@caxri/mobile-transport';
 import {
     decodeHex,
+    decodeSealedFrame,
     deriveMobileSessionKeys,
     encodeHex,
     handshakeConfirmation,
@@ -9,9 +10,8 @@ import {
     mobileClientConfirmationSchema,
     mobileClientHelloSchema,
     mobilePublicKey,
-    mobileSealedFrameSchema,
-    openMobileFrame,
-    sealMobileFrame,
+    openMobilePayload,
+    sealMobilePayload,
     serializeMobilePairingLink,
 } from '@caxri/mobile-transport';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
@@ -86,24 +86,18 @@ export class FakeGatewaySocket extends EventTarget {
 
     #sealed(value: unknown, key?: Uint8Array): void {
         if (!this.#keys || !this.#transcript) throw new Error('Handshake is incomplete');
-        const counter = this.#serverCounter++;
-        const source = JSON.stringify(value);
-        const ciphertext = sealMobileFrame(
+        const frame = sealMobilePayload(
             key ?? this.#keys.serverToClient,
             {
                 connectionId: this.#transcript.connectionId,
-                counter,
+                counter: this.#serverCounter++,
                 deviceId,
                 direction: 'server-to-client',
             },
-            new TextEncoder().encode(source),
+            value,
         );
-        this.#message({
-            type: 'sealed',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId,
-            counter,
-            ciphertext: encodeHex(ciphertext),
+        queueMicrotask(() => {
+            this.dispatchEvent(new MessageEvent('message', { data: frame.buffer }));
         });
     }
 
@@ -156,8 +150,8 @@ export class FakeGatewaySocket extends EventTarget {
         });
     }
 
-    send(source: string): void {
-        const raw = JSON.parse(source) as unknown;
+    send(source: string | Uint8Array): void {
+        const raw: unknown = typeof source === 'string' ? JSON.parse(source) : source;
         const hello = mobileClientHelloSchema.safeParse(raw);
         if (hello.success) {
             this.helloCount += 1;
@@ -223,19 +217,18 @@ export class FakeGatewaySocket extends EventTarget {
             throw new Error('Fixture send failed');
         }
         if (this.#shouldDropRequests) return;
-        const frame = mobileSealedFrameSchema.parse(raw);
-        const plaintext = openMobileFrame(
+        if (!(raw instanceof Uint8Array)) throw new Error('Expected a binary sealed frame');
+        const { ciphertext, counter } = decodeSealedFrame(raw);
+        const payload = openMobilePayload(
             this.#keys.clientToServer,
             {
                 connectionId: this.#transcript.connectionId,
-                counter: frame.counter,
+                counter,
                 deviceId,
                 direction: 'client-to-server',
             },
-            decodeHex(frame.ciphertext),
-        );
-        const decodedSource = new TextDecoder().decode(plaintext);
-        const payload = JSON.parse(decodedSource) as {
+            ciphertext,
+        ) as {
             type: string;
             request?: { id: string; method: string };
             id?: string;

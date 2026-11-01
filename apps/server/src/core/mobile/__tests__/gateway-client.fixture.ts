@@ -1,8 +1,9 @@
 import { Buffer } from 'node:buffer';
 
-import type { HandshakeTranscript } from '@caxri/mobile-transport';
+import type { HandshakeTranscript, MobileSessionKeys } from '@caxri/mobile-transport';
 import {
     decodeHex,
+    decodeSealedFrame,
     deriveMobileSessionKeys,
     encodeHex,
     handshakeConfirmation,
@@ -10,10 +11,9 @@ import {
     MOBILE_TRANSPORT_VERSION,
     mobileClientConfirmationSchema,
     mobilePublicKey,
-    mobileSealedFrameSchema,
     mobileServerHelloSchema,
-    openMobileFrame,
-    sealMobileFrame,
+    openMobilePayload,
+    sealMobilePayload,
 } from '@caxri/mobile-transport';
 import type { Principal } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
@@ -52,17 +52,65 @@ export const subscriptionOptions = {
     matchesSubscriptionEvent: () => Promise.resolve(true),
 };
 
+/**
+ * Resolves with the next message: parsed JSON for a text frame, the raw bytes for a binary sealed frame.
+ */
 export function nextMessage(socket: WebSocket): Promise<unknown> {
     return new Promise((resolve, reject) => {
         socket.once('error', reject);
-        socket.once('message', (data) => {
+        socket.once('message', (data, isBinary) => {
             if (!Buffer.isBuffer(data)) {
                 reject(new TypeError('Expected a buffered WebSocket message'));
                 return;
             }
-            resolve(JSON.parse(data.toString('utf8')) as unknown);
+            resolve(
+                isBinary ? new Uint8Array(data) : (JSON.parse(data.toString('utf8')) as unknown),
+            );
         });
     });
+}
+
+/**
+ * The phone's side of an authenticated connection, enough to open and seal frames the way it does.
+ */
+export interface SealedPeer {
+    connectionId: Uint8Array;
+    deviceId: string;
+    keys: MobileSessionKeys;
+}
+
+/**
+ * Opens one binary server-to-client frame and returns its payload.
+ */
+export function openServerFrame(peer: SealedPeer, message: unknown): unknown {
+    if (!(message instanceof Uint8Array)) throw new TypeError('Expected a binary sealed frame');
+    const { ciphertext, counter } = decodeSealedFrame(message);
+    return openMobilePayload(
+        peer.keys.serverToClient,
+        {
+            connectionId: peer.connectionId,
+            counter,
+            deviceId: peer.deviceId,
+            direction: 'server-to-client',
+        },
+        ciphertext,
+    );
+}
+
+/**
+ * Seals one client-to-server payload as the binary frame for `counter`.
+ */
+export function sealClientFrame(peer: SealedPeer, counter: number, payload: unknown): Uint8Array {
+    return sealMobilePayload(
+        peer.keys.clientToServer,
+        {
+            connectionId: peer.connectionId,
+            counter,
+            deviceId: peer.deviceId,
+            direction: 'client-to-server',
+        },
+        payload,
+    );
 }
 
 export function openSocket(url: string, options?: ClientOptions) {
@@ -134,23 +182,17 @@ export async function connectDevice(
             }),
         ),
     );
-    mobileSealedFrameSchema.parse(await readyMessage);
+    const peer: SealedPeer = {
+        connectionId: transcript.connectionId,
+        deviceId: record.deviceId,
+        keys,
+    };
+    openServerFrame(peer, await readyMessage);
     const received: unknown[] = [];
     const waiting: Array<(payload: unknown) => void> = [];
-    socket.on('message', (data) => {
-        if (!Buffer.isBuffer(data)) return;
-        const frame = mobileSealedFrameSchema.parse(JSON.parse(data.toString('utf8')) as unknown);
-        const plaintext = openMobileFrame(
-            keys.serverToClient,
-            {
-                connectionId: transcript.connectionId,
-                counter: frame.counter,
-                deviceId: record.deviceId,
-                direction: 'server-to-client',
-            },
-            decodeHex(frame.ciphertext),
-        );
-        const payload = JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+    socket.on('message', (data, isBinary) => {
+        if (!isBinary || !Buffer.isBuffer(data)) return;
+        const payload = openServerFrame(peer, new Uint8Array(data));
         const reader = waiting.shift();
         if (reader) reader(payload);
         else received.push(payload);
@@ -160,26 +202,7 @@ export async function connectDevice(
      * `counterOverride` lets a replay-attack test resend an already-consumed counter deliberately.
      */
     const send = (request: unknown, counterOverride?: number): void => {
-        const frameCounter = counterOverride ?? counter++;
-        const ciphertext = sealMobileFrame(
-            keys.clientToServer,
-            {
-                connectionId: transcript.connectionId,
-                counter: frameCounter,
-                deviceId: record.deviceId,
-                direction: 'client-to-server',
-            },
-            new TextEncoder().encode(JSON.stringify(request)),
-        );
-        socket.send(
-            JSON.stringify({
-                type: 'sealed',
-                version: MOBILE_TRANSPORT_VERSION,
-                connectionId: challenge.connectionId,
-                counter: frameCounter,
-                ciphertext: encodeHex(ciphertext),
-            }),
-        );
+        socket.send(sealClientFrame(peer, counterOverride ?? counter++, request));
     };
     const read = (): Promise<unknown> => {
         if (received.length > 0) return Promise.resolve(received.shift());

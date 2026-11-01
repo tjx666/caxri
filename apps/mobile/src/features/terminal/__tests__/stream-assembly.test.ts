@@ -1,9 +1,8 @@
-import { encodeHex } from '@caxri/mobile-transport';
 import { describe, expect, it } from 'vitest';
 
 import { createTerminalStreamAssembly } from '../stream-assembly';
 
-const hex = (value: string): string => encodeHex(new TextEncoder().encode(value));
+const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
 const snapshot = {
     terminalId: 'terminal-1',
     encodingVersion: 1,
@@ -24,11 +23,11 @@ describe('mobile Terminal stream assembly', () => {
             nextHostSequence: 31,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: hex(JSON.stringify(snapshot)),
+            chunk: bytes(JSON.stringify(snapshot)),
         };
         expect(state.receive(first)).toMatchObject({ kind: 'snapshot' });
         const resizedSnapshot = { ...snapshot, cols: 100 };
-        const resizedHex = hex(JSON.stringify(resizedSnapshot));
+        const resizedBytes = bytes(JSON.stringify(resizedSnapshot));
         expect(
             state.receive({
                 kind: 'terminal.snapshot',
@@ -36,7 +35,7 @@ describe('mobile Terminal stream assembly', () => {
                 nextHostSequence: 34,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: resizedHex,
+                chunk: resizedBytes,
             }),
         ).toMatchObject({ kind: 'snapshot', snapshot: { cols: 100 } });
         expect(
@@ -46,7 +45,7 @@ describe('mobile Terminal stream assembly', () => {
                 hostSequence: 34,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: hex('new grid'),
+                chunk: bytes('new grid'),
             }),
         ).toEqual({ kind: 'output', data: 'new grid' });
     });
@@ -55,8 +54,8 @@ describe('mobile Terminal stream assembly', () => {
         const state = createTerminalStreamAssembly('terminal-1');
         const source = new TextEncoder().encode(JSON.stringify(snapshot));
         const midpoint = source.length - 1;
-        const firstHex = encodeHex(source.subarray(0, midpoint));
-        const secondHex = encodeHex(source.subarray(midpoint));
+        const firstBytes = source.subarray(0, midpoint);
+        const secondBytes = source.subarray(midpoint);
         expect(
             state.receive({
                 kind: 'terminal.snapshot',
@@ -64,7 +63,7 @@ describe('mobile Terminal stream assembly', () => {
                 nextHostSequence: 31,
                 chunkIndex: 0,
                 chunkCount: 2,
-                chunkHex: firstHex,
+                chunk: firstBytes,
             }),
         ).toEqual({ kind: 'pending' });
         expect(
@@ -74,7 +73,7 @@ describe('mobile Terminal stream assembly', () => {
                 nextHostSequence: 31,
                 chunkIndex: 1,
                 chunkCount: 2,
-                chunkHex: secondHex,
+                chunk: secondBytes,
             }),
         ).toEqual({ kind: 'snapshot', generation: 7, snapshot });
         expect(
@@ -84,14 +83,14 @@ describe('mobile Terminal stream assembly', () => {
                 hostSequence: 31,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: hex('\u{1B}[31mred✓'),
+                chunk: bytes('\u{1B}[31mred✓'),
             }),
         ).toEqual({ kind: 'output', data: '\u{1B}[31mred✓' });
     });
 
     it('requests a fresh subscription after a lost Host event or generation change', () => {
         const state = createTerminalStreamAssembly('terminal-1');
-        const snapshotHex = hex(JSON.stringify(snapshot));
+        const snapshotBytes = bytes(JSON.stringify(snapshot));
         expect(
             state.receive({
                 kind: 'terminal.snapshot',
@@ -99,7 +98,7 @@ describe('mobile Terminal stream assembly', () => {
                 nextHostSequence: 31,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: snapshotHex,
+                chunk: snapshotBytes,
             }),
         ).toMatchObject({ kind: 'snapshot' });
         expect(
@@ -109,7 +108,7 @@ describe('mobile Terminal stream assembly', () => {
                 hostSequence: 32,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: hex('lost event'),
+                chunk: bytes('lost event'),
             }),
         ).toEqual({ kind: 'resync' });
         expect(
@@ -119,14 +118,14 @@ describe('mobile Terminal stream assembly', () => {
                 hostSequence: 31,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: hex('old screen'),
+                chunk: bytes('old screen'),
             }),
         ).toEqual({ kind: 'resync' });
     });
 
     it('rejects out-of-order chunks and a snapshot for another Terminal', () => {
         const state = createTerminalStreamAssembly('terminal-1');
-        const otherSnapshotHex = hex(JSON.stringify({ ...snapshot, terminalId: 'other' }));
+        const otherSnapshotBytes = bytes(JSON.stringify({ ...snapshot, terminalId: 'other' }));
         expect(
             state.receive({
                 kind: 'terminal.snapshot',
@@ -134,7 +133,7 @@ describe('mobile Terminal stream assembly', () => {
                 nextHostSequence: 31,
                 chunkIndex: 1,
                 chunkCount: 2,
-                chunkHex: hex('part'),
+                chunk: bytes('part'),
             }),
         ).toEqual({ kind: 'resync' });
         expect(
@@ -144,7 +143,7 @@ describe('mobile Terminal stream assembly', () => {
                 nextHostSequence: 31,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: otherSnapshotHex,
+                chunk: otherSnapshotBytes,
             }),
         ).toEqual({ kind: 'resync' });
     });
@@ -159,7 +158,7 @@ describe('mobile Terminal stream assembly', () => {
                 hostSequence: 1,
                 chunkIndex: 0,
                 chunkCount: 1,
-                chunkHex: hex('late output'),
+                chunk: bytes('late output'),
             }),
         ).toEqual({ kind: 'resync' });
     });

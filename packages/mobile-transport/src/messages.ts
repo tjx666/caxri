@@ -120,10 +120,15 @@ const terminalStreamFields = {
     generation: z.number().int().positive(),
     chunkIndex: sequenceSchema,
     chunkCount: z.number().int().min(1).max(4_096),
-    chunkHex: z
-        .string()
-        .regex(/^(?:[0-9a-f]{2})+$/u)
-        .max(MOBILE_STREAM_CHUNK_MAX_BYTES * 2),
+    /**
+     * Raw Terminal bytes; `encodeMobilePlaintext` carries them after the JSON instead of inside it.
+     */
+    chunk: z
+        .custom<Uint8Array>((value) => value instanceof Uint8Array, 'Expected Terminal bytes')
+        .refine(
+            (chunk) => chunk.length <= MOBILE_STREAM_CHUNK_MAX_BYTES,
+            'Terminal stream chunk is too large',
+        ),
 };
 const mobileTerminalSnapshotPayloadSchema = z
     .strictObject({

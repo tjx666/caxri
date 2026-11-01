@@ -184,10 +184,9 @@ describe('mobile runtime browser boundaries', () => {
                         const id = ++globalThis.fixture.subscriptions;
                         const snapshot = { terminalId: 'terminal-fixture', encodingVersion: 1,
                             cols: 80, rows: 24, lineCount: 1, byteCount: 2, payload: 'hi', updatedAt: 1 };
-                        const chunkHex = Array.from(new TextEncoder().encode(JSON.stringify(snapshot)),
-                            byte => byte.toString(16).padStart(2, '0')).join('');
+                        const chunk = new TextEncoder().encode(JSON.stringify(snapshot));
                         listener({ type: 'stream', kind: 'terminal.snapshot', generation: 1,
-                            nextHostSequence: 1, chunkIndex: 0, chunkCount: 1, chunkHex });
+                            nextHostSequence: 1, chunkIndex: 0, chunkCount: 1, chunk });
                         return { subscriptionId: 'subscription-' + id,
                             unsubscribe: async () => { globalThis.fixture.unsubscribed++; } };
                     }

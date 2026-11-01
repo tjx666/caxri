@@ -101,7 +101,7 @@ describe('mobile frame router', () => {
             hostSequence: 0,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: '6162',
+            chunk: new Uint8Array([97, 98]),
         });
         router.receiveReply(reply('read', { result: true }));
         await expect(response).resolves.toMatchObject({ id: 'read' });
@@ -109,7 +109,7 @@ describe('mobile frame router', () => {
             expect.objectContaining({ kind: 'dashboard.changed', sequence: 0 }),
         );
         expect(terminal).toHaveBeenCalledExactlyOnceWith(
-            expect.objectContaining({ kind: 'terminal.output', chunkHex: '6162' }),
+            expect.objectContaining({ kind: 'terminal.output', chunk: new Uint8Array([97, 98]) }),
         );
     });
 
@@ -180,7 +180,7 @@ describe('mobile frame router', () => {
             nextHostSequence: 7,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: '6e756c6c',
+            chunk: new Uint8Array([110, 117, 108, 108]),
         });
         router.receiveSubscriptionMessage({
             type: 'stream',
@@ -191,7 +191,7 @@ describe('mobile frame router', () => {
             hostSequence: 7,
             chunkIndex: 0,
             chunkCount: 1,
-            chunkHex: '41',
+            chunk: new Uint8Array([65]),
         });
         expect(onMessage).toHaveBeenCalledTimes(2);
         expect(onMessage).toHaveBeenNthCalledWith(

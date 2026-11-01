@@ -1,6 +1,7 @@
 import type { HandshakeTranscript, MobileSessionKeys } from '@caxri/mobile-transport';
 import {
     decodeHex,
+    decodeSealedFrame,
     deriveMobileSessionKeys,
     encodeHex,
     handshakeConfirmation,
@@ -8,9 +9,8 @@ import {
     mobileClientConfirmationSchema,
     mobileClientHelloSchema,
     mobilePublicKey,
-    mobileSealedFrameSchema,
-    openMobileFrame,
-    sealMobileFrame,
+    openMobilePayload,
+    sealMobilePayload,
 } from '@caxri/mobile-transport';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 
@@ -103,24 +103,19 @@ export class ConnectGatewaySocket extends EventTarget {
 
     #sealed(value: unknown): void {
         if (!this.#keys || !this.#transcript) throw new Error('Handshake is incomplete');
-        const counter = this.#serverCounter++;
-        const ciphertext = sealMobileFrame(
+        const frame = sealMobilePayload(
             this.#keys.serverToClient,
             {
                 connectionId: this.#transcript.connectionId,
-                counter,
+                counter: this.#serverCounter++,
                 deviceId,
                 direction: 'server-to-client',
             },
-            new TextEncoder().encode(JSON.stringify(value)),
+            value,
         );
-        this.#message({
-            type: 'sealed',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId,
-            counter,
-            ciphertext: encodeHex(ciphertext),
-        });
+        queueMicrotask(() =>
+            this.dispatchEvent(new MessageEvent('message', { data: frame.buffer })),
+        );
     }
 
     #replyToRequest(id: string): void {
@@ -154,8 +149,8 @@ export class ConnectGatewaySocket extends EventTarget {
         this.#pendingRequestIds.length = 0;
     }
 
-    send(source: string): void {
-        const raw = JSON.parse(source) as unknown;
+    send(source: string | Uint8Array): void {
+        const raw: unknown = typeof source === 'string' ? JSON.parse(source) : source;
         const hello = mobileClientHelloSchema.safeParse(raw);
         if (hello.success) {
             if (hello.data.mode !== 'connect') throw new Error('Expected reconnect hello');
@@ -193,18 +188,18 @@ export class ConnectGatewaySocket extends EventTarget {
             return;
         }
         if (!this.#keys || !this.#transcript) throw new Error('Handshake is incomplete');
-        const frame = mobileSealedFrameSchema.parse(raw);
-        const plaintext = openMobileFrame(
+        if (!(raw instanceof Uint8Array)) throw new Error('Expected a binary sealed frame');
+        const { ciphertext, counter } = decodeSealedFrame(raw);
+        const payload = openMobilePayload(
             this.#keys.clientToServer,
             {
                 connectionId: this.#transcript.connectionId,
-                counter: frame.counter,
+                counter,
                 deviceId,
                 direction: 'client-to-server',
             },
-            decodeHex(frame.ciphertext),
-        );
-        const payload = JSON.parse(new TextDecoder().decode(plaintext)) as {
+            ciphertext,
+        ) as {
             type: string;
             request?: { id: string };
         };

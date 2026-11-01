@@ -4,8 +4,8 @@ import { MobileConnectionClosedError } from './mobile-gateway-errors';
 import { MobileSocketReaderBudget } from './socket-reader-budget';
 
 /**
- * One ordered inbox for a gateway socket's JSON messages, shared by the handshake, the authenticated connection, and
- * update recovery.
+ * One ordered inbox for a gateway socket's messages, shared by the handshake, the authenticated connection, and update
+ * recovery. Text messages are parsed JSON; a binary sealed frame is delivered as a `Uint8Array`.
  */
 export interface SocketReader {
     close(): void;
@@ -38,20 +38,24 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
         }
         for (const pending of pendingRequests) pending.reject(connectionClosedError());
     };
+    // Sealed frames arrive as binary messages; React Native otherwise hands them over as Blobs.
+    socket.binaryType = 'arraybuffer';
     socket.addEventListener('message', (event) => {
         if (isClosed) return;
-        if (typeof event.data !== 'string') {
+        const data: unknown = event.data;
+        const isText = typeof data === 'string';
+        if (!isText && !(data instanceof ArrayBuffer)) {
             closeForProtocolError();
             rejectAll(true);
             return;
         }
-        if (event.data.length > MOBILE_GATEWAY_MAX_WIRE_BYTES) {
+        // Server text messages are ASCII JSON, so code-unit length is also their UTF-8 byte length.
+        const byteLength = isText ? data.length : data.byteLength;
+        if (byteLength > MOBILE_GATEWAY_MAX_WIRE_BYTES) {
             closeForProtocolError();
             rejectAll(true);
             return;
         }
-        // Server wire messages are ASCII JSON, so code-unit length is also their UTF-8 byte length.
-        const byteLength = event.data.length;
         const release = budget.tryAcquire(byteLength);
         if (!release) {
             socket.close(mobileClientCloseReasons['inbox-overflow'], 'inbox-overflow');
@@ -59,14 +63,16 @@ export const createSocketReader = (socket: WebSocket): SocketReader => {
             return;
         }
         let value: unknown;
-        try {
-            value = JSON.parse(event.data) as unknown;
-        } catch {
-            release();
-            closeForProtocolError();
-            rejectAll(true);
-            return;
-        }
+        if (isText) {
+            try {
+                value = JSON.parse(data) as unknown;
+            } catch {
+                release();
+                closeForProtocolError();
+                rejectAll(true);
+                return;
+            }
+        } else value = new Uint8Array(data);
         const pending = waiting.shift();
         if (pending) {
             release();
