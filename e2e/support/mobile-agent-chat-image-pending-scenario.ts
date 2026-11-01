@@ -1,4 +1,4 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
@@ -7,7 +7,7 @@ import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, waitForCheck } from './mobile-agent-chat-helpers';
+import { agentText, hasCheck, waitForCheck } from './mobile-agent-chat-helpers';
 import {
     mobileSemantics,
     tapMobileCheck,
@@ -38,20 +38,24 @@ export async function executeMobileChatImagePendingScenario(
         mode: 'agent-chat',
         serial,
     });
-    const hold = join(fixture.testDirectory, 'hold-reply');
     try {
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         const data = (
             await readFile(join(import.meta.dirname, '../fixtures/mobile-acceptance-image.jpg'))
         ).toString('base64');
-        await writeFile(hold, '');
-        await chat.send({ text: 'think quietly' });
-        await waitForMobile(
+        /**
+         * A turn waiting on an approval stays running while the screen holds still; a streaming turn animates, which
+         * keeps UIAutomator from reading the screen.
+         */
+        await chat.send({ text: 'approve' });
+        const waiting = await waitForMobile(
             () => chat.read(),
-            (snapshot) => snapshot.activeTurnId !== undefined,
+            (snapshot) => snapshot.requests.length > 0,
         );
-        // The fake Claude, like the real CLI, records a steered message only when the held turn takes it in.
+        const request = waiting.requests.at(0);
+        if (!request) throw new Error('The approval did not reach the Chat');
+        // The fake Claude, like the real CLI, records a steered message only when the running turn takes it in.
         await chat.send({
             text: 'Look at this.',
             images: [
@@ -85,15 +89,21 @@ export async function executeMobileChatImagePendingScenario(
             throw new Error('The viewer called the original unavailable before it was recorded');
         }
 
-        await rm(hold);
-        // The first poll comes 2 seconds after the pending answer and backs off from there.
-        await waitForCheck(serial, 'agent-chat-image-viewer-image', 90_000);
+        // Approving lets the turn finish, and the next turn takes the steered message in and records it.
+        await chat.respond(request.id, { kind: 'decision', decision: 'accept' });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId && agentText(snapshot).includes('Received 1 image.'),
+            60_000,
+        );
+        // The viewer stayed open; its next read, at most 15 seconds after the last, finds the original.
+        await waitForCheck(serial, 'agent-chat-image-viewer-image', 60_000);
         if (hasCheck(await mobileSemantics(serial), PREVIEW_NOTE))
             throw new Error('The viewer fell back to the preview after the message was recorded');
         await capture(environment, 'viewer-original', artifacts);
         await finish(environment, artifacts, { original: 'waited-then-shown', status: 'passed' });
     } finally {
-        await rm(hold, { force: true });
         await fixture.stop();
     }
 }
