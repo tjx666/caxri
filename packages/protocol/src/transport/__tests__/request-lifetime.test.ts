@@ -30,6 +30,7 @@ describe('isNonExpiringServerOperation', () => {
         expect(isNonExpiringServerOperation('files.write')).toBe(true);
         expect(isNonExpiringServerOperation('git.discard.apply')).toBe(true);
         expect(isNonExpiringServerOperation('bot.clearData')).toBe(true);
+        expect(isNonExpiringServerOperation('benchmark.catalog')).toBe(true);
         expect(isNonExpiringServerOperation('terminal.input')).toBe(true);
     });
 

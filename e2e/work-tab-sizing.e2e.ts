@@ -229,12 +229,8 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
         await expect(running.page.getByRole('button', { name: 'New Terminal' })).toBeVisible();
 
         /**
-         * The anchor is capped rather than unbounded: many Terminals scroll inside their own segment instead of
-         * squeezing the documents out in the other direction.
-         *
-         * `cmd+t` rather than the "+" button: with no default Agent configured the button's primary half opens its
-         * agent menu instead of creating straight away (`NewTerminalButton`), and this spec is about the rail, not
-         * about which Agent starts.
+         * The anchor is capped: many Terminals scroll inside their own segment instead of squeezing out the documents.
+         * `cmd+t`, not "+", whose primary half opens the agent menu with no default Agent (`NewTerminalButton`).
          */
         for (let index = 0; index < 8; index += 1) {
             // eslint-disable-next-line no-await-in-loop -- each new tab depends on the previous one's enter animation settling
@@ -261,13 +257,16 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
         expect(segments.anchoredOverflow).toBeGreaterThan(1);
         expect(segments.railWidth).toBeGreaterThan(0);
         // Each Terminal keeps its displayed title readable even when document names consume the rail.
-        expect(
-            await terminalTabs
-                .locator('.tab-label')
-                .evaluateAll((elements) =>
-                    elements.every((element) => element.scrollWidth <= element.clientWidth),
-                ),
-        ).toBe(true);
+        // Polled: a Terminal title the shell sets late re-lays the rail after the segments above were read.
+        await expect
+            .poll(() =>
+                terminalTabs
+                    .locator('.tab-label')
+                    .evaluateAll((elements) =>
+                        elements.every((element) => element.scrollWidth <= element.clientWidth),
+                    ),
+            )
+            .toBe(true);
 
         await terminalTabs.last().scrollIntoViewIfNeeded();
         await expect(terminalTabs.last()).toBeInViewport();

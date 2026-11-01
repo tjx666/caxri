@@ -349,6 +349,16 @@ test('Caxri Bot window reopens at its remembered bounds across an app restart', 
 
         // Caxri Bot was still open when the app quit, so it reopens on its own, at the bounds it was left at.
         await expect.poll(() => running.app.windows().length).toBe(2);
+        /**
+         * Size and position are asserted on separate lines because the public CI reporter carries only the failing
+         * line: a hosted-only failure here must say whether the reopened window lost its size or only moved.
+         */
+        await expect
+            .poll(async () => {
+                const bounds = await botBounds();
+                return bounds && { width: bounds.width, height: bounds.height };
+            })
+            .toEqual({ width: moved.width, height: moved.height });
         await expect.poll(botBounds).toEqual(moved);
         // The Terminal was stopped by the quit, not restored: this is its persisted scrollback.
         const bot = running.app.windows().find((page) => page !== running.page)!;

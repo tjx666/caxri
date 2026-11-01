@@ -78,16 +78,21 @@ const HIDDEN_STREAM_BUDGET = { renders: 40, actualDurationMs: 10 };
 async function measureWindow(
     page: Page,
     durationMs: number,
-): Promise<{ commitCount: number; workbench: { renders: number; actualDurationMs: number } }> {
+): Promise<{
+    commitCount: number;
+    sidebarRenders: number;
+    workbench: { renders: number; actualDurationMs: number };
+}> {
     return page.evaluate(async (duration) => {
         const performanceApi = (globalThis as RendererPerformanceWindow).caxriPerformance;
         if (!performanceApi) throw new Error('Renderer performance API is unavailable');
         const scenarioId = performanceApi.begin('agentChat.stream');
         await new Promise((resolve) => setTimeout(resolve, duration));
         const diagnostic = performanceApi.end(scenarioId);
-        const { workbench } = diagnostic.react.surfaces;
+        const { workbench, 'primary-sidebar': sidebar } = diagnostic.react.surfaces;
         return {
             commitCount: diagnostic.react.commitCount,
+            sidebarRenders: sidebar.profiledRenderCount,
             workbench: {
                 renders: workbench.profiledRenderCount,
                 actualDurationMs: Math.round(workbench.actualDurationTotalMs * 10) / 10,
@@ -104,6 +109,11 @@ async function measureWindow(
  * Where the pointer rests while a switch is measured: inside the Workbench, clear of the sidebar rows.
  */
 const PARKED_POINTER = { x: 700, y: 400 };
+
+/**
+ * How long the sidebar must commit nothing after a reload before an uncached or cold switch is measured.
+ */
+const SIDEBAR_QUIET_MS = 500;
 
 async function revealSessionCard(page: Page, sessionId: string): Promise<void> {
     if ((await sessionCard(page, sessionId).count()) === 0) {
@@ -386,6 +396,15 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
                 'data-workbench-session-id',
                 lastOtherSessionId,
             );
+            /**
+             * Startup reads (Git, pull request, and Agent status) keep committing the sidebar after the Session is
+             * visible; on a slow runner one landed inside the switch window and moved its sidebar render count.
+             */
+            await expect
+                .poll(async () => (await measureWindow(page, SIDEBAR_QUIET_MS)).sidebarRenders, {
+                    timeout: 30_000,
+                })
+                .toBe(0);
         };
         const uncachedSamples: ChatSwitchSample[] = [];
         for (let iteration = 0; iteration < ITERATIONS; iteration += 1) {

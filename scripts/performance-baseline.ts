@@ -150,8 +150,9 @@ const EXCLUDED_PERFORMANCE_METRIC_NAMES = new Set([
  * - `commitCount.p50` and `workbench.renders.p50` of `cached`, `uncached` and `cold` count the idle-callback backfill of
  *   the tail-first mount (`use-agent-chat-tail-first-mount.ts`), which varies by a few commits with runner timing (cold
  *   commit p50 MAD 3.5). A discrete metric's threshold is the bare historical maximum, so these would fail a clean run
- *   one sample past the corpus; the spec's shared `REACT_BUDGETS` already bound them. The sidebar render counts, which
- *   do not vary, and every scenario-level `p50` time and React duration stay gated.
+ *   one sample past the corpus; the spec's shared `REACT_BUDGETS` already bound them. The sidebar render counts, steady
+ *   once the spec waits for a quiet sidebar after each reload, and every scenario-level `p50` time and React duration
+ *   stay gated.
  */
 const EXCLUDED_PERFORMANCE_METRIC_PATTERNS: readonly RegExp[] = [
     /^turnCount$/u,

@@ -16,6 +16,7 @@ const nonExpiringServerOperations: ReadonlySet<string> = new Set<ServerOperation
     'agent.message.wait',
     'agent.secret.wait',
     'agent.secret.waitInternal',
+    'benchmark.catalog',
     'bot.clearData',
     'files.create',
     'files.copy',
@@ -43,9 +44,11 @@ const nonExpiringViewOperations: ReadonlySet<string> = new Set<ServerOperation>(
  * Clear Caxri Bot Data, which may queue behind a Caxri Bot switch and then restart Caxri Bot) lack a safe retry
  * boundary, while Agent Inbox, dispatch, delegation, and secret-request waits carry their own validated long-poll
  * deadlines: a client timer on the same deadline starts first and would always turn the wait's timeout result into a
- * transport error. Terminal input is bounded by both its public payload and private Host request deadlines. Phone
- * device actions are bounded by Server Core's own wait for the phone's answer, which outlasts the command's deadline.
- * Their transports must wait for the authoritative result instead of racing a second generic timer.
+ * transport error. The Benchmark catalog starts every provider in parallel under its own 45-second start deadline,
+ * which the generic 15-second timer cut short on a slow machine. Terminal input is bounded by both its public payload
+ * and private Host request deadlines. Phone device actions are bounded by Server Core's own wait for the phone's
+ * answer, which outlasts the command's deadline. Their transports must wait for the authoritative result instead of
+ * racing a second generic timer.
  */
 export function isNonExpiringServerOperation(method: string): boolean {
     return nonExpiringServerOperations.has(method);

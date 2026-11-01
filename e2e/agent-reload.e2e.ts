@@ -43,9 +43,12 @@ if (!process.argv.includes('--resume')) {
   const ready = setInterval(() => { try {
     const settings = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8'));
     if (!settings.hooks?.UserPromptSubmit?.length) return;
-    // Retry until the bridge exits 0: a delivery that raced the Server registering this launch exits non-zero and is
-    // otherwise lost for good, leaving the Session without the running turn the test waits for.
-    cp.execFileSync('/bin/sh', ['-c', settings.hooks.UserPromptSubmit[0].hooks[0].command], { env: process.env, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: id }), stdio: ['pipe', 'ignore', 'ignore'] });
+    // The hook wrapper always exits 0 and names a failed delivery ("caxri-hook: signal_rejected") on stderr instead. A
+    // delivery that raced the Server registering this launch is otherwise lost for good, leaving the Session without the
+    // running turn the test waits for, so retry until stderr stays empty.
+    const result = cp.spawnSync('/bin/sh', ['-c', settings.hooks.UserPromptSubmit[0].hooks[0].command], { env: process.env, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: id }), stdio: ['pipe', 'ignore', 'pipe'], encoding: 'utf8' });
+    if (result.status !== 0 || result.stderr.trim()) return;
+    fs.appendFileSync(${JSON.stringify(`${argumentsCapturePath}.hook`)}, 'delivered\n');
     clearInterval(ready);
   } catch {} }, 50);
 }
@@ -116,8 +119,19 @@ test('Restart Agent resumes the same conversation in the approval mode it launch
             }),
         });
 
-        // The binding above can come from the fake's session metadata alone; the confirmation below needs the turn its
-        // `UserPromptSubmit` hook started, so wait for that hook to land too.
+        /**
+         * The binding above can come from the fake's session metadata alone; the confirmation below needs the turn its
+         * `UserPromptSubmit` hook started, so wait for that hook to land too. Hosted runs timed out on the status, so
+         * first tell a bridge that never succeeded from a delivered hook the Session row never reflected.
+         */
+        const isHookDelivered = async () => {
+            try {
+                return Boolean(await readFile(`${argumentsCapturePath}.hook`, 'utf8'));
+            } catch {
+                return false;
+            }
+        };
+        await expect.poll(isHookDelivered, { timeout: 30_000 }).toBe(true);
         await expect(row.locator('.session-status')).toHaveAttribute(
             'data-session-status',
             'running',

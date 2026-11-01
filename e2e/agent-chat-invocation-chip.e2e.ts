@@ -27,31 +27,25 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
         // The chip hides only while the editor has DOM focus with the caret on the token, which a hosted runner's
         // unfocused window never reports.
         await forcePageFocus(page);
+        // Slowed through opening the Chat, where the composer's setup dispatches race CodeMirror's focus transaction.
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 8 });
         await createProjectSession(page, 'shell');
         await openAgentChat(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         const chip = chat.getByRole('img', { name: 'command: compact' });
 
-        // A token still being typed stays editable text; a space completes it into the chip. The chip decides that
-        // from CodeMirror's own focus signal, so name which focus layer is missing (the page, the element, or the
-        // editor) before the chip assertion, where a hosted runner's failure would otherwise read only "chip present".
+        /**
+         * A token still being typed stays editable text; a space completes it into the chip. On hosted runners a
+         * `/command` still being typed was drawn as a chip: the editor was focused but the chip never heard it.
+         */
         await message.focus();
-        await expect
-            .poll(() =>
-                message.evaluate((element) => {
-                    if (!document.hasFocus()) return 'page-unfocused';
-                    if (document.activeElement !== element) return 'element-unfocused';
-                    if (!element.closest('.cm-editor')?.classList.contains('cm-focused')) {
-                        return 'editor-unaware';
-                    }
-                    return 'focused';
-                }),
-            )
-            .toBe('focused');
         await message.fill('/compact');
         await expect(chat.getByRole('listbox', { name: 'Commands and skills' })).toBeVisible();
+        await expectComposerValue(message, '/compact');
         await expect(chip).toHaveCount(0);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
         await message.pressSequentially(' now');
         await expect(chip).toBeVisible();
         await expectComposerValue(message, '/compact now');
