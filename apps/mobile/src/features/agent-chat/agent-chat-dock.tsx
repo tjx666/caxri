@@ -46,6 +46,7 @@ export const AgentChatDock = ({
                 <AgentChatDockSummaryRow
                     isExpanded={dock.isExpanded}
                     onToggle={dock.toggle}
+                    queue={dock.queue}
                     segments={dock.segments}
                     theme={theme}
                 />

@@ -146,6 +146,12 @@ const VideoPlayerScreen = ({
     const { route, status } = useMobileClient();
     const blocker = agentChatVideoBlocker({ route, status }, t);
     const stream = useAgentChatVideoStream(target, blocker === null);
+    // Remounts the player on Retry, since a failed playback keeps the same stream URL.
+    const [attempt, setAttempt] = useState(0);
+    const retry = () => {
+        setAttempt((count) => count + 1);
+        stream.retry();
+    };
     // Once the stream started, it plays over its own HTTP connection, so a dropped gateway connection leaves it alone.
     const message = stream.url
         ? null
@@ -155,15 +161,20 @@ const VideoPlayerScreen = ({
               : stream.isError
                 ? t('chat.video.playFailed')
                 : null));
+    const canRetry = stream.isError && !stream.isMissing && blocker === null && !stream.url;
     return (
         <View
             style={[styles.backdrop, { backgroundColor: theme.scrim }]}
             testID="agent-chat-video-player"
         >
             {message ? (
-                <PlayerMessage message={message} theme={theme} />
+                <PlayerMessage
+                    message={message}
+                    onRetry={canRetry ? retry : undefined}
+                    theme={theme}
+                />
             ) : stream.url ? (
-                <StreamPlayer theme={theme} url={stream.url} />
+                <StreamPlayer key={attempt} onRetry={retry} theme={theme} url={stream.url} />
             ) : (
                 <View style={styles.center}>
                     <Spinner color={theme.onScrim} size={36} />
@@ -186,24 +197,60 @@ const VideoPlayerScreen = ({
     );
 };
 
-const PlayerMessage = ({ message, theme }: { message: string; theme: MobileTheme }) => (
-    <View style={styles.center} testID="agent-chat-video-player-error">
-        <Text style={[styles.message, { color: theme.onScrim }]}>{message}</Text>
-    </View>
-);
+const PlayerMessage = ({
+    message,
+    onRetry,
+    theme,
+}: {
+    message: string;
+    /**
+     * Present when trying again can help (a failed playback or stream request), as the image viewer offers Retry.
+     */
+    onRetry?: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View style={styles.center} testID="agent-chat-video-player-error">
+            <Text style={[styles.message, { color: theme.onScrim }]}>{message}</Text>
+            {onRetry ? (
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={onRetry}
+                    style={[styles.retry, { backgroundColor: theme.elevated }]}
+                    testID="agent-chat-video-player-retry"
+                >
+                    <Text style={[styles.retryText, { color: theme.text }]}>
+                        {t('common.retry')}
+                    </Text>
+                </Pressable>
+            ) : null}
+        </View>
+    );
+};
 
 /**
  * Plays the stream with the platform's own controls (play, pause, and the scrubber), which seek through range requests.
  * A playback that fails, such as a codec the phone cannot decode, replaces the picture with a message.
  */
-const StreamPlayer = ({ theme, url }: { theme: MobileTheme; url: string }) => {
+const StreamPlayer = ({
+    onRetry,
+    theme,
+    url,
+}: {
+    onRetry: () => void;
+    theme: MobileTheme;
+    url: string;
+}) => {
     const { t } = useTranslation();
     const player = useVideoPlayer(url, (created) => {
         created.play();
     });
     const { status } = useEvent(player, 'statusChange', { status: player.status });
     if (status === 'error')
-        return <PlayerMessage message={t('chat.video.playFailed')} theme={theme} />;
+        return (
+            <PlayerMessage message={t('chat.video.playFailed')} onRetry={onRetry} theme={theme} />
+        );
     return (
         <VideoView
             allowsPictureInPicture={false}
@@ -260,6 +307,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: mobileSpace.xl,
         textAlign: 'center',
     },
+    retry: {
+        borderRadius: mobileRadius.md,
+        justifyContent: 'center',
+        minHeight: mobileControl.row,
+        paddingHorizontal: mobileSpace.lg,
+    },
+    retryText: { ...mobileType.bodyStrong },
     close: {
         alignItems: 'center',
         borderRadius: mobileRadius.pill,

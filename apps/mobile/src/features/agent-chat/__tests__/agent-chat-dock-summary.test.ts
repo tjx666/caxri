@@ -40,10 +40,10 @@ describe('agentChatDockSummary', () => {
         });
     });
 
-    it('lists the goal and the queue in dock order', () => {
+    it('keeps the queue count apart from the line segments', () => {
         expect(
             agentChatDockSummary(snapshot({ goal } as never), { ...options, queueCount: 3 }),
-        ).toEqual({ segments: ['Pursuing goal', 'Queued 3'], isStacked: true });
+        ).toEqual({ segments: ['Pursuing goal'], queue: 'Queued 3', isStacked: true });
     });
 
     it('leaves a goal with only running background work unfolded', () => {

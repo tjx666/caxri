@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AgentChatWebSource } from '@caxri/protocol';
 import { Copy, Ellipsis, GitFork, RotateCcw, Share2, TextCursor } from 'lucide-react-native';
 
+import { ConfirmSheet } from '../../components/confirm-sheet';
 import { IconButton } from '../../components/icon-button';
 import {
     PopoverAction,
@@ -64,6 +65,7 @@ export const AgentChatReplyActionBar = ({
     const popover = usePopoverAnchor(moreAnchor, { align: 'start', side: 'auto' });
     const [menu, setMenu] = useState<MoreMenu>();
     const [isSourcesOpen, setSourcesOpen] = useState(false);
+    const [retryToConfirm, setRetryToConfirm] = useState<AgentChatReplyAction>();
     if (!handlers) return null;
     const openMenu = () => {
         setMenu({
@@ -184,7 +186,15 @@ export const AgentChatReplyActionBar = ({
                                 disabled={!menu.retry.availability.canRun}
                                 icon={RotateCcw}
                                 label={t('chat.reply.retry')}
-                                onPress={() => runFromMenu(menu.retry?.run ?? (() => {}))}
+                                onPress={() => {
+                                    const { retry } = menu;
+                                    if (retry && (retry.laterTurns ?? 0) > 0) {
+                                        closeMenu();
+                                        setRetryToConfirm(retry);
+                                        return;
+                                    }
+                                    runFromMenu(retry?.run ?? (() => {}));
+                                }}
                                 testID="agent-chat-reply-retry"
                                 theme={theme}
                             />
@@ -199,6 +209,24 @@ export const AgentChatReplyActionBar = ({
                     </>
                 ) : null}
             </PopoverMenu>
+            {retryToConfirm ? (
+                <ConfirmSheet
+                    confirmLabel={t('chat.reply.retry')}
+                    detail={
+                        (retryToConfirm.laterTurns ?? 0) > 1
+                            ? t('chat.reply.retryReplacesOther', {
+                                  count: retryToConfirm.laterTurns ?? 0,
+                              })
+                            : t('chat.reply.retryReplacesOne')
+                    }
+                    onClose={() => setRetryToConfirm(undefined)}
+                    onConfirm={retryToConfirm.run}
+                    testID="agent-chat-reply-retry-confirm"
+                    theme={theme}
+                    title={t('chat.reply.retryTitle')}
+                    tone="danger"
+                />
+            ) : null}
             {isSourcesOpen ? (
                 <AgentChatSourcesSheet
                     onClose={() => setSourcesOpen(false)}

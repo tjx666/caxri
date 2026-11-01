@@ -49,7 +49,8 @@ export const CopyButton = ({
             accessibilityLabel={label}
             accessibilityLiveRegion="polite"
             accessibilityRole="button"
-            hitSlop={8}
+            // The 27dp glyph pad plus 10dp on each side reaches the 44dp touch target.
+            hitSlop={10}
             onPress={() => {
                 void Clipboard.setStringAsync(text)
                     .then(() => setStatus('copied'))

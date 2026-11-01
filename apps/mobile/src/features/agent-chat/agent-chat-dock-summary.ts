@@ -14,6 +14,11 @@ export interface AgentChatDockSummary {
      */
     segments: string[];
     /**
+     * The queue count (`Queued 3`), kept apart from `segments` so the row can pin it as a trailing badge that a long
+     * line never truncates.
+     */
+    queue?: string;
+    /**
      * Whether the dock stacks several rows, which is when folding them into one row is worth a tap.
      */
     isStacked: boolean;
@@ -50,8 +55,9 @@ export const agentChatDockSummary = (
     if (goal) segments.push(goal.status);
     const activity = agentChatActivity(snapshot, provider, {}, t);
     if (activity && activity.kind !== 'starting') segments.push(activity.text);
-    if (queueCount > 0) segments.push(`${t('chat.queue.queued')} ${queueCount}`);
-    return { segments, isStacked: segments.length >= 2 };
+    const queue = queueCount > 0 ? `${t('chat.queue.queued')} ${queueCount}` : undefined;
+    const isStacked = segments.length + (queue ? 1 : 0) >= 2;
+    return queue ? { segments, queue, isStacked } : { segments, isStacked };
 };
 
 /**
