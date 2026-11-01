@@ -35,6 +35,10 @@ async function failureOf(promise: Promise<unknown>): Promise<unknown> {
     throw new Error('Expected the command to fail');
 }
 
+/**
+ * A SIGKILLed grandchild stays a zombie until launchd reaps it, and `kill(pid, 0)` still succeeds on a zombie, so
+ * callers poll this instead of reading it once right after the command settles.
+ */
 function isAlive(pid: number): boolean {
     try {
         process.kill(pid, 0);
@@ -97,7 +101,7 @@ describe.skipIf(process.platform === 'win32')('execFileInProcessGroup', () => {
         const { leader, grandchild } = await pids();
         // The leader ran in its own group, and that group was empty by the time the promise settled.
         expect(isGroupAlive(leader)).toBe(false);
-        expect(isAlive(grandchild)).toBe(false);
+        await expect.poll(() => isAlive(grandchild), { timeout: 2_000 }).toBe(false);
     });
 
     it('stops the whole tree when the output exceeds maxBuffer', async () => {
@@ -112,7 +116,7 @@ describe.skipIf(process.platform === 'win32')('execFileInProcessGroup', () => {
 
         expect(failure).toMatchObject({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' });
         const { grandchild } = await pids();
-        expect(isAlive(grandchild)).toBe(false);
+        await expect.poll(() => isAlive(grandchild), { timeout: 2_000 }).toBe(false);
     });
 
     it('stops the whole tree when the caller aborts', async () => {
@@ -140,7 +144,7 @@ describe.skipIf(process.platform === 'win32')('execFileInProcessGroup', () => {
 
         expect(await running).toMatchObject({ name: 'AbortError' });
         const { grandchild } = await pids();
-        expect(isAlive(grandchild)).toBe(false);
+        await expect.poll(() => isAlive(grandchild), { timeout: 2_000 }).toBe(false);
     });
 
     it('returns output and keeps the execFile failure shape for commands that exit on their own', async () => {
