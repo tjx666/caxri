@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { e2eSettingsPath } from './support/e2e-profile.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
@@ -55,6 +56,12 @@ test('Cmd+C reaches a kitty-keyboard app only without a Terminal selection', asy
     const logPath = join(testDirectory, 'kitty-probe.log');
     await mkdir(root, { recursive: true });
     await writeFile(probePath, kittyKeyboardProbeSource(logPath));
+    // Copy on select ships off; this spec proves Cmd+C coexists once the user turns it on.
+    await mkdir(join(userData, 'config'), { recursive: true });
+    await writeFile(
+        e2eSettingsPath(userData),
+        `${JSON.stringify({ 'files.autoSave': 'off', 'session.openAgentsInChat': false, 'terminal.copyOnSelect': true }, null, 2)}\n`,
+    );
 
     const running = await launchCaxri({
         clipboard: true,

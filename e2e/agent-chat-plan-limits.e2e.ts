@@ -59,6 +59,8 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
             'Weekly limit on track to run out: 39% left, resets in 5d',
         );
         await page.screenshot({ path: testInfo.outputPath('claude-plan-pace-alert.png') });
+        // Leave the pace alert first so the hover below is a fresh pointer entry, not a continuation.
+        await page.mouse.move(1, 1);
         await pace.getByText(/^Weekly limit on track to run out/u).hover();
         await expect(page.locator('.tooltip-popup')).toContainText(
             'would still have about 73% left now',

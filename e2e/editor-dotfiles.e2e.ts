@@ -66,6 +66,12 @@ test('workspace file and directory links open and save without replacing links',
         // A folder can report expanded before its children load; wait for the child the click needs.
         const sharedConfig = tree.getByRole('treeitem', { name: 'config.txt', exact: true });
         await expect(sharedConfig).toBeVisible();
+        // Keyboard focus on the folder row leaves its symlink tooltip open over the child row; moving focus to the
+        // child closes it, so the click below lands on the row instead of the tooltip portal.
+        await sharedConfig.focus();
+        await expect(
+            running.page.locator('[data-base-ui-portal]', { hasText: 'symlink' }),
+        ).toBeHidden();
         await sharedConfig.click();
         await expect(editor.locator('.view-lines')).toContainText('saved through link');
         await expect(tab).toBeVisible();

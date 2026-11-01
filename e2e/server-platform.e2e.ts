@@ -9,6 +9,7 @@ import { createE2EAgentEnvironment } from '@caxri/system';
 
 import { delegationFixtureSource } from '../scripts/agent-delegation-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { prepareE2EProfile } from './support/e2e-profile.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 import { stopE2EHost } from './support/host-shutdown.ts';
@@ -33,6 +34,24 @@ interface CliResult {
     stderr: string;
     stdout: string;
 }
+
+/**
+ * Clears the identity of the Agent session that may be running this spec, so the CLI is not treated as an Agent caller
+ * and rejected by Server hello authentication.
+ */
+const callerIdentityScrub = {
+    CODEX_THREAD_ID: undefined,
+    CLAUDECODE: undefined,
+    CLAUDE_CODE_ENTRYPOINT: undefined,
+    GROK_SESSION_ID: undefined,
+    CAXRI_AGENT_ENDPOINT_HOST_ID: undefined,
+    CAXRI_AGENT_ENDPOINT_ID: undefined,
+    CAXRI_AGENT_ENDPOINT_GENERATION: undefined,
+    CAXRI_AGENT_ENDPOINT_TOKEN: undefined,
+    CAXRI_DELEGATION_CLIENT_ID: undefined,
+    CAXRI_DELEGATION_GENERATION: undefined,
+    CAXRI_DELEGATION_TOKEN: undefined,
+};
 
 function runCli(arguments_: readonly string[], environment: NodeJS.ProcessEnv): Promise<CliResult> {
     return new Promise((resolve) => {
@@ -89,20 +108,13 @@ test('authorizes an external caller before Desktop attaches and revokes it acros
         CAXRI_USER_DATA_DIR: userData,
         CI: undefined,
         GITHUB_ACTIONS: undefined,
-        CODEX_THREAD_ID: undefined,
-        CLAUDECODE: undefined,
-        CLAUDE_CODE_ENTRYPOINT: undefined,
-        GROK_SESSION_ID: undefined,
-        CAXRI_AGENT_ENDPOINT_HOST_ID: undefined,
-        CAXRI_AGENT_ENDPOINT_ID: undefined,
-        CAXRI_AGENT_ENDPOINT_GENERATION: undefined,
-        CAXRI_AGENT_ENDPOINT_TOKEN: undefined,
-        CAXRI_DELEGATION_CLIENT_ID: undefined,
-        CAXRI_DELEGATION_GENERATION: undefined,
-        CAXRI_DELEGATION_TOKEN: undefined,
+        ...callerIdentityScrub,
     };
     let running: Awaited<ReturnType<typeof launchCaxri>> | undefined;
     try {
+        // Seed the E2E profile baseline (Agents open as PTY Terminals) before the Server writes product defaults;
+        // `launchCaxri` runs this too but only after `ensureServer`, and the seeding never overwrites.
+        await prepareE2EProfile(projectRoot, userData, undefined, hostEnvironment);
         const owner = await ensureServer(
             userData,
             { artifactRoot: serverArtifactRoot, environment: hostEnvironment },
@@ -280,6 +292,7 @@ test('shares settings across an app-managed Server and Desktop', async () => {
     const environment = {
         ...hostEnvironment,
         CAXRI_USER_DATA_DIR: userData,
+        ...callerIdentityScrub,
         UNSCOPED_SECRET_SENTINEL: unscopedSecret,
     };
     let running: Awaited<ReturnType<typeof launchCaxri>> | undefined;

@@ -7,6 +7,7 @@ import process from 'node:process';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { dismissDialogWithEscape } from './support/dismiss.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     clickGitGroupAction,
@@ -584,8 +585,7 @@ test('canceling the Agent choice revokes the selected Project root grant', async
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await openAddProjectDialog(running.page);
-        await expect(running.page.getByRole('heading', { name: 'Start a Session' })).toBeVisible();
-        await running.page.keyboard.press('Escape');
+        await dismissDialogWithEscape(running.page, 'Start a Session');
 
         const denied = await pageReply(running.page, 'project.create', { rootPath: root });
         expect(denied.ok).toBe(false);

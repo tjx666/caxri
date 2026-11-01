@@ -33,4 +33,17 @@ describe('decideInputPromotionCandidate', () => {
             startedAt: 5,
         });
     });
+
+    it('extends the probe budget for an alias relaunch of an exited bound Agent only', () => {
+        expect(
+            decideInputPromotionCandidate(
+                { lastAgentProcessState: 'stopped', provider: 'codex' },
+                'cc',
+                5,
+            ),
+        ).toMatchObject({ extendedProbeBudget: true, origin: 'input' });
+        expect(decideInputPromotionCandidate({ provider: undefined }, 'cc', 5)).not.toHaveProperty(
+            'extendedProbeBudget',
+        );
+    });
 });

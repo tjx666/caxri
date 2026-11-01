@@ -11,6 +11,7 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { forcePageFocus } from './support/page-focus.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a recognized leading /command shows as a chip in the Chat composer, while unknown text stays plain', async ({}, testInfo) => {
@@ -23,6 +24,9 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         const { page } = running;
+        // The chip hides only while the editor has DOM focus with the caret on the token, which a hosted runner's
+        // unfocused window never reports.
+        await forcePageFocus(page);
         await createProjectSession(page, 'shell');
         await openAgentChat(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
