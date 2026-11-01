@@ -73,6 +73,31 @@ describe('pull request status bar tooltip', () => {
         });
     });
 
+    it('names where the pull request merges, after its branch like the Status panel card', () => {
+        expect(
+            pullRequestTooltip(
+                {
+                    ...pullRequest,
+                    headBranch: 'feat/hint',
+                    baseBranch: 'release/2.0',
+                    source: 'branch',
+                },
+                'feat/hint',
+                translate,
+            ).rows,
+        ).toEqual([
+            { label: 'Branch', value: 'feat/hint' },
+            { label: 'Base', value: 'release/2.0' },
+        ]);
+        expect(
+            pullRequestTooltip(
+                { ...pullRequest, headBranch: 'feat/hint', source: 'branch' },
+                'feat/hint',
+                translate,
+            ).rows,
+        ).toEqual([{ label: 'Branch', value: 'feat/hint' }]);
+    });
+
     it('keeps a branch lookup on the checked-out branch free of provenance notes', () => {
         expect(
             pullRequestTooltip(

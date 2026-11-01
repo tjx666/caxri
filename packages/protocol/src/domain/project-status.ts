@@ -377,6 +377,10 @@ const projectStatusOverviewPullRequestSchema = z.object({
      */
     headBranch: z.string().min(1).optional(),
     /**
+     * The branch the pull request would merge into; absent when the provider omitted it.
+     */
+    baseBranch: z.string().min(1).optional(),
+    /**
      * The CI rollup of an open pull request, aggregated over the checks that survive `projectStatus.ignoredChecks`: the
      * same value the PrimarySidebar row shows. Absent when GitHub reported no checks, and for a draft, merged, or
      * closed pull request, whose checks the sidebar suppresses as well.

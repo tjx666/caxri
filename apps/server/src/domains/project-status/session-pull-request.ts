@@ -153,6 +153,9 @@ export async function loadOverviewPullRequest(
                     ...(parsedPullRequest.headBranch && {
                         headBranch: parsedPullRequest.headBranch,
                     }),
+                    ...(parsedPullRequest.baseBranch && {
+                        baseBranch: parsedPullRequest.baseBranch,
+                    }),
                     // The sidebar suppresses checks outside an open pull request; the chip follows it.
                     ...(parsedPullRequest.lifecycle === 'open' && checks && { checks }),
                     source:

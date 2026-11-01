@@ -118,6 +118,10 @@ export function pullRequestTooltip(
         ...(pullRequest.headBranch
             ? [{ label: t('statusBar.pullRequest.branch'), value: pullRequest.headBranch }]
             : []),
+        // Same order as the Status panel's card, so a release-branch or stacked target reads the same in both places.
+        ...(pullRequest.baseBranch
+            ? [{ label: t('statusBar.pullRequest.base'), value: pullRequest.baseBranch }]
+            : []),
         ...(checks ? [{ label: t('statusBar.pullRequest.checks'), value: checks.label }] : []),
     ];
     return {

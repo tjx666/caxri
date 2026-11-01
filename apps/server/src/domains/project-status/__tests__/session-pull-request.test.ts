@@ -22,6 +22,7 @@ function recordFor(arguments_: readonly string[]): string {
         url: `https://github.com/${slug}/pull/${number}`,
         body: '',
         headRefName: 'feat/delivery',
+        baseRefName: 'release/2.0',
     });
 }
 
@@ -67,6 +68,7 @@ describe('Session pull request in Project Status', () => {
             title: 'PR 19',
             url: 'https://github.com/example/child/pull/19',
             headBranch: 'feat/delivery',
+            baseBranch: 'release/2.0',
             source: 'conversation',
         });
         expect(views()).toHaveLength(1);
