@@ -2,6 +2,10 @@ import { useMemo } from 'react';
 
 import { useProjects, useSelectedProject } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
+import {
+    resolveActivitySessionProject,
+    useActivitySessionProjectStore,
+} from '../session/activity-session-project-store';
 import { ActivitySessionCreationMenu } from '../session/create-session-menu';
 
 const NO_RECORDS: never[] = [];
@@ -14,13 +18,17 @@ const NO_RECORDS: never[] = [];
 export function AgentActivityNewSessionBar() {
     const allProjects = useProjects();
     const selectedProject = useSelectedProject();
+    const rememberedProjectId = useActivitySessionProjectStore((state) => state.projectId);
     const projects = useMemo(() => topLevelProjects(allProjects ?? NO_RECORDS), [allProjects]);
     /**
-     * The Project `session.create` targets (the selected Session's), so the row and the shortcut agree. A selection in
-     * a hidden worktree Project falls back to the first listed Project, since the menu cannot name a hidden one.
+     * The Project the user last picked in this row's list, else the selected Session's (the one `session.create`
+     * targets); see `resolveActivitySessionProject`.
      */
-    const defaultProject =
-        projects.find((project) => project.id === selectedProject?.id) ?? projects.at(0);
+    const defaultProject = resolveActivitySessionProject(
+        projects,
+        rememberedProjectId,
+        selectedProject?.id,
+    );
     if (defaultProject === undefined) return null;
     return (
         <div className="agent-activity-new-session-bar flex-none px-2 pt-2">

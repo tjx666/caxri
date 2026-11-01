@@ -25,28 +25,10 @@ export const sessionRowActionButton =
  * of painting through the transparent Lucide strokes.
  */
 export function SessionRowActions({ session }: { session: SessionRecord }) {
-    const pinned = isPinnedSession(session);
     const { t } = useTranslation();
     return (
         <div className="session-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100">
-            <Tooltip
-                content={t(
-                    pinned ? 'primarySidebar.sessionMenu.unpin' : 'primarySidebar.sessionMenu.pin',
-                )}
-            >
-                <button
-                    type="button"
-                    className={`${sessionRowActionButton} aria-pressed:text-accent`}
-                    aria-label={t('primarySidebar.sessionRow.pinAriaLabel', {
-                        title: sessionTitleForDisplay(session.title, t),
-                    })}
-                    aria-pressed={pinned}
-                    tabIndex={-1}
-                    onClick={() => setSessionPinned(session.id, !pinned)}
-                >
-                    {pinned ? <PinOff size={12} /> : <Pin size={12} />}
-                </button>
-            </Tooltip>
+            <SessionPinButton session={session} />
             <Tooltip content={t('primarySidebar.sessionRow.archive')} shortcut="delete">
                 <button
                     type="button"
@@ -62,5 +44,37 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
                 </button>
             </Tooltip>
         </div>
+    );
+}
+
+/**
+ * The hover Pin/Unpin chip, shared by the Project tree row and the Activity row so a pinned Session is unpinned with
+ * the same pointer gesture in either body of the side bar.
+ */
+export function SessionPinButton({ session }: { session: SessionRecord }) {
+    const pinned = isPinnedSession(session);
+    const { t } = useTranslation();
+    return (
+        <Tooltip
+            content={t(
+                pinned ? 'primarySidebar.sessionMenu.unpin' : 'primarySidebar.sessionMenu.pin',
+            )}
+        >
+            <button
+                type="button"
+                className={`${sessionRowActionButton} aria-pressed:text-accent`}
+                aria-label={t('primarySidebar.sessionRow.pinAriaLabel', {
+                    title: sessionTitleForDisplay(session.title, t),
+                })}
+                aria-pressed={pinned}
+                tabIndex={-1}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    setSessionPinned(session.id, !pinned);
+                }}
+            >
+                {pinned ? <PinOff size={12} /> : <Pin size={12} />}
+            </button>
+        </Tooltip>
     );
 }

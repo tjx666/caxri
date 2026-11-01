@@ -63,6 +63,15 @@ function rowKeyShortcuts({
 }
 
 /**
+ * Hover padding that keeps the row's text clear of the hover chips at `right-1`: one 20px chip (Pin) or two with a 2px
+ * gap (Pin and mark-read). A pull request slot (20px plus the row's 8px gap) already clears the first chip.
+ */
+function hoverActionPadding(canMarkRead: boolean, hasPullRequest: boolean): string | undefined {
+    if (hasPullRequest) return canMarkRead ? 'group-hover/activity-row:pr-6' : undefined;
+    return canMarkRead ? 'group-hover/activity-row:pr-13' : 'group-hover/activity-row:pr-7';
+}
+
+/**
  * Returns the DOM trigger so HoverCardTrigger can attach its event handlers and ref directly.
  */
 export function AgentActivityRowTrigger({
@@ -121,13 +130,11 @@ export function AgentActivityRowTrigger({
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 /*
-                 * The Project tree's hover-action rule: while the mark-read chip shows, the text makes room for it and
-                 * fades before it instead of painting under it. A pull request slot is already wider than the chip.
+                 * The Project tree's hover-action rule: while the hover chips show (Pin, plus mark-read on an unread
+                 * row), the text makes room for them and fades before them instead of painting under them. A pull
+                 * request slot already covers one chip, so only the second one widens a row that has one.
                  */
-                canMarkRead &&
-                    !isRenaming &&
-                    visiblePullRequest === undefined &&
-                    'group-hover/activity-row:pr-7',
+                !isRenaming && hoverActionPadding(canMarkRead, visiblePullRequest !== undefined),
             )}
             data-activity-group={row.groupId}
             data-row-id={row.rowId}
@@ -270,7 +277,7 @@ export function AgentActivityRowTrigger({
                 )}
             </span>
             <AgentActivityPullRequestSlot
-                hidesOnHover={canMarkRead}
+                hidesOnHover={!isRenaming}
                 pullRequest={visiblePullRequest}
             />
         </div>
@@ -280,9 +287,9 @@ export function AgentActivityRowTrigger({
 /**
  * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title line: pinned to
  * the title it floated in the top-right corner, detached from the metadata it describes. Only a pull request reserves
- * the slot. The mark-read button overlays the right edge instead, because a slot reserved for a hover-only action would
- * cost every unread row the width its Project name needs at the side bar's minimum width; the glyph hides while that
- * button shows.
+ * the slot. The hover chips (Pin, mark-read) overlay the right edge instead, because a slot reserved for a hover-only
+ * action would cost every row the width its Project name needs at the side bar's minimum width; the glyph hides while
+ * those chips show.
  */
 function AgentActivityPullRequestSlot({
     hidesOnHover,
