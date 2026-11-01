@@ -129,6 +129,13 @@ exec /bin/zsh -l
             'href',
             'https://github.com/tjx666/status-project/pull/11',
         );
+        // The card names where the pull request merges, as the Status panel's card does.
+        await pullRequest.hover();
+        await expect(running.page.locator('.tooltip-popup')).toContainText(
+            'Basefeature/local-picker',
+        );
+        await running.page.mouse.move(0, 0);
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         const [projectColor, branchColor] = await Promise.all(
             [project, branch].map((item) =>
                 item.evaluate((element) => getComputedStyle(element).color),

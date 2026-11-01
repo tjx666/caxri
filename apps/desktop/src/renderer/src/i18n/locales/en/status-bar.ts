@@ -182,6 +182,7 @@ export const statusBar = {
     'statusBar.pullRequest.eyebrow': 'Pull request #{{number}}',
     'statusBar.pullRequest.hint': 'Click to open on GitHub',
     'statusBar.pullRequest.branch': 'Branch',
+    'statusBar.pullRequest.base': 'Base',
     'statusBar.pullRequest.notCheckedOut': 'Not the checked-out branch ({{branch}})',
     'statusBar.pullRequest.unavailableAriaLabel': '{{label}}. {{hint}}',
     'statusBar.pullRequest.unavailable.not-found': 'PR needs gh',

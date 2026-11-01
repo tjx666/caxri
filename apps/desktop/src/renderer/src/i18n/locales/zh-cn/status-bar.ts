@@ -178,6 +178,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.pullRequest.eyebrow': 'Pull Request #{{number}}',
     'statusBar.pullRequest.hint': '点击在 GitHub 上打开',
     'statusBar.pullRequest.branch': '分支',
+    'statusBar.pullRequest.base': '合并到',
     'statusBar.pullRequest.notCheckedOut': '不是当前检出的分支（{{branch}}）',
     'statusBar.pullRequest.unavailableAriaLabel': '{{label}}。{{hint}}',
     'statusBar.pullRequest.unavailable.not-found': 'PR 需要 gh',
