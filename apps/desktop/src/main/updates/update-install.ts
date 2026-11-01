@@ -108,6 +108,23 @@ async function detachQuietly(run: InstallCommandRunner, mountPoint: string): Pro
     }
 }
 
+/**
+ * Removes an app bundle tree. Electron patches `fs` in Main so a bundle's `Contents/Resources/app.asar` reads as a
+ * directory, which `rm({ recursive: true })` cannot delete: it fails with `ENOTEMPTY`, so a staged copy left by an
+ * earlier version made every later update fall back to the manual DMG, and the replaced bundle stayed in the profile.
+ */
+async function removeBundleTree(path: string, run: InstallCommandRunner): Promise<void> {
+    await run('/bin/rm', ['-rf', '--', path]);
+}
+
+async function removeBundleQuietly(path: string): Promise<void> {
+    try {
+        await removeBundleTree(path, runInstallCommand);
+    } catch {
+        // Best effort, see detachQuietly.
+    }
+}
+
 async function removeQuietly(path: string): Promise<void> {
     try {
         await rm(path, { recursive: true, force: true });
@@ -141,7 +158,7 @@ export interface StageUpdateBundleInput {
 export async function stageUpdateBundle(input: StageUpdateBundleInput): Promise<string> {
     const run = input.run ?? runInstallCommand;
     const stagedPath = join(input.stagingDirectory, basename(input.bundlePath));
-    await rm(input.stagingDirectory, { recursive: true, force: true });
+    await removeBundleTree(input.stagingDirectory, run);
     await mkdir(input.stagingDirectory, { recursive: true, mode: 0o700 });
     const mountPoint = await mkdtemp(join(tmpdir(), 'caxri-update-'));
     try {
@@ -360,9 +377,10 @@ export async function collectInPlaceInstallReport(
     } catch {
         // No result: the script never ran or was killed before recording one.
     }
-    await Promise.all(
-        [paths.pendingPath, paths.resultPath, dirname(paths.backupPath)].map(removeQuietly),
-    );
+    await Promise.all([
+        ...[paths.pendingPath, paths.resultPath].map(removeQuietly),
+        removeBundleQuietly(dirname(paths.backupPath)),
+    ]);
     return {
         from: typeof pending.from === 'string' ? pending.from : 'unknown',
         outcome,
