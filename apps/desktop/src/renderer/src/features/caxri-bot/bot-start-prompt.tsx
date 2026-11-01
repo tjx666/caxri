@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { useAgentAvailability } from '../terminal/hooks/use-agent-availability';
+import { agentReadinessHint } from '../terminal/new-terminal-agent';
 import { botAgentName } from './bot-data-commands';
 
 /**
@@ -23,6 +25,15 @@ export function BotStartPrompt({
 }) {
     const { t } = useTranslation();
     const [agent, setAgent] = useState(storedAgent);
+    const readiness = useAgentAvailability();
+    const selectedIssue = readiness.get(agent);
+    const startBlockedReason =
+        agentReadinessHint(agent, selectedIssue, t) ??
+        (selectedIssue === 'signInRequired'
+            ? t('terminal.new.signedOutMarker')
+            : selectedIssue === 'notInstalled'
+              ? t('terminal.new.notInstalledMarker')
+              : undefined);
     const facts = [
         { label: t('caxriBot.start.permissionsLabel'), text: t('caxriBot.start.permissions') },
         { label: t('caxriBot.start.surfaceLabel'), text: t('caxriBot.start.surface') },
@@ -54,6 +65,15 @@ export function BotStartPrompt({
                                 <ToggleGroupItem key={id} value={id} className="gap-1.5">
                                     <AgentIdentityIcon identity={id} size={14} />
                                     {botAgentName(id)}
+                                    {readiness.get(id) && (
+                                        <span className="text-muted">
+                                            {t(
+                                                readiness.get(id) === 'notInstalled'
+                                                    ? 'terminal.new.notInstalledMarker'
+                                                    : 'terminal.new.signedOutMarker',
+                                            )}
+                                        </span>
+                                    )}
                                 </ToggleGroupItem>
                             ))}
                         </ToggleGroup>
@@ -65,8 +85,20 @@ export function BotStartPrompt({
                         </div>
                     ))}
                 </dl>
-                <div>
-                    <Button onClick={() => onStart(agent)}>{t('caxriBot.start.action')}</Button>
+                <div className="flex flex-col items-start gap-1.5">
+                    {/* aria-disabled keeps the button focusable so the reason below stays reachable. */}
+                    <Button
+                        autoFocus
+                        aria-disabled={selectedIssue !== undefined}
+                        onClick={() => {
+                            if (selectedIssue === undefined) onStart(agent);
+                        }}
+                    >
+                        {t('caxriBot.start.action')}
+                    </Button>
+                    {startBlockedReason && (
+                        <p className="m-0 text-[12px] text-muted">{startBlockedReason}</p>
+                    )}
                 </div>
             </div>
         </section>

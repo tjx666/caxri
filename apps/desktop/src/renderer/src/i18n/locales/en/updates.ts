@@ -10,7 +10,7 @@ export const updates = {
     'updates.action.stopSkipping': 'Stop Skipping',
     'updates.action.download': 'Download Update',
     'updates.action.cancelDownload': 'Cancel Download',
-    'updates.action.openDmg': 'Open DMG',
+    'updates.action.openDmg': 'Open Installer',
     'updates.action.restartToUpdate': 'Restart to Update',
     'updates.action.retryInstall': 'Try Again',
     'updates.action.retryDownload': 'Retry Download',
@@ -57,20 +57,20 @@ export const updates = {
     'updates.status.upToDate.description': 'You are running the latest version, {{version}}.',
     'updates.status.available.title': 'Caxri {{version}} is available',
     'updates.status.available.skippedDescription':
-        'You skipped this version, so Caxri stopped offering it. Stop skipping to download {{fileName}} and verify it here.',
-    'updates.status.available.description':
-        'Download {{fileName}} inside Caxri and verify it before opening.',
+        'You skipped this version, so Caxri stopped offering it. Stop skipping to download and verify it here.',
+    'updates.status.available.description': 'Download and verify Caxri {{version}}.',
     'updates.status.downloading.title': 'Downloading Caxri {{version}}…',
     'updates.status.downloading.progress': '{{received}} of {{total}}',
     'updates.status.downloading.received': '{{received}} downloaded',
     'updates.status.ready.title': 'Caxri {{version}} is ready to install',
-    'updates.status.ready.description': 'Downloaded and verified.',
+    'updates.status.ready.manualDescription':
+        'Downloaded and verified as {{fileName}}. Open the installer to replace Caxri.',
     'updates.status.ready.restartDescription':
         'Downloaded and verified. Caxri restarts to finish installing; running Terminals and Agents are stopped. Quitting Caxri installs it too.',
     'updates.status.ready.resetsDataDescription':
         'Downloaded and verified. This update clears the Project and Session list; Project folders, files, and Agent conversations stay. Restart to Update offers an export first, and quitting Caxri does not install it.',
     'updates.status.error.install':
-        'Caxri could not restart to install the update. Try again, or open the DMG and replace the app by hand.',
+        'Caxri could not restart to install the update. Try again, or open the installer and replace the app by hand.',
     'updates.status.error.title': 'Update failed',
     'updates.status.error.network':
         'The update connection was interrupted. Check your network and try again.',

@@ -114,7 +114,7 @@ export const caxriBot = {
         'Full access: Caxri Bot and the Agents it starts edit files and run commands without asking.',
     'caxriBot.start.surfaceLabel': 'Runs in',
     'caxriBot.start.surface': 'A Terminal. Switch it to Chat from the title bar once it starts.',
-    'caxriBot.start.backgroundLabel': 'Window',
+    'caxriBot.start.backgroundLabel': 'When closed',
     'caxriBot.start.background':
         'Closing this window keeps Caxri Bot and its Agents running. Stop it from More > Stop Caxri Bot.',
     'caxriBot.start.action': 'Start Caxri Bot',

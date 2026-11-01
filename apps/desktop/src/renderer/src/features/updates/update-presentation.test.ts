@@ -335,7 +335,13 @@ describe('describeUpdateStatus', () => {
         ).toContain('You skipped this version');
         expect(
             describeUpdateStatus(available, { skippedVersion: null, t: translate }).description,
-        ).toContain('Download Caxri-1.1.0-arm64.dmg');
+        ).toBe('Download and verify Caxri 1.1.0.');
+        expect(
+            describeUpdateStatus(
+                { ...ready, installMode: 'manual' },
+                { skippedVersion: null, t: translate },
+            ).description,
+        ).toContain('Caxri-1.1.0-arm64.dmg');
     });
 });
 

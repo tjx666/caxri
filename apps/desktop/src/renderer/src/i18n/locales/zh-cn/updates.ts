@@ -14,7 +14,7 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.action.stopSkipping': '取消跳过',
     'updates.action.download': '下载更新',
     'updates.action.cancelDownload': '取消下载',
-    'updates.action.openDmg': '打开 DMG',
+    'updates.action.openDmg': '打开安装器',
     'updates.action.restartToUpdate': '重启以更新',
     'updates.action.retryInstall': '重试',
     'updates.action.retryDownload': '重新下载',
@@ -58,18 +58,19 @@ export const updates: TranslatedNamespace<typeof source> = {
     'updates.status.upToDate.description': '你正在使用最新版本 {{version}}。',
     'updates.status.available.title': 'Caxri {{version}} 已可用',
     'updates.status.available.skippedDescription':
-        '你已跳过此版本，因此 Caxri 不再提示。取消跳过即可下载 {{fileName}} 并在此验证。',
-    'updates.status.available.description': '在 Caxri 中下载 {{fileName}}，并在打开前完成验证。',
+        '你已跳过此版本，因此 Caxri 不再提示。取消跳过即可在此下载并验证。',
+    'updates.status.available.description': '下载并验证 Caxri {{version}}。',
     'updates.status.downloading.title': '正在下载 Caxri {{version}}…',
     'updates.status.downloading.progress': '{{received}} / {{total}}',
     'updates.status.downloading.received': '已下载 {{received}}',
     'updates.status.ready.title': 'Caxri {{version}} 已可安装',
-    'updates.status.ready.description': '已下载并验证。',
+    'updates.status.ready.manualDescription':
+        '已下载并验证为 {{fileName}}。打开安装器即可替换 Caxri。',
     'updates.status.ready.restartDescription':
         '已下载并验证。Caxri 会重启以完成安装，正在运行的终端和 Agent 将被停止。直接退出 Caxri 也会完成安装。',
     'updates.status.ready.resetsDataDescription':
         '已下载并验证。这次更新会清空项目和会话列表，项目文件夹、文件和 Agent 对话不受影响。点击“重启以更新”时会先提示导出，直接退出 Caxri 不会安装它。',
-    'updates.status.error.install': 'Caxri 无法重启以安装更新。请重试，或打开 DMG 手动替换应用。',
+    'updates.status.error.install': 'Caxri 无法重启以安装更新。请重试，或打开安装器手动替换应用。',
     'updates.status.error.title': '更新失败',
     'updates.status.error.network': '更新连接已中断。请检查网络后重试。',
     'updates.status.error.integrity': '下载的文件未通过验证，未予打开。请重新下载。',

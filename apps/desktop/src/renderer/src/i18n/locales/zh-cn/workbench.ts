@@ -4,6 +4,7 @@ import type { workbench as source } from '../en/workbench';
 
 export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.welcome.addProject': '添加项目',
+    'workbench.welcome.firstRunHint': '添加一个文件夹，开始你的第一个会话。',
     'workbench.welcome.newSession': '在“{{project}}”中新建会话',
     'workbench.welcome.commandPalette': '命令面板',
     'workbench.welcome.keyboardShortcuts': '键盘快捷键',

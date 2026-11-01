@@ -1,7 +1,8 @@
 import { formatCpuPercent, formatMemoryMb, isPtyUsageHigh } from '@caxri/protocol';
 import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
+import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -113,6 +114,9 @@ export function ProcessSummaryBar({
                 label={t('processExplorer.summary.processes')}
                 value={snapshot ? String(totals.processCount) : '—'}
             />
+            {scopes.length < PROCESS_SCOPES.length && (
+                <span className="text-[11px]">{t('processExplorer.summary.scoped')}</span>
+            )}
             <PtySummaryReading pty={snapshot?.pty} />
             <ToggleGroup<ProcessScope>
                 aria-label={t('processExplorer.scope.label')}
@@ -131,8 +135,10 @@ export function ProcessSummaryBar({
             </ToggleGroup>
             <InputGroup appearance="workbench" size="dense" className="w-60">
                 <Search aria-hidden="true" className="shrink-0 text-muted" size={13} />
+                {/* The native search cancel glyph is hidden: the ghost clear button below is the one clear affordance. */}
                 <Input
                     appearance="embedded"
+                    className="[&::-webkit-search-cancel-button]:appearance-none"
                     size="dense"
                     type="search"
                     placeholder={t('processExplorer.filter.placeholder')}
@@ -145,6 +151,19 @@ export function ProcessSummaryBar({
                         onFilterChange('');
                     }}
                 />
+                {filter && (
+                    <Tooltip content={t('processExplorer.filter.clear')}>
+                        <Button
+                            aria-label={t('processExplorer.filter.clear')}
+                            className="shrink-0 text-muted hover:text-foreground"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => onFilterChange('')}
+                        >
+                            <X aria-hidden="true" size={13} />
+                        </Button>
+                    </Tooltip>
+                )}
             </InputGroup>
         </section>
     );

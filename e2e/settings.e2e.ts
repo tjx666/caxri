@@ -56,7 +56,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
     try {
         const settingsTab = await openSettingsPage(running.page);
         await expect(settingsTab.locator('.monaco-editor')).toHaveCount(0);
-        await settingsTab.getByRole('button', { name: 'Source' }).click();
+        await settingsTab.getByRole('button', { name: 'Edit as File' }).click();
         const settingsEditor = configSource(settingsTab, 'settings');
         /**
          * Monaco first paints plain source spans and applies token colors asynchronously. Wait for the observable
@@ -230,7 +230,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         // "Keeps actions visible" now means the header's UI/Source toggle stays pinned above the
         // scrollable tab content instead of scrolling out of view with it (there is no footer).
-        const toggle = settingsTab.getByRole('button', { name: 'Source' });
+        const toggle = settingsTab.getByRole('button', { name: 'Edit as File' });
         const settingsTabBox = await settingsTab.boundingBox();
         const toggleBox = await toggle.boundingBox();
         expect(settingsTabBox).not.toBeNull();
@@ -260,7 +260,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         });
         // "Keeps actions visible" now means the header's UI/Source toggle (Apply is gone) stays
         // pinned instead of scrolling out of view with the content.
-        await expect(settingsTab.getByRole('button', { name: 'Source' })).toBeVisible();
+        await expect(settingsTab.getByRole('button', { name: 'Edit as File' })).toBeVisible();
         expect(pageErrors).toEqual([]);
     } finally {
         await running.app.close();
@@ -302,7 +302,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         const settingsTab = await openSettingsPage(running.page);
         await expect(settingsTab.locator('.monaco-editor')).toHaveCount(0);
 
-        await settingsTab.getByRole('button', { name: 'Source' }).click();
+        await settingsTab.getByRole('button', { name: 'Edit as File' }).click();
         let sourceEditor = configSource(settingsTab, 'settings');
         await replaceMonacoText(running, running.page, sourceEditor, legalSource);
         await expect(settingsTab.getByRole('alert')).toHaveCount(0);
@@ -323,7 +323,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             })
             .toBe(17);
 
-        await settingsTab.getByRole('button', { name: 'Source' }).click();
+        await settingsTab.getByRole('button', { name: 'Edit as File' }).click();
         sourceEditor = configSource(settingsTab, 'settings');
         await replaceMonacoText(
             running,
@@ -350,7 +350,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             })
             .toBe(17);
 
-        await settingsTab.getByRole('button', { name: 'Source' }).click();
+        await settingsTab.getByRole('button', { name: 'Edit as File' }).click();
         sourceEditor = configSource(settingsTab, 'settings');
         await replaceMonacoText(
             running,
@@ -373,7 +373,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
 
         // Re-enter source mode and fix it while still in the view, then confirm the fix survives a
         // tab switch away and back (the "preserves drafts across tabs" half of this test).
-        await settingsTab.getByRole('button', { name: 'Source' }).click();
+        await settingsTab.getByRole('button', { name: 'Edit as File' }).click();
         sourceEditor = configSource(settingsTab, 'settings');
         await replaceMonacoText(running, running.page, sourceEditor, legalSource);
         await expect(settingsTab.getByRole('alert')).toHaveCount(0);
@@ -383,7 +383,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await expect(settingsTab.getByLabel('theme.json source')).toBeVisible();
         // A Settings category in the navigation always lands on the UI view, so return to Source explicitly.
         await openSettingsSection(settingsTab, 'Settings');
-        await settingsTab.getByRole('button', { name: 'Source' }).click();
+        await settingsTab.getByRole('button', { name: 'Edit as File' }).click();
         const restoredSettingsSource = configSource(settingsTab, 'settings');
         await restoredSettingsSource
             .locator('.monaco-editor')

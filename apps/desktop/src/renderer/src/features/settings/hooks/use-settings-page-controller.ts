@@ -11,7 +11,6 @@ import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
-import { pushToast } from '../../../stores/toasts';
 import { refreshWorkbench } from '../../../stores/workbench';
 import type { ConfigKind } from '../config-edit';
 import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from '../config-edit';
@@ -47,6 +46,7 @@ import type { ThemeImportResult } from '../theme-import-error';
 import { describeThemeImportFailure } from '../theme-import-error';
 import { resetThemeImportWarningDismissals } from '../theme-import-warnings';
 import { useArgvConfig } from './use-argv-config';
+import { useCommitOnSettingsClose } from './use-commit-on-settings-close';
 
 const onApplied = (): void => {
     // Fire-and-forget: `refreshWorkbench` reports failures through its own request pipeline, so
@@ -55,7 +55,6 @@ const onApplied = (): void => {
 };
 export function useSettingsPageController() {
     const request = useDialogStore((state) => state.settingsRequest);
-    const isPageOpen = useDialogStore((state) => state.settingsPageOpen);
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [view, setView] = useState<'ui' | 'source'>('ui');
     /**
@@ -356,19 +355,7 @@ export function useSettingsPageController() {
      * invalid one cannot be, and is kept rather than thrown away; the warning says so, and the next untargeted open
      * lands back on it (`invalidSourceDraft`).
      */
-    const wasPageOpen = useRef(isPageOpen);
-    useEffect(() => {
-        if (wasPageOpen.current === isPageOpen) return;
-        wasPageOpen.current = isPageOpen;
-        if (isPageOpen) return;
-        if (view === 'source') commitSource(tab);
-        const invalidKind = invalidSourceDraft(stateReference.current);
-        if (invalidKind)
-            pushToast(
-                'warning',
-                translate('settings.page.unsavedSource', { file: CONFIG_FILE_NAMES[invalidKind] }),
-            );
-    }, [commitSource, isPageOpen, tab, view]);
+    useCommitOnSettingsClose({ commitSource, stateReference, tab, view });
 
     useEffect(() => {
         if (handledRequestId.current === request.id) return;

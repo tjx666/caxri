@@ -105,10 +105,8 @@ export function describeUpdateStatus(
             return {
                 title: t('updates.status.available.title', { version: state.version }),
                 description: isUpdateVersionSkipped(state.version, options.skippedVersion)
-                    ? t('updates.status.available.skippedDescription', {
-                          fileName: state.fileName,
-                      })
-                    : t('updates.status.available.description', { fileName: state.fileName }),
+                    ? t('updates.status.available.skippedDescription')
+                    : t('updates.status.available.description', { version: state.version }),
             };
         case 'downloading':
             return {
@@ -125,13 +123,13 @@ export function describeUpdateStatus(
         case 'ready':
             return {
                 title: t('updates.status.ready.title', { version: state.version }),
-                description: t(
-                    state.resetsData
-                        ? 'updates.status.ready.resetsDataDescription'
-                        : state.installMode === 'restart'
-                          ? 'updates.status.ready.restartDescription'
-                          : 'updates.status.ready.description',
-                ),
+                description: state.resetsData
+                    ? t('updates.status.ready.resetsDataDescription')
+                    : state.installMode === 'restart'
+                      ? t('updates.status.ready.restartDescription')
+                      : t('updates.status.ready.manualDescription', {
+                            fileName: state.fileName,
+                        }),
             };
         case 'error':
             return {
