@@ -33,29 +33,29 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
         const message = chat.getByRole('textbox', { name: 'Message' });
         const chip = chat.getByRole('img', { name: 'command: compact' });
 
-        // A token still being typed stays editable text; a space completes it into the chip. The chip decides that
-        // from CodeMirror's own focus signal, so name which focus layer is missing (the page, the element, or the
-        // editor) before the chip assertion, where a hosted runner's failure would otherwise read only "chip present".
+        /**
+         * A token still being typed stays editable text; a space completes it into the chip. The chip decides that from
+         * CodeMirror's own focus signal, so name which focus layer is missing (the page, the element, or the editor)
+         * before the chip assertion, where a hosted runner's failure would otherwise read only "chip present".
+         */
+        const focusLayer = () =>
+            message.evaluate((element) => {
+                if (!document.hasFocus()) return 'page-unfocused';
+                if (document.activeElement !== element) return 'element-unfocused';
+                if (!element.closest('.cm-editor')?.classList.contains('cm-focused')) {
+                    return 'editor-unaware';
+                }
+                return 'focused';
+            });
         await message.focus();
-        await expect
-            .poll(() =>
-                message.evaluate((element) => {
-                    if (!document.hasFocus()) return 'page-unfocused';
-                    if (document.activeElement !== element) return 'element-unfocused';
-                    if (!element.closest('.cm-editor')?.classList.contains('cm-focused')) {
-                        return 'editor-unaware';
-                    }
-                    return 'focused';
-                }),
-            )
-            .toBe('focused');
+        await expect.poll(focusLayer).toBe('focused');
         await message.fill('/compact');
         await expect(chat.getByRole('listbox', { name: 'Commands and skills' })).toBeVisible();
         /**
-         * The chip stays hidden only while the caret sits at the token's end. Hosted runs passed the focus check above
-         * yet still showed the chip; failing here means the caret moved, failing on the chip line means the editor's
-         * focus state disagreed with its `cm-focused` class.
+         * The chip stays hidden only while the editor keeps focus with the caret at the token's end. Hosted runs passed
+         * the focus check above yet still showed the chip, so check again once the menu opened, then the caret.
          */
+        await expect.poll(focusLayer).toBe('focused');
         await expect
             .poll(() =>
                 message.evaluate(

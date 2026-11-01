@@ -19,12 +19,25 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
     const launchLog = join(testDirectory, 'codex-launches.log');
-    const launches = async () => {
+    const shellLog = join(testDirectory, 'shell-commands.log');
+    const logLines = async (path: string) => {
         try {
-            return (await readFile(launchLog, 'utf8')).split('\n').filter(Boolean).length;
+            return (await readFile(path, 'utf8')).split('\n').filter(Boolean);
         } catch {
-            return 0;
+            return [];
         }
+    };
+    const launches = async () => (await logLines(launchLog)).length;
+    /**
+     * Whether zsh received `cc`, and its exit status once it returned to the prompt.
+     */
+    const ccRun = async () => {
+        const lines = await logLines(shellLog);
+        const index = lines.lastIndexOf('run:cc');
+        return {
+            received: index !== -1,
+            status: lines.slice(index + 1).find((line) => line.startsWith('status:')),
+        };
     };
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
@@ -35,7 +48,20 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
     /**
      * A queued exit interrupt must not prevent the following user alias from loading.
      */
-    await writeFile(join(shellHome, '.zshrc'), 'kill -INT $$\nalias cc=codex\n');
+    await writeFile(
+        join(shellHome, '.zshrc'),
+        [
+            'kill -INT $$',
+            'alias cc=codex',
+            // Records which commands reached zsh and how they ended, never their output.
+            'autoload -Uz add-zsh-hook',
+            `caxri_e2e_preexec() { print -r -- "run:$1" >> ${JSON.stringify(shellLog)} }`,
+            `caxri_e2e_precmd() { print -r -- "status:$?" >> ${JSON.stringify(shellLog)} }`,
+            'add-zsh-hook preexec caxri_e2e_preexec',
+            'add-zsh-hook precmd caxri_e2e_precmd',
+            '',
+        ].join('\n'),
+    );
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page, 'codex');
@@ -98,7 +124,21 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         // Bare `cc` only: shell promotion skips any command containing `;`, `&`, `|`, or a redirect.
         const launchesBefore = await launches();
         await typeTerminal(running.page, 'cc');
-        // Fails here when `cc` never started the fake Agent; past it, only the banner's rendering is missing.
+        /**
+         * Hosted runs showed `cc` never started the fake Agent. Each line below names one cause: zsh never received the
+         * command, it was not found (127), it could not execute (126), or it returned for another reason.
+         */
+        await expect.poll(async () => (await ccRun()).received).toBe(true);
+        await expect
+            .poll(
+                async () =>
+                    (await launches()) > launchesBefore || (await ccRun()).status !== undefined,
+            )
+            .toBe(true);
+        const { status } = await ccRun();
+        expect(status).not.toBe('status:127');
+        expect(status).not.toBe('status:126');
+        expect(status).toBeUndefined();
         await expect.poll(launches).toBe(launchesBefore + 1);
         await expect(rows).toContainText('FAKE_CODEX_READY');
         await expect.poll(agentState).toBe('running');
