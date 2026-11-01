@@ -15,6 +15,7 @@ import {
     MAX_AGENT_CHAT_PLAN_STEPS,
     MAX_AGENT_CHAT_QUESTIONS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
+    readAgentChatWebSources,
 } from '@caxri/protocol';
 
 import {
@@ -313,12 +314,22 @@ export function mapCodexItem(
         }
         case 'webSearch': {
             const summary = optionalText(raw.query, 1_000);
+            /**
+             * Codex reports no search results, only the page a step opened or searched within (`openPage`,
+             * `findInPage`), which is the one source it names; the query of such a step is often that URL too.
+             */
+            const action = isRecord(raw.action) ? raw.action : {};
+            const sources = readAgentChatWebSources(
+                { name: 'webSearch', summary: `${text(action.url)} ${summary ?? ''}` },
+                undefined,
+            );
             return {
                 ...base,
                 type: 'toolCall',
                 name: 'webSearch',
                 status: isStreaming ? 'running' : 'completed',
                 ...(summary && { summary }),
+                ...(sources.length > 0 && { sources }),
             };
         }
         case 'contextCompaction': {

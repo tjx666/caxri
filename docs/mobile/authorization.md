@@ -105,8 +105,8 @@ read behind Rename with AI: it calls `session.suggestTitle` and returns the sugg
 saving it, so the user still reviews and saves it through `mobile.session.rename`.
 
 `mobile.agentChat.fork` and `mobile.agentChat.continueInAgent` resolve the Chat Terminal through the
-device grant first, then call Desktop's `agentChat.fork` (the whole conversation, no message
-anchor) and `agentChat.continueInAgent`. Each returns the new Session's id so the phone opens it.
+device grant first, then call Desktop's `agentChat.fork` (the whole conversation, or up to the
+optional `itemId` a reply's Fork in New Chat names) and `agentChat.continueInAgent`. Each returns the new Session's id so the phone opens it.
 `mobile.agentChat.continueInAgent` takes an optional `origin` naming the entry that asked: `menu`
 (the default, a manual continuation), `usageLimit` with the failed turn's `turnId` (the usage-limit
 card), or `usageGuard` (the usage guard banner). Server Core resolves a repeated `usageLimit` or

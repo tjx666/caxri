@@ -19,7 +19,7 @@ import { ChangesDiffRow } from '../changes/changes-diff-row';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
 import { changePathParts, diffLineNumberDigits } from '../changes/changes-model';
 import { useConversationDisclosure } from '../conversation/conversation-disclosure';
-import { agentChatChangeColor, agentChatChangeRows } from './agent-chat-timeline';
+import { agentChatChangeColor, agentChatChangeRows } from './agent-chat-file-change-rows';
 
 /**
  * Past this many files, a work row's detail starts with each diff folded so the list of paths reads first, as Desktop's

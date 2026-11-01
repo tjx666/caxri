@@ -1,6 +1,10 @@
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatItem, AgentChatPatchOperation } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_OUTPUT_LENGTH } from '@caxri/protocol';
+import {
+    MAX_AGENT_CHAT_DIFF_LENGTH,
+    MAX_AGENT_CHAT_OUTPUT_LENGTH,
+    readAgentChatWebSources,
+} from '@caxri/protocol';
 import { omit } from 'es-toolkit';
 
 import { clip, isRecord, stringField, tail } from '../../chat-items';
@@ -117,7 +121,8 @@ export function settleClaudeToolItem(
     result: ClaudeToolResult = {},
 ): AgentChatItem | undefined {
     const isError = block.is_error === true;
-    const output = tail(toolResultText(block.content), MAX_AGENT_CHAT_OUTPUT_LENGTH);
+    const fullOutput = toolResultText(block.content);
+    const output = tail(fullOutput, MAX_AGENT_CHAT_OUTPUT_LENGTH);
     const status = isDeclinedResult(block, output, result.wasDeclined)
         ? 'declined'
         : isError
@@ -129,10 +134,13 @@ export function settleClaudeToolItem(
             return settleClaudeCommand(item, block, result, status, output);
         }
         case 'toolCall': {
+            // Read from the whole result: a search lists its pages first, which the output's tail may have cut.
+            const sources = isError ? [] : readAgentChatWebSources(item, fullOutput);
             return {
                 ...item,
                 status,
                 ...(output && { output }),
+                ...(sources.length > 0 && { sources }),
                 ...(durationMs !== undefined && { durationMs }),
             };
         }

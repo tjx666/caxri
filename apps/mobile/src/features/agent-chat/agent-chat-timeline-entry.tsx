@@ -10,6 +10,7 @@ import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatHandoffTarget } from './agent-chat-handoff-target';
 import { AgentChatPathChips } from './agent-chat-path-chips';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
+import { AgentChatReplyActionBar } from './agent-chat-reply-action-bar';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
 import { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
@@ -113,6 +114,17 @@ export const AgentChatTimelineEntry = memo(
             }
             case 'artifacts': {
                 return <AgentChatTurnArtifacts artifacts={entry.artifacts} theme={theme} />;
+            }
+            case 'replyActions': {
+                return (
+                    <AgentChatReplyActionBar
+                        replyId={entry.replyId}
+                        sentAt={entry.sentAt}
+                        sources={entry.sources}
+                        theme={theme}
+                        turnId={entry.turnId}
+                    />
+                );
             }
             case 'pending': {
                 return (

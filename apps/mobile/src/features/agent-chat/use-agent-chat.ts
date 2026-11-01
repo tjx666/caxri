@@ -392,6 +392,21 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    /**
+     * Forks the Chat into a new Session of the same Project, before user message `itemId`, or whole without it, and
+     * resolves to the new Session's id.
+     */
+    const fork = useCallback(
+        async (itemId?: string): Promise<string> => {
+            if (terminalId === null) throw new Error('No Chat is open');
+            const forked = await request('mobile.agentChat.fork', {
+                terminalId,
+                ...(itemId !== undefined && { itemId }),
+            });
+            return forked.sessionId;
+        },
+        [request, terminalId],
+    );
     const resumeQueue = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.resumeQueue', { terminalId });
@@ -400,6 +415,7 @@ export const useAgentChat = ({
     return {
         ...state,
         configure,
+        fork,
         implementPlan,
         interrupt,
         pending,

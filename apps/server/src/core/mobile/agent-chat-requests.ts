@@ -560,8 +560,12 @@ export async function invokeMobileAgentChatRequest(
             return null;
         }
         case 'mobile.agentChat.fork': {
+            const { itemId } = request.params;
             const forked = agentChatMethods['agentChat.fork'].result.parse(
-                await forward({ method: 'agentChat.fork', params: { terminalId } }),
+                await forward({
+                    method: 'agentChat.fork',
+                    params: { terminalId, ...(itemId !== undefined && { itemId }) },
+                }),
             );
             return { sessionId: forked.sessionId, terminalId: forked.terminalId };
         }

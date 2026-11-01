@@ -59,6 +59,13 @@ export const AGENT_CHAT_LONG_PASTE_THRESHOLD = 32 * 1024;
 export const MAX_AGENT_CHAT_THUMBNAIL_LENGTH = 48 * 1024;
 export const MAX_AGENT_CHAT_MODELS = 50;
 /**
+ * Web pages one tool call lists as its sources, and the longest URL and title each keeps, so a search that returned
+ * dozens of results still fits a phone's frame.
+ */
+export const MAX_AGENT_CHAT_WEB_SOURCES = 10;
+export const MAX_AGENT_CHAT_WEB_SOURCE_URL_LENGTH = 2_048;
+export const MAX_AGENT_CHAT_WEB_SOURCE_TITLE_LENGTH = 300;
+/**
  * Background work a Chat lists at once (subagents and background shells). Older ended tasks drop first.
  */
 export const MAX_AGENT_CHAT_TASKS = 50;

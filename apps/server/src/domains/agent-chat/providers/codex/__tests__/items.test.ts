@@ -12,6 +12,24 @@ import {
 } from '../items';
 
 describe('Codex item mapping', () => {
+    it('names the page a web search step opened as its source', () => {
+        expect(
+            mapCodexItem(
+                {
+                    type: 'webSearch',
+                    id: 'w',
+                    query: 'chrome tab groups',
+                    action: { type: 'openPage', url: 'https://example.com/page' },
+                },
+                't',
+                false,
+            ),
+        ).toMatchObject({ name: 'webSearch', sources: [{ url: 'https://example.com/page' }] });
+        expect(
+            mapCodexItem({ type: 'webSearch', id: 'w', query: 'chrome tab groups' }, 't', false),
+        ).not.toHaveProperty('sources');
+    });
+
     it('maps conversation and tool items into bounded Chat items', () => {
         expect(
             mapCodexItem(

@@ -1,7 +1,5 @@
 import type {
     AgentChatDelegatedTask,
-    AgentChatDiffLine,
-    AgentChatFileChange,
     AgentChatItem,
     AgentChatPathReference,
     AgentChatSkillReference,
@@ -9,6 +7,7 @@ import type {
     AgentChatTurn,
     AgentChatTurnArtifacts,
     AgentChatTurnFoldSegment,
+    AgentChatWebSource,
     AgentChatWorkItem,
     AgentTimelineItem,
 } from '@caxri/protocol';
@@ -18,6 +17,7 @@ import {
     agentChatNoticeMessage,
     agentChatTurnLabel,
     collectAgentChatTurnArtifacts,
+    collectAgentChatWebSources,
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
     isAgentChatItemVisible,
@@ -28,7 +28,6 @@ import {
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
-import type { DiffLine } from '../changes/changes-model';
 import type { AgentChatAwayRecapEntry } from './agent-chat-away-recap-entry';
 import { agentChatWorkEntry } from './agent-chat-timeline-work';
 
@@ -109,6 +108,23 @@ export type AgentChatTimelineEntry =
           rows: readonly AgentChatWorkItem[];
       }
     | { kind: 'artifacts'; id: string; artifacts: AgentChatTurnArtifacts }
+    | {
+          /**
+           * The action bar under the reply that ends a finished turn, after the turn's artifacts, as the Codex and
+           * ChatGPT apps end a reply: Copy, Share, and More (the reply's time, Fork, Retry, Select Text), with the web
+           * pages the turn searched or fetched at its end. Commentary between tool calls and a running turn's reply
+           * carry none, as on Desktop.
+           */
+          kind: 'replyActions';
+          id: string;
+          turnId: string;
+          replyId: string;
+          /**
+           * When the reply entered the conversation; absent when the provider's history kept no time.
+           */
+          sentAt?: number;
+          sources: readonly AgentChatWebSource[];
+      }
     | {
           kind: 'turn';
           id: string;
@@ -322,6 +338,20 @@ function finishedTurnEntries(
     const artifactsEntry: AgentChatTimelineEntry[] = artifacts
         ? [{ kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts }]
         : [];
+    const finalReply = visible.find((item) => item.id === finalReplyId);
+    const replyActionsEntry: AgentChatTimelineEntry[] =
+        finalReply?.type === 'agentMessage'
+            ? [
+                  {
+                      kind: 'replyActions',
+                      id: `reply-actions:${turn.id}`,
+                      turnId: turn.id,
+                      replyId: finalReply.id,
+                      ...(finalReply.createdAt !== undefined && { sentAt: finalReply.createdAt }),
+                      sources: collectAgentChatWebSources(visible),
+                  },
+              ]
+            : [];
     const closing = parts.at(-1)?.segment ?? WHOLE_TURN;
     // Without a fold of its own, the closing segment still gets the row: before its reply, or at the end without one.
     let isNeedsOutcomeRow = parts.every(
@@ -353,7 +383,7 @@ function finishedTurnEntries(
             isNeedsOutcomeRow = false;
         }
         entries.push(...groupEntries([part.item], t, taskItemIds));
-        if (part.item.id === finalReplyId) entries.push(...artifactsEntry);
+        if (part.item.id === finalReplyId) entries.push(...artifactsEntry, ...replyActionsEntry);
     }
     if (isNeedsOutcomeRow) entries.push(row(undefined, closing));
     if (finalReplyId === undefined) entries.push(...artifactsEntry);
@@ -490,48 +520,6 @@ export function agentChatTurnTone(
 ): 'danger' | 'muted' | 'warning' {
     if (status === 'failed') return 'danger';
     return status === 'interrupted' && stoppedBy !== 'user' ? 'warning' : 'muted';
-}
-
-const DIFF_MARKER: Record<AgentChatDiffLine['kind'], DiffLine['marker']> = {
-    added: '+',
-    removed: '−',
-    context: ' ',
-    hunk: ' ',
-    meta: ' ',
-};
-
-/**
- * A Chat file change's display lines in the row shape the Changes tab draws, so a Chat diff reads like every other diff
- * on the phone.
- */
-export function agentChatChangeRows(lines: readonly AgentChatDiffLine[]): DiffLine[] {
-    return lines.map((line, index) => ({
-        id: String(index),
-        kind: line.kind,
-        content: line.text,
-        oldLine: line.oldLine ?? null,
-        newLine: line.newLine ?? null,
-        marker: DIFF_MARKER[line.kind],
-    }));
-}
-
-/**
- * The status letter's color slot for a change kind, matching the letter Desktop paints in the file's `--git-*` color.
- */
-export function agentChatChangeColor(
-    kind: AgentChatFileChange['kind'],
-): 'gitAdded' | 'gitDeleted' | 'gitModified' {
-    switch (kind) {
-        case 'add': {
-            return 'gitAdded';
-        }
-        case 'delete': {
-            return 'gitDeleted';
-        }
-        case 'update': {
-            return 'gitModified';
-        }
-    }
 }
 
 /**

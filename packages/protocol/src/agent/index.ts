@@ -76,3 +76,5 @@ export {
     trackerReferenceText,
 } from './trackers/agent-chat-tracker-artifact.js';
 export * from './trackers/agent-chat-trackers.js';
+export * from './web-sources/agent-chat-web-source-schema.js';
+export * from './web-sources/agent-chat-web-sources.js';

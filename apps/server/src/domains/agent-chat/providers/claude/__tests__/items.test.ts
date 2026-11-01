@@ -75,6 +75,25 @@ describe('Claude item mapping', () => {
         expect(settle(['-a', `+${long}`])).toMatchObject({ changes: [{ truncated: true }] });
     });
 
+    it('lists a web search’s pages as sources, read from the whole result before its tail is kept', () => {
+        const item = mapClaudeToolUse(
+            { id: 'w1', name: 'WebSearch', input: { query: 'tab groups' } },
+            'turn',
+        );
+        if (!item) throw new Error('expected an item');
+        const result = [
+            'Web search results for query: "tab groups"',
+            'Links: [{"title":"Save tab groups","url":"https://example.com/a"}]',
+            'x'.repeat(20_000),
+        ].join('\n');
+        expect(settleClaudeToolItem(item, { tool_use_id: 'w1', content: result })).toMatchObject({
+            sources: [{ url: 'https://example.com/a', title: 'Save tab groups' }],
+        });
+        expect(
+            settleClaudeToolItem(item, { tool_use_id: 'w1', content: result, is_error: true }),
+        ).not.toHaveProperty('sources');
+    });
+
     it('marks a written file as added and a declined tool as declined', () => {
         const item = mapClaudeToolUse(
             { id: 't1', name: 'Write', input: { file_path: '/p/new.ts', content: 'x' } },
