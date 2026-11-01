@@ -103,3 +103,17 @@ export function agentChatSourceHost(url: string): string {
         return url;
     }
 }
+
+/**
+ * Where a source's site icon loads from: its site's `/favicon.ico`, for HTTPS pages only. The phone requests it
+ * directly, and the pages come from what an Agent read off the web, so a plain-HTTP or malformed address (which may
+ * name a host on the user's own network) shows the globe instead, as MCP server icons only load over HTTPS.
+ */
+export function agentChatSourceFavicon(url: string): string | undefined {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' ? `${parsed.origin}/favicon.ico` : undefined;
+    } catch {
+        return undefined;
+    }
+}

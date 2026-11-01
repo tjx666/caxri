@@ -10,7 +10,7 @@ import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
-import { agentChatSourceHost } from './agent-chat-reply-actions';
+import { agentChatSourceFavicon, agentChatSourceHost } from './agent-chat-reply-actions';
 
 /**
  * A site's own icon (`/favicon.ico`, requested by the phone directly, as an MCP server's icon is) over a globe that
@@ -29,12 +29,7 @@ export const AgentChatSourceFavicon = ({
     url: string;
 }) => {
     const [state, setState] = useState<'failed' | 'loaded' | 'loading'>('loading');
-    let origin: string | undefined;
-    try {
-        origin = new URL(url).origin;
-    } catch {
-        origin = undefined;
-    }
+    const favicon = agentChatSourceFavicon(url);
     const frame = {
         borderRadius: size / 2,
         height: size,
@@ -45,13 +40,13 @@ export const AgentChatSourceFavicon = ({
     return (
         <View style={[styles.favicon, frame]}>
             <Globe color={theme.muted} size={size * 0.6} />
-            {origin && state !== 'failed' ? (
+            {favicon && state !== 'failed' ? (
                 <Image
                     accessibilityIgnoresInvertColors
                     onError={() => setState('failed')}
                     onLoad={() => setState('loaded')}
                     resizeMode="contain"
-                    source={{ uri: `${origin}/favicon.ico` }}
+                    source={{ uri: favicon }}
                     style={[
                         styles.faviconImage,
                         { borderRadius: size / 2 },

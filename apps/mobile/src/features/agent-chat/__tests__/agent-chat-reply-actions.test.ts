@@ -6,6 +6,7 @@ import {
     agentChatReplyFork,
     agentChatReplyRetry,
     agentChatReplyTime,
+    agentChatSourceFavicon,
     agentChatSourceHost,
 } from '../agent-chat-reply-actions';
 
@@ -79,5 +80,15 @@ describe('agentChatSourceHost', () => {
     it('names a page by its host without www', () => {
         expect(agentChatSourceHost('https://www.example.com/a?b=1')).toBe('example.com');
         expect(agentChatSourceHost('not a url')).toBe('not a url');
+    });
+});
+
+describe('agentChatSourceFavicon', () => {
+    it('loads an HTTPS page site icon and never a plain-HTTP or malformed one', () => {
+        expect(agentChatSourceFavicon('https://www.example.com/a?b=1')).toBe(
+            'https://www.example.com/favicon.ico',
+        );
+        expect(agentChatSourceFavicon('http://192.168.1.10/admin')).toBeUndefined();
+        expect(agentChatSourceFavicon('not a url')).toBeUndefined();
     });
 });

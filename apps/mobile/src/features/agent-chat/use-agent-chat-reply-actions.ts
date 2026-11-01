@@ -160,23 +160,30 @@ export function useAgentChatReplyActions({
                 }),
             selectText: (replyId) => latest.current.onSelectText(message(replyId)),
             fork: (turnId) => {
-                const { canFork, chat, isLive, openSession, snapshot, t } = latest.current;
+                const { canFork, isLive, snapshot, t } = latest.current;
                 if (!canFork) return;
                 const target = agentChatReplyFork(snapshot, turnId, t);
                 return {
                     availability: isLive ? target.availability : offline(),
                     run: () => {
+                        // The menu may have stayed open while a turn started; act on the Chat as it is now.
+                        const {
+                            chat,
+                            openSession,
+                            snapshot: current,
+                            t: translate,
+                        } = latest.current;
                         void chat
-                            .fork(target.itemId)
+                            .fork(agentChatReplyFork(current, turnId, translate).itemId)
                             .then(openSession)
                             .catch(() => {
-                                showToast('error', t('sessions.manage.forkFailed'));
+                                showToast('error', translate('sessions.manage.forkFailed'));
                             });
                     },
                 };
             },
             retry: (turnId) => {
-                const { canSend, chat, isLive, snapshot, t } = latest.current;
+                const { canSend, isLive, snapshot, t } = latest.current;
                 if (!canSend) return;
                 const target = agentChatReplyRetry(snapshot, turnId, t);
                 if (!target) return;
@@ -184,6 +191,7 @@ export function useAgentChatReplyActions({
                     availability: isLive ? target.availability : offline(),
                     run: () =>
                         withText(target.itemId, async (text) => {
+                            const { chat, t: translate } = latest.current;
                             if (chat.pendingKey === null) return;
                             await sendAgentChatMessageOptimistically({
                                 clearComposer: () => {},
@@ -197,7 +205,7 @@ export function useAgentChatReplyActions({
                                 },
                                 reportError: (error) => {
                                     if (error !== null)
-                                        showToast('error', t('chat.reply.retryFailed'));
+                                        showToast('error', translate('chat.reply.retryFailed'));
                                 },
                                 returnUnsent: () => {},
                                 send: () => chat.rewind(target.itemId, text),
