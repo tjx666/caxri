@@ -58,12 +58,18 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             `caxri_e2e_precmd() { print -r -- "status:$?" >> ${JSON.stringify(shellLog)} }`,
             'add-zsh-hook preexec caxri_e2e_preexec',
             'add-zsh-hook precmd caxri_e2e_precmd',
-            `print -r -- rc:start:\${+functions[TRAPINT]} >> ${JSON.stringify(shellLog)}`,
+            `print -r -- rc:\${+functions[__caxri_finish_startup]}:\${+functions[TRAPINT]} >> ${JSON.stringify(shellLog)}`,
             'kill -INT $$',
             'alias cc=codex',
             `print -r -- rc:loaded >> ${JSON.stringify(shellLog)}`,
             '',
         ].join('\n'),
+    );
+    // Marks whether the Terminal's own shell, the only one with Caxri's startup hook, read the user's `.zshenv`; other
+    // shells Caxri starts read these files too.
+    await writeFile(
+        join(shellHome, '.zshenv'),
+        `print -r -- env:\${+functions[__caxri_finish_startup]} >> ${JSON.stringify(shellLog)}\n`,
     );
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
@@ -108,14 +114,12 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             await typeTerminal(running.page, String.raw`printf 'RETURNED_%s\n' TO_SHELL`);
             await expect(rows).toContainText('RETURNED_TO_SHELL', { timeout: 3_000 });
         }).toPass({ timeout: 30_000 });
-        // Each line names a different failure: startup aborted before `.zshrc`, the one-time interrupt guard was not
-        // installed by then, or the guard was installed but the interrupt still aborted `.zshrc` before its alias.
-        await expect
-            .poll(async () =>
-                (await logLines(shellLog)).some((line) => line.startsWith('rc:start:')),
-            )
-            .toBe(true);
-        expect(await logLines(shellLog)).toContain('rc:start:1');
+        // Each line names a different failure: the Terminal shell skipped or aborted user startup before `.zshenv` or
+        // `.zshrc`, the one-time interrupt guard was missing at `.zshrc`, or `.zshrc` was still cut short.
+        const startup = await logLines(shellLog);
+        expect(startup).toContain('env:1');
+        expect(startup.some((line) => line.startsWith('rc:1:'))).toBe(true);
+        expect(startup).toContain('rc:1:1');
         await expect.poll(async () => (await logLines(shellLog)).includes('rc:loaded')).toBe(true);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
