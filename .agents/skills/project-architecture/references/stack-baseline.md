@@ -34,7 +34,8 @@ Keep these compatibility exceptions:
   `PopoverStore` / `syncTriggerCount` (React error 185) when one Popover owns several registered
   triggers. The Editor breadcrumb picker therefore uses a controlled, trigger-less Popover anchored
   to the clicked segment (`PopoverContent` takes an `anchor`), so no Popover in the Renderer may
-  register more than one `PopoverTrigger`. `e2e/editor-breadcrumbs.e2e.ts` covers the picker.
+  register more than one `PopoverTrigger`; the `caxri/single-popover-trigger` ESLint rule enforces
+  that. `e2e/editor-breadcrumbs.e2e.ts` covers the picker.
 - `@types/node`: held on the major of the Node.js runtime in `mise.toml` (`^24`), not the latest major. Newer
   declarations typecheck builtins the shipped runtime rejects (for example `node:vfs`). `scripts/__tests__/toolchain-contract.test.ts`
   enforces the match and the `node:vfs` rejection; raise both together when `mise.toml` moves.

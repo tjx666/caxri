@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const delegationProviderSchema = z.enum(['claude', 'codex', 'grok', 'antigravity']);
+import { agentProviderIds } from '../agents.js';
+
+/**
+ * Delegation covers every hosted provider, so the set derives from the catalog instead of repeating its ids.
+ */
+export const delegationProviderSchema = z.enum(agentProviderIds);
 export const delegationPresetNameSchema = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/u);
 export const delegationModelSchema = z.string().trim().min(1).max(256);
 export const delegationEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);

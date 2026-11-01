@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-31 @ `b1226a6dc` (`main`)                                                                      |
+| **Last full audit**      | 2026-11-01 @ `39856632e` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `b1226a6dc`               |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `39856632e`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -36,9 +36,139 @@ resolved most of them, and the fix batch of [issue caxri#2332](https://github.co
 Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its new findings were fixed by the batch of [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601).
 Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answers` resolved; the owner closed the issues behind three other entries as not planned on 2026-10-29, so they moved to the intentional tradeoffs table. The batch of [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176) fixed that audit's new findings and the two remaining entries.
 
+Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and the four entries below need their own design or measurement.
+
+### AD-dup-tree-keyboard-navigation: [OPEN · Architecture debt · M]
+
+- **Summary:** Five tree surfaces (Files, Source Control, extension tree views, Editor breadcrumbs, path browser) each hand-roll ARIA treeview arrow-key handling, so a fix in one (ArrowRight on an empty expanded folder) does not reach the others.
+- **Evidence:** `apps/desktop/src/renderer/src/features/view-containers/resource-explorer/file-tree-rows.ts` `fileTreeNavigationTarget` now owns `firstChild` for the Files tree only; the other trees resolve Right/Left in their own row handlers.
+- **Tracking:** [issue caxri#3406](https://github.com/tjx666/caxri/issues/3406)
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Remediation target / Acceptance:** One shared navigation resolver over a flattened row model that every tree uses; the Files tree regression in `file-tree-rows.test.ts` moves to the shared helper.
+
+### AD-taxonomy-android-case-registration: [OPEN · Architecture debt · M]
+
+- **Summary:** An Agent adding an Android Acceptance case finds two registration paths: the central hand-written case table plus dispatcher switch, and the self-registration added in [PR caxri#3393](https://github.com/tjx666/caxri/pull/3393); the self-registration directories' names do not match their content.
+- **Evidence:** `e2e/mobile-acceptance-scenarios.e2e.ts` dispatches built-in cases through a `switch (environment.caseId)`, while `e2e/support/mobile-chat-case-registry.ts` collects self-registering cases from `e2e/support/mobile-chat-cases/`, which now also holds non-Chat cases such as `device-actions.ts`.
+- **Tracking:** [issue caxri#3407](https://github.com/tjx666/caxri/issues/3407)
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Remediation target / Acceptance:** Migrate the remaining table cases to self-registration, delete the table and switch, and rename `mobile-chat-cases/` and its registry to match their content.
+
+### AD-perf-antigravity-sync-reads: [OPEN · Coverage or observability gap · M]
+
+- **Summary:** Usage scanning and external-conversation discovery read an Antigravity conversation database through synchronous better-sqlite3 on the Server Core event loop, bounded by rows (up to 50,000 step rows with protobuf blobs) rather than bytes, and the cost on a long conversation is unmeasured.
+- **Evidence:** `apps/server/src/domains/agents/providers/antigravity/conversation-database.ts`, consumed by `apps/server/src/domains/agents/external-conversation-parsers.ts` (`readAntigravityConversation`, `readAntigravityConversationSummary`).
+- **Tracking:** [issue caxri#3408](https://github.com/tjx666/caxri/issues/3408)
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Remediation target / Acceptance:** Measure decode time on a large synthetic database; give the summary caller a narrow reader that skips blobs it does not need, and move a full decode off the event loop when it exceeds a frame budget.
+
+### AD-perf-renderer-hang-debugger-attach: [OPEN · Coverage or observability gap · S]
+
+- **Summary:** The Renderer hang probe keeps `webContents.debugger` attached with the Debugger domain enabled for each window's lifetime; its steady-state cost and its interaction with a DevTools session are unmeasured.
+- **Evidence:** `apps/desktop/src/main/renderer-diagnostics/renderer-hang-stack.ts` (from [PR caxri#3390](https://github.com/tjx666/caxri/pull/3390)).
+- **Tracking:** [issue caxri#3409](https://github.com/tjx666/caxri/issues/3409)
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Remediation target / Acceptance:** Measure idle CPU and Main event volume with the probe attached versus attached only on a suspected hang, and confirm a DevTools pause is not auto-resumed; keep or narrow the attachment from that evidence.
+
 ---
 
 ## RESOLVED
+
+### AD-perf-chat-history-transcript-cache: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** The parsed-transcript cache behind Chat history paging kept a closed Chat's full parse until its TTL, had no entry cap, and an older entry's expiry timer could drop a newer parse of the same Terminal.
+- **Evidence:** `apps/server/src/domains/agent-chat/history/read.ts` caps entries at `MAX_PARSED_TRANSCRIPTS` in recency order, evicts by identity, and exports `forgetParsedTranscript`, which `ChatStates.forget` calls when a Chat closes. Covered by `history/__tests__/transcript-cache.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** Close drops the parse at once, the cache stays bounded, and a stale timer never removes a newer entry.
+
+### AD-persist-app-state-write-validation: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** `AppStateModel.set` stored values without the schema `get()` reads with, so an out-of-range write (1,001 `quitStoppedSessions`) made the cell unreadable on the next start.
+- **Evidence:** `apps/server/src/domains/db/models/app-state.ts` `set()` parses with `appStateValueSchemas[key]` and throws `VALIDATION`, leaving the previous cell intact. Covered by `db/models/__tests__/app-state.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** Every write passes the read schema.
+
+### AD-ext-provider-list-copies: [RESOLVED · Architecture debt · S]
+
+- **Summary:** The delegation provider schema, the fake development environment, and the hook-uninstall test each kept their own provider list, so adding a provider silently skipped them.
+- **Evidence:** `packages/protocol/src/agent/delegation/agent-delegation-settings.ts` uses `z.enum(agentProviderIds)`; `.agents/skills/debug/scripts/fake-agent-development-environment.ts` keys a `Record<AgentProvider, ...>`; `scripts/__tests__/uninstall-agent-hooks.test.ts` iterates every provider with hooks.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** A new provider ID fails typecheck or a test at each consumer until handled.
+
+### AD-sec-link-preview-image-host: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Link previews vetted the page fetch as public HTTPS but passed `og:image` through, so a public page could make the Renderer request a loopback or private host on hover.
+- **Evidence:** `apps/desktop/src/main/link-previews.ts` `withPublicImage` drops an image whose host fails `isPublicHttpsUrl`. Covered by `apps/desktop/src/main/__tests__/link-previews.test.ts`; documented in `docs/agent-chat.md` and `references/security.md`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** No preview carries a non-public image URL.
+
+### AD-docs-mobile-role-method-table: [RESOLVED · Contract drift · S]
+
+- **Summary:** The mobile role method table in `docs/mobile/authorization.md` disagreed with `isMobileGatewayMethodAllowedForRole` and nothing checked it.
+- **Evidence:** The table lists exact methods per role; `apps/server/src/core/mobile/__tests__/role-capabilities.test.ts` parses it and compares each role's added methods with the gateway policy.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** A grant change without a doc change fails the parity test.
+
+### AD-ui-popover-trigger-guard: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** The single-`PopoverTrigger` constraint that avoids the Base UI 1.8/1.9 `syncTriggerCount` loop lived only in `stack-baseline.md`.
+- **Evidence:** `scripts/eslint-rules/single-popover-trigger.ts` (`caxri/single-popover-trigger`) reports a second or per-item trigger in Renderer `.tsx`; `scripts/__tests__/single-popover-trigger.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** A second trigger under one Popover fails lint.
+
+### AD-lifecycle-mobile-file-root-shared: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Phone file uploads lived in one `tmpdir()` root per account, and each store sweeps entries it does not track, so a second Server (a dev worktree beside the installed app) deleted files the first Server's messages had cited.
+- **Evidence:** `apps/server/src/domains/create-domain-services.ts` passes `fileDirectory: join(userDataPath, 'mobile-files')`, matching the image store. Covered by `domains/__tests__/mobile-upload-root.integration.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** Upload roots are per profile.
+
+### AD-sec-bot-memory-unbounded-read: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Caxri Bot memory files were read whole with `readFile`, so a runaway file loaded entirely into Server Core and a FIFO at the path blocked the Bot's start; the bot domain sat outside `caxri/bounded-external-reads`.
+- **Evidence:** `apps/server/src/domains/bot/workspace.ts` reads heads through `readBoundedRegularFileText(..., { oversize: 'truncate' })`; `eslint.config.ts` adds `apps/server/src/domains/bot/**`. Covered by `bot/__tests__/workspace.integration.test.ts` and `bounded-file-reader.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** Reads are bounded, a non-regular file is skipped, and truncation is still noted.
+
+### AD-lifecycle-snapshot-finalize-identity: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Two finalizations of one Terminal let the first one's cleanup remove the second from `pending`, and the older capture could overwrite the newer snapshot.
+- **Evidence:** `apps/server/src/domains/terminal/snapshot-persistence.ts` `finalize` chains per Terminal and deletes only its own entry. Covered by `terminal/__tests__/snapshot-persistence.integration.test.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** Finalizations persist in call order and `pending` reports the newest.
+
+### AD-ui-files-tree-right-empty-folder: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** ArrowRight on an expanded empty folder in the Files tree jumped to the next sibling instead of staying put.
+- **Evidence:** `fileTreeNavigationTarget(..., 'firstChild')` in `resource-explorer/file-tree-rows.ts`, used by `hooks/use-file-tree-item-interactions.ts`. Covered by `file-tree-rows.test.ts` and `e2e/editor-dotfiles.e2e.ts`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405). The shared helper across tree surfaces stays open as `AD-dup-tree-keyboard-navigation`.
+- **Remediation target / Acceptance:** Focus stays on an expanded folder with no entry.
+
+### AD-toolchain-manifest-range-drift: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Nothing checked that a dependency used one range across workspace manifests; Desktop's `@tanstack/react-query` bypassed the catalog.
+- **Evidence:** `scripts/__tests__/workspace-dependency-contract.test.ts` "gives each dependency one range across the workspace manifests", with the documented `apps/mobile` Expo exceptions; Desktop uses `catalog:`.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** A divergent range or a literal for a catalog package fails the contract.
+
+### AD-docs-context-menu-shortcut-scope: [RESOLVED · Contract drift · S]
+
+- **Summary:** `DESIGN.md` required every context-menu shortcut hint to come from `readCommandShortcut`, although fixed row-local keys no keybinding owns stay literal.
+- **Evidence:** `DESIGN.md` right-click menu rule now scopes `readCommandShortcut` to registered commands.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
+- **Resolved:** 2026-11-01 via [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405).
+- **Remediation target / Acceptance:** The rule matches the implementation.
 
 ### AD-lifecycle-server-stop-chain: [RESOLVED · Confirmed defect · M]
 
@@ -1266,12 +1396,13 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-chat-read-starts-provider        | Reading a stopped Chat may start its provider for models, commands, and live state; read leases are time- and count-bounded and pass the capacity gate                                                                                                                                                                                                                                        | Owner closed [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800) as not planned on 2026-10-29 (formerly `AD-lifecycle-chat-idle-providers`)         |
 | IT-mobile-control-only-pairing      | Every Mobile pairing is granted `control`; the `view` and `reply` roles stay defined but unassigned                                                                                                                                                                                                                                                                                           | Owner closed [issue caxri#2334](https://github.com/tjx666/caxri/issues/2334) as not planned on 2026-10-29 (formerly `AD-contract-mobile-view-reply-roles`)      |
 | IT-provider-literal-comparisons     | Provider-specific branches may compare provider IDs as literals instead of going through registry capability flags                                                                                                                                                                                                                                                                            | Owner closed [issue caxri#2335](https://github.com/tjx666/caxri/issues/2335) as not planned on 2026-10-29 (formerly `AD-contract-provider-literal-comparisons`) |
+| IT-device-open-any-scheme           | `caxri device open <url>` hands any URL scheme to the paired phone, which opens it through the OS; the phone is the user's own device and the command is the user's or their Agent's, so no scheme allowlist applies                                                                                                                                                                          | `apps/cli/src/commands/device.ts`, `apps/mobile/src/features/device-actions/device-action-handler.ts`                                                           |
 
 ---
 
-## Current priority guide (OPEN at 2026-10-31)
+## Current priority guide (OPEN at 2026-11-01)
 
-No OPEN entries remain after the batch of [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176).
+`AD-perf-antigravity-sync-reads` → `AD-dup-tree-keyboard-navigation` → `AD-taxonomy-android-case-registration` → `AD-perf-renderer-hang-debugger-attach`.
 
 ## Historical priority guide (all resolved)
 

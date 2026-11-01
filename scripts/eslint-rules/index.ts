@@ -13,6 +13,7 @@ import noSchemaVersionOffset from './no-schema-version-offset';
 import registeredColorUtilities from './registered-color-utilities';
 import relativeImportExtension from './relative-import-extension';
 import serverReadsThroughQuery from './server-reads-through-query';
+import singlePopoverTrigger from './single-popover-trigger';
 
 /**
  * Caxri-local flat-config ESLint plugin. Wired into `eslint.config.ts` as `caxri/*` rules; see
@@ -33,6 +34,7 @@ const caxriEslintPlugin: ESLint.Plugin = {
         'registered-color-utilities': registeredColorUtilities,
         'relative-import-extension': relativeImportExtension,
         'server-reads-through-query': serverReadsThroughQuery,
+        'single-popover-trigger': singlePopoverTrigger,
     },
 };
 

@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import type { CaxriMethod, MobileDeviceRole } from '@caxri/protocol';
 import { methods } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
@@ -23,5 +26,38 @@ describe('mobile role capabilities', () => {
                 ),
         );
         expect(missing).toEqual([]);
+    });
+
+    it('match the per-role grants table in docs/mobile/authorization.md', async () => {
+        const document = await readFile(
+            join(import.meta.dirname, '../../../../../../docs/mobile/authorization.md'),
+            'utf8',
+        );
+        /**
+         * The backticked method names in one role's table row, with `a.{b,c}` expanded to `a.b` and `a.c`.
+         */
+        const documented = (role: MobileDeviceRole): string[] => {
+            const row = document.split('\n').find((line) => line.startsWith(`| \`${role}\``));
+            return (row ?? '')
+                .matchAll(/`([\w.]+)(?:\{([\w,]+)\})?`/gu)
+                .toArray()
+                .slice(1)
+                .flatMap(([, prefix, members]) =>
+                    members ? members.split(',').map((member) => `${prefix}${member}`) : [prefix],
+                )
+                .toSorted((left, right) => left.localeCompare(right));
+        };
+        const granted = (role: MobileDeviceRole) =>
+            (Object.keys(methods) as CaxriMethod[]).filter((method) =>
+                isMobileGatewayMethodAllowedForRole(role, method),
+            );
+        const added = (role: MobileDeviceRole, preceding?: MobileDeviceRole) =>
+            granted(role)
+                .filter((method) => !preceding || !granted(preceding).includes(method))
+                .toSorted((left, right) => left.localeCompare(right));
+
+        expect(documented('view')).toEqual(added('view'));
+        expect(documented('reply')).toEqual(added('reply', 'view'));
+        expect(documented('control')).toEqual(added('control', 'reply'));
     });
 });
