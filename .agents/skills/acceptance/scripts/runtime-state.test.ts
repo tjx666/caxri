@@ -10,6 +10,7 @@ import {
     errorCode,
     getProcessCommand,
     getProcessIdentity,
+    isAcceptanceProfileCleared,
     isAcceptanceProfileIdentityRemoved,
     isAlive,
     isOwnedLauncher,
@@ -329,6 +330,38 @@ describe('Acceptance runtime ownership', () => {
         await expect(
             isAcceptanceProfileIdentityRemoved(`caxri-acceptance-missing-${process.pid}`),
         ).resolves.toBe(true);
+    });
+
+    it('clears an Android launch profile on its own emulator before counting it removed', async () => {
+        const identity = 'android-emulator:emulator-5580:com.caxri.mobile:0b1c';
+        const calls: string[] = [];
+        const installed = (serial: string, arguments_: string[]) => {
+            calls.push(`${serial} ${arguments_.join(' ')}`);
+            return arguments_.includes('list') ? 'package:com.caxri.mobile' : 'Success';
+        };
+        await expect(isAcceptanceProfileCleared(identity, installed)).resolves.toBe(true);
+        expect(calls).toEqual([
+            'emulator-5580 shell pm list packages com.caxri.mobile',
+            'emulator-5580 shell pm clear com.caxri.mobile',
+        ]);
+        await expect(
+            isAcceptanceProfileCleared(identity, () => {
+                throw new Error('adb failed with status 1');
+            }),
+        ).resolves.toBe(false);
+        // A setup that stopped before the APK was installed has no app data left to clear.
+        await expect(
+            isAcceptanceProfileCleared(
+                'android-emulator:emulator-5580:setup-blocked:0b1c',
+                () => '',
+            ),
+        ).resolves.toBe(true);
+        await expect(
+            isAcceptanceProfileCleared(
+                'android-emulator:pixel; reboot:com.caxri.mobile:0b1c',
+                installed,
+            ),
+        ).rejects.toThrow('malformed');
     });
 
     it('records an explicit non-Terminal frame-capture plan without weakening the default', async () => {

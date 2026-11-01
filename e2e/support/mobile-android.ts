@@ -11,7 +11,10 @@ import {
     startMobileAcceptanceRecording,
 } from '../../scripts/mobile-acceptance-runtime.ts';
 import type { AndroidDisplayState } from '../../scripts/mobile-android-display-state.ts';
-import { parseAndroidDisplayState } from '../../scripts/mobile-android-display-state.ts';
+import {
+    androidScreenSize,
+    parseAndroidDisplayState,
+} from '../../scripts/mobile-android-display-state.ts';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -351,16 +354,44 @@ export const tapMobileCheck = (
         ...(options.isLongPress ? ['--long-press'] : []),
     ]);
 
+type AndroidBounds = NonNullable<ReturnType<typeof androidBounds>>;
+
+/**
+ * Where `tapMobileCheckByBounds` taps a control, or `null` when the control or the tap is not wholly inside `frame`.
+ * Android's dump still lists a control scrolled out of its list, with bounds past the list's edge or under the header
+ * drawn over it, and a tap there lands on whatever is drawn at that point instead.
+ */
+export function androidTapPoint(
+    bounds: AndroidBounds,
+    frame: AndroidBounds,
+    rowOffset = 0,
+): { x: number; y: number } | null {
+    const height = bounds.bottom - bounds.top;
+    const x = Math.floor((bounds.left + bounds.right) / 2);
+    const y = Math.floor((bounds.top + bounds.bottom) / 2 + rowOffset * height);
+    const isInside =
+        bounds.left >= frame.left &&
+        bounds.right <= frame.right &&
+        bounds.top >= frame.top &&
+        bounds.bottom <= frame.bottom &&
+        y - height / 2 >= frame.top &&
+        y + height / 2 <= frame.bottom;
+    return isInside ? { x, y } : null;
+}
+
 /**
  * React Native can expose a visible Pressable with `clickable=false` in Android's accessibility dump. Tap its verified
  * device bounds and prove the resulting product state separately. Semantic capture keeps only the first node per check
  * ID and carries no text, so a later row of an equal-height list (every tree row is `tree-row`) is reached with
- * `rowOffset`: the tap moves that many row heights below the first match.
+ * `rowOffset`: the tap moves that many row heights below the first match. The control, and the row `rowOffset` reaches,
+ * must lie wholly on screen, or inside the `viewport` check ID's bounds (such as `conversation-view`, whose header
+ * covers the list's top) when given; scroll it into view first. The screen is `wm size`, which ignores rotation:
+ * landscape cases set a landscape `wm size` instead of rotating.
  */
 export async function tapMobileCheckByBounds(
     serial: string,
     checkId: string,
-    { rowOffset = 0 }: { rowOffset?: number } = {},
+    { rowOffset = 0, viewport }: { rowOffset?: number; viewport?: string } = {},
 ): Promise<void> {
     const nodes = await mobileSemantics(serial);
     const target = nodes.find((node) => node.checkId === checkId);
@@ -371,14 +402,21 @@ export async function tapMobileCheckByBounds(
             .map((node) => node.checkId);
         throw new Error(`Mobile control ${checkId} is unavailable; visible: ${visible.join(',')}`);
     }
-    await adbShell(serial, [
-        'input',
-        'tap',
-        String(Math.floor((bounds.left + bounds.right) / 2)),
-        String(
-            Math.floor((bounds.top + bounds.bottom) / 2 + rowOffset * (bounds.bottom - bounds.top)),
-        ),
-    ]);
+    let frame: AndroidBounds | null;
+    if (viewport) {
+        const container = nodes.find((node) => node.checkId === viewport);
+        frame = container ? androidBounds(container.bounds) : null;
+        if (!frame) throw new Error(`Mobile viewport ${viewport} is unavailable`);
+    } else {
+        const screen = androidScreenSize(await adbShell(serial, ['wm', 'size']));
+        frame = { bottom: screen.height, left: 0, right: screen.width, top: 0 };
+    }
+    const point = androidTapPoint(bounds, frame, rowOffset);
+    if (!point)
+        throw new Error(
+            `Mobile control ${checkId}${rowOffset ? ` row ${rowOffset}` : ''} is off screen at ${target.bounds}; scroll it into ${viewport ?? 'the screen'} first`,
+        );
+    await adbShell(serial, ['input', 'tap', String(point.x), String(point.y)]);
 }
 
 /**

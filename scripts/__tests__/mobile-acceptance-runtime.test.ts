@@ -6,10 +6,10 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { clearAndroidAppDataIfInstalled } from '../../apps/mobile/scripts/android-device-bridge';
 import {
     assertMobileAcceptanceSourceIdentity,
     captureMobileAcceptanceCommand,
-    clearAndroidAppDataIfInstalled,
     clearMobileAcceptanceCaseArtifacts,
     collectMobileAcceptanceArtifacts,
     createMobileAcceptanceArtifact,

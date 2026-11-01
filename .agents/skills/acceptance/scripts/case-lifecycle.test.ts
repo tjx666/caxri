@@ -245,6 +245,54 @@ describe('Acceptance case lifecycle repair', () => {
         });
     });
 
+    it('records a failed cleanup as done once the profile is cleared, so the case can retry', async () => {
+        const directory = await reportDirectory();
+        await initialize(directory);
+        const launchId = await beginCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            profileIdentity: 'android-emulator:emulator-5580:com.caxri.mobile:first',
+            stateIsolation: { mode: 'isolated' },
+        });
+        await markCaseLifecycleReady(directory, { caseId: 'terminal-layout', launchId });
+        await completeCaseLifecycle(directory, {
+            caseId: 'terminal-layout',
+            cleanupCompleted: false,
+            cleanupRequested: true,
+            launchId,
+        });
+        const retry = () =>
+            beginCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                profileIdentity: 'android-emulator:emulator-5580:com.caxri.mobile:second',
+                stateIsolation: { mode: 'isolated' },
+            });
+        await expect(retry()).rejects.toThrow('must clean up before retry');
+        await expect(
+            repairCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                isProfileRemoved: () => Promise.resolve(false),
+                reason: 'emulator exited before pm clear',
+            }),
+        ).rejects.toThrow('still exists');
+
+        await expect(
+            repairCaseLifecycle(directory, {
+                caseId: 'terminal-layout',
+                isProfileRemoved: () => Promise.resolve(true),
+                reason: 'emulator exited before pm clear',
+            }),
+        ).resolves.toMatchObject({ repairedLaunchIds: [launchId] });
+        const receipt = JSON.parse(
+            await readFile(join(directory, 'assets/terminal-layout-state-isolation.json'), 'utf8'),
+        ) as { launches: Array<Record<string, unknown>> };
+        expect(receipt.launches[0]).toMatchObject({
+            cleanupCompleted: true,
+            deferredCleanup: { reason: 'emulator exited before pm clear', source: 'report-repair' },
+        });
+        expect(receipt.launches[0]).not.toHaveProperty('forcedCompletion');
+        await expect(retry()).resolves.toEqual(expect.any(String));
+    });
+
     it('repairs a stuck receipt with a reason only after the isolated profile is verified gone', async () => {
         const directory = await reportDirectory();
         await initialize(directory);
@@ -299,7 +347,7 @@ describe('Acceptance case lifecycle repair', () => {
                 isProfileRemoved: () => Promise.resolve(true),
                 reason: 'again',
             }),
-        ).rejects.toThrow('no pending launch');
+        ).rejects.toThrow('no pending launch or failed cleanup');
 
         const receipt = JSON.parse(
             await readFile(join(directory, 'assets/terminal-layout-state-isolation.json'), 'utf8'),

@@ -107,7 +107,9 @@ const showBar = (serial: string, turnId: string) =>
  * Opens a reply's More menu and proves its heading reads today at that reply's own minute.
  */
 async function openMoreMenu(serial: string, turnId: string, sentAt: number): Promise<void> {
-    await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${turnId}`);
+    await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${turnId}`, {
+        viewport: 'conversation-view',
+    });
     await waitForCheck(serial, 'agent-chat-reply-time');
     for (const value of ['今天', minuteOf(sentAt)]) {
         // eslint-disable-next-line no-await-in-loop -- one menu, read twice.
@@ -191,7 +193,9 @@ export async function executeMobileChatReplyActionsScenario(
         await new Promise((resolve) => setTimeout(resolve, 3000));
         await capture(environment, 'action-bars', artifacts);
 
-        await tapMobileCheckByBounds(serial, `agent-chat-reply-copy-${searched}`);
+        await tapMobileCheckByBounds(serial, `agent-chat-reply-copy-${searched}`, {
+            viewport: 'conversation-view',
+        });
         await waitForCheck(serial, 'toast');
         await capture(environment, 'copied', artifacts);
 
@@ -209,7 +213,9 @@ export async function executeMobileChatReplyActionsScenario(
         await waitForNoCheck(serial, 'conversation-message-sheet');
 
         await showBar(serial, searched);
-        await tapMobileCheckByBounds(serial, `agent-chat-reply-sources-${searched}`);
+        await tapMobileCheckByBounds(serial, `agent-chat-reply-sources-${searched}`, {
+            viewport: 'conversation-view',
+        });
         await waitForCheck(serial, 'agent-chat-sources-sheet');
         await waitForCheck(serial, `agent-chat-source-${LINKS.length - 1}`);
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -219,7 +225,9 @@ export async function executeMobileChatReplyActionsScenario(
 
         await showBar(serial, searched);
         const before = await sessionIds(fixture.running.page);
-        await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${searched}`);
+        await tapMobileCheckByBounds(serial, `agent-chat-reply-more-${searched}`, {
+            viewport: 'conversation-view',
+        });
         await waitForCheck(serial, 'agent-chat-reply-fork');
         await tapMobileCheckByBounds(serial, 'agent-chat-reply-fork');
         const forkedId = (
