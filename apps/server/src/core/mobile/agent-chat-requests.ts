@@ -1,7 +1,6 @@
 import type {
     AgentChatContinuationTarget,
     AgentChatHistoryPage,
-    AgentChatImageMediaType,
     AgentChatImagePending,
     AgentChatRequest,
     AgentChatSnapshot,
@@ -28,6 +27,8 @@ import {
 import type { ServerDomainService } from '../domain-service';
 import { terminalForPrincipal } from './action-requests';
 import { agentChatContinuationParameters } from './agent-chat-continuation';
+import type { MobileAgentChatImage } from './agent-chat-images';
+import { mobileAgentChatThumbnail, readMobileAgentChatOriginal } from './agent-chat-images';
 import { invokeMobileAgentChatUsageRequest } from './agent-chat-usage-requests';
 
 /**
@@ -136,56 +137,6 @@ export async function beginMobileAgentChatWatch(
     };
 }
 
-interface ImageData {
-    mediaType: AgentChatImageMediaType;
-    data: string;
-}
-
-/**
- * The originals a phone is currently paging through. A provider record is re-read for every `agentChat.readImage`, and
- * an original arrives in dozens of chunks, so the last few stay in memory briefly instead of being re-read per chunk.
- */
-const recentOriginals = new Map<string, { image: ImageData | null; expiresAt: number }>();
-const RECENT_ORIGINALS_LIMIT = 2;
-const RECENT_ORIGINAL_LIFETIME_MS = 60_000;
-
-async function readOriginal(
-    domainService: ServerDomainService,
-    target: { terminalId: string; itemId: string; index: number },
-): Promise<ImageData | AgentChatImagePending | null> {
-    const key = JSON.stringify([target.terminalId, target.itemId, target.index]);
-    const now = Date.now();
-    for (const [cached, entry] of recentOriginals)
-        if (entry.expiresAt <= now) recentOriginals.delete(cached);
-    const hit = recentOriginals.get(key);
-    if (hit) return hit.image;
-    const image = await domainService.request('agentChat.readImage', target);
-    // A message not recorded yet is asked about again shortly, and must not keep answering `pending` once it is.
-    if (image && 'pending' in image) return image;
-    recentOriginals.set(key, { image, expiresAt: now + RECENT_ORIGINAL_LIFETIME_MS });
-    while (recentOriginals.size > RECENT_ORIGINALS_LIMIT)
-        recentOriginals.delete(recentOriginals.keys().next().value!);
-    return image;
-}
-
-const THUMBNAIL_PATTERN = /^data:(image\/(?:png|jpeg|gif|webp));base64,(.*)$/su;
-
-/**
- * The thumbnail a projection item carries, `null` when it has none, or `undefined` when the item already left the
- * projection (a message the phone read through `mobile.agentChat.readHistory`).
- */
-function thumbnailOf(
-    snapshot: AgentChatSnapshot,
-    itemId: string,
-    index: number,
-): ImageData | null | undefined {
-    const item = snapshot.items.find((candidate) => candidate.id === itemId);
-    if (!item) return undefined;
-    const thumbnail = item.type === 'userMessage' ? item.images?.[index]?.thumbnail : undefined;
-    const match = thumbnail ? THUMBNAIL_PATTERN.exec(thumbnail) : null;
-    return match ? { mediaType: match[1] as AgentChatImageMediaType, data: match[2] } : null;
-}
-
 /**
  * The page of history before `beforeItemId` as Core holds it, before it is cut to one mobile frame. The phone's window
  * shows only the newest part of the projection, so its first cursor usually names an item inside the projection, which
@@ -232,7 +183,7 @@ export async function invokeMobileAgentChatRequest(
     | AgentChatHistoryPage
     | AgentChatTaskSnapshot
     | AgentUsageReadout
-    | (ImageData & { chunkIndex: number; chunkCount: number })
+    | (MobileAgentChatImage & { chunkIndex: number; chunkCount: number })
     | AgentChatImagePending
     | { requests: AgentChatRequest[] }
     | { text: string }
@@ -281,7 +232,7 @@ export async function invokeMobileAgentChatRequest(
              */
             const thumbnail =
                 variant === 'thumbnail'
-                    ? thumbnailOf(
+                    ? mobileAgentChatThumbnail(
                           await domainService.request('agentChat.read', { terminalId }),
                           itemId,
                           index,
@@ -289,7 +240,11 @@ export async function invokeMobileAgentChatRequest(
                     : undefined;
             const image =
                 thumbnail === undefined
-                    ? await readOriginal(domainService, { terminalId, itemId, index })
+                    ? await readMobileAgentChatOriginal(domainService, {
+                          terminalId,
+                          itemId,
+                          index,
+                      })
                     : thumbnail;
             reauthorize();
             if (!image || 'pending' in image) return image;
