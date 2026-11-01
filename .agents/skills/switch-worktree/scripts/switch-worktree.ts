@@ -2,6 +2,7 @@
 
 import { isAbsolute } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 import { acquireDesktopLease, releaseDesktopLease } from './desktop-lease';
 import { CommandError, runInherited } from './process';
@@ -16,6 +17,7 @@ import {
 } from './worktree';
 import { installWorktreeDependencies } from './worktree-install';
 import { listOrphanedProcesses } from './worktree-orphans';
+import { planWorktree } from './worktree-plan';
 import { pruneOrphanProfiles } from './worktree-profile-prune';
 import { reuseWorktree } from './worktree-reuse';
 
@@ -27,8 +29,9 @@ const MAX_DESKTOP_WAIT_SECONDS = 1800;
 const USAGE = `Usage: switch-worktree <command> [options]
 
 Commands:
-  create <branch> [--base <ref>]       Create an isolated checkout and run ni
-  switch <branch|path>                 Resolve or create a checkout for a local branch
+  plan <branch> [--base <ref>]         Print the git worktree add to run as its own command
+  create <branch>                      Adopt that checkout: identity, profile, and ni
+  switch <branch|path>                 Resolve or repair an existing checkout
   reuse <branch|path> <new-branch>     Start a new branch from origin/main in a clean, merged checkout
   list                                 Inspect every associated checkout
   doctor [branch|path]                 Diagnose one checkout (default: current)
@@ -158,6 +161,21 @@ function oneOperand(arguments_: ParsedArguments, isOptional = false): string | u
     return arguments_.operands[0];
 }
 
+/**
+ * POSIX single-quoting for a printed command, so a path with spaces survives being pasted into a shell.
+ */
+function shellQuote(argument: string): string {
+    return /^[\w./@:=-]+$/u.test(argument)
+        ? argument
+        : `'${argument.replaceAll("'", String.raw`'\''`)}'`;
+}
+
+/**
+ * The planning checkout's own script, because an older branch may hold a copy of this skill that predates `create`
+ * adopting a checkout.
+ */
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+
 function print(value: unknown, isJson: boolean): void {
     if (isJson) console.log(JSON.stringify(value, null, 2));
     else if (typeof value === 'string') console.log(value);
@@ -243,10 +261,29 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     const arguments_ = parseArguments(argv);
     switch (arguments_.command) {
+        case 'plan': {
+            const plan = await planWorktree({
+                base: arguments_.base,
+                branch: oneOperand(arguments_)!,
+                cwd: process.cwd(),
+            });
+            const followUp = ['bun', 'run', SCRIPT_PATH, 'create', plan.branch];
+            if (arguments_.json) {
+                print({ ...plan, event: 'worktree-planned', followUp }, true);
+                return;
+            }
+            const lines = [
+                ...(plan.command ? [plan.command.map(shellQuote).join(' ')] : []),
+                followUp.map(shellQuote).join(' '),
+            ];
+            print(lines.join('\n'), false);
+            return;
+        }
         case 'create': {
+            if (arguments_.base)
+                throw new CommandError('create does not accept --base; pass it to plan', 2);
             const branch = oneOperand(arguments_);
             const result = await createWorktree({
-                base: arguments_.base,
                 branch: branch!,
                 cwd: process.cwd(),
                 install: arguments_.json

@@ -24,6 +24,7 @@ import {
     releaseDesktopLease,
     transferDesktopLease,
 } from './desktop-lease';
+import { addPlannedWorktree } from './planned-worktree';
 import { getProcessIdentity, runCapture } from './process';
 import {
     isPathPresent,
@@ -34,7 +35,6 @@ import {
 } from './repo';
 import { runCli } from './switch-worktree';
 import {
-    createWorktree,
     developmentWorktree,
     doctorWorktree,
     listWorktreeStatus,
@@ -115,7 +115,7 @@ describe('switch-worktree creation and diagnostics', () => {
         const beforeStatus = await git(fixture.root, 'status', '--porcelain');
         let installs = 0;
 
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'feat/example',
             cwd: fixture.root,
             install: async (path) => {
@@ -140,14 +140,14 @@ describe('switch-worktree creation and diagnostics', () => {
         expect((await doctorWorktree(created.path)).valid).toBe(true);
     });
 
-    it('returns an existing checkout and materializes an unused local branch once', async () => {
+    it('returns an existing checkout and installs it once', async () => {
         const fixture = await createFixture();
         let installs = 0;
         const install = async (path: string): Promise<void> => {
             installs += 1;
             await fakeInstall(path);
         };
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'fix/issue-66-existing',
             cwd: fixture.root,
             install,
@@ -155,7 +155,7 @@ describe('switch-worktree creation and diagnostics', () => {
 
         expect(
             (
-                await createWorktree({
+                await addPlannedWorktree({
                     branch: 'fix/issue-66-existing',
                     cwd: created.path,
                     install,
@@ -167,25 +167,6 @@ describe('switch-worktree creation and diagnostics', () => {
         );
         expect((await switchWorktree(fixture.root, created.path, install)).path).toBe(created.path);
         expect(installs).toBe(1);
-
-        await git(fixture.root, 'branch', 'feat/dormant', 'origin/main');
-        const switched = await switchWorktree(fixture.root, 'feat/dormant', install);
-        expect(switched.branch).toBe('feat/dormant');
-        expect(switched.dependencies).toBe('ready');
-        expect(installs).toBe(2);
-    });
-
-    it('materializes existing branches under portable worktree directory names', async () => {
-        const fixture = await createFixture();
-        // Each iteration mutates the shared fixture repository, so the branches must be created and switched to sequentially rather than concurrently.
-        /* eslint-disable no-await-in-loop -- sequential mutation of one shared git repository */
-        for (const branch of ['feat/foo%2Fbar', 'feat/windows<bad>|"name"']) {
-            await git(fixture.root, 'branch', branch, 'origin/main');
-            const switched = await switchWorktree(fixture.root, branch, fakeInstall);
-            expect(basename(switched.path)).toMatch(/^[\w.-]+$/);
-            expect(basename(switched.path).toLowerCase()).not.toContain('%2f');
-        }
-        /* eslint-enable no-await-in-loop */
     });
 
     it('repairs a managed checkout when its first dependency installation fails', async () => {
@@ -193,13 +174,13 @@ describe('switch-worktree creation and diagnostics', () => {
         const failInstall = (): Promise<void> => Promise.reject(new Error('temporary ni failure'));
 
         await expect(
-            createWorktree({
+            addPlannedWorktree({
                 branch: 'fix/retry-create-install',
                 cwd: fixture.root,
                 install: failInstall,
             }),
         ).rejects.toThrow('temporary ni failure');
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'fix/retry-create-install',
             cwd: fixture.root,
             install: fakeInstall,
@@ -208,7 +189,7 @@ describe('switch-worktree creation and diagnostics', () => {
         expect((await doctorWorktree(created.path)).valid).toBe(true);
 
         await expect(
-            createWorktree({
+            addPlannedWorktree({
                 branch: 'fix/retry-switch-install',
                 cwd: fixture.root,
                 install: failInstall,
@@ -226,9 +207,13 @@ describe('switch-worktree creation and diagnostics', () => {
     it('reports deterministic list fields and rejects non-semantic new branches', async () => {
         const fixture = await createFixture();
         await expect(
-            createWorktree({ branch: 'feature/wrong', cwd: fixture.root, install: fakeInstall }),
+            addPlannedWorktree({
+                branch: 'feature/wrong',
+                cwd: fixture.root,
+                install: fakeInstall,
+            }),
         ).rejects.toThrow('Branch must use');
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'docs/worktrees',
             cwd: fixture.root,
             install: fakeInstall,
@@ -282,14 +267,24 @@ describe('switch-worktree creation and diagnostics', () => {
         try {
             process.chdir(fixture.root);
             process.env.PATH = `${binaryDirectory}:${previousPath}`;
+            await runCli(['plan', 'feat/json-output', '--json']);
+            const plan = JSON.parse(String(output.mock.calls[0][0])) as {
+                command: string[];
+                event: string;
+                followUp: string[];
+            };
+            expect(plan.event).toBe('worktree-planned');
+            expect(plan.command.slice(0, 5).join(' ')).toBe('git worktree add -b feat/json-output');
+            expect(plan.followUp.slice(-2)).toEqual(['create', 'feat/json-output']);
+            await git(fixture.root, ...plan.command.slice(1));
             await runCli(['create', 'feat/json-output', '--json']);
         } finally {
             process.chdir(previousCwd);
             process.env.PATH = previousPath;
         }
 
-        expect(output).toHaveBeenCalledTimes(1);
-        const parsed = JSON.parse(String(output.mock.calls[0][0])) as {
+        expect(output).toHaveBeenCalledTimes(2);
+        const parsed = JSON.parse(String(output.mock.calls[1][0])) as {
             branch: string;
             path: string;
         };
@@ -424,12 +419,12 @@ describe('switch-worktree shared ownership', () => {
 
     it('assigns different profiles and a new identity when a path is recreated', async () => {
         const fixture = await createFixture();
-        const first = await createWorktree({
+        const first = await addPlannedWorktree({
             branch: 'feat/recreate',
             cwd: fixture.root,
             install: fakeInstall,
         });
-        const second = await createWorktree({
+        const second = await addPlannedWorktree({
             branch: 'feat/parallel',
             cwd: fixture.root,
             install: fakeInstall,
@@ -443,7 +438,7 @@ describe('switch-worktree shared ownership', () => {
         const oldProfile = first.profile!;
         await removeWorktree({ cwd: fixture.root, preserveProfile: true, target: first.path });
         expect(await isPathPresent(oldProfile)).toBe(true);
-        const recreated = await createWorktree({
+        const recreated = await addPlannedWorktree({
             branch: 'feat/recreate',
             cwd: fixture.root,
             install: fakeInstall,
@@ -455,12 +450,12 @@ describe('switch-worktree shared ownership', () => {
 
     it('launches simultaneous dev wrappers with distinct userData directories', async () => {
         const fixture = await createFixture();
-        const first = await createWorktree({
+        const first = await addPlannedWorktree({
             branch: 'feat/dev-one',
             cwd: fixture.root,
             install: fakeInstall,
         });
-        const second = await createWorktree({
+        const second = await addPlannedWorktree({
             branch: 'feat/dev-two',
             cwd: fixture.root,
             install: fakeInstall,
@@ -492,7 +487,7 @@ describe('switch-worktree shared ownership', () => {
 
     it('serializes duplicate dev launches before the process record becomes observable', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'test/dev-start-lock',
             cwd: fixture.root,
             install: fakeInstall,
@@ -527,7 +522,7 @@ describe('switch-worktree shared ownership', () => {
 
     it('fails closed on an active desktop owner and reclaims a stale reused PID', async () => {
         const fixture = await createFixture();
-        const other = await createWorktree({
+        const other = await addPlannedWorktree({
             branch: 'test/desktop-lease',
             cwd: fixture.root,
             install: fakeInstall,
@@ -675,7 +670,7 @@ describe('switch-worktree shared ownership', () => {
 describe('switch-worktree safe removal', () => {
     it('rejects dirty, unpushed, active-dev, and desktop-lease owners', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/remove-guards',
             cwd: fixture.root,
             install: fakeInstall,
@@ -719,7 +714,7 @@ describe('switch-worktree safe removal', () => {
 
     it('preserves the branch and removes the profile by default', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/clean-profile',
             cwd: fixture.root,
             install: fakeInstall,
@@ -750,7 +745,7 @@ describe('switch-worktree safe removal', () => {
 
     it('rejects a forged worktree identity before profile cleanup can escape its state root', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/forged-identity',
             cwd: fixture.root,
             install: fakeInstall,
@@ -771,7 +766,7 @@ describe('switch-worktree safe removal', () => {
 
     it('refuses profile cleanup after its directory is replaced', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/profile-replacement',
             cwd: fixture.root,
             install: fakeInstall,

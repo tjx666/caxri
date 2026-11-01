@@ -5,9 +5,10 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { addPlannedWorktree } from './planned-worktree';
 import { runCapture } from './process';
 import { isPathPresent } from './repo';
-import { createWorktree, developmentWorktree, listWorktreeStatus } from './worktree';
+import { developmentWorktree, listWorktreeStatus } from './worktree';
 import { CDP_PORT_BASE, CDP_PORT_RANGE } from './worktree-cdp-port';
 
 /**
@@ -62,12 +63,12 @@ afterEach(async () => {
 describe('per-worktree CDP port', () => {
     it('gives simultaneous dev wrappers distinct, in-range CDP ports', async () => {
         const fixture = await createFixture();
-        const first = await createWorktree({
+        const first = await addPlannedWorktree({
             branch: 'feat/cdp-one',
             cwd: fixture.root,
             install: fakeInstall,
         });
-        const second = await createWorktree({
+        const second = await addPlannedWorktree({
             branch: 'feat/cdp-two',
             cwd: fixture.root,
             install: fakeInstall,
@@ -122,7 +123,7 @@ describe('per-worktree CDP port', () => {
 
     it('reports the active dev instance CDP port through list status', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'test/cdp-port-list',
             cwd: fixture.root,
             install: fakeInstall,
@@ -170,7 +171,7 @@ describe('dev launch profile', () => {
 
     it('ignores an inherited CAXRI_USER_DATA_DIR, which Agent Terminals point at the installed app', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'test/dev-inherited-profile',
             cwd: fixture.root,
             install: fakeInstall,
@@ -188,7 +189,7 @@ describe('dev launch profile', () => {
 
     it('launches against an explicit --user-data-dir and reports that directory', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'test/dev-explicit-profile',
             cwd: fixture.root,
             install: fakeInstall,

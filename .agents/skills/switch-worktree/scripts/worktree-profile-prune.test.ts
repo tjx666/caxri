@@ -5,9 +5,10 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { addPlannedWorktree } from './planned-worktree';
 import { getProcessIdentity, runCapture } from './process';
 import { isPathPresent, repoContext, writeJsonAtomic } from './repo';
-import { createWorktree, removeWorktree } from './worktree';
+import { removeWorktree } from './worktree';
 import { pruneOrphanProfiles } from './worktree-profile-prune';
 
 interface Fixture {
@@ -59,7 +60,7 @@ afterEach(async () => {
 describe('worktree profile pruning', () => {
     it('previews orphan profiles, applies deletion, and keeps unrecognized entries', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/prune-profiles',
             cwd: fixture.root,
             install: fakeInstall,
@@ -87,7 +88,7 @@ describe('worktree profile pruning', () => {
 
     it('does not prune a profile preserved during worktree removal', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/preserve-before-prune',
             cwd: fixture.root,
             install: fakeInstall,
@@ -110,7 +111,7 @@ describe('worktree profile pruning', () => {
 
     it('protects profiles referenced by prunable Git worktree admin entries', async () => {
         const fixture = await createFixture();
-        const created = await createWorktree({
+        const created = await addPlannedWorktree({
             branch: 'chore/prunable-profile',
             cwd: fixture.root,
             install: fakeInstall,

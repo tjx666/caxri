@@ -5,9 +5,9 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { addPlannedWorktree } from './planned-worktree';
 import { runCapture } from './process';
 import { repoContext, withRepoLock } from './repo';
-import { createWorktree } from './worktree';
 import { installWorktreeDependencies } from './worktree-install';
 
 const temporaryDirectories: string[] = [];
@@ -149,14 +149,14 @@ describe('worktree dependency installation', () => {
             throw new Error('temporary Electron install failure');
         };
         await expect(
-            createWorktree({
+            addPlannedWorktree({
                 branch: 'fix/retry-create-postinstall',
                 cwd: fixture.root,
                 install: failAfterDependencies,
             }),
         ).rejects.toThrow('temporary Electron install failure');
 
-        const repaired = await createWorktree({
+        const repaired = await addPlannedWorktree({
             branch: 'fix/retry-create-postinstall',
             cwd: fixture.root,
             install: createCompleteElectronArtifacts,
@@ -185,7 +185,7 @@ describe('worktree dependency installation', () => {
             await mkdir(join(path, 'node_modules'));
             await createCompleteElectronArtifacts(path);
         };
-        const creating = createWorktree({
+        const creating = addPlannedWorktree({
             branch: 'chore/slow-install',
             cwd: fixture.root,
             install: slowInstall,
@@ -195,7 +195,7 @@ describe('worktree dependency installation', () => {
             withRepoLock(await repoContext(fixture.root), () => Promise.resolve('acquired')),
         ).resolves.toBe('acquired');
 
-        const resolvingSameBranch = createWorktree({
+        const resolvingSameBranch = addPlannedWorktree({
             branch: 'chore/slow-install',
             cwd: fixture.root,
             install: slowInstall,

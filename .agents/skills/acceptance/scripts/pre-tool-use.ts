@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { text } from 'node:stream/consumers';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import type { ShellToken } from './shell-command';
 import {
@@ -18,6 +20,10 @@ interface CommandEvaluationInput {
     acceptanceRuntimeExists: boolean;
     command: string;
     cwd: string;
+    /**
+     * The `<primary>-worktrees` directory `switch-worktree plan` places checkouts in, or `undefined` when unknown.
+     */
+    managedWorktreeParent?: string;
     projectRoot?: string;
 }
 
@@ -137,17 +143,55 @@ const GIT_GLOBAL_OPTIONS_WITH_VALUE = new Set([
     '-c',
 ]);
 
-const isGitWorktreeAdd = (tokens: ShellToken[]): boolean => {
+const GIT_WORKTREE_ADD_OPTIONS_WITH_VALUE = new Set(['-B', '-b', '--reason']);
+
+interface GitWorktreeAdd {
+    /**
+     * The checkout path resolved against the command's directory, or `undefined` when the command names none.
+     */
+    path: string | undefined;
+}
+
+const parseGitWorktreeAdd = (tokens: ShellToken[], cwd: string): GitWorktreeAdd | null => {
     const words = withoutRedirections(tokens);
     const executableIndex = commandExecutableIndex(words);
     if (executableIndex === null || executableBasename(words[executableIndex]) !== 'git')
-        return false;
+        return null;
+    let directory = cwd;
     let index = executableIndex + 1;
     while (words[index]?.startsWith('-')) {
         const option = words[index];
+        if (option === '-C' && index + 1 < words.length)
+            directory = path.resolve(directory, words[index + 1]);
         index += !option.includes('=') && GIT_GLOBAL_OPTIONS_WITH_VALUE.has(option) ? 2 : 1;
     }
-    return words[index] === 'worktree' && words[index + 1] === 'add';
+    if (words[index] !== 'worktree' || words[index + 1] !== 'add') return null;
+    index += 2;
+    while (index < words.length && words[index].startsWith('-')) {
+        const option = words[index];
+        index += 1;
+        if (option === '--') break;
+        if (!option.includes('=') && GIT_WORKTREE_ADD_OPTIONS_WITH_VALUE.has(option)) index += 1;
+    }
+    return { path: index < words.length ? path.resolve(directory, words[index]) : undefined };
+};
+
+/**
+ * Where `switch-worktree plan` puts checkouts: a sibling of the primary checkout named `<primary>-worktrees`.
+ */
+const resolveManagedWorktreeParent = async (cwd: string): Promise<string | undefined> => {
+    try {
+        const { stdout } = await promisify(execFile)(
+            'git',
+            ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+            { cwd, encoding: 'utf8' },
+        );
+        const commonDirectory = stdout.trim();
+        const primaryRoot = path.dirname(commonDirectory);
+        return path.join(path.dirname(primaryRoot), `${path.basename(primaryRoot)}-worktrees`);
+    } catch {
+        return undefined;
+    }
 };
 
 const requiresAcceptanceRuntimeOwnership = (command: string): boolean =>
@@ -179,6 +223,7 @@ export const evaluateCaxriAcceptanceCommand = ({
     acceptanceRuntimeExists,
     command,
     cwd,
+    managedWorktreeParent,
     projectRoot = PROJECT_ROOT,
 }: CommandEvaluationInput): GuardAction | null => {
     if (!isWithinProject(cwd, projectRoot)) return null;
@@ -191,11 +236,25 @@ export const evaluateCaxriAcceptanceCommand = ({
         };
     }
 
-    if (executableSegments(command).some(isGitWorktreeAdd)) {
-        return {
-            ruleId: 'caxri-raw-worktree-add',
-            reason: 'A raw git worktree add skips dependency installation and the isolated profile, so project hooks, lint, and tests fail in that checkout. Use bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts create <branch> (or reuse) instead.',
-        };
+    /**
+     * `switch-worktree plan` prints a `git worktree add` the Agent runs as its own command, because that literal
+     * command is how Caxri attributes a new worktree to the Agent Session. Only that planned shape passes: a checkout
+     * directly inside the managed worktree directory, which `create` then gives dependencies and a profile.
+     */
+    const worktreeAdds = executableSegments(command)
+        .map((tokens) => parseGitWorktreeAdd(tokens, cwd))
+        .filter((add): add is GitWorktreeAdd => add !== null);
+    if (worktreeAdds.length > 0) {
+        const isPlanned = ({ path: target }: GitWorktreeAdd): boolean =>
+            managedWorktreeParent !== undefined &&
+            target !== undefined &&
+            path.dirname(target) === managedWorktreeParent;
+        if (!worktreeAdds.every(isPlanned)) {
+            return {
+                ruleId: 'caxri-raw-worktree-add',
+                reason: 'A git worktree add outside the managed worktree directory gets no dependencies or isolated profile, so project hooks, lint, and tests fail in that checkout. Run bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts plan <branch>, run the git worktree add it prints as its own command, then its create follow-up.',
+            };
+        }
     }
 
     if (
@@ -273,10 +332,15 @@ export const runPreToolUse = async (
     const command = commandText(toolInput.command ?? toolInput.cmd);
     if (!command) return '';
     const cwd = resolveCommandCwd(payload);
+    // Only a `git worktree add` consults the managed directory, so other commands skip spawning Git.
+    const managedWorktreeParent = command.includes('worktree')
+        ? await resolveManagedWorktreeParent(cwd)
+        : undefined;
     const unconditionalAction = evaluateCaxriAcceptanceCommand({
         acceptanceRuntimeExists: false,
         command,
         cwd,
+        managedWorktreeParent,
     });
     if (unconditionalAction) return serializeDeny(unconditionalAction);
     if (!isWithinProject(cwd, PROJECT_ROOT) || !requiresAcceptanceRuntimeOwnership(command)) {
