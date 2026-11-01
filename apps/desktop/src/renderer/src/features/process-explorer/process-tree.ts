@@ -8,6 +8,8 @@ import type {
 } from '@desktop-shared/process-explorer';
 
 import type { Translate, TranslationKey } from '../../i18n';
+import type { TreeRowModel, TreeVerticalKey } from '../../lib/tree-navigation';
+import { TREE_VERTICAL_NAVIGATION, treeNavigationTarget } from '../../lib/tree-navigation';
 import { sessionTitleForDisplay } from '../session/session-title';
 import type { ProcessColumnKey, ProcessSort } from './process-columns';
 
@@ -452,7 +454,7 @@ export function processExplorerTotals(
     return { cpuPercent, memoryMb, processCount };
 }
 
-export type ProcessRowVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
+const processRowModel: TreeRowModel<ProcessTreeRow> = { depthOf: (row) => row.depth };
 
 /**
  * Returns the row index roving focus should move to for Up/Down/Home/End, or `undefined` when the key does not move
@@ -461,13 +463,9 @@ export type ProcessRowVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
 export function nextProcessRowIndex(
     rows: readonly ProcessTreeRow[],
     index: number,
-    key: ProcessRowVerticalKey,
+    key: TreeVerticalKey,
 ): number | undefined {
-    if (rows.length === 0) return undefined;
-    if (key === 'Home') return 0;
-    if (key === 'End') return rows.length - 1;
-    const nextIndex = index + (key === 'ArrowDown' ? 1 : -1);
-    return nextIndex >= 0 && nextIndex < rows.length ? nextIndex : undefined;
+    return treeNavigationTarget(rows, index, TREE_VERTICAL_NAVIGATION[key], processRowModel);
 }
 
 export interface ProcessRowHorizontalIntent {
@@ -495,13 +493,13 @@ export function processRowHorizontalIntent(
     if (!row) return {};
     if (key === 'ArrowLeft') {
         if (row.isExpanded) return { expanded: false };
-        return row.parentIndex === -1 ? {} : { focusIndex: row.parentIndex };
+        const parent = treeNavigationTarget(rows, index, 'parent', processRowModel);
+        return parent === undefined ? {} : { focusIndex: parent };
     }
     if (!row.isExpandable) return {};
     if (!row.isExpanded) return { expanded: true };
-    // An expanded row renders its children directly below it, so the first child is always the next row; the parent
-    // test keeps the step from walking onto a sibling if that ever stops being true.
-    return rows.at(index + 1)?.parentIndex === index ? { focusIndex: index + 1 } : {};
+    const firstChild = treeNavigationTarget(rows, index, 'firstChild', processRowModel);
+    return firstChild === undefined ? {} : { focusIndex: firstChild };
 }
 
 /**

@@ -253,17 +253,15 @@ describe('primarySidebarHorizontalIntent', () => {
     });
 
     it('treats a reveal row like a Session: Left goes to the Project, Right does nothing', () => {
-        const revealRow = {
-            id: primarySidebarRevealRowId('alpha'),
-            kind: 'reveal' as const,
-            projectId: 'alpha',
-        };
-        expect(primarySidebarHorizontalIntent(expandedRows, revealRow, true, 'ArrowLeft')).toEqual({
+        const rows = flattenPrimarySidebarRows(
+            [{ hasHiddenSessions: true, id: 'alpha', sessionIds: ['alpha-1'] }],
+            () => true,
+        );
+        const revealRow = rows.find((row) => row.id === primarySidebarRevealRowId('alpha'))!;
+        expect(primarySidebarHorizontalIntent(rows, revealRow, true, 'ArrowLeft')).toEqual({
             focusRowId: 'alpha',
         });
-        expect(primarySidebarHorizontalIntent(expandedRows, revealRow, true, 'ArrowRight')).toEqual(
-            {},
-        );
+        expect(primarySidebarHorizontalIntent(rows, revealRow, true, 'ArrowRight')).toEqual({});
     });
 
     it('treats a New Session row like a Session: Left goes to the Project, Right does nothing', () => {

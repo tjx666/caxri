@@ -1,3 +1,4 @@
+import { treeNavigationTarget } from '../../../lib/tree-navigation';
 import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import type { SourceControlTreeNode } from './source-control-tree';
 import type { TreeNavigationAction } from './source-control-tree-navigation';
@@ -98,21 +99,12 @@ export function sourceControlTreeNavigationTarget(
     index: number,
     action: TreeNavigationAction,
 ): number | undefined {
-    const row = rows.at(index);
-    if (!row) return undefined;
     switch (action) {
-        case 'next': {
-            return index + 1 < rows.length ? index + 1 : undefined;
-        }
-        case 'previous': {
-            return index > 0 ? index - 1 : undefined;
-        }
-        case 'parent': {
-            return row.parentIndex === -1 ? undefined : row.parentIndex;
-        }
-        case 'child': {
-            const next = rows.at(index + 1);
-            return next && next.depth > row.depth ? index + 1 : undefined;
+        case 'next':
+        case 'previous':
+        case 'parent':
+        case 'firstChild': {
+            return treeNavigationTarget(rows, index, action, { depthOf: (row) => row.depth });
         }
         default: {
             return undefined;

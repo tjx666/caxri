@@ -1,4 +1,6 @@
 import type { Translate } from '../../../i18n';
+import type { TreeRowModel, TreeVerticalKey } from '../../../lib/tree-navigation';
+import { TREE_VERTICAL_NAVIGATION, treeNavigationTarget } from '../../../lib/tree-navigation';
 import type { VisibleItemRow, VisibleRow } from './rows';
 
 /**
@@ -7,9 +9,7 @@ import type { VisibleItemRow, VisibleRow } from './rows';
  * uses for the PrimarySidebar (see the `unit-testing` skill).
  */
 
-export type ExtensionTreeVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
-
-export type ExtensionTreeNavigationKey = ExtensionTreeVerticalKey | 'ArrowLeft' | 'ArrowRight';
+export type ExtensionTreeNavigationKey = TreeVerticalKey | 'ArrowLeft' | 'ArrowRight';
 
 /**
  * Whether a row can hold the tree's single roving Tab stop. Only a provider item can: the loading, error, and empty
@@ -21,35 +21,27 @@ export function isNavigableExtensionTreeRow(row: VisibleRow | undefined): row is
     return row?.kind === 'item';
 }
 
-/**
- * First navigable row at or after `start`, walking in `step` direction. Returns `undefined` when the scan runs off
- * either end without finding one, which is what makes an edge press a no-op instead of wrapping.
- */
-function findNavigableRowIndex(
-    rows: readonly VisibleRow[],
-    start: number,
-    step: 1 | -1,
-): number | undefined {
-    for (let index = start; index >= 0 && index < rows.length; index += step)
-        if (isNavigableExtensionTreeRow(rows[index])) return index;
-    return undefined;
-}
+const extensionTreeRowModel: TreeRowModel<VisibleRow> = {
+    depthOf: (row) => row.depth,
+    isFocusable: isNavigableExtensionTreeRow,
+};
 
 /**
  * Resolves Up/Down/Home/End to the row index roving focus should move to, or `undefined` when the key does not move
- * focus (empty tree, or nothing navigable left in that direction). Home and End scan inwards for the same reason Up and
- * Down scan past status rows: a view whose first or last row is a `Loading…` placeholder still has to answer those
- * keys.
+ * focus (empty tree, or nothing navigable left in that direction). Every key steps over status rows: a view whose first
+ * or last row is a `Loading…` placeholder still has to answer Home and End.
  */
 export function nextExtensionTreeRowIndex(
     rows: readonly VisibleRow[],
     fromIndex: number,
-    key: ExtensionTreeVerticalKey,
+    key: TreeVerticalKey,
 ): number | undefined {
-    if (key === 'Home') return findNavigableRowIndex(rows, 0, 1);
-    if (key === 'End') return findNavigableRowIndex(rows, rows.length - 1, -1);
-    const step = key === 'ArrowDown' ? 1 : -1;
-    return findNavigableRowIndex(rows, fromIndex + step, step);
+    return treeNavigationTarget(
+        rows,
+        fromIndex,
+        TREE_VERTICAL_NAVIGATION[key],
+        extensionTreeRowModel,
+    );
 }
 
 export interface ExtensionTreeHorizontalIntent {
@@ -87,7 +79,8 @@ export function extensionTreeHorizontalIntent(
     const isCollapsible = row.item.collapsibleState !== 'none';
     if (key === 'ArrowLeft') {
         if (isCollapsible && row.isExpanded) return { toggle: true };
-        return row.parentIndex === -1 ? {} : { focusIndex: row.parentIndex };
+        const parent = treeNavigationTarget(rows, index, 'parent', extensionTreeRowModel);
+        return parent === undefined ? {} : { focusIndex: parent };
     }
     if (isCollapsible && !row.isExpanded) return { toggle: true };
     // A row with inline actions follows the ARIA treegrid row pattern instead: Right on a leaf or an expanded row moves
@@ -95,12 +88,8 @@ export function extensionTreeHorizontalIntent(
     // row's first child, and rows without actions keep the plain tree behavior below unchanged.
     if (row.item.actions?.length) return { focusAction: true };
     if (!isCollapsible) return {};
-    // `flattenVisibleRows` emits a branch's rows directly below it, so the first child is always the next row; the
-    // parent test is what keeps an expanded-but-childless node from stepping onto its own next sibling.
-    const firstChild = rows[index + 1];
-    return isNavigableExtensionTreeRow(firstChild) && firstChild.parentIndex === index
-        ? { focusIndex: index + 1 }
-        : {};
+    const firstChild = treeNavigationTarget(rows, index, 'firstChild', extensionTreeRowModel);
+    return firstChild === undefined ? {} : { focusIndex: firstChild };
 }
 
 /**

@@ -36,15 +36,7 @@ resolved most of them, and the fix batch of [issue caxri#2332](https://github.co
 Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its new findings were fixed by the batch of [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601).
 Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answers` resolved; the owner closed the issues behind three other entries as not planned on 2026-10-29, so they moved to the intentional tradeoffs table. The batch of [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176) fixed that audit's new findings and the two remaining entries.
 
-Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and the four entries below need their own design or measurement.
-
-### AD-dup-tree-keyboard-navigation: [OPEN · Architecture debt · M]
-
-- **Summary:** Five tree surfaces (Files, Source Control, extension tree views, Editor breadcrumbs, path browser) each hand-roll ARIA treeview arrow-key handling, so a fix in one (ArrowRight on an empty expanded folder) does not reach the others.
-- **Evidence:** `apps/desktop/src/renderer/src/features/view-containers/resource-explorer/file-tree-rows.ts` `fileTreeNavigationTarget` now owns `firstChild` for the Files tree only; the other trees resolve Right/Left in their own row handlers.
-- **Tracking:** [issue caxri#3406](https://github.com/tjx666/caxri/issues/3406)
-- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
-- **Remediation target / Acceptance:** One shared navigation resolver over a flattened row model that every tree uses; the Files tree regression in `file-tree-rows.test.ts` moves to the shared helper.
+Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and the entries below need their own design or measurement.
 
 ### AD-taxonomy-android-case-registration: [OPEN · Architecture debt · M]
 
@@ -73,6 +65,14 @@ Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [iss
 ---
 
 ## RESOLVED
+
+### AD-dup-tree-keyboard-navigation: [RESOLVED · Architecture debt · M]
+
+- **Summary:** Each tree surface (Files, Source Control, extension tree views, the PrimarySidebar, Process Explorer, Activity) hand-rolled its own arrow-key movement, so a fix in one (ArrowRight on an empty expanded folder) did not reach the others.
+- **Evidence:** `apps/desktop/src/renderer/src/lib/tree-navigation.ts` `treeNavigationTarget` resolves next, previous, first, last, parent, and firstChild over any flattened row model (`depthOf`, `isFocusable`); every tree above routes its keys through it, and `lib/tree-navigation.test.ts` covers empty folders, create fields, and truncated rows. The Editor breadcrumb picker and the path browser list one directory at a time and drill in or out by replacing the list, so they have no tree movement to share.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-02 @ 3f2a6b37b
+- **Resolved:** 2026-11-02 via [issue caxri#3406](https://github.com/tjx666/caxri/issues/3406).
+- **Remediation target / Acceptance:** One shared navigation resolver over a flattened row model that every tree uses.
 
 ### AD-perf-chat-history-transcript-cache: [RESOLVED · Confirmed defect · S]
 
@@ -1402,7 +1402,7 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-11-01)
 
-`AD-perf-antigravity-sync-reads` → `AD-dup-tree-keyboard-navigation` → `AD-taxonomy-android-case-registration` → `AD-perf-renderer-hang-debugger-attach`.
+`AD-perf-antigravity-sync-reads` → `AD-taxonomy-android-case-registration` → `AD-perf-renderer-hang-debugger-attach`.
 
 ## Historical priority guide (all resolved)
 

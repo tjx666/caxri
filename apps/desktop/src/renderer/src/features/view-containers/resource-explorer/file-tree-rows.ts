@@ -1,5 +1,7 @@
 import type { FileEntry, MethodResult } from '@caxri/protocol';
 
+import type { TreeNavigation, TreeRowModel } from '../../../lib/tree-navigation';
+import { treeNavigationTarget } from '../../../lib/tree-navigation';
 import { isFileTreeDirectory } from './resource-explorer-state';
 
 interface FileTreeRowBase {
@@ -126,58 +128,31 @@ export function flattenFileTree({
 }
 
 /**
- * `afterRemoval` is where focus should land once the row (and its subtree) is gone: the next row past the subtree, else
- * the one before it. `firstChild` is an expanded directory's first entry; an empty or still-loading directory has none,
- * so ArrowRight on it stays put instead of stepping to the next sibling.
+ * The shared tree movements plus `afterRemoval`: where focus should land once the row (and its subtree) is gone, the
+ * next row past the subtree, else the one before it.
  */
-export type FileTreeNavigation =
-    'next' | 'previous' | 'first' | 'last' | 'parent' | 'firstChild' | 'afterRemoval';
+export type FileTreeNavigation = TreeNavigation | 'afterRemoval';
+
+const fileTreeRowModel: TreeRowModel<FileTreeRow> = {
+    depthOf: (row) => row.depth,
+    // Only entry rows take focus; the inline create field and the empty/truncated notices are stepped over.
+    isFocusable: (row) => row.kind === 'entry',
+};
 
 /**
- * Resolves a keyboard movement against the flattened model. Only entry rows take focus; the inline create field and the
- * empty/truncated notices are stepped over, matching the DOM walk this replaces.
+ * Resolves a keyboard movement against the flattened model through the shared tree navigation.
  */
 export function fileTreeNavigationTarget(
     rows: readonly FileTreeRow[],
     from: number,
     action: FileTreeNavigation,
 ): number | undefined {
-    const isFocusable = (index: number): boolean => rows[index]?.kind === 'entry';
-    switch (action) {
-        case 'first': {
-            const index = rows.findIndex((row) => row.kind === 'entry');
-            return index === -1 ? undefined : index;
-        }
-        case 'last': {
-            const index = rows.findLastIndex((row) => row.kind === 'entry');
-            return index === -1 ? undefined : index;
-        }
-        case 'next': {
-            for (let index = from + 1; index < rows.length; index += 1)
-                if (isFocusable(index)) return index;
-            return undefined;
-        }
-        case 'previous': {
-            for (let index = from - 1; index >= 0; index -= 1) if (isFocusable(index)) return index;
-            return undefined;
-        }
-        case 'parent': {
-            return rows.at(from)?.parentRow;
-        }
-        case 'firstChild': {
-            const row = rows.at(from);
-            if (row?.kind !== 'entry') return undefined;
-            for (let index = from + 1; index <= row.lastDescendant; index += 1)
-                if (isFocusable(index)) return index;
-            return undefined;
-        }
-        case 'afterRemoval': {
-            const row = rows.at(from);
-            const subtreeEnd = row?.kind === 'entry' ? row.lastDescendant : from;
-            return (
-                fileTreeNavigationTarget(rows, subtreeEnd, 'next') ??
-                fileTreeNavigationTarget(rows, from, 'previous')
-            );
-        }
-    }
+    if (action !== 'afterRemoval')
+        return treeNavigationTarget(rows, from, action, fileTreeRowModel);
+    const row = rows.at(from);
+    const subtreeEnd = row?.kind === 'entry' ? row.lastDescendant : from;
+    return (
+        treeNavigationTarget(rows, subtreeEnd, 'next', fileTreeRowModel) ??
+        treeNavigationTarget(rows, from, 'previous', fileTreeRowModel)
+    );
 }

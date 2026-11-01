@@ -19,10 +19,7 @@ import {
     SourceControlTreeFocusProvider,
 } from './source-control-tree-focus';
 import {
-    focusAdjacentTreeItem,
-    focusFirstChildTreeItem,
-    focusParentTreeItem,
-    focusTreeItemEdge,
+    focusTreeItemTarget,
     NAVIGABLE_TREE_ITEM_SELECTOR,
     treeNavigationAction,
 } from './source-control-tree-navigation';
@@ -132,27 +129,12 @@ function handleTreeKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (!action) return;
     event.preventDefault();
     switch (action) {
-        case 'next':
-            focusAdjacentTreeItem(row, 1);
-            break;
-        case 'previous':
-            focusAdjacentTreeItem(row, -1);
-            break;
-        case 'first':
-            focusTreeItemEdge(row, 'first');
-            break;
-        case 'last':
-            focusTreeItemEdge(row, 'last');
-            break;
-        case 'parent':
-            focusParentTreeItem(row);
-            break;
-        case 'child':
-            focusFirstChildTreeItem(row);
-            break;
         case 'expand':
         case 'collapse':
             row.click();
+            break;
+        default:
+            focusTreeItemTarget(row, action);
     }
 }
 

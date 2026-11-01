@@ -94,14 +94,14 @@ describe('sourceControlTreeNavigationTarget', () => {
         expect(sourceControlTreeNavigationTarget(rows, 3, 'previous')).toBe(2);
         expect(sourceControlTreeNavigationTarget(rows, 3, 'parent')).toBe(0);
         expect(sourceControlTreeNavigationTarget(rows, 2, 'parent')).toBe(1);
-        expect(sourceControlTreeNavigationTarget(rows, 0, 'child')).toBe(1);
+        expect(sourceControlTreeNavigationTarget(rows, 0, 'firstChild')).toBe(1);
     });
 
     it('hands edge moves and disclosure changes to the surrounding tree', () => {
         expect(sourceControlTreeNavigationTarget(rows, 0, 'previous')).toBeUndefined();
         expect(sourceControlTreeNavigationTarget(rows, 4, 'next')).toBeUndefined();
         expect(sourceControlTreeNavigationTarget(rows, 0, 'parent')).toBeUndefined();
-        expect(sourceControlTreeNavigationTarget(rows, 2, 'child')).toBeUndefined();
+        expect(sourceControlTreeNavigationTarget(rows, 2, 'firstChild')).toBeUndefined();
         expect(sourceControlTreeNavigationTarget(rows, 0, 'expand')).toBeUndefined();
         expect(sourceControlTreeNavigationTarget(rows, 0, 'last')).toBeUndefined();
     });

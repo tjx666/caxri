@@ -7,6 +7,8 @@
 
 import { sessionListWindow, WINDOWED_SESSION_LIST_GROUPS } from '@caxri/protocol';
 
+import type { TreeRowModel, TreeVerticalKey } from '../../lib/tree-navigation';
+import { treeVerticalTargetId } from '../../lib/tree-navigation';
 import type {
     AgentActivityGroup,
     AgentActivityGroupId,
@@ -98,24 +100,23 @@ export function flattenAgentActivityRows(
     });
 }
 
-export type AgentActivityVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
+/**
+ * Headings sit at the top level and the Session and reveal rows one level in. Every rendered row is a focus stop.
+ */
+const agentActivityRowModel: TreeRowModel<AgentActivityTreeRow> = {
+    depthOf: (row) => (row.kind === 'group' ? 0 : 1),
+};
 
 /**
  * Where Up/Down/Home/End should move the roving focus, or `undefined` when the key moves nothing (empty list, or
- * already at the last row in that direction). Every rendered row is a focus stop.
+ * already at the last row in that direction).
  */
 export function nextAgentActivityRowId(
     rows: readonly AgentActivityTreeRow[],
     activeRowId: string | undefined,
-    key: AgentActivityVerticalKey,
+    key: TreeVerticalKey,
 ): string | undefined {
-    if (rows.length === 0) return undefined;
-    if (key === 'Home') return rows[0]?.id;
-    if (key === 'End') return rows.at(-1)?.id;
-    const currentIndex = rows.findIndex((row) => row.id === activeRowId);
-    if (currentIndex === -1) return rows[0]?.id;
-    const nextIndex = currentIndex + (key === 'ArrowDown' ? 1 : -1);
-    return nextIndex >= 0 && nextIndex < rows.length ? rows[nextIndex]?.id : undefined;
+    return treeVerticalTargetId(rows, activeRowId, key, agentActivityRowModel);
 }
 
 /**

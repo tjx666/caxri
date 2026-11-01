@@ -7,6 +7,7 @@ import { useRelativeTimes } from '@/hooks/use-relative-time';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useSessionExcerpts } from '../../hooks/use-session-excerpts';
 import { useTranslation } from '../../i18n';
+import { isTreeVerticalKey } from '../../lib/tree-navigation';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
@@ -30,7 +31,6 @@ import {
     agentActivitySelectionAnchor,
     isAgentActivitySelectionAnchorCurrent,
 } from './agent-activity-rows';
-import type { AgentActivityVerticalKey } from './agent-activity-tree';
 import {
     flattenAgentActivityRows,
     nextAgentActivityRowId,
@@ -43,7 +43,6 @@ import {
 } from './hooks/use-agent-activity-group-collapse';
 
 const NO_RECORDS: never[] = [];
-const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
 
 /**
  * Every Project's Agent Sessions in one flat, attention-first list.
@@ -268,12 +267,9 @@ export function AgentActivityView() {
                             // Same guard as `handlePrimarySidebarTreeKey`: an unbound chord such as macOS's Cmd+Down ("scroll to
                             // bottom") must keep its native meaning rather than being eaten as a row move.
                             if (event.altKey || event.metaKey || event.ctrlKey) return;
-                            if (!VERTICAL_KEYS.has(event.key)) return;
-                            const nextRowId = nextAgentActivityRowId(
-                                rows,
-                                focusedRowId,
-                                event.key as AgentActivityVerticalKey,
-                            );
+                            const { key } = event;
+                            if (!isTreeVerticalKey(key)) return;
+                            const nextRowId = nextAgentActivityRowId(rows, focusedRowId, key);
                             if (!nextRowId) return;
                             event.preventDefault();
                             focusRow(nextRowId);
