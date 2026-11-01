@@ -97,8 +97,15 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             })
             .toEqual({ agent: 'stopped', process: 'running', processId });
 
-        await typeTerminal(running.page, String.raw`printf 'RETURNED_TO_SHELL\n'`);
-        await expect(rows).toContainText('RETURNED_TO_SHELL');
+        /**
+         * Markers are split with `%s` so the echoed input never matches; only output proves zsh ran the line. The
+         * `.zshrc` interrupt can land once the line editor starts and discard a line typed into it, so retype until one
+         * runs.
+         */
+        await expect(async () => {
+            await typeTerminal(running.page, String.raw`printf 'RETURNED_%s\n' TO_SHELL`);
+            await expect(rows).toContainText('RETURNED_TO_SHELL', { timeout: 3_000 });
+        }).toPass({ timeout: 30_000 });
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
 
@@ -111,7 +118,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         // CODEX_SHIM separates a PATH that lost the E2E shim from a launch that failed after resolving it.
         await typeTerminal(
             running.page,
-            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_ALIAS_READY\n'; [[ $commands[codex] == */shell-bin/codex ]] && echo CODEX_SHIM`,
+            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_%s\n' ALIAS_READY; [[ $commands[codex] == */shell-bin/codex ]] && printf 'CODEX_%s\n' SHIM`,
         );
         await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
         await expect(rows).toContainText('CODEX_SHIM');
