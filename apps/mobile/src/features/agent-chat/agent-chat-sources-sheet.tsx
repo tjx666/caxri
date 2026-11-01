@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useEffect, useRef, useState } from 'react';
-import type { HostInstance } from 'react-native';
+import type { HostInstance, ScrollViewInstance } from 'react-native';
 import {
     AccessibilityInfo,
     Image,
@@ -104,6 +104,8 @@ export const AgentChatSourcesSheet = ({
     const { t } = useTranslation();
     const scrollY = useRef(place?.scrollY ?? 0);
     const openedRow = useRef<HostInstance>(null);
+    const list = useRef<ScrollViewInstance>(null);
+    const isRestored = useRef(!place?.scrollY);
     useEffect(() => {
         if (openedRow.current) AccessibilityInfo.sendAccessibilityEvent(openedRow.current, 'focus');
     }, []);
@@ -119,7 +121,14 @@ export const AgentChatSourcesSheet = ({
                 <View style={styles.body}>
                     <SheetTitle theme={theme} title={t('chat.reply.sources')} />
                     <ScrollView
-                        contentOffset={{ x: 0, y: place?.scrollY ?? 0 }}
+                        ref={list}
+                        // With `contentOffset` the list reopened at the top on Android (MOB-CHAT-SOURCES-RETURN-01), so the
+                        // place is restored once the rows have a height to scroll through.
+                        onContentSizeChange={() => {
+                            if (isRestored.current) return;
+                            isRestored.current = true;
+                            list.current?.scrollTo({ y: place?.scrollY ?? 0, animated: false });
+                        }}
                         onScroll={(event) => {
                             scrollY.current = event.nativeEvent.contentOffset.y;
                         }}
