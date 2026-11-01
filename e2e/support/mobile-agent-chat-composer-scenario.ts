@@ -11,6 +11,7 @@ import {
     checkBounds,
     hasCheck,
     hideChatKeyboard,
+    scrollTimelineUntil,
     sendFromPhone,
     swipeTimelineTowardEarlier,
     typeChatDraft,
@@ -184,11 +185,24 @@ export async function executeMobileChatComposerScenario(
         // A long press on a code block opens only the message sheet (#3377): the block is not selectable, so the
         // system selection toolbar no longer opens over the sheet. The toolbar is a popup UIAutomator does not list, so
         // the screenshot shows its absence once a selection would have settled.
+        // The reply follows to its end, so the timeline scrolls back until the first block, the `ts` one, has its top
+        // (and the Copy button there) inside the timeline below the header.
+        await scrollTimelineUntil(serial, async () => {
+            const nodes = await mobileSemantics(serial);
+            const frame = checkBounds(nodes, 'conversation-view');
+            const top = checkBounds(nodes, 'conversation-fenced-code')?.top;
+            return (
+                frame !== undefined &&
+                top !== undefined &&
+                top >= frame.top &&
+                top + 120 < frame.bottom
+            );
+        });
         const beforePress = await mobileSemantics(serial);
         const block = checkBounds(beforePress, 'conversation-fenced-code');
         if (!block) throw new Error('The fenced code block is not on screen');
         const pressX = String(block.left + 60);
-        const pressY = String(Math.floor((block.top + block.bottom) / 2));
+        const pressY = String(block.top + 60);
         await adbShell(serial, ['input', 'swipe', pressX, pressY, pressX, pressY, '900']);
         await new Promise((resolve) => setTimeout(resolve, 1500));
         await capture(environment, 'code-block-long-press', artifacts);
@@ -210,7 +224,9 @@ export async function executeMobileChatComposerScenario(
 
         // Copy in a code block's corner copies the whole block: the tap lands on the first block, the `ts` one, and
         // pasting into the composer proves what reached the clipboard.
-        await tapMobileCheckByBounds(serial, 'conversation-fenced-code-copy');
+        await tapMobileCheckByBounds(serial, 'conversation-fenced-code-copy', {
+            viewport: 'conversation-view',
+        });
         await waitForCheck(serial, 'conversation-fenced-code-copy-copied');
         await capture(environment, 'code-block-copied', artifacts);
         // Android shows its clipboard preview over the composer after a copy; a touch elsewhere dismisses it.
