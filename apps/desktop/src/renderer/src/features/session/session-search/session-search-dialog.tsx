@@ -179,10 +179,13 @@ function SessionSearchBody() {
 }
 
 /**
- * An empty list while the index is still being built is not an answer yet, so it says so instead of "no results".
+ * An empty list while the index is still being built is not an answer yet, so it says so instead of "no results". Under
+ * the "Not imported" filter the empty list names that filter, since "No matching conversations" reads as a failed query
+ * when nothing is outside Caxri.
  */
 function sessionSearchEmptyKey(search: SessionSearchModel) {
     if (search.result?.index.state === 'indexing') return 'session.search.emptyWhileIndexing';
+    if (search.status === 'external') return 'session.search.noExternalConversations';
     return search.query.trim() ? 'session.search.noResults' : 'session.search.noConversations';
 }
 

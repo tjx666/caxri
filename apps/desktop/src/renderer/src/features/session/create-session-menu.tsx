@@ -413,6 +413,8 @@ export function ActivitySessionCreationMenu({
             : undefined,
     );
     const { t } = useTranslation();
+    // Same remembered pick the Project heading marks: the list has no split press, but "Last used" still saves a scan.
+    const lastChoice = useLastAgentChoiceStore((state) => state.kind);
     const project =
         projects.find((candidate) => candidate.id === claimedProjectId) ?? defaultProject;
     /**
@@ -471,7 +473,7 @@ export function ActivitySessionCreationMenu({
                         <MenuSeparator />
                     </>
                 )}
-                <SessionCreationMenuItems project={project} repeatedKind={undefined} />
+                <SessionCreationMenuItems project={project} repeatedKind={lastChoice} />
             </MenuContent>
         </Menu>
     );

@@ -15,7 +15,7 @@ import {
 import type { SessionSearchModel } from './use-session-search';
 
 const chipClassName =
-    'flex h-6 cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground aria-pressed:bg-elevated aria-pressed:text-foreground';
+    'flex h-6 cursor-pointer items-center gap-1 rounded border border-transparent bg-transparent px-2 text-[12px] text-muted outline-none hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)] aria-pressed:bg-state-selected-quiet aria-pressed:font-medium aria-pressed:text-foreground';
 
 const statusFilterLabelKeys = {
     all: 'session.search.filter.all',

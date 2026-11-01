@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }));
+const mocks = vi.hoisted(() => ({ request: vi.fn(), stored: undefined as unknown }));
+vi.mock('../../../lib/local-storage', () => ({
+    readLocalStorageJson: () => mocks.stored,
+    writeLocalStorageJson: vi.fn(),
+}));
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { useNotificationStore } from '../../../stores/notifications';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
+    isZenRestoredAtLaunch,
     parsePersistedZenMode,
     planZenFullScreen,
     startZenModeLifecycle,
@@ -94,5 +99,18 @@ describe('startZenModeLifecycle', () => {
         expect(useNotificationStore.getState().isOpen).toBe(false);
         expect(mocks.request).not.toHaveBeenCalled();
         stop();
+    });
+
+    it('marks a launch-restored Zen until the user toggles it', () => {
+        mocks.stored = { isActive: true };
+        const stop = startZenModeLifecycle({
+            isFullScreenEnabled: () => false,
+            isRestoreEnabled: () => true,
+        });
+        expect(isZenRestoredAtLaunch()).toBe(true);
+        useChromeLayoutStore.getState().toggleZenMode();
+        expect(isZenRestoredAtLaunch()).toBe(false);
+        stop();
+        mocks.stored = undefined;
     });
 });

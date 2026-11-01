@@ -11,6 +11,7 @@ import {
     Zap,
 } from 'lucide-react';
 
+import { useTranslation } from '../../i18n';
 import type {
     AgentActivityGroup,
     AgentActivityGroupId,
@@ -73,7 +74,11 @@ export function AgentActivityHeading({
     onFocus: () => void;
     onToggle: () => void;
 }) {
+    const { t } = useTranslation();
     const Chevron = expanded ? ChevronDown : ChevronRight;
+    // A collapsed group with rows hides them, so its count becomes a filled badge the eye finds; an open group keeps the
+    // quiet muted number.
+    const isCollapsedWithRows = !expanded && heading.count !== undefined && heading.count > 0;
     return (
         <div
             aria-expanded={expanded}
@@ -97,12 +102,24 @@ export function AgentActivityHeading({
         >
             <AgentActivityGroupIcon groupId={group.id} />
             <span className="truncate">{heading.label}</span>
+            {/* aria-hidden is safe: `heading.summary` (sr-only below) already carries the same count. */}
             {heading.count !== undefined && (
-                <span aria-hidden="true" className="font-normal text-muted tabular-nums">
+                <span
+                    aria-hidden="true"
+                    className={
+                        isCollapsedWithRows
+                            ? 'rounded-full bg-badge px-1.5 text-[11px] leading-4 font-semibold text-badge-foreground tabular-nums'
+                            : 'font-normal text-muted tabular-nums'
+                    }
+                >
                     {heading.count}
                 </span>
             )}
-            <span className="sr-only">{heading.summary}</span>
+            <span className="sr-only">
+                {isCollapsedWithRows
+                    ? t('agentActivity.heading.collapsed', { summary: heading.summary })
+                    : heading.summary}
+            </span>
             <Chevron
                 aria-hidden="true"
                 className="ml-auto flex-none text-muted opacity-0 transition-opacity group-hover/activity-heading:opacity-100 group-focus-visible/activity-heading:opacity-100 group-data-[expanded=false]/activity-heading:opacity-100"

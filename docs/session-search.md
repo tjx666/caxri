@@ -100,7 +100,7 @@ merged by content.
 | ------------ | ---------------------------------------------------------------------------- |
 | Open         | Opens the Session                                                            |
 | Archived     | Restores the Session to the top of its Project and opens it                  |
-| Not in Caxri | Adds it as a parked Session in the Project holding its folder, then opens it |
+| Not imported | Adds it as a parked Session in the Project holding its folder, then opens it |
 
 Adding an external conversation reuses the deepest Project whose root contains the folder, or adds
 a Project for it. The new Session's Agent Terminal is bound to the conversation, so opening it
@@ -116,7 +116,7 @@ appears, the history ends, or a page fails, then lands on it; typing a new query
 stops the loading. Search earlier messages stays available for a manual search. A conversation shown
 as a PTY Terminal opens as before.
 
-`Tab` and `Shift+Tab` cycle the **All / In Caxri / Archived / Not in Caxri** filter; the Agent
+`Tab` and `Shift+Tab` cycle the **All / In Caxri / Archived / Not imported** filter; the Agent
 chips narrow to one provider. The hovered or selected row also offers Copy ID.
 
 ## Preview

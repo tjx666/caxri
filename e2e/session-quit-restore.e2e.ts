@@ -66,9 +66,7 @@ test('restores the Terminal a quit with Stop Tasks ended, once', async () => {
 
             // The restore consumed the record.
             await runPaletteCommand(page, 'Restore Sessions Stopped at Last Quit');
-            await expect(
-                page.getByText('No Sessions were stopped at the last quit.'),
-            ).toBeVisible();
+            await expect(page.getByText('Nothing left to restore.')).toBeVisible();
         } finally {
             await closeAppQuietly(second.app);
         }

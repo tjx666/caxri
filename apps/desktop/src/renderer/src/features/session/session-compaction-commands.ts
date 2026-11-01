@@ -75,15 +75,16 @@ async function runCompactionBatch<Result extends SessionCompactionResult>(
     try {
         const result = await tryCommand(translate('session.compaction.failed'), request);
         dismissToastsMatching((message) => message === progressMessage);
-        if (result)
-            pushToast(
-                result.items.some(
-                    ({ outcome }) => outcome === 'failed' || outcome === 'delivery_unknown',
-                )
-                    ? 'warning'
-                    : 'info',
-                describe(result),
+        if (result) {
+            const needsAttention = result.items.some(
+                ({ outcome }) => outcome === 'failed' || outcome === 'delivery_unknown',
             );
+            // A batch with failed or unconfirmed Sessions names work the user may need to redo, so it holds the screen
+            // until dismissed instead of expiring in four seconds.
+            pushToast(needsAttention ? 'warning' : 'info', describe(result), {
+                persist: needsAttention,
+            });
+        }
     } finally {
         dismissToastsMatching((message) => message === progressMessage);
         batch.running = false;
