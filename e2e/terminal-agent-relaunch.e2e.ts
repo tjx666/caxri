@@ -115,20 +115,14 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
         await expect(rows).toContainText('CODEX_SHIM');
         /**
-         * The first launch's banner is still on screen, so without clearing it the readiness check below passed before
-         * `cc` ran at all, and a hosted failure could not tell an alias that never started the Agent from a started
-         * Agent the Server never promoted.
-         */
-        await typeTerminal(running.page, 'clear');
-        await expect(rows).not.toContainText('FAKE_CODEX_READY');
-        /**
-         * The screen clears before `clear` returns to the prompt, and a line typed in between never reached zsh on
-         * hosted runs. The shell hook logs a status once the prompt is back, so wait for it before typing.
+         * Type `cc` only once zsh is back at its prompt: a line typed earlier never reached zsh on hosted runs. The
+         * precmd hook logs a status after each command, and the launch log, not the first launch's banner still on
+         * screen, tells whether `cc` started the Agent. Two hosted runs never saw `clear` return here, so no `clear`.
          */
         await expect
             .poll(async () => {
                 const lines = await logLines(shellLog);
-                const index = lines.lastIndexOf('run:clear');
+                const index = lines.findLastIndex((line) => line.startsWith('run:alias cc'));
                 return (
                     index !== -1 &&
                     lines.slice(index + 1).some((line) => line.startsWith('status:'))

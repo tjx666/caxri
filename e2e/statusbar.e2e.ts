@@ -289,6 +289,10 @@ test('Status Bar hides the branch chip in a linked worktree and keeps the branch
         // The pointer still rests on the trigger, but its tooltip must not cover the menu the trigger just opened.
         await expect(page.locator('.tooltip-popup')).toHaveCount(0);
         await mainRoot.click();
+        // Hosted runs missed the branch picker here twice: tell a root that never switched back from a late branch read.
+        await expect(
+            page.getByRole('combobox', { name: /^Switch Workbench Root from owner/ }),
+        ).toBeVisible();
         await expect(page.getByRole('combobox', { name: 'Switch branch from main' })).toBeVisible();
     } finally {
         await running.app.close();
