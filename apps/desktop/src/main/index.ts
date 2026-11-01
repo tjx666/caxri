@@ -501,6 +501,7 @@ if (ownsProfileInstance) {
                 currentVersion: caxriVersion,
                 logger: () => mainLogger,
                 quitIntent,
+                refreshMenu: () => menuRefreshController.refresh(),
                 requestAppQuit,
                 sendEvent,
                 server: () => supervisor,

@@ -17,9 +17,15 @@ import type {
 
 import { translateCommandTitle, translateMain } from '../locale';
 import { electronAccelerator } from './accelerator';
+import { isUpdateReadyInMenu } from './update-readiness';
 
 export interface AppMenuOptions {
     keybindings: Keybinding[];
+    /**
+     * Whether a verified update is ready to install. `Check for Updates…` then reads `View Update…`, since there is
+     * nothing left to check and the item only opens the update dialog.
+     */
+    isUpdateReady?: boolean;
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
     openCaxriBot: () => void;
@@ -185,6 +191,7 @@ export function syncLocalMachineMenuItems(
  */
 export function buildAppMenuTemplate({
     keybindings,
+    isUpdateReady = isUpdateReadyInMenu(),
     dispatchCommand,
     openCaxriBot,
     openBenchmark,
@@ -197,7 +204,10 @@ export function buildAppMenuTemplate({
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
-        label: commandLabel(definition, keybindings),
+        label:
+            isUpdateReady && definition.id === 'updates.check'
+                ? translateMain('desktop.menu.viewUpdate')
+                : commandLabel(definition, keybindings),
         /**
          * Native Edit > Copy owns `Cmd+C` so Monaco and inputs keep standard copy semantics. Giving the contextual
          * Terminal command the same native accelerator makes Electron dispatch it before the focused Renderer surface

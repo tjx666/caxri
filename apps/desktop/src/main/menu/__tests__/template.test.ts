@@ -59,6 +59,26 @@ describe('application menu', () => {
             );
     });
 
+    it('reads View Update once a verified update is ready', () => {
+        const label = (isUpdateReady: boolean) =>
+            buildAppMenuTemplate({
+                keybindings: [],
+                isUpdateReady,
+                dispatchCommand: vi.fn(),
+                openCaxriBot: vi.fn(),
+                openBenchmark: vi.fn(),
+                openProcessExplorer: vi.fn(),
+                workbenchWindow: vi.fn(),
+                focusWorkbench: vi.fn(),
+                isFollowingAppZoom: () => false,
+            })
+                .flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []))
+                .find((item) => item.id === 'command.updates.check')?.label;
+
+        expect(label(false)).toBe('Check for Updates…');
+        expect(label(true)).toBe('View Update…');
+    });
+
     it('opens Caxri Bot in Main and leaves Stop to the Workbench, which asks before a running turn ends', () => {
         const dispatchCommand = vi.fn();
         const openCaxriBot = vi.fn();

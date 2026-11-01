@@ -22,7 +22,9 @@ shows the state and asks for the next step.
    executable. Only then does the state become `ready` with `installMode: 'restart'`. The SHA-256
    check is the integrity guarantee: release bundles are only linker-signed with no sealed
    resources, so `codesign --verify --strict` rejects even a complete copy.
-4. **Restart to Update.** The notification and the dialog offer one button. It runs the quit flow
+4. **Restart to Update.** Nothing restarts on its own. While an update is ready, the application
+   menu's **Check for Updates…** reads **View Update…** and reopens the dialog without checking
+   again; the dialog closes like any other. The notification and the dialog offer one button. It runs the quit flow
    with the `update` intent: unsaved editors are confirmed as usual, and running Terminals, Chats,
    other connected clients, or pending review comments raise a single **Restart and Update?**
    prompt. There is no keep-running choice: Server Core is stopped, because a Server from the old

@@ -133,6 +133,10 @@ describe('stageUpdateBundle', () => {
         const calls: string[] = [];
         const run = vi.fn(async (file: string, arguments_: readonly string[]) => {
             calls.push(file.split('/').at(-1)!);
+            if (file === '/bin/rm') {
+                await rm(arguments_.at(-1)!, { recursive: true, force: true });
+                return '';
+            }
             if (file.endsWith('hdiutil') && arguments_[0] === 'attach') {
                 // Pretend the image mounted one app.
                 const mountPoint = arguments_[arguments_.indexOf('-mountpoint') + 1];
@@ -176,6 +180,7 @@ describe('stageUpdateBundle', () => {
 
         expect(staged).toBe(join(root, 'staged', 'Caxri.app'));
         expect(calls).toEqual([
+            'rm',
             'hdiutil',
             'ditto',
             'hdiutil',
@@ -184,6 +189,29 @@ describe('stageUpdateBundle', () => {
             'PlistBuddy',
             'PlistBuddy',
         ]);
+    });
+
+    it('clears an earlier staged copy with /bin/rm, since Main cannot delete its app.asar', async () => {
+        const root = await scratch();
+        const leftover = join(root, 'staged', 'Caxri.app', 'Contents', 'Resources', 'app.asar');
+        await mkdir(dirname(leftover), { recursive: true });
+        await writeFile(leftover, 'previous release');
+        const { run } = plistRunner({
+            identifier: 'dev.caxri.app',
+            installedIdentifier: 'dev.caxri.app',
+            version: '2.0.0',
+        });
+
+        await stageUpdateBundle({
+            bundlePath: join(root, 'Applications', 'Caxri.app'),
+            dmgPath: join(root, 'Caxri-2.0.0.dmg'),
+            run,
+            stagingDirectory: join(root, 'staged'),
+            version: '2.0.0',
+        });
+
+        expect(run).toHaveBeenCalledWith('/bin/rm', ['-rf', '--', join(root, 'staged')]);
+        await expect(readFile(leftover)).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
     it('rejects a copy whose version or identity does not match', async () => {

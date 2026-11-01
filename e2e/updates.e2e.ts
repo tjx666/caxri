@@ -57,6 +57,14 @@ test('an admitted Acceptance update fixture downloads in the background and anno
                 .locator('[data-sonner-toast]')
                 .filter({ hasText: 'Caxri 999.0.0 is downloaded and verified.' }),
         ).toBeVisible();
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    ({ Menu }) =>
+                        Menu.getApplicationMenu()?.getMenuItemById('command.updates.check')?.label,
+                ),
+            )
+            .toBe('View Update…');
 
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');

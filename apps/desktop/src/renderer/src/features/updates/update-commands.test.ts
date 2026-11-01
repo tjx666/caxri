@@ -114,6 +114,15 @@ describe('checkForUpdates / downloadUpdate / cancelUpdateDownload / openDownload
         expect(useUpdateStore.getState().state).toEqual(idleState);
     });
 
+    it('reopens the dialog on a ready update instead of checking again', () => {
+        useUpdateStore.setState({ state: readyState });
+
+        checkForUpdates();
+
+        expect(useUpdateStore.getState().open).toBe(true);
+        expect(mocks.caxriRequest).not.toHaveBeenCalledWith('updates.check');
+    });
+
     it('wires downloadUpdate to updates.download with its own label', async () => {
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
 

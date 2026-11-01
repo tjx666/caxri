@@ -12,6 +12,7 @@ import { createAcceptanceUpdateFixture } from '../acceptance/update';
 import type { DesktopServerConnection } from '../connection/server-connection';
 import { translateMain } from '../locale';
 import type { createMainQuitHandler, createQuitIntent } from '../main-quit-wiring';
+import { didUpdateReadinessChange } from '../menu/update-readiness';
 import { exportProjectsAndSessions } from '../native-file-dialogs';
 import { packagedSourceMapFlavor } from '../source-map-flavor';
 import { offerMoveToApps } from './move-to-apps';
@@ -84,6 +85,10 @@ export function createDesktopUpdateService(options: {
     currentVersion: string;
     logger: () => StructuredLogger | undefined;
     quitIntent: ReturnType<typeof createQuitIntent>;
+    /**
+     * Rebuilds the native menu, whose update item reads `View Update…` while a verified update is ready.
+     */
+    refreshMenu: () => Promise<void>;
     requestAppQuit: ReturnType<typeof createMainQuitHandler>;
     sendEvent: (event: ServerEvent) => void;
     /**
@@ -213,6 +218,7 @@ export function createDesktopUpdateService(options: {
                         { fields: updateStateLogFields(state) },
                     );
             options.sendEvent({ event: 'updates.state', payload: state });
+            if (didUpdateReadinessChange(state)) void options.refreshMenu();
         },
     });
     // Packaged only: an unpackaged checkout's version is whatever package.json says and would announce itself.
