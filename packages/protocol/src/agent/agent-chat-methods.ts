@@ -18,7 +18,6 @@ import {
     agentChatSnapshotSchema,
     agentChatTaskSchema,
 } from './agent-chat-contract.js';
-import { agentChatImageMediaTypeSchema, agentChatThumbnailSchema } from './agent-chat-images.js';
 import {
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
