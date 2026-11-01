@@ -196,6 +196,11 @@ The audit itself is read-only. When the user asks for implementation:
   `bunx vitest run --silent='passed-only' <files>`; never a full suite or E2E; extract logic into
   pure functions for tests instead of unit-testing components; stay inside the assigned file set
   even when the worktree carries unrelated dirty files.
+- Before changing user-visible text, an accessible name, or a control, a subagent searches `e2e/`
+  and `apps/**/__tests__/` for the old text, the control's identifiers, and static fragments of
+  computed labels (`Chat` in `<Agent> Chat`). On a match it reports the `file:line` to the root and
+  leaves that change unapplied; the root decides and owns the consumer updates and focused E2E
+  (`pull-request` step 5). Dropping the `Chat` marker from Agent menu rows broke 13 specs this way.
 - The root agent then **personally verifies**: read every diff, re-run one aggregate
   `bun run check <all changed files> --lint --test --type`, run `bun run knip` when renderer or
   shared files changed, and only then commit: one cohesive commit per package, excluding
