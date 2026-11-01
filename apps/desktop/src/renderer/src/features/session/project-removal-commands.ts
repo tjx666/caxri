@@ -3,7 +3,7 @@ import type { BootstrapState } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { queryClient } from '../../queries/client';
-import { removeSessionQueries } from '../../queries/invalidation';
+import { removeSessionQueries } from '../../queries/session-queries';
 import { getBootstrap, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';

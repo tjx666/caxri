@@ -28,6 +28,7 @@ import {
 } from './invalidation-event-reads';
 import type { PendingFileChangeBatch, ViewChange } from './invalidation-hidden-window';
 import { createHiddenWindowDeferral } from './invalidation-hidden-window';
+import { sessionQueryPredicate } from './session-queries';
 
 /**
  * Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass.
@@ -303,41 +304,6 @@ function invalidateAgentTranscriptQuery(queryClient: QueryClient, terminalId?: s
 }
 
 /**
- * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a Session (or, with
- * every Session of a Project, a Project) is deleted, otherwise the cached reads (Git status, diffs, blame, file
- * listings, ...) linger under the removed sessionId until the default garbage collector reclaims them, even though the
- * Session can never be selected again. Unlike {@link invalidateFileDependentQueries}, this matches any method: a deleted
- * Session's data should never resurface, not just the file-dependent subset.
- */
-export function removeSessionQueries(
-    queryClient: QueryClient,
-    sessionIds: readonly string[],
-): void {
-    if (sessionIds.length === 0) return;
-    const removedSessionIds = new Set(sessionIds);
-    queryClient.removeQueries({
-        predicate: (query) => {
-            const [, parameters] = query.queryKey as [
-                CaxriMethod,
-                { contextKey?: string; sessionId?: string } | undefined,
-            ];
-            if (parameters?.sessionId !== undefined)
-                return removedSessionIds.has(parameters.sessionId);
-            /**
-             * Controlled views and Extension Trees identify their Session through the `${sessionId}:...` context key
-             * rather than a `sessionId` parameter, so the sweep has to recognize both shapes, otherwise a deleted
-             * Session's cached views survive until garbage collection, which the Extension Tree deliberately delays.
-             */
-            const contextKey = parameters?.contextKey;
-            if (contextKey === undefined) return false;
-            return removedSessionIds
-                .values()
-                .some((sessionId) => contextKey.startsWith(`${sessionId}:`));
-        },
-    });
-}
-
-/**
  * `files.exclude` is global, so any valid settings reload refreshes every visible tree listing.
  */
 function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient>): void {
@@ -488,7 +454,13 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'workbench.changed') {
-            removeSessionQueries(queryClient, [event.payload.sessionId]);
+            /**
+             * Reset rather than remove: a removed query leaves its mounted observer on the old root's data until
+             * something re-renders it, so the status bar kept a worktree's branch after switching back to `main`.
+             */
+            void queryClient.resetQueries({
+                predicate: sessionQueryPredicate([event.payload.sessionId]),
+            });
             void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
             return;
         }
