@@ -1,6 +1,7 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { agentChatTextWithPathReferences } from '@caxri/protocol';
 
+import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -9,6 +10,8 @@ import {
     chatTimelineFrame,
     checkBounds,
     hasCheck,
+    hideChatKeyboard,
+    scrollTimelineUntil,
     sendFromPhone,
     swipeTimelineTowardEarlier,
     typeChatDraft,
@@ -36,6 +39,15 @@ const LONG_QUEUED_MESSAGE =
     'Next, rename the helper to sumItems and update every call site, then run the unit tests again and report which ' +
     'files changed. Keep the public names unchanged and leave the docs alone for now, we will review them together ' +
     'tomorrow morning.';
+
+/**
+ * The first block of the fake Codex `codeblocks` reply (`fake-codex-replies.ts`), as Copy puts it on the clipboard.
+ */
+const CODE_BLOCK_TS = [
+    'export function total(items: number[]): number {',
+    '    return items.reduce((sum, item) => sum + item, 0);',
+    '}',
+].join('\n');
 
 const findItem = (
     snapshot: AgentChatSnapshot,
@@ -95,10 +107,10 @@ async function scrollDraftToTop(serial: string): Promise<void> {
 
 /**
  * `MOB-CHAT-10`: the phone's Codex Chat composer and timeline. It covers the permission trigger and sheet, fenced code
- * highlighted by language, a finished multi-step turn folded behind `Worked for` with a failed command's exit code,
- * following the user's own send to the latest message, slash commands, the visible Queue button, editing a long queued
- * message, editing a queued message that cites a file in place, a message shown as `Sending…` before Server Core
- * accepts it, and a draft taller than the composer.
+ * highlighted by language with Copy in each block's corner, a finished multi-step turn folded behind `Worked for` with
+ * a failed command's exit code, following the user's own send to the latest message, slash commands, the visible Queue
+ * button, editing a long queued message, editing a queued message that cites a file in place, a message shown as
+ * `Sending…` before Server Core accepts it, and a draft taller than the composer.
  */
 export async function executeMobileChatComposerScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -169,6 +181,76 @@ export async function executeMobileChatComposerScenario(
         await waitForNoCheck(serial, 'agent-chat-activity');
         await waitForCheck(serial, 'conversation-fenced-code');
         await capture(environment, 'code-blocks', artifacts);
+
+        // A long press on a code block opens only the message sheet (#3377): the block is not selectable, so the
+        // system selection toolbar no longer opens over the sheet. The toolbar is a popup UIAutomator does not list, so
+        // the screenshot shows its absence once a selection would have settled.
+        // The reply follows to its end, so the timeline scrolls back until the first block, the `ts` one, has its top
+        // (and the Copy button there) inside the timeline below the header.
+        await scrollTimelineUntil(serial, async () => {
+            const nodes = await mobileSemantics(serial);
+            const frame = checkBounds(nodes, 'conversation-view');
+            const top = checkBounds(nodes, 'conversation-fenced-code')?.top;
+            return (
+                frame !== undefined &&
+                top !== undefined &&
+                top >= frame.top &&
+                top + 120 < frame.bottom
+            );
+        });
+        const beforePress = await mobileSemantics(serial);
+        const block = checkBounds(beforePress, 'conversation-fenced-code');
+        if (!block) throw new Error('The fenced code block is not on screen');
+        const pressX = String(block.left + 60);
+        const pressY = String(block.top + 60);
+        await adbShell(serial, ['input', 'swipe', pressX, pressY, pressX, pressY, '900']);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await capture(environment, 'code-block-long-press', artifacts);
+        const hasSheet = hasCheck(await mobileSemantics(serial), 'conversation-message-sheet');
+        if (!hasSheet || !hasCheck(beforePress, 'conversation-fenced-code-copy')) {
+            // Keeps the frames citable in a failed baseline round, as the runner binds the manifest either way.
+            await writeJsonAtomic(environment.artifactManifestPath, {
+                artifacts,
+                schemaVersion: 1,
+            });
+            throw new Error(
+                hasSheet
+                    ? 'A code block shows no Copy button'
+                    : 'A long press on a code block did not open the message sheet',
+            );
+        }
+        await tapMobileCheckByBounds(serial, 'conversation-message-cancel');
+        await waitForNoCheck(serial, 'conversation-message-sheet');
+
+        // Copy in a code block's corner copies the whole block: the tap lands on the first block, the `ts` one, and
+        // pasting into the composer proves what reached the clipboard.
+        await tapMobileCheckByBounds(serial, 'conversation-fenced-code-copy', {
+            viewport: 'conversation-view',
+        });
+        await waitForCheck(serial, 'conversation-fenced-code-copy-copied');
+        await capture(environment, 'code-block-copied', artifacts);
+        // Android shows its clipboard preview over the composer after a copy; a touch elsewhere dismisses it.
+        await adbShell(serial, ['input', 'tap', '540', '1000']);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_PASTE']);
+        await waitForMobile(
+            () =>
+                observeMobileNode(serial, 'agent-chat-composer-input', {
+                    kind: 'equals',
+                    value: CODE_BLOCK_TS,
+                }),
+            (node) => node.exists && node.textMatches === true,
+        );
+        await hideChatKeyboard(serial);
+        await capture(environment, 'code-block-pasted', artifacts);
+        // Clears the pasted draft with Select All and one Delete; the next keyword send checks the draft is exactly its
+        // word, so a leftover character fails there. A burst of one Delete per character left the draft whole and the
+        // phone reconnecting.
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+        await adbShell(serial, ['input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A']);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_DEL']);
+        await hideChatKeyboard(serial);
 
         // A finished multi-step turn (#1882) with a failed command (#1601).
         await sendFromPhone(serial, 'testrun');
@@ -246,7 +328,7 @@ export async function executeMobileChatComposerScenario(
         await capture(environment, 'command-json-detail', artifacts);
         await waitForCheck(serial, 'agent-chat-work-copy-command');
         await tapMobileCheckByBounds(serial, 'agent-chat-work-copy');
-        await waitForCheck(serial, 'agent-chat-work-copied');
+        await waitForCheck(serial, 'agent-chat-work-copy-copied');
         await capture(environment, 'command-copied', artifacts);
         await tapMobileCheckByBounds(serial, 'tool-detail-close');
         await waitForNoCheck(serial, 'conversation-tool-detail');
@@ -312,11 +394,21 @@ export async function executeMobileChatComposerScenario(
             throw new Error('A lone settled call must not sit in a run summary');
         await capture(environment, 'lone-call-row', artifacts);
 
-        // Slash commands (#1708): typing `/` lists the provider's commands, and choosing one runs it.
+        // Slash commands (#1708): typing `/` lists the provider's commands, and choosing one runs it. Caxri's own
+        // `/new-session` leads the list, so the query narrows it to `/compact` before the first row is chosen.
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
         await adbShell(serial, ['input', 'text', '/']);
         await waitForCheck(serial, 'agent-chat-command-list');
         await capture(environment, 'slash-commands', artifacts);
+        await adbShell(serial, ['input', 'text', 'compact']);
+        await waitForMobile(
+            () =>
+                observeMobileNode(serial, 'agent-chat-composer-input', {
+                    kind: 'equals',
+                    value: '/compact',
+                }),
+            (node) => node.exists && node.textMatches === true,
+        );
         await tapMobileCheckByBounds(serial, 'agent-chat-command-0');
         await waitForMobile(
             () => chat.read(),
@@ -442,6 +534,8 @@ export async function executeMobileChatComposerScenario(
         await capture(environment, 'tall-draft-top', artifacts);
 
         await finish(environment, artifacts, {
+            codeBlockCopy: 'whole-block-pasted',
+            codeBlockLongPress: 'message-sheet-only',
             codeBlocks: 'rendered',
             commandExitCode: 1,
             followAfterSend: 'latest',

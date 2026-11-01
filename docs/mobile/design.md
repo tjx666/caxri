@@ -339,7 +339,8 @@ parses provider files.
 
 - User messages: right-aligned bubbles on the raised surface color, max 85% width.
 - Agent replies: full-width Markdown, rendered natively. Code blocks scroll horizontally and never
-  wrap; inline code uses the monospace face.
+  wrap, and carry a Copy button in their top-right corner that copies the whole block; inline code
+  uses the monospace face.
 - Long-pressing a user bubble or an Agent reply opens a message sheet: `Copy Message` copies its
   whole text (a reply as its Markdown source), and `Select Text` shows that text selectable so any
   part can be copied. Message text in the timeline is not selectable itself, because on Android a
