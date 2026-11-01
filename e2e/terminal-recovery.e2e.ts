@@ -395,11 +395,15 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await running.page.keyboard.press('Meta+Shift+A');
         await expect(running.page.locator('[data-agent-actions-picker]')).toHaveCount(0);
 
+        const agentState = async () =>
+            (await bootstrapTerminal(running.page, terminalId))?.lastAgentProcessState;
+        // CODEX_SHIM separates a PATH that lost the E2E shim from a launch that failed after resolving it.
         await typeTerminal(
             running.page,
-            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_ALIAS_READY\n'`,
+            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_ALIAS_READY\n'; [[ $commands[codex] == */shell-bin/codex ]] && echo CODEX_SHIM`,
         );
         await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
+        await expect(rows).toContainText('CODEX_SHIM');
         /**
          * The first launch's banner is still on screen, so without clearing it the readiness check below passed before
          * `cc` ran at all, and a hosted failure could not tell an alias that never started the Agent from a started
@@ -409,11 +413,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await expect(rows).not.toContainText('FAKE_CODEX_READY');
         await typeTerminal(running.page, 'cc');
         await expect(rows).toContainText('FAKE_CODEX_READY');
-        await expect
-            .poll(async () => {
-                return (await bootstrapTerminal(running.page, terminalId))?.lastAgentProcessState;
-            })
-            .toBe('running');
+        await expect.poll(agentState).toBe('running');
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
@@ -423,11 +423,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         await expect(running.page.locator('[data-agent-actions-picker]')).toHaveCount(0);
         await input.focus();
         await input.press('Control+C');
-        await expect
-            .poll(async () => {
-                return (await bootstrapTerminal(running.page, terminalId))?.lastAgentProcessState;
-            })
-            .toBe('stopped');
+        await expect.poll(agentState).toBe('stopped');
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
