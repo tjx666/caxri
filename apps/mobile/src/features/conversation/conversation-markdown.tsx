@@ -10,6 +10,7 @@ import {
 import type { ASTNode, RenderRules } from '@ronradtke/react-native-markdown-display';
 import Markdown from '@ronradtke/react-native-markdown-display';
 
+import { CopyButton } from '../../components/copy-button';
 import { HighlightedCode } from '../../components/highlighted-code';
 import { openLink } from '../../lib/open-link';
 import { MONOSPACE_FONT } from '../../theme/monospace';
@@ -129,9 +130,11 @@ const prosePathRuns = (content: string): Array<{ file?: string; text: string }> 
 };
 
 /**
- * A code block in a reply: monospace, selectable, and scrolled sideways rather than wrapped. A known language paints
- * through `HighlightedCode`, which is memoized on the code and language, so a streamed reply re-tokenizes only the
- * block still growing; anything else stays one plain color.
+ * A code block in a reply: monospace and scrolled sideways rather than wrapped, with Copy in its corner. A known
+ * language paints through `HighlightedCode`, which is memoized on the code and language, so a streamed reply
+ * re-tokenizes only the block still growing; anything else stays one plain color. The text is not `selectable`: inside
+ * a message row the long press belongs to the message's actions (`ConversationMessagePress`), and a selectable block
+ * opened the system selection toolbar on top of that sheet.
  */
 const ConversationCodeBlock = ({
     code,
@@ -161,12 +164,19 @@ const ConversationCodeBlock = ({
         >
             <ScrollView horizontal showsHorizontalScrollIndicator>
                 <Text
-                    selectable
-                    style={{ color: theme.text, fontFamily: monospace, fontSize: 13, padding: 12 }}
+                    style={{
+                        color: theme.text,
+                        fontFamily: monospace,
+                        fontSize: 13,
+                        padding: 12,
+                        // Lets a scrolled-to-the-end first line clear the Copy button.
+                        paddingRight: 44,
+                    }}
                 >
                     {language ? <HighlightedCode code={text} language={language} /> : text}
                 </Text>
             </ScrollView>
+            <CopyButton testID={`${testID}-copy`} text={text} theme={theme} />
         </View>
     );
 };

@@ -1,5 +1,8 @@
 export const components = {
     'components.back': 'Back',
+    'components.copied': 'Copied',
+    'components.copy': 'Copy',
+    'components.copyFailed': 'Unable to copy. Try again.',
     'components.done': 'Done',
     'components.openLinkFailed.message': 'No app on this device could open {{url}}.',
     'components.openLinkFailed.title': "Couldn't open link",

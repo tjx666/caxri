@@ -1,6 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWorkItem } from '@caxri/protocol';
 import {
@@ -14,9 +13,8 @@ import {
     stripLineNumberGutter,
     unwrapShellCommand,
 } from '@caxri/protocol';
-import * as Clipboard from 'expo-clipboard';
-import { Check, CircleAlert, Copy } from 'lucide-react-native';
 
+import { CopyButton } from '../../components/copy-button';
 import { HighlightedCode } from '../../components/highlighted-code';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
@@ -28,66 +26,6 @@ import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatTaskDetailBody } from './agent-chat-task-detail';
 import { useAgentChatSubagentTask, useAgentChatTaskLink } from './agent-chat-task-links';
 import { useAgentChatTaskStop } from './use-agent-chat-task-detail';
-
-/**
- * How long Copy shows its confirmation, matching Desktop's `COPY_FEEDBACK_RESET_MS`.
- */
-const COPY_FEEDBACK_RESET_MS = 2000;
-
-/**
- * Copy confirms in place, like Desktop's `CopyIconButton`, instead of with a toast: the detail sheet is an Android
- * `Modal` window that covers the app's root toast, so a toast here would never be seen.
- */
-const CopyButton = ({
-    code,
-    testID,
-    theme,
-}: {
-    code: string;
-    testID: string;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
-    useEffect(() => {
-        if (status === 'idle') return;
-        const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
-        return () => clearTimeout(timer);
-    }, [status]);
-    const label = {
-        copied: t('chat.work.copied'),
-        failed: t('chat.work.copyFailed'),
-        idle: t('chat.work.copy'),
-    }[status];
-    return (
-        <Pressable
-            accessibilityLabel={label}
-            accessibilityLiveRegion="polite"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={() => {
-                void Clipboard.setStringAsync(code)
-                    .then(() => setStatus('copied'))
-                    .catch(() => setStatus('failed'));
-            }}
-            style={({ pressed }) => [
-                styles.copy,
-                { backgroundColor: theme.elevated, opacity: pressed ? 0.5 : 1 },
-            ]}
-            testID={testID}
-        >
-            {status === 'copied' ? (
-                <View testID="agent-chat-work-copied">
-                    <Check color={theme.success} size={15} />
-                </View>
-            ) : status === 'failed' ? (
-                <CircleAlert color={theme.danger} size={15} />
-            ) : (
-                <Copy color={theme.muted} size={15} />
-            )}
-        </Pressable>
-    );
-};
 
 /**
  * A code block in the detail sheet: syntax colored, selectable, and capped in height so a long output scrolls inside
@@ -118,7 +56,7 @@ const CodeBlock = ({
                 <HighlightedCode code={code} language={codeLanguage(language)} />
             </Text>
         </ScrollView>
-        <CopyButton code={code} testID={copyTestID} theme={theme} />
+        <CopyButton testID={copyTestID} text={code} theme={theme} />
     </View>
 );
 
@@ -346,7 +284,6 @@ const styles = StyleSheet.create({
         paddingRight: 36,
         paddingVertical: 8,
     },
-    copy: { borderRadius: 6, padding: 6, position: 'absolute', right: 4, top: 4 },
     note: { fontSize: 13, lineHeight: 18 },
     backgroundTask: { gap: 4, paddingTop: 6 },
     sectionTitle: { fontSize: 14, fontWeight: '700' },

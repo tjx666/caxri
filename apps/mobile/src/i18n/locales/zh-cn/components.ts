@@ -4,6 +4,9 @@ import type { components as source } from '../en/components';
 
 export const components: TranslatedNamespace<typeof source> = {
     'components.back': '返回',
+    'components.copied': '已复制',
+    'components.copy': '复制',
+    'components.copyFailed': '复制失败，请重试。',
     'components.done': '完成',
     'components.openLinkFailed.message': '此设备上没有可以打开 {{url}} 的应用。',
     'components.openLinkFailed.title': '无法打开链接',
