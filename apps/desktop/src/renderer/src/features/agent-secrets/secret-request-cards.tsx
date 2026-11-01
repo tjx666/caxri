@@ -2,12 +2,13 @@ import { useState } from 'react';
 
 import type { AgentSecretRequest } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import { KeyRound, SquareArrowOutUpRight } from 'lucide-react';
+import { KeyRound, Minus, SquareArrowOutUpRight } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Input } from '../../components/ui/input';
 import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
@@ -23,15 +24,43 @@ import { secretAnswerFailure, secretRequestAnswer } from './agent-secrets-summar
  * for an editor or Terminal. One request shows at a time, oldest first; the rest wait behind it. A request leaves when
  * it is answered, when the Agent stops waiting, or when it expires, all through `agentSecrets.changed`. The card
  * follows T3 Code's secret request (see `.agents/skills/competitors/references/feature-references.md`).
+ *
+ * The user can minimize the card to a chip that still counts the waiting requests, so putting a request off never hides
+ * it: minimizing is not declining. The choice is window-local and lasts until the queue empties, so a request arriving
+ * while minimized raises the count instead of reopening the card.
  */
 export function SecretRequestCards() {
+    const { t } = useTranslation();
     const query = useCaxriQuery('secrets.requests.list', {});
     const requests = query.data?.requests ?? [];
     const current = requests.toSorted((left, right) => left.createdAt - right.createdAt).at(0);
+    const [isMinimized, setIsMinimized] = useState(false);
+    // Adjusting state while rendering: an emptied queue resets the choice without an effect's extra frame.
+    if (!current && isMinimized) setIsMinimized(false);
     if (!current) return null;
     return (
-        <div className="pointer-events-none fixed top-10 right-4 z-40 flex w-[min(400px,92vw)] flex-col items-stretch">
-            <SecretRequestCard key={current.id} moreCount={requests.length - 1} request={current} />
+        <div className="pointer-events-none fixed top-10 right-4 z-40 flex w-[min(400px,92vw)] flex-col items-end">
+            {isMinimized ? (
+                <Button
+                    // Focus follows the user's own minimize, so the keyboard keeps its place instead of falling to the page.
+                    autoFocus
+                    aria-label={t('agentSecrets.request.chipLabel', { count: requests.length })}
+                    className="pointer-events-auto shadow-[0_12px_32px_var(--shadow)]"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setIsMinimized(false)}
+                >
+                    <KeyRound aria-hidden="true" className="size-3.5" />
+                    {t('agentSecrets.request.chip', { count: requests.length })}
+                </Button>
+            ) : (
+                <SecretRequestCard
+                    key={current.id}
+                    moreCount={requests.length - 1}
+                    request={current}
+                    onMinimize={() => setIsMinimized(true)}
+                />
+            )}
         </div>
     );
 }
@@ -39,9 +68,11 @@ export function SecretRequestCards() {
 function SecretRequestCard({
     moreCount,
     request,
+    onMinimize,
 }: {
     moreCount: number;
     request: AgentSecretRequest;
+    onMinimize: () => void;
 }) {
     const { t } = useTranslation();
     const session = useSessionById(request.sessionId);
@@ -79,8 +110,13 @@ function SecretRequestCard({
             aria-label={t('agentSecrets.request.title', {
                 agent: provider?.displayName ?? t('agentSecrets.request.agentFallback'),
             })}
-            className="pointer-events-auto grid gap-3 rounded-lg border border-border bg-elevated p-3 text-foreground shadow-[0_12px_32px_var(--shadow)]"
+            className="pointer-events-auto grid w-full gap-3 rounded-lg border border-border bg-elevated p-3 text-foreground shadow-[0_12px_32px_var(--shadow)]"
             data-agent-secret-request={request.id}
+            onKeyDown={(event) => {
+                if (event.key !== 'Escape' || event.defaultPrevented) return;
+                event.preventDefault();
+                onMinimize();
+            }}
         >
             <header className="flex items-start gap-2">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
@@ -109,6 +145,16 @@ function SecretRequestCard({
                     <SquareArrowOutUpRight className="size-3.5" />
                     {t('agentSecrets.request.openSession')}
                 </Button>
+                <Tooltip content={t('agentSecrets.request.minimize')}>
+                    <Button
+                        aria-label={t('agentSecrets.request.minimize')}
+                        size="icon"
+                        variant="ghost"
+                        onClick={onMinimize}
+                    >
+                        <Minus className="size-3.5" />
+                    </Button>
+                </Tooltip>
             </header>
             <div className="grid gap-1">
                 <span className="text-[11px] text-muted">

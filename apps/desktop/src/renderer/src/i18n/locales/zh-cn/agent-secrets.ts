@@ -14,6 +14,9 @@ export const agentSecrets: TranslatedNamespace<typeof source> = {
     'agentSecrets.request.decline': '拒绝',
     'agentSecrets.request.openSession': '打开会话',
     'agentSecrets.request.more': '还有 {{count}} 个在等待',
+    'agentSecrets.request.minimize': '最小化',
+    'agentSecrets.request.chip': '密钥请求 · {{count}}',
+    'agentSecrets.request.chipLabel': '密钥请求，{{count}} 个在等待。展开',
     'agentSecrets.request.failed': '无法回复这个请求，请重试。',
     'agentSecrets.request.gone': 'Agent 已不再等待这个密钥。',
     'agentSecrets.settings.empty':
