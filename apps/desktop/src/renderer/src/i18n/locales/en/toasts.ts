@@ -51,7 +51,6 @@ export const toasts = {
     // stores/toast-actions.ts, commands/toast-actions.ts: why a follow-up can no longer run
     'toasts.actionUnavailable.unknown': 'Caxri could not run this action.',
     'toasts.actionUnavailable.missingSession': 'That Session no longer exists.',
-    'toasts.actionUnavailable.sessionMovedOn': 'This Session has moved on from that switch.',
 
     // stores/notifications.ts: mutable notification types
     'toasts.type.worktreeFallback': 'Worktree fallback',

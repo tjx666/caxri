@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
     showUpdateDialog: vi.fn(),
     tryCommand: vi.fn(),
     unarchiveSession: vi.fn(),
-    undoFollowedWorkbenchRoot: vi.fn(),
     writeText: vi.fn(),
 }));
 
@@ -50,9 +49,6 @@ vi.mock('./execute', () => ({ executeCommand: mocks.executeCommand }));
 vi.mock('../stores/dialogs', () => ({ openSettings: mocks.openSettings }));
 vi.mock('../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
 vi.mock('../stores/toasts', () => ({ pushToast: vi.fn(), tryCommand: mocks.tryCommand }));
-vi.mock('../stores/workbench-root-notice', () => ({
-    undoFollowedWorkbenchRoot: mocks.undoFollowedWorkbenchRoot,
-}));
 
 import {
     configureToastActions,
@@ -168,58 +164,17 @@ describe('toast action handlers', () => {
         expect(mocks.restartTerminalWithRecovery).toHaveBeenCalledOnce();
     });
 
-    it('refuses an Undo whose Session has moved on from the switch it takes back', () => {
-        const parameters = {
-            sessionId: 'session-1',
-            projectId: 'project-owner',
-            followedProjectId: 'project-followed',
-        };
-
-        expect(
-            runToastAction({ id: 'workbench.undoFollowedRoot', params: parameters }),
-        ).toBeUndefined();
-        expect(mocks.undoFollowedWorkbenchRoot).toHaveBeenCalledWith('session-1', 'project-owner');
-
-        // The snapshot only catches up to the followed root after this notice is raised, so the root the undo returns
-        // to still counts as "that switch"; refusing here would kill the button for the seconds it is on screen.
-        mocks.getBootstrap.mockReturnValue({
-            sessions: [{ ...SESSION, workbenchRootProjectId: 'project-owner' }],
-            terminals: [],
-        });
-        expect(
-            runToastAction({ id: 'workbench.undoFollowedRoot', params: parameters }),
-        ).toBeUndefined();
-
-        mocks.getBootstrap.mockReturnValue({
-            sessions: [{ ...SESSION, workbenchRootProjectId: 'project-chosen-later' }],
-            terminals: [],
-        });
-        expect(runToastAction({ id: 'workbench.undoFollowedRoot', params: parameters })).toBe(
-            'This Session has moved on from that switch.',
-        );
-        expect(mocks.undoFollowedWorkbenchRoot).toHaveBeenCalledTimes(2);
-    });
-
     it('refuses every Session-scoped follow-up once the Session is gone', () => {
         mocks.getBootstrap.mockReturnValue({ sessions: [], terminals: [] });
 
         for (const action of [
             { id: 'session.unarchive', params: { sessionId: 'session-1' } },
             { id: 'terminal.create', params: { sessionId: 'session-1', kind: 'shell' } },
-            {
-                id: 'workbench.undoFollowedRoot',
-                params: {
-                    sessionId: 'session-1',
-                    projectId: 'project-owner',
-                    followedProjectId: 'project-followed',
-                },
-            },
         ] as const)
             expect(runToastAction(action)).toBe('That Session no longer exists.');
 
         expect(mocks.unarchiveSession).not.toHaveBeenCalled();
         expect(mocks.createTerminalForSession).not.toHaveBeenCalled();
-        expect(mocks.undoFollowedWorkbenchRoot).not.toHaveBeenCalled();
     });
 
     it('answers for the failed save with the reason the editor gives', () => {

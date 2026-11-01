@@ -539,16 +539,6 @@ export function persistSessionState(
 }
 
 /**
- * Reads the root this Session is currently showing. Called synchronously while handling `workbench.changed` it still
- * observes the pre-change snapshot, because the `state.changed` emitted alongside it only schedules a refresh.
- */
-function currentWorkbenchRootProjectId(sessionId: string): string | undefined {
-    return useWorkbenchStore
-        .getState()
-        .bootstrap?.sessions.find((session) => session.id === sessionId)?.workbenchRootProjectId;
-}
-
-/**
  * The single `onEvent` subscription for Server-driven workbench state. Every listener that used to live inside App's
  * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Server
  * event fails compile instead of disappearing.
@@ -629,10 +619,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'workbench.changed':
                 dismissWorkbenchRootCandidate(event.payload.sessionId);
-                reportWorkbenchRootChange(
-                    event.payload,
-                    currentWorkbenchRootProjectId(event.payload.sessionId),
-                );
+                reportWorkbenchRootChange(event.payload);
                 return;
             case 'window.fullScreen':
                 if (event.payload.window === 'workbench')

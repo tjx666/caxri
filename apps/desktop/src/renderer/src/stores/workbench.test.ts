@@ -30,33 +30,14 @@ vi.mock(import('./notifications'), async (importOriginal) => ({
     syncNotificationSettings: vi.fn(),
 }));
 
-import { toastActionHandlers } from '../commands/toast-actions';
 import { useNotificationStore } from './notifications';
 import { registerSessionCommandConvergence } from './session-command-convergence';
 import { useSessionViewStore } from './session-view';
-import { configureToastActions } from './toast-actions';
 import { dismissToast, getToasts } from './toasts';
 import { refreshWorkbench, subscribeWorkbenchEvents, useWorkbenchStore } from './workbench';
 
 function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn(), onSettingsTarget: vi.fn() };
-}
-
-// The toast records only the name of its follow-up, so the click below reaches nothing without the window's handler
-// table; `main.tsx` performs this same install before the first render.
-configureToastActions(toastActionHandlers);
-
-/**
- * Activates the Undo button of the newest toast the way the rendered notification does.
- */
-function undoToast(): void {
-    const action = getToasts().at(-1)?.action;
-    if (typeof action !== 'object' || action === null || !('onClick' in action))
-        throw new Error('The notice offered no Undo action');
-    // Two spans: the visible `Undo` and the screen-reader name that says which switch it takes back, since several
-    // notices can offer an `Undo` that are not the same undo.
-    expect(JSON.stringify(action.label)).toContain('Undo the switch to worktree feature-entered');
-    (action.onClick as unknown as () => void)();
 }
 
 afterEach(() => {
@@ -529,91 +510,10 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 
-    it('announces an Agent-driven Workbench Root switch and undoes it to the captured root', async () => {
-        useWorkbenchStore.setState({
-            bootstrap: {
-                configurationErrors: [],
-                sessions: [{ id: 'session-1', workbenchRootProjectId: 'project-owner' }],
-                sessionStates: [],
-                terminals: [],
-            } as unknown as BootstrapState,
-        });
+    it('stays silent for a Workbench Root switch the user performed or an Agent led', () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
 
-        mocks.emit({
-            event: 'workbench.changed',
-            payload: {
-                sessionId: 'session-1',
-                workbenchRootProjectId: 'project-worktree',
-                reason: 'followed',
-                followedProjectTitle: 'feature-entered',
-            },
-        });
-
-        expect(getToasts()).toEqual([
-            expect.objectContaining({
-                type: 'info',
-                title: 'Switched to worktree "feature-entered" — an Agent moved there.',
-                duration: 4_000,
-            }),
-        ]);
-        mocks.request.mockImplementation((method: unknown) =>
-            Promise.resolve(
-                method === 'app.bootstrap'
-                    ? { configurationErrors: [], sessions: [], sessionStates: [], terminals: [] }
-                    : {},
-            ),
-        );
-        undoToast();
-        await vi.waitFor(() =>
-            expect(mocks.request).toHaveBeenCalledWith('session.selectWorkbenchRoot', {
-                sessionId: 'session-1',
-                projectId: 'project-owner',
-            }),
-        );
-        unsubscribe();
-    });
-
-    it('reports a failed undo as one error toast instead of an unhandled rejection', async () => {
-        useWorkbenchStore.setState({
-            bootstrap: {
-                configurationErrors: [],
-                sessions: [{ id: 'session-1', workbenchRootProjectId: 'project-owner' }],
-                sessionStates: [],
-                terminals: [],
-            } as unknown as BootstrapState,
-        });
-        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
-        mocks.emit({
-            event: 'workbench.changed',
-            payload: {
-                sessionId: 'session-1',
-                workbenchRootProjectId: 'project-worktree',
-                reason: 'followed',
-                followedProjectTitle: 'feature-entered',
-            },
-        });
-        mocks.request.mockImplementation(() =>
-            Promise.reject(new Error('The worktree is no longer available.')),
-        );
-
-        undoToast();
-
-        await vi.waitFor(() =>
-            expect(getToasts()).toContainEqual(
-                expect.objectContaining({
-                    type: 'error',
-                    title: 'Unable to return to the previous Workbench Root. The worktree is no longer available.',
-                }),
-            ),
-        );
-        unsubscribe();
-    });
-
-    it('stays silent for a Workbench Root switch the user performed', () => {
-        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
-
-        for (const reason of ['selected', 'authorized'] as const)
+        for (const reason of ['selected', 'authorized', 'followed'] as const)
             mocks.emit({
                 event: 'workbench.changed',
                 payload: {

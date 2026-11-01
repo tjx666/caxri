@@ -233,8 +233,6 @@ export class WorkbenchRootService {
         fallbackReason?: string,
     ): void {
         const owner = this.requireProject(session.projectId);
-        const root = this.options.database.getProject(session.workbenchRootProjectId);
-        const followed = reason === 'followed' && root;
         this.onRootChanged?.(session.id);
         this.options.emit({
             event: 'state.changed',
@@ -246,7 +244,6 @@ export class WorkbenchRootService {
                 sessionId: session.id,
                 workbenchRootProjectId: session.workbenchRootProjectId,
                 reason,
-                ...(followed && { followedProjectTitle: followed.title }),
                 ...(reason === 'fallback' && { returnedProjectTitle: owner.title }),
             },
         });
