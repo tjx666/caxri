@@ -271,6 +271,9 @@ moves, not only at filing time. The options are `Backlog`, `Next`, `In Progress`
 Use `In Progress` instead of `Next` only when implementation or verification is already underway.
 When work starts later, flip it in the same turn you start, before writing code, not after. Set
 `Done` only once the PR is merged; a PR that is merely open leaves the issue `In Progress`.
+A checklist issue delivered by several `Refs` PRs never closes on merge: after merging the PR that
+finishes its last open item, tick that item, close the issue, and set `Done`. Every R1 to R10 PR of
+#2141 merged while the issue stayed open.
 
 **`Backlog` means the owner does not want this done yet.** Never start work on a `Backlog` issue,
 even when it is routed to you. Skip it and say why. The only thing that overrides this is the owner explicitly
