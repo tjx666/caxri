@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
-import { showToast } from '../../../components/toast-store';
 import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -16,9 +18,13 @@ import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useProjectReorder } from '../hooks/use-project-reorder';
 import { useSessionManagement } from '../hooks/use-session-management';
-import type { SwipeRow } from '../open-swipe-row';
-import { createOpenSwipeRow } from '../open-swipe-row';
-import { activeProjectFilter, filterSessionEntries } from '../project-filter';
+import type { ProjectFilterSwipe } from '../project-filter';
+import {
+    activeProjectFilter,
+    adjacentProjectFilter,
+    filterSessionEntries,
+    projectFilterSwipe,
+} from '../project-filter';
 import {
     sessionListAttentionSource,
     shouldListFallbackToTerminal,
@@ -34,7 +40,6 @@ import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
 import { SessionHomeEmpty } from './session-home-empty';
 import { SessionHomeHeader } from './session-home-header';
 import { SessionRow } from './session-row';
-import { SessionSwipeRow } from './session-swipe-row';
 
 const styles = StyleSheet.create({
     list: { flex: 1 },
@@ -61,6 +66,20 @@ const styles = StyleSheet.create({
     },
     tabletNewText: mobileType.bodyStrong,
 });
+
+/**
+ * How far a finger must travel sideways before the list switches Project instead of scrolling. The list's own vertical
+ * slop (8dp) wins any mostly vertical drag first, and a drag that moves `PROJECT_SWIPE_FAIL_Y_DP` vertically before
+ * reaching it stays a scroll.
+ */
+const PROJECT_SWIPE_ACTIVATION_DP = 24;
+const PROJECT_SWIPE_FAIL_Y_DP = 16;
+/**
+ * The list follows a sideways drag at this fraction of the finger, enough to show the swipe registered without
+ * suggesting the next Project's rows are already underneath.
+ */
+const PROJECT_SWIPE_FOLLOW = 0.25;
+const PROJECT_SWIPE_SETTLE_MS = 150;
 
 const entryKey = (entry: SessionListRow): string => entry.id;
 const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
@@ -96,42 +115,13 @@ export const SessionHome = ({
     const listReference = useRef<FlashListRef<SessionListRow>>(null);
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
-    const { archive, clearError } = management;
-    const archiveError = management.error;
-    /**
-     * The actions sheet reports its own failures; a swipe archive has no sheet to show one in, so it uses the toast.
-     */
-    useEffect(() => {
-        if (actionSession !== null || !archiveError) return;
-        showToast('error', archiveError);
-        clearError();
-    }, [actionSession, archiveError, clearError]);
-    const [swipe] = useState(createOpenSwipeRow);
-    const { closeOpen: closeOpenSwipe, hasOpen: hasOpenSwipe } = swipe;
-    const handleSwipeOpen = useCallback(
-        (row: SwipeRow): void => {
-            clearError();
-            swipe.handleOpen(row);
-        },
-        [clearError, swipe],
-    );
-    /**
-     * Like a chat list, the first tap after revealing a row's action dismisses it instead of opening a Session.
-     */
-    const openSession = useCallback(
-        (sessionId: string): void => {
-            if (hasOpenSwipe()) closeOpenSwipe();
-            else onOpenSession(sessionId);
-        },
-        [closeOpenSwipe, hasOpenSwipe, onOpenSession],
-    );
+    const { clearError } = management;
     const openActions = useCallback(
         (session: MobileSessionItem): void => {
-            closeOpenSwipe();
             clearError();
             setActionSession(session);
         },
-        [clearError, closeOpenSwipe],
+        [clearError],
     );
     const hasRestoredScroll = useRef(false);
     const {
@@ -202,6 +192,38 @@ export const SessionHome = ({
         },
         [setProjectId],
     );
+    const projectIds = useMemo(
+        () => projectOrder.projects.map(({ id }) => id),
+        [projectOrder.projects],
+    );
+    const swipeToProject = useCallback(
+        (swipe: ProjectFilterSwipe): void => {
+            const next = adjacentProjectFilter(activeProjectId, projectIds, swipe);
+            if (next !== undefined) chooseProject(next);
+        },
+        [activeProjectId, chooseProject, projectIds],
+    );
+    const swipeOffset = useSharedValue(0);
+    const swipeWidth = useSharedValue(0);
+    /**
+     * A sideways drag anywhere over the list, including the empty state, moves to the neighboring Project filter.
+     */
+    const projectPan = usePanGesture({
+        activeOffsetX: [-PROJECT_SWIPE_ACTIVATION_DP, PROJECT_SWIPE_ACTIVATION_DP],
+        failOffsetY: [-PROJECT_SWIPE_FAIL_Y_DP, PROJECT_SWIPE_FAIL_Y_DP],
+        maxPointers: 1,
+        onUpdate: (event) => {
+            swipeOffset.set(event.translationX * PROJECT_SWIPE_FOLLOW);
+        },
+        onDeactivate: (event) => {
+            const swipe = projectFilterSwipe(event, swipeWidth.get());
+            if (swipe !== null) scheduleOnRN(swipeToProject, swipe);
+            swipeOffset.set(withTiming(0, { duration: PROJECT_SWIPE_SETTLE_MS }));
+        },
+    });
+    const swipeStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: swipeOffset.get() }],
+    }));
     const openTerminal = useCallback(
         (sessionId: string): void => {
             setSegment(sessionId, 'terminal');
@@ -230,32 +252,16 @@ export const SessionHome = ({
                 />
             ) : (
                 <View>
-                    <SessionSwipeRow
-                        // FlashList recycles row views; an open swipe must not reappear on another Session.
-                        key={item.session.id}
-                        busy={
-                            management.pending?.action === 'archive' &&
-                            management.pending.sessionId === item.session.id
-                        }
-                        enabled={deviceRole === 'control'}
-                        onArchive={archive}
-                        onClose={swipe.handleClose}
-                        onOpen={handleSwipeOpen}
-                        onOpenStart={swipe.handleDragStart}
-                        sessionId={item.session.id}
+                    <SessionRow
+                        now={now}
+                        onLongPress={deviceRole === 'control' ? openActions : undefined}
+                        onPress={onOpenSession}
+                        savedAt={savedAt}
+                        selected={item.session.id === selectedId && layout !== 'phone'}
+                        session={item.session}
+                        showProject={activeProjectId === null}
                         theme={theme}
-                    >
-                        <SessionRow
-                            now={now}
-                            onLongPress={deviceRole === 'control' ? openActions : undefined}
-                            onPress={openSession}
-                            savedAt={savedAt}
-                            selected={item.session.id === selectedId && layout !== 'phone'}
-                            session={item.session}
-                            showProject={activeProjectId === null}
-                            theme={theme}
-                        />
-                    </SessionSwipeRow>
+                    />
                     {/* A pinned waiting Session is listed again under Waiting; its cards show there, once. */}
                     {item.session.agentActivityState === 'waiting' && item.group !== 'pinned' ? (
                         sessionListAttentionSource(item.session) === 'chat' &&
@@ -279,20 +285,15 @@ export const SessionHome = ({
             ),
         [
             activeProjectId,
-            archive,
             deviceRole,
-            handleSwipeOpen,
             layout,
-            management.pending,
             now,
+            onOpenSession,
             openActions,
-            openSession,
             openTerminal,
             revealListGroup,
             savedAt,
             selectedId,
-            swipe.handleClose,
-            swipe.handleDragStart,
             theme,
             toggleListGroup,
         ],
@@ -333,44 +334,52 @@ export const SessionHome = ({
                 projects={projectOrder.projects}
                 theme={theme}
             />
-            {!hasLoaded || filtered.length === 0 ? (
-                <SessionHomeEmpty
-                    activeProjectId={activeProjectId}
-                    error={error}
-                    hasLoaded={hasLoaded}
-                    isLoading={isLoading}
-                    onNewSession={onNewSession}
-                    onRetry={refresh}
-                    status={status}
-                    theme={theme}
-                />
-            ) : (
-                <View
-                    style={styles.list}
-                    onTouchCancel={() => listInteractionReference.current?.touchCancel()}
-                    onTouchEnd={() => listInteractionReference.current?.touchEnd()}
-                    onTouchStart={() => listInteractionReference.current?.touchStart()}
+            <GestureDetector gesture={projectPan}>
+                <Animated.View
+                    onLayout={(event) => swipeWidth.set(event.nativeEvent.layout.width)}
+                    style={[styles.list, swipeStyle]}
                 >
-                    <FlashList
-                        data={filtered}
-                        getItemType={entryType}
-                        keyExtractor={entryKey}
-                        onMomentumScrollBegin={() =>
-                            listInteractionReference.current?.momentumStart()
-                        }
-                        onMomentumScrollEnd={() => listInteractionReference.current?.momentumEnd()}
-                        onLoad={restoreScroll}
-                        onScroll={rememberScroll}
-                        onScrollBeginDrag={() => {
-                            closeOpenSwipe();
-                            listInteractionReference.current?.dragStart();
-                        }}
-                        onScrollEndDrag={() => listInteractionReference.current?.dragEnd()}
-                        ref={listReference}
-                        renderItem={renderEntry}
-                    />
-                </View>
-            )}
+                    {!hasLoaded || filtered.length === 0 ? (
+                        <SessionHomeEmpty
+                            activeProjectId={activeProjectId}
+                            error={error}
+                            hasLoaded={hasLoaded}
+                            isLoading={isLoading}
+                            onNewSession={onNewSession}
+                            onRetry={refresh}
+                            status={status}
+                            theme={theme}
+                        />
+                    ) : (
+                        <View
+                            style={styles.list}
+                            onTouchCancel={() => listInteractionReference.current?.touchCancel()}
+                            onTouchEnd={() => listInteractionReference.current?.touchEnd()}
+                            onTouchStart={() => listInteractionReference.current?.touchStart()}
+                        >
+                            <FlashList
+                                data={filtered}
+                                getItemType={entryType}
+                                keyExtractor={entryKey}
+                                onMomentumScrollBegin={() =>
+                                    listInteractionReference.current?.momentumStart()
+                                }
+                                onMomentumScrollEnd={() =>
+                                    listInteractionReference.current?.momentumEnd()
+                                }
+                                onLoad={restoreScroll}
+                                onScroll={rememberScroll}
+                                onScrollBeginDrag={() =>
+                                    listInteractionReference.current?.dragStart()
+                                }
+                                onScrollEndDrag={() => listInteractionReference.current?.dragEnd()}
+                                ref={listReference}
+                                renderItem={renderEntry}
+                            />
+                        </View>
+                    )}
+                </Animated.View>
+            </GestureDetector>
             <Pressable
                 accessibilityHint={t('sessions.home.newSessionHint')}
                 accessibilityLabel={t('sessions.new.title')}

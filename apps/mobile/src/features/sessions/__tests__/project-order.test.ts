@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     orderedProjects,
     projectAutoScrollStep,
+    projectChipRevealOffset,
     projectChipShift,
     projectDropIndex,
     projectReorder,
@@ -86,5 +87,21 @@ describe('projectAutoScrollStep', () => {
     it('stops at either end of the strip', () => {
         expect(projectAutoScrollStep({ ...base, chipLeft: 280, offset: 196 })).toBe(4);
         expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 0 })).toBe(0);
+    });
+});
+
+describe('projectChipRevealOffset', () => {
+    it('centers the selected chip within the strip', () => {
+        expect(projectChipRevealOffset({ width: 100, x: 500 }, 400, 1000)).toBe(350);
+    });
+
+    it('clamps to either end of the strip', () => {
+        expect(projectChipRevealOffset({ width: 100, x: 60 }, 400, 1000)).toBe(0);
+        expect(projectChipRevealOffset({ width: 100, x: 880 }, 400, 1000)).toBe(600);
+        expect(projectChipRevealOffset({ width: 100, x: 100 }, 400, 300)).toBe(0);
+    });
+
+    it('scrolls back to the start for All', () => {
+        expect(projectChipRevealOffset(undefined, 400, 1000)).toBe(0);
     });
 });

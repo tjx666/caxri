@@ -258,12 +258,6 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'motion-tab-switch',
     },
-    'MOB-MOTION-02': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot', 'video'],
-        recordingOwner: 'scenario',
-        scenario: 'motion-swipe-rows',
-    },
     'MOB-MOTION-03': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

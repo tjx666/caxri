@@ -628,7 +628,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
             );
             break;
         case 'MOB-MOTION-01':
-        case 'MOB-MOTION-02':
         case 'MOB-MOTION-03':
             await executeMobileMotionScenario(environment, artifacts);
             break;

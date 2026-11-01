@@ -4,7 +4,6 @@ import type { sessions as source } from '../en/sessions';
 
 export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.actions.archive': '归档',
-    'sessions.actions.archiveSession': '归档会话',
     'sessions.actions.close': '关闭会话操作',
     'sessions.actions.continue': '在其他 Agent 中继续',
     'sessions.actions.continueEmpty': '没有其他 Agent 可以接手',

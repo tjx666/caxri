@@ -120,3 +120,17 @@ export const projectAutoScrollStep = ({
         return -Math.min(offset, maxStep * Math.min(1, overLeft / edge));
     return 0;
 };
+
+/**
+ * The strip's scroll offset that centers the selected chip, clamped to the strip's ends, so a Project chosen by swiping
+ * the list never stays hidden past the edge of the screen. `slot` is `undefined` for All, the strip's first chip.
+ */
+export const projectChipRevealOffset = (
+    slot: ProjectChipSlot | undefined,
+    viewportWidth: number,
+    contentWidth: number,
+): number => {
+    if (!slot) return 0;
+    const maxOffset = Math.max(0, contentWidth - viewportWidth);
+    return Math.min(maxOffset, Math.max(0, slot.x + slot.width / 2 - viewportWidth / 2));
+};
