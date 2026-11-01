@@ -206,7 +206,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    fast-forward it to `origin/main`. In a linked worktree, leave its branch and checkout in place;
    do not switch it to `main`. Switch or update the primary checkout only when its working tree is
    clean and the update is fast-forward; otherwise preserve it and report the exact dirty-state or
-   divergence blocker.
+   divergence blocker. A Claude Code session that entered the worktree with `EnterWorktree` cannot
+   run Git against the primary checkout: call `ExitWorktree` with `action: "keep"`, synchronize,
+   then call `EnterWorktree` with the worktree `path` again, because exiting also returns the Caxri
+   Session to the primary checkout.
 9. In the report that closes the delivery after the merge, add a workflow-improvement section
    without being asked. List each friction this delivery actually hit that a script, guard, CI
    route, lint rule, or agent-file change could prevent: the symptom, the evidence, and the owning
