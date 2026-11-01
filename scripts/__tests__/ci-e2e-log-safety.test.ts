@@ -202,4 +202,24 @@ describe('public Actions E2E log boundary', () => {
             }
         }
     });
+
+    it('reads error text, snippets, stacks, and causes only inside the failure classifier', async () => {
+        const reporters = (await executableSources()).filter(
+            ({ path }) => path.startsWith('scripts/reporters/') && path.endsWith('.ts'),
+        );
+        expect(reporters.map(({ path }) => path)).toContain(
+            'scripts/reporters/public-e2e-failure-class.ts',
+        );
+        // Property access, bracket access, and destructuring all read error text.
+        const textRead =
+            /\.(?:message|snippet|stack|cause)\b|\[\s*['"`](?:message|snippet|stack|cause)['"`]\s*\]|\{[^{}]*\b(?:message|snippet|stack|cause)\b[^{}]*\}\s*=[^=>]/u;
+        const owners = reporters
+            .filter(({ source }) =>
+                textRead.test(
+                    source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/^\s*\/\/.*$/gmu, ''),
+                ),
+            )
+            .map(({ path }) => path);
+        expect(owners).toEqual(['scripts/reporters/public-e2e-failure-class.ts']);
+    });
 });

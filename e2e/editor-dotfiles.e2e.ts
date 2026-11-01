@@ -1,4 +1,14 @@
-import { lstat, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import {
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    realpath,
+    rm,
+    symlink,
+    unlink,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,7 +29,8 @@ async function expectSyntaxColors(editor: Locator): Promise<void> {
 }
 
 test('workspace file and directory links open and save without replacing links', async () => {
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-workspace-links-e2e-'));
+    const created = await mkdtemp(join(tmpdir(), 'caxri-workspace-links-e2e-'));
+    const testDirectory = await realpath(created);
     const root = join(testDirectory, 'project');
     const shared = join(testDirectory, 'shared');
     await Promise.all([mkdir(root), mkdir(shared)]);
@@ -52,7 +63,16 @@ test('workspace file and directory links open and save without replacing links',
         await folder.focus();
         await folder.press('ArrowRight');
         await expect(folder).toHaveAttribute('aria-expanded', 'true');
-        await tree.getByRole('treeitem', { name: 'config.txt', exact: true }).click();
+        // A folder can report expanded before its children load; wait for the child the click needs.
+        const sharedConfig = tree.getByRole('treeitem', { name: 'config.txt', exact: true });
+        await expect(sharedConfig).toBeVisible();
+        // Keyboard focus on the folder row leaves its symlink tooltip open over the child row; moving focus to the
+        // child closes it, so the click below lands on the row instead of the tooltip portal.
+        await sharedConfig.focus();
+        await expect(
+            running.page.locator('[data-base-ui-portal]', { hasText: 'symlink' }),
+        ).toBeHidden();
+        await sharedConfig.click();
         await expect(editor.locator('.view-lines')).toContainText('saved through link');
         await expect(tab).toBeVisible();
         await running.page.keyboard.press('Meta+P');
@@ -71,7 +91,8 @@ test('workspace file and directory links open and save without replacing links',
 });
 
 test('custom dotfile languages support syntax highlighting and line comments', async () => {
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-dotfile-syntax-e2e-'));
+    const created = await mkdtemp(join(tmpdir(), 'caxri-dotfile-syntax-e2e-'));
+    const testDirectory = await realpath(created);
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root);
@@ -125,7 +146,8 @@ test('custom dotfile languages support syntax highlighting and line comments', a
 });
 
 test('external link target changes refresh the editor and expanded directory', async () => {
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-external-links-sync-e2e-'));
+    const created = await mkdtemp(join(tmpdir(), 'caxri-external-links-sync-e2e-'));
+    const testDirectory = await realpath(created);
     const root = join(testDirectory, 'project');
     const shared = join(testDirectory, 'shared');
     await Promise.all([mkdir(root), mkdir(shared)]);

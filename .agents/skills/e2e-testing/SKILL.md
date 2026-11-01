@@ -282,6 +282,18 @@ path redaction does not remove embedded repository source, DOM snapshots, Termin
 output. When a failure needs that deeper evidence, reproduce only its exact cases locally and inspect
 the local output before the worktree-owned process is stopped.
 
+**Failure class (issue #3351).** A failed `test-end` event and each public receipt failure also carry a
+`failureClass`, produced only by `scripts/reporters/public-e2e-failure-class.ts`: closed enums and bounded integers
+for the failure `kind`, the assertion `matcher` (allowlist, else `other`), `negated`, `receiver`, `locatorKind` (the
+prefix before `(`), `received` (how the locator resolved: `not-found`, `hidden`, `wrong-count`, `wrong-value`, `detached`), `numbers` (expected and received, only when both are finite numbers), the bucketed `timeoutMs` (15 s has its own bucket), up to three
+`e2e/`-only `path:line` frames, the last completed `launchStage`, an unrequested Electron exit code or fatal signal,
+`locationSource` (`spec`, `helper`, `none`, so a missing `failureLocation` reads as "no e2e frame" rather than "not
+collected"), and a `structuralHash` that groups failures differing only in dynamic text. `launchCaxriApp` records the
+launch stage and exit for every spec, so a spec needs no `onLaunchStage` wiring. That classifier is the only reporter
+file allowed to read an error's `.message`, `.snippet`, `.stack`, or `.cause` (the log-safety contract scans for it);
+add a field only as an enum or an anchored pattern, never `z.string()`. Read `kind` and `frames` first when naming a
+failed stage, before opening any source.
+
 ### Diagnosing an error-gate notification
 
 `toast categories:` in a gate failure names the notification's product copy, never its cause. Read

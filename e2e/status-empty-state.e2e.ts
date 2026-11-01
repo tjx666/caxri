@@ -59,8 +59,34 @@ test('Project Status presents a non-Git Project as a complete message', async ()
 
         const refresh = message.getByRole('button', { name: 'Refresh', exact: true });
         await expect(refresh).toBeEnabled();
+        /**
+         * The Refresh button is disabled only while the single root load is pending, about 35 ms locally. A hosted
+         * runner can return from `click()` after that window closed, so polling `toBeDisabled()` there misses a
+         * transition that did happen. Record every state change from before the click and assert the history instead.
+         */
+        const refreshStates = await running.page.evaluateHandle(() => {
+            const tree = document.querySelector('[role="tree"][aria-label="Project Status"]');
+            const states: boolean[] = [];
+            const read = () => {
+                const button = [...(tree?.querySelectorAll('button') ?? [])].find(
+                    (candidate) =>
+                        (candidate.getAttribute('aria-label') ?? candidate.textContent).trim() ===
+                        'Refresh',
+                );
+                if (button && states.at(-1) !== button.disabled) states.push(button.disabled);
+            };
+            read();
+            new MutationObserver(read).observe(tree!, {
+                attributes: true,
+                childList: true,
+                subtree: true,
+            });
+            return states;
+        });
         await refresh.click();
-        await expect(refresh).toBeDisabled();
+        await expect
+            .poll(() => refreshStates.evaluate((states) => states.join(',')))
+            .toBe('false,true,false');
         await expect(message).toBeFocused();
         await expect(message).toBeVisible();
         await expect(refresh).toBeEnabled();

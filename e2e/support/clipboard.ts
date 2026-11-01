@@ -11,6 +11,10 @@ import type { ElectronApplication } from '@playwright/test';
 const NATIVE_HELPER_PATH = join(import.meta.dirname, 'clipboard-native.swift');
 const NATIVE_HELPER_MAX_TRANSPORT_BYTES = 64 * 1024 * 1024;
 const NATIVE_HELPER_TIMEOUT_MS = 10_000;
+/**
+ * The first interpreted run on a fresh runner compiles the AppKit script cold and can exceed the per-call limit.
+ */
+const NATIVE_HELPER_WARMUP_TIMEOUT_MS = 90_000;
 
 export interface ClipboardMetadata {
     formatCount: number;
@@ -228,6 +232,34 @@ function metadata(record: Record<string, unknown>, action: string): ClipboardMet
         itemCount: numericField(record, 'itemCount', action),
     };
 }
+
+/**
+ * Builds a once-per-process warm-up for the interpreted AppKit helper. It runs the read-only, boolean-only
+ * `matches-external-write` probe with a long timeout so the cold compile on a fresh hosted runner cannot consume the
+ * 10s limit of the first real snapshot, while every normal call keeps the short limit.
+ */
+export function createNativeHelperWarmup(
+    run: typeof runNativeHelper = runNativeHelper,
+): () => Promise<void> {
+    let warmed: Promise<void> | undefined;
+    const warm = async (): Promise<void> => {
+        try {
+            await run('matches-external-write', undefined, {
+                ...defaultNativeHelperRunOptions,
+                timeoutMs: NATIVE_HELPER_WARMUP_TIMEOUT_MS,
+            });
+        } catch (error) {
+            warmed = undefined;
+            throw error;
+        }
+    };
+    return () => {
+        warmed ??= warm();
+        return warmed;
+    };
+}
+
+const warmNativeHelper = createNativeHelperWarmup();
 
 /**
  * Injects the transport so malformed native responses can be tested without touching the desktop pasteboard.
@@ -458,6 +490,7 @@ export async function snapshotClipboard(
     native: ClipboardNativeAdapter = nativePasteboard,
 ): Promise<ClipboardSnapshot> {
     try {
+        if (native === nativePasteboard) await warmNativeHelper();
         return new ClipboardSnapshot(await native.snapshot(), native);
     } catch (error) {
         throw sanitizedClipboardFailure(error, 'Could not snapshot the E2E clipboard');

@@ -8,6 +8,7 @@ import {
 import { z } from 'zod';
 
 import { assertE2EPoolReceipt } from './reporters/e2e-receipt-reporter';
+import { publicE2EFailureClassSchema } from './reporters/public-e2e-failure-class';
 
 const poolNames = ['parallel-safe', 'desktop-exclusive', 'control', 'release-packaged'] as const;
 const verdictSchema = z.enum(['fail', 'pass', 'skipped', 'timeout', 'unknown']);
@@ -46,6 +47,7 @@ const internalTestReceiptSchema = z.strictObject({
     artifacts: z.array(safeRelativePathSchema).max(100),
     durationMs: nonNegativeIntegerSchema,
     errorIdentity: sha256Schema.nullable(),
+    failureClass: publicE2EFailureClassSchema.optional(),
     /**
      * The failed first attempt of a test the Release pools may retry once (`e2e/startup.performance.e2e.ts`). The
      * public projection drops it: the Actions log already carries the `Flaky E2E pass` warning for that case.
@@ -99,12 +101,14 @@ const publicAbortedInvocationSchema = z.strictObject({
 const publicHashedFailureSchema = z.strictObject({
     classification: z.literal('stable-error-hash'),
     errorIdentity: sha256Schema,
+    failureClass: publicE2EFailureClassSchema.optional(),
     spec: publicSpecPathSchema,
     verdict: z.enum(['fail', 'timeout']),
 });
 
 const publicMissingErrorFailureSchema = z.strictObject({
     classification: z.literal('missing-error'),
+    failureClass: publicE2EFailureClassSchema.optional(),
     spec: publicSpecPathSchema,
     verdict: z.enum(['fail', 'timeout']),
 });
@@ -242,12 +246,20 @@ export function toPublicE2EPoolReceipt(value: unknown): z.infer<typeof publicE2E
             timedOut: receipt.timedOut,
             unknown: receipt.unknown,
         },
-        failures: receipt.tests.flatMap(({ errorIdentity, location, verdict }) => {
+        failures: receipt.tests.flatMap(({ errorIdentity, failureClass, location, verdict }) => {
             if (verdict !== 'fail' && verdict !== 'timeout') return [];
             const spec = specPath(location);
             return errorIdentity
-                ? [{ classification: 'stable-error-hash', errorIdentity, spec, verdict }]
-                : [{ classification: 'missing-error', spec, verdict }];
+                ? [
+                      {
+                          classification: 'stable-error-hash',
+                          errorIdentity,
+                          failureClass,
+                          spec,
+                          verdict,
+                      },
+                  ]
+                : [{ classification: 'missing-error', failureClass, spec, verdict }];
         }),
         hash: receipt.hash,
         kind: 'public-e2e-pool-receipt',

@@ -1,6 +1,9 @@
 import { errorCodes, isCaxriMethod, isLogProcess, logEventNames } from '@caxri/protocol';
 import type { E2EErrorAllowance, E2EErrorEvent } from '@caxri/system';
 
+import type { PublicE2ELaunchStage } from './public-e2e-launch';
+import { publicE2ELaunchStages } from './public-e2e-launch';
+
 interface Annotation {
     type: string;
     description?: string;
@@ -17,19 +20,9 @@ const gatePhases = [
 ] as const;
 type GatePhase = (typeof gatePhases)[number];
 
-const launchStages = [
-    'freshnessMs',
-    'agentEnvironmentMs',
-    'leaseAcquireMs',
-    'leaseHandoffMs',
-    'electronLaunchMs',
-    'errorGateRegisterMs',
-    'lifecycleSetupMs',
-    'leaseTransferMs',
-    'firstWindowMs',
-    'runtimeStatusWaitMs',
-] as const;
-export type PublicE2ELaunchStage = (typeof launchStages)[number];
+export type { PublicE2ELaunchStage } from './public-e2e-launch';
+
+const launchStages = publicE2ELaunchStages;
 
 export function createE2ELaunchTimer(
     report: ((stage: PublicE2ELaunchStage, durationMs: number) => void) | undefined,

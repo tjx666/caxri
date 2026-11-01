@@ -78,7 +78,13 @@ test('Project path actions work without Sessions and drag absolute shell-safe ro
         const heading = running.page.locator(`.project-heading[data-project-id="${owner.id}"]`);
         const input = running.page.locator('.xterm-helper-textarea');
         const receipt = join(directory, 'drop-result');
-        await input.click();
+        /**
+         * The xterm helper textarea is a tiny off-screen element, so a pointer click on it can time out on a hidden
+         * window; focusing it directly is what the other Terminal specs do.
+         */
+        await expect(running.page.locator('.xterm-rows')).toBeVisible();
+        await input.focus();
+        await expect(input).toBeFocused();
         await running.page.keyboard.type("printf '%s' ");
         await heading.dragTo(running.page.locator('.terminal-surface'));
         await expect(input).toBeFocused();

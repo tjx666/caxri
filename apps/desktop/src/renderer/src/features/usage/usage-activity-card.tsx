@@ -54,10 +54,15 @@ const revealCursor = (element: HTMLElement | null): void => {
 function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
     return (
         <div className="grid grid-cols-[repeat(53,minmax(0,1fr))] gap-0.5" aria-hidden="true">
-            {weeks.map((week) => (
+            {weeks.map((week, index) => (
                 <span
                     key={week.start}
-                    className="overflow-visible text-[11px] whitespace-nowrap text-muted"
+                    // A label wider than its one-column cell spills past it. The newest column ends the chart, so its
+                    // label ends at the column's right edge instead, or the spill would add scrollable width and cue a
+                    // hidden edge on a pane wide enough to show every week (seen when the newest week starts a month).
+                    className={`overflow-visible text-[11px] whitespace-nowrap text-muted${
+                        index === weeks.length - 1 ? ' justify-self-end' : ''
+                    }`}
                 >
                     {week.monthLabel ?? ''}
                 </span>

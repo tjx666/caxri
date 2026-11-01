@@ -1,6 +1,7 @@
 import { connectToServer, discoverServerManifest } from '@caxri/client/supervise';
 
 import { getProcessIdentity } from '../../.agents/skills/switch-worktree/scripts/process';
+import { execFileAsync } from '../../scripts/exec';
 
 function errorCode(error: unknown): string | undefined {
     return typeof error === 'object' && error !== null && 'code' in error
@@ -18,6 +19,22 @@ async function manifestIfPresent(userDataDirectory: string) {
 }
 
 /**
+ * A terminated process that nobody has reaped yet still answers `kill(pid, 0)` and still lists in `ps`, but holds no
+ * resource and never runs again, so shutdown must not wait for it to vanish. A failed probe reports false: an
+ * unverifiable process stays alive until the deadline rather than being declared stopped.
+ */
+async function isZombieProcess(pid: number): Promise<boolean> {
+    try {
+        const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'stat='], {
+            encoding: 'utf8',
+        });
+        return stdout.trimStart().startsWith('Z');
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Host.stop acknowledges the request before shutdown finishes. Keep the profile and lease alive until both discovery
  * and the original OS process disappear; a replacement Host must never be mistaken for the one this launch owns.
  */
@@ -30,7 +47,9 @@ export async function stopE2EHost(userDataDirectory: string): Promise<void> {
         client = await connectToServer(userDataDirectory, 2_000);
         await client.request('host.stop', { confirmLivePtys: true });
     } catch (error) {
-        if (errorCode(error) !== 'NOT_FOUND' && errorCode(error) !== 'UNAVAILABLE') throw error;
+        // A slow acknowledgement (TIMEOUT) is not a failed stop: the bounded poll below decides.
+        const code = errorCode(error);
+        if (code !== 'NOT_FOUND' && code !== 'UNAVAILABLE' && code !== 'TIMEOUT') throw error;
     } finally {
         client?.close();
     }
@@ -46,7 +65,9 @@ export async function stopE2EHost(userDataDirectory: string): Promise<void> {
 
         // eslint-disable-next-line no-await-in-loop -- compare the original OS lifetime on each poll.
         const currentIdentity = await getProcessIdentity(manifest.pid);
-        const isAlive = identity !== undefined && currentIdentity === identity;
+        const isSameProcess = identity !== undefined && currentIdentity === identity;
+        // eslint-disable-next-line no-await-in-loop -- a zombie counts as stopped, so probe it only while it looks alive.
+        const isAlive = isSameProcess && !(await isZombieProcess(manifest.pid));
         if (!current && !isAlive) return;
         if (Date.now() >= deadline) throw new Error('Timed out waiting for the E2E Host to stop');
         // eslint-disable-next-line no-await-in-loop -- bounded shutdown polling interval.

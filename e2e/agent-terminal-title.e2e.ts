@@ -18,7 +18,7 @@ const AGENT_STATUS_TITLE = 'esc to interrupt · 12s';
 const CONVERSATION_TITLE = 'Ship the release notes';
 
 interface BootstrapTerminals {
-    terminals: Array<{ id: string; ptyTitle?: string; title: string }>;
+    terminals: Array<{ agentSessionId?: string; id: string; ptyTitle?: string; title: string }>;
 }
 
 test('a resumed Codex thread receives its native title before its first lifecycle hook', async () => {
@@ -91,7 +91,7 @@ process.stdout.write('Fake resumed Codex ready\r\n');
  * Agent binding must reject the transient OSC title before persistence, and the Renderer must keep projecting the
  * semantic conversation title across reloads.
  */
-test('an Agent tab suppresses OSC persistence, survives reload, and resets on a fresh restart', async () => {
+test('an Agent tab suppresses OSC persistence, survives reload, and drops its binding on a fresh restart', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-terminal-title-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -184,11 +184,12 @@ done
         expect(reloadedTerminal).not.toHaveProperty('ptyTitle');
 
         /**
-         * A fresh restart retires the conversation, so keeping its name would label a brand new Agent with a
-         * conversation it has nothing to do with, permanently, if the replacement never names one. The Runtime clears
-         * it in `resetAgentMetadataForStart`, and only a real restart proves that reset is wired into the launch path
-         * and projected back to the tab. The retired thread row stays in the fixture database on purpose: its
-         * `created_at_ms` predates the new `startedAt`, which is exactly what must keep the probe from re-claiming it.
+         * A fresh restart retires the conversation binding, so the replacement Agent must not stay bound to a thread it
+         * has nothing to do with. The Runtime clears the binding in `resetAgentMetadataForStart`, and only a real
+         * restart proves that reset is wired into the launch path. The primary Agent tab follows the Session's own name
+         * (`decideAgentMetadataUpdate`), so after the reset the tab shows the Session name, not the Agent default. The
+         * retired thread row stays in the fixture database on purpose: its `created_at_ms` predates the new
+         * `startedAt`, which is exactly what must keep the probe from re-claiming it.
          */
         const bootstrap = await pageRequest<BootstrapTerminals>(page, 'app.bootstrap');
         const terminalId = bootstrap.terminals[0]?.id;
@@ -197,11 +198,10 @@ done
         await expect
             .poll(async () => {
                 const restarted = await pageRequest<BootstrapTerminals>(page, 'app.bootstrap');
-                return restarted.terminals.at(0)?.title;
+                return restarted.terminals.at(0)?.agentSessionId;
             })
-            .toBe('Codex');
-        await expect(page.locator('.tab-label')).toHaveText('Codex');
-        await expect(page.getByRole('tab', { name: 'Codex', exact: true })).toBeVisible();
+            .toBeUndefined();
+        await expect(page.locator('.tab-label')).toHaveText(CONVERSATION_TITLE);
     } finally {
         try {
             await app.close();

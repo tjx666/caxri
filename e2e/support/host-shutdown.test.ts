@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { releaseE2EHost, stopE2EHost } from './host-shutdown';
 
-const { discover, connect, identity, request, close } = vi.hoisted(() => ({
+const { discover, connect, identity, request, close, ps } = vi.hoisted(() => ({
+    ps: vi.fn(),
     discover: vi.fn(),
     connect: vi.fn(),
     identity: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock('@caxri/client/supervise', () => ({
     connectToServer: connect,
     discoverServerManifest: discover,
 }));
+vi.mock('../../scripts/exec', () => ({ execFileAsync: ps }));
 vi.mock('../../.agents/skills/switch-worktree/scripts/process', () => ({
     getProcessIdentity: identity,
 }));
@@ -25,6 +27,7 @@ beforeEach(() => {
     identity.mockResolvedValue('os-lifetime');
     request.mockResolvedValue({ stopping: true });
     connect.mockResolvedValue({ request, close });
+    ps.mockResolvedValue({ stdout: 'Ss\n' });
 });
 afterEach(() => {
     vi.useRealTimers();
@@ -47,6 +50,21 @@ describe('E2E Host shutdown', () => {
         await vi.advanceTimersByTimeAsync(100);
         await stopping;
         expect(close).toHaveBeenCalledOnce();
+    });
+    it('treats an unreaped zombie as stopped once discovery is gone', async () => {
+        discover.mockResolvedValueOnce(manifest).mockImplementation(missing);
+        ps.mockResolvedValue({ stdout: 'Z\n' });
+        const stopping = stopE2EHost('/fixture/profile');
+        await vi.advanceTimersByTimeAsync(200);
+        await stopping;
+    });
+    it('keeps waiting when the process state cannot be probed', async () => {
+        discover.mockResolvedValueOnce(manifest).mockImplementation(missing);
+        ps.mockRejectedValue(new Error('ps failed'));
+        const stopping = stopE2EHost('/fixture/profile');
+        const outcome = expect(stopping).rejects.toThrow('Timed out');
+        await vi.advanceTimersByTimeAsync(40_000);
+        await outcome;
     });
     it('does not treat an unavailable socket as proof that a Host exited', async () => {
         connect.mockRejectedValue(Object.assign(new Error('unavailable'), { code: 'UNAVAILABLE' }));

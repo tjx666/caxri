@@ -218,14 +218,31 @@ export function resumePendingSession(): void {
     useDialogStore.getState().resumePending();
 }
 
+/**
+ * The creation the centered dialog is waiting on. The dialog stays open until `project.create` and `session.create`
+ * both answer, so on a slow machine a double-click or a second Enter on a tile used to start a second creation and
+ * leave the new Project with two Sessions. Later activations are ignored until this one settles; a failure settles it
+ * too, so the still-open dialog can retry.
+ */
+const pendingConfirmation: { current: Promise<void> | undefined } = { current: undefined };
+
+async function settleConfirmation(creation: Promise<void>): Promise<void> {
+    try {
+        await creation;
+    } finally {
+        pendingConfirmation.current = undefined;
+    }
+}
+
 export function confirmPendingSession(kind: TerminalKind | null): void {
+    if (pendingConfirmation.current) return;
     const { pendingRoot, pendingProjectId } = useDialogStore.getState();
     rememberLastAgentChoice(kind);
-    // Fire-and-forget: both `createProjectSession` and `createSession` funnel their own failures
-    // into a toast via `tryCommand`.
-    if (pendingRoot) {
-        void createProjectSession(pendingRoot, kind);
-    } else if (pendingProjectId) {
-        void createSession(pendingProjectId, kind);
-    }
+    // Both `createProjectSession` and `createSession` funnel their own failures into a toast via `tryCommand`.
+    const creation = pendingRoot
+        ? createProjectSession(pendingRoot, kind)
+        : pendingProjectId
+          ? createSession(pendingProjectId, kind)
+          : undefined;
+    if (creation) pendingConfirmation.current = settleConfirmation(creation);
 }

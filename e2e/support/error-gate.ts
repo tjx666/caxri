@@ -15,8 +15,16 @@ import {
 import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
 import { annotateE2EGateFailure } from '../../scripts/reporters/public-e2e-diagnostics.ts';
+import type {
+    PublicE2ELaunchStage,
+    PublicE2ELaunchState,
+} from '../../scripts/reporters/public-e2e-launch.ts';
+import { annotateE2ELaunch, safeProcessExit } from '../../scripts/reporters/public-e2e-launch.ts';
 
-const gateState: { current: E2EErrorGate | undefined } = { current: undefined };
+const gateState: { current: E2EErrorGate | undefined; launch: PublicE2ELaunchState } = {
+    current: undefined,
+    launch: {},
+};
 
 const ERROR_TOAST_BINDING = '__caxriE2EReportErrorToast';
 
@@ -289,6 +297,14 @@ class E2EErrorGate {
     }
 }
 
+/**
+ * Publishes the closed launch record next to a body failure so the public log can say how far a launch got.
+ */
+function annotateBodyFailure(testInfo: TestInfo): void {
+    annotateE2EGateFailure(testInfo, 'body-failed');
+    annotateE2ELaunch(testInfo, gateState.launch);
+}
+
 export async function runWithE2EErrorGate(
     testInfo: TestInfo,
     runTest: () => Promise<void>,
@@ -296,13 +312,14 @@ export async function runWithE2EErrorGate(
     if (gateState.current) throw new Error('Only one E2E error gate may run in a worker at a time');
     const gate = new E2EErrorGate(testInfo);
     gateState.current = gate;
+    gateState.launch = {};
     try {
         await runTest();
         // Playwright's fixture use() resolves after a failed body; status preserves that failure across teardown.
         if (testInfo.status && ['failed', 'timedOut', 'interrupted'].includes(testInfo.status))
-            annotateE2EGateFailure(testInfo, 'body-failed');
+            annotateBodyFailure(testInfo);
     } catch (error) {
-        annotateE2EGateFailure(testInfo, 'body-failed');
+        annotateBodyFailure(testInfo);
         throw error;
     } finally {
         try {
@@ -320,6 +337,7 @@ export async function registerE2ELaunch(
 ): Promise<void> {
     const gate = gateState.current;
     if (!gate) throw new Error('launchCaxri must run inside the shared E2E test fixture');
+    watchUnrequestedExit(app);
     await gate.register(app, userDataDirectory, cleanup);
 }
 
@@ -334,4 +352,39 @@ export function allowE2EErrors(allowances: readonly E2EErrorAllowance[]): void {
     const gate = gateState.current;
     if (!gate) throw new Error('allowE2EErrors must run inside the shared E2E test fixture');
     gate.allow(allowances);
+}
+
+/**
+ * Starts a fresh launch record and returns an `onLaunchStage` callback that also records the last completed stage, so
+ * every spec reports how far its launch got without wiring `onLaunchStage` itself. The record is published only when
+ * the test fails.
+ */
+export function recordE2ELaunchStage(
+    report: ((stage: PublicE2ELaunchStage, durationMs: number) => void) | undefined,
+): (stage: PublicE2ELaunchStage, durationMs: number) => void {
+    gateState.launch = {};
+    return (stage, durationMs) => {
+        gateState.launch = { ...gateState.launch, stage };
+        report?.(stage, durationMs);
+    };
+}
+
+/**
+ * Records an Electron exit the test did not request, as a bounded code and one of four fatal signals. A close the
+ * helpers issue marks the exit as requested first, so an ordinary shutdown never reads as a crash.
+ */
+function watchUnrequestedExit(app: ElectronApplication): void {
+    let isCloseRequested = false;
+    const close = app.close.bind(app);
+    Object.defineProperty(app, 'close', {
+        configurable: true,
+        value: () => {
+            isCloseRequested = true;
+            return close();
+        },
+    });
+    app.process().once('exit', (code, signal) => {
+        if (!isCloseRequested)
+            gateState.launch = { ...gateState.launch, exit: safeProcessExit(code, signal) };
+    });
 }

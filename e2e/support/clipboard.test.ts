@@ -4,6 +4,7 @@ import type { ClipboardNativeAdapter } from './clipboard.ts';
 import {
     ClipboardNativeError,
     createClipboardNativeAdapter,
+    createNativeHelperWarmup,
     runNativeHelper,
     snapshotClipboard,
 } from './clipboard.ts';
@@ -207,5 +208,28 @@ describe('E2E clipboard ownership session', () => {
         expect(failure).toBeInstanceOf(Error);
         expect((failure as Error).message).toBe('Could not restore the E2E clipboard');
         expect((failure as Error).message.includes(PRIVATE_PAYLOAD)).toBe(false);
+    });
+});
+
+describe('native helper warm-up', () => {
+    it('runs the read-only probe once with the long timeout', async () => {
+        const run = vi.fn<typeof runNativeHelper>().mockResolvedValue('{}');
+        const warm = createNativeHelperWarmup(run);
+        await warm();
+        await warm();
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(run.mock.calls[0]?.[0]).toBe('matches-external-write');
+        expect(run.mock.calls[0]?.[2]?.timeoutMs).toBeGreaterThan(10_000);
+    });
+
+    it('retries after a failed warm-up', async () => {
+        const run = vi
+            .fn<typeof runNativeHelper>()
+            .mockRejectedValueOnce(new Error('cold'))
+            .mockResolvedValue('{}');
+        const warm = createNativeHelperWarmup(run);
+        await expect(warm()).rejects.toThrow('cold');
+        await warm();
+        expect(run).toHaveBeenCalledTimes(2);
     });
 });
