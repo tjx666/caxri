@@ -20,7 +20,12 @@ import { useResourceExplorerClient } from '../../controlled-view-context';
 import { duplicateFile } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
-import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
+import {
+    isDragBlockedByFileOperations,
+    pasteDisabledReason,
+    useFileOperationStore,
+    useIsPathBlockedByFileOperations,
+} from '../file-operation-state';
 import { importOsFiles, moveFiles, pasteIntoDirectory, rememberFiles } from '../file-paste-actions';
 import type { EditRequest } from '../file-tree-item-types';
 import { useFileTreeNavigator } from '../file-tree-navigation-context';
@@ -298,10 +303,22 @@ export function useFileTreeItemInteractions({
     };
     /**
      * Drags the whole selection when this row is part of it. A symlink is a reference only, never moved, so a drag that
-     * carries one inserts paths into a Terminal or Chat but cannot move anything in Files.
+     * carries one inserts paths into a Terminal or Chat but cannot move anything in Files. A selection holding an entry
+     * a running file operation touches is refused, as that row alone would be.
      */
     const startDrag = (event: DragEvent): void => {
-        const dragged = actionPaths().map((path) => ({
+        const paths = actionPaths();
+        if (
+            isDragBlockedByFileOperations(
+                useFileOperationStore.getState().operations,
+                projectId,
+                paths,
+            )
+        ) {
+            event.preventDefault();
+            return;
+        }
+        const dragged = paths.map((path) => ({
             path,
             entry: path === entry.path ? entry : navigator.entryFor(path),
         }));
