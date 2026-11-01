@@ -34,9 +34,16 @@ export class TerminalSnapshotPersistence {
             this.logger.write('warn', logEventCatalog.pty.snapshotFailed, {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
             });
-        } finally {
-            this.finalizations.delete(terminalId);
         }
+    }
+
+    private async persistAfter(
+        terminalId: string,
+        previous: Promise<void> | undefined,
+        capture: Promise<TerminalSnapshot>,
+    ): Promise<void> {
+        await previous;
+        await this.persistCapture(terminalId, capture);
     }
 
     pending(terminalId: string): Promise<void> | undefined {
@@ -51,9 +58,19 @@ export class TerminalSnapshotPersistence {
             : null;
     }
 
+    /**
+     * Finalizations of one Terminal run in call order, and `pending` reports the newest until it settles. Without the
+     * chain an earlier finalization finishing later would drop the newer one from `pending` (a restore then reads the
+     * stale row) and could overwrite the newer snapshot.
+     */
     finalize(terminalId: string, capture: Promise<TerminalSnapshot>): Promise<void> {
-        const completion = this.persistCapture(terminalId, capture);
+        const previous = this.finalizations.get(terminalId);
+        const completion = this.persistAfter(terminalId, previous, capture);
         this.finalizations.set(terminalId, completion);
+        void completion.then(() => {
+            if (this.finalizations.get(terminalId) === completion)
+                this.finalizations.delete(terminalId);
+        });
         return completion;
     }
 }

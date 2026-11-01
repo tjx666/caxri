@@ -469,6 +469,7 @@ export async function createDomainServices(
             autoAllow: agentRuntime,
             attentionRequests,
             imageDirectory: join(userDataPath, 'mobile-attachments'),
+            fileDirectory: join(userDataPath, 'mobile-files'),
             configuration,
             database,
             emit: send,

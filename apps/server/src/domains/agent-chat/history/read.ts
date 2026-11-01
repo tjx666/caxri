@@ -21,6 +21,13 @@ export const MAX_HISTORY_TRANSCRIPT_BYTES = 128 * 1024 * 1024;
  */
 const PARSED_TRANSCRIPT_TTL_MS = 60_000;
 
+/**
+ * How many parsed transcripts stay cached at once. Each can come from up to {@link MAX_HISTORY_TRANSCRIPT_BYTES} of
+ * source, so the bound is by count of Chats paged within one TTL, not by history size; the least recently paged one is
+ * dropped first.
+ */
+export const MAX_PARSED_TRANSCRIPTS = 4;
+
 interface ParsedTranscript {
     historyId: string;
     items: AgentChatItem[];
@@ -35,30 +42,53 @@ interface ParsedTranscript {
 /**
  * Parsed transcripts by Terminal. Records before a cursor never change in an append-only transcript, so a parse stays
  * valid for the history it was read for; a replaced history (`historyId`) parses again, because a rewind may have moved
- * the conversation onto another branch. This is a retained, TTL-bound cache, not a `SingleFlight`, which forgets a load
- * as soon as it settles.
+ * the conversation onto another branch. This is a retained, TTL- and count-bound cache, not a `SingleFlight`, which
+ * forgets a load as soon as it settles. Map order is recency: a hit moves its entry to the end.
  */
 const parsed = new Map<string, Promise<ParsedTranscript | undefined>>();
+
+/**
+ * Removes `terminalId`'s entry only while it is still `entry`, so an older entry's expiry or failure never drops a
+ * newer parse stored under the same Terminal.
+ */
+function evict(terminalId: string, entry: Promise<ParsedTranscript | undefined>): void {
+    if (parsed.get(terminalId) === entry) parsed.delete(terminalId);
+}
+
+/**
+ * Drops a closed Chat's parsed transcript at once instead of holding it until its expiry.
+ */
+export function forgetParsedTranscript(terminalId: string): void {
+    const entry = parsed.get(terminalId);
+    if (!entry) return;
+    parsed.delete(terminalId);
+    void entry.then((transcript) => transcript && clearTimeout(transcript.expiry)).catch(() => {});
+}
 
 async function parseTranscript(
     options: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
     terminalId: string,
     historyId: string,
 ): Promise<ParsedTranscript | undefined> {
-    const cached = await parsed.get(terminalId);
-    if (cached?.historyId === historyId) {
+    const current = parsed.get(terminalId);
+    const cached = await current;
+    if (current && cached?.historyId === historyId) {
         cached.expiry.refresh();
+        if (parsed.get(terminalId) === current) {
+            parsed.delete(terminalId);
+            parsed.set(terminalId, current);
+        }
         return cached;
     }
-    const pending = (async (): Promise<ParsedTranscript | undefined> => {
+    const pending: Promise<ParsedTranscript | undefined> = (async () => {
         const transcript = await readChatTranscript(
             options,
             terminalId,
             MAX_HISTORY_TRANSCRIPT_BYTES,
         );
-        if (!transcript) return undefined;
+        if (!transcript) return;
         const { items, turns } = claudeHistoryItems(transcript.content);
-        const expiry = setTimeout(() => parsed.delete(terminalId), PARSED_TRANSCRIPT_TTL_MS);
+        const expiry = setTimeout(() => evict(terminalId, pending), PARSED_TRANSCRIPT_TTL_MS);
         expiry.unref();
         return {
             historyId,
@@ -69,15 +99,20 @@ async function parseTranscript(
         };
     })();
     if (cached) clearTimeout(cached.expiry);
+    parsed.delete(terminalId);
     parsed.set(terminalId, pending);
+    for (const oldest of parsed.keys()) {
+        if (parsed.size <= MAX_PARSED_TRANSCRIPTS) break;
+        forgetParsedTranscript(oldest);
+    }
     try {
         const result = await pending;
         // Nothing to page through is not cached: there is no expiry to release it, and a transcript may appear later.
-        if (!result && parsed.get(terminalId) === pending) parsed.delete(terminalId);
+        if (!result) evict(terminalId, pending);
         return result;
     } catch (error) {
         // A failed read is not cached; the next page tries again.
-        if (parsed.get(terminalId) === pending) parsed.delete(terminalId);
+        evict(terminalId, pending);
         throw error;
     }
 }

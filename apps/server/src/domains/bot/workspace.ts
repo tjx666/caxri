@@ -1,9 +1,9 @@
 import { Buffer } from 'node:buffer';
-import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { BotDataSummary } from '@caxri/protocol';
-import { execFileAsync } from '@caxri/system';
+import { execFileAsync, readBoundedRegularFileText } from '@caxri/system';
 
 import { atomicWrite } from '../atomic-file';
 import { resolveGitLaunch } from '../git';
@@ -335,7 +335,8 @@ function truncateUtf8AtLine(text: string, maxBytes: number): string {
 /**
  * Seeds one memory file when it is absent and reads it back. `wx` writes the template only when the file does not
  * exist, so neither a concurrent ensure nor a user edit is ever overwritten. Returns `undefined` for an unreadable
- * file.
+ * file. Caxri Bot's Agent writes these files, so only the head the embed can use is read: a runaway file cannot load
+ * whole into Server Core, and a FIFO left at the path cannot block the start.
  */
 async function readMemoryFile(path: string, template: string): Promise<string | undefined> {
     try {
@@ -344,7 +345,13 @@ async function readMemoryFile(path: string, template: string): Promise<string | 
         // Already present (or not writable); the read below decides.
     }
     try {
-        return (await readFile(path, 'utf8')).trim();
+        const head = await readBoundedRegularFileText(path, BOT_MEMORY_EMBED_BYTES, {
+            oversize: 'truncate',
+        });
+        // A cut head keeps its tail untrimmed so it still reads as longer than the budget and gets the truncation note.
+        return Buffer.byteLength(head, 'utf8') > BOT_MEMORY_EMBED_BYTES
+            ? head.trimStart()
+            : head.trim();
     } catch {
         return undefined;
     }
@@ -439,7 +446,11 @@ async function inspectMemoryFile(
         const { size } = await lstat(path);
         const isTemplate =
             size <= MAX_TEMPLATE_COMPARE_BYTES &&
-            (await readFile(path, 'utf8')).trim() === file.template.trim();
+            (
+                await readBoundedRegularFileText(path, MAX_TEMPLATE_COMPARE_BYTES, {
+                    oversize: 'truncate',
+                })
+            ).trim() === file.template.trim();
         return { name: file.name, bytes: size, isTemplate };
     } catch {
         // Missing or unreadable: the next start seeds the template, so there is nothing learned to clear.

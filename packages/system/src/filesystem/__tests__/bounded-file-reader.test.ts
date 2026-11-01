@@ -102,6 +102,16 @@ describe('readBoundedRegularFileText', () => {
         } satisfies Partial<CaxriError>);
     });
 
+    it('returns the head plus one byte of an oversized file when asked to truncate', async () => {
+        const directory = await makeTemporaryDirectory('caxri-bounded-read-truncate-');
+        const path = join(directory, 'file.txt');
+        await writeFile(path, '0123456789', 'utf8');
+
+        await expect(readBoundedRegularFileText(path, 4, { oversize: 'truncate' })).resolves.toBe(
+            '01234',
+        );
+    });
+
     it('accepts a file exactly at the byte cap', async () => {
         const directory = await makeTemporaryDirectory('caxri-bounded-read-at-limit-');
         const path = join(directory, 'file.txt');

@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
+import { TerminalSnapshotPersistence } from '../snapshot-persistence';
+import type { TerminalStateStore } from '../state-store';
 
 const loggers: StructuredLogger[] = [];
 
@@ -231,5 +233,44 @@ describe('TerminalManager snapshot persistence', () => {
             rows: 30,
         });
         database.close();
+    });
+});
+
+describe('TerminalSnapshotPersistence', () => {
+    function snapshot(payload: string): TerminalSnapshot {
+        return {
+            byteCount: payload.length,
+            cols: 100,
+            encodingVersion: 3,
+            lineCount: 1,
+            payload,
+            rows: 30,
+            terminalId: 'terminal-1',
+            updatedAt: 1,
+        };
+    }
+
+    it('keeps the newer finalization pending and saved when an older one settles later', async () => {
+        const saved: string[] = [];
+        const store = {
+            getTerminal: () => ({ id: 'terminal-1' }),
+            saveSnapshot: (value: TerminalSnapshot) => saved.push(value.payload),
+        } as unknown as TerminalStateStore;
+        const persistence = new TerminalSnapshotPersistence(store, {
+            write: vi.fn(),
+        } as unknown as StructuredLogger);
+        const older = Promise.withResolvers<TerminalSnapshot>();
+        const newer = Promise.withResolvers<TerminalSnapshot>();
+
+        const olderDone = persistence.finalize('terminal-1', older.promise);
+        const newerDone = persistence.finalize('terminal-1', newer.promise);
+        newer.resolve(snapshot('NEWER'));
+        older.resolve(snapshot('OLDER'));
+        await olderDone;
+
+        expect(persistence.pending('terminal-1')).toBe(newerDone);
+        await newerDone;
+        expect(saved).toEqual(['OLDER', 'NEWER']);
+        expect(persistence.pending('terminal-1')).toBeUndefined();
     });
 });
