@@ -15,11 +15,16 @@ import { isLocalOnlyAvailable } from '../../../stores/environment';
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
 import { projectSearchFolderInclude } from '../../project-search/project-search-seed';
+import type { FileClipboardEntry } from './file-clipboard';
 import { fileOperationBusyReason } from './file-operation-state';
-import { rememberFile } from './file-paste-actions';
 
 export interface FileTreeItemMenuOptions {
+    /**
+     * The entries the menu acts on: the whole multi-selection the row belongs to, or the row alone.
+     */
+    actionPaths: readonly string[];
     confirmTrash: () => Promise<void>;
+    copyEntries: (mode: FileClipboardEntry['mode']) => void;
     duplicateBlocked: boolean;
     duplicateEntry: () => Promise<void>;
     entry: FileEntry;
@@ -54,8 +59,51 @@ function findInFolder(directory: string, projectRoot: string): void {
  * file to this Mac (default app, Finder), since the file lives on the SSH Host; Trash stays, because Main moves the
  * entry into the SSH Host's own Trash.
  */
-export function fileTreeItemMenu({
+export function fileTreeItemMenu(options: FileTreeItemMenuOptions): ContextMenuEntries {
+    return options.actionPaths.length > 1 ? multiSelectionMenu(options) : singleEntryMenu(options);
+}
+
+/**
+ * A multi-selection keeps only the entries that act on every selected item at once, as VS Code's Explorer does:
+ * opening, renaming, creating, and duplicating name one entry and have no meaning for several.
+ */
+function multiSelectionMenu({
+    actionPaths,
     confirmTrash,
+    copyEntries,
+    projectRoot,
+}: FileTreeItemMenuOptions): ContextMenuEntries {
+    return [
+        {
+            label: translate('viewContainers.files.menu.cut'),
+            shortcut: 'cmd+x',
+            onSelect: () => copyEntries('cut'),
+        },
+        {
+            label: translate('common.copy'),
+            shortcut: 'cmd+c',
+            onSelect: () => copyEntries('copy'),
+        },
+        {
+            label: translate('viewContainers.files.menu.copyPath'),
+            onSelect: () => copyFilePath(actionPaths),
+        },
+        {
+            label: translate('viewContainers.files.menu.copyRelativePath'),
+            onSelect: () => copyFilePath(actionPaths, projectRoot),
+        },
+        CONTEXT_MENU_SEPARATOR,
+        {
+            label: translate('viewContainers.files.menu.moveToTrash'),
+            shortcut: 'cmd+backspace',
+            onSelect: confirmTrash,
+        },
+    ];
+}
+
+function singleEntryMenu({
+    confirmTrash,
+    copyEntries,
     duplicateBlocked,
     duplicateEntry,
     entry,
@@ -98,12 +146,12 @@ export function fileTreeItemMenu({
         {
             label: translate('viewContainers.files.menu.cut'),
             shortcut: 'cmd+x',
-            onSelect: () => rememberFile(entry.path, 'cut'),
+            onSelect: () => copyEntries('cut'),
         },
         {
             label: translate('common.copy'),
             shortcut: 'cmd+c',
-            onSelect: () => rememberFile(entry.path, 'copy'),
+            onSelect: () => copyEntries('copy'),
         },
         /**
          * Always shown so Paste's availability, and why it is unavailable, is discoverable from the mouse menu instead

@@ -69,11 +69,28 @@ export const MAX_FILE_LIST_ENTRIES = 1_024;
  * model can ask for. A file with more imports than this keeps links for the first ones it declares.
  */
 export const MAX_RESOLVED_IMPORTS = 128;
+/**
+ * Caps one `files.trash` batch: Main authorizes every entry twice (before and after the confirmation), so this bounds
+ * the Server round trips a single Cmd+Backspace on a Files multi-selection can cost.
+ */
+const MAX_TRASH_BATCH_ENTRIES = 1_000;
 const resolvedImportSchema = z.object({ specifier: z.string(), path: pathSchema });
 /**
  * Opaque receipt for one Trash move; the Server resolves it to the item's location in the Trash.
  */
 const trashUndoTokenSchema = z.string().min(1).max(128);
+const trashedEntrySchema = mutableFileEntrySchema.extend({
+    /**
+     * Present when Caxri knows exactly where the item landed in the Trash, so `files.restoreTrashed` can put it back.
+     * Absent when the platform cannot report that location: the item is still in the Trash, only the one-click Undo is
+     * not offered.
+     */
+    undoToken: trashUndoTokenSchema.optional(),
+});
+/**
+ * The entry a `files.trash` batch stopped at, and why; every entry after it was left in place.
+ */
+const trashFailureSchema = z.object({ path: pathSchema, message: z.string() });
 
 const importSpecifierSchema = z.string().min(1).max(1_024);
 
@@ -223,26 +240,27 @@ export const fileMethods = {
         params: z.object({ operationId: identifierSchema, sessionId: identifierSchema }),
         result: z.null(),
     },
+    /**
+     * Moves one or more entries (a Files multi-selection) to the Trash behind a single native confirmation. Main
+     * trashes them in order and stops at the first failure, so `items` always lists exactly what reached the Trash and
+     * `failure` names the entry that did not; entries after it are left in place.
+     */
     'files.trash': {
         ...desktopWrite,
         params: z.object({
             sessionId: identifierSchema,
-            path: pathSchema,
+            paths: z.array(pathSchema).min(1).max(MAX_TRASH_BATCH_ENTRIES),
             /**
-             * Set when an open Editor tab holds unsaved changes for this path. The Trash can only restore the last
-             * bytes written to disk, so the confirmation must stop promising that the item is fully recoverable.
+             * Set when an open Editor tab holds unsaved changes under any of these paths. The Trash can only restore
+             * the last bytes written to disk, so the confirmation must stop promising that everything is recoverable.
              */
             hasUnsavedChanges: z.boolean().optional(),
         }),
         result: z.union([
             canceledResultSchema,
-            mutableFileEntrySchema.extend({
-                /**
-                 * Present when Caxri knows exactly where the item landed in the Trash, so `files.restoreTrashed` can
-                 * put it back. Absent when the platform cannot report that location: the item is still in the Trash,
-                 * only the one-click Undo is not offered.
-                 */
-                undoToken: trashUndoTokenSchema.optional(),
+            z.object({
+                items: z.array(trashedEntrySchema),
+                failure: trashFailureSchema.optional(),
             }),
         ]),
     },

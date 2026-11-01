@@ -11,13 +11,14 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 import { queryClient } from '../../../../queries/client';
 import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
-import { didUndoReplacedMove, moveFile } from '../file-actions';
+import { moveFile } from '../file-actions';
 import {
     resolveFileConflictChoice,
     useFileConflictDialogStore,
 } from '../file-conflict-dialog-store';
 import { useFileOperationStore } from '../file-operation-state';
 import type { ResourceExplorerClient } from '../resource-explorer-client';
+import { didUndoReplacedMove } from '../trash/file-trash-actions';
 
 const source = '/project/a/x.txt';
 const directory = '/project/b';

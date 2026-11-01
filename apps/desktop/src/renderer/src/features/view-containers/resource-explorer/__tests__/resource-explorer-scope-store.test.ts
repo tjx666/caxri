@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
+import { selectPath } from '../file-tree-selection';
 import {
     activeResourceExplorerScope,
     clearScopeRevealPath,
@@ -94,7 +95,7 @@ describe('Resource Explorer scope store', () => {
                 [scopeA]: ['/project/docs', '/project/src', '/project/src/components'],
             },
             selectionByScope: {
-                [scopeA]: '/project/src/components/button.tsx',
+                [scopeA]: selectPath('/project/src/components/button.tsx'),
             },
             revealByScope: {
                 [scopeA]: {
@@ -140,8 +141,8 @@ describe('Resource Explorer scope store', () => {
         followEditorFileInScope(scopeA, '/project', '/project/src/index.ts');
         followEditorFileInScope(scopeA, '/project', '/elsewhere/notes.md');
         expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
-        expect(useResourceExplorerScopeStore.getState().selectionByScope[scopeA]).toBe(
-            '/project/src/index.ts',
+        expect(useResourceExplorerScopeStore.getState().selectionByScope[scopeA]).toEqual(
+            selectPath('/project/src/index.ts'),
         );
     });
 
@@ -149,7 +150,7 @@ describe('Resource Explorer scope store', () => {
         expect(didRevealDirectoryInScope(scopeA, '/project', '/project/a/.config')).toBe(true);
 
         const state = useResourceExplorerScopeStore.getState();
-        expect(state.selectionByScope[scopeA]).toBe('/project/a/.config');
+        expect(state.selectionByScope[scopeA]).toEqual(selectPath('/project/a/.config'));
         expect(state.revealByScope[scopeA]?.path).toBe('/project/a/.config');
         expect(state.expandedByScope[scopeA]).toEqual(
             expect.arrayContaining(['/project/a', '/project/a/.config']),

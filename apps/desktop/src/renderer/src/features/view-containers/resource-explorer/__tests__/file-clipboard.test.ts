@@ -8,12 +8,12 @@ describe('file clipboard', () => {
     it('retains only bounded copy or cut metadata and can be consumed explicitly', () => {
         useFileClipboardStore.getState().set({
             mode: 'cut',
-            path: '/project/source.txt',
+            paths: ['/project/source.txt'],
             sessionId: 'session-1',
         });
         expect(useFileClipboardStore.getState().entry).toEqual({
             mode: 'cut',
-            path: '/project/source.txt',
+            paths: ['/project/source.txt'],
             sessionId: 'session-1',
         });
 

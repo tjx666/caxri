@@ -31,13 +31,19 @@ export function relativePathRoot(
 }
 
 /**
- * Copies an authorized filesystem path and reports the same success and failure messages used by file actions.
+ * Copies an authorized filesystem path, or several (a Files multi-selection) one per line as VS Code does, and reports
+ * the same success and failure messages used by file actions.
  */
-export function copyFilePath(path: string, projectRoot?: string): Promise<void | undefined> {
+export function copyFilePath(
+    path: string | readonly string[],
+    projectRoot?: string,
+): Promise<void | undefined> {
     return tryCommand(translate('core.files.copyPathFailed'), async () => {
-        const value = projectRoot ? projectRelativePath(path, projectRoot) : path;
-        if (value === undefined) throw new Error(translate('core.files.pathOutsideProject'));
-        await writeClipboardText(value);
+        const values = (typeof path === 'string' ? [path] : path).map((each) =>
+            projectRoot ? projectRelativePath(each, projectRoot) : each,
+        );
+        if (values.includes(undefined)) throw new Error(translate('core.files.pathOutsideProject'));
+        await writeClipboardText(values.join('\n'));
         pushToast(
             'success',
             translate(projectRoot ? 'core.files.relativePathCopied' : 'core.files.pathCopied'),

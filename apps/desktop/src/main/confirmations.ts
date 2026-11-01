@@ -91,33 +91,53 @@ export function externalLinkChoice(
     return hasParentOption && response === 2 ? 'trust_parent' : 'cancel';
 }
 
-export function trashPrompt(item: {
-    name: string;
-    path: string;
+/**
+ * How many entries a multi-item Trash prompt lists by path before it switches to "...and N more".
+ */
+const TRASH_PROMPT_VISIBLE_ITEMS = 10;
+
+export function trashPrompt({
+    items,
+    hasUnsavedChanges,
+    host,
+}: {
+    items: ReadonlyArray<{ name: string; path: string }>;
     hasUnsavedChanges?: boolean;
     /**
-     * The SSH Host whose Trash receives the item; absent for this Mac's Trash.
+     * The SSH Host whose Trash receives the items; absent for this Mac's Trash.
      */
     host?: string;
 }): MessageBoxOptions {
+    const [first] = items;
+    const isSingle = items.length === 1;
+    const listed = items.slice(0, TRASH_PROMPT_VISIBLE_ITEMS).map((item) => item.path);
+    const hidden = items.length - listed.length;
+    if (hidden > 0) listed.push(t('desktop.trash.moreItems', { count: hidden }));
+    const path = listed.join('\n');
+    const suffix = isSingle ? '' : 'Many';
     return {
         type: 'warning',
         title: t('desktop.trash.title'),
-        message: t('desktop.trash.message', { name: item.name }),
+        message: isSingle
+            ? t('desktop.trash.message', { name: first.name })
+            : t('desktop.trash.messageMany', { count: items.length }),
         /**
          * The Trash only restores what was last written to disk, so the blanket "you can recover this" reassurance
          * would be false for a file whose Editor tab still holds unsaved changes.
          */
-        detail: item.host
+        detail: host
             ? t(
-                  item.hasUnsavedChanges
-                      ? 'desktop.trash.detailSshHostUnsaved'
-                      : 'desktop.trash.detailSshHost',
-                  { host: item.host, path: item.path },
+                  hasUnsavedChanges
+                      ? `desktop.trash.detailSshHostUnsaved${suffix}`
+                      : `desktop.trash.detailSshHost${suffix}`,
+                  { host, path },
               )
-            : t(item.hasUnsavedChanges ? 'desktop.trash.detailUnsaved' : 'desktop.trash.detail', {
-                  path: item.path,
-              }),
+            : t(
+                  hasUnsavedChanges
+                      ? `desktop.trash.detailUnsaved${suffix}`
+                      : `desktop.trash.detail${suffix}`,
+                  { path },
+              ),
         buttons: [t('desktop.trash.confirm'), t('desktop.dialog.cancel')],
         defaultId: 0,
         cancelId: 1,

@@ -140,8 +140,10 @@ describe('external link prompt', () => {
 });
 
 describe('trash prompt', () => {
+    const notes = { name: 'notes.md', path: '/tmp/notes.md' };
+
     it('names the target and promises recovery for a saved file', () => {
-        const options = trashPrompt({ name: 'notes.md', path: '/tmp/notes.md' });
+        const options = trashPrompt({ items: [notes] });
         expect(options.message).toBe("Move 'notes.md' to the Trash?");
         expect(options.detail).toContain('You can recover this item from the Trash.');
     });
@@ -150,17 +152,34 @@ describe('trash prompt', () => {
      * The Trash restores only what reached disk, so the blanket reassurance would be a lie here.
      */
     it('withdraws the recovery promise when the editor holds unsaved changes', () => {
-        const options = trashPrompt({
-            name: 'notes.md',
-            path: '/tmp/notes.md',
-            hasUnsavedChanges: true,
-        });
+        const options = trashPrompt({ items: [notes], hasUnsavedChanges: true });
         expect(options.detail).not.toContain('You can recover this item from the Trash.');
         expect(options.detail).toContain('Only the last saved version can be recovered');
     });
 
+    it('asks once for a multi-selection, counting and listing every item', () => {
+        const options = trashPrompt({
+            items: [notes, { name: 'todo.md', path: '/tmp/todo.md' }],
+        });
+        expect(options.message).toBe('Move 2 items to the Trash?');
+        expect(options.detail).toBe(
+            '/tmp/notes.md\n/tmp/todo.md\n\nYou can recover these items from the Trash.',
+        );
+    });
+
+    it('lists the first ten paths of a large selection and counts the rest', () => {
+        const items = Array.from({ length: 12 }, (_, index) => ({
+            name: `file-${index}.ts`,
+            path: `/tmp/file-${index}.ts`,
+        }));
+        const detail = trashPrompt({ items, host: 'devbox' }).detail!;
+        expect(detail).toContain('/tmp/file-9.ts\n...and 2 more');
+        expect(detail).not.toContain('/tmp/file-10.ts');
+        expect(detail).toContain("These items move to the SSH Host's Trash on devbox");
+    });
+
     it('confirms on Return and cancels on Escape', () => {
-        const options = trashPrompt({ name: 'notes.md', path: '/tmp/notes.md' });
+        const options = trashPrompt({ items: [notes] });
         expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
@@ -479,7 +498,7 @@ describe('archive worktree prompt', () => {
 describe('Return and Escape targets', () => {
     it.each([
         ['external link', externalLinkPrompt(new URL('https://example.com/'), true)],
-        ['trash', trashPrompt({ name: 'notes.md', path: '/tmp/notes.md' })],
+        ['trash', trashPrompt({ items: [{ name: 'notes.md', path: '/tmp/notes.md' }] })],
         ['shell command', shellCommandElevationPrompt('install', '/usr/local/bin/caxri')],
         ['delete Project', deleteProjectPrompt('caxri', NOTHING_RUNNING)],
         ['delete Session', deleteSessionPrompt('caxri', { terminals: 0, chats: 1 })],

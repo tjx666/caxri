@@ -17,6 +17,8 @@ import type { ProcessExplorerWindowController } from '../process-explorer/window
 import type { UpdateService } from '../updates/updates';
 import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 
+const trashedItem = { kind: 'file', name: 'notes.md', path: '/project/notes.md' };
+
 const NOTHING_RUNNING: RunningWork = { terminals: 0, chats: 0 };
 
 const authorizedItem = {
@@ -76,9 +78,9 @@ describe('files.trash', () => {
         await expect(
             handle({
                 method: 'files.trash',
-                params: { sessionId: 'session-1', path: '/project/notes.md' },
+                params: { sessionId: 'session-1', paths: ['/project/notes.md'] },
             }),
-        ).resolves.toEqual(authorizedItem);
+        ).resolves.toEqual({ items: [trashedItem] });
         expect(trashLocalItem).toHaveBeenCalledWith(authorizedItem.path);
         expect(request).toHaveBeenCalledTimes(2);
     });
@@ -91,9 +93,9 @@ describe('files.trash', () => {
         await expect(
             handler(request)({
                 method: 'files.trash',
-                params: { sessionId: 'session-1', path: '/project/notes.md' },
+                params: { sessionId: 'session-1', paths: ['/project/notes.md'] },
             }),
-        ).resolves.toEqual({ ...authorizedItem, undoToken: 'native-token' });
+        ).resolves.toEqual({ items: [{ ...trashedItem, undoToken: 'native-token' }] });
         expect(request).toHaveBeenLastCalledWith('files.recordTrash', {
             sessionId: 'session-1',
             path: authorizedItem.path,
@@ -115,10 +117,10 @@ describe('files.trash', () => {
 
         const result = await handler(request)({
             method: 'files.trash',
-            params: { sessionId: 'session-1', path: '/project/notes.md' },
+            params: { sessionId: 'session-1', paths: ['/project/notes.md'] },
         });
 
-        expect(result).toEqual(authorizedItem);
+        expect(result).toEqual({ items: [trashedItem] });
     });
 
     it("moves an SSH Host window's item into that host's Trash instead of this Mac's", async () => {
@@ -138,9 +140,9 @@ describe('files.trash', () => {
         await expect(
             handle({
                 method: 'files.trash',
-                params: { sessionId: 'session-1', path: '/project/notes.md' },
+                params: { sessionId: 'session-1', paths: ['/project/notes.md'] },
             }),
-        ).resolves.toEqual({ ...authorizedItem, undoToken: 'host-token' });
+        ).resolves.toEqual({ items: [{ ...trashedItem, undoToken: 'host-token' }] });
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
@@ -164,7 +166,7 @@ describe('files.trash', () => {
         await expect(
             handle({
                 method: 'files.trash',
-                params: { sessionId: 'session-1', path: '/project/notes.md' },
+                params: { sessionId: 'session-1', paths: ['/project/notes.md'] },
             }),
         ).resolves.toEqual({ canceled: true });
         expect(trashLocalItem).not.toHaveBeenCalled();
@@ -188,12 +190,106 @@ describe('files.trash', () => {
             await expect(
                 handle({
                     method: 'files.trash',
-                    params: { sessionId: 'session-1', path: '/project/notes.md' },
+                    params: { sessionId: 'session-1', paths: ['/project/notes.md'] },
                 }),
             ).rejects.toMatchObject({ code: 'CONFLICT' });
             expect(trashLocalItem).not.toHaveBeenCalled();
         },
     );
+});
+
+describe('files.trash with a multi-selection', () => {
+    const paths = ['/project/a.md', '/project/b.md', '/project/c.md'];
+    const authorized = (path: string) => ({
+        ...authorizedItem,
+        name: path.slice(path.lastIndexOf('/') + 1),
+        path,
+        inode: String(paths.indexOf(path) + 10),
+    });
+    const trashed = (path: string) => ({
+        kind: 'file',
+        name: path.slice(path.lastIndexOf('/') + 1),
+        path,
+    });
+    function router() {
+        return vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>(
+            (method, parameters) => {
+                if (method === 'files.authorizeTrash')
+                    return Promise.resolve(authorized((parameters as { path: string }).path));
+                return Promise.reject(new Error(`Unexpected method: ${method}`));
+            },
+        );
+    }
+
+    it('authorizes every entry before one confirmation and trashes them in order', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = router();
+
+        await expect(
+            handler(request)({
+                method: 'files.trash',
+                params: { sessionId: 'session-1', paths },
+            }),
+        ).resolves.toEqual({ items: paths.map(trashed) });
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledOnce();
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
+            {},
+            expect.objectContaining({ message: 'Move 3 items to the Trash?' }),
+        );
+        expect(trashLocalItem.mock.calls.map(([path]) => path)).toEqual(paths);
+    });
+
+    it('asks nothing and moves nothing when one entry fails authorization', async () => {
+        const request = router();
+        request.mockImplementation((_method, parameters) =>
+            (parameters as { path: string }).path === '/project/b.md'
+                ? Promise.reject(new Error('outside the Project'))
+                : Promise.resolve(authorized((parameters as { path: string }).path)),
+        );
+
+        await expect(
+            handler(request)({ method: 'files.trash', params: { sessionId: 'session-1', paths } }),
+        ).rejects.toThrow('outside the Project');
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+        expect(trashLocalItem).not.toHaveBeenCalled();
+    });
+
+    it('trashes a listed folder once, without its listed contents or a duplicate', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const request = router();
+
+        await expect(
+            handler(request)({
+                method: 'files.trash',
+                params: {
+                    sessionId: 'session-1',
+                    paths: ['/project/a.md', '/project/a.md/inner.md', '/project/a.md'],
+                },
+            }),
+        ).resolves.toEqual({ items: [trashed('/project/a.md')] });
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(trashLocalItem.mock.calls.map(([path]) => path)).toEqual(['/project/a.md']);
+    });
+
+    it('stops at the first failed move and reports what already reached the Trash', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        trashLocalItem.mockImplementation((path) =>
+            path === '/project/b.md'
+                ? Promise.reject(new Error('Permission denied'))
+                : Promise.resolve(undefined),
+        );
+
+        await expect(
+            handler(router())({
+                method: 'files.trash',
+                params: { sessionId: 'session-1', paths },
+            }),
+        ).resolves.toEqual({
+            items: [trashed('/project/a.md')],
+            failure: { path: '/project/b.md', message: 'Permission denied' },
+        });
+        expect(trashLocalItem).not.toHaveBeenCalledWith('/project/c.md');
+    });
 });
 
 const bootstrapWith = (

@@ -15,7 +15,9 @@ import { fileTreeRootMenu } from '../file-tree-root-context-menu';
 
 function options(entry: FileEntry, overrides: Partial<FileTreeItemMenuOptions> = {}) {
     return {
+        actionPaths: [entry.path],
         confirmTrash: vi.fn(async () => {}),
+        copyEntries: vi.fn(),
         duplicateBlocked: false,
         duplicateEntry: vi.fn(async () => {}),
         entry,
@@ -135,6 +137,23 @@ describe('fileTreeItemMenu', () => {
         expect(items.find((item) => item.label === 'Duplicate')).not.toHaveProperty(
             'disabledReason',
         );
+    });
+
+    it('keeps only the batch actions on a row of a multi-selection, each acting on every entry', () => {
+        const menu = options(file, { actionPaths: ['/project/notes.txt', '/project/src'] });
+        const { items, actions } = serializeContextMenu(fileTreeItemMenu(menu));
+        expect(labels(fileTreeItemMenu(menu))).toEqual([
+            'Cut',
+            'Copy',
+            'Copy Path',
+            'Copy Relative Path',
+            '---',
+            'Move to Trash',
+        ]);
+        actions.get(items.find((item) => item.label === 'Cut')!.id!)?.();
+        expect(menu.copyEntries).toHaveBeenCalledWith('cut');
+        actions.get(items.find((item) => item.label === 'Move to Trash')!.id!)?.();
+        expect(menu.confirmTrash).toHaveBeenCalledOnce();
     });
 
     it('starts the inline rename from the Rename entry', () => {

@@ -8,7 +8,6 @@ import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
 import { describeFailure, describeFailureKey, pushToast, tryCommand } from '../../../stores/toasts';
 import { openFile } from '../../editor/document-commands';
-import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../../editor/document-trash';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import { isFolderGatedConflict, requestFileConflictChoice } from './file-conflict-dialog-store';
 import {
@@ -23,9 +22,7 @@ import type {
     FileMoveSource,
     ResourceExplorerClient,
 } from './resource-explorer-client';
-import { activeResourceExplorerScope, didRevealPathInScope } from './resource-explorer-scope-store';
-import type { UndoableTrash } from './undoable-trash';
-import { forgetUndoableTrash, rememberUndoableTrash, undoableTrashFor } from './undoable-trash';
+import { forgetUndoableTrash } from './trash/undoable-trash';
 
 /**
  * Looks up one entry's kind from its directory listing; undefined when not found or unreadable.
@@ -372,41 +369,6 @@ export async function moveFile(
 }
 
 /**
- * Takes a Replace move back from the Undo button on its notification, in two steps that each report their own failure:
- * the moved file returns to its old folder first (freeing the name), then the overwritten file leaves the Trash for
- * that same name. A failed first step leaves the overwritten file in Trash with its receipt intact, so nothing is
- * lost.
- */
-export async function didUndoReplacedMove(
-    client: ResourceExplorerClient,
-    undo: { name: string; path: string; previousPath: string; undoToken: string },
-): Promise<boolean> {
-    const restoredDirectory = parentDirectoryPath(undo.previousPath);
-    const operationId = crypto.randomUUID();
-    try {
-        await client.move({
-            operationId,
-            path: undo.path,
-            directory: restoredDirectory,
-            conflict: 'reject',
-        });
-    } catch (error) {
-        pushToast(
-            'error',
-            isCaxriError(error) && error.code === 'CONFLICT'
-                ? translate('viewContainers.files.undoReplaceConflict', { name: undo.name })
-                : describeFailureKey(error, 'viewContainers.files.moveFailed', translate),
-        );
-        await invalidateDirectory(client, restoredDirectory);
-        return false;
-    }
-    const restored = await didUndoTrashedFile(client, undo.undoToken, undo.name);
-    await invalidateDirectory(client, parentDirectoryPath(undo.path));
-    await invalidateDirectory(client, restoredDirectory);
-    return restored;
-}
-
-/**
  * User-triggered Cancel for a long-running durable mutation (create/rename/move). Mirrors the internal timeout-driven
  * cancel path in `runDurableFileMutation` above: Server's `staged` phase cannot be rolled back safely (the file-system
  * change already started), so a cancel that lands after staging still reconciles to whatever Server finished with
@@ -437,126 +399,4 @@ export function duplicateFile(
     path: string,
 ): Promise<MutableFileEntry | undefined> {
     return copyItem(client, sessionId, path, parentDirectoryPath(path));
-}
-
-export async function didTrashFile(
-    client: ResourceExplorerClient,
-    sessionId: string,
-    path: string,
-): Promise<boolean> {
-    /**
-     * Resolved once, before the confirmation, and reused for the cleanup afterwards. A Session can change its Workbench
-     * Root while the dialog is open: an Agent creating a worktree does it with no user action under
-     * `workbench.newWorktreeBehavior: continueAutomatically`, and re-deriving it after the await would clean a
-     * different root than the one the user was asked about.
-     */
-    const workbenchRootProjectId = getSessionProjectId(sessionId);
-    if (!workbenchRootProjectId) return false;
-    /**
-     * Checked before the request so Main's confirmation copy can stop promising full recoverability: Trash can only
-     * restore the last bytes written to disk, never an unsaved buffer.
-     */
-    const hasUnsavedChanges = hasUnsavedChangesUnderPath(workbenchRootProjectId, path);
-    const result = await tryCommand(translate('viewContainers.files.trashFailed'), () =>
-        client.trash(path, { hasUnsavedChanges }),
-    );
-    if (!result || 'canceled' in result) return false;
-    closeOpenEditorsUnderPath(workbenchRootProjectId, result.path);
-    /**
-     * Only this root's pane layout is in memory, so the call above cannot reach a Session parked on another root. Its
-     * layout for this root lives on the Server, and a tab left there reopens stuck on `Loading file…` (issue #909).
-     */
-    await tryCommand(translate('viewContainers.files.trashCleanupFailed'), () =>
-        client.forgetEditorPath(workbenchRootProjectId, result.path),
-    );
-    await invalidateDirectory(client, parentDirectoryPath(result.path));
-    if (result.undoToken)
-        rememberUndoableTrash({ name: result.name, sessionId, undoToken: result.undoToken });
-    else forgetUndoableTrash();
-    /**
-     * A Trash that can be taken back (Cmd+Z in the tree) needs no notice: the row disappearing is the feedback. Only a
-     * Trash that discarded unsaved edits says so, in a persistent warning, since those edits are the one thing the
-     * Trash cannot give back.
-     */
-    if (hasUnsavedChanges)
-        pushToast(
-            'warning',
-            translate('viewContainers.files.trashedUnsaved', { name: result.name }),
-            {
-                persist: true,
-                ...(result.undoToken && {
-                    action: {
-                        id: 'files.undoTrash',
-                        params: { sessionId, undoToken: result.undoToken, name: result.name },
-                    },
-                }),
-            },
-        );
-    return true;
-}
-
-/**
- * Takes a Trash move back from the Undo button on its notification. Every outcome is reported here, because the
- * notification that carried the button is already gone: the original path being occupied is named and leaves the Trash
- * copy untouched, and the Files tree refreshes only after a restore.
- */
-export async function didUndoTrashedFile(
-    client: ResourceExplorerClient,
-    undoToken: string,
-    name: string,
-    onConflict?: () => void,
-): Promise<boolean> {
-    let restored: MutableFileEntry;
-    try {
-        restored = await client.restoreTrashed(undoToken);
-        forgetUndoableTrash(undoToken);
-    } catch (error) {
-        // A name conflict is the one failure the user can fix and retry; every other one leaves nothing to retry.
-        if (!(isCaxriError(error) && error.code === 'CONFLICT')) forgetUndoableTrash(undoToken);
-        if (isCaxriError(error) && error.code === 'CONFLICT') {
-            onConflict?.();
-            pushToast('error', translate('viewContainers.files.restoreConflict', { name }));
-        } else if (isCaxriError(error) && error.code === 'NOT_FOUND')
-            pushToast('error', translate('viewContainers.files.restoreGone', { name }));
-        else
-            pushToast(
-                'error',
-                describeFailureKey(error, 'viewContainers.files.restoreFailed', translate),
-            );
-        return false;
-    }
-    await invalidateDirectory(client, parentDirectoryPath(restored.path));
-    /**
-     * The row coming back is the feedback, so it is selected and scrolled to like a pasted entry: a restore into a long
-     * folder would otherwise land off-screen. Skipped when no Files tree is mounted for the restoring Session.
-     */
-    const scope = activeResourceExplorerScope();
-    const session = getSelectedSession();
-    if (scope && session?.id === scope.sessionId)
-        didRevealPathInScope(scope.scopeId, session.rootPath, restored.path);
-    return true;
-}
-
-/**
- * Cmd+Z in the Files tree: takes back the latest Move to Trash of `sessionId` if no later file operation made it stale.
- * Returns the Trash it took back, or `undefined` when there was nothing to undo, so the caller only swallows the
- * keystroke when it acted on it.
- */
-export function undoLatestTrash(
-    client: ResourceExplorerClient,
-    sessionId: string,
-): UndoableTrash | undefined {
-    const trash = undoableTrashFor(sessionId);
-    if (!trash) return undefined;
-    /**
-     * Claim the slot before the async restore: a second Cmd+Z (double press or key auto-repeat) would otherwise send
-     * the same receipt again and show an error toast beside the success one. A name conflict is the one retryable
-     * failure, so it puts the receipt back, unless a later operation already filled the slot.
-     */
-    forgetUndoableTrash(trash.undoToken);
-    // didUndoTrashedFile reports every outcome itself.
-    void didUndoTrashedFile(client, trash.undoToken, trash.name, () => {
-        if (!undoableTrashFor(trash.sessionId)) rememberUndoableTrash(trash);
-    });
-    return trash;
 }

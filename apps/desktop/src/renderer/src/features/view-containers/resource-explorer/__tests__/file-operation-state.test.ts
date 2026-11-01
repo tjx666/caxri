@@ -5,6 +5,7 @@ import {
     CANCEL_REVEAL_THRESHOLD_MS,
     cancelRevealDelayMs,
     fileOperationsBlockingPath,
+    isDragBlockedByFileOperations,
     isPathBlockedByFileOperations,
 } from '../file-operation-state';
 
@@ -41,6 +42,31 @@ describe('isPathBlockedByFileOperations', () => {
         const operations = [operation({ projectId: 'project-2' })];
 
         expect(isPathBlockedByFileOperations(operations, 'project-1', '/project/foo')).toBe(false);
+    });
+});
+
+describe('isDragBlockedByFileOperations', () => {
+    it('blocks a selection when any entry or the folder it leaves is busy', () => {
+        const operations = [operation()];
+
+        expect(
+            isDragBlockedByFileOperations(operations, 'project-1', [
+                '/project/a.md',
+                '/project/foo/b.md',
+            ]),
+        ).toBe(true);
+        expect(
+            isDragBlockedByFileOperations(operations, 'project-1', [
+                '/project/a.md',
+                '/project/foo',
+            ]),
+        ).toBe(true);
+        expect(
+            isDragBlockedByFileOperations(operations, 'project-1', [
+                '/project/a.md',
+                '/project/bar/c.md',
+            ]),
+        ).toBe(false);
     });
 });
 

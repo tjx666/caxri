@@ -6,7 +6,7 @@ import { useIsFetching } from '@tanstack/react-query';
 
 import { executeCommand } from '../../../../commands/execute';
 import { translate } from '../../../../i18n';
-import { dragPath, fileTreeDropEffect, osFilePaths } from '../../../../lib/file-drag';
+import { dragPaths, fileTreeDropEffect, osFilePaths } from '../../../../lib/file-drag';
 import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
 import { getActivePaneTab } from '../../../workbench/pane-actions';
@@ -16,7 +16,7 @@ import {
     useResourceExplorerClient,
 } from '../../controlled-view-context';
 import { subscribeCoreViewCommands } from '../../core-view-commands';
-import { cancelFileOperation, moveFile } from '../file-actions';
+import { cancelFileOperation } from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import type { PendingFileOperation } from '../file-operation-state';
 import {
@@ -24,16 +24,16 @@ import {
     isPathBlockedByFileOperations,
     useFileOperationStore,
 } from '../file-operation-state';
-import { importOsFiles, pasteIntoDirectory } from '../file-paste-actions';
+import { importOsFiles, moveFiles, pasteIntoDirectory } from '../file-paste-actions';
 import type { EditRequest, FocusTarget } from '../file-tree-item-types';
 import {
     activeResourceExplorerScope,
     clearScopeRevealPath,
     collapseScope,
     didRevealPathInScope,
+    revealPathsInScope,
     setResourceExplorerActiveScope,
     setScopeFocusPath,
-    setScopeSelectedPath,
     subscribeResourceExplorerScopePruning,
 } from '../resource-explorer-scope-store';
 import {
@@ -56,7 +56,10 @@ interface ProjectRootFileActionContext {
 }
 
 interface ProjectRootFileActionDependencies {
-    draggedPath: (event: DragEvent) => string | undefined;
+    /**
+     * The Files entries a drag moves; empty for a drag from another application.
+     */
+    draggedPaths: (event: DragEvent) => readonly string[];
     /**
      * Copies files dragged in from Finder, whose paths the drop event carries.
      */
@@ -64,14 +67,14 @@ interface ProjectRootFileActionDependencies {
         event: DragEvent,
         sessionId: string,
         directory: string,
-    ) => Promise<{ path: string } | undefined>;
+    ) => Promise<ReadonlyArray<{ path: string }>>;
     move: (
         sessionId: string,
-        source: string,
+        sources: readonly string[],
         directory: string,
-    ) => Promise<{ path: string } | undefined>;
-    paste: (sessionId: string, directory: string) => Promise<{ path: string } | undefined>;
-    selectPath: (path: string) => void;
+    ) => Promise<ReadonlyArray<{ path: string }>>;
+    paste: (sessionId: string, directory: string) => Promise<ReadonlyArray<{ path: string }>>;
+    selectPaths: (paths: readonly string[]) => void;
 }
 
 /**
@@ -109,7 +112,7 @@ export async function pasteIntoProjectRoot(
     dependencies: ProjectRootFileActionDependencies,
 ): Promise<void> {
     const pasted = await dependencies.paste(context.sessionId, context.rootPath);
-    if (pasted) dependencies.selectPath(pasted.path);
+    if (pasted.length > 0) dependencies.selectPaths(pasted.map((entry) => entry.path));
 }
 
 export async function dropIntoProjectRoot(
@@ -119,11 +122,12 @@ export async function dropIntoProjectRoot(
 ): Promise<void> {
     event.preventDefault();
     if (context.isBlocked) return;
-    const source = dependencies.draggedPath(event);
-    const dropped = source
-        ? await dependencies.move(context.sessionId, source, context.rootPath)
-        : await dependencies.importDropped(event, context.sessionId, context.rootPath);
-    if (dropped) dependencies.selectPath(dropped.path);
+    const sources = dependencies.draggedPaths(event);
+    const dropped =
+        sources.length > 0
+            ? await dependencies.move(context.sessionId, sources, context.rootPath)
+            : await dependencies.importDropped(event, context.sessionId, context.rootPath);
+    if (dropped.length > 0) dependencies.selectPaths(dropped.map((entry) => entry.path));
 }
 
 /**
@@ -301,7 +305,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         const scope = activeResourceExplorerScope();
         setEditingState(request && scope ? { request, scopeId: scope.scopeId } : undefined);
     };
-    const setSelectedPath = (path?: string): void => setScopeSelectedPath(scopeId, path);
     const requestFocus = (target: FocusTarget): void => {
         const scope = activeResourceExplorerScope();
         if (!scope) return;
@@ -331,14 +334,12 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         sessionId: session.id,
     };
     const rootActionDependencies: ProjectRootFileActionDependencies = {
-        draggedPath: dragPath,
+        draggedPaths: dragPaths,
         importDropped: (event, sessionId, directory) =>
             importOsFiles(client, sessionId, osFilePaths(event.dataTransfer.files), directory),
-        move: (sessionId, source, directory) => moveFile(client, sessionId, source, directory),
+        move: (sessionId, sources, directory) => moveFiles(client, sessionId, sources, directory),
         paste: (sessionId, directory) => pasteIntoDirectory(client, sessionId, directory),
-        selectPath: (path: string) => {
-            if (!didRevealPathInScope(scopeId, session.rootPath, path)) setSelectedPath(path);
-        },
+        selectPaths: (paths) => revealPathsInScope(scopeId, session.rootPath, paths),
     };
 
     return {

@@ -81,7 +81,7 @@ function handleResourceDragStart(
     isDirectory = false,
 ): void {
     if (!resourcePath) return;
-    startFilePathDrag(event.dataTransfer, resourcePath, false, isDirectory);
+    startFilePathDrag(event.dataTransfer, [{ path: resourcePath, isDirectory }], false);
 }
 
 /**

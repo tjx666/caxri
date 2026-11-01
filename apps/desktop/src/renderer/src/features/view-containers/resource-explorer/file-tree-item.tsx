@@ -10,7 +10,7 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useContextMenu } from '../../../hooks/use-context-menu';
 import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { fileTreeDropEffect, startFilePathDrag } from '../../../lib/file-drag';
+import { fileTreeDropEffect } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { isImeComposing } from '../../../lib/ime';
@@ -20,7 +20,6 @@ import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decoratio
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { createItem, renameFile } from './file-actions';
-import { rememberFile } from './file-paste-actions';
 import { fileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
@@ -34,6 +33,7 @@ import {
     useIsPathExpanded,
     useIsPathFocusRequested,
     useIsPathSelected,
+    useIsPathSelectionLead,
 } from './resource-explorer-scope-store';
 import {
     fileTreeRowDescription,
@@ -375,12 +375,16 @@ export function FileTreeItem({
     const childRepo = useGitChildRepo(entry.path);
     const expanded = useIsPathExpanded(entry.path);
     const selected = useIsPathSelected(entry.path);
+    const isSelectionLead = useIsPathSelectionLead(entry.path);
     const hasSelection = useHasScopeSelection();
     const isFocusRequested = useIsPathFocusRequested(entry.path);
     const {
+        actionPaths,
         activateEntry,
+        clickEntry,
         clipboard,
         confirmTrash,
+        copyEntries,
         dragBlocked,
         dropIntoDirectory,
         duplicateBlocked,
@@ -397,8 +401,10 @@ export function FileTreeItem({
         pasteDisabledReason,
         pasteIntoEntry,
         rowRef,
+        selectForContextMenu,
         setIsDropTarget,
         startCreate,
+        startDrag,
         startRename,
         rowDescriptionId,
     } = useFileTreeItemInteractions({
@@ -409,7 +415,7 @@ export function FileTreeItem({
         hasSelection,
         index,
         isFocusRequested,
-        isSelected: selected,
+        isSelectionLead,
         projectId,
         projectRoot,
         setEditing,
@@ -417,7 +423,9 @@ export function FileTreeItem({
 
     const openContextMenu = useContextMenu(() =>
         fileTreeItemMenu({
+            actionPaths: actionPaths(),
             confirmTrash,
+            copyEntries,
             duplicateBlocked,
             duplicateEntry,
             entry,
@@ -479,29 +487,20 @@ export function FileTreeItem({
             aria-setsize={setSize}
             tabIndex={isRovingTabStop ? 0 : -1}
             className={treeRowClassName}
-            data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
+            data-cut={clipboard?.mode === 'cut' && clipboard.paths.includes(entry.path)}
             data-drop-target={isDropTarget}
             data-git-ignored={entry.gitIgnored}
             data-selected={selected}
             draggable={!dragBlocked}
             style={fileTreeRowStyle({ depth, isDirectory })}
-            onClick={(event) =>
-                discard(
-                    activateEntry({
-                        preview: true,
-                        toggleDirectory: true,
-                        recursive: event.altKey,
-                    }),
-                )
-            }
+            onClick={clickEntry}
             onDoubleClick={() => discard(activateEntry())}
             onFocus={() => {
                 const scope = activeResourceExplorerScope();
                 if (scope) clearStaleScopeFocusPath(scope.scopeId, entry.path);
             }}
             onContextMenu={(event) => {
-                const scope = activeResourceExplorerScope();
-                if (scope) setScopeSelectedPath(scope.scopeId, entry.path);
+                selectForContextMenu();
                 /**
                  * A symlink row has no menu of its own; leaving its gesture unclaimed lets it reach the tree's
                  * background menu, as it always has.
@@ -510,11 +509,11 @@ export function FileTreeItem({
             }}
             onCopy={(event) => {
                 event.preventDefault();
-                rememberFile(entry.path, 'copy');
+                copyEntries('copy');
             }}
             onCut={(event) => {
                 event.preventDefault();
-                rememberFile(entry.path, 'cut');
+                copyEntries('cut');
             }}
             onDragEnter={(event) => {
                 if (pasteBlocked || !fileTreeDropDirectory(entry) || !fileTreeDropEffect(event))
@@ -533,14 +532,7 @@ export function FileTreeItem({
                 event.preventDefault();
                 event.dataTransfer.dropEffect = dropEffect;
             }}
-            onDragStart={(event) => {
-                startFilePathDrag(
-                    event.dataTransfer,
-                    entry.path,
-                    editable,
-                    entry.kind === 'directory' || entry.linkKind === 'directory',
-                );
-            }}
+            onDragStart={startDrag}
             onDrop={dropIntoDirectory}
             onPaste={(event) => {
                 event.preventDefault();

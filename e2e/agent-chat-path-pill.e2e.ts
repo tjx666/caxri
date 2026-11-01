@@ -39,7 +39,7 @@ test('a Files folder dropped into Agent Chat shows as a pill, keeps its absolute
         await message.evaluate((element, path) => {
             const dataTransfer = new DataTransfer();
             dataTransfer.setData('application/x-caxri-file-path', path);
-            dataTransfer.setData('application/x-caxri-path-is-directory', '1');
+            dataTransfer.setData('application/x-caxri-path-is-directory', path);
             for (const type of ['dragenter', 'dragover', 'drop'])
                 element.dispatchEvent(
                     new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }),

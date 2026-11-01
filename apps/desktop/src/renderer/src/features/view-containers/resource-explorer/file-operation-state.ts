@@ -1,6 +1,7 @@
 import { isPathAtOrBelow } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
+import { parentDirectoryPath } from '../../../lib/file-path';
 import { createStore } from '../../../lib/store';
 
 export interface PendingFileOperation {
@@ -87,6 +88,22 @@ export function isPathBlockedByFileOperations(
         (operation) =>
             operation.projectId === projectId &&
             operation.affectedPaths.some((affected) => isPathAtOrBelow(path, affected)),
+    );
+}
+
+/**
+ * True when dragging these entries would move one a pending operation touches, either the entry or the folder it
+ * leaves. A row's `draggable` only covers its own entry, so a multi-selection drag checks every entry with this.
+ */
+export function isDragBlockedByFileOperations(
+    operations: readonly PendingFileOperation[],
+    projectId: string,
+    paths: readonly string[],
+): boolean {
+    return paths.some(
+        (path) =>
+            isPathBlockedByFileOperations(operations, projectId, path) ||
+            isPathBlockedByFileOperations(operations, projectId, parentDirectoryPath(path)),
     );
 }
 

@@ -20,47 +20,51 @@ function dragEvent(): { event: DragEvent; preventDefault: ReturnType<typeof vi.f
 }
 
 describe('Resource Explorer controller workflows', () => {
-    it('pastes into the Project root and selects the pasted path', async () => {
-        const paste = vi.fn(() => Promise.resolve({ path: '/project/source copy.ts' }));
-        const selectPath = vi.fn();
+    it('pastes into the Project root and selects every pasted path', async () => {
+        const paste = vi.fn(() =>
+            Promise.resolve([{ path: '/project/a copy.ts' }, { path: '/project/b copy.ts' }]),
+        );
+        const selectPaths = vi.fn();
 
         await pasteIntoProjectRoot(context, {
-            draggedPath: vi.fn(),
+            draggedPaths: vi.fn(() => []),
             importDropped: vi.fn(),
             move: vi.fn(),
             paste,
-            selectPath,
+            selectPaths,
         });
 
         expect(paste).toHaveBeenCalledWith('session-1', '/project');
-        expect(selectPath).toHaveBeenCalledWith('/project/source copy.ts');
+        expect(selectPaths).toHaveBeenCalledWith(['/project/a copy.ts', '/project/b copy.ts']);
     });
 
     it('selects nothing when there was nothing to paste', async () => {
-        const selectPath = vi.fn();
+        const selectPaths = vi.fn();
 
         await pasteIntoProjectRoot(context, {
-            draggedPath: vi.fn(),
+            draggedPaths: vi.fn(() => []),
             importDropped: vi.fn(),
             move: vi.fn(),
-            paste: vi.fn(() => Promise.resolve(undefined)),
-            selectPath,
+            paste: vi.fn(() => Promise.resolve([])),
+            selectPaths,
         });
 
-        expect(selectPath).not.toHaveBeenCalled();
+        expect(selectPaths).not.toHaveBeenCalled();
     });
 
     it('prevents the browser drop and preserves operation blocking before moving', async () => {
         const blockedEvent = dragEvent();
-        const move = vi.fn(() => Promise.resolve({ path: '/project/source.ts' }));
+        const move = vi.fn(() =>
+            Promise.resolve([{ path: '/project/a.ts' }, { path: '/project/b.ts' }]),
+        );
         const importDropped = vi.fn();
-        const selectPath = vi.fn();
+        const selectPaths = vi.fn();
         const dependencies = {
-            draggedPath: vi.fn(() => '/elsewhere/source.ts'),
+            draggedPaths: vi.fn(() => ['/elsewhere/a.ts', '/elsewhere/b.ts']),
             importDropped,
             move,
             paste: vi.fn(),
-            selectPath,
+            selectPaths,
         };
 
         await dropIntoProjectRoot(
@@ -75,28 +79,32 @@ describe('Resource Explorer controller workflows', () => {
         const allowedEvent = dragEvent();
         await dropIntoProjectRoot(allowedEvent.event, context, dependencies);
 
-        expect(move).toHaveBeenCalledWith('session-1', '/elsewhere/source.ts', '/project');
+        expect(move).toHaveBeenCalledWith(
+            'session-1',
+            ['/elsewhere/a.ts', '/elsewhere/b.ts'],
+            '/project',
+        );
         expect(importDropped).not.toHaveBeenCalled();
-        expect(selectPath).toHaveBeenCalledWith('/project/source.ts');
+        expect(selectPaths).toHaveBeenCalledWith(['/project/a.ts', '/project/b.ts']);
     });
 
     it('copies files dropped from Finder into the Project root', async () => {
         const { event } = dragEvent();
-        const importDropped = vi.fn(() => Promise.resolve({ path: '/project/photo.png' }));
+        const importDropped = vi.fn(() => Promise.resolve([{ path: '/project/photo.png' }]));
         const move = vi.fn();
-        const selectPath = vi.fn();
+        const selectPaths = vi.fn();
 
         await dropIntoProjectRoot(event, context, {
-            draggedPath: vi.fn(),
+            draggedPaths: vi.fn(() => []),
             importDropped,
             move,
             paste: vi.fn(),
-            selectPath,
+            selectPaths,
         });
 
         expect(importDropped).toHaveBeenCalledWith(event, 'session-1', '/project');
         expect(move).not.toHaveBeenCalled();
-        expect(selectPath).toHaveBeenCalledWith('/project/photo.png');
+        expect(selectPaths).toHaveBeenCalledWith(['/project/photo.png']);
     });
 
     it('re-reveals the open file when refreshing, and refreshes regardless', () => {

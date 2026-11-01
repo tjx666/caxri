@@ -16,27 +16,49 @@ export const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
 const FILE_REFERENCE_DRAG_TYPE = 'application/x-caxri-file-reference';
 
 /**
- * Marks a Files or file reference drag whose entry is a folder, so a drop target can draw it as one without reading the
- * filesystem. Its value is unused; the type's presence is the flag.
+ * Marks a Files or file reference drag that carries a folder, so a drop target can draw it as one without reading the
+ * filesystem. Its value lists the dragged paths that are folders, in the same encoding as the paths themselves.
  */
 const DIRECTORY_DRAG_TYPE = 'application/x-caxri-path-is-directory';
 
-export function startFilePathDrag(
-    dataTransfer: DataTransfer,
-    path: string,
-    isMovable: boolean,
-    isDirectory = false,
-): void {
-    dataTransfer.effectAllowed = isMovable ? 'copyMove' : 'copy';
-    dataTransfer.setData(isMovable ? FILE_TREE_DRAG_TYPE : FILE_REFERENCE_DRAG_TYPE, path);
-    if (isDirectory) dataTransfer.setData(DIRECTORY_DRAG_TYPE, '1');
+/**
+ * Several dragged paths share one data entry, one per line. A path whose name contains a line break cannot be dragged
+ * with others intact; such names are vanishingly rare, and a single-entry drag still carries one unchanged.
+ */
+const DRAG_PATH_SEPARATOR = '\n';
+
+function encodeDragPaths(paths: readonly string[]): string {
+    return paths.join(DRAG_PATH_SEPARATOR);
+}
+
+function decodeDragPaths(value: string): string[] {
+    return value === '' ? [] : value.split(DRAG_PATH_SEPARATOR).filter(Boolean);
 }
 
 /**
- * Whether a Files or file reference drag names a folder ({@link startFilePathDrag}).
+ * Starts a drag of one Files entry or a whole multi-selection. `isMovable` marks a Files drag a Files folder may move;
+ * otherwise the paths are references only (Terminal or Chat insertion).
  */
-export function isDirectoryDrag(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
-    return dataTransfer.types.includes(DIRECTORY_DRAG_TYPE);
+export function startFilePathDrag(
+    dataTransfer: DataTransfer,
+    items: ReadonlyArray<{ path: string; isDirectory?: boolean }>,
+    isMovable: boolean,
+): void {
+    dataTransfer.effectAllowed = isMovable ? 'copyMove' : 'copy';
+    dataTransfer.setData(
+        isMovable ? FILE_TREE_DRAG_TYPE : FILE_REFERENCE_DRAG_TYPE,
+        encodeDragPaths(items.map((item) => item.path)),
+    );
+    const directories = items.filter((item) => item.isDirectory).map((item) => item.path);
+    if (directories.length > 0)
+        dataTransfer.setData(DIRECTORY_DRAG_TYPE, encodeDragPaths(directories));
+}
+
+/**
+ * The dragged paths that are folders; only readable on `drop`.
+ */
+export function draggedDirectoryPaths(dataTransfer: Pick<DataTransfer, 'getData'>): Set<string> {
+    return new Set(decodeDragPaths(dataTransfer.getData(DIRECTORY_DRAG_TYPE)));
 }
 
 /**
@@ -57,8 +79,10 @@ export function terminalDragPaths(
     event: DragEvent,
     files: Iterable<File> = event.dataTransfer.files,
 ): string[] {
-    const path = event.dataTransfer.getData(FILE_REFERENCE_DRAG_TYPE) || dragPath(event);
-    if (path) return [path];
+    const references = decodeDragPaths(event.dataTransfer.getData(FILE_REFERENCE_DRAG_TYPE));
+    if (references.length > 0) return references;
+    const paths = dragPaths(event);
+    if (paths.length > 0) return paths;
     return osFilePaths(files);
 }
 
@@ -150,8 +174,11 @@ export function isOsFileDrag(dataTransfer: Pick<DataTransfer, 'types'>): boolean
     );
 }
 
-export function dragPath(event: DragEvent): string | undefined {
-    return event.dataTransfer.getData(FILE_TREE_DRAG_TYPE) || undefined;
+/**
+ * The Files entries a Files drag moves: one row, or a whole multi-selection.
+ */
+export function dragPaths(event: DragEvent): string[] {
+    return decodeDragPaths(event.dataTransfer.getData(FILE_TREE_DRAG_TYPE));
 }
 
 export function hasDraggedPath(event: DragEvent): boolean {
