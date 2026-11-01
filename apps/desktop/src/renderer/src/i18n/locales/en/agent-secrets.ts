@@ -4,6 +4,7 @@ export const agentSecrets = {
     'agentSecrets.request.reasonLabel': 'Reason given by the Agent',
     'agentSecrets.request.valueLabel': 'Value for {{name}}',
     'agentSecrets.request.allProjects': 'Use in all Projects',
+    'agentSecrets.request.saveForProject': 'Saved for {{project}} only.',
     'agentSecrets.request.privacy':
         'Saved on this Mac for Agents to use in commands. It is not added to the conversation.',
     'agentSecrets.request.save': 'Save',

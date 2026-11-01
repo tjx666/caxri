@@ -74,7 +74,11 @@ export function AgentChatWaitingCard({
                         </p>
                     )}
                 </div>
-                <Button size="sm" variant="secondary" onClick={open}>
+                <Button
+                    size="sm"
+                    variant={request?.kind === 'fileChange' ? 'default' : 'secondary'}
+                    onClick={open}
+                >
                     <SquareArrowOutUpRight className="size-3.5" />
                     {t('agentChat.waiting.openSession')}
                 </Button>

@@ -35,6 +35,13 @@ describe('agentChatApprovalChoices', () => {
         ]);
     });
 
+    it('hints that Always Allow in This Chat lasts for the rest of the Chat', () => {
+        const choice = agentChatApprovalChoices({ id: 'r', kind: 'command', command: 'make' }).find(
+            (entry) => entry.decision === 'acceptForSession',
+        );
+        expect(choice?.hint).toContain('rest of this Chat');
+    });
+
     it('adds an Always Allow button naming the command prefix Codex proposes', () => {
         const request = {
             id: 'r',

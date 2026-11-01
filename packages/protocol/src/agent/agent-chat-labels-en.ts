@@ -288,6 +288,7 @@ export const agentChatLabelsEn = {
     'agentChat.approval.applyChanges': 'Apply Changes',
     'agentChat.approval.startBuilding': 'Start Building',
     'agentChat.approval.alwaysAllow': 'Always Allow in This Chat',
+    'agentChat.approval.alwaysAllowHint': 'Allow requests like this for the rest of this Chat',
     'agentChat.approval.alwaysAllowSession': 'Always Allow in This Session',
     'agentChat.approval.alwaysAllowPrefix': 'Always Allow {{prefix}}',
     'agentChat.approval.alwaysAllowPrefixHint':

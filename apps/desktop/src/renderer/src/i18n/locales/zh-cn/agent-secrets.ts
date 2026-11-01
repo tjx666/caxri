@@ -8,6 +8,7 @@ export const agentSecrets: TranslatedNamespace<typeof source> = {
     'agentSecrets.request.reasonLabel': 'Agent 给出的原因',
     'agentSecrets.request.valueLabel': '{{name}} 的值',
     'agentSecrets.request.allProjects': '用于所有项目',
+    'agentSecrets.request.saveForProject': '仅保存给 {{project}}。',
     'agentSecrets.request.privacy': '保存在这台 Mac 上，供 Agent 在命令中使用，不会加入对话。',
     'agentSecrets.request.save': '保存',
     'agentSecrets.request.decline': '拒绝',

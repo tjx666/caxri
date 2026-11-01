@@ -114,7 +114,10 @@ export function SuggestionList({
                                     {iconAt && (
                                         <span
                                             aria-hidden
-                                            className="flex size-4 shrink-0 items-center justify-center text-muted"
+                                            className={cn(
+                                                'flex size-4 shrink-0 items-center justify-center text-muted',
+                                                suggestion.isDisabled && 'opacity-50',
+                                            )}
                                         >
                                             {iconAt(index)}
                                         </span>
@@ -122,6 +125,8 @@ export function SuggestionList({
                                     <span
                                         className={cn(
                                             'shrink-0',
+                                            // Dims the name and glyph but not the description: it carries the reason.
+                                            suggestion.isDisabled && 'opacity-50',
                                             suggestion.isLabelLiteral
                                                 ? 'font-mono'
                                                 : 'max-w-[60%] truncate',
@@ -130,7 +135,12 @@ export function SuggestionList({
                                         {suggestion.label}
                                     </span>
                                     {suggestion.hint && (
-                                        <span className="shrink-0 text-muted">
+                                        <span
+                                            className={cn(
+                                                'shrink-0 text-muted',
+                                                suggestion.isDisabled && 'opacity-50',
+                                            )}
+                                        >
                                             {suggestion.hint}
                                         </span>
                                     )}

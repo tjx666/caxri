@@ -91,7 +91,11 @@ export function agentChatApprovalChoices(
     const prefix = request.kind === 'command' ? request.alwaysAllowPrefix : undefined;
     const choices: AgentChatApprovalChoice[] = [
         { decision: 'accept', label: t(acceptLabelKey(request)) },
-        { decision: 'acceptForSession', label: agentApprovalAlwaysAllowLabel('Chat', t) },
+        {
+            decision: 'acceptForSession',
+            label: agentApprovalAlwaysAllowLabel('Chat', t),
+            hint: t('agentChat.approval.alwaysAllowHint'),
+        },
         ...(prefix
             ? [
                   {

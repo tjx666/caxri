@@ -67,10 +67,10 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatEditRemovedTurns({ ...settled, activeTurnId: 't3' }, edit)).toBe(3);
         expect(agentChatEditRemovedTurns({ items: [], turns: [] }, edit)).toBeUndefined();
         expect(agentChatEditCaption(1, translate)).toBe(
-            'Editing an earlier message · its turn will be replaced',
+            'Editing an earlier message · its turn will be replaced and kept as an earlier version',
         );
         expect(agentChatEditCaption(3, translate)).toBe(
-            'Editing an earlier message · 3 turns will be replaced',
+            'Editing an earlier message · 3 turns will be replaced and kept as an earlier version',
         );
     });
 });

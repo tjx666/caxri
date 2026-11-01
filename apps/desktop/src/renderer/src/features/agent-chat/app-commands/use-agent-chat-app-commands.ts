@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
-import { isPinnedSession, parseAgentChatAppCommand } from '@caxri/protocol';
+import { agentProviderCatalog, isPinnedSession, parseAgentChatAppCommand } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { useSessions, useTerminal } from '../../../stores/selectors';
@@ -12,6 +12,7 @@ import {
 } from '../composer/agent-chat-composer-commands';
 import {
     agentChatAppCommandActions,
+    agentChatAppCommandCauses,
     agentChatAppCommandUnavailable,
 } from '../composer-input/agent-chat-slash-commands';
 import { runAgentChatAppCommand } from './agent-chat-app-commands';
@@ -52,12 +53,25 @@ export function useAgentChatAppCommands(terminalId: string) {
             canFork,
             hasSession,
             isPinned,
+            agentName: terminal?.provider
+                ? agentProviderCatalog[terminal.provider].displayName
+                : undefined,
+            causes: agentChatAppCommandCauses(terminal),
         };
         return {
             actions: agentChatAppCommandActions(state, t),
             unavailable: agentChatAppCommandUnavailable(state, t),
         };
-    }, [canChangeModel, canTogglePlanMode, canOpenSideChat, canFork, hasSession, isPinned, t]);
+    }, [
+        canChangeModel,
+        canTogglePlanMode,
+        canOpenSideChat,
+        canFork,
+        hasSession,
+        isPinned,
+        terminal,
+        t,
+    ]);
     return {
         /**
          * Every app command row, including the ones that cannot run now (`unavailable`).

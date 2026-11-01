@@ -136,7 +136,9 @@ export const agentChatComposer = {
     'agentChat.slash.app.archive': 'Archive this Session',
     'agentChat.slash.app.pin': 'Pin this Session to the top of the sidebar',
     'agentChat.slash.app.unpin': 'Unpin this Session',
-    'agentChat.slash.app.unavailableAgent': 'Not available for this Agent',
+    'agentChat.slash.app.unavailableAgent': 'Not supported by {{agent}}',
+    'agentChat.slash.app.unavailableLoading': 'Available once the Chat loads',
+    'agentChat.slash.app.thisAgent': 'this Agent',
     'agentChat.slash.app.unavailableFork': 'Available after the first message in this Chat',
     'agentChat.slash.app.unavailableSession': 'Needs a Session',
     'agentChat.slash.skillsNeedAgent': 'Skills appear once the Agent is running',
@@ -175,18 +177,22 @@ export const agentChatComposer = {
     'agentChat.queue.imageCountOne': '1 image',
     'agentChat.queue.imageCountOther': '{{count}} images',
 
-    'agentChat.edit.imagesUnsupported': 'Messages with images cannot be edited',
+    'agentChat.edit.imagesUnsupported':
+        'Messages with images cannot be edited. Fork from here to start over from this point.',
     'agentChat.edit.stopToEdit': 'Stop the running turn to edit from here',
     'agentChat.edit.cannotEdit': 'This message cannot be edited',
     'agentChat.edit.stopToFork': 'Stop the running turn to fork from here',
     'agentChat.edit.cannotFork': 'The conversation cannot fork from this message',
     'agentChat.edit.stopToRestore': 'Stop the running turn to restore code',
     'agentChat.edit.cannotRestore': 'Code cannot be restored to this message',
-    'agentChat.edit.captionOne': 'Editing an earlier message · its turn will be replaced',
-    'agentChat.edit.captionOther': 'Editing an earlier message · {{count}} turns will be replaced',
+    'agentChat.edit.captionOne':
+        'Editing an earlier message · its turn will be replaced and kept as an earlier version',
+    'agentChat.edit.captionOther':
+        'Editing an earlier message · {{count}} turns will be replaced and kept as an earlier version',
     'agentChat.edit.send': 'Send edit',
     'agentChat.edit.stopToSend': 'Stop the running turn to send the edit',
     'agentChat.edit.placeholder': 'Edit the message for {{provider}}',
+    'agentChat.edit.filesStay': 'Files the Agent changed stay as they are.',
     'agentChat.edit.revertFiles': 'Also revert file changes',
     'agentChat.edit.cancel': 'Cancel edit',
 

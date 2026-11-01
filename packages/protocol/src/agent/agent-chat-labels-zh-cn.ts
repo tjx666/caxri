@@ -286,6 +286,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.approval.applyChanges': '应用更改',
     'agentChat.approval.startBuilding': '开始构建',
     'agentChat.approval.alwaysAllow': '在此对话中始终允许',
+    'agentChat.approval.alwaysAllowHint': '在此对话的后续过程中允许类似请求',
     'agentChat.approval.alwaysAllowSession': '在此会话中始终允许',
     'agentChat.approval.alwaysAllowPrefix': '始终允许 {{prefix}}',
     'agentChat.approval.alwaysAllowPrefixHint':

@@ -1,13 +1,17 @@
 import type { LucideIcon } from 'lucide-react';
 import { GitFork, History, LoaderCircle, Pencil } from 'lucide-react';
 
+import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { useAgentChatEdit } from '../hooks/use-agent-chat-edit';
 
+/**
+ * Trims the shared ghost icon Button to the hover row's 24px size; the shared variant owns hover, focus, and disabled.
+ */
 const ACTION_BUTTON_CLASS =
-    'flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted aria-busy:cursor-progress aria-busy:opacity-100';
+    'size-6 rounded-md text-muted enabled:not-aria-disabled:hover:text-foreground aria-busy:cursor-progress aria-busy:opacity-100!';
 
 /**
  * One rewind action in a user message's hover row: hidden when the message does not offer it (`availability`
@@ -42,12 +46,14 @@ function RewindActionButton({
                 label
             }
         >
-            <button
+            <Button
                 aria-busy={isBusy || undefined}
                 aria-disabled={isDisabled || undefined}
                 aria-label={label}
                 className={ACTION_BUTTON_CLASS}
+                size="icon"
                 type="button"
+                variant="ghost"
                 onClick={() => {
                     if (!isDisabled) onClick();
                 }}
@@ -60,7 +66,7 @@ function RewindActionButton({
                 ) : (
                     <Icon aria-hidden="true" className="size-3.5" />
                 )}
-            </button>
+            </Button>
         </Tooltip>
     );
 }

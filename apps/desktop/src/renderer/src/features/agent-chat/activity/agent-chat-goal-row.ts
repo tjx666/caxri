@@ -27,3 +27,15 @@ export function agentChatGoalSpend(
 ): AgentChatGoalUsage | undefined {
     return usage?.objective === goal.objective ? usage : undefined;
 }
+
+/**
+ * Identity of a goal outcome whose reason should open by itself: a goal that ended `failed`, `blocked`, or
+ * `budgetLimited` with a provider reason. The row expands once per key, so a later manual collapse is not undone;
+ * `undefined` for every other goal.
+ */
+export function agentChatGoalAutoExpandKey(
+    goal: Pick<AgentChatGoal, 'objective' | 'reason' | 'status'>,
+): string | undefined {
+    const isUnfinished = ['failed', 'blocked', 'budgetLimited'].includes(goal.status);
+    return isUnfinished && goal.reason ? `${goal.status}:${goal.objective}` : undefined;
+}
