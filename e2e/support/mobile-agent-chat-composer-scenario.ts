@@ -394,11 +394,21 @@ export async function executeMobileChatComposerScenario(
             throw new Error('A lone settled call must not sit in a run summary');
         await capture(environment, 'lone-call-row', artifacts);
 
-        // Slash commands (#1708): typing `/` lists the provider's commands, and choosing one runs it.
+        // Slash commands (#1708): typing `/` lists the provider's commands, and choosing one runs it. Caxri's own
+        // `/new-session` leads the list, so the query narrows it to `/compact` before the first row is chosen.
         await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
         await adbShell(serial, ['input', 'text', '/']);
         await waitForCheck(serial, 'agent-chat-command-list');
         await capture(environment, 'slash-commands', artifacts);
+        await adbShell(serial, ['input', 'text', 'compact']);
+        await waitForMobile(
+            () =>
+                observeMobileNode(serial, 'agent-chat-composer-input', {
+                    kind: 'equals',
+                    value: '/compact',
+                }),
+            (node) => node.exists && node.textMatches === true,
+        );
         await tapMobileCheckByBounds(serial, 'agent-chat-command-0');
         await waitForMobile(
             () => chat.read(),
