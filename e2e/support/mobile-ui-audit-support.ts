@@ -1,8 +1,8 @@
 import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json';
-import { captureMobileFramebuffer, mobileSemantics, waitForMobile } from './mobile-android';
+import { mobileSemantics, waitForMobile } from './mobile-android';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 
 export interface UiAuditScenarioEnvironment {
     artifactManifestPath: string;
@@ -48,9 +48,7 @@ export async function capture(
         throw new Error('UI audit Acceptance cannot capture a Terminal frame');
     if (!hasCheck(nodes, requiredId))
         throw new Error(`UI audit Acceptance did not reach ${requiredId}`);
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 export async function finish(

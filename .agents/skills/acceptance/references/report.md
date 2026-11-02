@@ -548,9 +548,10 @@ still equals the merge base), and run the delivered commit as the next round.
 The baseline round records the old UI honestly, usually as `fail`, and each
 round's `report.md` names the other. A `fail` case needs a `failed` device
 receipt, and the runner writes `failed` only when the scenario throws: capture
-the baseline screenshots and write their artifact manifest first, then throw on
-the missing behavior. The runner binds the manifest's screenshots into the
-receipt either way, so they stay citable in the failed round. For example, `MOB-CHAT-BARE-LINK-01` ran
+the baseline screenshots first, then throw on the missing behavior. Every
+`captureScenarioFrame` call (`e2e/support/mobile-scenario-capture.ts`) rewrites
+the artifact manifest, and the runner binds it into the receipt either way, so
+those screenshots stay citable in the failed round. For example, `MOB-CHAT-BARE-LINK-01` ran
 on its test-only commit, showed the reply URL as plain text, then passed on the
 fix in round 2.
 
