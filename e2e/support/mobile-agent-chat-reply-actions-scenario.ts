@@ -180,6 +180,10 @@ export async function executeMobileChatReplyActionsScenario(
                 // eslint-disable-next-line no-await-in-loop -- each control is checked on the same settled screen.
                 await waitForCheck(serial, `agent-chat-reply-${action}-${turnId}`);
         await waitForNoCheck(serial, `agent-chat-reply-sources-${thanked}`);
+        // A turn that only answered has no work to fold, so it gets no `Worked` row (#3520). The latest turn opens at
+        // the top of the Chat, so this frame shows its prompt and reply.
+        await capture(environment, 'answer-only-turn', artifacts);
+        await waitForNoCheck(serial, `agent-chat-turn-${thanked}`);
 
         // The latest turn opens at the top of the screen, so its bar is checked first.
         await openMoreMenu(serial, thanked, thankedAt);
