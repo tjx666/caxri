@@ -295,8 +295,8 @@ const WHOLE_TURN: AgentChatTurnFoldSegment = { index: 0, opensTurn: true, closes
 
 /**
  * A finished turn's entries. Collapsed, the turn reads as its prompt, the `Worked for` row, its final reply with the
- * artifacts under it, and its notices; expanded, the folded work follows the row. A turn with nothing to fold still
- * gets the row, just before its reply, so how long it ran and how it ended stay in view.
+ * artifacts under it, and its notices; expanded, the folded work follows the row. A completed turn with nothing to fold
+ * shows its reply alone; a failed or stopped one still gets the row, so how it ended stays in view.
  */
 function finishedTurnEntries(
     visible: readonly AgentChatItem[],
@@ -362,10 +362,11 @@ function finishedTurnEntries(
               ]
             : [];
     const closing = parts.at(-1)?.segment ?? WHOLE_TURN;
-    // Without a fold of its own, the closing segment still gets the row: before its reply, or at the end without one.
-    let isNeedsOutcomeRow = parts.every(
-        (part) => !(part.kind === 'fold' && part.segment.closesTurn),
-    );
+    // A failed or stopped closing segment that folded nothing still gets the row (before its reply, or at the end); a
+    // completed one gets none, as on Desktop, since a static `Worked` row only split the prompt from its reply.
+    let isNeedsOutcomeRow =
+        turn.status !== 'completed' &&
+        parts.every((part) => !(part.kind === 'fold' && part.segment.closesTurn));
     const entries: AgentChatTimelineEntry[] = [];
     for (const part of parts) {
         if (part.kind === 'fold') {

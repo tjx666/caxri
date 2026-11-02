@@ -287,13 +287,24 @@ describe('buildAgentChatTimeline', () => {
         );
     });
 
-    it('keeps a static row before the reply when a finished turn had nothing to fold', () => {
+    it('shows a completed turn with nothing to fold as its prompt and reply alone', () => {
         const entries = buildAgentChatTimeline({
             items: [
                 { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Hi' },
                 { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Hello', streaming: false },
             ],
             turns: [{ id: 't1', status: 'completed', durationMs: 2000 }],
+        });
+        expect(entries.map((entry) => entry.id)).toEqual(['u1', 'a1', 'reply-actions:t1']);
+    });
+
+    it('keeps a static row before the reply when a stopped turn had nothing to fold', () => {
+        const entries = buildAgentChatTimeline({
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Hi' },
+                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Hel', streaming: false },
+            ],
+            turns: [{ id: 't1', status: 'interrupted', stoppedBy: 'user', durationMs: 2000 }],
         });
         expect(entries.map((entry) => entry.id)).toEqual([
             'u1',
@@ -434,7 +445,10 @@ describe('buildAgentChatTimeline', () => {
     it('labels a turn under a second without a sub-second duration, and failed and stopped turns by outcome', () => {
         const footer = (status: 'completed' | 'failed' | 'interrupted', durationMs?: number) =>
             buildAgentChatTimeline({
-                items: [{ id: 'u1', turnId: 't1', type: 'userMessage', text: 'Go' }],
+                items: [
+                    { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Go' },
+                    { id: 'r1', turnId: 't1', type: 'reasoning', text: 'Plan', streaming: false },
+                ],
                 turns: [{ id: 't1', status, ...(durationMs !== undefined && { durationMs }) }],
             }).find((entry) => entry.kind === 'turn');
         expect(footer('completed', 400)).toMatchObject({ label: 'Worked' });
