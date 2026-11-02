@@ -12,6 +12,10 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { useCaxriQuery } from '../../queries/client';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
+import {
+    isAgentChatOnScreen,
+    useAgentChatOnScreenStore,
+} from '../agent-chat/waiting/agent-chat-on-screen';
 import { openAgentChatWaiting } from '../agent-chat/waiting/agent-chat-waiting-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { answerAgentSecretRequest } from './agent-secrets-client';
@@ -80,6 +84,14 @@ function SecretRequestCard({
     const terminal = useTerminal(request.terminalId);
     const provider = terminal?.provider ? agentProviderCatalog[terminal.provider] : undefined;
     /**
+     * Open Session would do nothing visible while the requesting Chat or Terminal is already on screen, so it shows
+     * only when there is somewhere to go. The card itself stays either way: it is the only place to answer the
+     * request.
+     */
+    const isRequesterOnScreen = useAgentChatOnScreenStore((state) =>
+        isAgentChatOnScreen(state.counts, request.terminalId),
+    );
+    /**
      * The value lives only in this component's state: it is sent once and dropped with the card, and nothing here logs,
      * persists, or echoes it.
      */
@@ -110,7 +122,9 @@ function SecretRequestCard({
             aria-label={t('agentSecrets.request.title', {
                 agent: provider?.displayName ?? t('agentSecrets.request.agentFallback'),
             })}
-            className="pointer-events-auto grid w-full gap-3 rounded-lg border border-border bg-elevated p-3 text-foreground shadow-[0_12px_32px_var(--shadow)]"
+            // `minmax(0,1fr)` pins the track to the card: an `auto` track grows to the header's unwrapped Session and
+            // Project titles and pushes the field and Save past the window edge.
+            className="pointer-events-auto grid w-full grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border border-border bg-elevated p-3 text-foreground shadow-[0_12px_32px_var(--shadow)]"
             data-agent-secret-request={request.id}
             onKeyDown={(event) => {
                 if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -132,19 +146,23 @@ function SecretRequestCard({
                         <span className="truncate">
                             {session ? sessionTitleForDisplay(session.title, t) : ''}
                         </span>
-                        {project && <span className="shrink-0 truncate">{project.title}</span>}
+                        {project && (
+                            <span className="max-w-1/2 shrink-0 truncate">{project.title}</span>
+                        )}
                     </p>
                 </div>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                        void openAgentChatWaiting(request.sessionId, request.terminalId);
-                    }}
-                >
-                    <SquareArrowOutUpRight className="size-3.5" />
-                    {t('agentSecrets.request.openSession')}
-                </Button>
+                {!isRequesterOnScreen && (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                            void openAgentChatWaiting(request.sessionId, request.terminalId);
+                        }}
+                    >
+                        <SquareArrowOutUpRight className="size-3.5" />
+                        {t('agentSecrets.request.openSession')}
+                    </Button>
+                )}
                 <Tooltip content={t('agentSecrets.request.minimize')}>
                     <Button
                         aria-label={t('agentSecrets.request.minimize')}
