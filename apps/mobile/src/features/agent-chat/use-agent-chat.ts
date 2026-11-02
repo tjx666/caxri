@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type {
     AgentChatModelRequest,
+    AgentChatOlderHistory,
     AgentChatPermissionRequest,
     AgentChatRequest,
     AgentChatResponse,
@@ -19,6 +20,12 @@ import {
     trimChatSnapshot,
 } from '../read-cache/read-cache-model';
 import type { AgentChatMessageEdit } from './agent-chat-message-edit';
+import {
+    isMissingNewestTurnStart,
+    mergeAgentChatOlderHistory,
+    readAgentChatNewestTurnStart,
+    syncAgentChatOlderHistory,
+} from './agent-chat-older-history';
 import {
     agentChatPendingKey,
     agentChatPendingStore,
@@ -38,6 +45,11 @@ export interface AgentChatAttachment {
 
 export interface AgentChatState {
     error: string | null;
+    /**
+     * The pages read above the window before the Chat was first shown live, so it opens on its newest turn's request;
+     * `useAgentChatHistory` starts from them.
+     */
+    openingHistory?: AgentChatOlderHistory;
     /**
      * The pairing the live snapshot was read under; only that pairing may save it.
      */
@@ -127,11 +139,23 @@ export const useAgentChat = ({
     const pendingKey =
         terminalId === null ? null : agentChatPendingKey(connectionScopeKey, terminalId);
     const pending = useAgentChatPending(pendingKey, stored.snapshot);
+    /**
+     * The Chat and pairing a live snapshot was last shown for. A reconnect keeps the pages the reader already holds, so
+     * only the first live read of an opened Chat waits for its newest turn's request.
+     */
+    const shownLive = useRef<string | null>(null);
 
     useEffect(() => {
         if (terminalId === null || !observable || connectionScopeKey === null) return;
         let isActive = true;
         const readScope = connectionScopeKey;
+        const shownKey = JSON.stringify([readScope, terminalId]);
+        /**
+         * While the opening pages are read, the newest live snapshot waits here and the saved copy (or the loading
+         * state) stays on screen; then both land in one render.
+         */
+        let opening: 'idle' | 'reading' | 'done' = shownLive.current === shownKey ? 'done' : 'idle';
+        let waiting: AgentChatSnapshot | undefined;
         const update = (value: (current: AgentChatState) => AgentChatState): void => {
             if (!isActive) return;
             setRecord((current) => ({
@@ -145,8 +169,46 @@ export const useAgentChat = ({
                 ? (listener) => subscribe({ kind: 'agentChat', terminalId }, listener)
                 : undefined,
             onRetry: () => setRetry((value) => value + 1),
-            onSnapshot: (snapshot) =>
-                update(() => ({ error: null, readScope, snapshot, status: 'ready' })),
+            onSnapshot: (snapshot) => {
+                const show = (latest: AgentChatSnapshot, history?: AgentChatOlderHistory) => {
+                    shownLive.current = shownKey;
+                    update((current) => {
+                        const openingHistory = history ?? current.openingHistory;
+                        return {
+                            error: null,
+                            ...(openingHistory && { openingHistory }),
+                            readScope,
+                            snapshot: latest,
+                            status: 'ready',
+                        };
+                    });
+                };
+                if (opening === 'done') return show(snapshot);
+                waiting = snapshot;
+                if (opening === 'reading') return;
+                if (!isMissingNewestTurnStart(snapshot)) {
+                    opening = 'done';
+                    return show(snapshot);
+                }
+                opening = 'reading';
+                void readAgentChatNewestTurnStart(snapshot, (beforeItemId) =>
+                    request('mobile.agentChat.readHistory', { terminalId, beforeItemId }),
+                )
+                    // A failed read only costs the head start: the list's own scroll-back still pages.
+                    .catch(() => {})
+                    .then((history) => {
+                        opening = 'done';
+                        const latest = waiting ?? snapshot;
+                        waiting = undefined;
+                        // Items the window let go while the pages were read stay, so no gap opens above it.
+                        show(
+                            latest,
+                            history?.isLoaded
+                                ? syncAgentChatOlderHistory(history, snapshot, latest)
+                                : undefined,
+                        );
+                    });
+            },
             onError: () =>
                 update((current) => ({
                     ...current,
@@ -193,15 +255,20 @@ export const useAgentChat = ({
     }, [connectionScopeKey, readCache, terminalId]);
 
     const liveSnapshot = stored.savedAt === undefined ? stored.snapshot : undefined;
+    const { openingHistory } = stored;
     const saveScope = liveReadSaveScope(stored.readScope, connectionScopeKey);
     useEffect(() => {
         if (!liveSnapshot || saveScope === null) return;
+        // With the opening pages, so the saved copy opens on the newest turn's request too.
+        const saved = openingHistory
+            ? mergeAgentChatOlderHistory(liveSnapshot, openingHistory)
+            : liveSnapshot;
         readCache.save(
             saveScope,
             { kind: 'chat', terminalId: liveSnapshot.terminalId },
-            trimChatSnapshot(liveSnapshot),
+            trimChatSnapshot(saved),
         );
-    }, [liveSnapshot, readCache, saveScope]);
+    }, [liveSnapshot, openingHistory, readCache, saveScope]);
 
     const refresh = useCallback((): void => {
         setRetry((value) => value + 1);

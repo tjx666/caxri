@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot, AgentTimelineItem } from '@caxri/protocol';
+import { agentChatModelLabel } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildAgentChatTimeline } from '../../agent-chat/agent-chat-timeline';
@@ -149,6 +150,44 @@ describe('read cache model', () => {
         expect(trimmed.items).toHaveLength(READ_CACHE_MAX_ITEMS);
         expect(trimmed.items[0]?.id).toBe('a5');
         expect(trimmed.turns.map((turn) => turn.id)).toEqual(['t2']);
+    });
+
+    it('keeps the request of a single turn longer than the cache in front of its newest work', () => {
+        const items: AgentChatSnapshot['items'] = [
+            { id: 'u1', turnId: 't2', type: 'userMessage', text: 'Fix it' },
+            ...Array.from({ length: READ_CACHE_MAX_ITEMS + 5 }, (_, index) => ({
+                id: `a${index}`,
+                turnId: 't2',
+                type: 'agentMessage' as const,
+                text: `reply ${index}`,
+                streaming: false,
+            })),
+        ];
+        const trimmed = trimChatSnapshot(chat(items));
+        expect(trimmed.items).toHaveLength(READ_CACHE_MAX_ITEMS);
+        expect(trimmed.items.map((entry) => entry.id).slice(0, 2)).toEqual(['u1', 'a6']);
+        expect(trimmed.items.at(-1)?.id).toBe(`a${READ_CACHE_MAX_ITEMS + 4}`);
+    });
+
+    it('opens a running turn as running, with the model the default alias resolves to', () => {
+        const trimmed = trimChatSnapshot({
+            ...chat([]),
+            activeTurnId: 't2',
+            model: 'claude-opus-5-5[1m]',
+            models: [
+                {
+                    id: 'default',
+                    displayName: 'Default (recommended)',
+                    resolvedId: 'claude-opus-5-5[1m]',
+                    efforts: ['high'],
+                },
+                { id: 'opus', displayName: 'Opus', resolvedId: 'claude-opus-5-5', efforts: [] },
+                { id: 'sonnet', displayName: 'Sonnet', efforts: [] },
+            ],
+        });
+        expect(trimmed.activeTurnId).toBe('t2');
+        expect(agentChatModelLabel(trimmed)?.model).toBe('Opus');
+        expect(cachedChatSchema.safeParse(trimmed).success).toBe(true);
     });
 
     it('opens a saved Chat with the same turn artifacts the live read shows', () => {

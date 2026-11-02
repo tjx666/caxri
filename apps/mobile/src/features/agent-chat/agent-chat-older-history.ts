@@ -6,6 +6,7 @@ import type {
 import {
     emptyAgentChatOlderHistory,
     hasOlderAgentChatHistory,
+    prependAgentChatHistoryPage,
     retainEvictedAgentChatItems,
     shouldReadOlderAgentChatHistoryPage,
 } from '@caxri/protocol';
@@ -76,4 +77,58 @@ export function mergeAgentChatOlderHistory(
         turns: [...history.turns.filter((turn) => !knownTurns.has(turn.id)), ...snapshot.turns],
         truncated,
     };
+}
+
+/**
+ * Whether an opened Chat's window starts inside its newest turn, so the request that turn answers is not on the phone.
+ * The mobile window holds one 48 KiB frame, which a long running turn's commands and tool calls fill on their own.
+ */
+export function isMissingNewestTurnStart(snapshot: AgentChatSnapshot): boolean {
+    if (!snapshot.truncated || snapshot.historyId === undefined) return false;
+    const newestTurnId = snapshot.items.at(-1)?.turnId;
+    if (newestTurnId === undefined) return false;
+    return snapshot.items.every(
+        (item) => !(item.turnId === newestTurnId && item.type === 'userMessage'),
+    );
+}
+
+/**
+ * Pages an opened Chat reads at most before it is shown. Each page is a round trip, over the Relay too, while the saved
+ * copy or the loading state stays up; a turn longer than this opens as before, and scrolling back reads the rest.
+ */
+export const MAX_AGENT_CHAT_OPENING_PAGES = 3;
+
+/**
+ * Reads the pages above an opened Chat's window until one brings a user message, so the phone shows the newest turn's
+ * request together with its work. The pages are applied once, not one by one: each page landing separately moved the
+ * whole list, and an opened Chat jumped several times before it settled.
+ */
+export async function readAgentChatNewestTurnStart(
+    snapshot: AgentChatSnapshot,
+    readPage: (beforeItemId: string) => Promise<AgentChatHistoryPage>,
+): Promise<AgentChatOlderHistory> {
+    let history = emptyAgentChatOlderHistory(snapshot.historyId);
+    for (let pagesRead = 1; pagesRead <= MAX_AGENT_CHAT_OPENING_PAGES; pagesRead += 1) {
+        const cursor = history.items.at(0)?.id ?? snapshot.items.at(0)?.id;
+        if (cursor === undefined || !hasOlderAgentChatHistory(history, snapshot)) break;
+        // eslint-disable-next-line no-await-in-loop -- each page reads before the oldest item the previous one brought
+        const page = await readPage(cursor);
+        const next = prependAgentChatHistoryPage(history, page, snapshot.items);
+        const continues = shouldReadOlderAgentChatHistoryPage(page, history, next, pagesRead);
+        history = next;
+        if (!continues) break;
+    }
+    return history;
+}
+
+/**
+ * The history an opened Chat starts from: the pages read before it was first shown, while nothing was read since and
+ * they belong to the same conversation.
+ */
+export function adoptOpeningAgentChatHistory(
+    history: AgentChatOlderHistory,
+    opening: AgentChatOlderHistory | undefined,
+): AgentChatOlderHistory {
+    if (!opening || history.isLoaded || history.items.length > 0) return history;
+    return opening.historyId === history.historyId ? opening : history;
 }

@@ -3,8 +3,11 @@ import { emptyAgentChatOlderHistory, prependAgentChatHistoryPage } from '@caxri/
 import { describe, expect, it } from 'vitest';
 
 import {
+    adoptOpeningAgentChatHistory,
     canLoadOlderAgentChatHistory,
+    isMissingNewestTurnStart,
     mergeAgentChatOlderHistory,
+    readAgentChatNewestTurnStart,
     shouldContinueAgentChatHistoryLoad,
     syncAgentChatOlderHistory,
 } from '../agent-chat-older-history';
@@ -182,5 +185,61 @@ describe('shouldContinueAgentChatHistoryLoad', () => {
 
     it('stops a fill after one page, so pages never land in a row above a followed end', () => {
         expect(shouldContinueAgentChatHistoryLoad(true, agentOnly, previous, next, 1)).toBe(false);
+    });
+});
+
+describe('opening a Chat on its newest turn request', () => {
+    const request = (id: string, turnId: string): AgentChatItem => ({
+        id,
+        type: 'userMessage',
+        text: id,
+        turnId,
+    });
+    const work = (ids: string[], turnId = 'turn-run'): AgentChatItem[] =>
+        ids.map((id) => item(id, turnId));
+    const running = (items: AgentChatItem[], isTruncated = true): AgentChatSnapshot => ({
+        ...snapshot([], { truncated: isTruncated }),
+        items,
+        turns: [{ id: 'turn-run', status: 'running' }],
+        activeTurnId: 'turn-run',
+    });
+
+    it('sees a window that starts inside its newest turn', () => {
+        const cut = running(work(['w3', 'w4']));
+        const whole = running([request('u1', 'turn-run'), ...work(['w1'])]);
+        const complete = running(work(['w1']), false);
+        expect(isMissingNewestTurnStart(cut)).toBe(true);
+        expect(isMissingNewestTurnStart(whole)).toBe(false);
+        expect(isMissingNewestTurnStart(complete)).toBe(false);
+    });
+
+    it('reads every page up to the request before anything is shown', async () => {
+        const pages = new Map([
+            ['w3', { ...page([]), items: work(['w1', 'w2']), hasMore: true }],
+            ['w1', { ...page([]), items: [request('u1', 'turn-run')], hasMore: true }],
+        ]);
+        const reads: string[] = [];
+        const history = await readAgentChatNewestTurnStart(running(work(['w3', 'w4'])), (id) => {
+            reads.push(id);
+            return Promise.resolve(pages.get(id) ?? page([], { hasMore: false }));
+        });
+        expect(reads).toEqual(['w3', 'w1']);
+        expect(history.items.map((entry) => entry.id)).toEqual(['u1', 'w1', 'w2']);
+        expect(history.hasMore).toBe(true);
+    });
+
+    it('starts the list from the opening pages only until it reads its own', () => {
+        const opening = prependAgentChatHistoryPage(
+            emptyAgentChatOlderHistory('history-1'),
+            page(['a']),
+            [],
+        );
+        const empty = emptyAgentChatOlderHistory('history-1');
+        expect(adoptOpeningAgentChatHistory(empty, opening)).toBe(opening);
+        expect(
+            adoptOpeningAgentChatHistory(emptyAgentChatOlderHistory('history-2'), opening).items,
+        ).toEqual([]);
+        const read = prependAgentChatHistoryPage(empty, page(['b']), []);
+        expect(adoptOpeningAgentChatHistory(read, opening)).toBe(read);
     });
 });
