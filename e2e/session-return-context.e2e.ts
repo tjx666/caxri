@@ -26,12 +26,17 @@ test('returning to a Chat counts the turns that finished while away', async ({},
             .getByRole('button', { name: 'Jump to latest' });
         // The hint holds the bottom slot near the composer while Jump to latest has nothing to do.
         await expect(jumpToLatest).toHaveCSS('opacity', '0');
-        const transcript = page.locator(VISIBLE_SESSION).getByRole('log');
-        const [hintBox, transcriptBox] = await Promise.all([
+        // The slot kept after the transcript holds the hint below the last line instead of over it.
+        const content = page
+            .locator(VISIBLE_SESSION)
+            .getByRole('log')
+            .locator(':scope > div')
+            .first();
+        const [hintBox, contentBox] = await Promise.all([
             hint.boundingBox(),
-            transcript.boundingBox(),
+            content.boundingBox(),
         ]);
-        expect(hintBox!.y).toBeGreaterThanOrEqual(transcriptBox!.y + transcriptBox!.height - 1);
+        expect(hintBox!.y).toBeGreaterThanOrEqual(contentBox!.y + contentBox!.height - 1);
         await page.screenshot({ path: testInfo.outputPath('return-hint.png') });
         // The whole message jumps, not only its trailing words.
         await hint.getByText('2 new replies').hover();
@@ -97,9 +102,34 @@ test('scrolling up from the return hint settles instead of shaking', async ({}) 
         // the view its band back, bring the latest entry into view, and show the hint again, so the view shook.
         expect(await scrollUp(32)).toBe(1);
         await expect(hint).toBeVisible();
-        // Scrolling on past the latest entry hides the hint once and lets the view keep its full height.
-        expect(await scrollUp(300, true)).toBe(2);
+        // Scrolling on past the latest entry hides the hint, and the view keeps its size throughout.
+        expect(await scrollUp(300, true)).toBe(1);
         await expect(hint).toBeHidden();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('closing the return hint at the latest entry leaves the transcript still', async ({}) => {
+    const { directory, running } = await launchWithChat();
+    try {
+        const { page } = running;
+        await returnAfterTwoTurns(page);
+        const hint = page.getByRole('status').filter({ hasText: 'new replies' });
+        await expect(hint).toContainText('2 new replies');
+        const transcript = page.locator(VISIBLE_SESSION).getByRole('log');
+        const read = () =>
+            transcript.evaluate((view) => ({
+                scrollTop: view.scrollTop,
+                viewHeight: view.clientHeight,
+            }));
+        const before = await read();
+        await hint.getByRole('button', { name: 'Dismiss' }).click();
+        await expect(hint).toBeHidden();
+        // The view used to regain the hint's room as the hint left, which clamped its offset and dropped the transcript.
+        expect(await read()).toEqual(before);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

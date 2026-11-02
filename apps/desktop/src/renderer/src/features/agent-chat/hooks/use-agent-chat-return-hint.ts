@@ -1,16 +1,19 @@
 import type { RefObject } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatItem, AgentChatSnapshot } from '@caxri/protocol';
 
+import { scrollWithoutScrollbarFlash } from '../../../lib/quiet-scroll';
 import { useSessionLookStore } from '../../session/session-look-boundary';
 import { agentChatTurnStartElement } from '../rail/hooks/use-agent-chat-message-rail';
 import {
     agentChatReturnAnchorTurnId,
+    agentChatReturnHintSlotHeight,
     isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
 } from '../transcript/agent-chat-return-boundary';
+import { isScrolledToEnd } from './use-agent-chat-scroll';
 
 export interface AgentChatReturnHintData {
     /**
@@ -114,4 +117,59 @@ export function useAgentChatReturnHint(
     return isAgentChatReturnHintShown({ count: hint.count, isAnchorAbove, isLatestInView })
         ? hint
         : undefined;
+}
+
+/**
+ * Sizes the empty slot after the transcript that keeps the return hint off the last line
+ * ({@link agentChatReturnHintSlotHeight}). The view keeps its size either way, so the hint showing or clearing never
+ * clamps a view resting at its end: the slot holds the hint's room while it shows, and once it clears, scrolling back
+ * consumes the slot and new content replaces it. The slot must sit directly in the scroll view, whose position it
+ * measures against; the returned `onScroll` sizes it and then runs the view's own `onViewScroll`.
+ */
+export function useAgentChatReturnHintSlot(
+    contentReference: RefObject<HTMLDivElement | null>,
+    onViewScroll: () => void,
+    { isShown }: { isShown: boolean },
+): { slotReference: RefObject<HTMLDivElement | null>; onScroll: () => void } {
+    const slotReference = useRef<HTMLDivElement | null>(null);
+    const size = useCallback(() => {
+        const slot = slotReference.current;
+        const view = slot?.parentElement;
+        if (!slot || !view) return;
+        const height = agentChatReturnHintSlotHeight({
+            height: slot.offsetHeight,
+            isShown,
+            slotTop: slot.offsetTop,
+            viewBottom: view.scrollTop + view.clientHeight,
+        });
+        // Runs on every scroll event, so an unchanged height is not written back to invalidate layout.
+        const next = `${height}px`;
+        if (slot.style.height !== next) slot.style.height = next;
+    }, [isShown]);
+    useLayoutEffect(() => {
+        const slot = slotReference.current;
+        const view = slot?.parentElement;
+        const content = contentReference.current;
+        if (!slot || !view || !content) return;
+        const wasAtEnd = isScrolledToEnd(view);
+        size();
+        if (isShown) {
+            // The hint shows only at the latest entry; lift that entry above the hint instead of leaving it covered.
+            if (wasAtEnd) scrollWithoutScrollbarFlash(view, view.scrollHeight - view.clientHeight);
+            return;
+        }
+        // New content below the latest entry takes the slot's place, so a following view ends at the content again.
+        let contentHeight = content.offsetHeight;
+        const observer = new ResizeObserver(() => {
+            if (content.offsetHeight > contentHeight) slot.style.height = '0px';
+            contentHeight = content.offsetHeight;
+        });
+        observer.observe(content);
+        return () => observer.disconnect();
+    }, [contentReference, isShown, size]);
+    const onScroll = useCallback(() => {
+        size();
+        onViewScroll();
+    }, [onViewScroll, size]);
+    return { slotReference, onScroll };
 }
