@@ -3,11 +3,6 @@
  * block back, such as Mobile copying a quote. It leaves out the HTML renderer and the streaming parser the package
  * entry also carries.
  */
-export type {
-    MarkdownBlock,
-    MarkdownBlockOptions,
-    MarkdownInline,
-    MarkdownListItem,
-} from './markdown-blocks.js';
+export type { MarkdownBlock } from './markdown-blocks.js';
 export { parseMarkdownBlocks } from './markdown-blocks.js';
 export { blocksPlainText } from './markdown-text.js';
