@@ -399,9 +399,8 @@ export class MobileDeviceRegistry {
         const additions = (record: MobileDeviceRecord): { added: string[]; capped: number } => {
             if (!record.allProjects || record.revokedAt !== undefined)
                 return { added: [], capped: 0 };
-            const missing = projectIds.filter(
-                (projectId) => !record.projectIds.includes(projectId),
-            );
+            const held = new Set(record.projectIds);
+            const missing = projectIds.filter((projectId) => !held.has(projectId));
             const room = Math.max(0, MOBILE_MAX_PROJECT_GRANTS - record.projectIds.length);
             return { added: missing.slice(0, room), capped: Math.max(0, missing.length - room) };
         };
