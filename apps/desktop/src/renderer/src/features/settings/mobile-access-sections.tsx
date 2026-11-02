@@ -163,15 +163,21 @@ const MobileAccessStatusCard = ({
 
 const MobileProjectAccessSection = ({
     busy,
+    canCreatePairing,
+    isAllProjects,
     onAddProject,
     onCreatePairing,
+    onToggleAllProjects,
     onToggleProject,
     projects,
     selectedProjectIds,
 }: {
     busy: boolean;
+    canCreatePairing: boolean;
+    isAllProjects: boolean;
     onAddProject: () => void;
     onCreatePairing: () => void;
+    onToggleAllProjects: (isChecked: boolean) => void;
     onToggleProject: (projectId: string, isChecked: boolean) => void;
     projects: ProjectQueryResult['projects'];
     selectedProjectIds: Set<string>;
@@ -197,41 +203,56 @@ const MobileProjectAccessSection = ({
                 {t('settings.mobileAccess.projects.title')}
             </p>
             <p className="m-0 text-[11px] leading-4 text-muted">
-                {t('settings.mobileAccess.projects.description', {
-                    selected: selectedProjectIds.size,
-                    max: MOBILE_MAX_PROJECT_GRANTS,
-                })}
+                {isAllProjects
+                    ? t('settings.mobileAccess.projects.descriptionAll')
+                    : t('settings.mobileAccess.projects.description', {
+                          selected: selectedProjectIds.size,
+                          max: MOBILE_MAX_PROJECT_GRANTS,
+                      })}
             </p>
-            <div className="grid max-h-32 gap-1 overflow-y-auto rounded-md border border-border bg-background p-2">
-                {projects.map((project) => {
-                    const checked = selectedProjectIds.has(project.id);
-                    return (
-                        <label
-                            key={project.id}
-                            className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-1.5 hover:bg-[var(--selection)]"
-                        >
-                            <Checkbox
-                                aria-label={t('settings.mobileAccess.projects.allow', {
-                                    project: project.title,
-                                })}
-                                checked={checked}
-                                disabled={
-                                    !checked && selectedProjectIds.size >= MOBILE_MAX_PROJECT_GRANTS
-                                }
-                                onCheckedChange={(next) =>
-                                    onToggleProject(project.id, next === true)
-                                }
-                            />
-                            <span className="truncate text-[12px] text-foreground">
-                                {project.title}
-                            </span>
-                        </label>
-                    );
-                })}
-            </div>
+            <label className="flex min-h-7 w-fit cursor-pointer items-center gap-2 rounded px-1.5 hover:bg-[var(--selection)]">
+                <Checkbox
+                    aria-label={t('settings.mobileAccess.projects.all')}
+                    checked={isAllProjects}
+                    onCheckedChange={(next) => onToggleAllProjects(next === true)}
+                />
+                <span className="text-[12px] text-foreground">
+                    {t('settings.mobileAccess.projects.all')}
+                </span>
+            </label>
+            {isAllProjects ? null : (
+                <div className="grid max-h-32 gap-1 overflow-y-auto rounded-md border border-border bg-background p-2">
+                    {projects.map((project) => {
+                        const checked = selectedProjectIds.has(project.id);
+                        return (
+                            <label
+                                key={project.id}
+                                className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-1.5 hover:bg-[var(--selection)]"
+                            >
+                                <Checkbox
+                                    aria-label={t('settings.mobileAccess.projects.allow', {
+                                        project: project.title,
+                                    })}
+                                    checked={checked}
+                                    disabled={
+                                        !checked &&
+                                        selectedProjectIds.size >= MOBILE_MAX_PROJECT_GRANTS
+                                    }
+                                    onCheckedChange={(next) =>
+                                        onToggleProject(project.id, next === true)
+                                    }
+                                />
+                                <span className="truncate text-[12px] text-foreground">
+                                    {project.title}
+                                </span>
+                            </label>
+                        );
+                    })}
+                </div>
+            )}
             <Button
                 className="w-fit"
-                disabled={busy || selectedProjectIds.size === 0}
+                disabled={busy || !canCreatePairing}
                 onClick={onCreatePairing}
             >
                 <QrCode aria-hidden="true" size={14} />
@@ -409,8 +430,11 @@ export const MobileAccessSections = ({
             <>
                 <MobileProjectAccessSection
                     busy={controller.busy}
+                    canCreatePairing={controller.canCreatePairing}
+                    isAllProjects={controller.isAllProjects}
                     onAddProject={controller.addProject}
                     onCreatePairing={controller.createPairing}
+                    onToggleAllProjects={controller.toggleAllProjects}
                     onToggleProject={controller.toggleProject}
                     projects={controller.projects}
                     selectedProjectIds={controller.selectedProjectIds}

@@ -18,10 +18,11 @@ import {
     setMobileAccessEnabled,
 } from '../mobile-access-client';
 import {
+    describeDeviceAccess,
     describeMobileFailure,
     findNewlyPairedDevice,
+    mobilePairingGrant,
     splitGrantableProjects,
-    summarizeProjectAccess,
 } from '../mobile-access-summary';
 
 export interface MobilePairingState {
@@ -38,6 +39,10 @@ export interface MobileAccessState {
      * Stored as a key so the message follows a language change while it is on screen.
      */
     error?: TranslationKey;
+    /**
+     * Pair with "All Projects", so Projects added later reach the phone too; on by default.
+     */
+    isAllProjects: boolean;
     loadState: 'error' | 'loading' | 'ready';
     now: number;
     pairing?: MobilePairingState;
@@ -79,6 +84,7 @@ export type MobileAccessAction =
       }
     | { isEnabled: boolean; status: MobileAccessStatus; type: 'access-applied' }
     | { isChecked: boolean; projectId: string; type: 'project-toggled' }
+    | { isChecked: boolean; type: 'all-projects-toggled' }
     | { error?: TranslationKey; type: 'load-failed' }
     | { type: 'load-started' };
 
@@ -86,6 +92,7 @@ export const initialMobileAccessState: MobileAccessState = {
     busy: false,
     copied: false,
     devices: [],
+    isAllProjects: true,
     loadState: 'loading',
     now: 0,
     projects: [],
@@ -157,6 +164,8 @@ export const mobileAccessReducer = (
             else selectedProjectIds.delete(action.projectId);
             return { ...state, selectedProjectIds };
         }
+        case 'all-projects-toggled':
+            return { ...state, isAllProjects: action.isChecked };
     }
 };
 
@@ -266,14 +275,13 @@ export const useMobileAccessController = () => {
     };
 
     const createPairing = async (): Promise<void> => {
-        if (!state.status || state.selectedProjectIds.size === 0) return;
+        const grant = mobilePairingGrant(state);
+        if (!grant || !state.status) return;
         dispatch({ busy: true, type: 'set-busy' });
         dispatch({ copied: false, type: 'set-copied' });
         dispatch({ error: undefined, type: 'set-error' });
         try {
-            const pairing = await createMobilePairing({
-                projectIds: [...state.selectedProjectIds],
-            });
+            const pairing = await createMobilePairing(grant);
             dispatch({
                 now: Date.now(),
                 pairing: {
@@ -352,11 +360,11 @@ export const useMobileAccessController = () => {
         return new Map(
             activeDevices.map((device) => [
                 device.deviceId,
-                summarizeProjectAccess(
+                describeDeviceAccess(
                     t,
-                    device.projectIds
-                        .filter((projectId) => !state.worktreeProjectIds.has(projectId))
-                        .map((projectId) => projectTitles.get(projectId)),
+                    device,
+                    (projectId) => projectTitles.get(projectId),
+                    state.worktreeProjectIds,
                 ),
             ]),
         );
@@ -373,6 +381,9 @@ export const useMobileAccessController = () => {
         projectAccessByDevice,
         reload: load,
         revoke,
+        canCreatePairing: mobilePairingGrant(state) !== undefined,
+        toggleAllProjects: (isChecked: boolean): void =>
+            dispatch({ isChecked, type: 'all-projects-toggled' }),
         toggleProject: (projectId: string, isChecked: boolean): void =>
             dispatch({ isChecked, projectId, type: 'project-toggled' }),
     };

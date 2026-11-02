@@ -28,6 +28,9 @@ export const settingsMobile: TranslatedNamespace<typeof source> = {
     'settings.mobileAccess.projects.description':
         '这台手机可以在所选项目中查看并回复 Agent、控制终端、编辑文件和启动会话。你可以随时撤销。已选 {{selected}} 个 · 最多 {{max}} 个。',
     'settings.mobileAccess.projects.allow': '允许访问 {{project}}',
+    'settings.mobileAccess.projects.all': '所有项目，包括之后添加的',
+    'settings.mobileAccess.projects.descriptionAll':
+        '这台手机可以在所有项目中查看并回复 Agent、控制终端、编辑文件和启动会话，之后添加的项目也包括在内。你可以随时撤销。',
     'settings.mobileAccess.projects.createPairing': '生成配对码',
     'settings.mobileAccess.pairing.expired': '已过期',
     'settings.mobileAccess.pairing.expiresIn': '{{remaining}} 后过期',
@@ -48,6 +51,7 @@ export const settingsMobile: TranslatedNamespace<typeof source> = {
     'settings.mobileAccess.devices.role.control': '控制',
     'settings.mobileAccess.devices.lastConnected': '上次连接于 {{time}}',
     'settings.mobileAccess.devices.access': '访问范围：{{projects}}',
+    'settings.mobileAccess.devices.allProjects': '所有项目',
     'settings.mobileAccess.devices.revoke': '撤销 {{device}}',
     'settings.mobileAccess.devices.unavailable': '+{{count}} 个不可用',
     'settings.mobileAccess.error.load': '无法加载移动端访问。',

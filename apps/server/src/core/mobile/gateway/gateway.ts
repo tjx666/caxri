@@ -318,10 +318,10 @@ export class MobileGateway {
         return this.status();
     }
 
-    createPairing(projectIds: string[]): { expiresAt: number; pairingLink: string } {
+    createPairing(projectIds: string[], isAllProjects = false) {
         if (!this.#server?.listening || !this.#addresses || !this.#port)
             throw new CaxriError('UNAVAILABLE', 'Mobile access is disabled');
-        const pairing = this.#pairings.create(projectIds);
+        const pairing = this.#pairings.create({ allProjects: isAllProjects, projectIds });
         this.#diagnostics.pairingOutcome('started');
         this.#relay.syncGrants();
         const relay = this.#relay.pairingTarget();

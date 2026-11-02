@@ -21,6 +21,7 @@ import {
     isMobileAgentChatRequest,
 } from './agent-chat-requests';
 import { createMobileAgentUsageRequests } from './agent-usage-requests';
+import { createAllProjectsGrantFollower } from './all-projects-grant';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
@@ -102,6 +103,8 @@ export const openMobileAccessController = (options: {
     const reportExit = createMobileExitReports(options.logger);
     let isClosed = false;
     let applyRelaySetting: (() => void) | undefined;
+    let followAllProjects: (() => void) | undefined;
+    let stopFollowingDevices: (() => void) | undefined;
     const assertOpen = (): void => {
         if (isClosed) throw new CaxriError('UNAVAILABLE', 'Mobile access is shutting down');
     };
@@ -190,16 +193,28 @@ export const openMobileAccessController = (options: {
             });
             applyRelaySetting = createRelaySettingFollower(gateway, domainService);
             applyRelaySetting();
+            const allProjectsGrants = createAllProjectsGrantFollower(
+                registry,
+                domainService,
+                options.logger,
+            );
+            followAllProjects = allProjectsGrants.follow;
+            stopFollowingDevices = registry.onDevicesChanged(allProjectsGrants.follow);
+            allProjectsGrants.follow();
             void withAuthority(() => accessPersistence.restore(isClosed ? undefined : gateway));
         },
         close: () =>
             withAuthority(async () => {
                 isClosed = true;
+                followAllProjects = undefined;
+                stopFollowingDevices?.();
                 abortOperations();
                 await Promise.all([gateway?.close(), previews.clear(), videos.clear()]);
             }),
         publish: (event) => {
             if (event.event === 'settings.changed') applyRelaySetting?.();
+            if (event.event === 'state.changed' && event.payload.kind === 'full')
+                followAllProjects?.();
             gateway?.publish(event);
         },
         invokeControl: async (
@@ -413,7 +428,8 @@ export const openMobileAccessController = (options: {
                             domainService,
                             context.principal,
                             request,
-                            (ids) => activeGateway.createPairing(ids),
+                            (grant) =>
+                                activeGateway.createPairing(grant.projectIds, grant.allProjects),
                         );
                     });
                 }

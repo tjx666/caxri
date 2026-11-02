@@ -1,0 +1,1 @@
+ALTER TABLE `mobile_devices` ADD `all_projects` integer DEFAULT false NOT NULL;

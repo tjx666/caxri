@@ -23,6 +23,7 @@ const phone = {
     generation: 1,
     role: 'reply',
     projectIds: ['project-1'],
+    allProjects: false,
     createdAt: 1,
 };
 
