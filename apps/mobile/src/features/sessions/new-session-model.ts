@@ -191,6 +191,42 @@ export const canCreateNewSession = ({
     !['partial', 'uncertain', 'creating'].includes(createState.kind);
 
 /**
+ * Whether the Agent cards show the availability read as loading. Switching Project starts a new read keyed by that
+ * Project; the previous Project's answer stays on screen as placeholder data until it settles, so the cards and the
+ * surface choice do not drop out for one frame. Creating stays blocked meanwhile, because {@link canCreateNewSession}
+ * takes `isFetching`, so a placeholder answer can never launch a Session in the new Project.
+ */
+export const isNewSessionAvailabilityLoading = ({
+    isFetching,
+    isPending,
+    isPlaceholderData,
+}: {
+    isFetching: boolean;
+    isPending: boolean;
+    isPlaceholderData: boolean;
+}): boolean => isPending || (isFetching && !isPlaceholderData);
+
+/**
+ * The previous Project's availability answer, kept on screen while the newly selected Project's read is in flight. Only
+ * a read that is actually running on the same paired connection may borrow it: offline, the read is held back, and a
+ * borrowed answer would show stale Agents as available instead of the reconnect hint.
+ */
+export const newSessionAvailabilityPlaceholder = <T>({
+    connectionScopeKey,
+    isReadEnabled,
+    previous,
+    previousScopeKey,
+}: {
+    connectionScopeKey: string | null;
+    isReadEnabled: boolean;
+    previous: T | undefined;
+    previousScopeKey: unknown;
+}): T | undefined =>
+    isReadEnabled && connectionScopeKey !== null && previousScopeKey === connectionScopeKey
+        ? previous
+        : undefined;
+
+/**
  * Availability is read only while connected. Offline, before any answer arrived, the read is held back rather than in
  * flight, so "Checking availability…" would never resolve; say what the reader has to do instead.
  */

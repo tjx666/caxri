@@ -6,10 +6,12 @@ import {
     availableNewSessionAgent,
     canCreateNewSession,
     forgetNewSessionProject,
+    isNewSessionAvailabilityLoading,
     isNewSessionAvailabilityOffline,
     markUncertainSessionsChecked,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
+    newSessionAvailabilityPlaceholder,
     newSessionCreateFailure,
     newSessionDefaultSurface,
     newSessionSurface,
@@ -233,5 +235,58 @@ describe('newSessionCreateFailure', () => {
             kind: 'uncertain',
             checkedSessions: false,
         });
+    });
+});
+
+describe('New Session availability across a Project switch', () => {
+    it('keeps the cards steady while the next Project is read over the previous answer', () => {
+        expect(
+            isNewSessionAvailabilityLoading({
+                isFetching: true,
+                isPending: false,
+                isPlaceholderData: true,
+            }),
+        ).toBe(false);
+    });
+
+    it('shows loading before any answer and on a refresh of the same Project', () => {
+        expect(
+            isNewSessionAvailabilityLoading({
+                isFetching: true,
+                isPending: true,
+                isPlaceholderData: false,
+            }),
+        ).toBe(true);
+        expect(
+            isNewSessionAvailabilityLoading({
+                isFetching: true,
+                isPending: false,
+                isPlaceholderData: false,
+            }),
+        ).toBe(true);
+    });
+
+    it('borrows the previous answer only for a live read on the same connection', () => {
+        const previous = { agents: [] };
+        const base = {
+            connectionScopeKey: 'scope-a',
+            isReadEnabled: true,
+            previous,
+            previousScopeKey: 'scope-a',
+        };
+        expect(newSessionAvailabilityPlaceholder(base)).toBe(previous);
+        expect(
+            newSessionAvailabilityPlaceholder({ ...base, isReadEnabled: false }),
+        ).toBeUndefined();
+        expect(
+            newSessionAvailabilityPlaceholder({ ...base, previousScopeKey: 'scope-b' }),
+        ).toBeUndefined();
+        expect(
+            newSessionAvailabilityPlaceholder({
+                ...base,
+                connectionScopeKey: null,
+                previousScopeKey: null,
+            }),
+        ).toBeUndefined();
     });
 });
