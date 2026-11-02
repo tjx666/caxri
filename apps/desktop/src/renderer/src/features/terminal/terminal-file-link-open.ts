@@ -3,6 +3,7 @@ import type {
     MethodResult,
     TerminalFileLinkRefusalReason,
 } from '@caxri/protocol';
+import { isCaxriError } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import type { TranslationKey } from '../../i18n';
@@ -27,6 +28,15 @@ const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, Transla
 
 const onError = (message: string): void => pushToast('error', message);
 
+export interface OpenTerminalFileTargetOptions {
+    hasWorkbenchLinks: boolean;
+    /**
+     * Another path to try once when `target` resolves to no file at all. Agent Chat supplies the absolute path its own
+     * tool calls used for a file cited only by name, so a file written outside every Project still opens.
+     */
+    fallbackTarget?: () => string | undefined;
+}
+
 /**
  * Opens a file path a Terminal printed, or an Agent Chat reply cited, resolved against the Projects that Terminal may
  * reach. One opened document is revealed at `location`; several matching Projects open the Terminal's candidate picker
@@ -36,7 +46,7 @@ export async function openTerminalFileTarget(
     terminalId: string,
     target: string,
     location: EditorNavigationTarget | undefined,
-    { hasWorkbenchLinks }: { hasWorkbenchLinks: boolean },
+    { hasWorkbenchLinks, fallbackTarget }: OpenTerminalFileTargetOptions,
 ): Promise<void> {
     try {
         /**
@@ -107,6 +117,19 @@ export async function openTerminalFileTarget(
                 result.truncated,
             );
     } catch (error) {
+        if (isCaxriError(error) && error.code === 'NOT_FOUND') {
+            const fallback = fallbackTarget?.();
+            if (fallback && fallback !== target) {
+                await openTerminalFileTarget(terminalId, fallback, location, { hasWorkbenchLinks });
+                return;
+            }
+            /**
+             * The generic NOT_FOUND reason ("the target no longer exists") reads as if the file was deleted, while
+             * nearly every miss here is a path that never resolved: a bare name outside the Terminal's Projects.
+             */
+            onError(translate('terminal.links.fileNotFound', { path: target }));
+            return;
+        }
         onError(describeFailureKey(error, 'terminal.links.fileLinkFailed', translate));
     }
 }

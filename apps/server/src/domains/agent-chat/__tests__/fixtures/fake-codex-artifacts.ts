@@ -127,3 +127,21 @@ export async function runTurnManyFiles(io: FakeCodexIo, turn: FakeTurn) {
     });
     await io.streamMessage(turn, 'Wrote five notes.', 0);
 }
+
+/**
+ * `outsidefile`: writes a note beside the Project folder, outside every Project, then cites it by its name alone, the
+ * way an Agent cites a planning document it kept elsewhere.
+ */
+export async function runTurnOutsideFile(io: FakeCodexIo, turn: FakeTurn) {
+    const file = path.join(path.dirname(process.cwd()), 'launch-notes', 'launch-plan.md');
+    const content = '# Launch plan\n';
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+    io.completeItem(turn, {
+        type: 'fileChange',
+        id: crypto.randomUUID(),
+        status: 'completed',
+        changes: [{ path: file, kind: { type: 'add' }, diff: content }],
+    });
+    await io.streamMessage(turn, 'The open decisions are in `launch-plan.md`.', 0);
+}

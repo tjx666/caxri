@@ -122,6 +122,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
         '该文件位于一个未被任何会话用作工作台根目录的 Git Worktree 中。请先在该 Worktree 中继续一个会话。',
     'terminal.links.openExternalFileFailed': '无法在此会话中打开外部文件',
     'terminal.links.matchingFile.accessibleName': '打开 {{project}} 中匹配的文件 {{path}}',
+    'terminal.links.fileNotFound': '找不到文件 {{path}}',
     'terminal.links.fileLinkFailed': '无法打开终端文件链接',
     'terminal.linkPicker.repository.title': '选择 Git 仓库',
     'terminal.linkPicker.repository.placeholder': '搜索匹配的仓库…',
