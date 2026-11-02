@@ -52,6 +52,7 @@ function fakeWebContents(options: { attachedElsewhere?: boolean } = {}) {
         inspector,
         pause: (reason = 'other') =>
             onMessage?.({}, 'Debugger.paused', { reason, callFrames: FRAMES }),
+        resume: () => onMessage?.({}, 'Debugger.resumed', {}),
         webContents,
     };
 }
@@ -103,6 +104,24 @@ describe('createRendererStackSampler', () => {
         fake.pause('breakpoint');
 
         expect(fake.commands).not.toContain('Debugger.resume');
+    });
+
+    /**
+     * #3409: a capture requested while another CDP client held the pause timed out, and the client's next pause was
+     * resumed the moment it landed.
+     */
+    it('neither requests nor resumes a pause while another client holds one', async () => {
+        const fake = fakeWebContents();
+        const sampler = createRendererStackSampler(fake.webContents);
+
+        fake.pause('other');
+        expect(sampler.isPausedByAnotherClient()).toBe(true);
+        await expect(sampler.capture()).resolves.toEqual({ outcome: 'debugger-busy' });
+        fake.resume();
+        expect(sampler.isPausedByAnotherClient()).toBe(false);
+        fake.pause('other');
+
+        expect(fake.commands).toEqual(['Debugger.enable']);
     });
 
     it('reports a debugger another client owns', async () => {

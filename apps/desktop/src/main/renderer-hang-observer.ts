@@ -105,9 +105,14 @@ export function observeRendererHangs(
         lastTickAtMs = tickAtMs;
         if (webContents.isDestroyed() || !isCurrent()) return;
         /**
-         * A loading page answers only after it loads, and a DevTools breakpoint is a pause the developer chose.
+         * A loading page answers only after it loads, and a DevTools or CDP client pause is one the developer chose.
          */
-        if (isSuspended || webContents.isLoading() || webContents.isDevToolsOpened()) {
+        if (
+            isSuspended ||
+            webContents.isLoading() ||
+            webContents.isDevToolsOpened() ||
+            sampler.isPausedByAnotherClient()
+        ) {
             pending = undefined;
             generation += 1;
             return;
