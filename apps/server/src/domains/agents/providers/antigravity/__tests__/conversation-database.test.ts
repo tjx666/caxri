@@ -2,13 +2,16 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
     antigravityConversationId,
     antigravityConversationStamp,
     readAntigravityConversation,
+    readAntigravityConversationHead,
     readAntigravityConversationSummary,
+    readAntigravityConversationUsage,
 } from '../conversation-database';
 import { decodeWireFields } from '../protobuf-wire';
 import { encodeMessage, writeAntigravityConversation } from './fixtures/conversation-database';
@@ -72,6 +75,47 @@ describe('Antigravity conversation database', () => {
         expect(
             readAntigravityConversationSummary({ homeDirectory: home, variables: {} }, ID),
         ).toEqual({ cwd: PROJECT, title: 'Fix invoice rounding' });
+    });
+
+    it('reads usage without the message payloads and the head without step metadata', async () => {
+        const path = await writeAntigravityConversation(home, {
+            id: ID,
+            turns: [
+                {
+                    prompt: '',
+                    reply: 'Which file?',
+                    at: 1_790_000_000,
+                    usage: { input: 10, output: 5 },
+                },
+                { prompt: 'The invoice module', at: 1_790_000_100 },
+            ],
+        });
+        const full = readAntigravityConversation(path);
+        // Dropping a column proves a reader never selects it: the full reader, which needs both, stops reading.
+        const database = new Database(path);
+        database.exec('ALTER TABLE steps DROP COLUMN step_payload');
+        database.close();
+        expect(readAntigravityConversation(path)).toBeUndefined();
+        expect(readAntigravityConversationUsage(path)).toEqual({
+            activity: full?.activity,
+            generations: full?.generations,
+        });
+
+        const headPath = await writeAntigravityConversation(home, {
+            id: '1d5a5fdf-001d-44f8-b06c-ece668b72852',
+            source: 16,
+            turns: [
+                { prompt: '', at: 1_790_000_000 },
+                { prompt: 'The invoice module', at: 1_790_000_100 },
+            ],
+        });
+        const headDatabase = new Database(headPath);
+        headDatabase.exec('ALTER TABLE steps DROP COLUMN metadata');
+        headDatabase.close();
+        expect(readAntigravityConversationHead(headPath)).toEqual({
+            source: 16,
+            firstPrompt: 'The invoice module',
+        });
     });
 
     it('reads a file that is not a database as no conversation', async () => {

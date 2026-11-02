@@ -57,6 +57,7 @@ export {
     antigravityConversationStamp,
     readAntigravityConversation,
     readAntigravityConversationSummary,
+    readAntigravityConversationUsage,
 } from './providers/antigravity/conversation-database';
 export {
     antigravityConversationPath,

@@ -17,7 +17,7 @@ import {
     isCompressedTranscriptPath,
     locateAgentTranscriptForIdentity,
     locateEarlierCodexRollouts,
-    readAntigravityConversation,
+    readAntigravityConversationUsage,
     scanTranscriptLines,
 } from '../agents';
 import type { RateLimitObservation } from './accumulator';
@@ -371,7 +371,7 @@ export class IncrementalUsageScan {
     private readAntigravity(files: UsageTranscriptFiles): void {
         const accumulator = new UsageAccumulator();
         accumulator.bornAt = files.bornAt;
-        const conversation = readAntigravityConversation(files.main.path);
+        const conversation = readAntigravityConversationUsage(files.main.path);
         const activity = conversation?.activity ?? [];
         for (const at of activity) accumulator.markActivity(at);
         accumulator.endStream();
