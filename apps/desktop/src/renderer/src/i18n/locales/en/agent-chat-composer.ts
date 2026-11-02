@@ -116,6 +116,7 @@ export const agentChatComposer = {
     'agentChat.stash.editing': 'Finish or cancel the edit first',
     'agentChat.stash.restored': 'Restored your stashed draft.',
     'agentChat.stash.placeholder': 'Draft stashed · Ctrl+S to restore',
+    'agentChat.promptSuggestion.placeholder': '{{suggestion}} · Tab to use',
     'agentChat.slash.label': 'Commands and skills',
     'agentChat.slash.noMatches': 'No matching command or skill',
     'agentChat.slash.confirmSendAsText': 'No such command. Press Enter again to send as text.',

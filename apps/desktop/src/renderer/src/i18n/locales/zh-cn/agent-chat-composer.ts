@@ -107,6 +107,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.stash.editing': '请先完成或取消编辑',
     'agentChat.stash.restored': '已恢复暂存的草稿。',
     'agentChat.stash.placeholder': '草稿已暂存 · Ctrl+S 恢复',
+    'agentChat.promptSuggestion.placeholder': '{{suggestion}} · Tab 填入',
     'agentChat.slash.label': '命令和 Skill',
     'agentChat.slash.noMatches': '没有匹配的命令或 Skill',
     'agentChat.slash.newSessionDescription': '把下一个任务交给新会话，当前会话到此为止',

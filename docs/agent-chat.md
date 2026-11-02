@@ -1773,6 +1773,26 @@ turns it off.
   `providerError`, or `usageGuard`; the provider, how long after the reply it ran, the recap length,
   and the duration. The recap text is never logged.
 
+## Prompt suggestion
+
+After a turn, a Claude Chat's empty composer offers the next message Claude Code suggests, as Claude
+Code's own prompt does. Server Core opens every Claude Chat with the Agent SDK's
+`promptSuggestions`, and Claude Code sends at most one `prompt_suggestion` per turn right after the
+turn's `result`, reusing that turn's prompt cache. Claude Code decides when there is none: on the
+first turn, in plan mode, after an API error, near the plan's usage limit, and when the user turned
+`promptSuggestionEnabled` off in its settings (or set `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`).
+Caxri adds no setting of its own. Codex has no counterpart, so a Codex Chat offers none.
+
+- **Projection.** `applyClaudePromptSuggestion` stores it as `promptSuggestion` (`text` up to 500
+  characters, `lastResponseAt`), memory only and kept across a projection reset like the away recap.
+  One that arrives after the next turn started, or before any reply, is dropped. It is current only
+  while no turn runs and no newer reply landed (`currentAgentChatPromptSuggestion`).
+- **Composer.** While the input is empty, the suggestion replaces the placeholder as
+  `<suggestion> · Tab to use`; a Ctrl+S stash, Goal mode, a queued message Enter would send, and an
+  "Edit from here" keep their own placeholder instead (`agentChatOfferedPromptSuggestion`). Tab in
+  the empty input puts the suggestion in it as an edit (Cmd+Z takes it out) without sending it; with
+  any text, or with a modifier, Tab keeps its usual meaning (`isAgentChatAcceptSuggestionKey`).
+
 ## Context usage and cache
 
 The snapshot's `usage` (`packages/protocol/src/agent/agent-chat-usage.ts`) describes the context

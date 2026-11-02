@@ -24,6 +24,7 @@ import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-r
 import {
     agentChatAwayRecapSchema,
     agentChatGoalUsageSchema,
+    agentChatPromptSuggestionSchema,
     agentChatTurnMetricsSchema,
     agentChatTurnUsageSchema,
     agentChatUsageSchema,
@@ -564,6 +565,10 @@ export const agentChatSnapshotSchema = z.strictObject({
      * Server Core's out-of-band recap for a user who stepped away; see {@link agentChatAwayRecapSchema}.
      */
     awayRecap: agentChatAwayRecapSchema.optional(),
+    /**
+     * The provider's suggested next message after its latest reply; see {@link agentChatPromptSuggestionSchema}.
+     */
+    promptSuggestion: agentChatPromptSuggestionSchema.optional(),
 });
 
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;

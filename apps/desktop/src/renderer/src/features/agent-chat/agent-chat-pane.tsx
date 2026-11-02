@@ -446,6 +446,7 @@ function AgentChatPaneContent({
                 onOpenTask={taskLinks.openTask}
                 onSent={sentAction(terminal, jumpToLatest, versionView.showCurrent)}
                 pendingQueue={composerView.pendingQueue}
+                promptSuggestion={composerView.promptSuggestion}
                 queue={composerView.queue}
                 snapshot={composerView.snapshot}
                 supportsImages={capabilities.chatImages}
