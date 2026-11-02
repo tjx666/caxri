@@ -154,9 +154,11 @@ export async function executeMobileChatWorkGroupFoldScenario(
         await adbShell(serial, ['input', 'tap', header.x, header.y]);
         await pause(1500);
         const expanded = await cardBounds(serial);
-        if (!expanded || expanded.bottom - expanded.top <= (card.bottom - card.top) * 2)
-            throw new Error('The work summary did not expand');
         await capture(environment, 'expanded', artifacts);
+        if (!expanded || expanded.bottom - expanded.top <= (card.bottom - card.top) * 2)
+            throw new Error(
+                `The work summary did not expand: ${JSON.stringify({ card, expanded })}`,
+            );
 
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await pause(500);
