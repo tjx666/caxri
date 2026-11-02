@@ -213,11 +213,11 @@ export function AgentChatUserMessageBubble({
 }) {
     const { t } = useTranslation();
     const videos = agentChatMessageVideoPaths(videoText ?? text);
-    const invocation = agentChatLeadingInvocation(text);
     const [isExpanded, setExpanded] = useState(false);
     const textReference = useRef<HTMLDivElement>(null);
     const isCut = useIsAgentChatClamped(textReference, { content: text, isClamped: !isExpanded });
-    if (!text && skills.length === 0 && !images?.length && videos.length === 0) return null;
+    const hasWords = text !== '' || skills.length > 0;
+    if (!hasWords && !images?.length && videos.length === 0) return null;
     return (
         <div
             className={cn(
@@ -226,27 +226,16 @@ export function AgentChatUserMessageBubble({
             )}
             data-agent-chat-user-bubble=""
         >
-            {(text || skills.length > 0) && (
+            {hasWords && (
                 <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
                     {skills.map(({ name }) => (
                         <AgentChatSkillPill key={name} name={name} />
                     ))}
-                    {invocation ? (
-                        <>
-                            <AgentChatInvocationChip invocation={invocation.invocation} />
-                            <AgentChatUserMessageBody
-                                images={images}
-                                text={invocation.rest}
-                                onOpenFile={onOpenFile}
-                            />
-                        </>
-                    ) : (
-                        <AgentChatUserMessageBody
-                            images={images}
-                            text={text}
-                            onOpenFile={onOpenFile}
-                        />
-                    )}
+                    <AgentChatUserMessageWords
+                        images={images}
+                        text={text}
+                        onOpenFile={onOpenFile}
+                    />
                 </div>
             )}
             {isCut && (
@@ -261,7 +250,7 @@ export function AgentChatUserMessageBubble({
             )}
             {images && images.length > 0 && (
                 <AgentChatMessageImages
-                    className={cn((text || skills.length > 0) && 'mt-2')}
+                    className={cn(hasWords && 'mt-2')}
                     firstNumber={agentChatFirstImageNumber(text, images.length)}
                     images={images}
                     message={imageRecord}
@@ -269,5 +258,33 @@ export function AgentChatUserMessageBubble({
             )}
             <AgentChatMessageVideos className="mt-2 first:mt-0" paths={videos} />
         </div>
+    );
+}
+
+/**
+ * The message's words, led by the slash command it invoked as a chip (`AgentChatInvocationChip`) when it starts with
+ * one.
+ */
+function AgentChatUserMessageWords({
+    images,
+    text,
+    onOpenFile,
+}: {
+    images?: ReadonlyArray<{ thumbnail?: string }>;
+    text: string;
+    onOpenFile?: (target: string) => void;
+}) {
+    const invocation = agentChatLeadingInvocation(text);
+    if (!invocation)
+        return <AgentChatUserMessageBody images={images} text={text} onOpenFile={onOpenFile} />;
+    return (
+        <>
+            <AgentChatInvocationChip invocation={invocation.invocation} />
+            <AgentChatUserMessageBody
+                images={images}
+                text={invocation.rest}
+                onOpenFile={onOpenFile}
+            />
+        </>
     );
 }
