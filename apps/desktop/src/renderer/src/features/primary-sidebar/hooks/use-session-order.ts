@@ -6,11 +6,11 @@ import type { SessionRecord } from '@caxri/protocol';
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { awaitThenCleanup } from '../../../lib/await-then-cleanup';
 import { didReorderSession } from '../../session/session-commands';
+import { endSessionDrag, SESSION_DRAG_TYPE, startSessionDrag } from '../../session/session-drag';
 import type { SessionDropTarget } from '../session-order';
 import {
     frozenSessionOrder,
     keyboardReorderTarget,
-    SESSION_DRAG_TYPE,
     sessionDropTarget,
     sessionMoveAnnouncement,
 } from '../session-order';
@@ -94,6 +94,7 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
 
     useEffect(() => {
         const end = (): void => {
+            endSessionDrag();
             if (!pending.current) clear();
         };
         addEventListener('dragend', end);
@@ -145,8 +146,7 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
                 return;
             }
             event.stopPropagation();
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData(SESSION_DRAG_TYPE, sessionId);
+            startSessionDrag(event.dataTransfer, sessionId);
             setFrozenIds(latestSessions.current.map((session) => session.id));
             setDraggedId(sessionId);
             setAnnouncement('');
@@ -154,6 +154,7 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
         [latestSessions],
     );
     const endDrag = useCallback(() => {
+        endSessionDrag();
         if (!pending.current) clear();
     }, [clear]);
     const dragOver = useCallback(

@@ -3,8 +3,6 @@ import type { SessionRecord } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import { sessionTitleForDisplay } from '../session/session-title';
 
-export const SESSION_DRAG_TYPE = 'application/x-caxri-session';
-
 export interface SessionDropTarget {
     anchorSessionId: string;
     placement: 'before' | 'after';

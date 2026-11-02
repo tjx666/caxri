@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import { useEffect, useId, useMemo, useState } from 'react';
 
-import { formatAgentChatFileMention } from '@caxri/protocol';
+import { formatAgentChatFileMention, isSessionReferenceable } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
@@ -161,6 +161,16 @@ export function useAgentChatSessionMenu({
         setPreparing(undefined);
         if (reference) insertText(reference, range, typed);
     };
+    /**
+     * Cites a Session chosen outside the `@` list (the Add menu, or a dropped Session row) at the input's caret,
+     * replacing any selection.
+     */
+    const referenceAtCaret = (candidate: SessionReferenceCandidate): void => {
+        const input = inputReference.current;
+        if (isPreparing || !input) return;
+        const range = { start: input.selectionStart, end: input.selectionEnd };
+        void insertReference(candidate, range, input.value.slice(range.start, range.end));
+    };
     const chooseRow = (row: AgentChatMentionRow | undefined): void => {
         if (!mention || isPreparing || !row) return;
         const typed = draft.slice(mention.start, mention.end);
@@ -208,14 +218,25 @@ export function useAgentChatSessionMenu({
          */
         recentCandidates: (limit: number): SessionReferenceCandidate[] =>
             searchSessionReferences(sessions, projects, currentSessionId, '').slice(0, limit),
+        reference: referenceAtCaret,
         /**
-         * Cites a Session chosen outside the `@` list (the Add menu) at the input's caret, replacing any selection.
+         * Whether a Session row dragged onto this Chat can be cited here, by the same rule as the `@` list.
          */
-        reference: (candidate: SessionReferenceCandidate): void => {
-            const input = inputReference.current;
-            if (isPreparing || !input) return;
-            const range = { start: input.selectionStart, end: input.selectionEnd };
-            void insertReference(candidate, range, input.value.slice(range.start, range.end));
+        canReferenceSessionId: (sessionId: string): boolean => {
+            const session = sessions?.find((candidate) => candidate.id === sessionId);
+            return session !== undefined && isSessionReferenceable(session, currentSessionId);
+        },
+        /**
+         * Cites a Session row dropped onto this Chat at the input's caret, as the Add menu does.
+         */
+        referenceSessionId: (sessionId: string): void => {
+            const session = sessions?.find((candidate) => candidate.id === sessionId);
+            if (!session || !isSessionReferenceable(session, currentSessionId)) return;
+            referenceAtCaret({
+                projectTitle: projects?.find((project) => project.id === session.projectId)?.title,
+                sessionId: session.id,
+                title: session.title,
+            });
         },
         highlight: (index: number) => setActive({ query: mention?.query, index }),
         chooseAt: (index: number) => chooseRow(rows.at(index)),

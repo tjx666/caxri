@@ -98,7 +98,9 @@ expressions and no `JSON.parse`, which is the overwhelming majority of a real tr
 An Agent can be pointed at another Session's conversation. In the Agent Chat composer, typing `@` at
 the start of a word lists the other unarchived Sessions that have a Primary Agent, searched by
 title; in a Terminal, the [Agent Commands & Skills](agent-actions.md) picker does the same for a
-search starting with `@`, because the Agent CLI's own `@` list is not Caxri's to extend. Choosing a
+search starting with `@`, because the Agent CLI's own `@` list is not Caxri's to extend. Dragging a
+Session's sidebar row onto a Chat cites it the same way at the caret, under the same eligibility rule
+(`isSessionReferenceable`), so the Chat shows no drop tint for its own Session. Choosing a
 Session sends `session.conversationReference` with only its id, and the Server
 (`apps/server/src/domains/session/conversation-reference.ts`) does the rest:
 

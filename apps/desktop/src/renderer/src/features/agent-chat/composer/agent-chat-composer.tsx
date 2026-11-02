@@ -271,6 +271,10 @@ export function AgentChatComposer({
         inputReference,
         providerName,
         reserveImageTokens: placeholders.reserve,
+        sessionDrop: {
+            canReference: sessionMenu.canReferenceSessionId,
+            reference: sessionMenu.referenceSessionId,
+        },
         setDraft,
         supportsImages,
         terminalId,
@@ -366,6 +370,7 @@ export function AgentChatComposer({
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
             <AgentChatDropOverlay
                 isDragOver={fileInput.isDragOver}
+                isSessionDrag={fileInput.isSessionDragOver}
                 supportsImages={supportsImages}
             />
             {/*

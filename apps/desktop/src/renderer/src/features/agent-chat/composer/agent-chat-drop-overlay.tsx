@@ -7,9 +7,14 @@ import { useTranslation } from '../../../i18n';
  */
 export function AgentChatDropOverlay({
     isDragOver,
+    isSessionDrag,
     supportsImages,
 }: {
     isDragOver: boolean;
+    /**
+     * The drag is a Session row, which the drop cites rather than adds as a file.
+     */
+    isSessionDrag: boolean;
     supportsImages: boolean;
 }) {
     const { t } = useTranslation();
@@ -18,9 +23,11 @@ export function AgentChatDropOverlay({
         <div className="motion-safe:animate-in motion-safe:fade-in-0 pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-accent/10 duration-(--motion-overlay-enter) ease-(--motion-ease-enter)">
             <span className="rounded-md bg-elevated px-3 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]">
                 {t(
-                    supportsImages
-                        ? 'agentChat.attachments.dropImagesOrPaths'
-                        : 'agentChat.attachments.dropPaths',
+                    isSessionDrag
+                        ? 'agentChat.attachments.dropSession'
+                        : supportsImages
+                          ? 'agentChat.attachments.dropImagesOrPaths'
+                          : 'agentChat.attachments.dropPaths',
                 )}
             </span>
         </div>

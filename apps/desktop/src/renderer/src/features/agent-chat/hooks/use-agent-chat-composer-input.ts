@@ -38,6 +38,7 @@ export function useAgentChatComposerInput({
     inputReference,
     providerName,
     reserveImageTokens,
+    sessionDrop,
     setDraft,
     supportsImages,
     terminalId,
@@ -54,6 +55,7 @@ export function useAgentChatComposerInput({
      * The first of `count` placeholder numbers for images about to be attached (`useAgentChatImagePlaceholders`).
      */
     reserveImageTokens: (count: number) => number;
+    sessionDrop: Parameters<typeof useAgentChatFileInput>[0]['sessionDrop'];
     setDraft: (update: (current: string) => string) => void;
     supportsImages: boolean;
     terminalId: string;
@@ -157,6 +159,7 @@ export function useAgentChatComposerInput({
         didInsertPickedPaths,
         isImageInputEnabled: supportsImages,
         providerName,
+        sessionDrop,
         takeLongPaste: longPaste.didTakePaste,
     });
     useImperativeHandle(dropHandlersReference, () => fileInput.dropHandlers);

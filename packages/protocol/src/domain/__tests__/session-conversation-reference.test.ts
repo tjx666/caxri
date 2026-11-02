@@ -6,6 +6,7 @@ import {
     agentChatTextWithSessionMentions,
     formatAgentChatFileMention,
     formatAgentChatSessionReference,
+    isSessionReferenceable,
     searchSessionReferenceCandidates,
 } from '../session-conversation-reference.js';
 
@@ -13,6 +14,20 @@ describe('formatAgentChatFileMention', () => {
     it('quotes a path with whitespace and leaves others bare', () => {
         expect(formatAgentChatFileMention('src/a.ts')).toBe('@src/a.ts');
         expect(formatAgentChatFileMention('my docs/a b.md')).toBe('@"my docs/a b.md"');
+    });
+});
+
+describe('isSessionReferenceable', () => {
+    const session = { id: 'other', primaryAgentTerminalId: 'terminal-1' };
+
+    it('cites another unarchived Session with an Agent conversation', () => {
+        expect(isSessionReferenceable(session, 'current')).toBe(true);
+    });
+
+    it('refuses the citing Session, an archived one, and one without a Primary Agent', () => {
+        expect(isSessionReferenceable(session, 'other')).toBe(false);
+        expect(isSessionReferenceable({ ...session, archivedAt: 1 }, 'current')).toBe(false);
+        expect(isSessionReferenceable({ id: 'other' }, 'current')).toBe(false);
     });
 });
 
