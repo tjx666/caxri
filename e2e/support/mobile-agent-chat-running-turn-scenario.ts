@@ -14,6 +14,7 @@ import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     adbShell,
     androidBounds,
+    coldStartMobileApp,
     copyMobileFramebufferRecording,
     mobileDisplayState,
     mobileSemantics,
@@ -179,6 +180,12 @@ const RELAY_DELAY_MS = 400;
  */
 const LONG_TURN_WATCH_MS = 8_000;
 
+/**
+ * Room for the first open to read its history and for the read cache, which writes one second after the view settles,
+ * before the app is reclaimed; also how long the restarted app gets to list its Sessions again.
+ */
+const LONG_TURN_SETTLE_MS = 6_000;
+
 const LONG_TURN_PROMPT = 'Trace where the session list loses its order';
 
 /**
@@ -209,10 +216,11 @@ const isRunningLongTurn = (snapshot: AgentChatSnapshot): boolean =>
     snapshot.items.some((item) => item.type === 'command' && item.command === 'sleep 900');
 
 /**
- * `MOB-CHAT-RUNNING-OPEN-02`: a Chat whose running turn outgrew the phone's window opens straight onto the turn's
- * request and its folded work. The phone used to show the window's few rows first and then swap the list once per
- * history page, so the timeline held other pictures before the request appeared. Judged from every recorded frame of
- * the timeline band: besides the Sessions list it was tapped from, no other picture may hold.
+ * `MOB-CHAT-RUNNING-OPEN-02`: a Chat whose running turn outgrew the phone's window, reopened after the app was
+ * reclaimed, opens straight onto the turn's request and its folded work. The phone used to show its saved copy first
+ * (one tool row, no request, a finished turn) and then swap the list once per history page, so the timeline held other
+ * pictures before the request appeared. Judged from every recorded frame of the timeline band: besides the Sessions
+ * list it was tapped from, no other picture may hold.
  */
 export async function executeMobileChatLongTurnOpenScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -241,18 +249,28 @@ export async function executeMobileChatLongTurnOpenScenario(
         const { size } = await mobileDisplayState(serial);
         const { height } = size.override ?? size.physical;
         const timeline = { top: Math.floor(height * 0.12), bottom: Math.floor(height * 0.55) };
+        const tapRow = () =>
+            adbShell(serial, [
+                'input',
+                'tap',
+                String(Math.floor((bounds.left + bounds.right) / 2)),
+                String(Math.floor((bounds.top + bounds.bottom) / 2)),
+            ]);
         await chat.send({ text: LONG_TURN_PROMPT });
         await waitForMobile(() => chat.read(), isRunningLongTurn, 60_000);
+        // The phone reads the Chat once and saves it, then is reclaimed: the next open starts from that saved copy, the
+        // way a phone returning to a Chat it left a while ago does.
+        await tapRow();
+        await pause(LONG_TURN_SETTLE_MS);
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await pause(LONG_TURN_SETTLE_MS);
+        await coldStartMobileApp(serial);
+        await pause(LONG_TURN_SETTLE_MS);
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         // The round trips a phone pays over the Relay; on the local gateway every page landed within one frame.
         await setEmulatorNetworkDelay(serial, RELAY_DELAY_MS);
         isDelayed = true;
-        await adbShell(serial, [
-            'input',
-            'tap',
-            String(Math.floor((bounds.left + bounds.right) / 2)),
-            String(Math.floor((bounds.top + bounds.bottom) / 2)),
-        ]);
+        await tapRow();
         await pause(LONG_TURN_WATCH_MS);
         await setEmulatorNetworkDelay(serial, 0);
         isDelayed = false;
