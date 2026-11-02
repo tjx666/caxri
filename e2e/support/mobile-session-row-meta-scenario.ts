@@ -76,6 +76,14 @@ export async function executeMobileSessionRowMetaScenario(
             sessionId,
             worktreeId: worktree.worktreeId,
         });
+        // The fixture Agent's launch leaves the Session unread, and that attention glyph would take the status slot.
+        const unread = (await pageRequest<BootstrapState>(page, 'app.bootstrap')).sessions.find(
+            (session) => session.id === sessionId,
+        )!;
+        await pageRequest(page, 'session.markRead', {
+            sessionId,
+            attentionGeneration: unread.attentionGeneration,
+        });
         await mobile.pair();
 
         const row = `session-row-${sessionId}`;
