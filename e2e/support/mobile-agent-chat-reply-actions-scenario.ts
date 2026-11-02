@@ -66,7 +66,7 @@ const reply = (snapshot: AgentChatSnapshot, text: string) =>
             item.type === 'agentMessage' && item.text.startsWith(text),
     );
 
-const replyTurnId = (snapshot: AgentChatSnapshot, text: string): string | undefined =>
+export const replyTurnId = (snapshot: AgentChatSnapshot, text: string): string | undefined =>
     reply(snapshot, text)?.turnId;
 
 /**
@@ -87,7 +87,7 @@ const minuteOf = (timestamp: number): string =>
  * turn opens at the top of the Chat, so an earlier reply's bar starts above the screen, where Android still lists its
  * controls but a tap would land on whatever covers them.
  */
-const showBar = (serial: string, turnId: string) =>
+export const showBar = (serial: string, turnId: string) =>
     scrollTimelineUntil(serial, async () => {
         const nodes = await mobileSemantics(serial);
         const frame = nodes.find(({ checkId }) => checkId === 'conversation-view');
