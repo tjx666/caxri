@@ -31,7 +31,8 @@
  * run and the Release macOS run that CI triggers. A run whose jobs are all skipped counts as success, and the failed
  * runs are printed by name. A run that `cancel-in-progress` cancelled because a newer push to the branch contains this
  * commit is replaced by that push's run of the same workflow. It cannot be combined with another selector. Exits 0 when
- * every watched run succeeded, 1 otherwise.
+ * every watched run succeeded, {@link UNVERIFIED_EXIT_CODE} when `--sha` found no failure but every newer run containing
+ * a cancelled run was cancelled too, and 1 otherwise.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -49,6 +50,11 @@ import { printE2EFailures } from './watch-ci-e2e-failures';
 import { didPrRunsSucceed, resolvePrRuns } from './watch-ci-pr';
 import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
 
+/**
+ * `--sha` exit code for a commit whose cancelled runs were superseded only by runs that were cancelled too: unverified,
+ * not failed, so the caller watches the next `main` run that contains it.
+ */
+const UNVERIFIED_EXIT_CODE = 2;
 const POLL_INTERVAL_MS = 20_000;
 /**
  * A heartbeat older than three poll intervals means the polling session died (or its laptop slept); the next follower
@@ -538,10 +544,10 @@ async function main(): Promise<void> {
     try {
         options = parseArguments(process.argv.slice(2));
         if (options.sha) {
-            const failed = await followAndReport(options.sha, (runId) =>
+            const { failed, unverified } = await followAndReport(options.sha, (runId) =>
                 didRunSucceed(runId, options.quiet, true),
             );
-            process.exit(failed.length === 0 ? 0 : 1);
+            process.exit(failed.length > 0 ? 1 : unverified.length > 0 ? UNVERIFIED_EXIT_CODE : 0);
         }
         if (options.pr) {
             const { headSha, runs } = await resolvePrRuns(options.pr, options.workflow);

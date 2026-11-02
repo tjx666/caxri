@@ -147,7 +147,7 @@ or cancels the delivery, or a concrete blocker requires their input.
    other made required. A `main` run that a newer push cancelled proves nothing either way:
    `--sha` follows the newer run that contains the merge, and only that run's success verifies
    it. When every successor it follows is cancelled too, the merge is still unverified, not
-   failed: watch the next `main` run that contains it. Concurrent sessions, including other
+   failed: the watcher prints `UNVERIFIED` and exits 2; watch the next `main` run that contains it. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling

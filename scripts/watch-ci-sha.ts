@@ -270,10 +270,11 @@ export async function followCommit(
 }
 
 /**
- * How many superseding pushes to chase before reporting the cancellation; each hop is one more merge landing on `main`
- * while the previous run was still going.
+ * How many superseding pushes to chase before giving up as unverified; each hop is one more merge landing on `main`
+ * while the previous run was still going. Five was too few: parallel sessions merged six times within one CI run, and
+ * two watchers reported a commit failed while the sixth successor, which contained it, succeeded.
  */
-const MAX_SUPERSEDING_HOPS = 5;
+const MAX_SUPERSEDING_HOPS = 20;
 
 /**
  * How many times to list a cancelled push run's workflow for its successor before treating the cancellation as real.
@@ -347,7 +348,9 @@ async function hasCommitAncestor(base: string, head: string): Promise<boolean> {
  * Resolves a run that `concurrency: cancel-in-progress` cancelled because a newer push to the same branch started the
  * same workflow. On `main` that happens whenever another pull request merges while this commit's CI is running: the
  * cancelled run proves nothing, and the newer run, whose commit contains this one, is the evidence to wait for. Returns
- * whether that newest run (chasing further supersessions) succeeded, or `undefined` when the run was not superseded.
+ * whether that newest run (chasing further supersessions) succeeded, `undefined` when the run was not superseded, or
+ * `'unverified'` when every successor it followed was cancelled too: a cancelled run proves nothing either way, so the
+ * commit needs the next `main` run that contains it.
  */
 export async function followSupersedingRuns(
     run: CommitRun,
@@ -359,7 +362,7 @@ export async function followSupersedingRuns(
         readRun = readRunOrigin,
         wait = sleep,
     }: SupersedeDependencies = {},
-): Promise<boolean | undefined> {
+): Promise<boolean | 'unverified' | undefined> {
     const findSuccessor = async (origin: RunOrigin, current: { id: string; sha: string }) => {
         for (let attempt = 0; attempt < SUPERSEDING_DISCOVERY_ATTEMPTS; attempt += 1) {
             // eslint-disable-next-line no-await-in-loop -- each listing waits for the previous one to miss
@@ -373,14 +376,15 @@ export async function followSupersedingRuns(
         return;
     };
     let current = { id: run.id, sha };
-    for (let hop = 0; hop < MAX_SUPERSEDING_HOPS; hop += 1) {
+    for (let hop = 0; hop <= MAX_SUPERSEDING_HOPS; hop += 1) {
         // eslint-disable-next-line no-await-in-loop -- each hop depends on the run the previous one found
         const origin = await readRun(current.id);
         if (origin.conclusion !== 'cancelled' || origin.event !== 'push')
             return hop === 0 ? undefined : false;
+        if (hop === MAX_SUPERSEDING_HOPS) break;
         // eslint-disable-next-line no-await-in-loop -- see above
         const newer = await findSuccessor(origin, current);
-        if (!newer) return hop === 0 ? undefined : false;
+        if (!newer) return hop === 0 ? undefined : 'unverified';
         console.log(
             `${run.name} (run ${current.id}) was cancelled by a newer push; following run ${newer.id} on ${newer.sha.slice(0, 9)}, which contains it`,
         );
@@ -388,30 +392,39 @@ export async function followSupersedingRuns(
         // eslint-disable-next-line no-await-in-loop -- see above
         if (await isRunGood(current.id)) return true;
     }
-    return false;
+    return 'unverified';
 }
 
 /**
- * Resolves `sha`, follows its runs with `isRunGood`, and prints each failed run by name; returns the failed runs. A run
- * cancelled by a newer push is replaced by that push's run of the same workflow.
+ * Resolves `sha`, follows its runs with `isRunGood`, and prints each failed or unverified run by name. A run cancelled
+ * by a newer push is replaced by that push's run of the same workflow; when every such successor was cancelled too, the
+ * run is unverified rather than failed.
  */
 export async function followAndReport(
     sha: string,
     isRunGood: (runId: string) => Promise<boolean>,
-): Promise<CommitRun[]> {
+): Promise<{ failed: CommitRun[]; unverified: CommitRun[] }> {
     const fullSha = await resolveCommitSha(sha);
     console.log(`following every workflow run of commit ${fullSha}`);
     const finished = await followCommit(fullSha, isRunGood);
     const failed: CommitRun[] = [];
+    const unverified: CommitRun[] = [];
     for (const run of finished) {
         const superseded =
             run.conclusion === 'cancelled'
                 ? // eslint-disable-next-line no-await-in-loop -- reported in order, and at most one or two runs ever fail
                   await followSupersedingRuns(run, fullSha, isRunGood)
                 : undefined;
-        if (superseded) continue;
+        if (superseded === true) continue;
+        if (superseded === 'unverified') {
+            unverified.push(run);
+            console.error(
+                `UNVERIFIED: ${run.name} (run ${run.id}): every newer run that contained this commit was cancelled; watch the next main run`,
+            );
+            continue;
+        }
         failed.push(run);
         console.error(`FAILED: ${run.name} (run ${run.id}): ${run.conclusion || 'failed'}`);
     }
-    return failed;
+    return { failed, unverified };
 }

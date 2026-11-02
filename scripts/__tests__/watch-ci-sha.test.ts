@@ -283,6 +283,37 @@ describe('followSupersedingRuns', () => {
         expect(isRunGood).not.toHaveBeenCalled();
     });
 
+    it('keeps chasing a busy main past five cancelled successors to the run that finished', async () => {
+        const conclusions = new Map(
+            Array.from({ length: 7 }, (_, index) => [String(10 + index), 'cancelled']),
+        );
+        conclusions.set('16', 'success');
+        const listings = Array.from({ length: 6 }, (_, index) => [
+            { id: String(11 + index), sha: `sha-${11 + index}` },
+        ]);
+        const isRunGood = vi.fn((runId: string) => Promise.resolve(runId === '16'));
+        const result = await followSupersedingRuns(cancelled, 'sha-10', isRunGood, {
+            contains: () => Promise.resolve(true),
+            listPushRuns: () => Promise.resolve(listings.shift() ?? []),
+            readRun: (runId) => Promise.resolve(origin(conclusions.get(runId) ?? '')),
+            wait: noWait,
+        });
+        expect(result).toBe(true);
+        expect(isRunGood).toHaveBeenLastCalledWith('16');
+    });
+
+    it('reports a commit as unverified, not failed, when every successor it followed was cancelled', async () => {
+        const listings = [[{ id: '11', sha: 'b' }]];
+        const isRunGood = vi.fn(() => Promise.resolve(false));
+        const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
+            contains: () => Promise.resolve(true),
+            listPushRuns: () => Promise.resolve(listings.shift() ?? [{ id: '11', sha: 'b' }]),
+            readRun: () => Promise.resolve(origin('cancelled')),
+            wait: noWait,
+        });
+        expect(result).toBe('unverified');
+    });
+
     it('keeps listing until the superseding run appears, since GitHub can list it after the cancellation', async () => {
         const listings = [
             [{ id: '10', sha: 'a' }],
