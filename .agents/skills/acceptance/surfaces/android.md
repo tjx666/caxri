@@ -80,7 +80,9 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
 ```
 
 The guarded runner first requires a clean source tree at the frozen report commit, then builds
-Desktop artifacts, prepares the Android native project, creates and installs a release APK, verifies
+Desktop artifacts, prepares the Android native project, creates a release APK, checks the source
+tree again (the bundle reads the working tree, so do not edit the checkout while a round builds),
+installs the APK, verifies
 the non-debuggable package, clears only `com.caxri.mobile` before
 and after the case, launches an isolated Desktop/Server fixture, pairs through the encrypted gateway,
 and sends one fixed bounded reply. Stage and overall deadlines bound every child command. It never
