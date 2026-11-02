@@ -439,28 +439,32 @@ async function holdProjectChipAtStripEdge(
     environment: Environment,
     artifacts: string[],
 ): Promise<void> {
+    const rootNames = Array.from({ length: 8 }, (_, index) => `strip-project-${index + 1}`);
     const fixture = await createMobileAcceptanceFixture({
+        extraProjectRootNames: rootNames,
         isolatedProjectHome: true,
         mode: 'launch-failure',
         serial: environment.serial,
     });
     try {
-        const extraIds = await Promise.all(
-            Array.from({ length: 8 }, async (_, index) => {
-                const rootPath = join(
-                    fixture.testDirectory,
-                    'chip-strip',
-                    `strip-project-${index + 1}`,
-                );
-                await mkdir(rootPath, { recursive: true });
-                const project = await pageRequest<{ id: string }>(
-                    fixture.running.page,
-                    'project.create',
-                    { rootPath },
-                );
-                return project.id;
-            }),
-        );
+        const extraIds: string[] = [];
+        /* eslint-disable no-await-in-loop -- Each Project takes the folder picker's next queued root, in order. */
+        for (const name of rootNames) {
+            const rootPath = await pageRequest<string>(
+                fixture.running.page,
+                'dialog.selectDirectory',
+            );
+            // The picker may hand back the real path of the temporary directory, so compare the folder name.
+            if (!rootPath.endsWith(`/${name}`))
+                throw new Error('The folder picker skipped a Project root');
+            const project = await pageRequest<{ id: string }>(
+                fixture.running.page,
+                'project.create',
+                { rootPath },
+            );
+            extraIds.push(project.id);
+        }
+        /* eslint-enable no-await-in-loop */
         await fixture.pair(extraIds);
         const isProjectChip = (checkId: string) =>
             checkId.startsWith('project-filter-') && checkId !== 'project-filter-all';
