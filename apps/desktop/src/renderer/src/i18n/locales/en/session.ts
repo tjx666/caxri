@@ -187,6 +187,10 @@ export const session = {
     'session.quitRestore.none': 'Nothing left to restore.',
     'session.quitRestore.restoredOne': 'Restored {{count}} Session.',
     'session.quitRestore.restoredOther': 'Restored {{count}} Sessions.',
+    'session.quitRestore.allSkippedOne':
+        "Couldn't restore {{count}} Session. It was deleted, archived, or could not restart.",
+    'session.quitRestore.allSkippedOther':
+        "Couldn't restore {{count}} Sessions. They were deleted, archived, or could not restart.",
     'session.quitRestore.skipped':
         '{{headline}} Skipped {{count}} that were deleted, archived, or could not restart.',
 

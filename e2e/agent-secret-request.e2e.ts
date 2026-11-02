@@ -73,7 +73,7 @@ process.stdin.resume();
             await expect(card.getByRole('button', { name: 'Open Session' })).toHaveCount(0);
 
             await card.getByRole('button', { name: 'Minimize', exact: true }).click();
-            await expect(card).toHaveCount(0);
+            await expect(card).toBeHidden();
             const chip = page.getByRole('button', { name: 'Secret requests, 1 waiting. Show' });
             await expect(chip).toBeFocused();
 
@@ -85,14 +85,18 @@ process.stdin.resume();
             await expect(
                 page.getByRole('button', { name: 'Secret requests, 2 waiting. Show' }),
             ).toBeVisible();
-            await expect(card).toHaveCount(0);
+            await expect(card).toBeHidden();
 
             await page.getByRole('button', { name: 'Secret requests, 2 waiting. Show' }).click();
             await expect(card).toBeVisible();
-            await card.getByLabel('Value for E2E_FIRST_TOKEN').focus();
+            const value = card.getByLabel('Value for E2E_FIRST_TOKEN');
+            await expect(value).toBeFocused();
+            await value.fill('typed-before-minimize');
             await page.keyboard.press('Escape');
-            await expect(card).toHaveCount(0);
+            await expect(card).toBeHidden();
             await page.getByRole('button', { name: 'Secret requests, 2 waiting. Show' }).click();
+            // Minimizing only hides the card, so a half-typed value is still there on return.
+            await expect(value).toHaveValue('typed-before-minimize');
 
             // Minimizing never declined anything: both requests are still there to answer.
             await card.getByRole('button', { name: 'Decline', exact: true }).click();

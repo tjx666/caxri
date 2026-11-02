@@ -181,6 +181,9 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.quitRestore.none': '没有需要恢复的会话了。',
     'session.quitRestore.restoredOne': '已恢复 {{count}} 个会话。',
     'session.quitRestore.restoredOther': '已恢复 {{count}} 个会话。',
+    'session.quitRestore.allSkippedOne': '无法恢复 {{count}} 个会话，它已被删除、归档或无法重启。',
+    'session.quitRestore.allSkippedOther':
+        '无法恢复 {{count}} 个会话，它们已被删除、归档或无法重启。',
     'session.quitRestore.skipped': '{{headline}}{{count}} 个已删除、已归档或无法重启，已跳过。',
 
     // Warm-cache compaction

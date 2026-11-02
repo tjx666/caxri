@@ -3,12 +3,14 @@ import type { SessionRestoreQuitStoppedResult } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { dismissToastsMatching, pushToast, tryCommand } from '../../stores/toasts';
-import { quitRestoreNoticeKey } from './session-quit-restore-notice';
+import { quitRestoreAllSkippedKey, quitRestoreNoticeKey } from './session-quit-restore-notice';
 
 const restore = { running: false };
 
 function describeQuitRestore(result: SessionRestoreQuitStoppedResult): string {
     if (result.restored === 0 && result.skipped === 0) return translate('session.quitRestore.none');
+    const allSkippedKey = quitRestoreAllSkippedKey(result);
+    if (allSkippedKey) return translate(allSkippedKey, { count: result.skipped });
     const headline = translate(
         result.restored === 1
             ? 'session.quitRestore.restoredOne'

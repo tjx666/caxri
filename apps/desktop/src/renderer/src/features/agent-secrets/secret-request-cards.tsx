@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import type { RefObject } from 'react';
+import { useRef, useState } from 'react';
 
 import type { AgentSecretRequest } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
@@ -30,8 +31,10 @@ import { secretAnswerFailure, secretRequestAnswer } from './agent-secrets-summar
  * follows T3 Code's secret request (see `.agents/skills/competitors/references/feature-references.md`).
  *
  * The user can minimize the card to a chip that still counts the waiting requests, so putting a request off never hides
- * it: minimizing is not declining. The choice is window-local and lasts until the queue empties, so a request arriving
- * while minimized raises the count instead of reopening the card.
+ * it: minimizing is not declining. A minimized card stays mounted but hidden (out of sight, the accessibility tree, and
+ * the focus order), so what was typed, including the "Use in all Projects" choice, is still there when the user expands
+ * it, and expanding from the chip focuses the value field. The choice is window-local and lasts until the queue
+ * empties, so a request arriving while minimized raises the count instead of reopening the card.
  */
 export function SecretRequestCards() {
     const { t } = useTranslation();
@@ -39,12 +42,13 @@ export function SecretRequestCards() {
     const requests = query.data?.requests ?? [];
     const current = requests.toSorted((left, right) => left.createdAt - right.createdAt).at(0);
     const [isMinimized, setIsMinimized] = useState(false);
+    const valueFieldReference = useRef<HTMLInputElement>(null);
     // Adjusting state while rendering: an emptied queue resets the choice without an effect's extra frame.
     if (!current && isMinimized) setIsMinimized(false);
     if (!current) return null;
     return (
         <div className="pointer-events-none fixed top-10 right-4 z-40 flex w-[min(400px,92vw)] flex-col items-end">
-            {isMinimized ? (
+            {isMinimized && (
                 <Button
                     // Focus follows the user's own minimize, so the keyboard keeps its place instead of falling to the page.
                     autoFocus
@@ -52,30 +56,42 @@ export function SecretRequestCards() {
                     className="pointer-events-auto shadow-[0_12px_32px_var(--shadow)]"
                     size="sm"
                     variant="secondary"
-                    onClick={() => setIsMinimized(false)}
+                    onClick={() => {
+                        setIsMinimized(false);
+                        // The card is still hidden in this event; focus lands once React commits the expansion.
+                        requestAnimationFrame(() => valueFieldReference.current?.focus());
+                    }}
                 >
                     <KeyRound aria-hidden="true" className="size-3.5" />
                     {t('agentSecrets.request.chip', { count: requests.length })}
                 </Button>
-            ) : (
-                <SecretRequestCard
-                    key={current.id}
-                    moreCount={requests.length - 1}
-                    request={current}
-                    onMinimize={() => setIsMinimized(true)}
-                />
             )}
+            <SecretRequestCard
+                key={current.id}
+                hidden={isMinimized}
+                moreCount={requests.length - 1}
+                request={current}
+                valueFieldRef={valueFieldReference}
+                onMinimize={() => setIsMinimized(true)}
+            />
         </div>
     );
 }
 
 function SecretRequestCard({
+    hidden,
     moreCount,
     request,
+    valueFieldRef,
     onMinimize,
 }: {
+    /**
+     * Minimized: stays mounted so typed state survives, but leaves sight, the accessibility tree, and focus.
+     */
+    hidden: boolean;
     moreCount: number;
     request: AgentSecretRequest;
+    valueFieldRef: RefObject<HTMLInputElement | null>;
     onMinimize: () => void;
 }) {
     const { t } = useTranslation();
@@ -92,8 +108,8 @@ function SecretRequestCard({
         isAgentChatOnScreen(state.counts, request.terminalId),
     );
     /**
-     * The value lives only in this component's state: it is sent once and dropped with the card, and nothing here logs,
-     * persists, or echoes it.
+     * The value lives only in this component's state: it is sent once and dropped with the card (a minimized card keeps
+     * what was typed), and nothing here logs, persists, or echoes it.
      */
     const [value, setValue] = useState('');
     const [isGlobal, setIsGlobal] = useState(false);
@@ -126,6 +142,7 @@ function SecretRequestCard({
             // Project titles and pushes the field and Save past the window edge.
             className="pointer-events-auto grid w-full grid-cols-[minmax(0,1fr)] gap-3 rounded-lg border border-border bg-elevated p-3 text-foreground shadow-[0_12px_32px_var(--shadow)]"
             data-agent-secret-request={request.id}
+            hidden={hidden}
             onKeyDown={(event) => {
                 if (event.key !== 'Escape' || event.defaultPrevented) return;
                 event.preventDefault();
@@ -198,6 +215,7 @@ function SecretRequestCard({
                         className="bg-background font-mono"
                         data-1p-ignore
                         data-lpignore="true"
+                        ref={valueFieldRef}
                         disabled={isAnswering}
                         spellCheck={false}
                         type="password"

@@ -87,7 +87,7 @@ describe('pull request status bar tooltip', () => {
             ).rows,
         ).toEqual([
             { label: 'Branch', value: 'feat/hint' },
-            { label: 'Base', value: 'release/2.0' },
+            { label: 'Merges into', value: 'release/2.0' },
         ]);
         expect(
             pullRequestTooltip(
