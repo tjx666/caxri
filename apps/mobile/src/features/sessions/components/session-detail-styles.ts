@@ -30,10 +30,12 @@ export const sessionDetailStyles = StyleSheet.create({
     /**
      * A Session can list five fixed tabs plus extension panels; the tight 4dp gap and 12dp inset keep as many tabs in
      * view as the 44dp touch target allows. Past that the strip scrolls, and the tab clipped at the edge shows there is
-     * more.
+     * more. When they fit, `flexGrow` stretches the row to the strip's width so the tabs split the spare space and each
+     * gets a wider touch target instead of crowding the left edge.
      */
     tabs: {
         flexDirection: 'row',
+        flexGrow: 1,
         gap: mobileSpace.xs,
         paddingBottom: mobileSpace.sm,
         paddingHorizontal: mobileSpace.md,
@@ -42,6 +44,11 @@ export const sessionDetailStyles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: mobileRadius.pill,
         flexDirection: 'row',
+        /**
+         * Grows from its natural width rather than a zero basis: the spare width is shared equally, and the selected
+         * tab keeps room for its name (`Changes` with a count would ellipsize in a strict equal split).
+         */
+        flexGrow: 1,
         flexShrink: 0,
         gap: mobileSpace.sm,
         justifyContent: 'center',
