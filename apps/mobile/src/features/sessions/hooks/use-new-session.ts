@@ -12,7 +12,9 @@ import {
     acknowledgeCheckedUncertainCreate,
     availableNewSessionAgent,
     canCreateNewSession,
+    isNewSessionAvailabilityLoading,
     markUncertainSessionsChecked,
+    newSessionAvailabilityPlaceholder,
     newSessionCreateFailure,
     newSessionDefaultSurface,
     newSessionSurface,
@@ -49,14 +51,22 @@ export const useNewSession = () => {
         projects,
         filterProjectId,
     );
+    const isAvailabilityReadEnabled =
+        selectedProjectId !== null &&
+        connectionScopeKey !== null &&
+        isForeground &&
+        status === 'connected';
     const availability = useQuery({
-        enabled:
-            selectedProjectId !== null &&
-            connectionScopeKey !== null &&
-            isForeground &&
-            status === 'connected',
+        enabled: isAvailabilityReadEnabled,
         gcTime: 0,
         networkMode: 'always',
+        placeholderData: (previous, previousQuery) =>
+            newSessionAvailabilityPlaceholder({
+                connectionScopeKey,
+                isReadEnabled: isAvailabilityReadEnabled,
+                previous,
+                previousScopeKey: previousQuery?.queryKey[2],
+            }),
         queryFn: () => request('mobile.agent.availability', { projectId: selectedProjectId! }),
         queryKey: [
             'mobile',
@@ -178,7 +188,7 @@ export const useNewSession = () => {
         defaultSurface,
         deviceRole: sessions.deviceRole,
         hostId,
-        isAvailabilityLoading: availability.isPending || availability.isFetching,
+        isAvailabilityLoading: isNewSessionAvailabilityLoading(availability),
         isDashboardLoaded: sessions.hasLoaded,
         isAvailabilityError: availability.isError,
         dashboardError: sessions.error,
