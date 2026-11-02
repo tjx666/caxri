@@ -283,12 +283,17 @@ export class SessionSearchService {
             (projectScope && !projectScope.includes(parameters.currentProjectId))
                 ? undefined
                 : this.options.database.getProject(parameters.currentProjectId);
+        const afterBounds = [operators.afterMs, parameters.updatedAfter].filter(
+            (bound) => bound !== undefined,
+        );
+        // Both the time range control and an `after:` operator narrow the search, so the later start wins.
+        const afterMs = afterBounds.length > 0 ? Math.max(...afterBounds) : undefined;
         return {
             text: operators.text,
             filters: operators.filters,
             providers,
             ...(operators.beforeMs !== undefined && { beforeMs: operators.beforeMs }),
-            ...(operators.afterMs !== undefined && { afterMs: operators.afterMs }),
+            ...(afterMs !== undefined && { afterMs }),
             ...(project && { current: { id: project.id, rootPath: project.rootPath } }),
             ...(projectScope && { projects: new Set(projectScope) }),
         };

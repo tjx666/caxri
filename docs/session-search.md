@@ -44,7 +44,10 @@ The query accepts `agent:claude|codex|grok|antigravity`, `project:<text>` (or `p
 the given local day and later, and `after:` includes that day and later. An operator with an unusable
 value (an unknown Agent, a date that does not exist, an empty project) stays in the query as plain
 words. The result carries the parsed `filters` so a client can show them as removable chips; the
-operators work in the CLI's `session search` as well.
+operators work in the CLI's `session search` as well. A request may also pass `updatedAfter` (epoch
+milliseconds): the dialog's Time control (Any Time, Today, Last 7/30/90 Days, counted in local
+calendar days with today included) sends it. Combined with `after:`, the later start applies. The
+Archived Sessions dialog offers the same Time presets, matched against each Session's archive time.
 
 When no conversation holds every word, the Server loosens the query one step and reports it in
 `relaxation`: `phrase` (the query as typed, including a message holding the whole phrase), `allWords`

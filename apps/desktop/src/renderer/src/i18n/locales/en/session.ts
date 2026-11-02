@@ -69,6 +69,16 @@ export const session = {
     'session.archived.countOther': '{{count}} archived Sessions',
     'session.archived.matchingCount': '{{matching}} of {{total}} archived Sessions',
 
+    // Time range filter shared by the Archived Sessions dialog and Session search
+    'session.timeRange.label': 'Time',
+    'session.timeRange.filterArchived': 'Filter by archive time',
+    'session.timeRange.filterActivity': 'Filter by last activity',
+    'session.timeRange.all': 'Any Time',
+    'session.timeRange.today': 'Today',
+    'session.timeRange.last7Days': 'Last 7 Days',
+    'session.timeRange.last30Days': 'Last 30 Days',
+    'session.timeRange.last90Days': 'Last 90 Days',
+
     // Session search
     'session.search.title': 'Search Sessions',
     'session.search.placeholder': 'Search titles, messages, folders, or IDs…',

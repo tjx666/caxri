@@ -16,6 +16,7 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
+import type { SessionTimeRange } from '../session-time-range';
 
 /**
  * What Enter does on a row: open a Session, restore an archived one and open it, or add an external conversation to
@@ -105,13 +106,14 @@ export function nextProviderFilter(
 }
 
 /**
- * Whether either filter group narrows the list, which decides if an empty result can offer "Clear filters".
+ * Whether any filter control narrows the list, which decides if an empty result can offer "Clear filters".
  */
 export function hasActiveSearchFilters(
     status: SessionSearchStatusFilter,
     provider: AgentProvider | undefined,
+    timeRange: SessionTimeRange = 'all',
 ): boolean {
-    return status !== 'all' || provider !== undefined;
+    return status !== 'all' || provider !== undefined || timeRange !== 'all';
 }
 
 export function nextSelectionIndex(count: number, current: number, delta: number): number {

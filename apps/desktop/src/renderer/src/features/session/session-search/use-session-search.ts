@@ -8,6 +8,7 @@ import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
 import { selectSelectedProject } from '../../../stores/selectors';
 import { useWorkbenchStore } from '../../../stores/workbench';
+import { useSessionTimeRange } from '../hooks/use-session-time-range';
 import type {
     SessionSearchFilterChip,
     SessionSearchScope,
@@ -46,6 +47,7 @@ export function useSessionSearch() {
     const [query, setQuery] = useState('');
     const [status, setStatus] = useState<SessionSearchStatusFilter>(seed.status ?? 'all');
     const [provider, setProvider] = useState<AgentProvider>();
+    const { timeRange, timeRangeStart: updatedAfter, setTimeRange } = useSessionTimeRange();
     const [sort, setSort] = useState<SessionSearchSort>('relevance');
     const [scope, setScope] = useState<SessionSearchScope>('currentProject');
     const [selectedKey, setSelectedKey] = useState<string>();
@@ -68,13 +70,14 @@ export function useSessionSearch() {
     const currentProjectId = scope === 'currentProject' ? selectedProjectId : undefined;
     const debounced = useDebouncedValue(query.trim(), QUERY_DEBOUNCE_MS);
     const response = useQuery({
-        queryKey: ['session-search', debounced, status, provider, currentProjectId],
+        queryKey: ['session-search', debounced, status, provider, currentProjectId, updatedAfter],
         queryFn: ({ signal }) =>
             caxri.requestWithSignal('session.search', signal, {
                 query: debounced,
                 status,
                 ...(provider && { providers: [provider] }),
                 ...(currentProjectId && { currentProjectId }),
+                ...(updatedAfter !== undefined && { updatedAfter }),
             }),
         placeholderData: keepPreviousData,
         refetchInterval: (current) =>
@@ -95,7 +98,7 @@ export function useSessionSearch() {
      */
     const selectionKey = response.isPlaceholderData
         ? undefined
-        : JSON.stringify([debounced, status, provider, currentProjectId, sort]);
+        : JSON.stringify([debounced, status, provider, currentProjectId, sort, updatedAfter]);
     const [selectionScope, setSelectionScope] = useState(selectionKey);
     if (selectionKey !== undefined && selectionKey !== selectionScope) {
         setSelectionScope(selectionKey);
@@ -118,6 +121,8 @@ export function useSessionSearch() {
         setStatus,
         provider,
         setProvider,
+        timeRange,
+        setTimeRange,
         sort,
         setSort,
         scope,
@@ -137,11 +142,12 @@ export function useSessionSearch() {
          */
         filterChips,
         /**
-         * Resets Where and Agent and deletes every parsed operator from the query.
+         * Resets Where, Agent, and Time and deletes every parsed operator from the query.
          */
         clearFilters: () => {
             setStatus('all');
             setProvider(undefined);
+            setTimeRange('all');
             setQuery((current) => removeSessionSearchOperators(current, filterChips));
         },
         /**
