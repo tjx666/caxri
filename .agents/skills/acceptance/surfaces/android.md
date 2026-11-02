@@ -141,7 +141,7 @@ skipped, against a full recompile after any prebuild; a cache restore after `--c
 
 ### Per-case motion and app language
 
-A case definition in `scripts/mobile-android-cases.ts` may declare `motion: 'live'` to turn the round's reduced
+A case definition in `scripts/mobile-android-case-definitions/<group>.ts` may declare `motion: 'live'` to turn the round's reduced
 motion off for that case alone, so a recording shows real animation (the shimmer case does). It may declare
 `appLocale: 'zh-CN'` to render the app in Chinese: the runner sets Android 13+'s per-app language with
 `cmd locale set-app-locales com.caxri.mobile --locales zh-CN`, reads it back with `get-app-locales`, and clears it in

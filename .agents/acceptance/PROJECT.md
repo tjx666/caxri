@@ -153,10 +153,11 @@ CAXRI_MOBILE_ACCEPTANCE_CASE_ID="MOB-E2E-01" \
   bun run test:e2e:mobile:android
 ```
 
-Case ids come from `scripts/mobile-android-cases.ts` and the self-registering feature groups: a new
-case for any feature (Chat, device actions, ...) adds `scripts/mobile-android-chat-cases/<group>.ts`
-(exports `cases`, no Playwright imports) and `e2e/support/mobile-chat-cases/<group>.ts` (exports
-`handlers`) and edits no shared list; the directories keep their Chat-era names. The runner rejects any
+Every case registers itself in a feature group: a new case adds or extends
+`scripts/mobile-android-case-definitions/<group>.ts` (exports `cases`, no Playwright imports) and
+`e2e/support/mobile-android-case-handlers/<group>.ts` (exports `handlers`, same group name) and edits
+no shared list. Cases the runner drives itself (`scripts/mobile-android-built-in-scenarios.ts`) live
+in the `adapter` group, whose handler module stays empty. The runner rejects any
 other id, and the plan item id must equal it. Name a new case `MOB-<FEATURE>-<SCENARIO>-NN` after its own
 feature, such as `MOB-CHAT-RUNNING-OPEN-01` or `MOB-DEVICE-ACTIONS-01`, never borrowing `MOB-CHAT-` for a
 non-Chat feature, instead of taking the next global number: parallel

@@ -71,18 +71,6 @@ function requireVideoPath(path: string | undefined): string {
     return path;
 }
 
-const RECOVERY_CASES = new Set([
-    'MOB-EXIT-REASON-01',
-    'MOB-PAIR-CANCEL-01',
-    'MOB-RENDER-01',
-    'MOB-STORAGE-01',
-    'MOB-STORAGE-02',
-]);
-
-export function isMobileRecoveryCase(caseId: string): boolean {
-    return RECOVERY_CASES.has(caseId);
-}
-
 export async function executeMobileRecoveryScenario(
     environment: Environment,
     artifacts: string[],
