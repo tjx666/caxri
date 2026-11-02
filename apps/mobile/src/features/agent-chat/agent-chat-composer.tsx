@@ -237,7 +237,6 @@ export const AgentChatComposer = ({
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
     const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
-    // The app's own draft writes go through `setDraft`, so a Send's clear survives the field echoing the sent text.
     const draftInput = useClearedDraftEchoGuard(draft, onDraftChange);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
     const availability = agentChatComposerAvailability(access, t);
