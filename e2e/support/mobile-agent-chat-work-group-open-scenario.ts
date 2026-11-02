@@ -12,6 +12,15 @@ import { adbShell, mobileColorBounds, tapMobileCheck, waitForMobile } from './mo
 
 const PROMPT = 'Merge the pull request';
 const HOLD_FILE = 'between-calls';
+const EARLIER_PROMPT = 'Review the branch';
+/**
+ * A finished turn above the running one, so the timeline holds earlier rows the reader scrolled past, as a Chat does
+ * after its first turn.
+ */
+const EARLIER_REPLY = Array.from(
+    { length: 24 },
+    (_, index) => `${index + 1}. The branch keeps change ${index + 1} focused and tested.`,
+).join('\n');
 
 /**
  * A running turn that finished several quick calls and now waits for the model's next step, as a turn does while the
@@ -19,6 +28,19 @@ const HOLD_FILE = 'between-calls';
  */
 const script: FakeClaudeScript = {
     turns: [
+        {
+            prompt: EARLIER_PROMPT,
+            steps: [
+                ...['git status', 'git diff --stat'].map((command) => ({
+                    kind: 'tool' as const,
+                    name: 'Bash',
+                    input: { command },
+                    output: '',
+                    durationMs: 100,
+                })),
+                { kind: 'text', text: EARLIER_REPLY },
+            ],
+        },
         {
             prompt: PROMPT,
             steps: [
@@ -42,7 +64,7 @@ const isBetweenCalls = (snapshot: AgentChatSnapshot): boolean => {
     const commands = snapshot.items.filter((item) => item.type === 'command');
     return (
         Boolean(snapshot.activeTurnId) &&
-        commands.length === 4 &&
+        commands.length === 6 &&
         commands.every((item) => item.status !== 'running')
     );
 };
@@ -91,6 +113,12 @@ export async function executeMobileChatWorkGroupOpenScenario(
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await fixture.pair();
+        await chat.send({ text: EARLIER_PROMPT });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => !snapshot.activeTurnId && snapshot.turns.length === 1,
+            60_000,
+        );
         await chat.send({ text: PROMPT });
         await waitForMobile(() => chat.read(), isBetweenCalls, 60_000);
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
