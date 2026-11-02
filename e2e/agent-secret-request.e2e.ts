@@ -12,7 +12,7 @@ import { createProjectSession, launchCaxri } from './support/helpers.ts';
 test('a secret request minimizes to a counting chip and comes back', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-secret-request-e2e-'));
     const userData = join(testDirectory, 'user-data');
-    const root = join(testDirectory, 'project');
+    const root = join(testDirectory, `project-${'long-name-'.repeat(8)}`);
     const credentialPath = join(testDirectory, 'credential.json');
     await mkdir(root, { recursive: true });
     // The fake Agent hands over its Endpoint credential so the test can ask for secrets as that Agent would.
@@ -58,6 +58,19 @@ process.stdin.resume();
             });
             const card = page.locator('[data-agent-secret-request]');
             await expect(card).toBeVisible();
+            // A long Project title once widened the card's grid track past the card, pushing Save out of the window.
+            const cardBox = await card.boundingBox();
+            const saveBox = await card
+                .getByRole('button', { name: 'Save', exact: true })
+                .boundingBox();
+            expect(cardBox && saveBox && saveBox.x + saveBox.width).toBeLessThanOrEqual(
+                (cardBox?.x ?? 0) + (cardBox?.width ?? 0),
+            );
+            expect(
+                await card.evaluate((element) => element.scrollWidth - element.clientWidth),
+            ).toBe(0);
+            // The requesting Terminal is already on screen, so Open Session would have nowhere to go.
+            await expect(card.getByRole('button', { name: 'Open Session' })).toHaveCount(0);
 
             await card.getByRole('button', { name: 'Minimize', exact: true }).click();
             await expect(card).toHaveCount(0);

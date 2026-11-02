@@ -15,9 +15,11 @@ command that needs it through `caxri secret exec`, which hands the value to that
 
 - **Settings → Agents → Secrets** lists every saved secret by name and scope. Values are write-only:
   a secret can be added, replaced, or deleted, never shown again.
-- **A request card** appears in the bottom-right corner of every Workbench window when an Agent runs
+- **A request card** appears in the top-right corner of every Workbench window when an Agent runs
   `caxri secret request`. It names the Agent, its Session and Project, the secret, and the Agent's
-  reason (labelled as the Agent's own words). The value field is masked and ignored by password
+  reason (labelled as the Agent's own words); long titles truncate inside the card. Open
+  Session shows only while the requesting Chat or Terminal is off screen; the card stays after it,
+  since the card is where the request is answered. The value field is masked and ignored by password
   managers. The card never takes focus by itself, so a request that arrives while the user types
   cannot capture keystrokes. Save stores the value for the request's Project, or for every Project
   when **Use in all Projects** is ticked; Decline tells the Agent no. One card shows at a time,
