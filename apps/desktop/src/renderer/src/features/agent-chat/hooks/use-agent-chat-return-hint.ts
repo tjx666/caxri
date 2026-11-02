@@ -123,12 +123,13 @@ export function useAgentChatReturnHint(
  * Sizes the empty slot after the transcript that keeps the return hint off the last line
  * ({@link agentChatReturnHintSlotHeight}). The view keeps its size either way, so the hint showing or clearing never
  * clamps a view resting at its end: the slot holds the hint's room while it shows, and once it clears, scrolling back
- * consumes the slot (`onScroll`, called from the view's scroll handler) and new content replaces it. The slot must sit
- * directly in the scroll view, whose position it measures against.
+ * consumes the slot and new content replaces it. The slot must sit directly in the scroll view, whose position it
+ * measures against; the returned `onScroll` sizes it and then runs the view's own `onViewScroll`.
  */
 export function useAgentChatReturnHintSlot(
     contentReference: RefObject<HTMLDivElement | null>,
-    isShown: boolean,
+    onViewScroll: () => void,
+    { isShown }: { isShown: boolean },
 ): { slotReference: RefObject<HTMLDivElement | null>; onScroll: () => void } {
     const slotReference = useRef<HTMLDivElement | null>(null);
     const size = useCallback(() => {
@@ -166,5 +167,9 @@ export function useAgentChatReturnHintSlot(
         observer.observe(content);
         return () => observer.disconnect();
     }, [contentReference, isShown, size]);
-    return { slotReference, onScroll: size };
+    const onScroll = useCallback(() => {
+        size();
+        onViewScroll();
+    }, [onViewScroll, size]);
+    return { slotReference, onScroll };
 }

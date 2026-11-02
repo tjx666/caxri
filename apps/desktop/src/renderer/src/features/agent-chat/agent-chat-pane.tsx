@@ -248,12 +248,10 @@ function AgentChatPaneContent({
         contentReference,
         isLatestInView,
     });
-    const { slotReference: returnHintSlotReference, onScroll: onReturnHintSlotScroll } =
-        useAgentChatReturnHintSlot(contentReference, Boolean(terminal && returnHint));
-    const onTranscriptScroll = useCallback(() => {
-        onReturnHintSlotScroll();
-        onScroll();
-    }, [onReturnHintSlotScroll, onScroll]);
+    const { slotReference: returnHintSlotReference, onScroll: onTranscriptScroll } =
+        useAgentChatReturnHintSlot(contentReference, onScroll, {
+            isShown: Boolean(terminal && returnHint),
+        });
     const processState = terminal?.lastProcessState;
     const composerView = useAgentChatComposerSnapshot(terminalId, {
         hasConversation: Boolean(terminal?.agentSessionId),
