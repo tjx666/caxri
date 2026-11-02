@@ -203,11 +203,11 @@ no background of its own keeps its default dark text readable.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
 - Swiping the list left or right, including its empty state, moves to the next or previous Project
-  filter in chip order (All first) and stops at either end instead of wrapping. The list follows the
-  finger at a quarter of its travel and springs back; the swipe starts only after `24dp` of sideways
-  travel and gives way to a scroll that moves `16dp` vertically first, so a vertical scroll that
-  drifts sideways keeps scrolling (`MOB-CHAT-27`). The filter strip scrolls to center the selected
-  chip. Rows have no swipe action: archive from the long-press actions sheet.
+  filter in chip order (All first) and stops at either end instead of wrapping. The list does not
+  move with the finger and the filter switches on release, so two Projects' rows never share the
+  screen mid-swipe; the swipe starts only after `24dp` of sideways travel and gives way to a scroll
+  that moves `16dp` vertically first, so a vertical scroll that drifts sideways keeps scrolling
+  (`MOB-CHAT-27`). The filter strip scrolls to center the selected chip. Rows have no swipe action: archive from the long-press actions sheet.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 
 ## Session screen
