@@ -11,10 +11,11 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     adbShell,
+    androidBounds,
     copyMobileFramebufferRecording,
     mobileColorBounds,
+    mobileSemantics,
     startMobileFramebufferRecording,
-    tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
 import { departuresFromFinalPicture, readRecordingBand } from './mobile-motion-analysis';
@@ -123,6 +124,12 @@ export async function executeMobileChatWorkGroupFoldScenario(
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await fixture.pair();
+        // With live motion a running turn keeps the Sessions list animating, so the row is found before the turns start.
+        const row = (await mobileSemantics(serial)).find(
+            ({ checkId }) => checkId === `session-row-${fixture.allowedSessionId}`,
+        );
+        const rowBounds = row && androidBounds(row.bounds);
+        if (!rowBounds) throw new Error('The Session row is not laid out');
         await chat.send({ text: EARLIER_PROMPT });
         await waitForMobile(
             () => chat.read(),
@@ -131,7 +138,12 @@ export async function executeMobileChatWorkGroupFoldScenario(
         );
         await chat.send({ text: PROMPT });
         await waitForMobile(() => chat.read(), isBetweenCalls, 60_000);
-        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.floor((rowBounds.left + rowBounds.right) / 2)),
+            String(Math.floor((rowBounds.top + rowBounds.bottom) / 2)),
+        ]);
         const card = await waitForMobile(() => cardBounds(serial), Boolean, 30_000);
         if (!card) throw new Error('The work summary card is not drawn');
         await pause(1000);
