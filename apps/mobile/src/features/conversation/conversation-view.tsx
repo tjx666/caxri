@@ -325,6 +325,7 @@ export const ConversationList = <Entry extends { id: string }>({
      * commit (a measured row grew, or the spacer changed) also follows the end.
      */
     const onCommitLayout = useCallback((): void => {
+        console.log('WGDBG commit', Date.now(), list.current?.getChildContainerDimensions().height, follower.isFollowing);
         pin();
         onLayoutCommitted();
         readOlderAtTop();
@@ -334,6 +335,7 @@ export const ConversationList = <Entry extends { id: string }>({
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
             if (!isPositionedReference.current) return;
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            console.log('WGDBG scroll', Date.now(), contentOffset.y, contentSize.height, layoutMeasurement.height);
             // The spacer drawn for the largest viewport runs past the end while the keyboard is up.
             const distance =
                 contentSize.height - layoutMeasurement.height - contentOffset.y - spacerReserve();

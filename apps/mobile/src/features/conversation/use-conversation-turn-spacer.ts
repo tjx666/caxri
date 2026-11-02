@@ -110,6 +110,7 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
             requestAnimationFrame(() => {
                 if (release !== releaseCount.current) return;
                 disclosureReserve.current = 0;
+                console.log('WGDBG release', Date.now(), drawnHeight.current);
                 spacerHeight.set(Math.max(drawnHeight.current, 0));
             }),
         );
@@ -123,6 +124,7 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
             // The toggled row has not been measured yet; the reserved room stays until it has.
             if (reference.getChildContainerDimensions().height === disclosedRowsHeight.current)
                 return false;
+            console.log('WGDBG measured', Date.now(), reference.getChildContainerDimensions().height);
             disclosedRowsHeight.current = undefined;
             isReleasing = true;
         }
@@ -164,6 +166,7 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
             });
         }
         if (isReleasing || disclosureReserve.current > 0) {
+            console.log('WGDBG drawn', Date.now(), height, drawn);
             // Keep the reserve on screen until the shrunk rows are; the release draws the measured spacer.
             endHeight.current = height;
             drawnHeight.current = drawn;
@@ -209,6 +212,7 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         disclosedRowsHeight.current = rowsHeight;
         // However far the row shrinks, the rows and spacer together never get shorter than they were.
         disclosureReserve.current = rowsHeight;
+        console.log('WGDBG reserve', Date.now(), rowsHeight, drawnHeight.current, endHeight.current);
         spacerHeight.set(Math.max(drawnHeight.current, 0) + rowsHeight);
         // A toggle that leaves the rows' height alone never triggers the measurement that ends the reserve.
         setTimeout(() => {
