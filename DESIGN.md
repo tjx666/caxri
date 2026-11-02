@@ -1370,7 +1370,10 @@ labeled ghost `Steer` (`Send now` with no turn running), an Edit icon (back into
 Delete icon, which moves a text-only message back into an empty composer (so a mis-click is recoverable) and deletes it
 outright when the composer holds a draft or the message carries images; Edit is not tucked into a More menu, since a menu holding one item costs a click and hides nothing. A waiting queue has no header, since its rows already read as what goes
 next. While a turn runs and the input is empty, Enter steers the first queued message and the
-placeholder says so; no chip on the row repeats it. A paused queue is headed by a row that
+placeholder says so; no chip on the row repeats it. After a turn, the empty input's placeholder may
+offer the provider's suggested next message as `<suggestion> · Tab to use`, in the placeholder's
+muted color like `Draft stashed · Ctrl+S to restore`; Tab fills it in without sending, and a
+placeholder that explains what an empty input's keys do (stash, Goal, queue) wins over it. A paused queue is headed by a row that
 names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
 reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the composer (recovery row and requests) is capped
 at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot

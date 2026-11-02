@@ -8,6 +8,7 @@ import {
     agentChatContextPercent,
     agentChatContextUsage,
     currentAgentChatAwayRecap,
+    currentAgentChatPromptSuggestion,
     formatMergeNotice,
     isAgentChatEndedByMerge,
 } from '../agent-chat-usage.js';
@@ -165,5 +166,32 @@ describe('currentAgentChatAwayRecap', () => {
             }),
         ).toBeUndefined();
         expect(currentAgentChatAwayRecap(undefined)).toBeUndefined();
+    });
+});
+
+describe('currentAgentChatPromptSuggestion', () => {
+    const promptSuggestion = { text: 'Run the tests', lastResponseAt: 5 };
+
+    it('offers the suggestion only while it follows the latest reply and no turn runs', () => {
+        expect(
+            currentAgentChatPromptSuggestion({
+                promptSuggestion,
+                usage: { totalTokens: 0, lastResponseAt: 5 },
+            }),
+        ).toBe('Run the tests');
+        expect(
+            currentAgentChatPromptSuggestion({
+                promptSuggestion,
+                usage: { totalTokens: 0, lastResponseAt: 9 },
+            }),
+        ).toBeUndefined();
+        expect(
+            currentAgentChatPromptSuggestion({
+                activeTurnId: 'turn',
+                promptSuggestion,
+                usage: { totalTokens: 0, lastResponseAt: 5 },
+            }),
+        ).toBeUndefined();
+        expect(currentAgentChatPromptSuggestion(undefined)).toBeUndefined();
     });
 });

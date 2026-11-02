@@ -11,6 +11,7 @@ import { CAXRI_CLAUDE_ENTRYPOINT } from '../../../agents';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { AgentChatStartError } from '../../chat-provider';
 import type { ClaudeChatSettings } from '../../launch-settings';
+import { ProviderProcess } from '../../provider-process';
 
 /**
  * Opening a Claude Chat: the Agent SDK options Caxri launches Claude Code with, and the closed start failure a
@@ -73,6 +74,12 @@ export function claudeQueryOptions({
         // Subagent text and thinking reach the task tab, not only their tool calls.
         forwardSubagentText: true,
         /**
+         * Claude Code's next-message suggestion after each turn (`applyClaudePromptSuggestion`). It reuses the turn's
+         * prompt cache, and Claude Code itself skips it on the first turn, in plan mode, near the plan's usage limit,
+         * and when the user turned `promptSuggestionEnabled` off.
+         */
+        promptSuggestions: true,
+        /**
          * The Chat stops tasks one at a time, so an interrupt must spare background subagents too. A background shell
          * survives an interrupt either way and gets no task event (verified on Claude Code 2.1.296, #1611); it ends
          * only with `stop_task` or when the CLI exits.
@@ -105,6 +112,29 @@ export function claudeQueryOptions({
         canUseTool,
         hooks,
     };
+}
+
+/**
+ * Starts the Claude Code process the SDK asks for through {@link ProviderProcess}, reporting how a failed start failed
+ * (`spawnErrorCode`, read by {@link claudeStartError}).
+ */
+export function spawnClaudeProcess(
+    host: Pick<AgentChatSessionHost, 'cwd' | 'processGroups' | 'spawnProcess'>,
+    spawnOptions: SpawnOptions,
+    onSpawnError: (code: string) => void,
+): ProviderProcess {
+    const providerProcess = new ProviderProcess({
+        executable: spawnOptions.command,
+        args: spawnOptions.args,
+        cwd: spawnOptions.cwd ?? host.cwd,
+        environment: spawnOptions.env,
+        spawnProcess: host.spawnProcess,
+        processGroups: host.processGroups,
+    });
+    providerProcess.child.once('error', (error: NodeJS.ErrnoException) => {
+        onSpawnError(error.code ?? 'unknown');
+    });
+    return providerProcess;
 }
 
 /**

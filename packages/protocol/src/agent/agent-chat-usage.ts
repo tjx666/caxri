@@ -249,6 +249,35 @@ export function currentAgentChatAwayRecap(
 }
 
 /**
+ * Upper bound of one prompt suggestion. Claude Code suggests a short next message; this only caps one that is not.
+ */
+export const AGENT_CHAT_PROMPT_SUGGESTION_MAX_LENGTH = 500;
+
+/**
+ * The next message the provider suggests the user send after its reply at `lastResponseAt` (Claude Code's prompt
+ * suggestion, at most one per turn). The composer offers it while empty, and Tab accepts it. It stops being current
+ * once a turn starts or a newer response lands ({@link currentAgentChatPromptSuggestion}). Memory only, like the rest of
+ * the projection.
+ */
+export const agentChatPromptSuggestionSchema = z.strictObject({
+    text: z.string().min(1).max(AGENT_CHAT_PROMPT_SUGGESTION_MAX_LENGTH),
+    lastResponseAt: z.number().int().nonnegative(),
+});
+
+/**
+ * The Chat's prompt suggestion while it still follows the latest reply and no turn has started since.
+ */
+export function currentAgentChatPromptSuggestion(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'promptSuggestion' | 'usage'> | undefined,
+): string | undefined {
+    const suggestion = snapshot?.promptSuggestion;
+    if (!suggestion || snapshot.activeTurnId !== undefined) return undefined;
+    return snapshot.usage?.lastResponseAt === suggestion.lastResponseAt
+        ? suggestion.text
+        : undefined;
+}
+
+/**
  * The message Caxri sends a Session's primary Agent when its pull request merges (`projectStatus.notifyAgentOnMerge`).
  */
 export function formatMergeNotice(url: string): string {

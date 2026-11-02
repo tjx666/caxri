@@ -38,7 +38,7 @@ import { claudeHistoryOperations } from '../../history/claude-history';
 import { didClaudeInterruptTimeout, stopClaudeTurn } from '../../interrupt/claude-interrupt';
 import type { ClaudeChatSettings } from '../../launch-settings';
 import { claudeChatSettings } from '../../launch-settings';
-import { ProviderProcess } from '../../provider-process';
+import type { ProviderProcess } from '../../provider-process';
 import {
     forkClaudeSession,
     previewClaudeRestore,
@@ -72,11 +72,16 @@ import { ClaudePlanLimits } from './plan-limits';
 import { ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
 import { ClaudeRequestBroker } from './requests';
 import { reportClaudeSessionEnd } from './session-end';
-import { claudeQueryOptions, claudeStartError } from './session-open';
+import { claudeQueryOptions, claudeStartError, spawnClaudeProcess } from './session-open';
 import { withClaudeShellHooks } from './shell-hooks';
 import { ClaudeStream } from './stream';
 import { readClaudeTaskHistory } from './subagent-transcript';
-import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './system-notices';
+import {
+    applyClaudePromptSuggestion,
+    onClaudeApiRetry,
+    onClaudeCompactBoundary,
+    onClaudeStatus,
+} from './system-notices';
 import { ClaudeTasks } from './tasks';
 import { applyClaudeToolResults, ClaudeToolClock } from './tool-results';
 import { ClaudeTurns } from './turns';
@@ -197,19 +202,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     private spawn(spawnOptions: SpawnOptions): SpawnedProcess {
-        const providerProcess = new ProviderProcess({
-            executable: spawnOptions.command,
-            args: spawnOptions.args,
-            cwd: spawnOptions.cwd ?? this.options.cwd,
-            environment: spawnOptions.env,
-            spawnProcess: this.options.spawnProcess,
-            processGroups: this.options.processGroups,
+        this.process = spawnClaudeProcess(this.options, spawnOptions, (code) => {
+            this.spawnErrorCode = code;
         });
-        providerProcess.child.once('error', (error: NodeJS.ErrnoException) => {
-            this.spawnErrorCode = error.code ?? 'unknown';
-        });
-        this.process = providerProcess;
-        return providerProcess.child;
+        return this.process.child;
     }
 
     /**
@@ -335,6 +331,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'system': {
                 this.onSystem(message);
+                return;
+            }
+            case 'prompt_suggestion': {
+                applyClaudePromptSuggestion(this.options, message);
                 return;
             }
             default: {

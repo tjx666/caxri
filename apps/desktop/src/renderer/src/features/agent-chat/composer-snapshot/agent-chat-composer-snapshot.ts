@@ -4,7 +4,11 @@ import type {
     AgentChatQueuedMessage,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { agentChatActivity, unsettledAgentChatPendingMessages } from '@caxri/protocol';
+import {
+    agentChatActivity,
+    currentAgentChatPromptSuggestion,
+    unsettledAgentChatPendingMessages,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import { agentChatSendBlock } from '../composer/send/agent-chat-send-tooltip';
@@ -52,6 +56,10 @@ export interface AgentChatComposerView {
      * Messages sent to wait in the queue that the projection does not list yet.
      */
     pendingQueue: readonly AgentChatPendingMessage[];
+    /**
+     * The provider's suggested next message while it follows the latest reply (`currentAgentChatPromptSuggestion`).
+     */
+    promptSuggestion: string | undefined;
     queue: readonly AgentChatQueuedMessage[] | undefined;
     sendBlock: ReturnType<typeof agentChatSendBlock>;
     snapshot: AgentChatComposerSnapshot | undefined;
@@ -90,6 +98,7 @@ export function selectAgentChatComposerView(
         isBusy: isAgentChatBusy(snapshot),
         isQueuePaused: snapshot?.queuePaused ?? false,
         pendingQueue,
+        promptSuggestion: currentAgentChatPromptSuggestion(snapshot),
         queue: snapshot?.queue,
         sendBlock: agentChatSendBlock(snapshot, context.processState),
         snapshot: snapshot && {

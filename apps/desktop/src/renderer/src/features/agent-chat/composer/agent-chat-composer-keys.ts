@@ -1,4 +1,6 @@
+import type { Translate } from '../../../i18n';
 import {
+    agentChatComposerPlaceholder,
     agentChatEscapeAction,
     agentChatSubmitDelivery,
 } from '../transcript/agent-chat-presentation';
@@ -83,5 +85,61 @@ export function isAgentChatPlainPasteKey(
 ): boolean {
     return (
         (key.metaKey || key.ctrlKey) && key.shiftKey && !key.altKey && key.key.toLowerCase() === 'v'
+    );
+}
+
+/**
+ * The empty composer's placeholder and the provider's suggested next message it offers
+ * (`currentAgentChatPromptSuggestion`), as Claude Code's prompt does. Another placeholder that tells the user what an
+ * empty input's keys do (a Ctrl+S stash, Goal mode, Enter sending the queue) or an "Edit from here" in progress takes
+ * the input instead, so no suggestion is offered then.
+ */
+export function agentChatComposerPrompt(
+    state: {
+        edit: { isEditing: boolean; sendAction: { placeholder: string } };
+        goalMode: { isOn: boolean };
+        isTurnRunning: boolean;
+        nextQueuedId: string | undefined;
+        promptSuggestion: string | undefined;
+        stash: { hasStash: boolean };
+    },
+    t: Translate,
+): { offeredSuggestion: string | undefined; placeholder: string } {
+    const flags = {
+        hasNextQueued: state.nextQueuedId !== undefined,
+        hasStash: state.stash.hasStash,
+        isEditing: state.edit.isEditing,
+        isGoalMode: state.goalMode.isOn,
+        isTurnRunning: state.isTurnRunning,
+    };
+    const isClaimed = flags.hasNextQueued || flags.hasStash || flags.isEditing || flags.isGoalMode;
+    const offeredSuggestion = isClaimed ? undefined : state.promptSuggestion;
+    const placeholder = agentChatComposerPlaceholder(
+        state.edit.sendAction,
+        { ...flags, offeredSuggestion },
+        t,
+    );
+    return { offeredSuggestion, placeholder };
+}
+
+/**
+ * Whether a composer key accepts the offered suggestion: a plain Tab, outside IME composition, in an empty input. Any
+ * other Tab keeps moving focus as it does without a suggestion.
+ */
+export function isAgentChatAcceptSuggestionKey(
+    key: Pick<
+        AgentChatComposerKey,
+        'altKey' | 'ctrlKey' | 'isComposing' | 'key' | 'metaKey' | 'shiftKey'
+    >,
+    value: string,
+): boolean {
+    return (
+        key.key === 'Tab' &&
+        !key.altKey &&
+        !key.ctrlKey &&
+        !key.metaKey &&
+        !key.shiftKey &&
+        !key.isComposing &&
+        value === ''
     );
 }

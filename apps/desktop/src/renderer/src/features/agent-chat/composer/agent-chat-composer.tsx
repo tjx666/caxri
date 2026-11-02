@@ -34,9 +34,9 @@ import { useAgentChatPromptHistory } from '../hooks/use-agent-chat-prompt-histor
 import { useAgentChatSessionMenu } from '../hooks/use-agent-chat-session-menu';
 import { useAgentChatStop } from '../hooks/use-agent-chat-stop';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
-import { agentChatComposerPlaceholder } from '../transcript/agent-chat-presentation';
 import { AgentChatComposerActions } from './agent-chat-composer-actions';
 import { AgentChatComposerEditor } from './agent-chat-composer-editor';
+import { agentChatComposerPrompt } from './agent-chat-composer-keys';
 import { AgentChatComposerNotices } from './agent-chat-composer-notices';
 import { AgentChatComposerStrip } from './agent-chat-composer-strip';
 import type { AgentChatComposerInput } from './agent-chat-composer-view';
@@ -100,6 +100,10 @@ interface AgentChatComposerProperties {
      * Messages sent to wait in the queue that the projection does not list yet (`agent-chat-pending.ts`).
      */
     pendingQueue: readonly AgentChatPendingMessage[];
+    /**
+     * The provider's suggested next message, which the empty input offers and Tab accepts.
+     */
+    promptSuggestion: string | undefined;
     /**
      * The provider catalog's display name, for the placeholder and the toast that says it takes no images.
      */
@@ -198,6 +202,7 @@ export function AgentChatComposer({
     onOpenTask,
     onSent,
     pendingQueue,
+    promptSuggestion,
     providerName,
     queue,
     sendBlock,
@@ -323,6 +328,10 @@ export function AgentChatComposer({
     });
     const { sendAction } = edit;
     const nextQueuedId = agentChatNextQueuedId(queue, isTurnRunning);
+    const { offeredSuggestion, placeholder } = agentChatComposerPrompt(
+        { edit, goalMode, isTurnRunning, nextQueuedId, promptSuggestion, stash },
+        t,
+    );
     const sendState = {
         block: sendBlock,
         hasContent,
@@ -341,6 +350,7 @@ export function AgentChatComposer({
         isSendable,
         isTurnRunning,
         nextQueuedId,
+        offeredSuggestion,
         pastePlainText,
         sendAction,
         sendState,
@@ -432,17 +442,7 @@ export function AgentChatComposer({
                         menu={menu}
                         menuActions={{ choose, complete }}
                         pathPills={pathPills}
-                        placeholder={agentChatComposerPlaceholder(
-                            sendAction,
-                            {
-                                hasNextQueued: nextQueuedId !== undefined,
-                                hasStash: stash.hasStash,
-                                isEditing: edit.isEditing,
-                                isGoalMode: goalMode.isOn,
-                                isTurnRunning,
-                            },
-                            t,
-                        )}
+                        placeholder={placeholder}
                         sessionMenu={sessionMenu}
                         setDraft={setDraft}
                         setInputFocused={setInputFocused}

@@ -3,6 +3,7 @@ import { isImeComposing } from '../../../lib/ime';
 import { sendAgentChatQueuedNow } from '../agent-chat-commands';
 import {
     agentChatComposerKeyAction,
+    isAgentChatAcceptSuggestionKey,
     isAgentChatClearKey,
     isAgentChatPlainPasteKey,
 } from '../composer/agent-chat-composer-keys';
@@ -23,7 +24,8 @@ import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
  * plain text (`pastePlainText`), skipping the long-paste conversion; no suggestion list or history claims it. Ctrl+C
  * with no selection empties a composer that holds text or attachments (`isAgentChatClearKey`); over a selection it
  * stays Copy. The text goes as an edit, so Cmd+Z brings it back. Shift+Enter on a Markdown list line starts the next
- * item (`agentChatListContinuation`).
+ * item (`agentChatListContinuation`). Tab in an empty input takes the offered prompt suggestion
+ * (`isAgentChatAcceptSuggestionKey`).
  */
 export function useAgentChatComposerEnter({
     cancelEdit,
@@ -34,6 +36,7 @@ export function useAgentChatComposerEnter({
     isSendable,
     isTurnRunning,
     nextQueuedId,
+    offeredSuggestion,
     pastePlainText,
     sendAction,
     sendState,
@@ -58,6 +61,10 @@ export function useAgentChatComposerEnter({
      * The queued message an empty composer's Enter sends now (`agentChatNextQueuedId`).
      */
     nextQueuedId: string | undefined;
+    /**
+     * The provider's suggested next message the empty input offers; Tab puts it in the input without sending it.
+     */
+    offeredSuggestion: string | undefined;
     pastePlainText: () => Promise<void>;
     sendAction: Parameters<typeof agentChatSendTooltip>[0];
     sendState: Parameters<typeof agentChatSendTooltip>[1];
@@ -96,6 +103,20 @@ export function useAgentChatComposerEnter({
             event.preventDefault();
             input.applyEdit({ from: 0, to: input.value.length, text: '', caret: 0 });
             clearAttachments();
+            return;
+        }
+        if (
+            offeredSuggestion !== undefined &&
+            isAgentChatAcceptSuggestionKey(key, event.currentTarget.value)
+        ) {
+            event.preventDefault();
+            // As an edit, so Cmd+Z takes the suggestion back out.
+            event.currentTarget.applyEdit({
+                from: 0,
+                to: 0,
+                text: offeredSuggestion,
+                caret: offeredSuggestion.length,
+            });
             return;
         }
         if (isAgentChatListContinuationKey(key)) {

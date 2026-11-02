@@ -37,7 +37,8 @@
  * it. It lists an `opus` alias and a model without effort control; `set_model` and an `effortLevel` flag setting change
  * what the next init message and hook input report. Ultracode is a flag setting offered only on models with effort
  * control, and an effort change without an `ultracode` key turns it off. A `fastMode` flag setting turns Fast mode on,
- * which `initialize`, the init message, and the result report.
+ * which `initialize`, the init message, and the result report. When `initialize` asks for `promptSuggestions`, every
+ * successful turn after the first ends with a `prompt_suggestion` (`fake-claude-prompt-suggestions.ts`).
  *
  * A `side_question` control request is answered at once, even mid-turn, unless held (`fake-claude-side.ts`).
  *
@@ -76,6 +77,7 @@ import {
     resolveFakeClaudeModel,
 } from './fake-claude-models.ts';
 import { didRunFakeClaudeOneShot } from './fake-claude-print.ts';
+import { FakeClaudePromptSuggestions } from './fake-claude-prompt-suggestions.ts';
 import {
     didStreamTable,
     streamBrowserSteps,
@@ -184,6 +186,7 @@ const state: {
 };
 const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
 const pendingControl = new Map<string, (response: Json) => void>();
+const promptSuggestions = new FakeClaudePromptSuggestions();
 
 state.lastUuid = resumeId ? resumedLeaf(transcriptPath, argument('--resume-session-at')) : null;
 
@@ -332,6 +335,8 @@ function result(startedAt: number, text: string, isError = false) {
         }),
     );
     record({ type: 'system', subtype: 'turn_duration', durationMs: Date.now() - startedAt });
+    const suggestion = promptSuggestions.afterResult(isError, state.queued.length);
+    if (suggestion) send(frame(suggestion));
 }
 
 function toolResult(toolUseId: string, content: string) {
@@ -534,6 +539,7 @@ lines.on('line', (line) => {
             });
             return;
         }
+        promptSuggestions.onControl(request);
         if (request.subtype === 'interrupt') state.interrupted = true;
         else if (request.subtype === 'initialize') state.hooks = hookCallbackIds(request.hooks);
         if (request.subtype === 'set_model' && typeof request.model === 'string')

@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
 import type { AgentChatItem, AgentChatPatchOperation, AgentChatUsage } from '@caxri/protocol';
+import { AGENT_CHAT_PROMPT_SUGGESTION_MAX_LENGTH } from '@caxri/protocol';
 
+import { clipToLength } from '../../../agents';
 import { clip, isCompactionFailureNotice, isRecord, stringField } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { claudeFeedbackItems } from '../../feedback/claude-feedback';
 
 /**
- * Claude Code `system` frames that show as Chat state or notices rather than conversation content: compaction progress
- * and its result, and API retries. Inputs are untrusted JSON.
+ * Claude Code frames that show as Chat state or notices rather than conversation content: compaction progress and its
+ * result, API retries, and the next-message suggestion. Inputs are untrusted JSON.
  */
 
 type Json = Record<string, unknown>;
@@ -212,4 +214,24 @@ export function onClaudeApiRetry(host: NoticeHost, message: Json): void {
             },
         },
     ]);
+}
+
+/**
+ * Stores Claude Code's `prompt_suggestion` (the SDK's `promptSuggestions` option) on the projection for the reply it
+ * follows. It arrives after the turn's `result`, at most once per turn; one that lands after the next turn started, or
+ * before any reply, describes no current state and is dropped.
+ */
+export function applyClaudePromptSuggestion(
+    host: Pick<NoticeHost, 'apply' | 'read'>,
+    message: Json,
+): void {
+    const { activeTurnId, usage } = host.read();
+    const lastResponseAt = usage?.lastResponseAt;
+    if (activeTurnId !== undefined || lastResponseAt === undefined) return;
+    const text = clipToLength(
+        (stringField(message.suggestion) ?? '').trim(),
+        AGENT_CHAT_PROMPT_SUGGESTION_MAX_LENGTH,
+    );
+    if (!text) return;
+    host.apply([{ op: 'state', state: { promptSuggestion: { text, lastResponseAt } } }]);
 }

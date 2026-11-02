@@ -358,11 +358,19 @@ export function agentChatComposerPlaceholder(
         isEditing: boolean;
         isGoalMode: boolean;
         isTurnRunning: boolean;
+        /**
+         * The provider's suggested next message the empty input offers (`agentChatOfferedPromptSuggestion`).
+         */
+        offeredSuggestion?: string;
     },
     t: Translate,
 ): string {
     if (state.hasStash && !state.isEditing) return t('agentChat.stash.placeholder');
     if (state.isGoalMode) return t('agentChat.goal.placeholder');
+    if (state.offeredSuggestion !== undefined)
+        return t('agentChat.promptSuggestion.placeholder', {
+            suggestion: state.offeredSuggestion,
+        });
     if (!state.hasNextQueued || state.isEditing) return sendAction.placeholder;
     return t(
         state.isTurnRunning
