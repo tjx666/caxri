@@ -34,6 +34,7 @@
  *   table, and a fenced code block, streamed in small chunks.
  * - `codeblocks`: a reply with fenced code in `ts`, `bash`, `json`, and `diff`, a fence without a language, and an
  *   indented code block, so a Client's syntax highlighting can be compared across languages.
+ * - `quotedraft`: a reply quoting a multi-line draft for the user to send on, so a Client's quote Copy can be checked.
  * - `jsonout`: a command printing compact one-line JSON, so a Client's JSON output layout can be checked.
  * - `newworktree`: a `git worktree add` that succeeds and one that exits non-zero, nothing run on disk, so a Chat's
  *   worktree-creation signals can be checked.
@@ -67,6 +68,7 @@ import { runDefaultReply } from './fake-codex-default-reply.ts';
 import { runExplore, runParallelExplore } from './fake-codex-explore.ts';
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
 import { runBrowserStep } from './fake-codex-mcp-calls.ts';
+import { runQuoteDraft } from './fake-codex-quote-draft.ts';
 import {
     runBigDiff,
     runBigStream,
@@ -175,6 +177,8 @@ export async function runKeywordScenario(
         await runSlow(io, turn, text.includes('reconnect'));
     } else if (text.includes('codeblocks')) {
         await runCodeBlocks(io, turn);
+    } else if (text.includes('quotedraft')) {
+        await runQuoteDraft(io, turn);
     } else if (text.includes('thoughts')) {
         await runConsecutiveThoughts(io, turn);
     } else if (text.includes('newworktree')) {

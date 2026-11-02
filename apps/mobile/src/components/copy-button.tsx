@@ -14,17 +14,21 @@ import type { MobileTheme } from '../theme/tokens';
 const COPY_FEEDBACK_RESET_MS = 2000;
 
 /**
- * Copies a code block from its top-right corner, which the parent must position against. It confirms in place, like
- * Desktop's `CopyIconButton`, instead of with a toast: a block inside an Android `Modal` sheet would cover the app's
- * root toast, so a toast there would never be seen. Selecting a long block by hand on a phone stops at the screen edge,
- * so this is the way to take all of it.
+ * Copies a code block or quote from its top-right corner, which the parent must position against. It confirms in place,
+ * like Desktop's `CopyIconButton`, instead of with a toast: a block inside an Android `Modal` sheet would cover the
+ * app's root toast, so a toast there would never be seen. Selecting a long block by hand on a phone stops at the screen
+ * edge, so this is the way to take all of it.
  */
 export const CopyButton = ({
     text,
     testID,
     theme,
 }: {
-    text: string;
+    /**
+     * The text to copy, or a function that produces it on tap when building it costs more than a render should pay,
+     * such as a quote's text re-parsed from a streaming reply.
+     */
+    text: string | (() => string);
     /**
      * Distinct per block: Android semantic capture keeps one node per test ID, so a shared ID hides the second Copy.
      * The confirmation glyph carries `${testID}-copied`.
@@ -52,7 +56,7 @@ export const CopyButton = ({
             // The 27dp glyph pad plus 10dp on each side reaches the 44dp touch target.
             hitSlop={10}
             onPress={() => {
-                void Clipboard.setStringAsync(text)
+                void Clipboard.setStringAsync(typeof text === 'function' ? text() : text)
                     .then(() => setStatus('copied'))
                     .catch(() => setStatus('failed'));
             }}

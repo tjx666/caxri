@@ -1,5 +1,6 @@
-import { memo, use, useCallback, useEffect, useMemo, useState } from 'react';
-import type { TextStyle } from 'react-native';
+import type { ReactNode } from 'react';
+import { createContext, memo, use, useCallback, useEffect, useMemo, useState } from 'react';
+import type { TextStyle, ViewStyle } from 'react-native';
 import { ScrollView, Text, View } from 'react-native';
 
 import {
@@ -18,6 +19,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { fenceLanguage } from '../panels/file-language';
 import { ConversationFileOpener } from './conversation-file-opener';
 import { MARKDOWN_IT, parseMarkdown } from './conversation-markdown-parser';
+import { quoteIndexOf, quotePlainText } from './conversation-quote-text';
 import type { ConversationTextReveal } from './conversation-text-reveal';
 import {
     colorWithOpacity,
@@ -182,6 +184,46 @@ const ConversationCodeBlock = ({
 };
 
 /**
+ * The reply a quote renders inside, for its Copy to re-read on tap. A context rather than a closure in the render rules
+ * keeps those rules stable while a reply streams in.
+ */
+const ConversationQuoteSource = createContext('');
+
+/**
+ * A block quote in a reply, with Copy in its corner as on a code block, because an Agent often quotes the text it
+ * suggests sending on: a draft reply or message. Desktop's Chat shows the same Copy on hover; a phone has no hover, so
+ * it stays visible. The copy is the quote's words without its `>` markers (`quotePlainText`).
+ */
+const ConversationQuote = ({
+    children,
+    index,
+    style,
+    theme,
+}: {
+    children: ReactNode;
+    /**
+     * The quote's position among the reply's quotes; unset leaves the quote without Copy.
+     */
+    index: number | undefined;
+    style: ViewStyle;
+    theme: MobileTheme;
+}) => {
+    const source = use(ConversationQuoteSource);
+    return (
+        <View style={style}>
+            {children}
+            {index === undefined ? null : (
+                <CopyButton
+                    testID={`conversation-quote-${index}-copy`}
+                    text={() => quotePlainText(source, index)}
+                    theme={theme}
+                />
+            )}
+        </View>
+    );
+};
+
+/**
  * Memoized on the text and theme, so a row redrawn for another reason does not re-parse its reply.
  */
 export const ConversationMarkdown = memo(
@@ -215,6 +257,8 @@ export const ConversationMarkdown = memo(
                     borderLeftWidth: 3,
                     marginLeft: 0,
                     paddingHorizontal: 10,
+                    // Keeps the end of each line clear of the Copy button in the corner.
+                    paddingRight: 44,
                 },
                 heading1: headingStyle(19, theme.text),
                 heading2: headingStyle(17, theme.text),
@@ -253,6 +297,16 @@ export const ConversationMarkdown = memo(
         const rules = useMemo<RenderRules>(
             () => ({
                 image: () => null,
+                blockquote: (node, children, _parents, styles) => (
+                    <ConversationQuote
+                        index={quoteIndexOf(node)}
+                        key={node.key}
+                        style={styles._VIEW_SAFE_blockquote as ViewStyle}
+                        theme={theme}
+                    >
+                        {children}
+                    </ConversationQuote>
+                ),
                 // The library wraps a link in a `Pressable`, a View that sits inside the paragraph's text as one
                 // unbreakable box: after other text it rides above the baseline and a long URL runs off the screen. A
                 // nested pressable `Text` flows, aligns, and wraps with the words around it.
@@ -370,18 +424,20 @@ export const ConversationMarkdown = memo(
         );
         const source = useRevealingMarkdown(text, reveal);
         return (
-            <Markdown
-                allowedImageHandlers={NO_IMAGE_HANDLERS}
-                onLinkPress={onLinkPress}
-                colorScheme="dark"
-                defaultImageHandler={null}
-                markdownit={MARKDOWN_IT}
-                rules={rules}
-                style={markdownStyle}
-                topLevelMaxExceededItem={TOP_LEVEL_MAX_EXCEEDED_ITEM}
-            >
-                {source}
-            </Markdown>
+            <ConversationQuoteSource value={text}>
+                <Markdown
+                    allowedImageHandlers={NO_IMAGE_HANDLERS}
+                    onLinkPress={onLinkPress}
+                    colorScheme="dark"
+                    defaultImageHandler={null}
+                    markdownit={MARKDOWN_IT}
+                    rules={rules}
+                    style={markdownStyle}
+                    topLevelMaxExceededItem={TOP_LEVEL_MAX_EXCEEDED_ITEM}
+                >
+                    {source}
+                </Markdown>
+            </ConversationQuoteSource>
         );
     },
 );
