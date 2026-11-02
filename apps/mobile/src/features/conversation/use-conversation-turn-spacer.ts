@@ -94,18 +94,37 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      */
     const disclosedRowsHeight = useRef<number>(undefined);
     const disclosureReserve = useRef(0);
+    /**
+     * Counts reserve releases, so a release that a later one superseded does not draw its stale height.
+     */
+    const releaseCount = useRef(0);
+    /**
+     * Draws the measured spacer once the rows' new height reached the screen. FlashList commits the rows' height
+     * natively in the same layout pass that measured it, while a shared value reaches the UI thread a frame later;
+     * dropping the reserve in that pass still let Android clamp the scroll for a frame.
+     */
+    const releaseReserve = useCallback((): void => {
+        releaseCount.current += 1;
+        const release = releaseCount.current;
+        requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                if (release !== releaseCount.current) return;
+                disclosureReserve.current = 0;
+                spacerHeight.set(Math.max(drawnHeight.current, 0));
+            }),
+        );
+    }, [spacerHeight]);
     const measureSpacer = useCallback((): boolean => {
         const { entries: rows, isTurnStart } = latest.current;
         const reference = list.current;
         if (!isTurnStart || !reference || viewportHeight.current <= 0) return false;
+        let isReleasing = false;
         if (disclosedRowsHeight.current !== undefined) {
             // The toggled row has not been measured yet; the reserved room stays until it has.
             if (reference.getChildContainerDimensions().height === disclosedRowsHeight.current)
                 return false;
             disclosedRowsHeight.current = undefined;
-            disclosureReserve.current = 0;
-            // Draw the measured spacer again even when its height did not change, to drop the reserve.
-            drawnHeight.current = -1;
+            isReleasing = true;
         }
         const index = latestConversationTurnStart(rows, isTurnStart);
         const turnId = index === -1 ? undefined : rows[index].id;
@@ -126,7 +145,10 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         let drawn = 0;
         if (turnId !== undefined && turnId !== heldTurn.current) {
             const layout = reference.getLayout(index);
-            if (!layout) return false;
+            if (!layout) {
+                if (isReleasing) releaseReserve();
+                return false;
+            }
             const turn = {
                 bottomInset,
                 contentHeight: reference.getChildContainerDimensions().height,
@@ -141,12 +163,27 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
                 viewportHeight: largestViewportHeight.current,
             });
         }
+        if (isReleasing || disclosureReserve.current > 0) {
+            // Keep the reserve on screen until the shrunk rows are; the release draws the measured spacer.
+            endHeight.current = height;
+            drawnHeight.current = drawn;
+            releaseReserve();
+            return true;
+        }
         if (height === endHeight.current && drawn === drawnHeight.current) return false;
         endHeight.current = height;
         drawnHeight.current = drawn;
         spacerHeight.set(drawn);
         return true;
-    }, [bottomInset, largestViewportHeight, latest, list, spacerHeight, viewportHeight]);
+    }, [
+        bottomInset,
+        largestViewportHeight,
+        latest,
+        list,
+        releaseReserve,
+        spacerHeight,
+        viewportHeight,
+    ]);
     const scrollToLatest = useCallback(
         (isAnimated: boolean): void => {
             const reference = list.current;
