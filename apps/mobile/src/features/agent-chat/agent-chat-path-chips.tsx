@@ -14,9 +14,9 @@ import { agentChatPathChips } from './agent-chat-path-chip-list';
 const GLYPHS = { file: File, folder: Folder, skill: Sparkles } as const;
 
 /**
- * The skills and the files and folders a sent user message cites, as pills between its images and its bubble, as
- * Desktop shows them. A file opens in the file viewer; the phone has no Finder to open a folder in, so a folder's tap
- * shows its full path under the pills instead.
+ * The skills and the files and folders a sent user message cites, as pills above its bubble, as Desktop shows them. A
+ * file opens in the file viewer; the phone has no Finder to open a folder in, so a folder's tap shows its full path
+ * under the pills instead.
  */
 export const AgentChatPathChips = ({
     references,

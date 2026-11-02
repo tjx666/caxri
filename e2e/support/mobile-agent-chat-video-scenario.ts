@@ -39,7 +39,8 @@ const VIDEO_NAME = 'demo.mp4';
 const VIDEO_SECONDS = 60;
 
 const createVideo = async (): Promise<string> => {
-    const directory = await mkdtemp('/tmp/caxri-video-');
+    // A space in the folder, like a phone upload under `~/Library/Application Support`, which once read as a plain file.
+    const directory = await mkdtemp('/tmp/caxri video-');
     const video = join(directory, VIDEO_NAME);
     await run('ffmpeg', [
         '-loglevel',

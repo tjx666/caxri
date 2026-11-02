@@ -130,7 +130,7 @@ export const ConversationEntry = memo(
          */
         handoff?: { footer?: ReactNode; note: string };
         /**
-         * Drawn between a user message's attachments and its bubble, such as the files an Agent Chat message cites.
+         * Drawn above a user message's bubble, such as the files an Agent Chat message cites.
          */
         userExtras?: ReactNode;
     }) => {
@@ -149,6 +149,8 @@ export const ConversationEntry = memo(
             );
         }
         if (entry.type === 'userMessage') {
+            // Images and videos sit in the bubble under the text, as Desktop lays a message out.
+            const attachments = renderUserAttachments?.(entry.id) ?? null;
             const user: ConversationUserText = handoff
                 ? { kind: 'handoff', note: handoff.note }
                 : conversationUserText(entry.text);
@@ -157,9 +159,8 @@ export const ConversationEntry = memo(
                     style={[styles.message, styles.userRow]}
                     testID={`conversation-user-${entry.id}`}
                 >
-                    {renderUserAttachments?.(entry.id)}
                     {userExtras}
-                    {entry.text.length > 0 ? (
+                    {attachments || entry.text.length > 0 ? (
                         <ConversationMessagePress
                             message={{
                                 id: entry.id,
@@ -169,7 +170,7 @@ export const ConversationEntry = memo(
                             style={[styles.userBubble, { backgroundColor: theme.surface }]}
                             testID={`conversation-user-bubble-${entry.id}`}
                         >
-                            {user.kind === 'handoff' ? (
+                            {entry.text.length === 0 ? null : user.kind === 'handoff' ? (
                                 <ConversationHandoffCard
                                     footer={handoff?.footer}
                                     note={user.note}
@@ -197,6 +198,15 @@ export const ConversationEntry = memo(
                                     )}
                                 </Text>
                             )}
+                            {attachments ? (
+                                <View
+                                    style={
+                                        entry.text.length > 0 ? styles.userAttachments : undefined
+                                    }
+                                >
+                                    {attachments}
+                                </View>
+                            ) : null}
                         </ConversationMessagePress>
                     ) : null}
                 </View>

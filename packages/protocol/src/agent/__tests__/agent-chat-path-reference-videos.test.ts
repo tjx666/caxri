@@ -63,6 +63,17 @@ describe('agentChatMessageVideoPaths', () => {
             ),
         ).toEqual(['/Users/me/Desktop/demo.mp4']);
     });
+
+    it('reads a reference line whose path holds a space, as a phone upload does', () => {
+        expect(
+            agentChatMessageVideoPaths(
+                '# Files mentioned by the user:\n\n## 12701.mp4: /Users/me/Library/Application Support/Caxri/mobile-files/file_1/12701.mp4\n\n## My request for Claude:\nlook at /tmp/b.mov',
+            ),
+        ).toEqual([
+            '/Users/me/Library/Application Support/Caxri/mobile-files/file_1/12701.mp4',
+            '/tmp/b.mov',
+        ]);
+    });
 });
 
 describe('agentChatVideoContentType', () => {

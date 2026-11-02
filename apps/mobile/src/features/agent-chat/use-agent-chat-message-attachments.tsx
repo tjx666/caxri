@@ -10,8 +10,8 @@ import { agentChatImageCounts } from './agent-chat-model';
 import { agentChatVideoPaths } from './agent-chat-videos';
 
 /**
- * Renders what a user message carries above its text: its images and the videos it cites. Keyed on the messages that
- * carry them, not the snapshot, so a streamed reply does not redraw every entry.
+ * Renders what a user message carries under its text, inside its bubble: its images and the videos it cites. Keyed on
+ * the messages that carry them, not the snapshot, so a streamed reply does not redraw every entry.
  */
 export const useAgentChatMessageAttachments = (
     snapshot: Pick<AgentChatSnapshot, 'items' | 'terminalId'> | undefined,

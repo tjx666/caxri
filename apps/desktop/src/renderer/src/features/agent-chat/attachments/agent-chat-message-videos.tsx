@@ -10,17 +10,24 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { openAgentChatPathReference } from '../agent-chat-commands';
-import { agentChatMessageVideoPaths } from './agent-chat-path-pills';
 
 /**
  * The videos a sent message cites, as tiles under its text inside the bubble, the way its images sit there, so a
  * message with a screen recording reads as one message. Each tile shows the video's poster frame with a play button and
  * its name, as t3code's video attachment does; clicking it plays the video (`AgentChatVideoPlayerDialog`). With no
- * video in `text` it renders nothing.
+ * video it renders nothing.
  */
-export function AgentChatMessageVideos({ className, text }: { className?: string; text: string }) {
+export function AgentChatMessageVideos({
+    className,
+    paths,
+}: {
+    className?: string;
+    /**
+     * The videos the message cites (`agentChatMessageVideoPaths`).
+     */
+    paths: readonly string[];
+}) {
     const [playing, setPlaying] = useState<string>();
-    const paths = agentChatMessageVideoPaths(text);
     if (paths.length === 0) return null;
     return (
         <>

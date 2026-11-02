@@ -25,6 +25,25 @@ describe('agentChatPathChips', () => {
             { key: 'path:/work/docs', kind: 'folder', name: 'docs', path: '/work/docs' },
         ]);
     });
+
+    it('leaves out a cited video, which plays from its card in the bubble', () => {
+        expect(
+            agentChatPathChips(
+                [
+                    { path: '/Users/me/Library/Application Support/clip.mp4', isDirectory: false },
+                    { path: '/work/clips.mov', isDirectory: true },
+                ],
+                [],
+            ),
+        ).toEqual([
+            {
+                key: 'path:/work/clips.mov',
+                kind: 'folder',
+                name: 'clips.mov',
+                path: '/work/clips.mov',
+            },
+        ]);
+    });
 });
 
 describe('user messages that cite files', () => {

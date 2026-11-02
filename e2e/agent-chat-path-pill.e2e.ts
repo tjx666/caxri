@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { agentChatTextWithPathReferences } from '@caxri/protocol';
+
 import { expectComposerValue } from './support/agent-chat-composer.ts';
 import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -9,6 +11,7 @@ import {
     closeAppQuietly,
     createProjectSession,
     launchCaxri,
+    pageRequest,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 
@@ -77,6 +80,55 @@ test('a Files folder dropped into Agent Chat shows as a pill, keeps its absolute
         const typed = chat.locator(`[data-agent-chat-path-pill="${canonicalRoot}"]`);
         await expect(typed).toHaveText('project');
         await expect(typed.locator('img')).toHaveAttribute('src', /folder/u);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A phone upload reaches the Chat as a reference line whose path holds a space (`~/Library/Application Support`). A
+ * cited video plays from a tile inside the message bubble, under the words, rather than standing as a file chip above.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a video cited on a reference line plays from a tile inside the bubble, not a chip', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-video-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    const uploads = join(directory, 'Application Support', 'mobile-files', 'file_1');
+    await mkdir(root, { recursive: true });
+    await mkdir(uploads, { recursive: true });
+    const video = join(uploads, 'clip.mp4');
+    await writeFile(video, 'not a real video');
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        await expect(chat.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        const { terminals } = await pageRequest<{
+            terminals: Array<{ id: string; surface?: string }>;
+        }>(page, 'app.bootstrap');
+        const terminal = terminals.find(({ surface }) => surface === 'chat');
+        if (!terminal) throw new Error('The Chat Terminal is missing');
+        await pageRequest(page, 'agentChat.send', {
+            terminalId: terminal.id,
+            text: agentChatTextWithPathReferences(
+                'Why does it flicker?',
+                [{ isDirectory: false, path: video }],
+                'Codex',
+            ),
+        });
+
+        const bubble = chat
+            .locator('[data-agent-chat-user-bubble]')
+            .filter({ hasText: 'Why does it flicker?' });
+        await expect(bubble.locator(`[data-agent-chat-video="${video}"]`)).toBeVisible();
+        await expect(chat.locator(`[data-agent-chat-path-reference="${video}"]`)).toHaveCount(0);
+        await bubble.screenshot({ path: testInfo.outputPath('chat-video-in-bubble.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
