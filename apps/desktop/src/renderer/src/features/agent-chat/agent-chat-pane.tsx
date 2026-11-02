@@ -1,4 +1,3 @@
-import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AgentProviderCatalogEntry } from '@caxri/protocol';
@@ -36,7 +35,6 @@ import {
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
-import { useAgentChatPaneEscape } from './hooks/use-agent-chat-pane-escape';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import {
     useAgentChatReturnHint,
@@ -49,7 +47,7 @@ import {
     AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
     onAgentChatTranscriptKeyDown,
 } from './keyboard/agent-chat-reply-navigation';
-import { useAgentChatEdgeKeys } from './keyboard/use-agent-chat-edge-keys';
+import { useAgentChatPaneKeys } from './keyboard/use-agent-chat-pane-keys';
 import { useLoadingStyle } from './loading';
 import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/agent-chat-approval-commands';
@@ -194,6 +192,11 @@ function AgentChatPaneContent({
         () => (isSessionVisible ? markAgentChatOnScreen(terminalId) : undefined),
         [isSessionVisible, terminalId],
     );
+    const scroll = useAgentChatScroll(snapshot?.revision, {
+        isTurnLive: isAgentChatBusy(snapshot) || pending.timeline.length > 0,
+        latestPromptId: snapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
+        turnSelector: AGENT_CHAT_TURN_SELECTOR,
+    });
     const {
         scrollReference,
         contentReference,
@@ -203,11 +206,7 @@ function AgentChatPaneContent({
         jumpToLatest,
         stopFollowing,
         anchor,
-    } = useAgentChatScroll(snapshot?.revision, {
-        isTurnLive: isAgentChatBusy(snapshot) || pending.timeline.length > 0,
-        latestPromptId: snapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
-        turnSelector: AGENT_CHAT_TURN_SELECTOR,
-    });
+    } = scroll;
     const expansion = useAgentChatExpansionHost(anchor);
     const focusComposer = useCallback(() => inputReference.current?.focus(), []);
     /**
@@ -216,22 +215,7 @@ function AgentChatPaneContent({
      */
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
     const { statusShimmer } = useLoadingStyle();
-    // Escape interrupts a running turn from anywhere in the pane; the composer handles its own (see the hook).
-    const onEscapeKeyDown = useAgentChatPaneEscape({
-        activeTurnId: snapshot?.activeTurnId,
-        terminalId,
-    });
-    // Home/End and Cmd+ArrowUp/Down jump the transcript to its top or bottom, as a page does in Chrome.
-    const onEdgeKeyDown = useAgentChatEdgeKeys({
-        inputReference,
-        jumpToLatest,
-        scrollReference,
-        stopFollowing,
-    });
-    const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
-        onEscapeKeyDown(event);
-        onEdgeKeyDown(event);
-    };
+    const onKeyDown = useAgentChatPaneKeys(terminalId, snapshot, inputReference, scroll);
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
     const history = useAgentChatHistory(terminalId, snapshot, {
         scrollReference,
