@@ -10,11 +10,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-single-work-summary',
     },
-    'MOB-CHAT-WORK-GROUP-OPEN-01': {
+    'MOB-CHAT-WORK-GROUP-FOLD-01': {
         desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
+        motion: 'live',
         recordingOwner: 'scenario',
-        scenario: 'agent-chat-work-group-stays-open',
+        scenario: 'agent-chat-work-group-fold-in-place',
     },
     'MOB-CHAT-WORK-GROUP-TITLE-01': {
         desktopProfile: 'managed-by-isolated-e2e',
