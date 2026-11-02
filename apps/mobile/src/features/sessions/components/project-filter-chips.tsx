@@ -375,10 +375,10 @@ const styles = StyleSheet.create({
     chips: {
         gap: CHIP_GAP,
         paddingHorizontal: mobileSpace.lg,
-        // Even above and below, so the chips share a center line with the header's icon buttons beside them.
         paddingVertical: mobileSpace.xs,
     },
-    scroll: { flex: 1 },
+    // The strip has a row of its own under the header, so it takes the chips' height rather than growing to fill.
+    scroll: { flexGrow: 0 },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

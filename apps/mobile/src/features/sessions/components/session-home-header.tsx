@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { HostInstance } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import {
     Activity,
@@ -12,6 +12,7 @@ import {
     Settings,
 } from 'lucide-react-native';
 
+import caxriLogo from '../../../assets/caxri-logo.png';
 import { IconButton } from '../../../components/icon-button';
 import { PopoverAction, PopoverDivider, PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
@@ -28,10 +29,17 @@ const styles = StyleSheet.create({
     header: {
         alignItems: 'center',
         flexDirection: 'row',
-        paddingBottom: mobileSpace.xs,
+        paddingLeft: mobileSpace.lg,
         paddingRight: mobileSpace.xs,
         paddingTop: mobileSpace.sm,
     },
+    hostName: {
+        ...mobileType.heading,
+        flex: 1,
+        marginLeft: mobileSpace.sm,
+    },
+    logo: { height: 28, width: 27 },
+    filters: { paddingBottom: mobileSpace.xs },
     menuCaption: {
         ...mobileType.meta,
         paddingBottom: mobileSpace.sm,
@@ -91,14 +99,20 @@ export const SessionHomeHeader = ({
     const { close: closeMenu } = menu;
     return (
         <>
+            {/* The brand row names the paired computer, so the Project filters below get the full width. */}
             <View style={styles.header}>
-                <ProjectFilterChips
-                    activeProjectId={activeProjectId}
-                    onChooseProject={onChooseProject}
-                    onMoveProject={onMoveProject}
-                    projects={projects}
-                    theme={theme}
-                />
+                <Image accessibilityIgnoresInvertColors source={caxriLogo} style={styles.logo} />
+                <Text
+                    accessibilityLabel={t('sessions.home.pairedComputer', {
+                        host: hostDisplayName,
+                    })}
+                    accessibilityRole="header"
+                    numberOfLines={1}
+                    style={[styles.hostName, { color: theme.text }]}
+                    testID="session-home-host-name"
+                >
+                    {hostDisplayName}
+                </Text>
                 <IconButton
                     accessibilityHint={t('sessions.search.openHint')}
                     accessibilityLabel={t('sessions.search.open')}
@@ -118,6 +132,15 @@ export const SessionHomeHeader = ({
                         theme={theme}
                     />
                 </View>
+            </View>
+            <View style={styles.filters}>
+                <ProjectFilterChips
+                    activeProjectId={activeProjectId}
+                    onChooseProject={onChooseProject}
+                    onMoveProject={onMoveProject}
+                    projects={projects}
+                    theme={theme}
+                />
             </View>
             {onOpenInbox ? <BotInboxHomeEntry onOpen={onOpenInbox} theme={theme} /> : null}
             <PopoverMenu
