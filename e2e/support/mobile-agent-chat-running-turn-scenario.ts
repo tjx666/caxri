@@ -17,6 +17,7 @@ import {
     copyMobileFramebufferRecording,
     mobileDisplayState,
     mobileSemantics,
+    setEmulatorNetworkDelay,
     startMobileFramebufferRecording,
     waitForMobile,
 } from './mobile-android';
@@ -167,6 +168,17 @@ export async function executeMobileChatRunningTurnScenario(
     }
 }
 
+/**
+ * One-way latency the long-turn case adds while it opens the Chat, about what a phone sees through a distant Relay.
+ */
+const RELAY_DELAY_MS = 400;
+
+/**
+ * How long the long-turn case films the opened Chat: long enough for the first read and three history pages to land at
+ * {@link RELAY_DELAY_MS}.
+ */
+const LONG_TURN_WATCH_MS = 8_000;
+
 const LONG_TURN_PROMPT = 'Trace where the session list loses its order';
 
 /**
@@ -216,6 +228,7 @@ export async function executeMobileChatLongTurnOpenScenario(
         serial,
     });
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    let isDelayed = false;
     try {
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
@@ -231,13 +244,18 @@ export async function executeMobileChatLongTurnOpenScenario(
         await chat.send({ text: LONG_TURN_PROMPT });
         await waitForMobile(() => chat.read(), isRunningLongTurn, 60_000);
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        // The round trips a phone pays over the Relay; on the local gateway every page landed within one frame.
+        await setEmulatorNetworkDelay(serial, RELAY_DELAY_MS);
+        isDelayed = true;
         await adbShell(serial, [
             'input',
             'tap',
             String(Math.floor((bounds.left + bounds.right) / 2)),
             String(Math.floor((bounds.top + bounds.bottom) / 2)),
         ]);
-        await pause(WATCH_MS);
+        await pause(LONG_TURN_WATCH_MS);
+        await setEmulatorNetworkDelay(serial, 0);
+        isDelayed = false;
         await capture(environment, 'opened', artifacts);
         await recording.stop();
         recording = undefined;
@@ -263,6 +281,7 @@ export async function executeMobileChatLongTurnOpenScenario(
             await rm(analysis, { force: true, recursive: true });
         }
     } finally {
+        if (isDelayed) await setEmulatorNetworkDelay(serial, 0);
         await recording?.stop();
         await fixture.stop();
     }
