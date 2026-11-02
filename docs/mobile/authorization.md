@@ -65,6 +65,16 @@ required capabilities; a unit test enforces that invariant.
 longer Project list without reconnecting; removing a Project or changing the device identity
 still ends the connection.
 
+Pairing defaults to All Projects (`allProjects` on `mobile.pairing.create` and the device record).
+Such a device starts with every current top-level Project, and
+`apps/server/src/core/mobile/all-projects-grant.ts` appends each top-level Project added later by any
+path (Desktop, CLI, import, phone), after every full `state.changed`. The append is additive like
+`mobile.project.add`, so the phone sees the new Project on its next dashboard read without
+reconnecting. A Project deleted later stays in the grant list as a stale ID. Unchecking All Projects
+in Settings pairs a fixed list instead, which a Project added on Desktop never joins. A device that
+already holds `MOBILE_MAX_PROJECT_GRANTS` IDs stops gaining Projects and logs
+`mobile_gateway.all_projects_grant` with `outcome: capped`.
+
 New pairings always receive `control` for the selected Projects: the Server hardcodes the role at pairing
 (`apps/server/src/core/mobile/device-registry.ts`) and no API changes it afterward. `view` and `reply` are defined
 and enforced by the gateway but cannot be assigned yet; see [issue #2334](https://github.com/tjx666/caxri/issues/2334). Paired devices live in the Server

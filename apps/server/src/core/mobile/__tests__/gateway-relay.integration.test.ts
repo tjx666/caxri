@@ -209,13 +209,14 @@ describe('MobileGateway over a real Relay', () => {
                     truncated: false,
                 };
             });
+            const registry = registryFixture();
             const gateway = new MobileGateway({
                 ...subscriptionOptions,
                 adapters: { server: { invoke } },
                 authorizePairedDeviceMethod: authorizeMethod,
                 bootId: 'b'.repeat(32),
                 protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
-                registry: registryFixture(),
+                registry,
                 logger: { write },
                 selectAddress: () => '127.0.0.1',
                 relayTiming: { initialBackoffMs: 50, maxBackoffMs: 200 },
@@ -226,13 +227,19 @@ describe('MobileGateway over a real Relay', () => {
             await gateway.enable();
             await vi.waitFor(() => expect(gateway.status().relay?.state).toBe('online'));
 
-            const link = parseMobilePairingLink(gateway.createPairing(['project-1']).pairingLink);
+            const link = parseMobilePairingLink(
+                gateway.createPairing(['project-1'], true).pairingLink,
+            );
             expect(link.relay).toEqual({ url: relayUrl, hostId: gateway.status().relay!.hostId });
             const target = link.relay!;
             const pairingSocket = await openRelaySocket(target, link.secret, 'pairing');
             const paired = await pairOverSocket(pairingSocket, link);
             pairingSocket.close();
             expect(gateway.status().pendingPairingCount).toBe(0);
+            // The pairing link's All Projects choice reaches the stored device.
+            expect(registry.list()).toEqual([
+                expect.objectContaining({ allProjects: true, projectIds: ['project-1'] }),
+            ]);
 
             const device = {
                 credential: paired.credential,

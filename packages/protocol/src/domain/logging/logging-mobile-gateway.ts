@@ -68,6 +68,13 @@ export const mobileGatewayLogEvents = {
      * `write-failed` when the owner's switch could not be saved for the next start.
      */
     accessPersistence: 'mobile_gateway.access_persistence',
+    /**
+     * A device paired with "All Projects" received newly added Projects, or its grant list filled up: closed `outcome`
+     * (`granted`, `capped`, `failed`), the `granted` and `capped` Project counts across devices. Logged only when a
+     * grant landed or the capped count changed, so it is not repeated on every Project change. Never Project ids or
+     * titles.
+     */
+    allProjectsGrant: 'mobile_gateway.all_projects_grant',
     connectionEstablished: 'mobile_gateway.connection_established',
     /**
      * An established connection ended, with its `durationMs` and a closed `cause` (`peer-closed`, `peer-dropped`,

@@ -37,6 +37,7 @@ function dummyCandidate(
         generation: 1,
         role: 'control',
         projectIds: ['invalid-pairing'],
+        allProjects: false,
         createdAt: now,
     };
 }
@@ -78,6 +79,7 @@ export function beginMobileHandshake(
             ? dependencies.registry.preparePair({
                   displayName: hello.displayName,
                   platform: hello.platform,
+                  allProjects: pairing!.allProjects,
                   projectIds: pairing!.projectIds,
               })
             : dummyCandidate(hello, dependencies.now(), dependencies.random);

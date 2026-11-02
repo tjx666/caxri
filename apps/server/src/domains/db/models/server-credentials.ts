@@ -16,6 +16,7 @@ export interface MobileDeviceRow {
     generation: number;
     role: string;
     projectIds: string[];
+    allProjects: boolean;
     createdAt: number;
     lastConnectedAt?: number;
     revokedAt?: number;

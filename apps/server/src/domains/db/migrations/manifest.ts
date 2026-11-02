@@ -5,6 +5,7 @@
 import baselineMigrationSql from './0000_baseline.sql?raw';
 import terminalPtyExhaustedMigrationSql from './0001_terminal_pty_exhausted.sql?raw';
 import agentChatVersionsMigrationSql from './0002_agent_chat_versions.sql?raw';
+import mobileDeviceAllProjectsMigrationSql from './0003_mobile_device_all_projects.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -44,6 +45,7 @@ export const migrationManifest = [
     { tag: '0000_baseline', sql: baselineMigrationSql },
     { tag: '0001_terminal_pty_exhausted', sql: terminalPtyExhaustedMigrationSql },
     { tag: '0002_agent_chat_versions', sql: agentChatVersionsMigrationSql },
+    { tag: '0003_mobile_device_all_projects', sql: mobileDeviceAllProjectsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

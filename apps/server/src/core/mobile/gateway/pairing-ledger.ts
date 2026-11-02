@@ -5,10 +5,20 @@ import { CaxriError, MOBILE_PAIRING_TTL_MS } from '@caxri/protocol';
 
 const MAXIMUM_PENDING_PAIRINGS = 8;
 
-export interface PendingPairing {
+/**
+ * What a pairing offer grants the device that redeems it.
+ */
+export interface MobilePairingGrant {
+    /**
+     * Also grants every top-level Project added after pairing; see `MobileDeviceRegistry.grantAllProjects`.
+     */
+    allProjects: boolean;
+    projectIds: string[];
+}
+
+export interface PendingPairing extends MobilePairingGrant {
     expiresAt: number;
     pairingId: string;
-    projectIds: string[];
     secret: string;
 }
 
@@ -30,13 +40,14 @@ export class MobilePairingLedger {
         return this.#pairings.size;
     }
 
-    create(projectIds: string[]): PendingPairing {
+    create({ allProjects, projectIds }: MobilePairingGrant): PendingPairing {
         this.removeExpired();
         if (this.#pairings.size >= MAXIMUM_PENDING_PAIRINGS)
             throw new CaxriError('CAPACITY', 'Too many mobile pairings are pending');
         const pairing: PendingPairing = {
             pairingId: Buffer.from(this.#random(16)).toString('hex'),
             secret: Buffer.from(this.#random(PAIRING_SECRET_BYTES)).toString('hex'),
+            allProjects,
             projectIds: [...projectIds],
             expiresAt: this.#now() + MOBILE_PAIRING_TTL_MS,
         };

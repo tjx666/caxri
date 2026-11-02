@@ -1,5 +1,10 @@
 import type { MobileAccessStatus, MobileDeviceSummary, ProjectQueryResult } from '@caxri/protocol';
-import { isCaxriError, isTopLevelProject, MOBILE_PAIRING_TTL_MS } from '@caxri/protocol';
+import {
+    isCaxriError,
+    isTopLevelProject,
+    MOBILE_MAX_PROJECT_GRANTS,
+    MOBILE_PAIRING_TTL_MS,
+} from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 
@@ -41,6 +46,39 @@ export function summarizeProjectAccess(
     if (unavailableCount === 0) return known.join(', ');
     const suffix = t('settings.mobileAccess.devices.unavailable', { count: unavailableCount });
     return known.length > 0 ? `${known.join(', ')} · ${suffix}` : suffix;
+}
+
+/**
+ * What a pairing code grants, or `undefined` when it would grant nothing. "All Projects" names every Project listed now
+ * (up to the grant cap) and asks the Server to append Projects added later.
+ */
+export function mobilePairingGrant(input: {
+    isAllProjects: boolean;
+    projects: ReadonlyArray<{ id: string }>;
+    selectedProjectIds: ReadonlySet<string>;
+}): { allProjects: boolean; projectIds: string[] } | undefined {
+    const projectIds = input.isAllProjects
+        ? input.projects.slice(0, MOBILE_MAX_PROJECT_GRANTS).map((project) => project.id)
+        : [...input.selectedProjectIds];
+    return projectIds.length > 0 ? { allProjects: input.isAllProjects, projectIds } : undefined;
+}
+
+/**
+ * The `Access:` value for one paired device: `All Projects` for a device paired that way, its granted titles otherwise.
+ */
+export function describeDeviceAccess(
+    t: Translate,
+    device: Pick<MobileDeviceSummary, 'allProjects' | 'projectIds'>,
+    titleOf: (projectId: string) => string | undefined,
+    worktreeProjectIds: ReadonlySet<string>,
+): string {
+    if (device.allProjects) return t('settings.mobileAccess.devices.allProjects');
+    return summarizeProjectAccess(
+        t,
+        device.projectIds
+            .filter((projectId) => !worktreeProjectIds.has(projectId))
+            .map((projectId) => titleOf(projectId)),
+    );
 }
 
 /**

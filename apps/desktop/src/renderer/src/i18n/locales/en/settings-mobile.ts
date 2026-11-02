@@ -34,6 +34,9 @@ export const settingsMobile = {
     'settings.mobileAccess.projects.description':
         'This phone can read and reply to Agents, control Terminals, edit files and start Sessions in the selected Projects. You can revoke it at any time. {{selected}} selected · up to {{max}}.',
     'settings.mobileAccess.projects.allow': 'Allow {{project}}',
+    'settings.mobileAccess.projects.all': 'All Projects, including ones added later',
+    'settings.mobileAccess.projects.descriptionAll':
+        'This phone can read and reply to Agents, control Terminals, edit files and start Sessions in every Project, including Projects you add later. You can revoke it at any time.',
     'settings.mobileAccess.projects.createPairing': 'Create pairing code',
     // Pairing card
     'settings.mobileAccess.pairing.expired': 'Expired',
@@ -57,6 +60,7 @@ export const settingsMobile = {
     'settings.mobileAccess.devices.role.control': 'control',
     'settings.mobileAccess.devices.lastConnected': 'Last connected {{time}}',
     'settings.mobileAccess.devices.access': 'Access: {{projects}}',
+    'settings.mobileAccess.devices.allProjects': 'All Projects',
     'settings.mobileAccess.devices.revoke': 'Revoke {{device}}',
     'settings.mobileAccess.devices.unavailable': '+{{count}} unavailable',
     // Errors

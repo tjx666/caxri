@@ -125,7 +125,11 @@ test('pairs from Desktop Settings without capturing the pairing credential', asy
         await expect(mobileForm).toContainText('Available on this network');
         await captureFrames();
 
-        const projectCheckboxes = mobileForm.getByRole('checkbox');
+        // All Projects is on by default and hides the per-Project list; this case pairs a fixed grant.
+        await mobileForm
+            .getByRole('checkbox', { name: 'All Projects, including ones added later' })
+            .click();
+        const projectCheckboxes = mobileForm.getByRole('checkbox', { name: /^Allow / });
         await expect(projectCheckboxes).toHaveCount(2);
         await projectCheckboxes.nth(1).click();
         await expect(mobileForm).toContainText('Selected 1 of');

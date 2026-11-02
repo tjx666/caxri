@@ -26,6 +26,7 @@ const mobileDeviceRecordSchema = z.strictObject({
     generation: z.number().int().positive(),
     role: mobileDeviceRoleSchema,
     projectIds: mobileProjectIdsSchema,
+    allProjects: z.boolean(),
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
     revokedAt: z.number().int().positive().optional(),
@@ -58,6 +59,7 @@ function publicRecord(record: MobileDeviceRecord): MobileDeviceSummary {
         generation: record.generation,
         role: record.role,
         projectIds: [...record.projectIds],
+        allProjects: record.allProjects,
         createdAt: record.createdAt,
         ...(record.lastConnectedAt && { lastConnectedAt: record.lastConnectedAt }),
         ...(record.revokedAt && { revokedAt: record.revokedAt }),
@@ -231,6 +233,10 @@ export class MobileDeviceRegistry {
     }
 
     async pair(input: {
+        /**
+         * Defaults to a fixed grant of `projectIds`.
+         */
+        allProjects?: boolean;
         displayName: string;
         platform: 'android' | 'ios';
         projectIds: string[];
@@ -241,6 +247,10 @@ export class MobileDeviceRegistry {
     }
 
     preparePair(input: {
+        /**
+         * Defaults to a fixed grant of `projectIds`.
+         */
+        allProjects?: boolean;
         displayName: string;
         platform: 'android' | 'ios';
         projectIds: string[];
@@ -254,6 +264,7 @@ export class MobileDeviceRegistry {
             throw new CaxriError('CAPACITY', 'Mobile device registry is full');
         return mobileDeviceRecordSchema.parse({
             ...input,
+            allProjects: input.allProjects ?? false,
             deviceId: `device_${Buffer.from(this.#random(16)).toString('hex')}`,
             credential: Buffer.from(this.#random(PAIRING_SECRET_BYTES)).toString('hex'),
             generation: 1,
@@ -373,6 +384,49 @@ export class MobileDeviceRegistry {
             });
             records.set(deviceId, updated);
             return publicRecord(updated);
+        });
+    }
+
+    /**
+     * Appends each of `projectIds` (the current top-level Projects) that an "All Projects" device does not hold yet,
+     * additive like {@link grantProject}, so a live connection adopts the longer list. A device whose grant list is full
+     * keeps what it has; the count of those skipped is returned for the caller's log. Nothing is written when no device
+     * gains a Project, so callers can run this on every Project change.
+     */
+    async grantAllProjects(
+        projectIds: readonly string[],
+    ): Promise<{ capped: number; granted: number }> {
+        const additions = (record: MobileDeviceRecord): { added: string[]; capped: number } => {
+            if (!record.allProjects || record.revokedAt !== undefined)
+                return { added: [], capped: 0 };
+            const held = new Set(record.projectIds);
+            const missing = projectIds.filter((projectId) => !held.has(projectId));
+            const room = Math.max(0, MOBILE_MAX_PROJECT_GRANTS - record.projectIds.length);
+            return { added: missing.slice(0, room), capped: Math.max(0, missing.length - room) };
+        };
+        const plan = (records: ReadonlyMap<string, MobileDeviceRecord>) =>
+            records
+                .values()
+                .map((record) => ({ record, ...additions(record) }))
+                .toArray();
+        const totals = (entries: ReturnType<typeof plan>) => ({
+            capped: entries.reduce((sum, entry) => sum + entry.capped, 0),
+            granted: entries.reduce((sum, entry) => sum + entry.added.length, 0),
+        });
+        const preview = totals(plan(this.#records));
+        if (preview.granted === 0) return preview;
+        return this.#mutate((records) => {
+            const entries = plan(records);
+            for (const { added, record } of entries)
+                if (added.length > 0)
+                    records.set(
+                        record.deviceId,
+                        mobileDeviceRecordSchema.parse({
+                            ...record,
+                            projectIds: [...record.projectIds, ...added],
+                        }),
+                    );
+            return totals(entries);
         });
     }
 

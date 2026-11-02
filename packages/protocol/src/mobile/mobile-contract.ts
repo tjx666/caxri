@@ -124,6 +124,10 @@ const mobileDeviceSummarySchema = z.strictObject({
     generation: z.number().int().positive(),
     role: mobileDeviceRoleSchema,
     projectIds: mobileProjectIdsSchema,
+    /**
+     * Paired with "All Projects": every top-level Project added after pairing is appended to `projectIds`.
+     */
+    allProjects: z.boolean(),
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
     revokedAt: z.number().int().positive().optional(),
@@ -280,7 +284,13 @@ export const mobileMethods = {
     },
     'mobile.pairing.create': {
         ...commandPolicy('server', 'control'),
-        params: z.strictObject({ projectIds: mobileProjectIdsSchema }),
+        params: z.strictObject({
+            projectIds: mobileProjectIdsSchema,
+            /**
+             * Grants the device every top-level Project added later as well; `projectIds` still names the current ones.
+             */
+            allProjects: z.boolean().default(false),
+        }),
         result: z.strictObject({
             pairingLink: z.string().min(1).max(2_048),
             expiresAt: z.number().int().positive(),

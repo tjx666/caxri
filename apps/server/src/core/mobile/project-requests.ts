@@ -3,6 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../domain-service';
 import type { MobileDeviceRegistry } from './device-registry';
+import type { MobilePairingGrant } from './gateway/pairing-ledger';
 
 type MobileProjectRequest = Extract<
     ServerRequest,
@@ -90,7 +91,7 @@ export async function createMobilePairing<T>(
     domainService: ServerDomainService,
     principal: Principal,
     request: Extract<ServerRequest, { method: 'mobile.pairing.create' }>,
-    createPairing: (projectIds: string[]) => T,
+    createPairing: (grant: MobilePairingGrant) => T,
 ): Promise<T> {
     const visible = await domainService.request('project.queryForPrincipal', {
         principal,
@@ -99,5 +100,8 @@ export async function createMobilePairing<T>(
     const projectIds = new Set(visible.projects.map((project) => project.id));
     if (request.params.projectIds.some((projectId) => !projectIds.has(projectId)))
         throw new CaxriError('NOT_FOUND', 'Pairing Project not found');
-    return createPairing(request.params.projectIds);
+    return createPairing({
+        allProjects: request.params.allProjects,
+        projectIds: request.params.projectIds,
+    });
 }

@@ -15,7 +15,8 @@ const mobileRoles = closedValues<MobileDeviceRole>()(['view', 'reply', 'control'
 
 /**
  * One row per paired phone. `credential` is the pairing secret in hex; `generation` advances on every revocation so a
- * stale principal can never act again. `project_ids_json` is the device's Project grant list.
+ * stale principal can never act again. `project_ids_json` is the device's Project grant list. `all_projects` marks a
+ * device paired with "All Projects": Server Core appends every top-level Project added later to its grant list.
  */
 export const mobileDevices = sqliteTable(
     'mobile_devices',
@@ -27,6 +28,7 @@ export const mobileDevices = sqliteTable(
         generation: integer('generation').notNull(),
         role: text('role').notNull(),
         projectIdsJson: text('project_ids_json').notNull(),
+        allProjects: integer('all_projects', { mode: 'boolean' }).notNull().default(false),
         createdAt: integer('created_at').notNull(),
         lastConnectedAt: integer('last_connected_at'),
         revokedAt: integer('revoked_at'),

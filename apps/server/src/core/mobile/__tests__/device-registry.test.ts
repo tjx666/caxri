@@ -1,3 +1,4 @@
+import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { createMemoryMobileDeviceStore } from '../../__tests__/credential-stores.fixture';
@@ -13,6 +14,64 @@ function registryFixture() {
 }
 
 describe('MobileDeviceRegistry', () => {
+    it('appends newly added Projects only to devices paired with All Projects', async () => {
+        const registry = MobileDeviceRegistry.open(registryFixture());
+        const everything = await registry.pair({
+            allProjects: true,
+            displayName: 'All',
+            platform: 'android',
+            projectIds: ['project-1'],
+        });
+        const fixed = await registry.pair({
+            displayName: 'Fixed',
+            platform: 'android',
+            projectIds: ['project-1'],
+        });
+        let changes = 0;
+        registry.onDevicesChanged(() => (changes += 1));
+
+        await expect(registry.grantAllProjects(['project-1', 'project-2'])).resolves.toEqual({
+            capped: 0,
+            granted: 1,
+        });
+        expect(
+            registry.currentPrincipal(everything.device.deviceId, everything.device.generation),
+        ).toMatchObject({ projectIds: ['project-1', 'project-2'] });
+        expect(
+            registry.currentPrincipal(fixed.device.deviceId, fixed.device.generation),
+        ).toMatchObject({ projectIds: ['project-1'] });
+
+        // A deleted Project stays granted (grants are additive), and a repeat run writes nothing.
+        await expect(registry.grantAllProjects(['project-2'])).resolves.toEqual({
+            capped: 0,
+            granted: 0,
+        });
+        expect(changes).toBe(1);
+    });
+
+    it('stops at the grant cap without rewriting a full device on every call', async () => {
+        const registry = MobileDeviceRegistry.open(registryFixture());
+        const full = Array.from({ length: MOBILE_MAX_PROJECT_GRANTS }, (_, index) => `p-${index}`);
+        await registry.pair({
+            allProjects: true,
+            displayName: 'All',
+            platform: 'android',
+            projectIds: full.slice(0, -1),
+        });
+        let changes = 0;
+        registry.onDevicesChanged(() => (changes += 1));
+
+        await expect(registry.grantAllProjects([...full, 'extra'])).resolves.toEqual({
+            capped: 1,
+            granted: 1,
+        });
+        await expect(registry.grantAllProjects([...full, 'extra'])).resolves.toEqual({
+            capped: 1,
+            granted: 0,
+        });
+        expect(changes).toBe(1);
+    });
+
     it('starts empty and persists a credential without exposing it in summaries', async () => {
         const options = registryFixture();
         const registry = MobileDeviceRegistry.open(options);
@@ -102,6 +161,7 @@ describe('MobileDeviceRegistry', () => {
             generation: 1,
             role: 'control',
             projectIds: ['project-1'],
+            allProjects: false,
             createdAt: 1,
         };
         expect(() =>
@@ -146,6 +206,7 @@ describe('MobileDeviceRegistry', () => {
             generation: 1,
             role: 'control',
             projectIds: ['project-1'],
+            allProjects: false,
             createdAt: 1,
         }));
         const registry = MobileDeviceRegistry.open({

@@ -3,13 +3,64 @@ import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
 import {
+    describeDeviceAccess,
     describeMobileFailure,
     describeMobileStatus,
     findNewlyPairedDevice,
     isTailscalePairingLink,
+    mobilePairingGrant,
     splitGrantableProjects,
     summarizeProjectAccess,
 } from '../mobile-access-summary';
+
+describe('mobilePairingGrant', () => {
+    const projects = [{ id: 'caxri' }, { id: 'play' }];
+
+    it('grants every listed Project and later ones by default', () => {
+        expect(
+            mobilePairingGrant({ isAllProjects: true, projects, selectedProjectIds: new Set() }),
+        ).toEqual({ allProjects: true, projectIds: ['caxri', 'play'] });
+    });
+
+    it('grants only the checked Projects when All Projects is off', () => {
+        expect(
+            mobilePairingGrant({
+                isAllProjects: false,
+                projects,
+                selectedProjectIds: new Set(['play']),
+            }),
+        ).toEqual({ allProjects: false, projectIds: ['play'] });
+        expect(
+            mobilePairingGrant({ isAllProjects: false, projects, selectedProjectIds: new Set() }),
+        ).toBeUndefined();
+    });
+});
+
+describe('describeDeviceAccess', () => {
+    const titles = new Map([['caxri', 'Caxri']]);
+
+    it('names All Projects instead of listing every grant', () => {
+        expect(
+            describeDeviceAccess(
+                translate,
+                { allProjects: true, projectIds: ['caxri', 'gone'] },
+                (id) => titles.get(id),
+                new Set(),
+            ),
+        ).toBe('All Projects');
+    });
+
+    it('lists a fixed grant without worktree Projects', () => {
+        expect(
+            describeDeviceAccess(
+                translate,
+                { allProjects: false, projectIds: ['caxri', 'worktree'] },
+                (id) => titles.get(id),
+                new Set(['worktree']),
+            ),
+        ).toBe('Caxri');
+    });
+});
 
 describe('summarizeProjectAccess', () => {
     it('joins every resolved title when none are unavailable', () => {

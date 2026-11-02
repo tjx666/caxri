@@ -77,8 +77,13 @@ describe('MobileAccessController role and resource authority', () => {
                     domainService,
                 ),
             ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-            // `attach` reads `settings.get` for the Relay URL; nothing else may reach the domain service.
-            expect(request.mock.calls.filter(([method]) => method !== 'settings.get')).toEqual([]);
+            // `attach` reads `settings.get` for the Relay URL and `project.list` for All Projects grants; nothing else
+            // may reach the domain service.
+            expect(
+                request.mock.calls.filter(
+                    ([method]) => method !== 'settings.get' && method !== 'project.list',
+                ),
+            ).toEqual([]);
         } finally {
             await controller.close();
         }
