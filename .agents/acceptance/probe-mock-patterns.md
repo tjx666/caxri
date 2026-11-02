@@ -167,3 +167,17 @@ profile and Project, enables hooks for one fake Agent, waits for the real `waiti
 release Android app, sends one fixed bounded reply, verifies the PTY received it once, disables
 mobile access, removes the temporary profile, and clears emulator app data. The report receipt names
 only the outcome and build/device identity; it never stores the pairing link or reply content.
+
+## Add Relay-like latency to an Android emulator
+
+**Situation:** A mobile defect only shows when each request takes a noticeable time, such as
+history pages that land one by one over the Relay.
+
+**Does not work:** `adb emu network delay <ms>`. On the disposable emulator used for
+`MOB-CHAT-RUNNING-OPEN-02`, the guest's round trip to the host stayed under one millisecond, so the
+pages still landed within one frame and the baseline could not fail.
+
+**Works:** Call `setEmulatorNetworkDelay(serial, ms)` from `e2e/support/mobile-android-network.ts`.
+It applies a `netem` qdisc to `wlan0` and `eth0` through the emulator image's `su`. Confirm it once
+with `adb -s <serial> shell ping -c 1 10.0.2.2`, and clear it with `setEmulatorNetworkDelay(serial, 0)`
+in the case's `finally` so the next case starts without latency.
