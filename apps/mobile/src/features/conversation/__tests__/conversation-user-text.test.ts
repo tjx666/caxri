@@ -25,7 +25,7 @@ describe('conversationUserText', () => {
     it('leaves an ordinary message alone', () => {
         expect(conversationUserText('hello')).toEqual({
             kind: 'plain',
-            runs: [{ kind: 'text', text: 'hello' }],
+            runs: [{ kind: 'text', from: 0, text: 'hello' }],
             text: 'hello',
         });
     });
@@ -36,26 +36,27 @@ describe('conversationUserTextRuns', () => {
         expect(conversationUserTextRuns('https://github.com/acme/app/pull/12 合了')).toEqual([
             {
                 kind: 'url',
+                from: 0,
                 text: 'https://github.com/acme/app/pull/12',
                 url: 'https://github.com/acme/app/pull/12',
             },
-            { kind: 'text', text: ' 合了' },
+            { kind: 'text', from: 35, text: ' 合了' },
         ]);
     });
 
     it('splits text around every URL in order', () => {
         expect(conversationUserTextRuns('see https://a.dev and https://b.dev/x.')).toEqual([
-            { kind: 'text', text: 'see ' },
-            { kind: 'url', text: 'https://a.dev', url: 'https://a.dev' },
-            { kind: 'text', text: ' and ' },
-            { kind: 'url', text: 'https://b.dev/x', url: 'https://b.dev/x' },
-            { kind: 'text', text: '.' },
+            { kind: 'text', from: 0, text: 'see ' },
+            { kind: 'url', from: 4, text: 'https://a.dev', url: 'https://a.dev' },
+            { kind: 'text', from: 17, text: ' and ' },
+            { kind: 'url', from: 22, text: 'https://b.dev/x', url: 'https://b.dev/x' },
+            { kind: 'text', from: 37, text: '.' },
         ]);
     });
 
     it('leaves bare domains and email addresses as words, as a reply does', () => {
         expect(conversationUserTextRuns('mail me@acme.dev about acme.dev')).toEqual([
-            { kind: 'text', text: 'mail me@acme.dev about acme.dev' },
+            { kind: 'text', from: 0, text: 'mail me@acme.dev about acme.dev' },
         ]);
     });
 

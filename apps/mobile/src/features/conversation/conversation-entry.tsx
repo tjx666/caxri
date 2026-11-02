@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { memo, use, useState } from 'react';
+import { Fragment, memo, use, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
@@ -177,11 +177,11 @@ export const ConversationEntry = memo(
                                 />
                             ) : (
                                 <Text style={[styles.userText, { color: theme.text }]}>
-                                    {user.runs.map((run, index) =>
+                                    {user.runs.map((run) =>
                                         run.kind === 'url' ? (
                                             <Text
                                                 accessibilityRole="link"
-                                                key={index}
+                                                key={run.from}
                                                 onPress={() => openLink(run.url)}
                                                 // Underlined like a reply's link: a phone has no hover to reveal it.
                                                 style={{
@@ -192,7 +192,7 @@ export const ConversationEntry = memo(
                                                 {run.text}
                                             </Text>
                                         ) : (
-                                            run.text
+                                            <Fragment key={run.from}>{run.text}</Fragment>
                                         ),
                                     )}
                                 </Text>
