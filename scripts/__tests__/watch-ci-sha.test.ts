@@ -235,7 +235,7 @@ describe('followSupersedingRuns', () => {
         const result = await followSupersedingRuns(cancelled, 'a'.repeat(40), isRunGood, {
             contains: (base, head) =>
                 Promise.resolve(base === 'a'.repeat(40) && head === 'b'.repeat(40)),
-            listPushRuns: () =>
+            listBranchRuns: () =>
                 Promise.resolve([
                     { id: '11', sha: 'b'.repeat(40) },
                     { id: '10', sha: 'a'.repeat(40) },
@@ -255,7 +255,7 @@ describe('followSupersedingRuns', () => {
         const isRunGood = vi.fn((runId: string) => Promise.resolve(runId === 'never'));
         const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             contains: () => Promise.resolve(true),
-            listPushRuns: () =>
+            listBranchRuns: () =>
                 Promise.resolve([
                     { id: '12', sha: 'c' },
                     { id: '11', sha: 'b' },
@@ -270,12 +270,12 @@ describe('followSupersedingRuns', () => {
         const isRunGood = vi.fn(() => Promise.resolve(true));
         const notSuperseded = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             contains: () => Promise.resolve(false),
-            listPushRuns: () => Promise.resolve([{ id: '11', sha: 'b' }]),
+            listBranchRuns: () => Promise.resolve([{ id: '11', sha: 'b' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
             wait: noWait,
         });
         const manuallyCancelled = await followSupersedingRuns(cancelled, 'a', isRunGood, {
-            listPushRuns: () => Promise.resolve([{ id: '10', sha: 'a' }]),
+            listBranchRuns: () => Promise.resolve([{ id: '10', sha: 'a' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
             wait: noWait,
         });
@@ -294,7 +294,7 @@ describe('followSupersedingRuns', () => {
         const isRunGood = vi.fn((runId: string) => Promise.resolve(runId === '16'));
         const result = await followSupersedingRuns(cancelled, 'sha-10', isRunGood, {
             contains: () => Promise.resolve(true),
-            listPushRuns: () => Promise.resolve(listings.shift() ?? []),
+            listBranchRuns: () => Promise.resolve(listings.shift() ?? []),
             readRun: (runId) => Promise.resolve(origin(conclusions.get(runId) ?? '')),
             wait: noWait,
         });
@@ -302,12 +302,25 @@ describe('followSupersedingRuns', () => {
         expect(isRunGood).toHaveBeenLastCalledWith('16');
     });
 
+    it('follows a cancelled workflow_run downstream to the newer run of the same event', async () => {
+        const listBranchRuns = vi.fn(() => Promise.resolve([{ id: '11', sha: 'b' }]));
+        const isRunGood = vi.fn(() => Promise.resolve(true));
+        const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
+            contains: () => Promise.resolve(true),
+            listBranchRuns,
+            readRun: () => Promise.resolve({ ...origin('cancelled'), event: 'workflow_run' }),
+            wait: noWait,
+        });
+        expect(result).toBe(true);
+        expect(listBranchRuns).toHaveBeenCalledWith('7', 'main', 'workflow_run');
+    });
+
     it('reports a commit as unverified, not failed, when every successor it followed was cancelled', async () => {
         const listings = [[{ id: '11', sha: 'b' }]];
         const isRunGood = vi.fn(() => Promise.resolve(false));
         const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             contains: () => Promise.resolve(true),
-            listPushRuns: () => Promise.resolve(listings.shift() ?? [{ id: '11', sha: 'b' }]),
+            listBranchRuns: () => Promise.resolve(listings.shift() ?? [{ id: '11', sha: 'b' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
             wait: noWait,
         });
@@ -320,16 +333,16 @@ describe('followSupersedingRuns', () => {
             [{ id: '10', sha: 'a' }],
             [{ id: '11', sha: 'b' }],
         ];
-        const listPushRuns = vi.fn(() => Promise.resolve(listings.shift() ?? []));
+        const listBranchRuns = vi.fn(() => Promise.resolve(listings.shift() ?? []));
         const isRunGood = vi.fn(() => Promise.resolve(true));
         const result = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             contains: () => Promise.resolve(true),
-            listPushRuns,
+            listBranchRuns,
             readRun: () => Promise.resolve(origin('cancelled')),
             wait: noWait,
         });
         expect(result).toBe(true);
-        expect(listPushRuns).toHaveBeenCalledTimes(3);
+        expect(listBranchRuns).toHaveBeenCalledTimes(3);
         expect(isRunGood).toHaveBeenCalledWith('11');
     });
 });

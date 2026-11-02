@@ -299,11 +299,12 @@ export interface SupersedeDependencies {
      */
     contains?: (base: string, head: string) => Promise<boolean>;
     /**
-     * Push runs of one workflow on one branch, newest first.
+     * Runs of one workflow on one branch started by one event, newest first.
      */
-    listPushRuns?: (
+    listBranchRuns?: (
         workflowId: string,
         branch: string,
+        event: string,
     ) => Promise<Array<{ id: string; sha: string }>>;
     readRun?: (runId: string) => Promise<RunOrigin>;
     /**
@@ -322,12 +323,20 @@ async function readRunOrigin(runId: string): Promise<RunOrigin> {
     return { branch, conclusion, event, workflowId };
 }
 
-async function listPushRuns(
+/**
+ * Events whose cancelled runs a newer run of the same workflow can supersede: a push to the branch, and a
+ * `workflow_run` downstream such as Release macOS, which its own concurrency group cancels when the next upstream CI
+ * run completes.
+ */
+const SUPERSEDABLE_EVENTS = new Set(['push', 'workflow_run']);
+
+async function listBranchRuns(
     workflowId: string,
     branch: string,
+    event: string,
 ): Promise<Array<{ id: string; sha: string }>> {
     const output = await ghApi(
-        `actions/workflows/${workflowId}/runs?branch=${encodeURIComponent(branch)}&event=push&per_page=10`,
+        `actions/workflows/${workflowId}/runs?branch=${encodeURIComponent(branch)}&event=${encodeURIComponent(event)}&per_page=10`,
         '.workflow_runs[] | [.id, .head_sha] | @tsv',
     );
     return output
@@ -346,11 +355,11 @@ async function hasCommitAncestor(base: string, head: string): Promise<boolean> {
 
 /**
  * Resolves a run that `concurrency: cancel-in-progress` cancelled because a newer push to the same branch started the
- * same workflow. On `main` that happens whenever another pull request merges while this commit's CI is running: the
- * cancelled run proves nothing, and the newer run, whose commit contains this one, is the evidence to wait for. Returns
- * whether that newest run (chasing further supersessions) succeeded, `undefined` when the run was not superseded, or
- * `'unverified'` when every successor it followed was cancelled too: a cancelled run proves nothing either way, so the
- * commit needs the next `main` run that contains it.
+ * same workflow, directly or through a `workflow_run` trigger. On `main` that happens whenever another pull request
+ * merges while this commit's CI is running: the cancelled run proves nothing, and the newer run, whose commit contains
+ * this one, is the evidence to wait for. Returns whether that newest run (chasing further supersessions) succeeded,
+ * `undefined` when the run was not superseded, or `'unverified'` when every successor it followed was cancelled too: a
+ * cancelled run proves nothing either way, so the commit needs the next `main` run that contains it.
  */
 export async function followSupersedingRuns(
     run: CommitRun,
@@ -358,7 +367,7 @@ export async function followSupersedingRuns(
     isRunGood: (runId: string) => Promise<boolean>,
     {
         contains = hasCommitAncestor,
-        listPushRuns: listRuns = listPushRuns,
+        listBranchRuns: listRuns = listBranchRuns,
         readRun = readRunOrigin,
         wait = sleep,
     }: SupersedeDependencies = {},
@@ -368,7 +377,7 @@ export async function followSupersedingRuns(
             // eslint-disable-next-line no-await-in-loop -- each listing waits for the previous one to miss
             if (attempt > 0) await wait(POLL_INTERVAL_MS);
             // eslint-disable-next-line no-await-in-loop -- see above
-            const candidates = await listRuns(origin.workflowId, origin.branch);
+            const candidates = await listRuns(origin.workflowId, origin.branch, origin.event);
             const newer = candidates.find((candidate) => candidate.sha !== current.sha);
             // eslint-disable-next-line no-await-in-loop -- see above
             if (newer && (await contains(current.sha, newer.sha))) return newer;
@@ -379,7 +388,7 @@ export async function followSupersedingRuns(
     for (let hop = 0; hop <= MAX_SUPERSEDING_HOPS; hop += 1) {
         // eslint-disable-next-line no-await-in-loop -- each hop depends on the run the previous one found
         const origin = await readRun(current.id);
-        if (origin.conclusion !== 'cancelled' || origin.event !== 'push')
+        if (origin.conclusion !== 'cancelled' || !SUPERSEDABLE_EVENTS.has(origin.event))
             return hop === 0 ? undefined : false;
         if (hop === MAX_SUPERSEDING_HOPS) break;
         // eslint-disable-next-line no-await-in-loop -- see above
