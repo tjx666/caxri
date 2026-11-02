@@ -374,9 +374,9 @@ const ProjectChip = ({
 const styles = StyleSheet.create({
     chips: {
         gap: CHIP_GAP,
-        paddingBottom: mobileSpace.sm,
         paddingHorizontal: mobileSpace.lg,
-        paddingTop: mobileSpace.xs,
+        // Even above and below, so the chips share a center line with the header's icon buttons beside them.
+        paddingVertical: mobileSpace.xs,
     },
     scroll: { flex: 1 },
 });

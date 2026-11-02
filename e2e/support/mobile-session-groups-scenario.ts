@@ -26,7 +26,7 @@ const IDLE_SESSION_COUNT = 11;
 const DRIFT_DP = 16;
 
 /**
- * Long enough for a released swipe's scheduled filter switch to land.
+ * Long enough for a released swipe's settle animation and the filter switch after it to land.
  */
 const SETTLE_MS = 600;
 
@@ -83,12 +83,13 @@ async function swipeList(serial: string, fromShare: number, toShare: number): Pr
 
 /**
  * Drags across the Session list like {@link swipeList} but holds the finger down past the activation slop, so the frame
- * is compared while the gesture is live: the list must not follow the finger, or one Project's rows would slide beside
- * the next one's. UIAutomator waits for an idle screen, so the list is compared by its pixels instead.
+ * is compared while the gesture is live: the list must follow the finger like a pager, with the next Project's page
+ * sliding in beside it. UIAutomator waits for an idle screen, so the list is compared by its pixels instead.
  */
-async function holdSwipeWithoutMovingList(
+async function holdSwipeFollowingFinger(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
+    pages: { current: string; next: string },
     fromShare: number,
     toShare: number,
 ): Promise<void> {
@@ -116,19 +117,49 @@ async function holdSwipeWithoutMovingList(
         ].join('; '),
     ]);
     let held: string;
+    let heldNodes: MobileSemanticNode[];
     try {
         held = await mobileRegionFingerprint(serial, list);
         await capture(environment, 'holding-swipe', artifacts);
+        // The held finger leaves the screen idle, so UIAutomator can read both pages mid-swipe. Rows repeat their check
+        // ids on both pages and the dump keeps only the first, so each page is read by its own id.
+        heldNodes = await mobileSemantics(serial);
     } finally {
         await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
     }
-    if (held !== resting) throw new Error('The Session list moved with the finger mid-swipe');
+    if (held === resting) throw new Error('The Session list did not follow the finger mid-swipe');
+    // UIAutomator clips bounds to the screen: the current page ends short of the right edge, and the next page starts
+    // past the left edge.
+    const margin = width * 0.2;
+    const current = checkBounds(heldNodes, pages.current);
+    if (!current || current.right > list.right - margin)
+        throw new Error('The current page did not move left with the finger');
+    const next = checkBounds(heldNodes, pages.next);
+    if (!next || next.left < list.left + margin)
+        throw new Error('The next Project page did not slide in from the right edge');
+}
+
+/**
+ * The Project chips and the header's icon buttons share a center line, within one dp.
+ */
+function assertHeaderCentered(nodes: MobileSemanticNode[], density: number): void {
+    const center = (id: string) => {
+        const bounds = checkBounds(nodes, id);
+        if (!bounds) throw new Error(`${id} is not laid out`);
+        return (bounds.top + bounds.bottom) / 2;
+    };
+    const chip = center('project-filter-all');
+    for (const id of ['session-search-button', 'computer-menu-button'])
+        if (Math.abs(center(id) - chip) > density)
+            throw new Error(`${id} is not centered on the Project chips`);
 }
 
 /**
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
  * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
- * last chip stays put, and a right swipe returns to All. The list never follows the finger while a swipe is held.
+ * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held, with the
+ * next Project's page sliding in, and the release settles flush. The Project chips share a center line with the
+ * header's icon buttons.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -150,6 +181,7 @@ export async function executeMobileSessionSwipeScenario(
             throw new Error('The list did not start on All');
         const display = await mobileDisplayState(serial);
         const density = (display.density.override ?? display.density.physical) / 160;
+        assertHeaderCentered(nodes, density);
         const x = Math.floor((row.left + row.right) / 2);
         const y = Math.floor((row.top + row.bottom) / 2);
         const drift = Math.round(DRIFT_DP * density);
@@ -216,11 +248,24 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'short-row-drag', artifacts);
 
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
-        await holdSwipeWithoutMovingList(environment, artifacts, 0.8, 0.2);
+        await holdSwipeFollowingFinger(
+            environment,
+            artifacts,
+            {
+                current: 'session-page-project:all',
+                next: `session-page-project:${fixture.allowedProjectId}`,
+            },
+            0.8,
+            0.2,
+        );
         await waitForMobile(
             () => mobileSemantics(serial),
             (current) => isFilterSelected(current, projectChip),
         );
+        // The settle lands exactly on the page, with no offset left over from the drag.
+        const landedRow = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
+        if (landedRow?.left !== settled.left || landedRow.right !== settled.right)
+            throw new Error('The Project page did not settle flush with the screen');
         await capture(environment, 'swiped-to-project', artifacts);
         // The phone only sees one Project, so it is the last chip and a further left swipe has nowhere to go.
         await swipeList(serial, 0.8, 0.2);
@@ -241,6 +286,8 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'swiped-back-to-all', artifacts);
         await finish(environment, artifacts, {
             driftingScroll: 'scrolled-without-switching-project',
+            headerCentered: 'chips-and-icon-buttons-share-a-center-line',
+            heldSwipe: 'page-follows-finger-and-next-project-slides-in',
             leftSwipe: 'all-to-project',
             leftSwipeAtLastProject: 'stayed',
             shortRowDrag: 'no-archive-no-switch',

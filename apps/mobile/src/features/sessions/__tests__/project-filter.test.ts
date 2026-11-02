@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { SessionListEntry } from '../hooks/use-session-polling';
 import {
     activeProjectFilter,
-    adjacentProjectFilter,
     filterSessionEntries,
     projectFilterSwipe,
+    projectPagerPosition,
+    projectPagerTarget,
+    projectPagerWindow,
 } from '../project-filter';
 
 describe('filterSessionEntries', () => {
@@ -60,17 +62,39 @@ describe('projectFilterSwipe', () => {
     });
 });
 
-describe('adjacentProjectFilter', () => {
-    const ids = ['alpha', 'beta'];
-
-    it('steps through All and then each Project in chip order', () => {
-        expect(adjacentProjectFilter(null, ids, 'next')).toBe('alpha');
-        expect(adjacentProjectFilter('alpha', ids, 'next')).toBe('beta');
-        expect(adjacentProjectFilter('alpha', ids, 'previous')).toBeNull();
+describe('projectPagerPosition', () => {
+    it('follows the finger one to one between the first and last page', () => {
+        expect(projectPagerPosition(400, 150, 3, 400)).toBe(250);
+        expect(projectPagerPosition(400, -150, 3, 400)).toBe(550);
     });
 
-    it('stops at either end instead of wrapping around', () => {
-        expect(adjacentProjectFilter(null, ids, 'previous')).toBeUndefined();
-        expect(adjacentProjectFilter('beta', ids, 'next')).toBeUndefined();
+    it('resists a drag past either end', () => {
+        expect(projectPagerPosition(0, 100, 3, 400)).toBeCloseTo(-30);
+        expect(projectPagerPosition(800, -100, 3, 400)).toBeCloseTo(830);
+        expect(projectPagerPosition(0, -100, 1, 400)).toBeCloseTo(30);
+    });
+});
+
+describe('projectPagerTarget', () => {
+    const far = (translationX: number) => ({ translationX, velocityX: 0 });
+
+    it('settles on the neighbor in the swipe direction', () => {
+        expect(projectPagerTarget(1, 3, far(-200), 400)).toBe(2);
+        expect(projectPagerTarget(1, 3, far(200), 400)).toBe(0);
+    });
+
+    it('stays on the current page for a short drag or past either end', () => {
+        expect(projectPagerTarget(1, 3, far(-40), 400)).toBe(1);
+        expect(projectPagerTarget(0, 3, far(200), 400)).toBe(0);
+        expect(projectPagerTarget(2, 3, far(-200), 400)).toBe(2);
+    });
+});
+
+describe('projectPagerWindow', () => {
+    it('keeps the current page and its neighbors mounted', () => {
+        expect(projectPagerWindow(0, 3)).toEqual([0, 1]);
+        expect(projectPagerWindow(1, 3)).toEqual([0, 1, 2]);
+        expect(projectPagerWindow(2, 3)).toEqual([1, 2]);
+        expect(projectPagerWindow(0, 1)).toEqual([0]);
     });
 });

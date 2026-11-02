@@ -348,3 +348,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Alma (alma-relay MIT; app closed product reference)
 
 - **Binary sealed Mobile frames**: Replacing text-encoded bytes inside JSON with a binary inner frame that carries raw payload bytes after a small header. Evidence: `docs/mobile/transport.md` (Application frames); `packages/mobile-transport/src/sealed-frame.ts`.
+
+## WeChat (closed product reference)
+
+- **Mobile Project pager**: Swiping the Session list moves the whole page with the finger and slides the neighboring Project's list in from the edge, like the paged main tabs of WeChat for Android. Evidence: `apps/mobile/src/features/sessions/components/session-project-pager.tsx`; `docs/mobile/design.md` (Session list).

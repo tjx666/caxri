@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import { useSharedValue } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
-import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
@@ -18,13 +14,7 @@ import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useProjectReorder } from '../hooks/use-project-reorder';
 import { useSessionManagement } from '../hooks/use-session-management';
-import type { ProjectFilterSwipe } from '../project-filter';
-import {
-    activeProjectFilter,
-    adjacentProjectFilter,
-    filterSessionEntries,
-    projectFilterSwipe,
-} from '../project-filter';
+import { activeProjectFilter, filterSessionEntries, projectPagerWindow } from '../project-filter';
 import {
     sessionListAttentionSource,
     shouldListFallbackToTerminal,
@@ -39,10 +29,11 @@ import { SessionChatRequests } from './session-chat-requests';
 import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
 import { SessionHomeEmpty } from './session-home-empty';
 import { SessionHomeHeader } from './session-home-header';
+import { SessionListPage } from './session-list-page';
+import { SessionProjectPager } from './session-project-pager';
 import { SessionRow } from './session-row';
 
 const styles = StyleSheet.create({
-    list: { flex: 1 },
     pane: { minWidth: 0 },
     phonePane: { flex: 1 },
     tabletPane: { flexGrow: 0, flexShrink: 0, width: 320 },
@@ -66,17 +57,6 @@ const styles = StyleSheet.create({
     },
     tabletNewText: mobileType.bodyStrong,
 });
-
-/**
- * How far a finger must travel sideways before the list switches Project instead of scrolling. The list's own vertical
- * slop (8dp) wins any mostly vertical drag first, and a drag that moves `PROJECT_SWIPE_FAIL_Y_DP` vertically before
- * reaching it stays a scroll.
- */
-const PROJECT_SWIPE_ACTIVATION_DP = 24;
-const PROJECT_SWIPE_FAIL_Y_DP = 16;
-
-const entryKey = (entry: SessionListRow): string => entry.id;
-const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- already this size before the connection-notice prop; splitting the Session list screen is its own refactor.
 export const SessionHome = ({
@@ -155,15 +135,30 @@ export const SessionHome = ({
     const projectOrder = useProjectReorder(projects);
     const { move: moveProject } = projectOrder;
     const activeProjectId = activeProjectFilter(ui.projectId, projects);
-    const filtered = useMemo(
-        () =>
-            sessionListRows(
-                filterSessionEntries(entries, activeProjectId),
-                listGroups,
-                layout === 'phone' ? undefined : (selectedId ?? undefined),
-            ),
-        [activeProjectId, entries, layout, listGroups, selectedId],
+    /**
+     * The pager's pages in chip order: All, then each Project.
+     */
+    const pageIds = useMemo(
+        () => [null, ...projectOrder.projects.map(({ id }) => id)],
+        [projectOrder.projects],
     );
+    const activeIndex = Math.max(0, pageIds.indexOf(activeProjectId));
+    /**
+     * Rows for the current page and its mounted neighbors, so a swipe draws the next Project's real list.
+     */
+    const pageRows = useMemo(() => {
+        const rows = new Map<number, SessionListRow[]>();
+        for (const index of projectPagerWindow(activeIndex, pageIds.length))
+            rows.set(
+                index,
+                sessionListRows(
+                    filterSessionEntries(entries, pageIds[index] ?? null),
+                    listGroups,
+                    layout === 'phone' ? undefined : (selectedId ?? undefined),
+                ),
+            );
+        return rows;
+    }, [activeIndex, entries, layout, listGroups, pageIds, selectedId]);
     const restoreScroll = useCallback((): void => {
         listReference.current?.scrollToOffset({
             animated: false,
@@ -179,39 +174,21 @@ export const SessionHome = ({
         },
         [listScrollOffsetRef],
     );
+    /**
+     * Every Project page other than the current one rests at the top, so a newly chosen Project starts there and the
+     * remembered offset starts over with it.
+     */
     const chooseProject = useCallback(
         (projectId: string | null): void => {
+            listScrollOffsetRef.current = 0;
             setProjectId(projectId);
-            listReference.current?.scrollToOffset({ animated: false, offset: 0 });
         },
-        [setProjectId],
+        [listScrollOffsetRef, setProjectId],
     );
-    const projectIds = useMemo(
-        () => projectOrder.projects.map(({ id }) => id),
-        [projectOrder.projects],
+    const settlePage = useCallback(
+        (index: number): void => chooseProject(pageIds[index] ?? null),
+        [chooseProject, pageIds],
     );
-    const swipeToProject = useCallback(
-        (swipe: ProjectFilterSwipe): void => {
-            const next = adjacentProjectFilter(activeProjectId, projectIds, swipe);
-            if (next !== undefined) chooseProject(next);
-        },
-        [activeProjectId, chooseProject, projectIds],
-    );
-    const swipeWidth = useSharedValue(0);
-    /**
-     * A sideways drag anywhere over the list, including the empty state, moves to the neighboring Project filter. The
-     * list stays put while the finger moves and the filter switches only on release, so the screen never shows one
-     * Project's rows sliding in beside another's.
-     */
-    const projectPan = usePanGesture({
-        activeOffsetX: [-PROJECT_SWIPE_ACTIVATION_DP, PROJECT_SWIPE_ACTIVATION_DP],
-        failOffsetY: [-PROJECT_SWIPE_FAIL_Y_DP, PROJECT_SWIPE_FAIL_Y_DP],
-        maxPointers: 1,
-        onDeactivate: (event) => {
-            const swipe = projectFilterSwipe(event, swipeWidth.get());
-            if (swipe !== null) scheduleOnRN(swipeToProject, swipe);
-        },
-    });
     const openTerminal = useCallback(
         (sessionId: string): void => {
             setSegment(sessionId, 'terminal');
@@ -219,8 +196,8 @@ export const SessionHome = ({
         },
         [onOpenSession, setSegment],
     );
-    const renderEntry = useCallback(
-        ({ item }: ListRenderItemInfo<SessionListRow>) =>
+    const renderRow = useCallback(
+        ({ item }: ListRenderItemInfo<SessionListRow>, shouldShowProject: boolean) =>
             item.type === 'header' ? (
                 <SessionGroupHeader
                     count={item.count}
@@ -247,7 +224,7 @@ export const SessionHome = ({
                         savedAt={savedAt}
                         selected={item.session.id === selectedId && layout !== 'phone'}
                         session={item.session}
-                        showProject={activeProjectId === null}
+                        showProject={shouldShowProject}
                         theme={theme}
                     />
                     {/* A pinned waiting Session is listed again under Waiting; its cards show there, once. */}
@@ -272,7 +249,6 @@ export const SessionHome = ({
                 </View>
             ),
         [
-            activeProjectId,
             deviceRole,
             layout,
             now,
@@ -286,6 +262,43 @@ export const SessionHome = ({
             toggleListGroup,
         ],
     );
+    const renderAllEntry = useCallback(
+        (info: ListRenderItemInfo<SessionListRow>) => renderRow(info, true),
+        [renderRow],
+    );
+    const renderProjectEntry = useCallback(
+        (info: ListRenderItemInfo<SessionListRow>) => renderRow(info, false),
+        [renderRow],
+    );
+    const renderPage = (index: number) => {
+        const projectId = pageIds[index] ?? null;
+        const rows = pageRows.get(index) ?? [];
+        return (
+            <SessionListPage
+                empty={
+                    !hasLoaded || rows.length === 0 ? (
+                        <SessionHomeEmpty
+                            activeProjectId={projectId}
+                            error={error}
+                            hasLoaded={hasLoaded}
+                            isLoading={isLoading}
+                            onNewSession={onNewSession}
+                            onRetry={refresh}
+                            status={status}
+                            theme={theme}
+                        />
+                    ) : null
+                }
+                interactionRef={listInteractionReference}
+                isActive={index === activeIndex}
+                activeListRef={listReference}
+                onLoad={restoreScroll}
+                onScroll={rememberScroll}
+                renderEntry={projectId === null ? renderAllEntry : renderProjectEntry}
+                rows={rows}
+            />
+        );
+    };
     return (
         <View
             style={[
@@ -322,52 +335,13 @@ export const SessionHome = ({
                 projects={projectOrder.projects}
                 theme={theme}
             />
-            <GestureDetector gesture={projectPan}>
-                <View
-                    onLayout={(event) => swipeWidth.set(event.nativeEvent.layout.width)}
-                    style={styles.list}
-                >
-                    {!hasLoaded || filtered.length === 0 ? (
-                        <SessionHomeEmpty
-                            activeProjectId={activeProjectId}
-                            error={error}
-                            hasLoaded={hasLoaded}
-                            isLoading={isLoading}
-                            onNewSession={onNewSession}
-                            onRetry={refresh}
-                            status={status}
-                            theme={theme}
-                        />
-                    ) : (
-                        <View
-                            style={styles.list}
-                            onTouchCancel={() => listInteractionReference.current?.touchCancel()}
-                            onTouchEnd={() => listInteractionReference.current?.touchEnd()}
-                            onTouchStart={() => listInteractionReference.current?.touchStart()}
-                        >
-                            <FlashList
-                                data={filtered}
-                                getItemType={entryType}
-                                keyExtractor={entryKey}
-                                onMomentumScrollBegin={() =>
-                                    listInteractionReference.current?.momentumStart()
-                                }
-                                onMomentumScrollEnd={() =>
-                                    listInteractionReference.current?.momentumEnd()
-                                }
-                                onLoad={restoreScroll}
-                                onScroll={rememberScroll}
-                                onScrollBeginDrag={() =>
-                                    listInteractionReference.current?.dragStart()
-                                }
-                                onScrollEndDrag={() => listInteractionReference.current?.dragEnd()}
-                                ref={listReference}
-                                renderItem={renderEntry}
-                            />
-                        </View>
-                    )}
-                </View>
-            </GestureDetector>
+            <SessionProjectPager
+                activeIndex={activeIndex}
+                onSettle={settlePage}
+                pageCount={pageIds.length}
+                pageKey={(index) => `project:${pageIds[index] ?? 'all'}`}
+                renderPage={renderPage}
+            />
             <Pressable
                 accessibilityHint={t('sessions.home.newSessionHint')}
                 accessibilityLabel={t('sessions.new.title')}
