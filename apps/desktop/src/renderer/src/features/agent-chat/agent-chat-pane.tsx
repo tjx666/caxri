@@ -210,7 +210,6 @@ function AgentChatPaneContent({
      * reach, with the same candidate picker when several match.
      */
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
-    const openFile = useAgentChatOpenFile(terminalId);
     const { statusShimmer } = useLoadingStyle();
     // Escape interrupts a running turn from anywhere in the pane; the composer handles its own (see the hook).
     const onKeyDown = useAgentChatPaneEscape({ activeTurnId: snapshot?.activeTurnId, terminalId });
@@ -221,6 +220,7 @@ function AgentChatPaneContent({
         stopFollowing,
     });
     const olderItems = history.history.items;
+    const openFile = useAgentChatOpenFile(terminalId, [olderItems, snapshot?.items ?? []]);
     const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
         versionView.snapshot,
         history.history,

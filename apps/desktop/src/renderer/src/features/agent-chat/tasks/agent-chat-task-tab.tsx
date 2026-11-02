@@ -206,7 +206,7 @@ function TaskTimeline({
         !history.hasMore && (history.history.isLoaded ? history.history.truncated : truncated);
     // Rows the user expanded stay open and hold in place, exactly as in the parent Chat.
     const expansion = useAgentChatExpansionHost(anchor);
-    const openFile = useAgentChatOpenFile(terminalId);
+    const openFile = useAgentChatOpenFile(terminalId, [olderItems, items]);
     return (
         <div className="relative h-full min-h-0">
             <div

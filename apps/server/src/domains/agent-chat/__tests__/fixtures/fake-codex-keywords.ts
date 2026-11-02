@@ -6,6 +6,7 @@
  * - `artifacts`: edits and creates files on disk, opens a pull request, rewrites another through `gh api`, files a Linear
  *   issue, and publishes an acceptance report.
  * - `manyfiles`: creates five notes on disk, so a turn card folds the files past its first rows.
+ * - `outsidefile`: writes a note outside the Project folder and cites it by name alone.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `widediff`: a completed file change whose lines are wider than a phone, so a narrow diff view has to wrap them.
@@ -60,7 +61,7 @@ import {
     runQuestion,
     runQuestions,
 } from './fake-codex-approvals.ts';
-import { runTurnArtifacts, runTurnManyFiles } from './fake-codex-artifacts.ts';
+import { runTurnArtifacts, runTurnManyFiles, runTurnOutsideFile } from './fake-codex-artifacts.ts';
 import { runAutoCompact } from './fake-codex-autocompact.ts';
 import { runDefaultReply } from './fake-codex-default-reply.ts';
 import { runExplore, runParallelExplore } from './fake-codex-explore.ts';
@@ -149,6 +150,8 @@ export async function runKeywordScenario(
         await runTurnArtifacts(io, turn);
     } else if (text.includes('manyfiles')) {
         await runTurnManyFiles(io, turn);
+    } else if (text.includes('outsidefile')) {
+        await runTurnOutsideFile(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('widediff')) {
