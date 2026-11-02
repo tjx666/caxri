@@ -6,6 +6,7 @@ import { checkBounds, waitForCheck, waitForNoCheck } from './mobile-agent-chat-h
 import type { MobileSemanticNode } from './mobile-android';
 import {
     adbShell,
+    androidBounds,
     mobileDisplayState,
     mobileRegionFingerprint,
     mobileSemantics,
@@ -116,19 +117,49 @@ async function holdSwipeFollowingFinger(
         ].join('; '),
     ]);
     let held: string;
+    let heldRows: Array<NonNullable<ReturnType<typeof androidBounds>>>;
     try {
         held = await mobileRegionFingerprint(serial, list);
         await capture(environment, 'holding-swipe', artifacts);
+        // The held finger leaves the screen idle, so UIAutomator can read both pages' rows mid-swipe.
+        heldRows = (await mobileSemantics(serial))
+            .filter(({ checkId }) => checkId.startsWith('session-row-'))
+            .map(({ bounds }) => androidBounds(bounds))
+            .filter((bounds) => bounds !== null);
     } finally {
         await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
     }
     if (held === resting) throw new Error('The Session list did not follow the finger mid-swipe');
+    // UIAutomator clips bounds to the screen: the current page's rows end short of the right edge, and the next page's
+    // rows start past the left edge.
+    const margin = width * 0.2;
+    if (heldRows.every((row) => !(row.right < list.right - margin)))
+        throw new Error('The current page did not move left with the finger');
+    if (heldRows.every((row) => !(row.left > list.left + margin)))
+        throw new Error('The next Project page did not slide in from the right edge');
+}
+
+/**
+ * The Project chips and the header's icon buttons share a center line, within one dp.
+ */
+function assertHeaderCentered(nodes: MobileSemanticNode[], density: number): void {
+    const center = (id: string) => {
+        const bounds = checkBounds(nodes, id);
+        if (!bounds) throw new Error(`${id} is not laid out`);
+        return (bounds.top + bounds.bottom) / 2;
+    };
+    const chip = center('project-filter-all');
+    for (const id of ['session-search-button', 'computer-menu-button'])
+        if (Math.abs(center(id) - chip) > density)
+            throw new Error(`${id} is not centered on the Project chips`);
 }
 
 /**
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
  * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
- * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held.
+ * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held, with the
+ * next Project's page sliding in, and the release settles flush. The Project chips share a center line with the
+ * header's icon buttons.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -150,6 +181,7 @@ export async function executeMobileSessionSwipeScenario(
             throw new Error('The list did not start on All');
         const display = await mobileDisplayState(serial);
         const density = (display.density.override ?? display.density.physical) / 160;
+        assertHeaderCentered(nodes, density);
         const x = Math.floor((row.left + row.right) / 2);
         const y = Math.floor((row.top + row.bottom) / 2);
         const drift = Math.round(DRIFT_DP * density);
@@ -221,6 +253,10 @@ export async function executeMobileSessionSwipeScenario(
             () => mobileSemantics(serial),
             (current) => isFilterSelected(current, projectChip),
         );
+        // The settle lands exactly on the page, with no offset left over from the drag.
+        const landedRow = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
+        if (landedRow?.left !== settled.left || landedRow.right !== settled.right)
+            throw new Error('The Project page did not settle flush with the screen');
         await capture(environment, 'swiped-to-project', artifacts);
         // The phone only sees one Project, so it is the last chip and a further left swipe has nowhere to go.
         await swipeList(serial, 0.8, 0.2);
@@ -241,6 +277,8 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'swiped-back-to-all', artifacts);
         await finish(environment, artifacts, {
             driftingScroll: 'scrolled-without-switching-project',
+            headerCentered: 'chips-and-icon-buttons-share-a-center-line',
+            heldSwipe: 'page-follows-finger-and-next-project-slides-in',
             leftSwipe: 'all-to-project',
             leftSwipeAtLastProject: 'stayed',
             shortRowDrag: 'no-archive-no-switch',
