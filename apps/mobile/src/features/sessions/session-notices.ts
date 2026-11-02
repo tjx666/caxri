@@ -133,3 +133,65 @@ export const selectHomeNotice = ({
         ) ?? null
     );
 };
+
+/**
+ * How long a notice must stay selected before it takes space at the top of Session home.
+ */
+export const HOME_NOTICE_SETTLE_MS = 2_000;
+
+/**
+ * Notices that usually clear on their own within a moment. On a cold start the connection is `connecting` for a few
+ * hundred milliseconds (`connection-stale`), then the list is still the saved copy until the first live list lands
+ * (`saved-copy`); drawing each at once pushed the list down and back up twice. Every other notice needs the user or
+ * reports a lasting fact, so it shows at once.
+ */
+const SELF_CLEARING_NOTICES: ReadonlySet<HomeNoticeKind> = new Set([
+    'connection-stale',
+    'saved-copy',
+]);
+
+/**
+ * The delay before `kind` appears: {@link HOME_NOTICE_SETTLE_MS} for a self-clearing notice, otherwise `0`. Hiding a
+ * notice is never delayed.
+ */
+export const homeNoticeSettleDelay = (kind: HomeNoticeKind | null): number =>
+    kind !== null && SELF_CLEARING_NOTICES.has(kind) ? HOME_NOTICE_SETTLE_MS : 0;
+
+/**
+ * When each self-clearing notice was first selected by any mounted screen, shared across screens. Opening a Session on
+ * a phone mounts a second Sessions screen; without this, a notice already on screen would wait out the delay again
+ * there and drop in late, the very shift the delay exists to avoid.
+ */
+export interface HomeNoticeSelections {
+    /**
+     * Records one more screen selecting `kind` and returns when it was first selected.
+     */
+    acquire: (kind: HomeNoticeKind, now: number) => number;
+    /**
+     * The time `kind` was first selected while some screen still selects it, otherwise `null`.
+     */
+    since: (kind: HomeNoticeKind) => number | null;
+    /**
+     * Records one screen no longer selecting `kind`; the last release forgets its start.
+     */
+    release: (kind: HomeNoticeKind) => void;
+}
+
+export const createHomeNoticeSelections = (): HomeNoticeSelections => {
+    const entries = new Map<HomeNoticeKind, { count: number; since: number }>();
+    return {
+        acquire: (kind, now) => {
+            const entry = entries.get(kind) ?? { count: 0, since: now };
+            entry.count += 1;
+            entries.set(kind, entry);
+            return entry.since;
+        },
+        since: (kind) => entries.get(kind)?.since ?? null,
+        release: (kind) => {
+            const entry = entries.get(kind);
+            if (!entry) return;
+            entry.count -= 1;
+            if (entry.count <= 0) entries.delete(kind);
+        },
+    };
+};

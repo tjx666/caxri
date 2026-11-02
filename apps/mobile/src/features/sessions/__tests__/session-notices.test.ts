@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
     connectionBannerModel,
     connectionNoticeMessage,
+    createHomeNoticeSelections,
+    HOME_NOTICE_SETTLE_MS,
+    homeNoticeSettleDelay,
     isConnectionBannerShown,
     isSessionListErrorShown,
     selectHomeNotice,
@@ -153,5 +156,45 @@ describe('connection banner model', () => {
             action: 'retry',
             tone: 'warning',
         });
+    });
+});
+
+describe('homeNoticeSettleDelay', () => {
+    it('holds back only the notices a quick startup clears on its own', () => {
+        expect(homeNoticeSettleDelay('connection-stale')).toBe(HOME_NOTICE_SETTLE_MS);
+        expect(homeNoticeSettleDelay('saved-copy')).toBe(HOME_NOTICE_SETTLE_MS);
+    });
+
+    it('shows notices that need the user or report a lasting fact at once', () => {
+        for (const kind of [
+            'connection-unverified',
+            'list-error',
+            'truncated',
+            'update-available',
+            'update-mismatch',
+            'update-required',
+        ] as const) {
+            expect(homeNoticeSettleDelay(kind)).toBe(0);
+        }
+        expect(homeNoticeSettleDelay(null)).toBe(0);
+    });
+});
+
+describe('createHomeNoticeSelections', () => {
+    it('keeps the first selection time while any screen still selects the notice', () => {
+        const selections = createHomeNoticeSelections();
+        expect(selections.since('connection-stale')).toBeNull();
+        expect(selections.acquire('connection-stale', 1_000)).toBe(1_000);
+        expect(selections.acquire('connection-stale', 5_000)).toBe(1_000);
+        selections.release('connection-stale');
+        expect(selections.since('connection-stale')).toBe(1_000);
+    });
+
+    it('starts over once no screen selects the notice', () => {
+        const selections = createHomeNoticeSelections();
+        selections.acquire('saved-copy', 1_000);
+        selections.release('saved-copy');
+        expect(selections.since('saved-copy')).toBeNull();
+        expect(selections.acquire('saved-copy', 9_000)).toBe(9_000);
     });
 });
