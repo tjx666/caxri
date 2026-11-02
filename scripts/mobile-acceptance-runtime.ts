@@ -361,6 +361,20 @@ export function assertMobileAcceptanceSourceIdentity(input: {
 }
 
 /**
+ * Reads the checkout's HEAD and status, asserts them against every frozen case commit, and returns the commit.
+ */
+export function assertMobileAcceptanceCheckoutFrozen(
+    plannedCommits: readonly string[],
+    readGit: (arguments_: string[]) => string,
+): string {
+    const actualCommit = readGit(['rev-parse', 'HEAD']).trim().toLowerCase();
+    const status = readGit(['status', '--porcelain', '--untracked-files=normal']);
+    for (const plannedCommit of plannedCommits)
+        assertMobileAcceptanceSourceIdentity({ actualCommit, plannedCommit, status });
+    return actualCommit;
+}
+
+/**
  * Publishes the final receipt atomically so an authorized clean retry replaces only its predecessor.
  */
 export function writeMobileAcceptanceReceipt(path: string, receipt: unknown): Promise<void> {

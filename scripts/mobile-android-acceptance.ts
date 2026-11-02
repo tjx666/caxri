@@ -24,7 +24,7 @@ import { prepareMobileAppLocale } from './mobile-acceptance-locale';
 import { prepareMobileLiveMotion, withMobileReducedMotion } from './mobile-acceptance-motion';
 import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
-    assertMobileAcceptanceSourceIdentity,
+    assertMobileAcceptanceCheckoutFrozen,
     captureMobileAcceptanceCommand,
     clearMobileAcceptanceCaseArtifacts,
     collectMobileAcceptanceArtifacts,
@@ -437,19 +437,19 @@ async function executeCase(
 const plannedCases = await Promise.all(
     caseIds.map((caseId) => loadAcceptanceCasePlan(reportDirectory, caseId)),
 );
-const sourceCommit = read('git', ['rev-parse', 'HEAD'], SOURCE_TIMEOUT_MS).trim().toLowerCase();
-const sourceStatus = read(
-    'git',
-    ['status', '--porcelain', '--untracked-files=normal'],
-    SOURCE_TIMEOUT_MS,
-);
+/**
+ * The checkout must stay at the frozen report commit with a clean tree. Checked again after the release build, because
+ * the build bundles JavaScript from the working tree: an edit made while it ran would ship code the receipts never name
+ * (#3463 once bundled a half-written fix this way).
+ */
+const assertFrozenSource = (): string =>
+    assertMobileAcceptanceCheckoutFrozen(
+        plannedCases.map((planned) => planned.commit),
+        (arguments_) => read('git', arguments_, SOURCE_TIMEOUT_MS),
+    );
+const sourceCommit = assertFrozenSource();
 for (const [index, planned] of plannedCases.entries()) {
     const caseId = caseIds[index];
-    assertMobileAcceptanceSourceIdentity({
-        actualCommit: sourceCommit,
-        plannedCommit: planned.commit,
-        status: sourceStatus,
-    });
     if (
         planned.item.surface !== 'mobile' ||
         planned.item.mobileDevice?.platform !== 'android' ||
@@ -486,6 +486,7 @@ const serialLockedRound = withRepoLock(
                 timeouts: { build: BUILD_TIMEOUT_MS, release: ANDROID_RELEASE_BUILD_TIMEOUT_MS },
                 waitDeadlineMs: activeDeadlineMs,
             });
+            assertFrozenSource();
             adbRun(['install', '-r', releaseApk]);
             apkSha256 = createHash('sha256')
                 .update(await readFile(releaseApk))

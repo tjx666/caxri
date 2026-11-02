@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAndroidAppDataIfInstalled } from '../../apps/mobile/scripts/android-app-data';
 import {
+    assertMobileAcceptanceCheckoutFrozen,
     assertMobileAcceptanceSourceIdentity,
     captureMobileAcceptanceCommand,
     clearMobileAcceptanceCaseArtifacts,
@@ -47,6 +48,18 @@ describe('mobile Acceptance runtime', () => {
                 status: ' M scripts/mobile-android-acceptance.ts',
             }),
         ).toThrow('requires a clean source tree');
+    });
+
+    it('reads the checkout fresh on every frozen-source check', () => {
+        const commit = 'a'.repeat(40);
+        let status = '';
+        const readGit = (arguments_: string[]) =>
+            arguments_[0] === 'rev-parse' ? `${commit.toUpperCase()}\n` : status;
+        expect(assertMobileAcceptanceCheckoutFrozen([commit], readGit)).toBe(commit);
+        status = ' M apps/mobile/src/features/agent-chat/agent-chat-composer.tsx';
+        expect(() => assertMobileAcceptanceCheckoutFrozen([commit], readGit)).toThrow(
+            'requires a clean source tree',
+        );
     });
 
     it('bounds every child command by both its stage and overall deadlines', () => {
