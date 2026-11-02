@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
@@ -74,12 +74,6 @@ const styles = StyleSheet.create({
  */
 const PROJECT_SWIPE_ACTIVATION_DP = 24;
 const PROJECT_SWIPE_FAIL_Y_DP = 16;
-/**
- * The list follows a sideways drag at this fraction of the finger, enough to show the swipe registered without
- * suggesting the next Project's rows are already underneath.
- */
-const PROJECT_SWIPE_FOLLOW = 0.25;
-const PROJECT_SWIPE_SETTLE_MS = 150;
 
 const entryKey = (entry: SessionListRow): string => entry.id;
 const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
@@ -203,27 +197,21 @@ export const SessionHome = ({
         },
         [activeProjectId, chooseProject, projectIds],
     );
-    const swipeOffset = useSharedValue(0);
     const swipeWidth = useSharedValue(0);
     /**
-     * A sideways drag anywhere over the list, including the empty state, moves to the neighboring Project filter.
+     * A sideways drag anywhere over the list, including the empty state, moves to the neighboring Project filter. The
+     * list stays put while the finger moves and the filter switches only on release, so the screen never shows one
+     * Project's rows sliding in beside another's.
      */
     const projectPan = usePanGesture({
         activeOffsetX: [-PROJECT_SWIPE_ACTIVATION_DP, PROJECT_SWIPE_ACTIVATION_DP],
         failOffsetY: [-PROJECT_SWIPE_FAIL_Y_DP, PROJECT_SWIPE_FAIL_Y_DP],
         maxPointers: 1,
-        onUpdate: (event) => {
-            swipeOffset.set(event.translationX * PROJECT_SWIPE_FOLLOW);
-        },
         onDeactivate: (event) => {
             const swipe = projectFilterSwipe(event, swipeWidth.get());
             if (swipe !== null) scheduleOnRN(swipeToProject, swipe);
-            swipeOffset.set(withTiming(0, { duration: PROJECT_SWIPE_SETTLE_MS }));
         },
     });
-    const swipeStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: swipeOffset.get() }],
-    }));
     const openTerminal = useCallback(
         (sessionId: string): void => {
             setSegment(sessionId, 'terminal');
@@ -335,9 +323,9 @@ export const SessionHome = ({
                 theme={theme}
             />
             <GestureDetector gesture={projectPan}>
-                <Animated.View
+                <View
                     onLayout={(event) => swipeWidth.set(event.nativeEvent.layout.width)}
-                    style={[styles.list, swipeStyle]}
+                    style={styles.list}
                 >
                     {!hasLoaded || filtered.length === 0 ? (
                         <SessionHomeEmpty
@@ -378,7 +366,7 @@ export const SessionHome = ({
                             />
                         </View>
                     )}
-                </Animated.View>
+                </View>
             </GestureDetector>
             <Pressable
                 accessibilityHint={t('sessions.home.newSessionHint')}
