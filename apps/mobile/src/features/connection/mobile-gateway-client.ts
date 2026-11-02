@@ -1,3 +1,4 @@
+import type { MobileFrameCipher } from '@caxri/mobile-transport';
 import {
     decodeHex,
     encodeHex,
@@ -37,6 +38,10 @@ export {
 } from './mobile-gateway-errors';
 
 export interface MobileGatewayRuntime {
+    /**
+     * Seals and opens session frames natively; absent in tests, where the pure-JS cipher runs.
+     */
+    frameCipher?: MobileFrameCipher;
     openWebSocket(url: string): WebSocket;
     platform: 'android' | 'ios';
     randomBytes(length: number): Uint8Array;

@@ -71,6 +71,9 @@ const closeSocketFor = (socket: WebSocket, reason: MobileClientCloseReason): voi
     socket.close(mobileClientCloseReasons[reason], reason);
 };
 
+const sendError = (error: unknown): Error =>
+    error instanceof Error ? error : new Error('The Caxri connection closed.');
+
 export interface MobileGatewaySubscriptionHandle {
     subscriptionId: string;
     unsubscribe(): Promise<void>;
@@ -146,7 +149,9 @@ export class MobileGatewayConnection {
                 else this.#finish('disconnected', error, 'heartbeat-timeout');
             },
             randomBytes: (size) => session.runtime.randomBytes(size),
-            send: (payload) => sendSealed(session, payload),
+            send: (payload) => {
+                void this.#send(payload);
+            },
         });
         if (options.expectReady) {
             this.#expectedReady = options.expectReady;
@@ -161,6 +166,18 @@ export class MobileGatewayConnection {
             );
         }
         void this.#readLoop();
+    }
+
+    /**
+     * A frame that could not be sealed or written leaves a counter gap the Server never accepts, so it ends the
+     * connection.
+     */
+    async #send(payload: unknown): Promise<void> {
+        try {
+            await sendSealed(this.#session, payload);
+        } catch (error) {
+            this.#finish('disconnected', sendError(error), 'send-failed');
+        }
     }
 
     #acceptReady(expected: ExpectedReady, raw: unknown): void {
@@ -266,15 +283,7 @@ export class MobileGatewayConnection {
             },
             timeoutError,
         );
-        try {
-            sendSealed(this.#session, payload);
-        } catch (error) {
-            this.#finish(
-                'disconnected',
-                error instanceof Error ? error : new Error('The Caxri connection closed.'),
-                'send-failed',
-            );
-        }
+        void this.#send(payload);
         return response;
     }
 

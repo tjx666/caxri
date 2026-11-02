@@ -45,6 +45,14 @@ const reconnectThrough = (ready?: ConstructorParameters<typeof ConnectGatewaySoc
     return { runtime, saved, socket };
 };
 
+/**
+ * Sealing is asynchronous, so a request reaches the socket a few microtasks after the call; fake timers stay untouched.
+ */
+async function flushSealedWrites(): Promise<void> {
+    // eslint-disable-next-line no-await-in-loop -- each turn drains one microtask of the seal-then-write chain.
+    for (let index = 0; index < 10; index += 1) await Promise.resolve();
+}
+
 describe('mobile gateway client', () => {
     it('disconnects a half-open socket when an ordinary request times out', async () => {
         let socket: FakeGatewaySocket | undefined;
@@ -122,6 +130,7 @@ describe('mobile gateway client', () => {
         });
         const first = paired.connection.request('project.query', { mode: 'list' });
         const second = paired.connection.request('project.query', { mode: 'list' });
+        await flushSealedWrites();
         expect(socket.requestCount).toBe(2);
         socket.releaseHeldRequests();
         await expect(Promise.all([first, second])).resolves.toHaveLength(2);
@@ -264,6 +273,7 @@ describe('mobile gateway client', () => {
             const firstRejected = expect(first).rejects.toThrow('Caxri did not respond in time.');
             await vi.advanceTimersByTimeAsync(1_000);
             const second = paired.connection.request('project.query', { mode: 'list' });
+            await flushSealedWrites();
             expect(socket.requestCount).toBe(2);
             await vi.advanceTimersByTimeAsync(14_000);
             await firstRejected;
@@ -272,6 +282,7 @@ describe('mobile gateway client', () => {
             await Promise.resolve();
             const retry = paired.connection.request('project.query', { mode: 'list' });
             const retryRejected = expect(retry).rejects.toThrow('Caxri did not respond in time.');
+            await flushSealedWrites();
             expect(socket.requestCount).toBe(2);
             socket.releaseHeldRequestAt(1);
             await expect(second).resolves.toMatchObject({ view: 'paired-device' });

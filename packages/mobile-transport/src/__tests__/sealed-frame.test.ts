@@ -9,10 +9,13 @@ import {
     encodeSealedFrame,
     MobileFrameCounter,
     MobileReplayGuard,
+    nobleMobileFrameCipher,
     openMobileFrame,
     openMobilePayload,
+    openMobilePayloadWith,
     sealMobileFrame,
     sealMobilePayload,
+    sealMobilePayloadWith,
 } from '../sealed-frame';
 
 const key = decodeHex('a5'.repeat(32));
@@ -26,6 +29,30 @@ const context = {
 };
 
 describe('sealed mobile frames', () => {
+    /**
+     * The phone seals and opens through an injected native cipher; the bytes on the wire must match the Server's.
+     */
+    it('seals and opens through a frame cipher byte for byte like the synchronous codec', async () => {
+        const payload = { type: 'terminal.output', chunk: new Uint8Array([1, 2, 3]) };
+        const sealed = await sealMobilePayloadWith(nobleMobileFrameCipher, key, context, payload);
+        expect(sealed).toEqual(sealMobilePayload(key, context, payload));
+        const { ciphertext } = decodeSealedFrame(sealed);
+        await expect(
+            openMobilePayloadWith(nobleMobileFrameCipher, key, context, ciphertext),
+        ).resolves.toEqual(openMobilePayload(key, context, ciphertext));
+        await expect(
+            openMobilePayloadWith(
+                nobleMobileFrameCipher,
+                key,
+                { ...context, counter: 1 },
+                ciphertext,
+            ),
+        ).rejects.toThrow();
+        await expect(
+            sealMobilePayloadWith(nobleMobileFrameCipher, key.subarray(1), context, payload),
+        ).rejects.toThrow('Session key length is invalid');
+    });
+
     it('round-trips a deterministic AES-256-GCM frame', () => {
         const ciphertext = sealMobileFrame(key, context, plaintext);
         expect(encodeHex(ciphertext)).toBe(
