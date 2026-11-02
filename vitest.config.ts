@@ -114,6 +114,14 @@ export const workspaceAliases = {
         'packages/client/src/supervise/index.ts',
     ),
     '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
+    '@caxri/markdown/file-reference': resolve(
+        import.meta.dirname,
+        'packages/markdown/src/file-reference.ts',
+    ),
+    '@caxri/markdown/prose-web-links': resolve(
+        import.meta.dirname,
+        'packages/markdown/src/prose-web-links.ts',
+    ),
     '@caxri/markdown': resolve(import.meta.dirname, 'packages/markdown/src/index.ts'),
     '@caxri/mobile-transport': resolve(
         import.meta.dirname,

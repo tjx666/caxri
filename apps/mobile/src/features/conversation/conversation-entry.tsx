@@ -6,6 +6,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import type { AgentTimelineItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
+import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationHandoffCard } from './conversation-handoff-card';
 import { ConversationMarkdown } from './conversation-markdown';
@@ -176,7 +177,20 @@ export const ConversationEntry = memo(
                                 />
                             ) : (
                                 <Text style={[styles.userText, { color: theme.text }]}>
-                                    {user.text}
+                                    {user.runs.map((run, index) =>
+                                        run.kind === 'url' ? (
+                                            <Text
+                                                accessibilityRole="link"
+                                                key={index}
+                                                onPress={() => openLink(run.url)}
+                                                style={{ color: theme.primary }}
+                                            >
+                                                {run.text}
+                                            </Text>
+                                        ) : (
+                                            run.text
+                                        ),
+                                    )}
                                 </Text>
                             )}
                         </ConversationMessagePress>
