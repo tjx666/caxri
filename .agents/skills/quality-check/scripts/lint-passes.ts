@@ -24,6 +24,7 @@ const FORMAT_EXTENSIONS = new Set([
     '.json',
     '.jsonc',
     '.md',
+    '.svg',
     '.toml',
     '.yaml',
     '.yml',
