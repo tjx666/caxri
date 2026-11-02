@@ -66,6 +66,13 @@ inconsistent timing data described above.
 | Workbench         |                1 |               8 |                          6 ms |
 | Secondary Sidebar |                1 |               6 |                          5 ms |
 
+The durations are local budgets. When `CAXRI_E2E_RUNNER_KIND` is `github-hosted` (the `e2e-perf`
+job sets it), the spec swaps in hosted duration ceilings of `16 ms`, `8 ms`, and `10 ms`. Across 26
+hosted `macos-15` receipts the render counts never moved, but the durations swung up to fivefold
+with the runner (Primary Sidebar `1.8–9.2 ms`), and two runs failed the local budget with unchanged
+render counts (#3455). Each hosted ceiling is about 1.75 times the observed maximum, so it only
+catches a catastrophe; the render-count budgets stay the same on every runner.
+
 The benchmark also requires one `session.select`, one `app.bootstrap`, each request below `100 ms`,
 an end-to-end duration below `500 ms`, no frame interval at or above `100 ms`, a focused and
 uninterrupted profiling window, bounded sample storage, and a matching structured-log record. The
