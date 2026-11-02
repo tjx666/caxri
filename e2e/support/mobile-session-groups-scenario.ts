@@ -6,7 +6,6 @@ import { checkBounds, waitForCheck, waitForNoCheck } from './mobile-agent-chat-h
 import type { MobileSemanticNode } from './mobile-android';
 import {
     adbShell,
-    androidBounds,
     mobileDisplayState,
     mobileRegionFingerprint,
     mobileSemantics,
@@ -90,6 +89,7 @@ async function swipeList(serial: string, fromShare: number, toShare: number): Pr
 async function holdSwipeFollowingFinger(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
+    pages: { current: string; next: string },
     fromShare: number,
     toShare: number,
 ): Promise<void> {
@@ -117,25 +117,25 @@ async function holdSwipeFollowingFinger(
         ].join('; '),
     ]);
     let held: string;
-    let heldRows: Array<NonNullable<ReturnType<typeof androidBounds>>>;
+    let heldNodes: MobileSemanticNode[];
     try {
         held = await mobileRegionFingerprint(serial, list);
         await capture(environment, 'holding-swipe', artifacts);
-        // The held finger leaves the screen idle, so UIAutomator can read both pages' rows mid-swipe.
-        heldRows = (await mobileSemantics(serial))
-            .filter(({ checkId }) => checkId.startsWith('session-row-'))
-            .map(({ bounds }) => androidBounds(bounds))
-            .filter((bounds) => bounds !== null);
+        // The held finger leaves the screen idle, so UIAutomator can read both pages mid-swipe. Rows repeat their check
+        // ids on both pages and the dump keeps only the first, so each page is read by its own id.
+        heldNodes = await mobileSemantics(serial);
     } finally {
         await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
     }
     if (held === resting) throw new Error('The Session list did not follow the finger mid-swipe');
-    // UIAutomator clips bounds to the screen: the current page's rows end short of the right edge, and the next page's
-    // rows start past the left edge.
+    // UIAutomator clips bounds to the screen: the current page ends short of the right edge, and the next page starts
+    // past the left edge.
     const margin = width * 0.2;
-    if (heldRows.every((row) => !(row.right < list.right - margin)))
+    const current = checkBounds(heldNodes, pages.current);
+    if (!current || current.right > list.right - margin)
         throw new Error('The current page did not move left with the finger');
-    if (heldRows.every((row) => !(row.left > list.left + margin)))
+    const next = checkBounds(heldNodes, pages.next);
+    if (!next || next.left < list.left + margin)
         throw new Error('The next Project page did not slide in from the right edge');
 }
 
@@ -248,7 +248,16 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'short-row-drag', artifacts);
 
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
-        await holdSwipeFollowingFinger(environment, artifacts, 0.8, 0.2);
+        await holdSwipeFollowingFinger(
+            environment,
+            artifacts,
+            {
+                current: 'session-page-project:all',
+                next: `session-page-project:${fixture.allowedProjectId}`,
+            },
+            0.8,
+            0.2,
+        );
         await waitForMobile(
             () => mobileSemantics(serial),
             (current) => isFilterSelected(current, projectChip),

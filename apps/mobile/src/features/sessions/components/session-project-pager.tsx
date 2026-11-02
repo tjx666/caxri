@@ -32,17 +32,23 @@ const PagerPage = ({
     children,
     index,
     position,
+    testID,
     width,
 }: {
     children: ReactNode;
     index: number;
     position: SharedValue<number>;
+    testID: string;
     width: number;
 }) => {
     const style = useAnimatedStyle(() => ({
         transform: [{ translateX: index * width - position.get() }],
     }));
-    return <Animated.View style={[styles.page, style]}>{children}</Animated.View>;
+    return (
+        <Animated.View style={[styles.page, style]} testID={testID}>
+            {children}
+        </Animated.View>
+    );
 };
 
 /**
@@ -63,6 +69,9 @@ export const SessionProjectPager = ({
      */
     onSettle: (index: number) => void;
     pageCount: number;
+    /**
+     * A stable id per page; it keys the page and names it `session-page-<key>` for Acceptance.
+     */
     pageKey: (index: number) => string;
     renderPage: (index: number) => ReactNode;
 }) => {
@@ -122,6 +131,7 @@ export const SessionProjectPager = ({
                             index={index}
                             key={pageKey(index)}
                             position={position}
+                            testID={`session-page-${pageKey(index)}`}
                             width={width}
                         >
                             {renderPage(index)}
