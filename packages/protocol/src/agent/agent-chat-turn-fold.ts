@@ -1,5 +1,6 @@
 import type { AgentChatItem, AgentChatTurn } from './agent-chat-contract.js';
 import { isAgentChatItemVisible } from './agent-chat-presentation.js';
+import { isAgentChatWorkItem } from './agent-chat-work.js';
 
 /**
  * Where one fold sits in its turn. A message steered into a running turn starts a new segment, and so does a
@@ -34,6 +35,36 @@ export function agentChatFinalReplyId(items: readonly AgentChatItem[]): string |
         if (item.type === 'agentMessage' && isAgentChatItemVisible(item)) return item.id;
     }
     return undefined;
+}
+
+const NO_STEER_REPLIES: ReadonlySet<string> = new Set();
+
+/**
+ * The reasoning that opens the Agent's response to each message steered into its turn, when a tool call rather than an
+ * Agent message follows it. A model sometimes answers the steer only in its thinking and goes straight back to work, so
+ * that thought is the only answer the user gets: a running turn shows it expanded, and a finished turn keeps it out of
+ * the fold. A reasoning run still streaming, or one followed by a reply, is left alone: the reply is the answer.
+ */
+export function agentChatSteerReplyThoughtIds(
+    items: readonly AgentChatItem[],
+): ReadonlySet<string> {
+    const ids = new Set<string>();
+    let pending: string[] | undefined;
+    for (const item of items) {
+        if (!isAgentChatItemVisible(item)) continue;
+        if (item.type === 'userMessage') {
+            pending = item.delivery === 'steered' ? [] : undefined;
+            continue;
+        }
+        if (!pending) continue;
+        if (item.type === 'reasoning') {
+            pending.push(item.id);
+            continue;
+        }
+        if (isAgentChatWorkItem(item)) for (const id of pending) ids.add(id);
+        pending = undefined;
+    }
+    return ids.size === 0 ? NO_STEER_REPLIES : ids;
 }
 
 /**
@@ -86,12 +117,16 @@ function turnSegments(
  * compacted twice otherwise showed both notices back to back below one fold, reading as one compaction repeated. A
  * segment that ends at a compaction keeps no reply in view (its last Agent message is commentary, not an answer) unless
  * it holds the final reply, as when the turn compacted right after answering.
+ *
+ * A steer the Agent answered only in its thinking (`agentChatSteerReplyThoughtIds`) keeps that thought in view too:
+ * folding it once the turn ended hid the only answer the steer got, which then read as ignored.
  */
 export function foldAgentChatTurn(
     visible: readonly AgentChatItem[],
     finalReplyId: string | undefined,
 ): AgentChatTurnFoldPart[] {
     const segments = turnSegments(visible, finalReplyId);
+    const steerReplies = agentChatSteerReplyThoughtIds(visible);
     return segments.flatMap((items, index) => {
         const isClosesTurn = index === segments.length - 1;
         const next = isClosesTurn ? undefined : segments[index + 1][0];
@@ -102,6 +137,7 @@ export function foldAgentChatTurn(
               : undefined;
         const isKept = (item: AgentChatItem): boolean =>
             item.type === 'userMessage' ||
+            steerReplies.has(item.id) ||
             (replyId !== undefined && item.id === replyId) ||
             (finalReplyId !== undefined && item.id === finalReplyId) ||
             (item.type === 'notice' && item.kind !== 'retrying');
