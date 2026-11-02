@@ -183,7 +183,11 @@ export const ConversationEntry = memo(
                                                 accessibilityRole="link"
                                                 key={index}
                                                 onPress={() => openLink(run.url)}
-                                                style={{ color: theme.primary }}
+                                                // Underlined like a reply's link: a phone has no hover to reveal it.
+                                                style={{
+                                                    color: theme.primary,
+                                                    textDecorationLine: 'underline',
+                                                }}
                                             >
                                                 {run.text}
                                             </Text>
