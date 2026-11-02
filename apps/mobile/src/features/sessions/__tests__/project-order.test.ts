@@ -78,17 +78,52 @@ describe('projectDropIndex and projectChipShift', () => {
 });
 
 describe('projectAutoScrollStep', () => {
-    const base = { chipWidth: 40, edge: 40, maxOffset: 200, maxStep: 10, viewportWidth: 300 };
+    const base = {
+        chipWidth: 40,
+        edge: 40,
+        maxOffset: 200,
+        maxStep: 10,
+        slop: 8,
+        viewportWidth: 300,
+    };
 
-    it('scrolls toward the edge the chip is held against', () => {
-        expect(projectAutoScrollStep({ ...base, chipLeft: 280, offset: 0 })).toBe(10);
-        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 100 })).toBe(-10);
-        expect(projectAutoScrollStep({ ...base, chipLeft: 120, offset: 100 })).toBe(0);
+    it('scrolls toward the edge the chip is dragged against', () => {
+        expect(projectAutoScrollStep({ ...base, chipLeft: 280, offset: 0, translation: 20 })).toBe(
+            10,
+        );
+        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 100, translation: -20 })).toBe(
+            -10,
+        );
+        expect(
+            projectAutoScrollStep({ ...base, chipLeft: 120, offset: 100, translation: -20 }),
+        ).toBe(0);
+    });
+
+    it('keeps the strip still while a chip picked up near an edge has not been dragged toward it', () => {
+        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 100, translation: 0 })).toBe(
+            0,
+        );
+        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 100, translation: -4 })).toBe(
+            0,
+        );
+        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 100, translation: 20 })).toBe(
+            0,
+        );
+        expect(projectAutoScrollStep({ ...base, chipLeft: 280, offset: 0, translation: 0 })).toBe(
+            0,
+        );
+        expect(projectAutoScrollStep({ ...base, chipLeft: 280, offset: 0, translation: -20 })).toBe(
+            0,
+        );
     });
 
     it('stops at either end of the strip', () => {
-        expect(projectAutoScrollStep({ ...base, chipLeft: 280, offset: 196 })).toBe(4);
-        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 0 })).toBe(0);
+        expect(
+            projectAutoScrollStep({ ...base, chipLeft: 280, offset: 196, translation: 20 }),
+        ).toBe(4);
+        expect(projectAutoScrollStep({ ...base, chipLeft: 0, offset: 0, translation: -20 })).toBe(
+            0,
+        );
     });
 });
 

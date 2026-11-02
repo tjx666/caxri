@@ -56,7 +56,10 @@ export interface MobileAcceptanceFixture {
         menuState(): Promise<SyntheticMenuState>;
         seedChanges(kind?: MobileChangesFixtureKind): Promise<void>;
     };
-    pair(): Promise<{ deviceId: string }>;
+    /**
+     * Pairs the emulator with the allowed Project plus `extraProjectIds`, so a case can show the phone more Projects.
+     */
+    pair(extraProjectIds?: string[]): Promise<{ deviceId: string }>;
     pairFromDesktopUi(trigger: () => Promise<void>): Promise<{ deviceId: string }>;
     failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
@@ -110,6 +113,11 @@ interface CreateMobileAcceptanceFixtureInput {
     dropSubmitAcknowledgement?: boolean;
     delayPairingResult?: boolean;
     isolatedProjectHome?: boolean;
+    /**
+     * Empty folders under `testDirectory` queued after the allowed and denied roots as the folder picker's results, for
+     * a case to add as Projects with `dialog.selectDirectory` then `project.create`.
+     */
+    extraProjectRootNames?: string[];
 }
 
 export async function createMobileAcceptanceFixture(
@@ -121,6 +129,7 @@ export async function createMobileAcceptanceFixture(
     const userData = join(testDirectory, 'user-data');
     const allowedRoot = join(testDirectory, 'allowed-project');
     const deniedRoot = join(testDirectory, 'denied-project');
+    const extraRoots = (input.extraProjectRootNames ?? []).map((name) => join(testDirectory, name));
     const inputCapture = join(testDirectory, 'agent-input.bin');
     const claudeScriptPath = input.claudeScript
         ? join(testDirectory, 'claude-script.json')
@@ -137,6 +146,7 @@ export async function createMobileAcceptanceFixture(
     await Promise.all([
         mkdir(allowedRoot, { recursive: true }),
         mkdir(deniedRoot, { recursive: true }),
+        ...extraRoots.map((root) => mkdir(root, { recursive: true })),
         ...(input.isolatedProjectHome
             ? [
                   mkdir(join(userData, 'e2e-agents', 'home', 'mobile-new-project', 'nested'), {
@@ -198,7 +208,7 @@ export async function createMobileAcceptanceFixture(
                     CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY: '1',
                 }),
                 CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME: 'Caxri Test Host',
-                CAXRI_TEST_ROOT_PATHS: JSON.stringify([allowedRoot, deniedRoot]),
+                CAXRI_TEST_ROOT_PATHS: JSON.stringify([allowedRoot, deniedRoot, ...extraRoots]),
                 ...(input.mode === 'shell-conversation' && {
                     SHELL: syntheticShell,
                 }),
@@ -528,12 +538,12 @@ export async function createMobileAcceptanceFixture(
                 return pairMobileEncryptedPeer(pairing.pairingLink);
             },
         }),
-        pair: async () => {
+        pair: async (extraProjectIds = []) => {
             await pageRequest(running.page, 'mobile.access.enable');
             const pairing = await pageRequest<{ pairingLink: string }>(
                 running.page,
                 'mobile.pairing.create',
-                { projectIds: [allowedProjectId] },
+                { projectIds: [allowedProjectId, ...extraProjectIds] },
             );
             await openMobilePairingLink(input.serial, pairing.pairingLink);
             return waitForPairedDevice();

@@ -431,6 +431,141 @@ async function refreshExpandedTree(environment: Environment, artifacts: string[]
     }
 }
 
+/**
+ * `MOB-PROJECT-CHIP-HOLD-01`: with more Projects than the strip can show, the strip is scrolled away from its start and
+ * a chip in its middle is held still past the pick-up delay. The strip must stay where it is; only dragging the chip on
+ * toward the right edge scrolls it.
+ */
+async function holdProjectChip(environment: Environment, artifacts: string[]): Promise<void> {
+    const rootNames = Array.from({ length: 8 }, (_, index) => `strip-project-${index + 1}`);
+    const fixture = await createMobileAcceptanceFixture({
+        extraProjectRootNames: rootNames,
+        isolatedProjectHome: true,
+        mode: 'launch-failure',
+        serial: environment.serial,
+    });
+    try {
+        const extraIds: string[] = [];
+        /* eslint-disable no-await-in-loop -- Each Project takes the folder picker's next queued root, in order. */
+        for (const name of rootNames) {
+            const rootPath = await pageRequest<string>(
+                fixture.running.page,
+                'dialog.selectDirectory',
+            );
+            // The picker may hand back the real path of the temporary directory, so compare the folder name.
+            if (!rootPath.endsWith(`/${name}`))
+                throw new Error('The folder picker skipped a Project root');
+            const project = await pageRequest<{ id: string }>(
+                fixture.running.page,
+                'project.create',
+                { rootPath },
+            );
+            extraIds.push(project.id);
+        }
+        /* eslint-enable no-await-in-loop */
+        await fixture.pair(extraIds);
+        const isProjectChip = (checkId: string) =>
+            checkId.startsWith('project-filter-') && checkId !== 'project-filter-all';
+        const start = await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (current) =>
+                hasCheck(current, 'session-project-filters') &&
+                current.filter(({ checkId }) => isProjectChip(checkId)).length >= 2,
+        );
+        const strip = androidBounds(
+            start.find(({ checkId }) => checkId === 'session-project-filters')!.bounds,
+        );
+        if (!strip) throw new Error('The Project strip has no bounds');
+        const y = Math.floor((strip.top + strip.bottom) / 2);
+        const unscrolled = await mobileRegionFingerprint(environment.serial, strip);
+        await capture(environment, 'before', artifacts);
+
+        // Scroll the strip partway with a slow swipe, as a person looking for a later Project would.
+        await adbShell(environment.serial, [
+            'input',
+            'swipe',
+            String(strip.right - 80),
+            String(y),
+            String(Math.floor((strip.left + strip.right) / 2)),
+            String(y),
+            '600',
+        ]);
+        const scrolled = await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (current) => current.filter(({ checkId }) => isProjectChip(checkId)).length >= 2,
+        );
+        if ((await mobileRegionFingerprint(environment.serial, strip)) === unscrolled)
+            throw new Error('The swipe did not scroll the Project strip');
+        /**
+         * A pick-up would also change the strip's pixels; only a scroll carries All to the left or off screen.
+         */
+        const allLeft = (nodes: typeof start) => {
+            const node = nodes.find(({ checkId }) => checkId === 'project-filter-all');
+            return (node && androidBounds(node.bounds)?.left) ?? -Infinity;
+        };
+        if (!(allLeft(scrolled) < allLeft(start)))
+            throw new Error('The swipe picked up a chip instead of scrolling the strip');
+        // UIAutomator lists only the chips on screen. Hold one wholly on screen with room for a region on its left; a
+        // chip is wider than the gap between the two 48dp auto-scroll zones, so it may end inside the right one.
+        const heldChip = scrolled
+            .filter(({ checkId }) => isProjectChip(checkId))
+            .map(({ bounds }) => androidBounds(bounds))
+            .find(
+                (bounds) =>
+                    bounds !== null &&
+                    bounds.left > strip.left + 160 &&
+                    bounds.right < strip.right - 16,
+            );
+        if (!heldChip) throw new Error('No Project chip sits in the middle of the strip');
+        const x = Math.floor((heldChip.left + heldChip.right) / 2);
+        // Only scrolling changes the strip left of the held chip: holding it still or dragging it right never moves the
+        // chips before it.
+        const restOfStrip = {
+            bottom: heldChip.bottom + 4,
+            left: strip.left,
+            right: heldChip.left - 16,
+            top: heldChip.top - 4,
+        };
+        const resting = await mobileRegionFingerprint(environment.serial, restOfStrip);
+        await capture(environment, 'scrolled', artifacts);
+
+        await adbShell(environment.serial, [
+            [`input motionevent DOWN ${x} ${y}`, 'sleep 1.5'].join('; '),
+        ]);
+        const held = await mobileRegionFingerprint(environment.serial, restOfStrip);
+        await capture(environment, 'holding', artifacts);
+        const isHeldStill = held === resting;
+
+        const steps = 6;
+        const toX = strip.right - 4;
+        await adbShell(environment.serial, [
+            [
+                ...Array.from(
+                    { length: steps },
+                    (_, index) =>
+                        `input motionevent MOVE ${Math.round(x + ((toX - x) * (index + 1)) / steps)} ${y}`,
+                ),
+                'sleep 1',
+            ].join('; '),
+        ]);
+        const dragged = await mobileRegionFingerprint(environment.serial, restOfStrip);
+        await capture(environment, 'dragged-to-edge', artifacts);
+        await adbShell(environment.serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
+        const isDraggedScrolls = dragged !== held;
+        await finish(environment, artifacts, {
+            draggedScrolls: isDraggedScrolls,
+            heldStill: isHeldStill,
+            status: isHeldStill && isDraggedScrolls ? 'passed' : 'failed',
+        });
+        if (!isHeldStill)
+            throw new Error('The strip scrolled while the picked-up chip was held still');
+        if (!isDraggedScrolls)
+            throw new Error('Dragging the chip to the edge did not scroll the strip');
+    } finally {
+        await fixture.stop();
+    }
+}
+
 export async function executeMobileProjectPanelsScenario(
     environment: Environment,
     artifacts: string[],
@@ -442,6 +577,10 @@ export async function executeMobileProjectPanelsScenario(
         }
         case 'MOB-PROJECT-REORDER-01': {
             await reorderProjectFilters(environment, artifacts);
+            break;
+        }
+        case 'MOB-PROJECT-CHIP-HOLD-01': {
+            await holdProjectChip(environment, artifacts);
             break;
         }
         case 'MOB-PANELS-01': {

@@ -38,6 +38,10 @@ const PICK_UP_DELAY_MS = 300;
  */
 const AUTO_SCROLL_EDGE = 48;
 const AUTO_SCROLL_MAX_STEP = 8;
+/**
+ * A held chip must move this far toward an edge before that edge scrolls the strip.
+ */
+const AUTO_SCROLL_SLOP = 8;
 const SETTLE_MS = 150;
 const CHIP_GAP = mobileSpace.sm;
 
@@ -116,6 +120,8 @@ export const ProjectFilterChips = ({
             maxOffset: Math.max(0, contentWidth.get() - viewportWidth.get()),
             maxStep: AUTO_SCROLL_MAX_STEP,
             offset,
+            slop: AUTO_SCROLL_SLOP,
+            translation: drag.translation.get(),
             viewportWidth: viewportWidth.get(),
         });
         if (step === 0) return;
@@ -341,8 +347,11 @@ const ProjectChip = ({
         };
     });
     return (
-        <GestureDetector gesture={pan}>
-            <Animated.View onLayout={(event) => onLayout(index, event)} style={animatedStyle}>
+        // The chip measures its place outside the GestureDetector: Gesture Handler 3 renders the detector as a native
+        // node of its own (`display: contents`), and a layout measured inside it read x = 0 for every chip on Android.
+        // The auto-scroll then took every held chip for one at the strip's left edge and scrolled back to the start.
+        <Animated.View onLayout={(event) => onLayout(index, event)} style={animatedStyle}>
+            <GestureDetector gesture={pan}>
                 <Chip
                     accessibilityActions={onMove ? moveActions : undefined}
                     accessibilityHint={reorderHint}
@@ -357,8 +366,8 @@ const ProjectChip = ({
                     testID={`project-filter-${project.id}`}
                     theme={theme}
                 />
-            </Animated.View>
-        </GestureDetector>
+            </GestureDetector>
+        </Animated.View>
     );
 };
 
