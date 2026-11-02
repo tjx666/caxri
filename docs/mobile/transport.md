@@ -57,6 +57,14 @@ version 4 encoding hex-encoded it inside the JSON and then hex-encoded the ciphe
 envelope, which put about four bytes on the wire for every Terminal byte. Alma made the same move for its remote connection (JSON plus base64 to a binary inner frame negotiated in the handshake); Caxri bumps the transport version instead of negotiating, since no compatibility release exists yet. Either side closes a
 connection that sends a text frame after authentication or a binary frame before it.
 
+The phone seals and opens frames through `sealMobilePayloadWith` and `openMobilePayloadWith` with the
+platform's native AES-GCM (`expo-crypto`, wired in
+`apps/mobile/src/features/connection/expo-frame-cipher.ts`); the Server keeps the synchronous
+pure-JS cipher. Hermes has no JIT: on an Android emulator release build the pure-JS cipher took
+10.9 ms to open a 24 KiB Terminal frame and 8.9 ms to seal one, against 0.4 ms and 0.6 ms natively,
+with byte-identical frames. Native sealing is asynchronous, so `sendSealed` takes the counter when
+called and writes frames in that order, the only order the Server's replay guard accepts.
+
 The shared transport package validates each outer frame. `request.request` and `reply.reply` are
 then validated by the protocol package at their respective endpoints. They keep the existing
 `CommandRequestEnvelope` and `CommandReplyEnvelope`; `reply.reply.id` is the single correlation key

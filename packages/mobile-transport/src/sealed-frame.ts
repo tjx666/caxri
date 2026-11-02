@@ -30,6 +30,37 @@ const frameCipher = (key: Uint8Array, context: MobileFrameContext) => {
     );
 };
 
+/**
+ * AES-256-GCM over one frame's key, nonce, and additional data, returning the ciphertext with its 16-byte tag appended.
+ * The phone supplies a native implementation: Hermes has no JIT, and the pure-JS cipher took about 10 ms to open one 24
+ * KiB Terminal frame on an Android emulator against 0.3 ms natively (#3431).
+ */
+export interface MobileFrameCipher {
+    open(
+        key: Uint8Array,
+        nonce: Uint8Array,
+        additionalData: Uint8Array,
+        ciphertext: Uint8Array,
+    ): Promise<Uint8Array>;
+    seal(
+        key: Uint8Array,
+        nonce: Uint8Array,
+        additionalData: Uint8Array,
+        plaintext: Uint8Array,
+    ): Promise<Uint8Array>;
+}
+
+/**
+ * The pure-JS cipher, synchronous underneath; a failure may throw before the promise exists, which every caller in an
+ * `async` function turns into a rejection.
+ */
+export const nobleMobileFrameCipher: MobileFrameCipher = {
+    open: (key, nonce, additionalData, ciphertext) =>
+        Promise.resolve(gcm(key, nonce, additionalData).decrypt(ciphertext)),
+    seal: (key, nonce, additionalData, plaintext) =>
+        Promise.resolve(gcm(key, nonce, additionalData).encrypt(plaintext)),
+};
+
 export const sealMobileFrame = (
     key: Uint8Array,
     context: MobileFrameContext,
@@ -157,6 +188,49 @@ export const openMobilePayload = (
     context: MobileFrameContext,
     ciphertext: Uint8Array,
 ): unknown => decodeMobilePlaintext(openMobileFrame(key, context, ciphertext));
+
+/**
+ * {@link sealMobilePayload} through `cipher`, with the same size, key, and nonce checks.
+ */
+export const sealMobilePayloadWith = async (
+    cipher: MobileFrameCipher,
+    key: Uint8Array,
+    context: MobileFrameContext,
+    payload: unknown,
+): Promise<Uint8Array<ArrayBuffer>> => {
+    const plaintext = encodeMobilePlaintext(payload);
+    if (plaintext.length > MAX_SEALED_PLAINTEXT_BYTES) throw new Error('Mobile frame is too large');
+    if (key.length !== SESSION_KEY_BYTES) throw new Error('Session key length is invalid');
+    const ciphertext = await cipher.seal(
+        key,
+        nonceForCounter(context.direction, context.counter),
+        additionalDataForFrame(context),
+        plaintext,
+    );
+    return encodeSealedFrame(context.counter, ciphertext);
+};
+
+/**
+ * {@link openMobilePayload} through `cipher`, with the same size, key, and nonce checks.
+ */
+export const openMobilePayloadWith = async (
+    cipher: MobileFrameCipher,
+    key: Uint8Array,
+    context: MobileFrameContext,
+    ciphertext: Uint8Array,
+): Promise<unknown> => {
+    if (ciphertext.length < gcm.tagLength || ciphertext.length > MOBILE_GATEWAY_MAX_FRAME_BYTES)
+        throw new Error('Sealed mobile frame size is invalid');
+    if (key.length !== SESSION_KEY_BYTES) throw new Error('Session key length is invalid');
+    return decodeMobilePlaintext(
+        await cipher.open(
+            key,
+            nonceForCounter(context.direction, context.counter),
+            additionalDataForFrame(context),
+            ciphertext,
+        ),
+    );
+};
 
 /**
  * WebSocket delivery is ordered, so accepting only the exact next counter rejects replayed frames.

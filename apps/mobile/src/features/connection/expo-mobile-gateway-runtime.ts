@@ -4,10 +4,12 @@ import * as Crypto from 'expo-crypto';
 import * as Network from 'expo-network';
 import * as SecureStore from 'expo-secure-store';
 
+import { expoFrameCipher } from './expo-frame-cipher';
 import type { MobileGatewayRuntime } from './mobile-gateway-client';
 import { createMobileRouteHints } from './route-hints';
 
 export const expoMobileGatewayRuntime: MobileGatewayRuntime = {
+    frameCipher: expoFrameCipher,
     isCellular: async () =>
         (await Network.getNetworkStateAsync()).type === Network.NetworkStateType.CELLULAR,
     openWebSocket: (url) => new WebSocket(url),

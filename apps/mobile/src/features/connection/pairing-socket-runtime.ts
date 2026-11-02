@@ -24,6 +24,7 @@ export const createPairingSocketRuntime = (
                 sockets.add(socket);
                 return socket;
             },
+            frameCipher: source.frameCipher,
             platform: source.platform,
             randomBytes: (length) => source.randomBytes(length),
         },

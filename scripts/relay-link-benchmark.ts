@@ -32,6 +32,7 @@ import process from 'node:process';
 import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
 
+import { nobleMobileFrameCipher } from '@caxri/mobile-transport';
 import type { Principal } from '@caxri/protocol';
 import { CaxriError, emptyAgentChatSnapshot } from '@caxri/protocol';
 
@@ -200,6 +201,7 @@ const cannedResult = (method: string): unknown => {
 const createRuntime = (): MobileGatewayRuntime => {
     const stored = new Map<string, string>();
     return {
+        frameCipher: nobleMobileFrameCipher,
         openWebSocket: (url) => new WebSocket(url),
         platform: 'android',
         randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),

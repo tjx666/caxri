@@ -1,4 +1,4 @@
-import { mobileClientCloseReasons } from '@caxri/mobile-transport';
+import { mobileClientCloseReasons, nobleMobileFrameCipher } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MobileGatewayRouteKind } from '../gateway-routes';
@@ -22,6 +22,7 @@ const reconnectThrough = (ready?: ConstructorParameters<typeof ConnectGatewaySoc
     const saved: MobileGatewayRouteKind[] = [];
     const sockets: ConnectGatewaySocket[] = [];
     const runtime: MobileGatewayRuntime = {
+        frameCipher: nobleMobileFrameCipher,
         openWebSocket: () => {
             const socket = new ConnectGatewaySocket(ready);
             sockets.push(socket);
@@ -45,10 +46,19 @@ const reconnectThrough = (ready?: ConstructorParameters<typeof ConnectGatewaySoc
     return { runtime, saved, socket };
 };
 
+/**
+ * Sealing is asynchronous, so a request reaches the socket a few microtasks after the call; fake timers stay untouched.
+ */
+async function flushSealedWrites(): Promise<void> {
+    // eslint-disable-next-line no-await-in-loop -- each turn drains one microtask of the seal-then-write chain.
+    for (let index = 0; index < 10; index += 1) await Promise.resolve();
+}
+
 describe('mobile gateway client', () => {
     it('disconnects a half-open socket when an ordinary request times out', async () => {
         let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => {
                 socket = new FakeGatewaySocket(false, 0, true);
                 return socket as unknown as WebSocket;
@@ -81,6 +91,7 @@ describe('mobile gateway client', () => {
     it('pairs, persists only the durable credential, and sends a typed encrypted request', async () => {
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new FakeGatewaySocket() as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),
@@ -109,6 +120,7 @@ describe('mobile gateway client', () => {
         const socket = new FakeGatewaySocket(false, 0, false, true);
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),
@@ -122,6 +134,7 @@ describe('mobile gateway client', () => {
         });
         const first = paired.connection.request('project.query', { mode: 'list' });
         const second = paired.connection.request('project.query', { mode: 'list' });
+        await flushSealedWrites();
         expect(socket.requestCount).toBe(2);
         socket.releaseHeldRequests();
         await expect(Promise.all([first, second])).resolves.toHaveLength(2);
@@ -132,6 +145,7 @@ describe('mobile gateway client', () => {
         const socket = new FakeGatewaySocket();
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),
@@ -157,6 +171,7 @@ describe('mobile gateway client', () => {
     it('delivers a pre-ACK resync before subscribe resolves', async () => {
         const socket = new FakeGatewaySocket(false, 0, false, false, true);
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -180,6 +195,7 @@ describe('mobile gateway client', () => {
     it('pauses heartbeats in background and resumes them on the foreground connection', async () => {
         const socket = new FakeGatewaySocket();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -211,6 +227,7 @@ describe('mobile gateway client', () => {
     it('restarts the heartbeat after a valid reply saves an in-flight write from a deferred timeout', async () => {
         const socket = new FakeGatewaySocket(false, 0, false, true, false, true);
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -245,6 +262,7 @@ describe('mobile gateway client', () => {
         const socket = new FakeGatewaySocket(false, 0, false, true);
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),
@@ -264,6 +282,7 @@ describe('mobile gateway client', () => {
             const firstRejected = expect(first).rejects.toThrow('Caxri did not respond in time.');
             await vi.advanceTimersByTimeAsync(1_000);
             const second = paired.connection.request('project.query', { mode: 'list' });
+            await flushSealedWrites();
             expect(socket.requestCount).toBe(2);
             await vi.advanceTimersByTimeAsync(14_000);
             await firstRejected;
@@ -272,6 +291,7 @@ describe('mobile gateway client', () => {
             await Promise.resolve();
             const retry = paired.connection.request('project.query', { mode: 'list' });
             const retryRejected = expect(retry).rejects.toThrow('Caxri did not respond in time.');
+            await flushSealedWrites();
             expect(socket.requestCount).toBe(2);
             socket.releaseHeldRequestAt(1);
             await expect(second).resolves.toMatchObject({ view: 'paired-device' });
@@ -287,6 +307,7 @@ describe('mobile gateway client', () => {
     it('clears the durable credential only after an authenticated revoked payload', async () => {
         let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => {
                 socket = new FakeGatewaySocket();
                 return socket as unknown as WebSocket;
@@ -314,6 +335,7 @@ describe('mobile gateway client', () => {
 
     it('consumes a delivered revoked payload when the peer closes during pairing handoff', async () => {
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new FakeGatewaySocket(true) as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -334,6 +356,7 @@ describe('mobile gateway client', () => {
     it('preserves the durable credential when an unauthenticated frame imitates revocation', async () => {
         let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => {
                 socket = new FakeGatewaySocket();
                 return socket as unknown as WebSocket;
@@ -359,6 +382,7 @@ describe('mobile gateway client', () => {
     it('terminates and clears a pending request when the socket send fails synchronously', async () => {
         let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => {
                 socket = new FakeGatewaySocket();
                 return socket as unknown as WebSocket;
@@ -385,6 +409,7 @@ describe('mobile gateway client', () => {
 
     it('classifies an unverifiable reconnect without clearing the stored credential', async () => {
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new UnverifiedReconnectSocket() as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -401,6 +426,7 @@ describe('mobile gateway client', () => {
     it('tells the Server its route grace and socket open time in the reconnect hello', async () => {
         const hellos: unknown[] = [];
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             isCellular: () => Promise.resolve(true),
             openWebSocket: () => {
                 const socket = new UnverifiedReconnectSocket();

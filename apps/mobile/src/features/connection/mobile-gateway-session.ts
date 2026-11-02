@@ -22,8 +22,8 @@ import {
     MobileReplayGuard,
     mobileServerHelloSchema,
     mobileVersionMismatchSchema,
-    openMobilePayload,
-    sealMobilePayload,
+    openMobilePayloadWith,
+    sealMobilePayloadWith,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 
@@ -60,6 +60,11 @@ export interface EstablishedSession {
      */
     route: MobileGatewayRouteKind;
     runtime: MobileGatewayRuntime;
+    /**
+     * Settles once every frame sent so far reached the socket. Sealing is asynchronous, so frames are written in this
+     * order, which is also their counter order, the only order the Server's replay guard accepts.
+     */
+    sendQueue: Promise<void>;
     socket: WebSocket;
 }
 
@@ -71,7 +76,8 @@ export const receiveSealed = async (
     if (!(frame instanceof Uint8Array)) throw new Error('Expected a binary sealed frame.');
     const { ciphertext, counter } = decodeSealedFrame(frame);
     session.inbound.assertAndAdvance(counter);
-    return openMobilePayload(
+    return openMobilePayloadWith(
+        session.runtime.frameCipher,
         session.keys.serverToClient,
         {
             connectionId: session.connectionId,
@@ -83,19 +89,40 @@ export const receiveSealed = async (
     );
 };
 
-export const sendSealed = (session: EstablishedSession, payload: unknown): void => {
-    session.socket.send(
-        sealMobilePayload(
-            session.keys.clientToServer,
-            {
-                connectionId: session.connectionId,
-                counter: session.outbound.take(),
-                deviceId: session.deviceId,
-                direction: 'client-to-server',
-            },
-            payload,
-        ),
+/**
+ * The queue only orders writes; the caller of the failed send owns its rejection.
+ */
+const settled = async (promise: Promise<void>): Promise<void> => {
+    try {
+        await promise;
+    } catch {
+        // Reported to the sender through its own promise.
+    }
+};
+
+/**
+ * Seals `payload` under the next counter and writes it once every earlier frame was written. Rejects when sealing or
+ * the write fails; the connection is unusable then, because the Server never accepts a later counter.
+ */
+export const sendSealed = (session: EstablishedSession, payload: unknown): Promise<void> => {
+    const sealed = sealMobilePayloadWith(
+        session.runtime.frameCipher,
+        session.keys.clientToServer,
+        {
+            connectionId: session.connectionId,
+            counter: session.outbound.take(),
+            deviceId: session.deviceId,
+            direction: 'client-to-server',
+        },
+        payload,
     );
+    const previous = session.sendQueue;
+    const sent = (async () => {
+        const [frame] = await Promise.all([sealed, previous]);
+        session.socket.send(frame);
+    })();
+    session.sendQueue = settled(sent);
+    return sent;
 };
 
 export const establish = async (input: {
@@ -174,6 +201,7 @@ export const establish = async (input: {
             reader,
             route,
             runtime: input.runtime,
+            sendQueue: Promise.resolve(),
             socket,
         };
     } catch (error) {

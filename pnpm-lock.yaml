@@ -112,6 +112,9 @@ importers:
       '@caxri/client':
         specifier: workspace:*
         version: link:packages/client
+      '@caxri/mobile-transport':
+        specifier: workspace:*
+        version: link:packages/mobile-transport
       '@caxri/protocol':
         specifier: workspace:*
         version: link:packages/protocol
