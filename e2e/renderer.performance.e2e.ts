@@ -28,11 +28,31 @@ interface RendererSurfaceBudget {
  * Scenario-specific ceilings calibrated from repeated profiling runs. A 100 ms frame gap is a visible freeze; tighter
  * refresh-rate-derived frame budgets and LoAF values stay diagnostic because runner load makes them noisy.
  */
-const rendererSurfaceBudgets = {
+const localRendererSurfaceBudgets = {
     'primary-sidebar': { maximumRenderCount: 12, maximumTotalDurationMs: 8 },
     'workbench': { maximumRenderCount: 8, maximumTotalDurationMs: 6 },
     'secondary-sidebar': { maximumRenderCount: 6, maximumTotalDurationMs: 5 },
 } as const satisfies Record<RendererPerformanceSurface, RendererSurfaceBudget>;
+
+/**
+ * Hosted-runner counterpart of {@link localRendererSurfaceBudgets}, selected by `CAXRI_E2E_RUNNER_KIND`, which the
+ * `e2e-perf` job sets. Across the 26 hosted `e2e-perf` receipts retained on 2026-11-02 (runs 41230137464 to
+ * 41372678817, one `macos-15` runner each) the render counts never moved (4, 3, and 3 or 4), but the total durations
+ * swung up to fivefold with the runner: primary sidebar 1.8 to 9.2 ms, Workbench 0.3 to 4.3 ms, secondary sidebar 0.7
+ * to 5.7 ms. Two of those runs failed the local duration budget with unchanged render counts (#3455). Each hosted
+ * duration is about 1.75 times the observed maximum, so it only catches a render that got far slower than any hosted
+ * run has shown; the render counts keep the local budget.
+ */
+const hostedRendererSurfaceBudgets = {
+    'primary-sidebar': { maximumRenderCount: 12, maximumTotalDurationMs: 16 },
+    'workbench': { maximumRenderCount: 8, maximumTotalDurationMs: 8 },
+    'secondary-sidebar': { maximumRenderCount: 6, maximumTotalDurationMs: 10 },
+} as const satisfies Record<RendererPerformanceSurface, RendererSurfaceBudget>;
+
+const rendererSurfaceBudgets: Record<RendererPerformanceSurface, RendererSurfaceBudget> =
+    process.env.CAXRI_E2E_RUNNER_KIND === 'github-hosted'
+        ? hostedRendererSurfaceBudgets
+        : localRendererSurfaceBudgets;
 
 const representativeSessionCount = 8;
 
