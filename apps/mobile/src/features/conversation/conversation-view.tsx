@@ -187,9 +187,22 @@ const CONTENT_BOTTOM_INSET = styles.listContent.paddingBottom;
  * The empty space after the rows that lets the latest turn rest at the top of the viewport. Its height is a shared
  * value, so resizing it never re-renders the list.
  */
-const ConversationTurnSpacer = ({ height }: { height: SharedValue<number> }) => {
+const ConversationTurnSpacer = ({
+    height,
+    reserve,
+}: {
+    height: SharedValue<number>;
+    /**
+     * Room below the spacer while a toggled row settles (`reserveForDisclosure`).
+     */
+    reserve: number;
+}) => {
     const style = useAnimatedStyle(() => ({ height: height.get() }));
-    return <Animated.View pointerEvents="none" style={style} testID="conversation-turn-spacer" />;
+    return (
+        <View pointerEvents="none" style={{ paddingBottom: reserve }}>
+            <Animated.View style={style} testID="conversation-turn-spacer" />
+        </View>
+    );
 };
 
 /**
@@ -272,9 +285,11 @@ export const ConversationList = <Entry extends { id: string }>({
         latest.current = { entries, isTurnStart, timeline };
     });
     const {
+        disclosureReserve,
         endSpacerHeight,
         markRevealed,
         measureSpacer,
+        reserveForDisclosure,
         scrollToLatest,
         spacerHeight,
         spacerReserve,
@@ -374,13 +389,15 @@ export const ConversationList = <Entry extends { id: string }>({
     /**
      * The reader opened or closed a row. While the latest turn's spacer still has room the row grows into it and the
      * end does not move, so the list keeps following; once the turn fills the viewport, following on would slide the
-     * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`).
+     * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`). Either
+     * way the spacer first reserves room, so a closing row cannot shrink the content under the scroll position.
      */
     const holdForDisclosure = useCallback((): void => {
+        reserveForDisclosure();
         if (endSpacerHeight() > 0 || !follower.isFollowing) return;
         follower.hold();
         setIsAtBottom(false);
-    }, [endSpacerHeight, follower, setIsAtBottom]);
+    }, [endSpacerHeight, follower, reserveForDisclosure, setIsAtBottom]);
     const jumpToLatest = useCallback((): void => {
         follower.follow();
         setIsAtBottom(true);
@@ -428,8 +445,11 @@ export const ConversationList = <Entry extends { id: string }>({
         ? MAINTAIN_TURN_POSITION
         : MAINTAIN_VISIBLE_CONTENT_POSITION;
     const footer = useMemo(
-        () => (hasTurnSpacer ? <ConversationTurnSpacer height={spacerHeight} /> : null),
-        [hasTurnSpacer, spacerHeight],
+        () =>
+            hasTurnSpacer ? (
+                <ConversationTurnSpacer height={spacerHeight} reserve={disclosureReserve} />
+            ) : null,
+        [disclosureReserve, hasTurnSpacer, spacerHeight],
     );
     return (
         <ConversationDisclosure value={holdForDisclosure}>

@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -11,6 +11,11 @@ import {
     isConversationTurnFromOlderPage,
     latestConversationTurnStart,
 } from './conversation-scroll';
+
+/**
+ * How long a disclosure's reserve waits for the rows to change height before it is dropped.
+ */
+const DISCLOSURE_RESERVE_MS = 1000;
 
 /**
  * Sizes the spacer after a `ConversationList`'s rows that lets the latest turn rest at the top of the viewport. React
@@ -47,6 +52,10 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
     list: RefObject<FlashListRef<Entry> | null>;
     viewportHeight: RefObject<number>;
 }): {
+    /**
+     * Room the footer draws below the spacer while a toggled row settles (`reserveForDisclosure`).
+     */
+    disclosureReserve: number;
     endSpacerHeight: () => number;
     /**
      * Records that the reader can now see the list, so a turn whose first row lands above the rows in view stays put.
@@ -57,6 +66,14 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      * not laid out yet keeps the current spacer; the next layout commit measures again.
      */
     measureSpacer: () => boolean;
+    /**
+     * Draws room as tall as the rows below the spacer before the reader opens or closes a row in the latest turn.
+     * Closing a row shrank the native content before JS re-measured the spacer, so Android clamped the scroll and the
+     * previous turn flashed into view until the spacer grew back. The reserve lasts until the rows are measured at
+     * another height and the re-measured spacer is drawn, or `DISCLOSURE_RESERVE_MS` when the toggle left their height
+     * alone.
+     */
+    reserveForDisclosure: () => void;
     /**
      * Scrolls to the list's end as `conversationEndOffset` places it. FlashList's own `scrollToEnd` targets the native
      * end, which while the keyboard is up lies past it by the spacer's reserve and hid a just-sent message above the
@@ -76,10 +93,47 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      */
     const firstRowWithoutTurn = useRef<string>(undefined);
     const heldTurn = useRef<string>(undefined);
+    /**
+     * The rows' height when the reader opened or closed a row, until the rows were measured at another height
+     * (`reserveForDisclosure`).
+     */
+    const disclosedRowsHeight = useRef<number>(undefined);
+    /**
+     * Room drawn below the spacer while a toggled row settles. It is React state, unlike the spacer's shared value, so
+     * it reaches the screen in the same commit as the toggle: a shared value set in the tap handler landed a frame
+     * after the shrunk row, and Android clamped the scroll in between.
+     */
+    const [disclosureReserve, setDisclosureReserve] = useState(0);
+    const reserveReference = useRef(0);
+    /**
+     * Counts reserve releases, so a release that a later toggle superseded does not drop the new reserve.
+     */
+    const releaseCount = useRef(0);
+    /**
+     * Drops the reserve once the measured spacer reached the screen, two frames after it was set.
+     */
+    const releaseReserve = useCallback((): void => {
+        releaseCount.current += 1;
+        const release = releaseCount.current;
+        requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                if (release !== releaseCount.current) return;
+                reserveReference.current = 0;
+                setDisclosureReserve(0);
+            }),
+        );
+    }, []);
     const measureSpacer = useCallback((): boolean => {
         const { entries: rows, isTurnStart } = latest.current;
         const reference = list.current;
         if (!isTurnStart || !reference || viewportHeight.current <= 0) return false;
+        if (disclosedRowsHeight.current !== undefined) {
+            // The toggled row has not been measured yet; the reserved room stays until it has.
+            if (reference.getChildContainerDimensions().height === disclosedRowsHeight.current)
+                return false;
+            disclosedRowsHeight.current = undefined;
+            releaseReserve();
+        }
         const index = latestConversationTurnStart(rows, isTurnStart);
         const turnId = index === -1 ? undefined : rows[index].id;
         if (turnId === undefined) {
@@ -119,7 +173,15 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         drawnHeight.current = drawn;
         spacerHeight.set(drawn);
         return true;
-    }, [bottomInset, largestViewportHeight, latest, list, spacerHeight, viewportHeight]);
+    }, [
+        bottomInset,
+        largestViewportHeight,
+        latest,
+        list,
+        releaseReserve,
+        spacerHeight,
+        viewportHeight,
+    ]);
     const scrollToLatest = useCallback(
         (isAnimated: boolean): void => {
             const reference = list.current;
@@ -138,14 +200,32 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         },
         [bottomInset, isBottomAligned, list, viewportHeight],
     );
+    const reserveForDisclosure = useCallback((): void => {
+        const reference = list.current;
+        if (!reference || !latest.current.isTurnStart) return;
+        const rowsHeight = reference.getChildContainerDimensions().height;
+        disclosedRowsHeight.current = rowsHeight;
+        // However far the row shrinks, the rows and spacer together never get shorter than they were.
+        releaseCount.current += 1;
+        reserveReference.current = rowsHeight;
+        setDisclosureReserve(rowsHeight);
+        // A toggle that leaves the rows' height alone never triggers the measurement that ends the reserve.
+        setTimeout(() => {
+            if (disclosedRowsHeight.current !== rowsHeight) return;
+            disclosedRowsHeight.current = undefined;
+            releaseReserve();
+        }, DISCLOSURE_RESERVE_MS);
+    }, [latest, list, releaseReserve]);
     return {
+        disclosureReserve,
         endSpacerHeight: () => endHeight.current,
         markRevealed: () => {
             isRevealed.current = true;
         },
         measureSpacer,
+        reserveForDisclosure,
         scrollToLatest,
         spacerHeight,
-        spacerReserve: () => drawnHeight.current - endHeight.current,
+        spacerReserve: () => drawnHeight.current + reserveReference.current - endHeight.current,
     };
 }
