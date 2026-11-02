@@ -40,6 +40,7 @@ import { draculaTheme, importTheme, serializeTheme } from '../theme';
 import type { WatchHandle } from '../watch';
 import { WatchHub } from '../watch';
 import { ImportedThemeCatalog, releaseThemeSlots } from './imported-themes';
+import { ObservedConfigSources } from './observed-sources';
 import { preserveRecentAgentActions } from './recent-agent-actions';
 import {
     prepareKeybindingsSource,
@@ -47,7 +48,7 @@ import {
     prepareThemeSource,
     setJsoncValue,
 } from './reconcile';
-import { ConfigSourceReadError, readBoundedConfigSource } from './source';
+import { readBoundedConfigSource } from './source';
 
 type ConfigKind = 'settings' | 'keybindings' | 'theme';
 
@@ -90,8 +91,7 @@ export class ConfigService {
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
     private readonly watchTimers = new Map<string, NodeJS.Timeout>();
-    private readonly observedSources = new Map<string, string>();
-    private readonly rejectedSourceRevisions = new Map<string, string>();
+    private readonly observedSources = new ObservedConfigSources();
     private readonly errors = new Map<ConfigKind, string>();
     private readonly settingsListeners = new Set<(settings: AppSettings) => void>();
     private settingsMutationTail: Promise<void> = Promise.resolve();
@@ -134,7 +134,7 @@ export class ConfigService {
         try {
             source = await this.readConfigSource(path);
             this.assertOpen();
-            this.rejectedSourceRevisions.delete(path);
+            this.observedSources.forgetRejected(path);
         } catch (error) {
             this.assertOpen();
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -146,7 +146,7 @@ export class ConfigService {
                     await this.followSystemAppearanceByDefault();
                 return;
             }
-            this.rememberRejectedSource(path, error);
+            this.observedSources.rememberRejected(path, error);
             this.recordConfigurationError(kind, error);
             return;
         }
@@ -212,19 +212,6 @@ export class ConfigService {
             fields: { kind, error: message },
         });
         this.emitChange(kind, this.sourceFor(kind), message);
-    }
-
-    /**
-     * Suppresses repeated polling errors without retaining any rejected source bytes.
-     */
-    private rememberRejectedSource(path: string, error: unknown): boolean {
-        if (!(error instanceof ConfigSourceReadError)) {
-            this.rejectedSourceRevisions.delete(path);
-            return false;
-        }
-        const isRepeated = this.rejectedSourceRevisions.get(path) === error.revision;
-        this.rejectedSourceRevisions.set(path, error.revision);
-        return isRepeated;
     }
 
     private prepare(
@@ -335,9 +322,10 @@ export class ConfigService {
         const kind = this.kindForPath(path);
         if (!kind) return;
         try {
+            const revision = this.observedSources.revision(path);
             const source = await this.readConfigSource(path);
-            if (this.isClosed()) return;
-            this.rejectedSourceRevisions.delete(path);
+            if (this.isClosed() || this.observedSources.revision(path) !== revision) return;
+            this.observedSources.forgetRejected(path);
             if (source === this.observedSources.get(path)) return;
             this.observedSources.set(path, source);
             const prepared = this.prepare(kind, source);
@@ -353,7 +341,7 @@ export class ConfigService {
             if (kind === 'settings') this.notifySettings();
         } catch (error) {
             if (this.isClosed()) return;
-            if (this.rememberRejectedSource(path, error)) return;
+            if (this.observedSources.rememberRejected(path, error)) return;
             this.recordConfigurationError(kind, error);
         }
     }
@@ -375,7 +363,7 @@ export class ConfigService {
         await this.writeConfigSource(path, prepared.source);
         this.assertOpen();
         this.observedSources.set(path, prepared.source);
-        this.rejectedSourceRevisions.delete(path);
+        this.observedSources.forgetRejected(path);
         prepared.apply();
         this.errors.delete(kind);
         this.emitChange(kind, prepared.source);
