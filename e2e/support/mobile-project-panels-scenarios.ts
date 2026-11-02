@@ -431,6 +431,107 @@ async function refreshExpandedTree(environment: Environment, artifacts: string[]
     }
 }
 
+/**
+ * `MOB-PROJECT-CHIP-HOLD-01`: with more Projects than the strip can show, holding the chip that runs past the strip's
+ * right edge picks it up without scrolling the strip; only dragging it on toward that edge scrolls.
+ */
+async function holdProjectChipAtStripEdge(
+    environment: Environment,
+    artifacts: string[],
+): Promise<void> {
+    const fixture = await createMobileAcceptanceFixture({
+        isolatedProjectHome: true,
+        mode: 'launch-failure',
+        serial: environment.serial,
+    });
+    try {
+        const extraIds = await Promise.all(
+            Array.from({ length: 8 }, async (_, index) => {
+                const rootPath = join(
+                    fixture.testDirectory,
+                    'chip-strip',
+                    `strip-project-${index + 1}`,
+                );
+                await mkdir(rootPath, { recursive: true });
+                const project = await pageRequest<{ id: string }>(
+                    fixture.running.page,
+                    'project.create',
+                    { rootPath },
+                );
+                return project.id;
+            }),
+        );
+        await fixture.pair(extraIds);
+        const isProjectChip = (checkId: string) =>
+            checkId.startsWith('project-filter-') && checkId !== 'project-filter-all';
+        const nodes = await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (current) =>
+                hasCheck(current, 'session-project-filters') &&
+                current.filter(({ checkId }) => isProjectChip(checkId)).length >= 9,
+        );
+        const strip = androidBounds(
+            nodes.find(({ checkId }) => checkId === 'session-project-filters')!.bounds,
+        );
+        if (!strip) throw new Error('The Project strip has no bounds');
+        // The chip that starts on screen but runs past the right edge sits in the auto-scroll zone when picked up.
+        const edgeChip = nodes
+            .filter(({ checkId }) => isProjectChip(checkId))
+            .map(({ bounds }) => androidBounds(bounds))
+            .filter((bounds) => bounds !== null && bounds.left < strip.right - 60)
+            .toSorted((first, second) => second!.left - first!.left)
+            .at(0);
+        if (!edgeChip || edgeChip.right < strip.right - 8)
+            throw new Error('No Project chip runs past the strip edge');
+        const y = Math.floor((edgeChip.top + edgeChip.bottom) / 2);
+        const x = Math.min(Math.floor((edgeChip.left + edgeChip.right) / 2), strip.right - 60);
+        // The strip left of the held chip only changes if the strip scrolls.
+        const restOfStrip = {
+            bottom: edgeChip.bottom + 4,
+            left: strip.left,
+            right: edgeChip.left - 16,
+            top: edgeChip.top - 4,
+        };
+        const resting = await mobileRegionFingerprint(environment.serial, restOfStrip);
+        await capture(environment, 'before', artifacts);
+
+        await adbShell(environment.serial, [
+            [`input motionevent DOWN ${x} ${y}`, 'sleep 1.5'].join('; '),
+        ]);
+        const held = await mobileRegionFingerprint(environment.serial, restOfStrip);
+        await capture(environment, 'holding', artifacts);
+        const isHeldStill = held === resting;
+
+        const steps = 6;
+        const toX = strip.right - 4;
+        await adbShell(environment.serial, [
+            [
+                ...Array.from(
+                    { length: steps },
+                    (_, index) =>
+                        `input motionevent MOVE ${Math.round(x + ((toX - x) * (index + 1)) / steps)} ${y}`,
+                ),
+                'sleep 1',
+            ].join('; '),
+        ]);
+        const dragged = await mobileRegionFingerprint(environment.serial, restOfStrip);
+        await capture(environment, 'dragged-to-edge', artifacts);
+        await adbShell(environment.serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
+        const isDraggedScrolls = dragged !== held;
+        await finish(environment, artifacts, {
+            draggedScrolls: isDraggedScrolls,
+            heldStill: isHeldStill,
+            status: isHeldStill && isDraggedScrolls ? 'passed' : 'failed',
+        });
+        if (!isHeldStill)
+            throw new Error('The strip scrolled while the picked-up chip was held still');
+        if (!isDraggedScrolls)
+            throw new Error('Dragging the chip to the edge did not scroll the strip');
+    } finally {
+        await fixture.stop();
+    }
+}
+
 export async function executeMobileProjectPanelsScenario(
     environment: Environment,
     artifacts: string[],
@@ -442,6 +543,10 @@ export async function executeMobileProjectPanelsScenario(
         }
         case 'MOB-PROJECT-REORDER-01': {
             await reorderProjectFilters(environment, artifacts);
+            break;
+        }
+        case 'MOB-PROJECT-CHIP-HOLD-01': {
+            await holdProjectChipAtStripEdge(environment, artifacts);
             break;
         }
         case 'MOB-PANELS-01': {

@@ -16,6 +16,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'reorder-project-filters',
     },
+    'MOB-PROJECT-CHIP-HOLD-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'hold-project-chip-at-strip-edge',
+    },
     'MOB-PANELS-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

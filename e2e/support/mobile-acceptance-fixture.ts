@@ -56,7 +56,10 @@ export interface MobileAcceptanceFixture {
         menuState(): Promise<SyntheticMenuState>;
         seedChanges(kind?: MobileChangesFixtureKind): Promise<void>;
     };
-    pair(): Promise<{ deviceId: string }>;
+    /**
+     * Pairs the emulator with the allowed Project plus `extraProjectIds`, so a case can show the phone more Projects.
+     */
+    pair(extraProjectIds?: string[]): Promise<{ deviceId: string }>;
     pairFromDesktopUi(trigger: () => Promise<void>): Promise<{ deviceId: string }>;
     failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
@@ -528,12 +531,12 @@ export async function createMobileAcceptanceFixture(
                 return pairMobileEncryptedPeer(pairing.pairingLink);
             },
         }),
-        pair: async () => {
+        pair: async (extraProjectIds = []) => {
             await pageRequest(running.page, 'mobile.access.enable');
             const pairing = await pageRequest<{ pairingLink: string }>(
                 running.page,
                 'mobile.pairing.create',
-                { projectIds: [allowedProjectId] },
+                { projectIds: [allowedProjectId, ...extraProjectIds] },
             );
             await openMobilePairingLink(input.serial, pairing.pairingLink);
             return waitForPairedDevice();
