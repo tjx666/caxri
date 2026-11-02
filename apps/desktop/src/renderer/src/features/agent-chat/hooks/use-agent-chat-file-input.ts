@@ -125,21 +125,25 @@ export function useAgentChatFileInput({
                 files.filter((file) => !attached.has(file)),
             ),
         );
+    const isDragOver = dragOver === 'paths' || dragOver === 'session';
     return {
         /**
          * The drag over the Chat would be accepted, which tints the composer.
          */
-        isDragOver: dragOver === 'paths' || dragOver === 'session',
-        isSessionDragOver: dragOver === 'session',
+        isDragOver,
         /**
-         * Why the Session row over the Chat will not be cited, which the overlay says without an accept tint.
+         * The whole-Chat drop overlay's props: what an accepted drag would cite, or why a Session row is refused.
          */
-        dropRefusal:
-            dragOver === 'refused-self'
-                ? ('self' as const)
-                : dragOver === 'refused-unavailable'
-                  ? ('unavailable' as const)
-                  : undefined,
+        dropOverlay: {
+            isDragOver,
+            isSessionDrag: dragOver === 'session',
+            refusal:
+                dragOver === 'refused-self'
+                    ? ('self' as const)
+                    : dragOver === 'refused-unavailable'
+                      ? ('unavailable' as const)
+                      : undefined,
+        },
         pick: (files: readonly File[]) => routeFiles(undefined, files),
         /**
          * Opens the native panel for files and folders together, or `undefined` in an SSH Host window (or before the
