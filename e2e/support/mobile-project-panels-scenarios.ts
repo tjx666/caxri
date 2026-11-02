@@ -505,8 +505,8 @@ async function holdProjectChip(environment: Environment, artifacts: string[]): P
         };
         if (!(allLeft(scrolled) < allLeft(start)))
             throw new Error('The swipe picked up a chip instead of scrolling the strip');
-        // UIAutomator lists only the chips on screen. Hold one clear of both 48dp auto-scroll zones (about 126px on a
-        // Pixel 8), with room for a region on its left.
+        // UIAutomator lists only the chips on screen. Hold one wholly on screen with room for a region on its left; a
+        // chip is wider than the gap between the two 48dp auto-scroll zones, so it may end inside the right one.
         const heldChip = scrolled
             .filter(({ checkId }) => isProjectChip(checkId))
             .map(({ bounds }) => androidBounds(bounds))
@@ -514,7 +514,7 @@ async function holdProjectChip(environment: Environment, artifacts: string[]): P
                 (bounds) =>
                     bounds !== null &&
                     bounds.left > strip.left + 160 &&
-                    bounds.right < strip.right - 140,
+                    bounds.right < strip.right - 16,
             );
         if (!heldChip) throw new Error('No Project chip sits in the middle of the strip');
         const x = Math.floor((heldChip.left + heldChip.right) / 2);
