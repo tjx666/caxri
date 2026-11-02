@@ -15,6 +15,8 @@ import {
     defaultDarkThemeId,
     defaultLightThemeId,
     resolveEffectiveTheme,
+    themeColorScheme,
+    themeSlotOptions,
 } from '../theme-appearance.js';
 
 const following = {
@@ -42,14 +44,58 @@ describe('resolveEffectiveTheme', () => {
         ).toBe(solarizedLightTheme);
     });
 
-    it('falls back to the persisted theme when a configured id names no preset', () => {
+    it('paints an imported theme a slot names', () => {
+        const imported = { ...solarizedLightTheme, id: 'imported-paper', name: 'Paper' };
         expect(
             resolveEffectiveTheme(
                 draculaTheme,
-                { ...following, 'workbench.theme.light': 'removed-preset' },
+                { ...following, 'workbench.theme.light': 'imported-paper' },
+                'light',
+                [imported],
+            ),
+        ).toBe(imported);
+    });
+
+    it("falls back to the appearance's default preset when a slot names a theme that is gone", () => {
+        expect(
+            resolveEffectiveTheme(
+                draculaTheme,
+                { ...following, 'workbench.theme.light': 'imported-removed' },
                 'light',
             ),
+        ).toBe(vscodeLightPlusTheme);
+        expect(
+            resolveEffectiveTheme(
+                solarizedLightTheme,
+                { ...following, 'workbench.theme.dark': 'imported-removed' },
+                'dark',
+            ),
         ).toBe(draculaTheme);
+    });
+});
+
+describe('themeSlotOptions', () => {
+    it('lists the presets of an appearance, then the imported themes that read as it', () => {
+        const paper = { ...solarizedLightTheme, id: 'imported-paper', name: 'Paper' };
+        const night = { ...draculaTheme, id: 'imported-night', name: 'Night' };
+        expect(themeSlotOptions('light', [night, paper])).toEqual([
+            ...builtinThemeIdsForScheme('light').map((id) => ({
+                id,
+                name: builtinThemes.find((theme) => theme.id === id)?.name,
+            })),
+            { id: 'imported-paper', name: 'Paper' },
+        ]);
+        expect(themeSlotOptions('dark', [night, paper]).at(-1)).toEqual({
+            id: 'imported-night',
+            name: 'Night',
+        });
+    });
+});
+
+describe('themeColorScheme', () => {
+    it('reads an imported theme as light or dark from its canvas', () => {
+        expect(themeColorScheme({ ...vscodeLightPlusTheme, id: 'imported-a' })).toBe('light');
+        expect(themeColorScheme({ ...draculaTheme, id: 'imported-b' })).toBe('dark');
     });
 });
 
@@ -77,5 +123,17 @@ describe('theme appearance catalog', () => {
             expect(builtinThemeColorSchemes[settingsSpecByKey[key].default]).toBe(scheme);
         }
         expect(appSettingsSchema.parse({})['workbench.theme.followSystem']).toBe(false);
+    });
+
+    it('lets a slot name an imported theme but not an empty or unbounded id', () => {
+        expect(
+            appSettingsSchema.parse({ 'workbench.theme.light': 'imported-paper' })[
+                'workbench.theme.light'
+            ],
+        ).toBe('imported-paper');
+        expect(() => appSettingsSchema.parse({ 'workbench.theme.dark': ' ' })).toThrow();
+        expect(() =>
+            appSettingsSchema.parse({ 'workbench.theme.dark': 'x'.repeat(129) }),
+        ).toThrow();
     });
 });

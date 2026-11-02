@@ -1,4 +1,4 @@
-import type { AppSettings } from '@caxri/protocol';
+import type { AppSettings, ThemeTokens } from '@caxri/protocol';
 import { builtinThemes, defaultDarkThemeId, defaultLightThemeId } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,11 +9,11 @@ function presetColors(id: string) {
     return { background, foreground };
 }
 
-function createAppearance(settings: Record<string, unknown>) {
+function createAppearance(settings: Record<string, unknown>, imported: ThemeTokens[] = []) {
     const listeners = new Set<() => void>();
     const config = {
         getSettings: () => ({ value: settings as unknown as AppSettings }),
-        getTheme: () => ({ value: draculaTheme }),
+        getTheme: () => ({ value: draculaTheme, imported }),
         subscribeSettings: (listener: () => void) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
@@ -40,6 +40,24 @@ describe('SystemAppearance terminal colors', () => {
         expect(appearance.terminalColors()).toEqual(presetColors(defaultLightThemeId));
         appearance.set('dark');
         expect(appearance.terminalColors()).toEqual(presetColors(defaultDarkThemeId));
+    });
+
+    it('answers with an imported theme a slot names', () => {
+        const paper = {
+            ...builtinThemes.find((theme) => theme.id === defaultLightThemeId)!,
+            id: 'imported-paper',
+            name: 'Paper',
+            terminal: { ...draculaTheme.terminal, background: '#fafafa', foreground: '#111111' },
+        };
+        const { appearance } = createAppearance(
+            { ...following, 'workbench.theme.light': 'imported-paper' },
+            [paper],
+        );
+        appearance.set('light');
+        expect(appearance.terminalColors()).toEqual({
+            background: '#fafafa',
+            foreground: '#111111',
+        });
     });
 
     it('keeps the saved theme when not following the system', () => {

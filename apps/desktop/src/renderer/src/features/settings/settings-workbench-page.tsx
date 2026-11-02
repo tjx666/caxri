@@ -16,7 +16,7 @@ import { cn } from '../../lib/utilities';
 import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import { closeSettings } from '../../stores/dialogs';
 import { useIsLocalOnlyAvailable } from '../../stores/environment';
-import { useIsFullScreen } from '../../stores/selectors';
+import { useImportedThemes, useIsFullScreen } from '../../stores/selectors';
 import { ConfigSourceView } from './config-source-view';
 import type { SettingsPageController } from './hooks/use-settings-page-controller';
 import { useSettingsPageController } from './hooks/use-settings-page-controller';
@@ -36,17 +36,14 @@ function readThemeAppearance(settings: AppSettings | undefined) {
 }
 
 /**
- * Writes one slot of the follow-system pair. The Theme tab's picker only offers the presets of `scheme`, which
- * `theme-appearance.test.ts` pins to the options of these two settings, so the casts only narrow what is already true.
+ * Writes one slot of the follow-system pair: a built-in preset or an imported theme id from `themeSlotOptions`.
  */
 function setPreferredTheme(
     update: SettingsPageController['updateSettingsField'],
     scheme: SystemColorScheme,
     id: string,
 ): void {
-    if (scheme === 'light')
-        update('workbench.theme.light', id as AppSettings['workbench.theme.light']);
-    else update('workbench.theme.dark', id as AppSettings['workbench.theme.dark']);
+    update(scheme === 'light' ? 'workbench.theme.light' : 'workbench.theme.dark', id);
 }
 
 /**
@@ -92,17 +89,18 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
     const [navigationState, setNavigationState] = useState<SettingsNavigationState>();
     const systemScheme = useSystemColorScheme();
     const settings = state.settings.value;
+    const importedThemes = useImportedThemes();
     const effectiveTheme =
         settings && state.theme.value
-            ? resolveEffectiveTheme(state.theme.value, settings, systemScheme)
+            ? resolveEffectiveTheme(state.theme.value, settings, systemScheme, importedThemes)
             : undefined;
 
     /**
-     * Turning the pair off keeps what is on screen: the preset the system appearance resolved to becomes the single
-     * saved theme, so the switch changes who decides the theme, not the theme itself.
+     * Turning the pair off keeps what is on screen: the preset or imported theme the system appearance resolved to
+     * becomes the single saved theme, so the switch changes who decides the theme, not the theme itself.
      */
     const setFollowSystemAppearance = (isFollowing: boolean): void => {
-        if (!isFollowing && effectiveTheme) controller.selectBuiltinTheme(effectiveTheme.id);
+        if (!isFollowing && effectiveTheme) controller.selectTheme(effectiveTheme.id);
         controller.updateSettingsField('workbench.theme.followSystem', isFollowing);
     };
 
@@ -173,7 +171,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                           }
                         : undefined
                 }
-                onSelectBuiltin={controller.selectBuiltinTheme}
+                onSelectTheme={controller.selectTheme}
                 appearance={{
                     ...readThemeAppearance(settings),
                     effectiveTheme: effectiveTheme ?? state.theme.value,

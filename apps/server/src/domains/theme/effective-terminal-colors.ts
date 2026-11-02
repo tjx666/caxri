@@ -8,20 +8,25 @@ import { notifyListenersThenRethrow } from '@caxri/utils';
  * the window it runs in.
  */
 function effectiveTerminalColors(
-    theme: ThemeTokens,
+    theme: { value: ThemeTokens; imported: readonly ThemeTokens[] },
     settings: Pick<
         AppSettings,
         'workbench.theme.dark' | 'workbench.theme.followSystem' | 'workbench.theme.light'
     >,
     scheme: SystemColorScheme,
 ): { background: string; foreground: string } {
-    const { background, foreground } = resolveEffectiveTheme(theme, settings, scheme).terminal;
+    const { background, foreground } = resolveEffectiveTheme(
+        theme.value,
+        settings,
+        scheme,
+        theme.imported,
+    ).terminal;
     return { background, foreground };
 }
 
 interface SystemAppearanceConfig {
     getSettings(): { value: AppSettings };
-    getTheme(): { value: ThemeTokens };
+    getTheme(): { value: ThemeTokens; imported: readonly ThemeTokens[] };
     subscribeSettings(listener: () => void): () => void;
 }
 
@@ -35,7 +40,7 @@ export class SystemAppearance {
     private readonly listeners = new Set<() => void>();
     readonly terminalColors = (): { background: string; foreground: string } =>
         effectiveTerminalColors(
-            this.config.getTheme().value,
+            this.config.getTheme(),
             this.config.getSettings().value,
             this.current,
         );

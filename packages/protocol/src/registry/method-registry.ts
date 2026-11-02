@@ -36,6 +36,7 @@ import {
     MAX_KEYBINDINGS,
 } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
+import { themeInternalMethods, themeMethods } from '../configuration/theme-contract.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
 import { agentProviderStatusDesktopMethods } from '../desktop/agent-provider-status-contract.js';
@@ -83,8 +84,6 @@ import {
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     projectRecordSchema,
     sessionRecordSchema,
-    themeImportWarningSchema,
-    themeTokensSchema,
 } from '../domain/domain.js';
 import { fileInternalMethods, fileMethods } from '../domain/file-contract.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
@@ -149,11 +148,6 @@ const keybindingsResult = z.object({
     value: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
     source: configSourceSchema,
     conflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
-});
-const themeResult = z.object({ value: themeTokensSchema, source: configSourceSchema });
-const themeImportResult = z.object({
-    value: themeTokensSchema,
-    warnings: z.array(themeImportWarningSchema),
 });
 const exportedFile = z.object({ path: z.string() });
 /**
@@ -506,13 +500,7 @@ export const methods = {
         params: z.object({ source: configSourceSchema }),
         result: keybindingsResult,
     },
-    'theme.get': { ...serverRead, params: noParameters, result: themeResult },
-    'theme.update': {
-        ...serverWrite,
-        params: z.object({ source: configSourceSchema }),
-        result: themeResult,
-    },
-    'theme.import': { ...desktopWrite, params: noParameters, result: themeImportResult.nullable() },
+    ...themeMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 /**
@@ -590,9 +578,5 @@ export const internalMethods = {
         params: z.object({ reason: terminateAllReasonSchema.optional() }).default({}),
         result: z.null(),
     },
-    'theme.importPath': {
-        ...serverWrite,
-        params: z.object({ path: pathSchema }),
-        result: themeImportResult,
-    },
+    ...themeInternalMethods,
 } as const satisfies Record<string, MethodSpec>;

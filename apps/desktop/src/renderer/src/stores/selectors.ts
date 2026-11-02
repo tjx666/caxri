@@ -260,6 +260,15 @@ export function useTerminal(terminalId: string): TerminalRecord | undefined {
     );
 }
 
+const noImportedThemes: readonly ThemeTokens[] = [];
+
+/**
+ * Themes saved by Import Theme, which the "Follow system appearance" slots can name.
+ */
+export function useImportedThemes(): readonly ThemeTokens[] {
+    return useWorkbenchStore((state) => state.bootstrap?.importedThemes) ?? noImportedThemes;
+}
+
 /**
  * The theme every Workbench surface paints: the persisted `theme.json`, or the light/dark preset paired with the live
  * system appearance while "Follow system appearance" is on (see `resolveEffectiveTheme`).
@@ -275,6 +284,7 @@ export function useTheme(): ThemeTokens | undefined {
     const darkThemeId = useWorkbenchStore(
         (state) => state.bootstrap?.settings['workbench.theme.dark'],
     );
+    const importedThemes = useImportedThemes();
     const systemScheme = useSystemColorScheme();
     return useMemo(() => {
         if (!theme) return;
@@ -286,8 +296,9 @@ export function useTheme(): ThemeTokens | undefined {
                 'workbench.theme.dark': darkThemeId ?? defaultDarkThemeId,
             },
             systemScheme,
+            importedThemes,
         );
-    }, [theme, isFollowingSystem, lightThemeId, darkThemeId, systemScheme]);
+    }, [theme, isFollowingSystem, lightThemeId, darkThemeId, systemScheme, importedThemes]);
 }
 
 export function useSettings(): AppSettings | undefined {

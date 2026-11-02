@@ -391,6 +391,7 @@ export const effectfulCommandRecovery = {
     'keybindings.update': 'memory',
     'theme.update': 'memory',
     'theme.import': 'memory',
+    'theme.removeImported': 'memory',
 } as const satisfies Record<EffectfulCaxriMethod, CommandRecovery>;
 
 export type DurableCaxriMethod = {

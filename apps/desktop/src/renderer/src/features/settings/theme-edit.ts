@@ -10,10 +10,10 @@ interface ThemeEditResult {
 }
 
 /**
- * Replaces a theme draft leaf-by-leaf so choosing a preset keeps user-authored JSONC comments around the existing
- * fields while still producing the exact reviewed built-in token set.
+ * Replaces a theme draft leaf-by-leaf so choosing a preset or an imported theme keeps user-authored JSONC comments
+ * around the existing fields while still producing that theme's exact token set.
  */
-export function applyBuiltinTheme(source: string, theme: ThemeTokens): ThemeEditResult {
+export function applyTheme(source: string, theme: ThemeTokens): ThemeEditResult {
     let nextSource = source;
     for (const key of ['id', 'name', 'source'] as const)
         nextSource = applyFormEdit(nextSource, [key], theme[key]);

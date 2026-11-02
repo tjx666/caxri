@@ -28,7 +28,6 @@ import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { AgentSecretsForm } from './agent-secrets/agent-secrets-form';
 import { ArchivedSessionsEntry } from './archived-sessions-entry';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
-import { EnumControl } from './enum-control';
 import { EnvironmentMonitorSettingControl } from './environment-monitor-setting-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
@@ -41,6 +40,7 @@ import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './pro
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import { RelayConnectionStatus } from './relay-connection-status';
+import { SettingEnumControl } from './setting-enum-control';
 import { SettingRowChrome } from './setting-row-chrome';
 import { isFullWidthRow } from './setting-row-layout';
 import { settingTitle } from './setting-spec-text';
@@ -196,7 +196,7 @@ function rowControl(
                 return {
                     labelFor: controlId,
                     control: (
-                        <EnumControl
+                        <SettingEnumControl
                             id={controlId}
                             label={row.accessibleTitle}
                             spec={spec}
