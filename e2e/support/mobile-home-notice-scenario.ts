@@ -12,6 +12,7 @@ import {
     copyMobileFramebufferRecording,
     mobileSemantics,
     startMobileFramebufferRecording,
+    tapMobileCheck,
 } from './mobile-android';
 import { setEmulatorNetworkDelay } from './mobile-android-network';
 import type { GrayFrame } from './mobile-motion-analysis';
@@ -37,6 +38,11 @@ const WATCH_MS = 6_000;
  * Shortest hold that a reader sees as a separate picture; the notices on the reporting phone held about 250ms.
  */
 const HOLD_MS = 80;
+/**
+ * Slack between the end of the analysed cold start and the Session tap that follows it, and how long the opened Session
+ * is filmed.
+ */
+const TAP_MARGIN_MS = 1_000;
 /**
  * Luma spread under which the band is one flat color: the splash screen, before the app draws its header.
  */
@@ -86,12 +92,9 @@ export async function executeMobileHomeNoticeSettleScenario(
         await setEmulatorNetworkDelay(serial, RELAY_DELAY_MS);
         isDelayed = true;
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        const recordedAt = Date.now();
         await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
         await pause(WATCH_MS);
-        await recording.stop();
-        recording = undefined;
-        await setEmulatorNetworkDelay(serial, 0);
-        isDelayed = false;
         await waitForCheck(serial, row);
         await capture(environment, 'cold-start-settled', artifacts);
         // The final picture must be the notice-free list, or a notice that settled late would pass as the final frame.
@@ -101,12 +104,26 @@ export async function executeMobileHomeNoticeSettleScenario(
         );
         if (notices.length > 0)
             throw new Error(`The settled Session list still shows ${notices.join(', ')}`);
+        /**
+         * `screenrecord` writes a frame only when the screen changes, so a list that holds still ends the video a
+         * moment after it settles. Opening the Session keeps the film running past the watch window; the analysis stops
+         * before that tap.
+         */
+        const coldStartMs = Date.now() - recordedAt - TAP_MARGIN_MS;
+        await tapMobileCheck(serial, row);
+        await pause(TAP_MARGIN_MS);
+        await recording.stop();
+        recording = undefined;
+        await setEmulatorNetworkDelay(serial, 0);
+        isDelayed = false;
 
         const analysis = await mkdtemp(join(tmpdir(), 'caxri-home-notice-'));
         try {
             const video = join(analysis, 'cold-start.mp4');
             await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-            const { frames } = await readRecordingBand(video, band);
+            const frames = (await readRecordingBand(video, band)).frames.filter(
+                ({ time }) => time <= coldStartMs,
+            );
             const splash = frames.findIndex(isFlat);
             if (splash === -1) throw new Error('The recording never showed the splash screen');
             const held = heldPicturesBeforeFinalAt(frames.slice(splash), HOLD_MS).map(
