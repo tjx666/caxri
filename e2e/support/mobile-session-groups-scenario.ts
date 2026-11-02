@@ -7,6 +7,7 @@ import type { MobileSemanticNode } from './mobile-android';
 import {
     adbShell,
     mobileDisplayState,
+    mobileRegionFingerprint,
     mobileSemantics,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -25,7 +26,7 @@ const IDLE_SESSION_COUNT = 11;
 const DRIFT_DP = 16;
 
 /**
- * Long enough for a released swipe's spring-back and its scheduled filter switch to finish.
+ * Long enough for a released swipe's scheduled filter switch to land.
  */
 const SETTLE_MS = 600;
 
@@ -81,9 +82,46 @@ async function swipeList(serial: string, fromShare: number, toShare: number): Pr
 }
 
 /**
+ * Drags across the Session list like {@link swipeList} but holds the finger down past the activation slop, so the frame
+ * is compared while the gesture is live: the list must not follow the finger, or one Project's rows would slide beside
+ * the next one's. UIAutomator waits for an idle screen, so the list is compared by its pixels instead.
+ */
+async function holdSwipeWithoutMovingList(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+    fromShare: number,
+    toShare: number,
+): Promise<void> {
+    const { serial } = environment;
+    const list = checkBounds(await mobileSemantics(serial), 'session-list');
+    if (!list) throw new Error('The Session list is not laid out');
+    const resting = await mobileRegionFingerprint(serial, list);
+    const width = list.right - list.left;
+    const y = Math.floor((list.top + list.bottom) / 2);
+    const fromX = Math.floor(list.left + width * fromShare);
+    const toX = Math.floor(list.left + width * toShare);
+    const steps = 12;
+    await adbShell(serial, [
+        [
+            `input motionevent DOWN ${fromX} ${y}`,
+            ...Array.from(
+                { length: steps },
+                (_, index) =>
+                    `input motionevent MOVE ${Math.round(fromX + ((toX - fromX) * (index + 1)) / steps)} ${y}`,
+            ),
+            'sleep 0.5',
+        ].join('; '),
+    ]);
+    const held = await mobileRegionFingerprint(serial, list);
+    await capture(environment, 'holding-swipe', artifacts);
+    await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
+    if (held !== resting) throw new Error('The Session list moved with the finger mid-swipe');
+}
+
+/**
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
  * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
- * last chip stays put, and a right swipe returns to All.
+ * last chip stays put, and a right swipe returns to All. The list never follows the finger while a swipe is held.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -171,7 +209,7 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'short-row-drag', artifacts);
 
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
-        await swipeList(serial, 0.8, 0.2);
+        await holdSwipeWithoutMovingList(environment, artifacts, 0.8, 0.2);
         await waitForMobile(
             () => mobileSemantics(serial),
             (current) => isFilterSelected(current, projectChip),
