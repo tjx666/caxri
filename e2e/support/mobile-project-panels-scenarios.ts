@@ -472,21 +472,22 @@ async function holdProjectChipAtStripEdge(
             () => mobileSemantics(environment.serial),
             (current) =>
                 hasCheck(current, 'session-project-filters') &&
-                current.filter(({ checkId }) => isProjectChip(checkId)).length >= 9,
+                current.filter(({ checkId }) => isProjectChip(checkId)).length >= 2,
         );
         const strip = androidBounds(
             nodes.find(({ checkId }) => checkId === 'session-project-filters')!.bounds,
         );
         if (!strip) throw new Error('The Project strip has no bounds');
-        // The chip that starts on screen but runs past the right edge sits in the auto-scroll zone when picked up.
+        // UIAutomator lists only the chips on screen. The last one wide enough to press ends inside the strip's 48dp
+        // auto-scroll zone (about 126px on a Pixel 8), so picking it up puts it there.
         const edgeChip = nodes
             .filter(({ checkId }) => isProjectChip(checkId))
             .map(({ bounds }) => androidBounds(bounds))
             .filter((bounds) => bounds !== null && bounds.left < strip.right - 60)
             .toSorted((first, second) => second!.left - first!.left)
             .at(0);
-        if (!edgeChip || edgeChip.right < strip.right - 8)
-            throw new Error('No Project chip runs past the strip edge');
+        if (!edgeChip || edgeChip.right < strip.right - 100)
+            throw new Error('No Project chip ends inside the strip edge zone');
         const y = Math.floor((edgeChip.top + edgeChip.bottom) / 2);
         const x = Math.min(Math.floor((edgeChip.left + edgeChip.right) / 2), strip.right - 60);
         // The strip left of the held chip only changes if the strip scrolls.
