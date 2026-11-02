@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -74,6 +75,12 @@ export async function executeMobileNewSessionSwitchScenario(
     const analysis = await mkdtemp(join(tmpdir(), 'caxri-new-session-switch-'));
     try {
         const projects = [fixture.allowedProjectId, fixture.deniedProjectId];
+        // The second Project carries the fixture's out-of-grant Session; it goes first so granting that Project shows the
+        // phone two Projects without tripping the fixture's grant check.
+        if (fixture.deniedSessionId)
+            await pageRequest(fixture.running.page, 'session.delete', {
+                sessionId: fixture.deniedSessionId,
+            });
         await fixture.pair([fixture.deniedProjectId]);
         await tapMobileCheck(serial, 'new-session-button');
         const settled = await waitForMobile(
