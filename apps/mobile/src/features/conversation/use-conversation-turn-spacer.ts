@@ -13,6 +13,11 @@ import {
 } from './conversation-scroll';
 
 /**
+ * How long a disclosure's reserve waits for the rows to change height before it is dropped.
+ */
+const DISCLOSURE_RESERVE_MS = 1000;
+
+/**
  * Sizes the spacer after a `ConversationList`'s rows that lets the latest turn rest at the top of the viewport. React
  * Compiler memoizes the returned functions from their ref inputs.
  *
@@ -58,6 +63,13 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      */
     measureSpacer: () => boolean;
     /**
+     * Grows the drawn spacer by the rows' height before the reader opens or closes a row in the latest turn. Closing a
+     * row shrank the native content before JS re-measured the spacer, so Android clamped the scroll and the previous
+     * turn flashed into view until the spacer grew back. The reserve lasts until the rows are measured at another
+     * height, or `DISCLOSURE_RESERVE_MS` when the toggle left their height alone.
+     */
+    reserveForDisclosure: () => void;
+    /**
      * Scrolls to the list's end as `conversationEndOffset` places it. FlashList's own `scrollToEnd` targets the native
      * end, which while the keyboard is up lies past it by the spacer's reserve and hid a just-sent message above the
      * viewport.
@@ -76,10 +88,25 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      */
     const firstRowWithoutTurn = useRef<string>(undefined);
     const heldTurn = useRef<string>(undefined);
+    /**
+     * The rows' height when the reader opened or closed a row, while the drawn spacer still carries the room reserved
+     * for it (`reserveForDisclosure`); cleared once the rows were measured at another height.
+     */
+    const disclosedRowsHeight = useRef<number>(undefined);
+    const disclosureReserve = useRef(0);
     const measureSpacer = useCallback((): boolean => {
         const { entries: rows, isTurnStart } = latest.current;
         const reference = list.current;
         if (!isTurnStart || !reference || viewportHeight.current <= 0) return false;
+        if (disclosedRowsHeight.current !== undefined) {
+            // The toggled row has not been measured yet; the reserved room stays until it has.
+            if (reference.getChildContainerDimensions().height === disclosedRowsHeight.current)
+                return false;
+            disclosedRowsHeight.current = undefined;
+            disclosureReserve.current = 0;
+            // Draw the measured spacer again even when its height did not change, to drop the reserve.
+            drawnHeight.current = -1;
+        }
         const index = latestConversationTurnStart(rows, isTurnStart);
         const turnId = index === -1 ? undefined : rows[index].id;
         if (turnId === undefined) {
@@ -138,14 +165,32 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         },
         [bottomInset, isBottomAligned, list, viewportHeight],
     );
+    const reserveForDisclosure = useCallback((): void => {
+        const reference = list.current;
+        if (!reference || !latest.current.isTurnStart) return;
+        const rowsHeight = reference.getChildContainerDimensions().height;
+        disclosedRowsHeight.current = rowsHeight;
+        // However far the row shrinks, the rows and spacer together never get shorter than they were.
+        disclosureReserve.current = rowsHeight;
+        spacerHeight.set(Math.max(drawnHeight.current, 0) + rowsHeight);
+        // A toggle that leaves the rows' height alone never triggers the measurement that ends the reserve.
+        setTimeout(() => {
+            if (disclosedRowsHeight.current !== rowsHeight) return;
+            disclosedRowsHeight.current = undefined;
+            disclosureReserve.current = 0;
+            spacerHeight.set(Math.max(drawnHeight.current, 0));
+        }, DISCLOSURE_RESERVE_MS);
+    }, [latest, list, spacerHeight]);
     return {
         endSpacerHeight: () => endHeight.current,
         markRevealed: () => {
             isRevealed.current = true;
         },
         measureSpacer,
+        reserveForDisclosure,
         scrollToLatest,
         spacerHeight,
-        spacerReserve: () => drawnHeight.current - endHeight.current,
+        spacerReserve: () =>
+            Math.max(drawnHeight.current, 0) + disclosureReserve.current - endHeight.current,
     };
 }

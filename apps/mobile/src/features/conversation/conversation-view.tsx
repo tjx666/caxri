@@ -275,6 +275,7 @@ export const ConversationList = <Entry extends { id: string }>({
         endSpacerHeight,
         markRevealed,
         measureSpacer,
+        reserveForDisclosure,
         scrollToLatest,
         spacerHeight,
         spacerReserve,
@@ -374,13 +375,15 @@ export const ConversationList = <Entry extends { id: string }>({
     /**
      * The reader opened or closed a row. While the latest turn's spacer still has room the row grows into it and the
      * end does not move, so the list keeps following; once the turn fills the viewport, following on would slide the
-     * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`).
+     * tapped row away, so the list holds its place and offers Jump to latest instead (`ConversationDisclosure`). Either
+     * way the spacer first reserves room, so a closing row cannot shrink the content under the scroll position.
      */
     const holdForDisclosure = useCallback((): void => {
+        reserveForDisclosure();
         if (endSpacerHeight() > 0 || !follower.isFollowing) return;
         follower.hold();
         setIsAtBottom(false);
-    }, [endSpacerHeight, follower, setIsAtBottom]);
+    }, [endSpacerHeight, follower, reserveForDisclosure, setIsAtBottom]);
     const jumpToLatest = useCallback((): void => {
         follower.follow();
         setIsAtBottom(true);
