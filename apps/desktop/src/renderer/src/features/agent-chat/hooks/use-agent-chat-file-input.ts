@@ -6,6 +6,7 @@ import type { AgentChatPathReference } from '@caxri/protocol';
 import { hasTerminalDraggedPath, osFilePaths } from '../../../lib/file-drag';
 import { useIsLocalOnlyAvailable } from '../../../stores/environment';
 import { pushToast } from '../../../stores/toasts';
+import { draggedSessionId } from '../../session/session-drag';
 import { isChatPathDrop } from '../../workbench/pane-drop-zone';
 import { pickAgentChatPaths } from '../agent-chat-commands';
 import {
@@ -28,6 +29,19 @@ function isComposerDrag(event: DragEvent): boolean {
     });
 }
 
+/**
+ * What the composer would take from a drag: paths to cite, a Session row to cite, or nothing. A Session row it may not
+ * cite (this Chat's own Session, or one with no Agent conversation) is nothing, so the pane shows no drop tint for it.
+ */
+function composerDragKind(
+    event: DragEvent,
+    canReferenceSession: (sessionId: string) => boolean,
+): 'paths' | 'session' | undefined {
+    const sessionId = draggedSessionId(event.dataTransfer);
+    if (sessionId !== undefined) return canReferenceSession(sessionId) ? 'session' : undefined;
+    return isComposerDrag(event) ? 'paths' : undefined;
+}
+
 export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dropHandlers'];
 
 /**
@@ -39,7 +53,8 @@ export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dr
  * anything. A pasted image the provider cannot take has no path to cite, so it says why in an info toast instead of
  * silently doing nothing. Pasted text goes to `takeLongPaste` first, which keeps a long paste out of the input. In a
  * local window `+` → Files and folders opens the native panel instead (`pickPaths`), whose folders and files are cited
- * through `didInsertPickedPaths` and whose images take the same route as dropped ones.
+ * through `didInsertPickedPaths` and whose images take the same route as dropped ones. A Session row dragged from the
+ * sidebar is cited like a Session chosen from the `@` list (`sessionDrop`).
  */
 export function useAgentChatFileInput({
     add,
@@ -47,6 +62,7 @@ export function useAgentChatFileInput({
     didInsertPickedPaths,
     isImageInputEnabled,
     providerName,
+    sessionDrop,
     takeLongPaste,
 }: {
     add: (files: readonly File[]) => Promise<void>;
@@ -58,11 +74,21 @@ export function useAgentChatFileInput({
      */
     providerName: string;
     /**
+     * Whether a dragged Session row may be cited here, and how to cite it (`useAgentChatSessionMenu`).
+     */
+    sessionDrop: {
+        canReference: (sessionId: string) => boolean;
+        reference: (sessionId: string) => void;
+    };
+    /**
      * Returns whether it took the paste's text (`useAgentChatLongPaste`).
      */
     takeLongPaste: (event: AgentChatComposerPasteEvent) => boolean;
 }) {
-    const [isDragOver, setDragOver] = useState(false);
+    /**
+     * What the drag over the Chat would cite, which picks the drop tint's caption.
+     */
+    const [dragOver, setDragOver] = useState<'paths' | 'session'>();
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const attach = (files: readonly File[]): void => {
         if (isImageInputEnabled && files.length > 0) void add(files);
@@ -93,7 +119,8 @@ export function useAgentChatFileInput({
             ),
         );
     return {
-        isDragOver,
+        isDragOver: dragOver !== undefined,
+        isSessionDragOver: dragOver === 'session',
         pick: (files: readonly File[]) => routeFiles(undefined, files),
         /**
          * Opens the native panel for files and folders together, or `undefined` in an SSH Host window (or before the
@@ -126,23 +153,30 @@ export function useAgentChatFileInput({
             onDragLeave: (event: DragEvent) => {
                 // Leaving for a child of the composer is still over it.
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                    setDragOver(false);
+                    setDragOver(undefined);
             },
             onDragOver: (event: DragEvent) => {
-                if (!isComposerDrag(event)) return;
+                const kind = composerDragKind(event, sessionDrop.canReference);
+                if (!kind) return;
                 /**
                  * The pane underneath would otherwise read an Option-held Editor tab drag as a move into this pane.
                  */
                 event.preventDefault();
                 event.stopPropagation();
                 event.dataTransfer.dropEffect = 'copy';
-                setDragOver(true);
+                setDragOver(kind);
             },
             onDrop: (event: DragEvent) => {
-                setDragOver(false);
-                if (!isComposerDrag(event)) return;
+                setDragOver(undefined);
+                const kind = composerDragKind(event, sessionDrop.canReference);
+                if (!kind) return;
                 event.preventDefault();
                 event.stopPropagation();
+                const sessionId = draggedSessionId(event.dataTransfer);
+                if (kind === 'session' && sessionId !== undefined) {
+                    sessionDrop.reference(sessionId);
+                    return;
+                }
                 routeFiles(event, [...event.dataTransfer.files]);
             },
         },

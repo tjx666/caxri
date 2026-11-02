@@ -310,6 +310,38 @@ test('typing @ cites another Session from Agent Chat and from the Agent Commands
         await expect(list).toHaveCount(0);
         await message.click();
         await expect(list).toBeVisible();
+
+        // Dragging a Session's sidebar row onto the Chat cites it as the `@` list does; the Chat's own row is refused.
+        await message.fill('');
+        await message.press('Escape');
+        const dragRowOntoChat = (sessionId: string | undefined): Promise<boolean> =>
+            message.evaluate((input, id) => {
+                // The Chat pane around the transcript; CodeMirror accepts every dragover itself, so the input cannot show a refusal.
+                const target = input.closest('section');
+                if (!target) throw new Error('Chat section missing');
+                const row = document.querySelector(
+                    `[draggable="true"][data-session-id="${CSS.escape(id)}"]`,
+                );
+                if (!row) throw new Error(`Sidebar row ${id} missing`);
+                const dataTransfer = new DataTransfer();
+                const wasNotCanceled = (element: Element, type: string): boolean =>
+                    element.dispatchEvent(
+                        new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }),
+                    );
+                wasNotCanceled(row, 'dragstart');
+                wasNotCanceled(target, 'dragenter');
+                const isAccepted = !wasNotCanceled(target, 'dragover');
+                wasNotCanceled(target, 'drop');
+                wasNotCanceled(row, 'dragend');
+                return isAccepted;
+            }, sessionId);
+        expect(await dragRowOntoChat(citingSessionId)).toBe(false);
+        await expectComposerValue(message, '');
+        expect(await dragRowOntoChat(citedId)).toBe(true);
+        await expectComposerValue(message, REFERENCE);
+        await expect(message.locator('.cm-session-chip')).toHaveText(`@${CITED_TITLE}`);
+        await chat.screenshot({ path: testInfo.outputPath('chat-session-drag-chip.png') });
+        await expectCondensedConversation(REFERENCE.exec(await composerValue(message))![1]);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

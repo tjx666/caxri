@@ -36,6 +36,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.attachments.remove': '移除 {{name}}',
     'agentChat.attachments.dropImagesOrPaths': '拖放以添加图片、文件或文件夹',
     'agentChat.attachments.dropPaths': '拖放以添加文件或文件夹',
+    'agentChat.attachments.dropSession': '拖放以引用此会话',
 
     'agentChat.pathReference.label': '附加的文件和文件夹',
     'agentChat.pathReference.openFolder': '在 Finder 中打开 {{name}}',

@@ -67,6 +67,21 @@ function titleMatchTier(title: string, query: string): number | undefined {
 }
 
 /**
+ * Whether a Session can be cited from the Chat of `currentSessionId`, by `@` or by dragging its row: it is unarchived,
+ * has a Primary Agent whose conversation can be condensed, and is not the citing Session itself.
+ */
+export function isSessionReferenceable(
+    session: { archivedAt?: number; id: string; primaryAgentTerminalId?: string },
+    currentSessionId: string | undefined,
+): boolean {
+    return (
+        session.id !== currentSessionId &&
+        session.archivedAt === undefined &&
+        Boolean(session.primaryAgentTerminalId)
+    );
+}
+
+/**
  * The Sessions an `@` can cite, searched by title, for Desktop and the phone alike: every unarchived Session with a
  * Primary Agent except the one doing the citing. An empty query lists the most recently opened first, which is the
  * Session a user most often means.
@@ -81,12 +96,7 @@ export function searchSessionReferenceCandidates<
     },
 >(sessions: readonly S[] | undefined, currentSessionId: string | undefined, query: string): S[] {
     const ranked = (sessions ?? []).flatMap((session) => {
-        if (
-            session.id === currentSessionId ||
-            session.archivedAt !== undefined ||
-            !session.primaryAgentTerminalId
-        )
-            return [];
+        if (!isSessionReferenceable(session, currentSessionId)) return [];
         const tier = titleMatchTier(session.title, query.trim());
         return tier === undefined ? [] : [{ session, tier }];
     });

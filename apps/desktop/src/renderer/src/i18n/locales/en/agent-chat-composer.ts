@@ -40,6 +40,7 @@ export const agentChatComposer = {
     'agentChat.attachments.remove': 'Remove {{name}}',
     'agentChat.attachments.dropImagesOrPaths': 'Drop to add images, files, or folders',
     'agentChat.attachments.dropPaths': 'Drop to add files or folders',
+    'agentChat.attachments.dropSession': 'Drop to cite this Session',
 
     'agentChat.pathReference.label': 'Attached files and folders',
     'agentChat.pathReference.openFolder': 'Open {{name}} in Finder',
