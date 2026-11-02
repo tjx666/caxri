@@ -2,7 +2,7 @@ import type { ComponentProps, FocusEvent, ReactNode } from 'react';
 import { useState } from 'react';
 
 import { cn } from '../../../lib/utilities';
-import { AGENT_CHAT_NAVIGABLE_REPLY_ATTRIBUTE } from './agent-chat-reply-navigation';
+import { AGENT_CHAT_NAVIGABLE_REPLY_ATTRIBUTE } from '../keyboard/agent-chat-reply-navigation';
 
 /**
  * A message with an action row that mounts only while the pointer is over the message or keyboard focus is inside it,

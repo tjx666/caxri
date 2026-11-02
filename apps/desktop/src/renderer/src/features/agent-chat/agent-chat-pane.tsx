@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AgentProviderCatalogEntry } from '@caxri/protocol';
@@ -44,11 +45,12 @@ import {
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
-import { useLoadingStyle } from './loading';
 import {
     AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
     onAgentChatTranscriptKeyDown,
-} from './messages/agent-chat-reply-navigation';
+} from './keyboard/agent-chat-reply-navigation';
+import { useAgentChatEdgeKeys } from './keyboard/use-agent-chat-edge-keys';
+import { useLoadingStyle } from './loading';
 import { AgentChatSelectionToolbar } from './messages/agent-chat-selection-toolbar';
 import { AGENT_CHAT_PANE_ATTRIBUTE } from './permissions/agent-chat-approval-commands';
 import { AgentChatMessageRail } from './rail/agent-chat-message-rail';
@@ -215,7 +217,21 @@ function AgentChatPaneContent({
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
     const { statusShimmer } = useLoadingStyle();
     // Escape interrupts a running turn from anywhere in the pane; the composer handles its own (see the hook).
-    const onKeyDown = useAgentChatPaneEscape({ activeTurnId: snapshot?.activeTurnId, terminalId });
+    const onEscapeKeyDown = useAgentChatPaneEscape({
+        activeTurnId: snapshot?.activeTurnId,
+        terminalId,
+    });
+    // Home/End and Cmd+ArrowUp/Down jump the transcript to its top or bottom, as a page does in Chrome.
+    const onEdgeKeyDown = useAgentChatEdgeKeys({
+        inputReference,
+        jumpToLatest,
+        scrollReference,
+        stopFollowing,
+    });
+    const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+        onEscapeKeyDown(event);
+        onEdgeKeyDown(event);
+    };
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
     const history = useAgentChatHistory(terminalId, snapshot, {
         scrollReference,
