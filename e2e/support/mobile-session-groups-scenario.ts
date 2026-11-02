@@ -140,26 +140,36 @@ async function holdSwipeFollowingFinger(
 }
 
 /**
- * The Project chips and the header's icon buttons share a center line, within one dp.
+ * The header's icon buttons sit in the brand row, which ends above the full-width Project chips, and the two buttons
+ * share a center line within one dp.
  */
-function assertHeaderCentered(nodes: MobileSemanticNode[], density: number): void {
-    const center = (id: string) => {
-        const bounds = checkBounds(nodes, id);
-        if (!bounds) throw new Error(`${id} is not laid out`);
-        return (bounds.top + bounds.bottom) / 2;
+function assertHeaderLayout(nodes: MobileSemanticNode[], density: number): void {
+    const bounds = (id: string) => {
+        const found = checkBounds(nodes, id);
+        if (!found) throw new Error(`${id} is not laid out`);
+        return found;
     };
-    const chip = center('project-filter-all');
-    for (const id of ['session-search-button', 'computer-menu-button'])
-        if (Math.abs(center(id) - chip) > density)
-            throw new Error(`${id} is not centered on the Project chips`);
+    const chip = bounds('project-filter-all');
+    const search = bounds('session-search-button');
+    const menu = bounds('computer-menu-button');
+    for (const [id, button] of [
+        ['session-search-button', search],
+        ['computer-menu-button', menu],
+    ] as const)
+        if (button.bottom > chip.top + density)
+            throw new Error(`${id} is not in the brand row above the Project chips`);
+    if (Math.abs((search.top + search.bottom) / 2 - (menu.top + menu.bottom) / 2) > density)
+        throw new Error(
+            'session-search-button and computer-menu-button do not share a center line',
+        );
 }
 
 /**
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
  * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
  * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held, with the
- * next Project's page sliding in, and the release settles flush. The Project chips share a center line with the
- * header's icon buttons.
+ * next Project's page sliding in, and the release settles flush. The header's icon buttons sit in the brand row above
+ * the Project chips.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -181,7 +191,7 @@ export async function executeMobileSessionSwipeScenario(
             throw new Error('The list did not start on All');
         const display = await mobileDisplayState(serial);
         const density = (display.density.override ?? display.density.physical) / 160;
-        assertHeaderCentered(nodes, density);
+        assertHeaderLayout(nodes, density);
         const x = Math.floor((row.left + row.right) / 2);
         const y = Math.floor((row.top + row.bottom) / 2);
         const drift = Math.round(DRIFT_DP * density);
@@ -286,7 +296,7 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'swiped-back-to-all', artifacts);
         await finish(environment, artifacts, {
             driftingScroll: 'scrolled-without-switching-project',
-            headerCentered: 'chips-and-icon-buttons-share-a-center-line',
+            headerLayout: 'icon-buttons-in-brand-row-above-chips',
             heldSwipe: 'page-follows-finger-and-next-project-slides-in',
             leftSwipe: 'all-to-project',
             leftSwipeAtLastProject: 'stayed',

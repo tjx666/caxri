@@ -20,10 +20,16 @@ const COPY_FEEDBACK_RESET_MS = 2000;
  * edge, so this is the way to take all of it.
  */
 export const CopyButton = ({
+    label: idleLabel,
     text,
     testID,
     theme,
 }: {
+    /**
+     * The accessible name while idle, such as "Copy code" or "Copy quote", so a screen reader tells the buttons on a
+     * page apart. Defaults to "Copy"; the copied and failed states keep their own names.
+     */
+    label?: string;
     /**
      * The text to copy, or a function that produces it on tap when building it costs more than a render should pay,
      * such as a quote's text re-parsed from a streaming reply.
@@ -46,7 +52,7 @@ export const CopyButton = ({
     const label = {
         copied: t('components.copied'),
         failed: t('components.copyFailed'),
-        idle: t('components.copy'),
+        idle: idleLabel ?? t('components.copy'),
     }[status];
     return (
         <Pressable

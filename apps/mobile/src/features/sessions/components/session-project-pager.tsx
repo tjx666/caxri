@@ -28,15 +28,23 @@ const PAGER_ACTIVATION_DP = 24;
 const PAGER_FAIL_Y_DP = 16;
 const PAGER_SETTLE = { duration: 240, easing: Easing.out(Easing.cubic) };
 
+/**
+ * One Project's list. The previous and next pages stay mounted off screen (translated out of view) so a swipe can bring
+ * them in without redrawing, but a translated view is still in the accessibility tree: TalkBack could focus and
+ * activate rows on a page the user cannot see. An inactive page is therefore hidden from assistive tech and ignores
+ * touches. Paging itself is unaffected, since the drag gesture lives on the parent `GestureDetector`.
+ */
 const PagerPage = ({
     children,
     index,
+    isActive,
     position,
     testID,
     width,
 }: {
     children: ReactNode;
     index: number;
+    isActive: boolean;
     position: SharedValue<number>;
     testID: string;
     width: number;
@@ -45,7 +53,13 @@ const PagerPage = ({
         transform: [{ translateX: index * width - position.get() }],
     }));
     return (
-        <Animated.View style={[styles.page, style]} testID={testID}>
+        <Animated.View
+            accessibilityElementsHidden={!isActive}
+            importantForAccessibility={isActive ? 'auto' : 'no-hide-descendants'}
+            pointerEvents={isActive ? 'auto' : 'none'}
+            style={[styles.page, style]}
+            testID={testID}
+        >
             {children}
         </Animated.View>
     );
@@ -129,6 +143,7 @@ export const SessionProjectPager = ({
                     (index) => (
                         <PagerPage
                             index={index}
+                            isActive={index === activeIndex}
                             key={pageKey(index)}
                             position={position}
                             testID={`session-page-${pageKey(index)}`}

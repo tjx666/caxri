@@ -2,7 +2,13 @@ import type { ASTNode } from '@ronradtke/react-native-markdown-display';
 import { describe, expect, it, vi } from 'vitest';
 
 import { parseMarkdown } from '../conversation-markdown-parser';
-import { quoteIndexOf, quotePlainText } from '../conversation-quote-text';
+import {
+    isQuoteWorthCopying,
+    QUOTE_COPY_MIN_CHARACTERS,
+    quoteIndexOf,
+    quoteNodeText,
+    quotePlainText,
+} from '../conversation-quote-text';
 
 /**
  * The package entry pulls in React Native, which Node cannot load; its parser modules are plain JavaScript.
@@ -44,5 +50,28 @@ describe('conversation quote text', () => {
             'inner',
             'in a list',
         ]);
+    });
+});
+
+describe('quote Copy threshold', () => {
+    const quoteTexts = (source: string) =>
+        parseMarkdown(source).flatMap(function find(node): string[] {
+            return node.type === 'blockquote' ? [quoteNodeText(node)] : node.children.flatMap(find);
+        });
+
+    it('keeps Copy off a short single-line quote', () => {
+        expect(quoteTexts('> A short phrase.').map(isQuoteWorthCopying)).toEqual([false]);
+    });
+
+    it('offers Copy on a multi-line quote', () => {
+        expect(quoteTexts('> first line\n> second line').map(isQuoteWorthCopying)).toEqual([true]);
+        expect(quoteTexts('> one paragraph\n>\n> another').map(isQuoteWorthCopying)).toEqual([
+            true,
+        ]);
+    });
+
+    it('offers Copy on a long single line only past the threshold', () => {
+        expect(isQuoteWorthCopying('x'.repeat(QUOTE_COPY_MIN_CHARACTERS))).toBe(false);
+        expect(isQuoteWorthCopying('x'.repeat(QUOTE_COPY_MIN_CHARACTERS + 1))).toBe(true);
     });
 });
