@@ -96,7 +96,7 @@ export function isMissingNewestTurnStart(snapshot: AgentChatSnapshot): boolean {
  * Pages an opened Chat reads at most before it is shown. Each page is a round trip, over the Relay too, while the saved
  * copy or the loading state stays up; a turn longer than this opens as before, and scrolling back reads the rest.
  */
-export const MAX_AGENT_CHAT_OPENING_PAGES = 3;
+const MAX_AGENT_CHAT_OPENING_PAGES = 3;
 
 /**
  * Reads the pages above an opened Chat's window until one brings a user message, so the phone shows the newest turn's
