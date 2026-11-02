@@ -15,7 +15,7 @@ import {
 } from './mobile-android';
 import { setEmulatorNetworkDelay } from './mobile-android-network';
 import type { GrayFrame } from './mobile-motion-analysis';
-import { heldPicturesBeforeFinal, readRecordingBand } from './mobile-motion-analysis';
+import { heldPicturesBeforeFinalAt, readRecordingBand } from './mobile-motion-analysis';
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -94,6 +94,13 @@ export async function executeMobileHomeNoticeSettleScenario(
         isDelayed = false;
         await waitForCheck(serial, row);
         await capture(environment, 'cold-start-settled', artifacts);
+        // The final picture must be the notice-free list, or a notice that settled late would pass as the final frame.
+        const settled = await mobileSemantics(serial);
+        const notices = ['connection-stale-banner', 'session-list-saved'].filter((id) =>
+            settled.some(({ checkId }) => checkId === id),
+        );
+        if (notices.length > 0)
+            throw new Error(`The settled Session list still shows ${notices.join(', ')}`);
 
         const analysis = await mkdtemp(join(tmpdir(), 'caxri-home-notice-'));
         try {
@@ -102,14 +109,19 @@ export async function executeMobileHomeNoticeSettleScenario(
             const { frames } = await readRecordingBand(video, band);
             const splash = frames.findIndex(isFlat);
             if (splash === -1) throw new Error('The recording never showed the splash screen');
-            const held = heldPicturesBeforeFinal(frames.slice(splash), HOLD_MS);
-            if (held > 0)
+            const held = heldPicturesBeforeFinalAt(frames.slice(splash), HOLD_MS).map(
+                ({ heldMs, time }) => ({
+                    heldMs: Math.round(heldMs),
+                    sinceSplashMs: Math.round(time - frames[splash].time),
+                }),
+            );
+            if (held.length > 0)
                 throw new Error(
-                    `The Project filter row held ${held} other pictures before settling on cold start`,
+                    `The Project filter row held ${held.length} other pictures before settling on cold start: ${JSON.stringify(held)}`,
                 );
             await finish(environment, artifacts, {
                 frames: frames.length - splash,
-                heldPicturesBeforeFinal: held,
+                heldPicturesBeforeFinal: held.length,
                 relayDelayMs: RELAY_DELAY_MS,
                 status: 'passed',
             });
