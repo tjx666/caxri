@@ -67,10 +67,11 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      */
     measureSpacer: () => boolean;
     /**
-     * Grows the drawn spacer by the rows' height before the reader opens or closes a row in the latest turn. Closing a
-     * row shrank the native content before JS re-measured the spacer, so Android clamped the scroll and the previous
-     * turn flashed into view until the spacer grew back. The reserve lasts until the rows are measured at another
-     * height and the re-measured spacer is drawn, or `DISCLOSURE_RESERVE_MS` when the toggle left their height alone.
+     * Draws room as tall as the rows below the spacer before the reader opens or closes a row in the latest turn.
+     * Closing a row shrank the native content before JS re-measured the spacer, so Android clamped the scroll and the
+     * previous turn flashed into view until the spacer grew back. The reserve lasts until the rows are measured at
+     * another height and the re-measured spacer is drawn, or `DISCLOSURE_RESERVE_MS` when the toggle left their height
+     * alone.
      */
     reserveForDisclosure: () => void;
     /**
