@@ -26,7 +26,7 @@ const IDLE_SESSION_COUNT = 11;
 const DRIFT_DP = 16;
 
 /**
- * Long enough for a released swipe's scheduled filter switch to land.
+ * Long enough for a released swipe's settle animation and the filter switch after it to land.
  */
 const SETTLE_MS = 600;
 
@@ -83,10 +83,10 @@ async function swipeList(serial: string, fromShare: number, toShare: number): Pr
 
 /**
  * Drags across the Session list like {@link swipeList} but holds the finger down past the activation slop, so the frame
- * is compared while the gesture is live: the list must not follow the finger, or one Project's rows would slide beside
- * the next one's. UIAutomator waits for an idle screen, so the list is compared by its pixels instead.
+ * is compared while the gesture is live: the list must follow the finger like a pager, with the next Project's page
+ * sliding in beside it. UIAutomator waits for an idle screen, so the list is compared by its pixels instead.
  */
-async function holdSwipeWithoutMovingList(
+async function holdSwipeFollowingFinger(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
     fromShare: number,
@@ -122,13 +122,13 @@ async function holdSwipeWithoutMovingList(
     } finally {
         await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
     }
-    if (held !== resting) throw new Error('The Session list moved with the finger mid-swipe');
+    if (held === resting) throw new Error('The Session list did not follow the finger mid-swipe');
 }
 
 /**
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
  * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
- * last chip stays put, and a right swipe returns to All. The list never follows the finger while a swipe is held.
+ * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -216,7 +216,7 @@ export async function executeMobileSessionSwipeScenario(
         await capture(environment, 'short-row-drag', artifacts);
 
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
-        await holdSwipeWithoutMovingList(environment, artifacts, 0.8, 0.2);
+        await holdSwipeFollowingFinger(environment, artifacts, 0.8, 0.2);
         await waitForMobile(
             () => mobileSemantics(serial),
             (current) => isFilterSelected(current, projectChip),

@@ -29,7 +29,7 @@ export const filterSessionEntries = (
     return result;
 };
 
-export type ProjectFilterSwipe = 'next' | 'previous';
+type ProjectFilterSwipe = 'next' | 'previous';
 
 /**
  * Distance, as a share of the list's width, and fling speed (points per second) past which a sideways drag over the
@@ -59,16 +59,52 @@ export const projectFilterSwipe = (
 };
 
 /**
- * The filter a swipe lands on, in the chips' order (All, then each Project), or `undefined` past either end, where the
- * list springs back instead of wrapping around.
+ * Share of a drag past the first or last page that the pages still follow, so either end resists the finger and springs
+ * back instead of wrapping around, as a native pager does.
  */
-export const adjacentProjectFilter = (
-    activeProjectId: string | null,
-    projectIds: readonly string[],
-    swipe: ProjectFilterSwipe,
-): string | null | undefined => {
-    const order = [null, ...projectIds];
-    const index = order.indexOf(activeProjectId);
-    const next = index + (swipe === 'next' ? 1 : -1);
-    return index === -1 || next < 0 || next >= order.length ? undefined : order[next];
+const PAGER_EDGE_RESISTANCE = 0.3;
+
+/**
+ * Where the Project pager sits while a finger drags it, in points from the first page: it follows the finger one to one
+ * between the first and last page and only partly past either end.
+ */
+export const projectPagerPosition = (
+    start: number,
+    dragX: number,
+    pageCount: number,
+    width: number,
+): number => {
+    'worklet';
+    const position = start - dragX;
+    if (position < 0) return position * PAGER_EDGE_RESISTANCE;
+    const last = Math.max(0, pageCount - 1) * width;
+    if (position > last) return last + (position - last) * PAGER_EDGE_RESISTANCE;
+    return position;
+};
+
+/**
+ * The page a released drag settles on, in the chips' order (All, then each Project): the neighbor in the swipe's
+ * direction, or the current page for a short drag or past either end.
+ */
+export const projectPagerTarget = (
+    activeIndex: number,
+    pageCount: number,
+    drag: { translationX: number; velocityX: number },
+    width: number,
+): number => {
+    'worklet';
+    const swipe = projectFilterSwipe(drag, width);
+    if (swipe === null) return activeIndex;
+    const next = activeIndex + (swipe === 'next' ? 1 : -1);
+    return next < 0 || next >= pageCount ? activeIndex : next;
+};
+
+/**
+ * The pages kept mounted around the current one, so a swipe in either direction finds its neighbor already drawn.
+ */
+export const projectPagerWindow = (activeIndex: number, pageCount: number): number[] => {
+    const pages: number[] = [];
+    for (let index = activeIndex - 1; index <= activeIndex + 1; index += 1)
+        if (index >= 0 && index < pageCount) pages.push(index);
+    return pages;
 };

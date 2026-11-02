@@ -202,12 +202,14 @@ no background of its own keeps its default dark text readable.
   Inbox has open items and opens it; with none it is absent rather than an empty menu entry.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- Swiping the list left or right, including its empty state, moves to the next or previous Project
-  filter in chip order (All first) and stops at either end instead of wrapping. The list does not
-  move with the finger and the filter switches on release, so two Projects' rows never share the
-  screen mid-swipe; the swipe starts only after `24dp` of sideways travel and gives way to a scroll
-  that moves `16dp` vertically first, so a vertical scroll that drifts sideways keeps scrolling
-  (`MOB-CHAT-27`). The filter strip scrolls to center the selected chip. Rows have no swipe action: archive from the long-press actions sheet.
+- Swiping the list left or right, including its empty state, pages to the next or previous Project
+  filter in chip order (All first), like the paged main tabs of WeChat for Android: the whole list
+  follows the finger one to one and the neighboring Project's real list slides in from the edge.
+  Release past `20%` of the width or on a fling settles on that page in `240ms`; a shorter drag
+  springs back. Either end resists at `30%` of the drag and springs back instead of wrapping. A
+  chip tap jumps without animation, and a newly shown Project starts at the top of its list. The
+  swipe starts only after `24dp` of sideways travel and gives way to a scroll that moves `16dp`
+  vertically first, so a vertical scroll that drifts sideways keeps scrolling (`MOB-CHAT-27`). The filter strip scrolls to center the selected chip. Rows have no swipe action: archive from the long-press actions sheet.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 
 ## Session screen
