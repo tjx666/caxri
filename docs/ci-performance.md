@@ -526,7 +526,7 @@ The Release workflow's manual dispatch is a no-publish rehearsal. Because it run
 also seeds the Gradle cache the next release restores. It keeps the Linux x64/ARM64 native matrix,
 then uses `macos-15` ARM64 to install the exact Node, pnpm, Bun, JDK 17, Android
 Platform 36, Build Tools 35/36, NDK, and CMake versions. It signs the Android rehearsal APK with an
-ephemeral one-run key, packages both unsigned DMG flavors, and runs the two targeted packaged-app
+ephemeral one-run key, signs both DMG flavors with a throwaway certificate, and runs the two targeted packaged-app
 smoke specs against the canonical Source Map flavor. It has read-only repository permission, reads
 no secrets, uploads no DMG, and never creates a GitHub Release.
 

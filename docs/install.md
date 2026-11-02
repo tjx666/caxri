@@ -82,7 +82,7 @@ The script uses only tools macOS ships (`curl`, `shasum`, `hdiutil`, `ditto`, `x
 
 Every failure prints one `Caxri install failed: <reason>` line naming the step and what to do; report
 it to the user verbatim. When `/Applications` is not writable, rerun with
-`CAXRI_INSTALL_DIR="$HOME/Applications"`. Caxri is ad-hoc signed but not notarized; if macOS still
+`CAXRI_INSTALL_DIR="$HOME/Applications"`. Caxri is self-signed but not notarized; if macOS still
 blocks it, see [Troubleshooting](troubleshooting.md#macos-says-caxri-is-damaged-or-blocks-it).
 
 ## 4. Apply the optional setup

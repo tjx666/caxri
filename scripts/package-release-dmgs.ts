@@ -167,16 +167,27 @@ export function releaseDmgArtifact(
     };
 }
 
+interface ReleaseSigningExpectation {
+    certificateSha1: string;
+    identity: string;
+}
+
 /**
  * Gatekeeper reports a quarantined bundle whose signature does not seal its resources as "damaged" and offers no Open
  * Anyway route. A bare arm64 Electron build carries only the linker's per-binary signature, so the release must prove
- * the whole bundle is ad-hoc signed and that the Share extension kept the sandbox entitlement macOS requires to load
- * it.
+ * the whole bundle is signed and that the Share extension kept the sandbox entitlement macOS requires to load it.
+ *
+ * With a release identity, the app and the Share extension must also carry that certificate, and the app's designated
+ * requirement must pin its leaf: an ad-hoc requirement names only the cdhash, which changes with every build and drops
+ * the user's macOS privacy grants on each update.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/package-release-dmgs.test.ts
 export function assertReleaseSignature(input: {
     appDisplay: string;
+    appRequirement: string;
+    shareExtensionDisplay: string;
     shareExtensionEntitlements: string;
+    signing?: ReleaseSigningExpectation;
 }): void {
     if (!/^Identifier=com\.caxri\.app$/m.test(input.appDisplay))
         throw new Error('Caxri.app is not signed with its own bundle identifier.');
@@ -184,24 +195,79 @@ export function assertReleaseSignature(input: {
         throw new Error('Caxri.app signature does not seal its resources.');
     if (!input.shareExtensionEntitlements.includes('com.apple.security.app-sandbox'))
         throw new Error('Caxri Share.appex lost its sandbox entitlement during signing.');
+    if (!input.signing) return;
+    const authority = `Authority=${input.signing.identity}`;
+    if (!input.appDisplay.split('\n').includes(authority))
+        throw new Error(`Caxri.app is not signed by ${input.signing.identity}.`);
+    if (!input.shareExtensionDisplay.split('\n').includes(authority))
+        throw new Error(`Caxri Share.appex is not signed by ${input.signing.identity}.`);
+    const leaf = `certificate leaf = H"${input.signing.certificateSha1.toLowerCase()}"`;
+    if (!input.appRequirement.includes(leaf))
+        throw new Error(
+            'Caxri.app designated requirement does not pin the release certificate, so macOS privacy grants would not survive updates.',
+        );
+}
+
+/**
+ * `scripts/import-mac-signing-identity.ts` exports both variables after importing a certificate; without them the build
+ * is ad-hoc signed (pull requests, forks, local packaging). The release and rehearsal jobs set
+ * `CAXRI_REQUIRE_MAC_SIGNING=1`, so a missing import step fails here instead of shipping an ad-hoc build that revokes
+ * every user's macOS privacy grants.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/package-release-dmgs.test.ts
+export function releaseSigningExpectation(
+    environment: NodeJS.ProcessEnv = process.env,
+): ReleaseSigningExpectation | undefined {
+    const identity = environment.CAXRI_MAC_SIGNING_IDENTITY?.trim();
+    const certificateSha1 = environment.CAXRI_MAC_SIGNING_CERT_SHA1?.trim();
+    if (!identity && !certificateSha1) {
+        if (environment.CAXRI_REQUIRE_MAC_SIGNING === '1')
+            throw new Error(
+                'CAXRI_REQUIRE_MAC_SIGNING is set but no signing identity was imported; run scripts/import-mac-signing-identity.ts first.',
+            );
+        return undefined;
+    }
+    if (!identity || !certificateSha1)
+        throw new Error(
+            'CAXRI_MAC_SIGNING_IDENTITY and CAXRI_MAC_SIGNING_CERT_SHA1 must be set together.',
+        );
+    return { certificateSha1, identity };
 }
 
 async function verifyReleaseSignature(appPath: string, cwd: string): Promise<void> {
     await runRequired('codesign', ['--verify', '--deep', '--strict', appPath], cwd);
-    // `codesign --display` writes its report to stderr.
+    const shareExtensionPath = join(appPath, 'Contents', 'PlugIns', 'Caxri Share.appex');
+    // `codesign --display --verbose` writes its report to stderr; `--requirements -` prints to stdout.
     const { stderr: appDisplay } = await execFileAsync('codesign', [
         '--display',
         '--verbose=2',
         appPath,
+    ]);
+    const { stdout: appRequirement } = await execFileAsync('codesign', [
+        '--display',
+        '--requirements',
+        '-',
+        appPath,
+    ]);
+    const { stderr: shareExtensionDisplay } = await execFileAsync('codesign', [
+        '--display',
+        '--verbose=2',
+        shareExtensionPath,
     ]);
     const { stdout: shareExtensionEntitlements } = await execFileAsync('codesign', [
         '--display',
         '--entitlements',
         '-',
         '--xml',
-        join(appPath, 'Contents', 'PlugIns', 'Caxri Share.appex'),
+        shareExtensionPath,
     ]);
-    assertReleaseSignature({ appDisplay, shareExtensionEntitlements });
+    assertReleaseSignature({
+        appDisplay,
+        appRequirement,
+        shareExtensionDisplay,
+        shareExtensionEntitlements,
+        signing: releaseSigningExpectation(),
+    });
 }
 
 async function runRequired(

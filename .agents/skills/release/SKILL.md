@@ -78,7 +78,7 @@ beyond the packaged application itself.
   alongside the changed-file check. These contracts read workflow YAML as data, so import-based
   affected-test selection does not discover them.
 - The release workflow validates the version and tag, builds the release-signed Android update APK
-  that Desktop serves to paired phones (`docs/mobile/update.md`), rebuilds the unsigned Apple Silicon
+  that Desktop serves to paired phones (`docs/mobile/update.md`), rebuilds the self-signed Apple Silicon
   app in `include` and `omit` Source Map flavors, and publishes both DMGs plus the exact bundled
   APK as `Caxri-Mobile-<version>-android-arm64.apk`, each with one SHA-256 checksum. Verify the APK
   appears in the Release assets as well as inside Desktop; an embedded-only APK does not provide
