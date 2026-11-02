@@ -124,8 +124,10 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         packageNames: ['@caxri/markdown'],
         /**
          * `./file-reference` lets the phone find cited files in Chat text without pulling in the Markdown parser.
+         * `./prose-web-links` lets it link URLs in a user's message with the reply's rules; it needs only the
+         * `markdown-it` linkifier the phone already bundles for replies.
          */
-        publicSubpaths: ['.', './file-reference'],
+        publicSubpaths: ['.', './file-reference', './prose-web-links'],
         browserSafe: true,
         allowedPackages: [],
     },

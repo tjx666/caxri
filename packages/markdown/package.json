@@ -18,6 +18,11 @@
             "bun": "./src/file-reference.ts",
             "types": "./src/file-reference.ts",
             "import": "./dist/file-reference.js"
+        },
+        "./prose-web-links": {
+            "bun": "./src/prose-web-links.ts",
+            "types": "./src/prose-web-links.ts",
+            "import": "./dist/prose-web-links.js"
         }
     },
     "scripts": {

@@ -1,11 +1,12 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { memo, use, useState } from 'react';
+import { Fragment, memo, use, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
+import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationHandoffCard } from './conversation-handoff-card';
 import { ConversationMarkdown } from './conversation-markdown';
@@ -176,7 +177,24 @@ export const ConversationEntry = memo(
                                 />
                             ) : (
                                 <Text style={[styles.userText, { color: theme.text }]}>
-                                    {user.text}
+                                    {user.runs.map((run) =>
+                                        run.kind === 'url' ? (
+                                            <Text
+                                                accessibilityRole="link"
+                                                key={run.from}
+                                                onPress={() => openLink(run.url)}
+                                                // Underlined like a reply's link: a phone has no hover to reveal it.
+                                                style={{
+                                                    color: theme.primary,
+                                                    textDecorationLine: 'underline',
+                                                }}
+                                            >
+                                                {run.text}
+                                            </Text>
+                                        ) : (
+                                            <Fragment key={run.from}>{run.text}</Fragment>
+                                        ),
+                                    )}
                                 </Text>
                             )}
                         </ConversationMessagePress>
