@@ -28,6 +28,7 @@ import type {
     DomainServices,
     DomainShutdownStepRunner,
 } from '../domains/domain-services';
+import { createProjectRunningOrderEvents } from '../domains/project';
 import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
 import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import type { DomainOperationDispatcher } from './operation-dispatcher';
@@ -253,9 +254,14 @@ export class ServerDomainService extends EventTarget {
             return Promise.reject(new CaxriError('UNAVAILABLE', 'Server Core has been stopped'));
         this.startPromise ??= (async () => {
             const startedAt = performance.now();
+            const runningOrder = createProjectRunningOrderEvents(
+                (event) => this.publishEvent(event),
+                this.dependencies.logger,
+            );
             const services = await this.createServices({
                 ...this.dependencies,
-                send: (event) => this.publishEvent(event),
+                onDatabaseOpened: runningOrder.attach,
+                send: runningOrder.send,
             });
             if (this.stopped) {
                 await services.close();

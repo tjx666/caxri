@@ -49,6 +49,16 @@ export const databaseLogEvents = {
      */
     sessionStateStaleWrite: 'db.session_state_stale_write',
     sessionStateUnchanged: 'db.session_state_unchanged',
+    /**
+     * Running Agents moved Projects in the PrimarySidebar: `started` Projects that gained their first running Session
+     * and moved to the end of the running group, `stopped` Projects whose last running Session stopped and moved back
+     * to the top of the idle group, and the `running` Projects after the move.
+     */
+    projectRunningOrderChanged: 'db.project_running_order_changed',
+    /**
+     * Reconciling the running Project order failed; the state event that triggered it was still delivered.
+     */
+    projectRunningOrderFailed: 'db.project_running_order_failed',
 } as const;
 
 export const diagnosticsLogEvents = {

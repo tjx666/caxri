@@ -2,6 +2,16 @@
 
 A `Project` is a user-authorized folder and the durable owner of its `rootPath`, explicit Sidebar order, and path-security grant. A `Session` belongs permanently to one owning Project and owns permanent Terminal records, root-scoped Workbench state, layout, and optional Agent metadata. Its independently persisted `Workbench Root` selects the authorized Project used by Files, Editor, Search, Git, and the default cwd of newly created Terminals; it defaults and falls back to the owning Project. Existing Terminal cwd records and processes, Agent Endpoint ownership, Sidebar grouping, and Session identity never move when that selection changes. Workbench navigation and dirty document identity use the tuple `(sessionId, workbenchRootProjectId, path)`, so switching roots restores independent tabs, selection, Git mode, and dirty buffers without merging same-named paths. See [ADR 0001](../../../../docs/adr/0001-separate-session-owner-and-workbench-root.md).
 
+Running Agents also move Projects in that order. When a top-level Project gains its first running
+Session (Agent Activity `running`, counting Sessions in its auto-registered worktree Projects), Server
+Core moves it right after the last Project already running; when its last running Session stops or
+is archived, it moves right after the running group, the top of the idle Projects. More activity in a
+Project that is already running never moves it, so a manual drag holds until the Project next starts
+or stops running. `reconcileProjectRunningOrder` (`apps/server/src/domains/db/project-running-order.ts`)
+runs after every `state.changed` and once at startup, keeps the previous running set in the
+`runningProjectIds` app state so transitions survive a restart, and announces a move as the
+`project.runningOrder` full state change.
+
 Session identity isolates Renderer editor, layout, SecondarySidebar, and navigation state. Every new
 Session-scoped state surface must key or reset that state when the selected Session changes.
 An external file opened through the explicit-path Desktop browser is not a Project resource: it is a

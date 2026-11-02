@@ -60,6 +60,7 @@ export async function acknowledgeFileMutation(
 export async function createRootServices({
     agentEnvironment,
     logger,
+    onDatabaseOpened,
     searchWorkers,
     send,
     userDataPath,
@@ -125,6 +126,7 @@ export async function createRootServices({
                 });
         },
     });
+    onDatabaseOpened?.(database);
     /**
      * One Server-wide watch registry: every filesystem watcher and intentional poller registers here so listener count,
      * polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).

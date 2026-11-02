@@ -50,6 +50,7 @@ import {
 import type { ProjectDeletionScope } from './project-deletion';
 import { deleteProjectMetadata, projectDeletionScope } from './project-deletion';
 import { reorderProject } from './project-ordering';
+import { reconcileProjectRunningOrder } from './project-running-order';
 import {
     hideProject,
     isRestorableProjectRoot,
@@ -211,15 +212,14 @@ export class CaxriDatabase {
     }
 
     /**
-     * Moves one current Project atomically so Renderer input stays scalar and cannot omit rows.
-     *
-     * `targetIndex` is a position among the Projects the PrimarySidebar actually renders, because that is the only
-     * order a user can express. Auto-registered worktree Projects have no user-visible position, so they are excluded
-     * from the move and re-appended after it; otherwise a hidden row sitting between two visible ones would silently
-     * shift every drop one slot.
+     * Atomic; {@link reorderProject} documents why `targetIndex` counts only top-level Projects.
      */
     reorderProject(projectId: string, targetIndex: number): ProjectRecord[] {
         return this.db.transaction(() => reorderProject(this.db, projectId, targetIndex));
+    }
+
+    reconcileProjectRunningOrder() {
+        return this.db.transaction(() => reconcileProjectRunningOrder(this.db));
     }
 
     /**

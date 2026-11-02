@@ -30,6 +30,11 @@ const appStateValueSchemas = {
     lastDatabaseRebuild: lastDatabaseRebuildSchema,
     lastSelectedProjectId: identifierSchema.nullable(),
     /**
+     * The top-level Projects that had a running Agent Session at the last reconciliation, so a Project that starts or
+     * stops running is recognized as a transition even across a Server Core restart. See `project-running-order.ts`.
+     */
+    runningProjectIds: z.array(identifierSchema).max(1_000),
+    /**
      * Each Workbench window's Open Session, keyed by the window key Desktop Main mints. There is no global "selected
      * Session": two windows each show their own. IDs live inside JSON where no foreign key reaches them, so
      * `reconcileOpenSessions` prunes them on archive, deletion, and Project hiding.
