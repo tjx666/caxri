@@ -156,10 +156,10 @@ export function isClaudeGoalClearDuringTurn(
  * A Claude Code session's `/goal`, kept in the snapshot's `goal` so the composer's goal row shows it while Claude works
  * toward it. Claude Code streams no goal state to the SDK (its `active_goal` frames stay internal outside remote
  * sessions), so this reads what it does stream: the `/goal` replies say a goal was set, is active, or was cleared, and
- * the turn ends say when it was met. `/goal <condition>` is one query that keeps going while the Stop hook finds the
- * condition unmet, so a turn that completes with no background work left to wake it passed that check and the goal is
- * gone; an interrupted or failed turn leaves the goal for the next one, as Claude Code does. Whether that check found
- * the goal met or impossible is written only to the transcript, so the ended goal is read back from there.
+ * a completed turn prompts a look for its outcome. Whether the goal was met or judged impossible is written only to the
+ * transcript (`goal_status`), so the ended goal is read back from there. A completed turn alone does not end the goal:
+ * Claude Code skips the check at many turn ends (observed with 2.1.312 across a two-day goal, checked twice) and keeps
+ * the goal armed across resumes, so without an outcome the row stays, as Claude Code's own goal indicator does.
  */
 export class ClaudeGoals {
     /**
@@ -182,9 +182,9 @@ export class ClaudeGoals {
 
     /**
      * Reads how `goal` ended from the transcript and shows it in the row, with `worked` carrying the time the ending
-     * turn added when Claude Code reports none. Without a readable outcome (an older Claude Code, an unreadable
-     * transcript) the goal is cleared as before. Skips the update when the goal changed meanwhile, such as a new
-     * `/goal` sent right after the turn.
+     * turn added when Claude Code reports none. Without an outcome the goal is still pursued, so it stays with
+     * `worked`'s time. Skips the update when the goal changed meanwhile, such as a new `/goal` sent right after the
+     * turn.
      */
     private async settle(
         goal: AgentChatGoal,
@@ -208,7 +208,7 @@ export class ClaudeGoals {
             if (outcome) break;
         }
         if (this.host.read().goal !== goal) return;
-        this.set(outcome ? endedClaudeGoal(worked, outcome, now) : null);
+        this.set(outcome ? endedClaudeGoal(worked, outcome, now) : { ...worked, updatedAt: now });
     }
 
     /**
@@ -248,9 +248,9 @@ export class ClaudeGoals {
     }
 
     /**
-     * A turn ended. One that completed with nothing left to wake Claude Code settled the goal; any other that worked on
-     * the goal keeps it with the turn's time added, so the row's time does not restart from the last report. A goal
-     * that already ended is left as it is.
+     * A turn ended. One that completed with nothing left to wake Claude Code may have settled the goal, so its outcome
+     * is read from the transcript; any other that worked on the goal keeps it with the turn's time added, so the row's
+     * time does not restart from the last report. A goal that already ended is left as it is.
      */
     onTurnEnded(
         turn: { id: string; status: AgentChatTurn['status']; startedAt: number | undefined },

@@ -89,12 +89,21 @@ describe('ClaudeGoals', () => {
         expect(read().goal).toMatchObject({ objective: 'All tests pass', status: 'active' });
     });
 
-    it('clears a goal that ended without a readable outcome once a turn completes', async () => {
-        const { goals, read, reads } = harness('turn-1');
-        goals.onNotices([reply('Goal set: All tests pass')], 2_000);
+    it('keeps a goal pursued with its time when a completed turn left no outcome', async () => {
+        // Claude Code does not run the goal check at every turn end, so a quiet turn end is not an ended goal.
+        const { goals, read, reads } = harness('turn-1', () =>
+            goalStatus(500, { met: false, sentinel: true }),
+        );
+        goals.onNotices([reply('Goal set: Green CI')], 2_000);
         goals.onTurnEnded(turn('completed'), false, 5_000);
-        await vi.waitFor(() => expect(read().goal).toBeUndefined());
-        expect(reads()).toBe(3);
+        await vi.waitFor(() => expect(reads()).toBe(3));
+        await settled();
+        expect(read().goal).toMatchObject({
+            objective: 'Green CI',
+            status: 'active',
+            timeUsedSeconds: 3,
+            updatedAt: 5_000,
+        });
     });
 
     it('keeps an achieved goal with its reason, time, and tokens from the transcript', async () => {
@@ -159,7 +168,9 @@ describe('ClaudeGoals', () => {
         const stale = harness('turn-1', () => goalStatus(500, { met: true }));
         stale.goals.onNotices([reply('Goal set: Green CI')], 2_000);
         stale.goals.onTurnEnded(turn('completed'), false, 5_000);
-        await vi.waitFor(() => expect(stale.read().goal).toBeUndefined());
+        await vi.waitFor(() => expect(stale.reads()).toBe(3));
+        await settled();
+        expect(stale.read().goal).toMatchObject({ status: 'active', timeUsedSeconds: 3 });
 
         const replaced = harness('turn-1', () => goalStatus(4_000, { met: true }));
         replaced.goals.onNotices([reply('Goal set: Green CI')], 2_000);
