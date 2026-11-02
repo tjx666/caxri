@@ -123,6 +123,7 @@ const AgentChatBody = ({
     const { snapshot: loadedSnapshot, timeline } = useAgentChatHistory(
         chat.snapshot,
         isConnected && chat.status === 'ready' && chat.savedAt === undefined,
+        chat.openingHistory,
     );
     const { retryConnection } = useMobileClient();
     /**

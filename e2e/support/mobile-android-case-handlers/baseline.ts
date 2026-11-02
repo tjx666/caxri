@@ -43,7 +43,10 @@ import {
     executeMobileChatPlanApprovalScenario,
     executeMobileChatUsageWaitScenario,
 } from '../mobile-agent-chat-plan-wait-scenarios';
-import { executeMobileChatRunningTurnScenario } from '../mobile-agent-chat-running-turn-scenario';
+import {
+    executeMobileChatLongTurnOpenScenario,
+    executeMobileChatRunningTurnScenario,
+} from '../mobile-agent-chat-running-turn-scenario';
 import {
     executeMobileChatChineseScenario,
     executeMobileChatSkillsQuestionScenario,
@@ -547,6 +550,7 @@ export const handlers = {
     'MOB-CHAT-GOAL-01': executeMobileChatGoalScenario,
     'MOB-CHAT-GOAL-OUTCOME-01': executeMobileChatGoalOutcomeScenario,
     'MOB-CHAT-RUNNING-OPEN-01': executeMobileChatRunningTurnScenario,
+    'MOB-CHAT-RUNNING-OPEN-02': executeMobileChatLongTurnOpenScenario,
     'MOB-CHAT-SEND-UNKNOWN-01': executeMobileChatSendUnknownScenario,
     'MOB-CHAT-SURFACE-SWITCH-01': executeMobileChatSurfaceSwitchScenario,
     'MOB-CHAT-USAGE-GUARD-01': executeMobileChatUsageGuardScenario,

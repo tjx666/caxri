@@ -152,6 +152,28 @@ export function departuresFromFinalPicture(frames: readonly GrayFrame[]): {
 }
 
 /**
+ * How many other pictures a recorded region held before its final one: runs of unchanged frames that last at least
+ * `holdMs`, show something, and differ from the final picture. A screen that opens straight onto its content holds only
+ * what was there before the tap; one that swaps its rows as data arrives holds each intermediate state too.
+ */
+export function heldPicturesBeforeFinal(frames: readonly GrayFrame[], holdMs = 300): number {
+    const final = frames.at(-1);
+    if (!final) throw new Error('Recording has no frames');
+    const background = backgroundOf(final);
+    let held = 0;
+    for (let start = 0; start < frames.length;) {
+        let next = start + 1;
+        while (next < frames.length && !isDifferent(frames[next], frames[start])) next += 1;
+        const holdsUntil = next < frames.length ? frames[next].time : Infinity;
+        const isShown = inkCoverage(inkOf(frames[start], background)) >= BLANK_COVERAGE;
+        const isHoldsLongEnough = holdsUntil - frames[start].time >= holdMs;
+        if (isShown && isHoldsLongEnough && isDifferent(frames[start], final)) held += 1;
+        start = next;
+    }
+    return held;
+}
+
+/**
  * Splits a recording of one screen region into panel changes and reports from which side each new panel entered.
  *
  * A panel is settled once its picture holds for `settleMs`; an empty region never counts as settled, so the blank

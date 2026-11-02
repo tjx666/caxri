@@ -14,6 +14,7 @@ import type {
     ConversationPagedTimeline,
 } from '../conversation/use-conversation-timeline';
 import {
+    adoptOpeningAgentChatHistory,
     canLoadOlderAgentChatHistory,
     mergeAgentChatOlderHistory,
     shouldContinueAgentChatHistoryLoad,
@@ -44,6 +45,10 @@ export const useAgentChatHistory = (
      * Whether `snapshot` is a live read on a connected phone, not a saved copy; only then can a page be requested.
      */
     isLive: boolean,
+    /**
+     * The pages `useAgentChat` read before first showing the Chat live; the history starts from them.
+     */
+    openingHistory?: AgentChatOlderHistory,
 ) => {
     const { connectionScopeKey, request } = useMobileClient();
     const { t } = useTranslation();
@@ -51,7 +56,10 @@ export const useAgentChatHistory = (
     const [record, setRecord] = useState<HistoryRecord>(() => ({
         scope,
         snapshot,
-        history: emptyAgentChatOlderHistory(snapshot?.historyId),
+        history: adoptOpeningAgentChatHistory(
+            emptyAgentChatOlderHistory(snapshot?.historyId),
+            openingHistory,
+        ),
     }));
     let current = record;
     /**
@@ -59,13 +67,23 @@ export const useAgentChatHistory = (
      * never blinks out of the transcript.
      */
     if (record.scope !== scope) {
-        current = { scope, snapshot, history: emptyAgentChatOlderHistory(snapshot?.historyId) };
+        current = {
+            scope,
+            snapshot,
+            history: adoptOpeningAgentChatHistory(
+                emptyAgentChatOlderHistory(snapshot?.historyId),
+                openingHistory,
+            ),
+        };
         setRecord(current);
     } else if (record.snapshot !== snapshot) {
         current = {
             scope,
             snapshot,
-            history: syncAgentChatOlderHistory(record.history, record.snapshot, snapshot),
+            history: adoptOpeningAgentChatHistory(
+                syncAgentChatOlderHistory(record.history, record.snapshot, snapshot),
+                openingHistory,
+            ),
         };
         setRecord(current);
     }

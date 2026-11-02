@@ -293,11 +293,22 @@ function concreteModelName(
     if (listed.id !== 'default') return listed.displayName;
     const current = /\(currently ([^)]+)\)/.exec(listed.description ?? '')?.[1]?.trim();
     if (current) return current;
+    const named = findAgentChatNamedModel(models, model);
+    return named?.displayName ?? listed.displayName.replace(/\s*\(recommended\)$/i, '');
+}
+
+/**
+ * The named entry (not the `default` alias) for a reported model identifier. The default may add a variant suffix
+ * (`claude-opus-5-5[1m]`) the named entry lacks, so the suffix is ignored when matching.
+ */
+export function findAgentChatNamedModel(
+    models: readonly AgentChatModel[],
+    model: string,
+): AgentChatModel | undefined {
     const base = model.replace(/\[[^\]]*\]$/, '');
-    const named = models.find(
+    return models.find(
         (candidate) =>
             candidate.id !== 'default' &&
             [candidate.id, candidate.resolvedId].some((id) => id === model || id === base),
     );
-    return named?.displayName ?? listed.displayName.replace(/\s*\(recommended\)$/i, '');
 }

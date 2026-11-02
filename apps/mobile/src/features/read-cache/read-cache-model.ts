@@ -9,6 +9,7 @@ import {
     agentChatSnapshotSchema,
     agentTimelineItemSchema,
     findAgentChatModel,
+    findAgentChatNamedModel,
     mobileDashboardResultSchema,
 } from '@caxri/protocol';
 import { z } from 'zod';
@@ -113,25 +114,44 @@ const trimChatItem = (item: AgentChatItem): AgentChatItem => {
 /**
  * The newest items of a Chat that fit the cache, cut at a turn boundary: a turn the limit would split is left out whole
  * unless it is the only one. A split turn opened from the saved copy without the files and pull requests its cut start
- * held, and its cards then popped in mid-list when the live read arrived.
+ * held, and its cards then popped in mid-list when the live read arrived. A turn too long for the cache keeps its
+ * request in front of its newest work, so the saved copy still says what the work answers.
  */
 const newestWholeTurns = (items: readonly AgentChatItem[]): readonly AgentChatItem[] => {
     const kept = items.slice(-READ_CACHE_MAX_ITEMS);
     if (kept.length === items.length) return kept;
     const splitTurnId = items[items.length - kept.length - 1]?.turnId;
     const start = kept.findIndex((item) => item.turnId !== splitTurnId);
-    return start === -1 ? kept : kept.slice(start);
+    if (start !== -1) return kept.slice(start);
+    const request = items.find(
+        (item) => item.turnId === splitTurnId && item.type === 'userMessage',
+    );
+    if (!request || kept.includes(request)) return kept;
+    return [request, ...kept.slice(1)];
+};
+
+/**
+ * The models a saved copy keeps: the one in use, plus the named entry Claude Code's `default` alias resolves to, so the
+ * composer still reads `Opus` rather than `Default` (see `agentChatModelLabel`).
+ */
+const keptModels = (snapshot: AgentChatSnapshot): AgentChatSnapshot['models'] => {
+    const model = findAgentChatModel(snapshot.models, snapshot.model);
+    if (!model) return undefined;
+    if (model.id !== 'default' || snapshot.model === undefined) return [model];
+    const named = findAgentChatNamedModel(snapshot.models ?? [], snapshot.model);
+    return named ? [model, named] : [model];
 };
 
 /**
  * A Chat as the phone last saw it, without pending approvals: those can only be answered live. Of the provider's model
  * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id), and
- * it keeps ultracode, the permission level, and plan mode, so an offline composer still shows them read-only.
+ * it keeps ultracode, the permission level, and plan mode, so an offline composer still shows them read-only. It keeps
+ * the running turn too: without it a running turn opened folded and finished, then unfolded once the live read came.
  */
 export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot => {
     const items = newestWholeTurns(snapshot.items).map(trimChatItem);
     const turnIds = new Set(items.map((item) => item.turnId));
-    const model = findAgentChatModel(snapshot.models, snapshot.model);
+    const models = keptModels(snapshot);
     return {
         terminalId: snapshot.terminalId,
         revision: snapshot.revision,
@@ -141,8 +161,9 @@ export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot
         items,
         turns: snapshot.turns.filter((turn) => turnIds.has(turn.id)),
         requests: [],
+        ...(snapshot.activeTurnId !== undefined && { activeTurnId: snapshot.activeTurnId }),
         ...(snapshot.model !== undefined && { model: snapshot.model }),
-        ...(model && { models: [model] }),
+        ...(models && { models }),
         ...(snapshot.effort !== undefined && { effort: snapshot.effort }),
         ...(snapshot.ultracode !== undefined && { ultracode: snapshot.ultracode }),
         ...(snapshot.permissionMode !== undefined && { permissionMode: snapshot.permissionMode }),
