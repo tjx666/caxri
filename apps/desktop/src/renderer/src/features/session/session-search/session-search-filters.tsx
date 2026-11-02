@@ -1,10 +1,12 @@
 import type { SessionSearchStatusFilter } from '@caxri/protocol';
 import { sessionSearchStatusFilters } from '@caxri/protocol';
-import { X } from 'lucide-react';
+import { Clock, X } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
 import { resolveAgentIcon } from '../../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
+import { cn } from '../../../lib/utilities';
+import { SessionTimeRangeSelect } from '../session-time-range-select';
 import type { SessionSearchFilterChip } from './session-search-model';
 import {
     sessionSearchFilterChips,
@@ -16,6 +18,13 @@ import type { SessionSearchModel } from './use-session-search';
 
 const chipClassName =
     'flex h-6 cursor-pointer items-center gap-1 rounded border border-transparent bg-transparent px-2 text-[12px] text-muted outline-none hover:bg-elevated hover:text-foreground focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)] aria-pressed:bg-state-selected-quiet aria-pressed:font-medium aria-pressed:text-foreground';
+
+/**
+ * Shrinks the shared Select trigger to the chip row's height and quiet styling, so the time range reads as one more
+ * filter chip; it shows as pressed while a window is active.
+ */
+const timeRangeTriggerClassName =
+    'h-6 w-auto gap-1 rounded border-transparent bg-transparent px-2 text-[12px] text-muted hover:bg-elevated hover:text-foreground';
 
 const statusFilterLabelKeys = {
     all: 'session.search.filter.all',
@@ -101,6 +110,18 @@ export function SessionSearchFilters({ search }: { search: SessionSearchModel })
                         </button>
                     ))}
                 </div>
+                <Divider />
+                <SessionTimeRangeSelect
+                    ariaLabel={t('session.timeRange.filterActivity')}
+                    leading={<Clock aria-hidden="true" size={12} />}
+                    triggerClassName={cn(
+                        timeRangeTriggerClassName,
+                        search.timeRange !== 'all' &&
+                            'bg-state-selected-quiet font-medium text-foreground',
+                    )}
+                    value={search.timeRange}
+                    onChange={search.setTimeRange}
+                />
                 <div className="ml-auto flex items-center gap-1">
                     {search.hasCurrentProject && (
                         <div

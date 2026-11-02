@@ -131,6 +131,18 @@ describe('archived Session selector', () => {
         ).toEqual(['alpha-old']);
     });
 
+    it('keeps Sessions archived at or after the time range start and counts the rest as hidden', () => {
+        const view = deriveArchivedSessionView(projects, sessions, terminals, {
+            agent: 'all',
+            projectId: 'all',
+            query: '',
+            archivedAfter: 20,
+        });
+
+        expect(view.items.map((item) => item.session.id)).toEqual(['alpha-review', 'beta-review']);
+        expect(view.totalCount).toBe(3);
+    });
+
     it('keeps filter options stable after the selected Project archive becomes empty', () => {
         const view = deriveArchivedSessionView(projects, sessions, terminals, {
             agent: 'codex',

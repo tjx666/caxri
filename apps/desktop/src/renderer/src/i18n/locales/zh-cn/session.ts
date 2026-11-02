@@ -66,6 +66,16 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.archived.countOther': '{{count}} 个已归档会话',
     'session.archived.matchingCount': '{{matching}} / {{total}} 个已归档会话',
 
+    // Time range filter shared by the Archived Sessions dialog and Session search
+    'session.timeRange.label': '时间',
+    'session.timeRange.filterArchived': '按归档时间筛选',
+    'session.timeRange.filterActivity': '按最近活动时间筛选',
+    'session.timeRange.all': '全部时间',
+    'session.timeRange.today': '今天',
+    'session.timeRange.last7Days': '最近 7 天',
+    'session.timeRange.last30Days': '最近 30 天',
+    'session.timeRange.last90Days': '最近 90 天',
+
     // Session search
     'session.search.title': '搜索会话',
     'session.search.placeholder': '搜索标题、消息、文件夹或 ID…',

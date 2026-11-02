@@ -167,6 +167,7 @@ describe('Session search model', () => {
         expect(hasActiveSearchFilters('all', undefined)).toBe(false);
         expect(hasActiveSearchFilters('archived', undefined)).toBe(true);
         expect(hasActiveSearchFilters('all', first())).toBe(true);
+        expect(hasActiveSearchFilters('all', undefined, 'last7Days')).toBe(true);
     });
 
     it('keeps the last two folder segments', () => {

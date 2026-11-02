@@ -246,6 +246,33 @@ describe('SessionSearchService', () => {
         expect(result.entries.map((entry) => entry.sessionId)).toEqual([f.open.session.id]);
     });
 
+    it('combines the updatedAfter parameter with an after operator by keeping the later start', async () => {
+        const f = await fixture();
+        const operatorStart = new Date(2026, 8, 1).getTime();
+
+        await f.service.search({ query: 'invoice after:2026-09-01', updatedAfter: 5 });
+        expect(f.search).toHaveBeenLastCalledWith(
+            expect.objectContaining({ afterMs: operatorStart }),
+            undefined,
+        );
+
+        const later = operatorStart + 86_400_000;
+        await f.service.search({ query: 'invoice after:2026-09-01', updatedAfter: later });
+        expect(f.search).toHaveBeenLastCalledWith(
+            expect.objectContaining({ afterMs: later }),
+            undefined,
+        );
+
+        const tomorrow = Date.now() + 86_400_000;
+        const future = await f.service.search({ query: 'invoice', updatedAfter: tomorrow });
+        expect(f.search).toHaveBeenLastCalledWith(
+            expect.objectContaining({ query: 'invoice', afterMs: tomorrow }),
+            undefined,
+        );
+        // The time range also filters Caxri's own Sessions, which were active just now.
+        expect(future.entries).toEqual([]);
+    });
+
     it('applies the date window to the Session a conversation belongs to', async () => {
         const f = await fixture([hit(HELD, { updatedAt: Date.parse('2026-09-01T00:00:00Z') })]);
 

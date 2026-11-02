@@ -70,6 +70,11 @@ export const sessionSearchParametersSchema = z.object({
      * sort ahead of otherwise equal ones, and nothing is dropped.
      */
     currentProjectId: identifierSchema.optional(),
+    /**
+     * Keeps conversations last active at or after this time, in epoch milliseconds: the dialog's time range control.
+     * Combined with an `after:` operator, the later of the two applies, so both narrow the search.
+     */
+    updatedAfter: z.number().int().nonnegative().optional(),
 });
 export type SessionSearchParameters = z.infer<typeof sessionSearchParametersSchema>;
 

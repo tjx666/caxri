@@ -37,8 +37,11 @@ import {
     untitledArchivedSessionIds,
     visibleArchivedSessionIds,
 } from './archived-sessions';
+import { useSessionTimeRange } from './hooks/use-session-time-range';
 import { unarchiveSession, unarchiveSessions } from './session-archive-commands';
 import { deleteSession, deleteSessions } from './session-commands';
+import type { SessionTimeRange } from './session-time-range';
+import { SessionTimeRangeSelect } from './session-time-range-select';
 import { sessionTitleForDisplay } from './session-title';
 
 const NO_RECORDS: never[] = [];
@@ -76,20 +79,24 @@ function ArchivedFilterBar({
     onAgentChange,
     onProjectChange,
     onQueryChange,
+    onTimeRangeChange,
     query,
+    timeRange,
     view,
 }: {
     agent: ArchivedSessionFilters['agent'];
     onAgentChange: (value: ArchivedSessionFilters['agent']) => void;
     onProjectChange: (value: string) => void;
     onQueryChange: (value: string) => void;
+    onTimeRangeChange: (value: SessionTimeRange) => void;
     query: string;
+    timeRange: SessionTimeRange;
     view: ArchivedSessionView;
 }) {
     const { t } = useTranslation();
     const selectedProject = view.projectOptions.find((project) => project.id === view.projectId);
     return (
-        <div className="grid grid-cols-[minmax(220px,1fr)_minmax(160px,0.6fr)_minmax(150px,0.5fr)] gap-3 border-b border-border bg-background px-4 py-3">
+        <div className="grid grid-cols-[minmax(200px,1fr)_minmax(150px,0.55fr)_minmax(130px,0.45fr)_minmax(130px,0.45fr)] gap-3 border-b border-border bg-background px-4 py-3">
             <label className="grid gap-1 text-[11px] text-muted" htmlFor="archived-search">
                 {t('common.search')}
                 <span className="relative block text-foreground">
@@ -154,6 +161,15 @@ function ArchivedFilterBar({
                         ))}
                     </SelectContent>
                 </Select>
+            </label>
+            <label className="grid gap-1 text-[11px] text-muted" htmlFor="archived-time-range">
+                {t('session.timeRange.label')}
+                <SessionTimeRangeSelect
+                    ariaLabel={t('session.timeRange.filterArchived')}
+                    id="archived-time-range"
+                    value={timeRange}
+                    onChange={onTimeRangeChange}
+                />
             </label>
         </div>
     );
@@ -350,9 +366,16 @@ function ArchivedSessionsDialogBody() {
     const [query, setQuery] = useState('');
     const [projectId, setProjectId] = useState('all');
     const [agent, setAgent] = useState<ArchivedSessionFilters['agent']>('all');
+    const { timeRange, timeRangeStart: archivedAfter, setTimeRange } = useSessionTimeRange();
     const view = useMemo(
-        () => deriveArchivedSessionView(projects, sessions, terminals, { agent, projectId, query }),
-        [agent, projectId, projects, query, sessions, terminals],
+        () =>
+            deriveArchivedSessionView(projects, sessions, terminals, {
+                agent,
+                archivedAfter,
+                projectId,
+                query,
+            }),
+        [agent, archivedAfter, projectId, projects, query, sessions, terminals],
     );
     const [rawSelection, setSelection] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
     /**
@@ -369,6 +392,7 @@ function ArchivedSessionsDialogBody() {
         setQuery('');
         setProjectId('all');
         setAgent('all');
+        setTimeRange('all');
     };
     const toggleSessions: ToggleSessions = (sessionIds, isChecked) => {
         setSelection((previous) => {
@@ -393,6 +417,8 @@ function ArchivedSessionsDialogBody() {
                 onAgentChange={setAgent}
                 onProjectChange={setProjectId}
                 onQueryChange={setQuery}
+                onTimeRangeChange={setTimeRange}
+                timeRange={timeRange}
             />
             <div className="archived-sessions-manager min-h-0 overflow-auto p-4">
                 {view.matchingCount > 0 && (

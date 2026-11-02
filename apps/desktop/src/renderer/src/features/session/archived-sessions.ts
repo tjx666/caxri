@@ -9,6 +9,10 @@ export interface ArchivedSessionFilters {
      */
     projectId: string;
     query: string;
+    /**
+     * Epoch milliseconds: only Sessions archived at or after it show. Absent shows every archive time.
+     */
+    archivedAfter?: number;
 }
 
 export interface ArchivedSessionItem {
@@ -92,6 +96,7 @@ export function deriveArchivedSessionView(
             (item) =>
                 (projectId === 'all' || projectId === item.project.id) &&
                 (filters.agent === 'all' || filters.agent === item.agent) &&
+                (filters.archivedAfter === undefined || item.archivedAt >= filters.archivedAfter) &&
                 (!query || item.session.title.toLowerCase().includes(query)),
         )
         .toSorted(

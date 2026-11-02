@@ -223,7 +223,7 @@ function SessionSearchContent({
         return (
             <div className="flex flex-1 flex-col items-center gap-3 p-4 text-center text-muted">
                 <span>{t(sessionSearchEmptyKey(search))}</span>
-                {(hasActiveSearchFilters(search.status, search.provider) ||
+                {(hasActiveSearchFilters(search.status, search.provider, search.timeRange) ||
                     search.filterChips.length > 0) && (
                     <Button size="sm" variant="secondary" onClick={search.clearFilters}>
                         {t('session.search.clearFilters')}
