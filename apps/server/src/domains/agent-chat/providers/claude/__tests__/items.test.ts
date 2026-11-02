@@ -160,7 +160,8 @@ describe('Claude item mapping', () => {
             { content: 'Command running in background with ID: abc' },
             { structured: { backgroundTaskId: 'abc' }, durationMs: 30 },
         );
-        expect(settled).toMatchObject({ background: true, status: 'completed' });
+        // The task id names its output file, which a later read is titled by.
+        expect(settled).toMatchObject({ background: true, status: 'completed', taskId: 'abc' });
         expect(settled).not.toHaveProperty('exitCode');
         expect(settled).not.toHaveProperty('durationMs');
         // A command the user moved to the background mid-run reads the same way.

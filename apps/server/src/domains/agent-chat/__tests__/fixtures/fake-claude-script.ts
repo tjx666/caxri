@@ -74,6 +74,11 @@ export type FakeClaudeScriptStep =
            * duration.
            */
           durationMs?: number;
+          /**
+           * Fields merged into the structured result, such as `{ "backgroundTaskId": "b1" }` for a `Bash` call that
+           * Claude Code moved to the background.
+           */
+          structured?: Json;
       }
     /**
      * A tool call that asks for approval through `can_use_tool`, like the `approve` scenario, and waits for the answer;
@@ -97,7 +102,7 @@ export type FakeClaudeScriptStep =
 const STEP_FIELDS = {
     thinking: ['text'],
     todos: ['todos'],
-    tool: ['name', 'input', 'output', 'isError', 'durationMs'],
+    tool: ['name', 'input', 'output', 'isError', 'durationMs', 'structured'],
     approval: ['name', 'input', 'output'],
     text: ['text', 'chunkDelayMs'],
     hold: ['file'],
@@ -181,6 +186,8 @@ function checkStep(at: string, value: unknown): FakeClaudeScriptStep {
             requireDuration(at, value, 'durationMs');
             if (value.isError !== undefined && typeof value.isError !== 'boolean')
                 fail(`${at}.isError`, 'expected a boolean');
+            if (value.structured !== undefined && !isRecord(value.structured))
+                fail(`${at}.structured`, 'expected an object');
             break;
         }
         case 'hold': {
@@ -385,7 +392,14 @@ export class FakeClaudeScriptPlayer {
             input,
         });
         await delay(step.durationMs ?? DEFAULT_TOOL_DURATION_MS);
-        sendToolResult(io, id, toolOutcome(step.name, input, step.output, step.isError));
+        const outcome: { content: string; structured?: Json; isError?: boolean } = toolOutcome(
+            step.name,
+            input,
+            step.output,
+            step.isError,
+        );
+        if (step.structured) outcome.structured = { ...outcome.structured, ...step.structured };
+        sendToolResult(io, id, outcome);
         this.meter.feed(step.output.length);
     }
 

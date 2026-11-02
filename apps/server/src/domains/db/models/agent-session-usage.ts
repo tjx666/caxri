@@ -98,6 +98,24 @@ export class AgentSessionUsageModel {
             .run();
     }
 
+    /**
+     * The Session a conversation belongs to, by its Agent Session ID alone (a transcript file names no provider): the
+     * ledger's first owner, else the Terminal bound to it now, which the ledger may not have recorded yet.
+     */
+    sessionIdOf(agentSessionId: string): string | undefined {
+        const recorded = this.database
+            .select({ sessionId: agentSessionUsage.sessionId })
+            .from(agentSessionUsage)
+            .where(eq(agentSessionUsage.agentSessionId, agentSessionId))
+            .get();
+        if (recorded) return recorded.sessionId;
+        return this.database
+            .select({ sessionId: terminals.sessionId })
+            .from(terminals)
+            .where(eq(terminals.agentSessionId, agentSessionId))
+            .get()?.sessionId;
+    }
+
     list(): AgentSessionUsageRow[] {
         return this.database.select().from(agentSessionUsage).all() as AgentSessionUsageRow[];
     }

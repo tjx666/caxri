@@ -29,6 +29,7 @@ import {
     stampUsageContinuations,
 } from './continuation/usage-continuation-stamp';
 import { ChatHistoryArchive } from './history/archive';
+import { ChatPathTargets } from './path-targets/path-targets';
 import { ChatTaskProjections } from './tasks/projections';
 
 /**
@@ -60,6 +61,10 @@ interface ChatProjectionOptions {
      * The Session a delegated task came from and the task it asked; see {@link stampDelegatedTasks}.
      */
     delegatedTask(delegationId: string): DelegatedTaskDetails;
+    /**
+     * The title of the Caxri Session an Agent Session ID belongs to; see {@link ChatPathTargets}.
+     */
+    sessionTitle?(agentSessionId: string): string | undefined;
     /**
      * The Session another Agent continued a turn in; see {@link stampUsageContinuations}.
      */
@@ -232,6 +237,10 @@ export class ChatProjection {
      * Until when the next live `compacted` notice is idle compaction's; see {@link noteIdleCompaction}.
      */
     private idleCompactionUntil: number | undefined;
+    /**
+     * Names background shell output files and Agent conversation records that rows read or search.
+     */
+    private readonly pathTargets: ChatPathTargets;
     snapshot: AgentChatSnapshot;
     /**
      * Subagent conversations and background shell output, each with its own revisions.
@@ -243,6 +252,9 @@ export class ChatProjection {
     readonly history = new ChatHistoryArchive();
 
     constructor(private readonly options: ChatProjectionOptions) {
+        this.pathTargets = new ChatPathTargets((agentSessionId) =>
+            options.sessionTitle?.(agentSessionId),
+        );
         this.snapshot = {
             ...emptyAgentChatSnapshot(options.terminalId),
             revision: options.revision,
@@ -447,7 +459,9 @@ export class ChatProjection {
         );
         observeGuardStops(timed, isHistoryReplay, this.options.usageLimitWaits);
         const stamped = stampUsageContinuations(
-            stampDelegatedTasks(timed, (delegationId) => this.options.delegatedTask(delegationId)),
+            stampDelegatedTasks(this.pathTargets.stamp(timed), (delegationId) =>
+                this.options.delegatedTask(delegationId),
+            ),
             (turnId) => this.options.usageContinuedIn?.(turnId),
             (turnId) => this.options.usageLimitWaits?.stateOf(turnId),
         );

@@ -24,6 +24,7 @@ import {
     describeAgentTool,
     parseAgentMcpToolName,
 } from './agent-tool-presentation.js';
+import { withAgentChatPathTarget } from './path-targets/agent-chat-path-targets.js';
 
 /**
  * What the Agent did between replies: reasoning, commands, file changes, and other tool calls. Every Agent Chat client
@@ -183,10 +184,10 @@ function describeAgentChatWorkAction(
             // expanded. A read, search, or listing already names what it looked at, so it keeps that.
             return item.description && presentation.kind === 'command'
                 ? { ...presentation, subject: item.description, isCodeSubject: false }
-                : presentation;
+                : withAgentChatPathTarget(presentation, item);
         }
         case 'toolCall': {
-            return describeAgentTool(item);
+            return withAgentChatPathTarget(describeAgentTool(item), item);
         }
         case 'fileChange': {
             const first = item.changes.at(0);
