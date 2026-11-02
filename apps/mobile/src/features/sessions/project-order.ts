@@ -88,8 +88,12 @@ export const projectChipShift = (
 };
 
 /**
- * Pixels to scroll this frame while a chip is held near an edge of the strip, faster the closer it gets; zero away from
- * the edges or once the strip cannot scroll further that way.
+ * Pixels to scroll this frame while a chip is dragged near an edge of the strip, faster the closer it gets; zero away
+ * from the edges, before the finger has moved toward that edge, or once the strip cannot scroll further that way.
+ *
+ * The held chip rides along with the scroll, so its place on screen stays put while the strip moves. Without the
+ * direction check, a chip picked up where it already sat inside an edge zone would scroll the strip to its end before
+ * the finger moved at all.
  */
 export const projectAutoScrollStep = ({
     chipLeft,
@@ -98,6 +102,8 @@ export const projectAutoScrollStep = ({
     maxOffset,
     maxStep,
     offset,
+    slop,
+    translation,
     viewportWidth,
 }: {
     /**
@@ -109,14 +115,22 @@ export const projectAutoScrollStep = ({
     maxOffset: number;
     maxStep: number;
     offset: number;
+    /**
+     * How far the finger must move toward an edge before that edge scrolls, so a hand's tremor does not count.
+     */
+    slop: number;
+    /**
+     * The finger's horizontal travel since the chip was picked up; negative is toward the left.
+     */
+    translation: number;
     viewportWidth: number;
 }): number => {
     'worklet';
     const overRight = chipLeft + chipWidth - (viewportWidth - edge);
-    if (overRight > 0 && offset < maxOffset)
+    if (overRight > 0 && translation > slop && offset < maxOffset)
         return Math.min(maxOffset - offset, maxStep * Math.min(1, overRight / edge));
     const overLeft = edge - chipLeft;
-    if (overLeft > 0 && offset > 0)
+    if (overLeft > 0 && translation < -slop && offset > 0)
         return -Math.min(offset, maxStep * Math.min(1, overLeft / edge));
     return 0;
 };
