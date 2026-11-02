@@ -82,3 +82,30 @@ export function isAgentChatReturnHintShown({
     if (count === 0 || !isLatestInView) return false;
     return isAnchorAbove ?? count >= 2;
 }
+
+/**
+ * The room kept below the transcript for the return hint, which floats `bottom-2` over the view's end.
+ */
+export const AGENT_CHAT_RETURN_HINT_SLOT_PX = 40;
+
+/**
+ * The height of the slot after the transcript that keeps the return hint off the last line. While the hint shows, the
+ * slot holds the hint's room. Once it clears, the slot keeps only the part still at or above the view's bottom
+ * (`viewBottom - slotTop`, both in the scroll content's coordinates), so scrolling back consumes it and it never grows
+ * back. Dropping it at once would shorten the content under a view resting at its end, and the browser would clamp the
+ * view, shifting the whole transcript down as the hint fades.
+ */
+export function agentChatReturnHintSlotHeight({
+    height,
+    isShown,
+    slotTop,
+    viewBottom,
+}: {
+    height: number;
+    isShown: boolean;
+    slotTop: number;
+    viewBottom: number;
+}): number {
+    if (isShown) return AGENT_CHAT_RETURN_HINT_SLOT_PX;
+    return Math.max(Math.min(height, viewBottom - slotTop), 0);
+}

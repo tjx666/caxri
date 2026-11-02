@@ -37,7 +37,10 @@ import { useAgentChatHistory } from './hooks/use-agent-chat-history';
 import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPaneEscape } from './hooks/use-agent-chat-pane-escape';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
-import { useAgentChatReturnHint } from './hooks/use-agent-chat-return-hint';
+import {
+    useAgentChatReturnHint,
+    useAgentChatReturnHintSlot,
+} from './hooks/use-agent-chat-return-hint';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { useAgentChatTimelines } from './hooks/use-agent-chat-timelines';
@@ -245,6 +248,12 @@ function AgentChatPaneContent({
         contentReference,
         isLatestInView,
     });
+    const { slotReference: returnHintSlotReference, onScroll: onReturnHintSlotScroll } =
+        useAgentChatReturnHintSlot(contentReference, Boolean(terminal && returnHint));
+    const onTranscriptScroll = useCallback(() => {
+        onReturnHintSlotScroll();
+        onScroll();
+    }, [onReturnHintSlotScroll, onScroll]);
     const processState = terminal?.lastProcessState;
     const composerView = useAgentChatComposerSnapshot(terminalId, {
         hasConversation: Boolean(terminal?.agentSessionId),
@@ -302,18 +311,13 @@ function AgentChatPaneContent({
                         aria-keyshortcuts={AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS}
                         aria-label={t('agentChat.timeline.transcriptLabel')}
                         aria-live="off"
-                        className={cn(
-                            'absolute inset-x-0 top-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent',
-                            // The transcript runs on under Jump to latest (DESIGN.md "Scroll edge cues"). The return
-                            // hint shows only at the latest entry, so the transcript ends above it instead of covering
-                            // the last line; the top stays anchored, so nothing the user is reading moves.
-                            returnHint ? 'bottom-10' : 'bottom-0',
-                        )}
+                        // The transcript runs on under Jump to latest (DESIGN.md "Scroll edge cues").
+                        className="absolute inset-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                         ref={scrollReference}
                         role="log"
                         tabIndex={0}
                         onKeyDown={onAgentChatTranscriptKeyDown}
-                        onScroll={onScroll}
+                        onScroll={onTranscriptScroll}
                     >
                         <div
                             className={cn(
@@ -373,6 +377,8 @@ function AgentChatPaneContent({
                             />
                         </div>
                         <div aria-hidden data-agent-chat-turn-space ref={spacerReference} />
+                        {/* Keeps the return hint, shown only at the latest entry, off the last line. */}
+                        <div aria-hidden className="h-0" ref={returnHintSlotReference} />
                     </div>
                     <AgentChatReturnHint
                         hint={terminal ? returnHint : undefined}

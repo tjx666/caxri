@@ -2,7 +2,9 @@ import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    AGENT_CHAT_RETURN_HINT_SLOT_PX,
     agentChatReturnAnchorTurnId,
+    agentChatReturnHintSlotHeight,
     isAgentChatReturnAnchorAbove,
     isAgentChatReturnHintShown,
     turnsFinishedDuringAbsence,
@@ -113,5 +115,56 @@ describe('isAgentChatReturnHintShown', () => {
         expect(
             isAgentChatReturnHintShown({ count: 0, isAnchorAbove: true, isLatestInView: true }),
         ).toBe(false);
+    });
+});
+
+describe('agentChatReturnHintSlotHeight', () => {
+    it('holds the hint room while the hint shows', () => {
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 0,
+                isShown: true,
+                slotTop: 900,
+                viewBottom: 500,
+            }),
+        ).toBe(AGENT_CHAT_RETURN_HINT_SLOT_PX);
+    });
+
+    it('keeps the slot when the hint clears at the end, so the view is not clamped', () => {
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 40,
+                isShown: false,
+                slotTop: 960,
+                viewBottom: 1000,
+            }),
+        ).toBe(40);
+    });
+
+    it('lets scrolling back consume the slot without growing it again', () => {
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 40,
+                isShown: false,
+                slotTop: 960,
+                viewBottom: 985,
+            }),
+        ).toBe(25);
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 25,
+                isShown: false,
+                slotTop: 960,
+                viewBottom: 1000,
+            }),
+        ).toBe(25);
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 25,
+                isShown: false,
+                slotTop: 960,
+                viewBottom: 900,
+            }),
+        ).toBe(0);
     });
 });
