@@ -51,7 +51,7 @@ export const knownReactCompilerBailouts: Record<string, readonly string[]> = {
         'React Compiler has skipped optimizing this component because one or more React ESLint rules were disabled',
     ],
     // incompatible library: TanStack Virtual.
-    'apps/desktop/src/renderer/src/features/view-containers/source-control/source-control-tree-items.tsx':
+    'apps/desktop/src/renderer/src/features/view-containers/source-control/source-control-group-body.tsx':
         ['Use of incompatible library'],
     // the value-keyed memo on `signature` is the point of the hook, so its exhaustive-deps suppression stays.
     'apps/desktop/src/renderer/src/hooks/use-editor-options.ts': [
