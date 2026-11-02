@@ -1057,7 +1057,12 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   transcript. Option+ArrowUp and Option+ArrowDown step focus between replies and user messages,
   which reveals each one's row. Right-clicking a reply opens a native menu with Copy Message; with
   text selected inside it, Copy comes first and Add to Message follows, which quotes the selection
-  into the composer as the selection toolbar's quote does.
+  into the composer as the selection toolbar's quote does. As in Chrome, Home and Cmd+ArrowUp
+  jump to the conversation's top and End and Cmd+ArrowDown to its bottom, from the transcript or
+  from an empty composer; a draft keeps the keys for its caret
+  (`keyboard/use-agent-chat-edge-keys.ts`). The top is reached instantly after following stops, so
+  a streaming reply cannot pin the view back down, and the bottom goes through Jump to latest, which
+  resumes following.
 - The speed and cost are recorded on the turn once, when it ends
   ([`turn-metrics.ts`](../apps/server/src/domains/usage/turn-metrics.ts)): output
   tokens and generation time come from the transcript throughput read (the responses that completed

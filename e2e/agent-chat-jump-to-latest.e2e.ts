@@ -168,6 +168,27 @@ test('A message sent while reading above the end still rises to the top', async 
         await expect.poll(() => topInView(sent)).toBeLessThan(200);
         await page.screenshot({ path: testInfo.outputPath('sent-from-history-rises.png') });
         await expect(jump).toHaveCount(0);
+
+        /**
+         * As in Chrome, Home jumps an empty composer's Chat to its top, and stays there while the reply streams.
+         */
+        const scrollTop = (): Promise<number> =>
+            transcript.evaluate((element) => element.scrollTop);
+        await expect(message).toBeFocused();
+        await message.press('Home');
+        await expect.poll(scrollTop).toBe(0);
+        await expect(jump).toBeVisible();
+        await page.waitForTimeout(400);
+        expect(await scrollTop()).toBe(0);
+        await page.screenshot({ path: testInfo.outputPath('home-jumps-to-top.png') });
+        // A draft keeps the keys for its caret.
+        await message.fill('draft');
+        await message.press('Meta+ArrowDown');
+        await page.waitForTimeout(200);
+        expect(await scrollTop()).toBe(0);
+        await message.fill('');
+        await message.press('End');
+        await expect(jump).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
