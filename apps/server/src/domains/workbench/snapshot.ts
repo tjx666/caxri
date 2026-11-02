@@ -82,6 +82,7 @@ export function createWorkbenchSnapshots(dependencies: {
             keybindingConflicts: keybindings.conflicts,
             configurationErrors: configuration.getErrors(),
             theme: theme.value,
+            importedThemes: theme.imported,
             runtime: { status: 'ready', restartCount: 0 },
             ...(notices.length > 0 && { automaticNamingUnavailable: notices }),
         };

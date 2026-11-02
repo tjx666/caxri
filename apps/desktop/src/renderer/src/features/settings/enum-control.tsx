@@ -19,7 +19,7 @@ import { settingNullLabel, settingOptionLabel } from './setting-spec-text';
  */
 const NULL_OPTION = '__null__';
 
-interface EnumControlProperties {
+export interface EnumControlProperties {
     id: string;
     label: string;
     spec: EnumSettingSpec;

@@ -25,7 +25,7 @@ import { applyEdits, modify } from 'jsonc-parser';
 
 import { parseCaxriTheme } from '../theme';
 
-export const JSONC_FORMATTING_OPTIONS = { tabSize: 2, insertSpaces: true, eol: '\n' };
+const JSONC_FORMATTING_OPTIONS = { tabSize: 2, insertSpaces: true, eol: '\n' };
 
 /**
  * The reconciled bytes plus the value they parse to. `source` equals the input whenever nothing was adopted, which is
@@ -36,7 +36,15 @@ export interface PreparedSource<T> {
     value: T;
 }
 
-function edit(source: string, path: Array<string | number>, value: unknown): string {
+/**
+ * `source` with the value at `path` replaced (or removed when `undefined`), leaving every other byte, comment included,
+ * as it was.
+ */
+export function setJsoncValue(
+    source: string,
+    path: Array<string | number>,
+    value: unknown,
+): string {
     return applyEdits(
         source,
         modify(source, path, value, { formattingOptions: JSONC_FORMATTING_OPTIONS }),
@@ -51,7 +59,7 @@ export function prepareSettingsSource(
     let settings = appSettingsFileSchema.parse(parseJsonc(source));
     if (!shouldReconcileDefaults) return { source, value: settings };
     for (const change of reconcileDefaultSettings(settings))
-        preparedSource = edit(preparedSource, [change.key], change.current);
+        preparedSource = setJsoncValue(preparedSource, [change.key], change.current);
     if (preparedSource !== source) {
         configSourceSchema.parse(preparedSource);
         settings = appSettingsFileSchema.parse(parseJsonc(preparedSource));
@@ -70,16 +78,16 @@ export function prepareKeybindingsSource(
     for (const replacement of reconciliation.replacements)
         for (const property of ['key', 'command', 'when'] as const)
             if (keybindings[replacement.index]?.[property] !== replacement.binding[property])
-                preparedSource = edit(
+                preparedSource = setJsoncValue(
                     preparedSource,
                     [replacement.index, property],
                     replacement.binding[property],
                 );
     for (const index of reconciliation.removals.toReversed())
-        preparedSource = edit(preparedSource, [index], undefined);
+        preparedSource = setJsoncValue(preparedSource, [index], undefined);
     let bindingCount = keybindings.length - reconciliation.removals.length;
     for (const addition of reconciliation.additions) {
-        preparedSource = edit(preparedSource, [bindingCount], addition);
+        preparedSource = setJsoncValue(preparedSource, [bindingCount], addition);
         bindingCount += 1;
     }
     if (preparedSource !== source) {
@@ -99,6 +107,6 @@ export function prepareThemeSource(source: string): PreparedSource<ThemeTokens> 
          * maintained JSONC theme files while preventing an edited preset from posing as built-in.
          */
         for (const property of ['id', 'source'] as const)
-            preparedSource = edit(preparedSource, [property], theme[property]);
+            preparedSource = setJsoncValue(preparedSource, [property], theme[property]);
     return { source: preparedSource, value: theme };
 }

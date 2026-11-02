@@ -1,7 +1,12 @@
 import { useState } from 'react';
 
 import type { SystemColorScheme, ThemeImportWarning, ThemeTokens } from '@caxri/protocol';
-import { builtinThemeIdsForScheme, builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
+import {
+    builtinThemes,
+    defaultThemeIdForScheme,
+    findMatchingBuiltinTheme,
+    themeSlotOptions,
+} from '@caxri/protocol';
 import { Import, X } from 'lucide-react';
 
 import { Alert } from '../../components/ui/alert';
@@ -16,6 +21,8 @@ import {
 } from '../../components/ui/select';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { useImportedThemes } from '../../stores/selectors';
+import { ImportedThemesSection } from './imported-themes-section';
 import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
 import type { ThemeImportResult } from './theme-import-error';
 import {
@@ -37,7 +44,7 @@ interface ThemeFormProperties {
      * see.
      */
     onImport?: () => void;
-    onSelectBuiltin: (id: string) => void;
+    onSelectTheme: (id: string) => void;
     /**
      * "Follow system appearance" state. While `isFollowingSystem`, `theme` is what `theme.json` holds, not what is
      * painted, so the form shows the notice and the effective theme's preview instead of the editor.
@@ -66,7 +73,7 @@ export function ThemeForm({
     onColorChange,
     onDismissImportResult,
     onImport,
-    onSelectBuiltin,
+    onSelectTheme,
     appearance,
 }: ThemeFormProperties) {
     const { t } = useTranslation();
@@ -99,6 +106,7 @@ export function ThemeForm({
                         />
                     ))}
                     <ThemePreview theme={appearance.effectiveTheme} />
+                    <ImportedThemesSection slots={slotsOf(appearance)} />
                 </div>
             </div>
         );
@@ -162,7 +170,7 @@ export function ThemeForm({
                         <Select
                             value={selectedTheme?.id ?? null}
                             onValueChange={(value) => {
-                                if (value) onSelectBuiltin(value);
+                                if (value) onSelectTheme(value);
                             }}
                         >
                             <SelectTrigger
@@ -195,6 +203,7 @@ export function ThemeForm({
                     )}
                 </Field>
                 <ThemePreview theme={theme} />
+                <ImportedThemesSection slots={slotsOf(appearance)} />
                 {(['colors', 'terminal', 'editor'] as const).map((section) => (
                     <fieldset key={section} className="my-3 min-w-0 border-0 p-0">
                         <legend className="mb-2 text-[11px] font-semibold text-foreground uppercase">
@@ -249,10 +258,18 @@ export function ThemeForm({
     );
 }
 
+function slotsOf(appearance: ThemeFormProperties['appearance']) {
+    return {
+        'workbench.theme.light': appearance.lightThemeId,
+        'workbench.theme.dark': appearance.darkThemeId,
+    };
+}
+
 /**
- * One of the two presets "Follow system appearance" switches between. Lists only the presets of its own appearance
- * (`builtinThemeColorSchemes`), the same options the General tab's Light theme and Dark theme settings offer, and both
- * write the same `workbench.theme.light` and `workbench.theme.dark` keys, so the two surfaces cannot drift.
+ * One of the two themes "Follow system appearance" switches between. Lists `themeSlotOptions`: the presets of its own
+ * appearance, then the imported themes that read as it, the same options the General tab's Light theme and Dark theme
+ * settings offer. Both write the same `workbench.theme.light` and `workbench.theme.dark` keys, so the two surfaces
+ * cannot drift. A slot naming a theme that is gone says which preset paints instead.
  */
 function PreferredThemeField({
     scheme,
@@ -267,10 +284,13 @@ function PreferredThemeField({
 }) {
     const { t } = useTranslation();
     const label = t(`settings.themeEditor.preferred.${scheme}`);
-    const options = builtinThemeIdsForScheme(scheme).map((id) => ({
-        id,
-        name: builtinThemes.find((theme) => theme.id === id)?.name ?? id,
-    }));
+    const options = themeSlotOptions(scheme, useImportedThemes());
+    const fallbackId = defaultThemeIdForScheme(scheme);
+    const selectedName =
+        options.find((option) => option.id === value)?.name ??
+        t('settings.themeEditor.missingTheme', {
+            theme: builtinThemes.find((theme) => theme.id === fallbackId)?.name ?? fallbackId,
+        });
     return (
         <Field orientation="horizontal" className="mb-3">
             <span className="flex min-w-0 items-center gap-3">
@@ -289,9 +309,7 @@ function PreferredThemeField({
                         aria-label={label}
                         className={`${SHORT_CONTROL_WIDTH_CLASS_NAME} flex-none bg-background`}
                     >
-                        <SelectValue>
-                            {options.find((option) => option.id === value)?.name ?? value}
-                        </SelectValue>
+                        <SelectValue>{selectedName}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                         {options.map((option) => (

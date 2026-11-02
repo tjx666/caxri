@@ -32,11 +32,11 @@ import type { CompanionRendererPolicy } from './workbench-ipc';
  * "Follow system appearance" is on. Each window reads it at open and again on every `refreshTheme`.
  */
 async function effectiveTheme(supervisor: DesktopServerConnection): Promise<ThemeTokens> {
-    const [{ value: theme }, { value: settings }] = await Promise.all([
+    const [{ value: theme, imported }, { value: settings }] = await Promise.all([
         supervisor.request('theme.get'),
         supervisor.request('settings.get'),
     ]);
-    return resolveEffectiveTheme(theme, settings, systemScheme());
+    return resolveEffectiveTheme(theme, settings, systemScheme(), imported);
 }
 
 function systemScheme(): SystemColorScheme {

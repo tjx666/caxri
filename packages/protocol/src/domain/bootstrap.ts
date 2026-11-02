@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
+import { MAX_IMPORTED_THEMES } from '../configuration/theme-appearance.js';
 import {
     keybindingConflictSchema,
     keybindingSchema,
@@ -86,6 +87,10 @@ export const bootstrapStateSchema = z.object({
     keybindingConflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
     configurationErrors: z.array(z.string()).optional(),
     theme: themeTokensSchema,
+    /**
+     * Themes saved by Import Theme, which the "Follow system appearance" slots can name.
+     */
+    importedThemes: z.array(themeTokensSchema).max(MAX_IMPORTED_THEMES),
     runtime: z.object({
         status: runtimeStatusSchema,
         restartCount: z.number(),

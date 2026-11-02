@@ -11,7 +11,7 @@ import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
-import { refreshWorkbench } from '../../../stores/workbench';
+import { refreshWorkbench, useWorkbenchStore } from '../../../stores/workbench';
 import type { ConfigKind } from '../config-edit';
 import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from '../config-edit';
 import {
@@ -41,7 +41,7 @@ import {
 import { reportSettingsError } from '../settings-error-report';
 import { rowFocusRequest, settingsSectionForRequest } from '../settings-focus-requests';
 import { createSettingsWriteCoordinator } from '../settings-write-coordinator';
-import { applyBuiltinTheme, applyThemeColorEdit } from '../theme-edit';
+import { applyTheme, applyThemeColorEdit } from '../theme-edit';
 import type { ThemeImportResult } from '../theme-import-error';
 import { describeThemeImportFailure } from '../theme-import-error';
 import { resetThemeImportWarningDismissals } from '../theme-import-warnings';
@@ -501,11 +501,18 @@ export function useSettingsPageController() {
         schedulePersist('theme', next.source);
     };
 
-    const selectBuiltinTheme = (id: string): void => {
-        const theme = builtinThemes.find((candidate) => candidate.id === id);
+    /**
+     * Makes a built-in preset or an imported theme the single saved theme.
+     */
+    const selectTheme = (id: string): void => {
+        const theme =
+            builtinThemes.find((candidate) => candidate.id === id) ??
+            useWorkbenchStore
+                .getState()
+                .bootstrap?.importedThemes.find((candidate) => candidate.id === id);
         if (!theme || (state.theme.value && findMatchingBuiltinTheme(state.theme.value)?.id === id))
             return;
-        const next = applyBuiltinTheme(state.theme.source, theme);
+        const next = applyTheme(state.theme.source, theme);
         dispatchConfig({ type: 'theme/changed', value: next.value, source: next.source });
         persistNow('theme', next.source);
     };
@@ -567,7 +574,7 @@ export function useSettingsPageController() {
         removeBinding,
         showSource,
         showUi,
-        selectBuiltinTheme,
+        selectTheme,
         sourceErrors,
         state,
         tab,

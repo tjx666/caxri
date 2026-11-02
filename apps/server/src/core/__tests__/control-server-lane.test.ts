@@ -336,6 +336,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'terminal.terminateAll': 'ordered',
     'theme.import': 'ordered',
     'theme.importPath': 'ordered',
+    'theme.removeImported': 'ordered',
     'theme.update': 'ordered',
     'updates.acknowledge': 'ordered',
     'updates.cancel': 'ordered',

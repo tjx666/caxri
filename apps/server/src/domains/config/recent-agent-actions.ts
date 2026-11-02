@@ -1,9 +1,8 @@
 import type { AppSettings } from '@caxri/protocol';
 import { agentProviderIds, appSettingsFileSchema } from '@caxri/protocol';
 import { parseJsonc } from '@caxri/system';
-import { applyEdits, modify } from 'jsonc-parser';
 
-import { JSONC_FORMATTING_OPTIONS } from './reconcile';
+import { setJsoncValue } from './reconcile';
 
 /**
  * The Settings editor persists a debounced full JSONC draft, while action receipts update MRU independently. A draft
@@ -25,14 +24,10 @@ export function preserveRecentAgentActions(source: string, current: AppSettings)
                 ))
         )
             continue;
-        mergedSource = applyEdits(
+        mergedSource = setJsoncValue(
             mergedSource,
-            modify(
-                mergedSource,
-                ['agents.providers', provider, 'actions', 'recent'],
-                currentRecent,
-                { formattingOptions: JSONC_FORMATTING_OPTIONS },
-            ),
+            ['agents.providers', provider, 'actions', 'recent'],
+            currentRecent,
         );
     }
     return mergedSource;

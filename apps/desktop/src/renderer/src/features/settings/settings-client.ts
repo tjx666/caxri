@@ -61,3 +61,7 @@ export function writeArgvConfig(
 ): Promise<MethodResult<'argv.update'>> {
     return caxri.request('argv.update', ...arguments_);
 }
+
+export function removeImportedTheme(id: string): Promise<MethodResult<'theme.removeImported'>> {
+    return caxri.request('theme.removeImported', { id });
+}

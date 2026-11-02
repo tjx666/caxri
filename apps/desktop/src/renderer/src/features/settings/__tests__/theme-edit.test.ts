@@ -8,7 +8,7 @@ import {
 import { parse } from 'jsonc-parser';
 import { describe, expect, it } from 'vitest';
 
-import { applyBuiltinTheme, applyThemeColorEdit } from '../theme-edit';
+import { applyTheme, applyThemeColorEdit } from '../theme-edit';
 
 describe('theme editing', () => {
     it('selects an exact built-in snapshot without discarding existing JSONC comments', () => {
@@ -17,7 +17,7 @@ describe('theme editing', () => {
             '  // Keep this note when changing presets.\n  "id"',
         )}\n`;
 
-        const next = applyBuiltinTheme(source, solarizedLightTheme);
+        const next = applyTheme(source, solarizedLightTheme);
 
         expect(next.source).toContain('// Keep this note when changing presets.');
         expect(themeTokensSchema.parse(parse(next.source))).toEqual(solarizedLightTheme);

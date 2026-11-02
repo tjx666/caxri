@@ -34,18 +34,18 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
-import { applyEdits, modify } from 'jsonc-parser';
 
 import { atomicWrite } from '../atomic-file';
 import { draculaTheme, importTheme, serializeTheme } from '../theme';
 import type { WatchHandle } from '../watch';
 import { WatchHub } from '../watch';
+import { ImportedThemeCatalog, releaseThemeSlots } from './imported-themes';
 import { preserveRecentAgentActions } from './recent-agent-actions';
 import {
-    JSONC_FORMATTING_OPTIONS,
     prepareKeybindingsSource,
     prepareSettingsSource,
     prepareThemeSource,
+    setJsoncValue,
 } from './reconcile';
 import { ConfigSourceReadError, readBoundedConfigSource } from './source';
 
@@ -101,6 +101,7 @@ export class ConfigService {
     private readonly fallbackPollIntervalMs: number;
     private readonly readConfigSource: (path: string) => Promise<string>;
     private readonly writeConfigSource: (path: string, source: string) => Promise<void>;
+    private readonly importedThemes: ImportedThemeCatalog;
     readonly settingsPath: string;
     readonly keybindingsPath: string;
     readonly themePath: string;
@@ -120,6 +121,10 @@ export class ConfigService {
         this.settingsPath = join(this.configDirectory, 'settings.jsonc');
         this.keybindingsPath = join(this.configDirectory, 'keybindings.jsonc');
         this.themePath = join(this.configDirectory, 'theme.json');
+        this.importedThemes = new ImportedThemeCatalog(
+            join(this.configDirectory, 'themes'),
+            this.writeConfigSource,
+        );
     }
 
     private async loadOrCreate(kind: ConfigKind): Promise<void> {
@@ -181,12 +186,7 @@ export class ConfigService {
      * default; an existing `settings.jsonc` is never rewritten just to add it.
      */
     private async followSystemAppearanceByDefault(): Promise<void> {
-        const source = applyEdits(
-            this.settingsSource,
-            modify(this.settingsSource, ['workbench.theme.followSystem'], true, {
-                formattingOptions: JSONC_FORMATTING_OPTIONS,
-            }),
-        );
+        const source = setJsoncValue(this.settingsSource, ['workbench.theme.followSystem'], true);
         const prepared = this.prepare('settings', source);
         await this.writeConfigSource(this.settingsPath, prepared.source);
         this.assertOpen();
@@ -452,12 +452,7 @@ export class ConfigService {
             if (current.includes(rule)) return;
             if (current.length >= maximum)
                 throw new CaxriError('CAPACITY', `${label} supports at most ${maximum} rules`);
-            const source = applyEdits(
-                this.settingsSource,
-                modify(this.settingsSource, [key], [...current, rule], {
-                    formattingOptions: JSONC_FORMATTING_OPTIONS,
-                }),
-            );
+            const source = setJsoncValue(this.settingsSource, [key], [...current, rule]);
             await this.update('settings', source);
         });
     }
@@ -469,6 +464,7 @@ export class ConfigService {
         await this.loadOrCreate('settings');
         await this.loadOrCreate('keybindings');
         await this.loadOrCreate('theme');
+        await this.importedThemes.load();
         const watchedDirectory = await realpath(this.configDirectory);
         this.assertOpen();
         const startedAt = performance.now();
@@ -536,13 +532,7 @@ export class ConfigService {
                 (key) => JSON.stringify(this.settings[key]) !== JSON.stringify(value[key]),
             );
             let source = this.settingsSource;
-            for (const key of changedKeys)
-                source = applyEdits(
-                    source,
-                    modify(source, [key], value[key], {
-                        formattingOptions: JSONC_FORMATTING_OPTIONS,
-                    }),
-                );
+            for (const key of changedKeys) source = setJsoncValue(source, [key], value[key]);
             this.prepare('settings', source);
             if (!isDryRun && changedKeys.length > 0) await this.update('settings', source);
             const inspection = isDryRun
@@ -560,12 +550,7 @@ export class ConfigService {
             const value = agentDelegationSettingsSchema.parse(settings);
             const isChanged =
                 JSON.stringify(this.settings['agents.delegation']) !== JSON.stringify(value);
-            const source = applyEdits(
-                this.settingsSource,
-                modify(this.settingsSource, ['agents.delegation'], value, {
-                    formattingOptions: JSONC_FORMATTING_OPTIONS,
-                }),
-            );
+            const source = setJsoncValue(this.settingsSource, ['agents.delegation'], value);
             this.prepare('settings', source);
             if (!isDryRun && isChanged) await this.update('settings', source);
             return {
@@ -590,8 +575,12 @@ export class ConfigService {
         };
     }
 
-    getTheme(): { value: ThemeTokens; source: string } {
-        return { value: this.theme, source: this.themeSource };
+    getTheme(): { value: ThemeTokens; source: string; imported: ThemeTokens[] } {
+        return {
+            value: this.theme,
+            source: this.themeSource,
+            imported: [...this.importedThemes.list()],
+        };
     }
 
     updateSettings(source: string): Promise<void> {
@@ -619,14 +608,10 @@ export class ConfigService {
                 )
             )
                 return current.recent;
-            const source = applyEdits(
+            const source = setJsoncValue(
                 this.settingsSource,
-                modify(
-                    this.settingsSource,
-                    ['agents.providers', provider, 'actions', 'recent'],
-                    next.recent,
-                    { formattingOptions: JSONC_FORMATTING_OPTIONS },
-                ),
+                ['agents.providers', provider, 'actions', 'recent'],
+                next.recent,
             );
             await this.update('settings', source);
             return this.settings['agents.providers'][provider].actions.recent;
@@ -666,8 +651,20 @@ export class ConfigService {
     ): Promise<{ value: ThemeTokens; warnings: ThemeImportWarning[] }> {
         this.assertOpen();
         const imported = await importTheme(path, this.theme);
-        await this.update('theme', serializeTheme(imported));
+        await this.update('theme', serializeTheme(await this.importedThemes.save(imported)));
         return { value: this.theme, warnings: imported.warnings };
+    }
+
+    /**
+     * Deletes one imported theme, then sends a light or dark slot that named it back to its default preset.
+     */
+    removeImportedTheme(id: string): Promise<void> {
+        return this.mutateSettings(async () => {
+            if (!(await this.importedThemes.remove(id))) return;
+            const source = releaseThemeSlots(this.settingsSource, this.settings, id);
+            if (source) await this.update('settings', source);
+            this.emitChange('theme', this.themeSource);
+        });
     }
 
     close(): Promise<void> {

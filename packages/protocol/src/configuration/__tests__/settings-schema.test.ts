@@ -205,9 +205,13 @@ describe('settings spec and schema agreement', () => {
                     `${spec.key}=${option.value}`,
                 ).toBe(true);
             }
-            expect(appSettingsSchema.safeParse({ [spec.key]: 'not-a-real-option' }).success).toBe(
-                false,
-            );
+            // The light and dark theme slots also name imported themes, which the spec cannot list.
+            const isThemeSlot =
+                spec.key === 'workbench.theme.light' || spec.key === 'workbench.theme.dark';
+            expect(
+                appSettingsSchema.safeParse({ [spec.key]: 'not-a-real-option' }).success,
+                spec.key,
+            ).toBe(isThemeSlot);
             if ('nullLabel' in spec)
                 expect(appSettingsSchema.safeParse({ [spec.key]: null }).success).toBe(true);
         }

@@ -480,6 +480,10 @@ export function createServiceHandlers(services: {
             database.setAppState('activeThemeId', result.value.id);
             return result;
         },
+        'theme.removeImported': async ({ id }) => {
+            await configuration.removeImportedTheme(id);
+            return configuration.getTheme();
+        },
         'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
         'projectTransfer.exportPath': ({ destination }) =>
             writeProjectTransfer(database, destination),

@@ -157,6 +157,7 @@ const integerField = (spec: IntegerSettingSpec) =>
     z.number().int().min(spec.min).max(spec.max).default(spec.default);
 
 const booleanField = (spec: { default: boolean }) => z.boolean().default(spec.default);
+const themeSlotField = (fallback: string) => z.string().trim().min(1).max(128).default(fallback);
 
 const nullableStringField = (spec: StringSettingSpec) =>
     z.string().trim().min(1).max(spec.maxLength).nullable().default(spec.default);
@@ -220,12 +221,12 @@ export const appSettingsSchema = z.object({
     ),
     'workbench.removeWorktreeOnArchive': booleanField(spec['workbench.removeWorktreeOnArchive']),
     'workbench.theme.followSystem': booleanField(spec['workbench.theme.followSystem']),
-    'workbench.theme.light': z
-        .enum(enumValues(spec['workbench.theme.light'].options))
-        .default(spec['workbench.theme.light'].default),
-    'workbench.theme.dark': z
-        .enum(enumValues(spec['workbench.theme.dark'].options))
-        .default(spec['workbench.theme.dark'].default),
+    /**
+     * A built-in preset id or an imported theme's id, so the spec's options list only the presets. Whether an imported
+     * id still exists is a runtime question (`resolveEffectiveTheme` falls back), not a parse error.
+     */
+    'workbench.theme.light': themeSlotField(spec['workbench.theme.light'].default),
+    'workbench.theme.dark': themeSlotField(spec['workbench.theme.dark'].default),
     'primarySidebar.autoCollapseProjects': z
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),
