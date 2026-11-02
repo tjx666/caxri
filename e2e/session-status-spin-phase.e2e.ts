@@ -41,13 +41,30 @@ async function readFileIfPresent(path: string): Promise<string> {
 async function fireHook(config: string, name: string): Promise<void> {
     await rm(join(config, `${name}.receipt`), { force: true });
     await writeFile(join(config, name), '', 'utf8');
-    await expect
-        .poll(async () => {
-            const receipt = await readFileIfPresent(join(config, `${name}.receipt`));
-            if (receipt === 'failed') throw new Error('Fake Claude hook invocation failed');
-            return receipt;
-        })
-        .toBe('done');
+    try {
+        await expect
+            .poll(async () => {
+                const receipt = await readFileIfPresent(join(config, `${name}.receipt`));
+                if (receipt === 'failed') throw new Error('Fake Claude hook invocation failed');
+                return receipt;
+            })
+            .toBe('done');
+    } catch (error) {
+        // Public CI logs keep only the failing line, so each cause fails on its own line: no fake process claimed the
+        // trigger, or one claimed it and its hook never returned.
+        const steps = (await readFileIfPresent(join(config, 'claims.log')))
+            .split('\n')
+            .filter(
+                (line) => line.endsWith(` ${name} claimed`) || line.endsWith(` ${name} hook-done`),
+            );
+        const claims = steps.filter((line) => line.endsWith('claimed')).length;
+        const hooksDone = steps.length - claims;
+        expect(claims, `${name}: claims beyond the receipts already read`).toBeGreaterThan(
+            hooksDone,
+        );
+        expect(hooksDone, `${name}: every claimed hook returned`).toBe(claims);
+        throw error;
+    }
 }
 
 /**
@@ -149,6 +166,11 @@ const actions = [
   }],
 ];
 const fired = new Set();
+// One line per claim step, so a trigger that never gets a receipt shows whether no process claimed it or the hook hung.
+function trace(name, step) {
+  fs.appendFileSync(path.join(config, 'claims.log'), process.pid + ' ' + Date.now() + ' ' + name + ' ' + step + '\n');
+}
+trace('-', 'started');
 setInterval(() => {
   for (const [name, event, payload] of actions) {
     const trigger = path.join(config, name);
@@ -161,10 +183,13 @@ setInterval(() => {
       continue;
     }
     fired.add(name);
+    trace(name, 'claimed');
     try {
       invokeHook(event, payload);
+      trace(name, 'hook-done');
       fs.writeFileSync(trigger + '.receipt', 'done');
     } catch {
+      trace(name, 'hook-failed');
       fs.writeFileSync(trigger + '.receipt', 'failed');
     }
   }
