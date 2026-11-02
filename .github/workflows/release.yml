@@ -5,7 +5,7 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
-  # Rehearses the hosted Linux natives and unsigned macOS package on main without publishing a Release.
+  # Rehearses the hosted Linux natives and signed macOS package on main without publishing a Release.
   workflow_dispatch:
     inputs:
       android_release_tag:
@@ -173,11 +173,19 @@ jobs:
           pattern: linux-natives-*
           merge-multiple: true
           path: ${{ runner.temp }}/caxri-linux-natives
-      - name: Package unsigned Apple Silicon DMGs without publishing
+      # A throwaway certificate exercises the release signing path without publication credentials; only the release
+      # job imports the pinned certificate.
+      - name: Import throwaway rehearsal signing identity
+        run: bun run scripts/import-mac-signing-identity.ts ephemeral
+      - name: Package Apple Silicon DMGs without publishing
         env:
           CAXRI_LINUX_NATIVES_DIR: ${{ runner.temp }}/caxri-linux-natives
+          CAXRI_REQUIRE_MAC_SIGNING: '1'
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: bun run package:release-dmgs
+      - name: Delete rehearsal signing keychain
+        if: always()
+        run: bun run scripts/import-mac-signing-identity.ts cleanup
       - name: Run targeted packaged smoke
         env:
           # These specs do not request clipboard access on the disposable hosted desktop.
@@ -443,11 +451,22 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/caxri-linux-natives
 
+      # macOS keys privacy grants (Accessibility, Screen Recording) on the designated requirement. The pinned
+      # self-signed certificate keeps that requirement stable across releases, so a different certificate fails here
+      # instead of silently revoking every user's grants. Rotation procedure: RELEASING.md#release-signing-certificate.
+      - name: Import release signing identity
+        env:
+          CAXRI_MAC_SIGNING_P12_BASE64: ${{ secrets.CAXRI_MAC_SIGNING_P12_BASE64 }}
+          CAXRI_MAC_SIGNING_P12_PASSWORD: ${{ secrets.CAXRI_MAC_SIGNING_P12_PASSWORD }}
+          CAXRI_MAC_SIGNING_EXPECTED_CERT_SHA1: EE8649F95479520E43C9E7E51F46A28EFC2946E8
+        run: bun run scripts/import-mac-signing-identity.ts release
+
       # Both flavors rebuild Desktop and the embedded Server from the same checkout. The script verifies their isolated
-      # app directories, Source Map inventories, Server manifests, DMGs, and checksums before publication.
-      - name: Package unsigned Apple Silicon DMGs
+      # app directories, signatures, Source Map inventories, Server manifests, DMGs, and checksums before publication.
+      - name: Package Apple Silicon DMGs
         env:
           CAXRI_LINUX_NATIVES_DIR: ${{ runner.temp }}/caxri-linux-natives
+          CAXRI_REQUIRE_MAC_SIGNING: '1'
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
           bun run package:release-dmgs
@@ -461,6 +480,10 @@ jobs:
               cmp "apps/server/dist/remote/${target}/app.tar.gz" "${remote}/${target}/app.tar.gz"
             done
           done
+
+      - name: Delete release signing keychain
+        if: always()
+        run: bun run scripts/import-mac-signing-identity.ts cleanup
 
       - name: Verify packaged application
         id: verify-packaged
@@ -539,7 +562,7 @@ jobs:
           RELEASE_ANDROID_APK: ${{ steps.artifact.outputs.android }}
           RELEASE_ANDROID_CHECKSUM: ${{ steps.artifact.outputs.android_checksum }}
         run: |
-          # The DMGs are ad-hoc signed but unnotarized: browser downloads get quarantined and Gatekeeper
+          # The DMGs are self-signed but unnotarized: browser downloads get quarantined and Gatekeeper
           # asks the user to confirm, so the notes spell out Open Anyway and the one-line fallback.
           android_filename="$(basename "$RELEASE_ANDROID_APK")"
           notes="## Install

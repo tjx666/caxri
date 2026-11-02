@@ -278,5 +278,5 @@ Pricing sources: [OpenAI](https://developers.openai.com/api/docs/pricing), [Anth
 | [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
 | [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
 | [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |
-| [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                      |
+| [RELEASING.md](RELEASING.md)                                                           | Release workflow for the self-signed DMG                   |
 | [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline     |

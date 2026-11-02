@@ -3,10 +3,11 @@
  * Share.appex`, which electron-builder copies into `Caxri.app/Contents/PlugIns` (`build.mac.extraFiles` in the root
  * `package.json`).
  *
- * The extension is compiled with `swiftc` for both Mac architectures and ad-hoc signed with its sandbox entitlements.
- * Release packaging runs with `CSC_IDENTITY_AUTO_DISCOVERY=false`, so electron-builder never re-signs it; a future
- * Developer ID build must sign the extension with these same entitlements. Other platforms skip the build: the
- * extension is a macOS packaging input only, and unpackaged development builds never contain it.
+ * The extension is compiled with `swiftc` for both Mac architectures and signed with its sandbox entitlements, using
+ * the release identity in `CAXRI_MAC_SIGNING_IDENTITY` when the release workflow imported one and ad-hoc otherwise.
+ * electron-builder never re-signs `Contents/PlugIns`, so the extension must carry the same identity as the app here
+ * (RELEASING.md#release-signing-certificate). Other platforms skip the build: the extension is a macOS packaging input
+ * only, and unpackaged development builds never contain it.
  */
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -85,10 +86,13 @@ async function buildShareExtension(repoRoot: string): Promise<void> {
         join(bundle, 'Contents', 'Info.plist'),
         shareExtensionInfoPlist(template, packageJson.version),
     );
+    // An empty value means no imported identity, the same as an unset one.
+    let identity = process.env.CAXRI_MAC_SIGNING_IDENTITY?.trim() ?? '';
+    if (identity === '') identity = '-';
     await run('codesign', [
         '--force',
         '--sign',
-        '-',
+        identity,
         '--entitlements',
         join(source, 'ShareExtension.entitlements'),
         bundle,

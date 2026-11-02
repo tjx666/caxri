@@ -63,8 +63,8 @@ move must ship after a release that already has it.
 
 ## In-place install
 
-Electron's `autoUpdater` (Squirrel.Mac) requires a Developer ID signature, which these ad-hoc
-signed builds do not have, so Main swaps the bundle itself (`update-install.ts`). Right before it
+Electron's `autoUpdater` (Squirrel.Mac) requires a Developer ID signature, which these self-signed
+builds do not have, so Main swaps the bundle itself (`update-install.ts`). Right before it
 exits, Main records `updates/install-pending.json` and starts a detached `/bin/sh` script with
 structured arguments. The script waits up to 60 seconds for Main's PID to exit, moves the installed
 bundle to `updates/previous/`, moves the staged bundle into its place (restoring the old one if
@@ -79,7 +79,7 @@ bundle.
 The update falls back to the manual flow (`installMode: 'manual'`: open the DMG and drag Caxri
 into Applications) when the app is unpackaged, not on macOS, running from a mounted DMG or App
 Translocation, in a folder the user cannot write, when staging fails, or when the previous launch
-recorded a failed in-place install of the same version. The manual flow keeps the unsigned-app
+recorded a failed in-place install of the same version. The manual flow keeps the unnotarized-app
 notice; the restart flow does not need it.
 
 ## Diagnostics

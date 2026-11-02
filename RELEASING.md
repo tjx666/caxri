@@ -1,6 +1,6 @@
 # Releasing Caxri
 
-Caxri currently produces two ad-hoc signed, unnotarized Apple Silicon DMGs and one release-signed Android arm64 APK,
+Caxri currently produces two self-signed, unnotarized Apple Silicon DMGs and one release-signed Android arm64 APK,
 each with a SHA-256 companion. The APK is copied from the verified update bundle embedded in both
 DMGs, so first installs from GitHub Releases and paired updates share one signing identity and
 version. See [Mobile installation and updates](docs/mobile/update.md#install-from-github-releases).
@@ -103,17 +103,45 @@ no-publish rehearsal behavior.
 
 ## Current distribution boundary
 
-The app is ad-hoc signed (`mac.identity: "-"`) but carries no Developer ID signature or
-notarization. After downloading it on your own Mac, verify the accompanying SHA-256 file before
-opening the application. Gatekeeper will identify it as an unnotarized app; use the explicit
-override in macOS Privacy & Security only for an artifact you built and verified.
+Published releases are signed with a long-lived self-signed certificate, `Caxri Release Signing`
+(see [Release signing certificate](#release-signing-certificate)), but carry no Developer ID
+signature or notarization. After downloading it on your own Mac, verify the accompanying SHA-256
+file before opening the application. Gatekeeper will identify it as an unnotarized app; use the
+explicit override in macOS Privacy & Security only for an artifact you built and verified. Local
+and pull request packages without the certificate stay ad-hoc signed (`mac.identity: "-"`).
 
-The ad-hoc signature is load-bearing: without it, the arm64 bundle carries only the linker's
+The bundle signature is load-bearing: without it, the arm64 bundle carries only the linker's
 per-binary signature with no sealed resources, and Gatekeeper reports a quarantined copy as
 "damaged" with no Open Anyway route. Signing skips `Contents/Resources/server/` so the embedded Server artifact stays byte-identical
-to its integrity manifest, and skips the Share extension, which is already signed with its sandbox
-entitlements. `package:release-dmgs` fails the release when the bundle
-signature is not sealed or the Share extension loses its sandbox entitlement.
+to its integrity manifest, and skips the Share extension, which `build:share-extension` signs with
+its sandbox entitlements and the same identity. `package:release-dmgs` fails the release when the
+bundle signature is not sealed, the Share extension loses its sandbox entitlement, or, with a
+signing identity, either bundle is not signed by it or the designated requirement does not pin its
+certificate.
+
+### Release signing certificate
+
+macOS records privacy grants (Accessibility, also shown as Device Control and Data Access, and
+Screen Recording) against the app's designated requirement. An ad-hoc signature's requirement is
+only its cdhash, which changes with every build, so each in-app update silently revoked the grants
+Agent tools running inside Caxri rely on, while System Settings still showed them enabled. A
+certificate signature's requirement is `identifier "com.caxri.app" and certificate leaf = H"<SHA-1>"`,
+which stays identical across releases signed by the same certificate.
+
+- The `release` job runs `scripts/import-mac-signing-identity.ts release`, which imports the PKCS#12
+  from the `CAXRI_MAC_SIGNING_P12_BASE64` and `CAXRI_MAC_SIGNING_P12_PASSWORD` secrets into a
+  temporary keychain and fails unless its SHA-1 equals the `CAXRI_MAC_SIGNING_EXPECTED_CERT_SHA1`
+  value pinned in `.github/workflows/release.yml`.
+- The no-publish rehearsal holds no secrets; it generates a throwaway certificate (`ephemeral`) so
+  the same signing path runs before a release depends on it.
+- electron-builder only accepts identities macOS trusts, and a self-signed certificate is never
+  trusted, so the package config keeps `mac.identity: "-"` and the `mac.sign` hook
+  (`scripts/electron-builder-mac-sign.ts`) swaps in the imported identity, skipping identity
+  validation and Apple's timestamp service, which rejects certificates Apple did not issue.
+- The maintainer keeps the original PKCS#12 and its password offline, beside the Android release
+  keystore. Replacing the certificate (loss, compromise, or a future Developer ID) changes the
+  designated requirement: every user grants the privacy permissions once more after that update.
+  Rotate only on purpose, by updating both secrets and the pinned SHA-1 in the same change.
 
 An unnotarized DMG can be offered for public download, but recipients must handle the Gatekeeper
 friction described above. Signing and notarization may be added later to remove that friction; they

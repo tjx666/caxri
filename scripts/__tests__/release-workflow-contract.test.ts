@@ -83,10 +83,10 @@ describe('Release workflow contract', () => {
         // Exact paths prevent a stale or third-party DMG from becoming a release asset.
         expect(workflow).not.toContain('find release.noindex');
         expect(releaseJobSource.indexOf('name: Clean previous packaging output')).toBeLessThan(
-            releaseJobSource.indexOf('name: Package unsigned Apple Silicon DMGs'),
+            releaseJobSource.indexOf('name: Package Apple Silicon DMGs'),
         );
         expect(stepScript('Clean previous packaging output')).toBe('rm -rf release.noindex');
-        const packaging = stepScript('Package unsigned Apple Silicon DMGs');
+        const packaging = stepScript('Package Apple Silicon DMGs');
         expect(packaging).toContain('bun run package:release-dmgs');
         expect(packaging).toContain('for flavor in sourcemap nosourcemap');
         const verification = stepScript('Verify release artifact');
@@ -140,9 +140,9 @@ describe('Release workflow contract', () => {
             path: 'out/mobile-update',
         });
         expect(releaseJobSource.indexOf('name: Download Android update bundle')).toBeLessThan(
-            releaseJobSource.indexOf('name: Package unsigned Apple Silicon DMGs'),
+            releaseJobSource.indexOf('name: Package Apple Silicon DMGs'),
         );
-        expect(stepScript('Package unsigned Apple Silicon DMGs')).toContain(
+        expect(stepScript('Package Apple Silicon DMGs')).toContain(
             'cmp out/mobile-update/caxri-mobile.apk',
         );
     });
@@ -178,20 +178,20 @@ describe('Release workflow contract', () => {
         );
         expect(parsed.jobs.release?.needs).toContain('linux-natives');
         const packaging = parsed.jobs.release?.steps?.find(
-            (step) => step.name === 'Package unsigned Apple Silicon DMGs',
+            (step) => step.name === 'Package Apple Silicon DMGs',
         );
         expect(packaging?.env?.CAXRI_LINUX_NATIVES_DIR).toBe(
             '${{ runner.temp }}/caxri-linux-natives',
         );
         expect(releaseJobSource.indexOf('name: Download Linux natives')).toBeLessThan(
-            releaseJobSource.indexOf('name: Package unsigned Apple Silicon DMGs'),
+            releaseJobSource.indexOf('name: Package Apple Silicon DMGs'),
         );
-        expect(stepScript('Package unsigned Apple Silicon DMGs')).toContain(
+        expect(stepScript('Package Apple Silicon DMGs')).toContain(
             'cmp "apps/server/dist/remote/${target}/app.tar.gz"',
         );
     });
 
-    it('rehearses the complete unsigned package on hosted macOS without publication credentials', () => {
+    it('rehearses the complete signed package on hosted macOS without publication credentials', () => {
         const parsed = parse(workflow) as {
             jobs: Record<
                 string,
@@ -225,6 +225,54 @@ describe('Release workflow contract', () => {
         expect(source).toContain('release.noindex/sourcemap/mac-arm64/Caxri.app');
         expect(source).toContain('e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts');
         expect(source).not.toContain('gh release create');
+    });
+
+    it('signs the release with the pinned certificate and the rehearsal with a throwaway one', () => {
+        const parsed = parse(workflow) as {
+            jobs: Record<
+                string,
+                {
+                    steps: Array<{
+                        env?: Record<string, string>;
+                        if?: string;
+                        name?: string;
+                        run?: string;
+                    }>;
+                }
+            >;
+        };
+        const step = (job: string, name: string) =>
+            parsed.jobs[job].steps.find((entry) => entry.name === name);
+        const order = (job: string, name: string) =>
+            parsed.jobs[job].steps.findIndex((entry) => entry.name === name);
+
+        // A different certificate changes the designated requirement and revokes every user's macOS privacy grants.
+        const release = step('release', 'Import release signing identity');
+        expect(release?.run).toBe('bun run scripts/import-mac-signing-identity.ts release');
+        expect(release?.env?.CAXRI_MAC_SIGNING_EXPECTED_CERT_SHA1).toMatch(/^[\dA-F]{40}$/);
+        expect(release?.env?.CAXRI_MAC_SIGNING_P12_BASE64).toBe(
+            '${{ secrets.CAXRI_MAC_SIGNING_P12_BASE64 }}',
+        );
+        expect(order('release', 'Import release signing identity')).toBeLessThan(
+            order('release', 'Package Apple Silicon DMGs'),
+        );
+        expect(step('release', 'Delete release signing keychain')?.if).toBe('always()');
+        // Packaging fails closed when the import step is missing instead of shipping an ad-hoc build.
+        expect(step('release', 'Package Apple Silicon DMGs')?.env?.CAXRI_REQUIRE_MAC_SIGNING).toBe(
+            '1',
+        );
+        expect(
+            step('rehearsal', 'Package Apple Silicon DMGs without publishing')?.env
+                ?.CAXRI_REQUIRE_MAC_SIGNING,
+        ).toBe('1');
+
+        expect(step('rehearsal', 'Import throwaway rehearsal signing identity')?.run).toBe(
+            'bun run scripts/import-mac-signing-identity.ts ephemeral',
+        );
+        expect(order('rehearsal', 'Import throwaway rehearsal signing identity')).toBeLessThan(
+            order('rehearsal', 'Package Apple Silicon DMGs without publishing'),
+        );
+        expect(step('rehearsal', 'Delete rehearsal signing keychain')?.if).toBe('always()');
     });
 
     it('keeps publication credentials bounded on the hosted runner', () => {

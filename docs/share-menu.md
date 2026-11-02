@@ -55,7 +55,8 @@ the whole request. Rejections are logged as `desktop.share_rejected` with a clos
 ## Build
 
 `bun run build:share-extension` (part of `bun run build`, macOS only) compiles the extension for
-both Mac architectures and ad-hoc signs it with its sandbox entitlements into
-`out/share-extension/`; packaging copies it to `Caxri.app/Contents/PlugIns/`. Release packaging does
-not re-sign the app, so a future Developer ID build must sign the extension with the same
-entitlements.
+both Mac architectures and signs it with its sandbox entitlements into `out/share-extension/`,
+using the release certificate when the release workflow imported one and ad-hoc otherwise;
+packaging copies it to `Caxri.app/Contents/PlugIns/`. electron-builder does not re-sign
+`PlugIns`, so the extension must carry the same identity as the app (see
+[Release signing certificate](../RELEASING.md#release-signing-certificate)).

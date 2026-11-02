@@ -7,7 +7,7 @@ status: current
 
 ## macOS says Caxri is "damaged" or blocks it
 
-Caxri is ad-hoc signed but not notarized, so Gatekeeper refuses the first launch of a browser
+Caxri is self-signed but not notarized, so Gatekeeper refuses the first launch of a browser
 download with "Apple could not verify Caxri is free of malware". After verifying the download
 against its `.sha256` file, open **System Settings → Privacy & Security**, find the message about
 Caxri, click **Open Anyway** and confirm, or run
