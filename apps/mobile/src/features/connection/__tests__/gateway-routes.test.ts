@@ -2,6 +2,7 @@ import {
     decodeHex,
     encodeHex,
     MOBILE_TRANSPORT_VERSION,
+    nobleMobileFrameCipher,
     PAIRING_SECRET_BYTES,
     relayAccessKey,
     relayCloseCodes,
@@ -276,6 +277,7 @@ describe('pairing and reconnecting through the Relay', () => {
     const relayRuntime = () => {
         const relay: { current?: RelayGatewaySocket } = {};
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: (url) => {
                 if (!url.startsWith('wss://')) return unreachableDirect();
                 relay.current = new RelayGatewaySocket();
@@ -321,6 +323,7 @@ describe('pairing and reconnecting through the Relay', () => {
     it('holds a pairing hello until relay-ready, since it consumes the pairing code', async () => {
         const { byUrl, runtime: scripted } = scriptedRuntime();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             ...scripted,
             openWebSocket: (url) => {
                 const socket = scripted.openWebSocket(url);
@@ -359,6 +362,7 @@ describe('pairing and reconnecting through the Relay', () => {
     it('reconnects with the device access key and sends the connect hello through the Relay', async () => {
         const { byUrl, runtime: scripted } = scriptedRuntime();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             ...scripted,
             openWebSocket: (url) => {
                 const socket = scripted.openWebSocket(url);

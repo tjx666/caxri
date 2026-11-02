@@ -39,9 +39,10 @@ export {
 
 export interface MobileGatewayRuntime {
     /**
-     * Seals and opens session frames natively; absent in tests, where the pure-JS cipher runs.
+     * Seals and opens session frames: the phone's native AES-GCM in the app, the pure-JS cipher in tests. Required, so
+     * a runtime that forgets it fails to compile instead of silently falling back to the slow cipher.
      */
-    frameCipher?: MobileFrameCipher;
+    frameCipher: MobileFrameCipher;
     openWebSocket(url: string): WebSocket;
     platform: 'android' | 'ios';
     randomBytes(length: number): Uint8Array;

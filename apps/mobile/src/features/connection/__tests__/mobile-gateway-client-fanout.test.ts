@@ -1,3 +1,4 @@
+import { nobleMobileFrameCipher } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MobileGatewayRuntime } from '../mobile-gateway-client';
@@ -13,6 +14,7 @@ describe('mobile gateway client fan-out isolation', () => {
     it('notifies a later onObservation listener when an earlier one throws', async () => {
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new FakeGatewaySocket() as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),
@@ -42,6 +44,7 @@ describe('mobile gateway client fan-out isolation', () => {
         const socket = new FakeGatewaySocket(false, 0, false, true);
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),

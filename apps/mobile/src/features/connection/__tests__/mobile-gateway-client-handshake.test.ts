@@ -1,4 +1,8 @@
-import { MOBILE_TRANSPORT_VERSION, serializeMobilePairingLink } from '@caxri/mobile-transport';
+import {
+    MOBILE_TRANSPORT_VERSION,
+    nobleMobileFrameCipher,
+    serializeMobilePairingLink,
+} from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MobileGatewayRuntime } from '../mobile-gateway-client';
@@ -25,6 +29,7 @@ describe('mobile gateway client handshake', () => {
         const socket = new NeverOpenSocket();
         const cancellation = new AbortController();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -46,6 +51,7 @@ describe('mobile gateway client handshake', () => {
     it('stops waiting for a socket to open after four seconds', async () => {
         const socket = new NeverOpenSocket();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -79,6 +85,7 @@ describe('mobile gateway client handshake', () => {
     it('races eligible sockets but sends the one-time pairing handshake only to the winner', async () => {
         const sockets: FakeGatewaySocket[] = [];
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: (url) => {
                 const socket = new FakeGatewaySocket(false, url.includes('192.168.1.5') ? 20 : 0);
                 sockets.push(socket);
@@ -116,6 +123,7 @@ describe('mobile gateway client handshake', () => {
         const loser = new AndroidConnectingSocket();
         const winner = new FakeGatewaySocket();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: (url) =>
                 (url.includes('192.168.1.5') ? loser : winner) as unknown as WebSocket,
             platform: 'android',
@@ -150,6 +158,7 @@ describe('mobile gateway client handshake', () => {
     it('closes a socket that Android opens after its open deadline passed', async () => {
         const socket = new AndroidConnectingSocket();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -180,6 +189,7 @@ describe('mobile gateway client handshake', () => {
         const socket = new AndroidConnectingSocket();
         const cancellation = new AbortController();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => socket as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -205,6 +215,7 @@ describe('mobile gateway client handshake', () => {
 
     it('classifies a version-mismatch response as terminal during reconnect', async () => {
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new VersionMismatchSocket() as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -224,6 +235,7 @@ describe('mobile gateway client handshake', () => {
 
     it('marks a mismatch from a newer Desktop as one update recovery can fix', async () => {
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () =>
                 new VersionMismatchSocket(MOBILE_TRANSPORT_VERSION + 1) as unknown as WebSocket,
             platform: 'android',
@@ -242,6 +254,7 @@ describe('mobile gateway client handshake', () => {
 
     it('classifies a version-mismatch response as terminal during pairing', async () => {
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new VersionMismatchSocket() as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -262,6 +275,7 @@ describe('mobile gateway client handshake', () => {
     it('reports an incompatible pairing link as an update requirement before opening a socket', async () => {
         const openWebSocket = vi.fn();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),

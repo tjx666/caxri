@@ -1,3 +1,4 @@
+import { nobleMobileFrameCipher } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MobileGatewayRuntime } from '../mobile-gateway-client';
@@ -30,6 +31,7 @@ describe('mobile gateway deadlines', () => {
         'times out an idempotent %s read after three seconds and keeps the connection',
         async (_name, request) => {
             const runtime: MobileGatewayRuntime = {
+                frameCipher: nobleMobileFrameCipher,
                 openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
                 platform: 'android',
                 randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -65,6 +67,7 @@ describe('mobile gateway deadlines', () => {
 
     it('keeps the longer deadline for a write while a network is slow', async () => {
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
             platform: 'android',
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
@@ -104,6 +107,7 @@ describe('mobile gateway deadlines', () => {
     it('rejects a late foreground probe without ending the connection', async () => {
         let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => {
                 socket = new FakeGatewaySocket(false, 0, true);
                 return socket as unknown as WebSocket;
@@ -142,6 +146,7 @@ describe('mobile gateway deadlines', () => {
     it('ends the connection when a subscription acknowledgement misses its deadline', async () => {
         let socket: FakeGatewaySocket | undefined;
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: () => {
                 socket = new FakeGatewaySocket(false, 0, true);
                 return socket as unknown as WebSocket;

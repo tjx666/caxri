@@ -22,7 +22,6 @@ import {
     MobileReplayGuard,
     mobileServerHelloSchema,
     mobileVersionMismatchSchema,
-    nobleMobileFrameCipher,
     openMobilePayloadWith,
     sealMobilePayloadWith,
     X25519_KEY_BYTES,
@@ -78,7 +77,7 @@ export const receiveSealed = async (
     const { ciphertext, counter } = decodeSealedFrame(frame);
     session.inbound.assertAndAdvance(counter);
     return openMobilePayloadWith(
-        session.runtime.frameCipher ?? nobleMobileFrameCipher,
+        session.runtime.frameCipher,
         session.keys.serverToClient,
         {
             connectionId: session.connectionId,
@@ -107,7 +106,7 @@ const settled = async (promise: Promise<void>): Promise<void> => {
  */
 export const sendSealed = (session: EstablishedSession, payload: unknown): Promise<void> => {
     const sealed = sealMobilePayloadWith(
-        session.runtime.frameCipher ?? nobleMobileFrameCipher,
+        session.runtime.frameCipher,
         session.keys.clientToServer,
         {
             connectionId: session.connectionId,

@@ -1,3 +1,4 @@
+import { nobleMobileFrameCipher } from '@caxri/mobile-transport';
 import { describe, expect, it } from 'vitest';
 
 import type { MobileGatewayRuntime } from '../mobile-gateway-client';
@@ -8,6 +9,7 @@ const pairHeld = async () => {
     const socket = new FakeGatewaySocket(false, 0, false, true);
     let randomByte = 128;
     const runtime: MobileGatewayRuntime = {
+        frameCipher: nobleMobileFrameCipher,
         openWebSocket: () => socket as unknown as WebSocket,
         platform: 'android',
         randomBytes: (bytes) => new Uint8Array(bytes).fill(randomByte++),

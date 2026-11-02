@@ -7,6 +7,7 @@ import {
     mobileUpdateRecoveryHelloSchema,
     mobileUpdateRecoveryProofSchema,
     mobileUpdateRecoveryServerProof,
+    nobleMobileFrameCipher,
 } from '@caxri/mobile-transport';
 import { describe, expect, it } from 'vitest';
 
@@ -101,6 +102,7 @@ class RecoveryServerSocket extends EventTarget {
 const runtimeFor = (behavior: Behavior) => {
     const sockets: RecoveryServerSocket[] = [];
     const runtime: MobileGatewayRuntime = {
+        frameCipher: nobleMobileFrameCipher,
         openWebSocket: () => {
             const socket = new RecoveryServerSocket(behavior);
             sockets.push(socket);
@@ -130,6 +132,7 @@ describe('recoverMobileUpdate', () => {
         const winner = new RecoveryServerSocket('accept');
         const loser = new AndroidConnectingSocket();
         const runtime: MobileGatewayRuntime = {
+            frameCipher: nobleMobileFrameCipher,
             openWebSocket: (url) =>
                 (url.includes('192.168.1.5') ? loser : winner) as unknown as WebSocket,
             platform: 'android',
