@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 'react';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 
@@ -7,9 +7,11 @@ import { cn } from '../../lib/utilities';
 import { ShortcutBadge } from '../shortcut-badge';
 import type { TooltipCursorAnchor } from '../tooltip-positioning';
 import {
+    resolveCursorTooltipRestRemaining,
     resolveTooltipCursorAnchor,
     TOOLTIP_CURSOR_COLLISION_PADDING,
     TOOLTIP_CURSOR_SIDE_OFFSET,
+    TOOLTIP_OPEN_DELAY_MS,
 } from '../tooltip-positioning';
 import { TOOLTIP_MOTION } from './overlay-motion';
 
@@ -40,11 +42,19 @@ interface PointerPosition {
 }
 
 /**
- * Mutable cell for the latest pointer position; a plain object so a React Compiler lint does not read the context value
- * it lives in as mutated.
+ * Mutable cell for the latest pointer over a cursor-anchored trigger; a plain object so a React Compiler lint does not
+ * read the context value it lives in as mutated.
  */
 interface TooltipPointer {
+    /**
+     * `performance.now()` when the pointer entered {@link TooltipPointer.trigger}.
+     */
+    enteredAt: number | undefined;
     position: PointerPosition | undefined;
+    /**
+     * The cursor-anchored trigger under the pointer, cleared when the pointer leaves it.
+     */
+    trigger: Element | undefined;
 }
 
 type TooltipHandle = TooltipPrimitive.Handle<TooltipPayload>;
@@ -82,11 +92,11 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
             cursor: TooltipPrimitive.createHandle<TooltipPayload>(),
             element: TooltipPrimitive.createHandle<TooltipPayload>(),
             hoverOnly: TooltipPrimitive.createHandle<TooltipPayload>(),
-            pointer: { position: undefined },
+            pointer: { enteredAt: undefined, position: undefined, trigger: undefined },
         };
     });
     return (
-        <TooltipPrimitive.Provider delay={500} closeDelay={80} timeout={300}>
+        <TooltipPrimitive.Provider delay={TOOLTIP_OPEN_DELAY_MS} closeDelay={80} timeout={300}>
             <TooltipHostsContext value={hosts}>
                 {children}
                 <TooltipHost handle={hosts.element} />
@@ -168,6 +178,12 @@ function CursorTooltipHost({
     pointer: TooltipPointer;
 }) {
     const [cursorAnchor, setCursorAnchor] = useState<TooltipCursorAnchor>();
+    const restTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    /**
+     * The trigger a deferred open is for; its imperative open then anchors at the pointer like a hover open.
+     */
+    const restedTrigger = useRef<Element>(undefined);
+    useEffect(() => () => clearTimeout(restTimer.current), []);
     /*
      * The collision middleware is installed unconditionally, before the first popup mount: the hover-open callback sets
      * the anchor asynchronously, and waiting for that state would let a first right-edge open use Base UI's default
@@ -177,11 +193,43 @@ function CursorTooltipHost({
         <TooltipPrimitive.Root
             handle={handle}
             onOpenChange={(open, details) => {
-                if (open) {
-                    setCursorAnchor(
-                        resolveTooltipCursorAnchor(open, details.reason, pointer.position),
+                /*
+                 * Only an open supersedes a pending rested open: the previous row's late hover close must not cancel
+                 * it, and a pointer that left the row is caught by the timer's own trigger check.
+                 */
+                if (!open) return;
+                clearTimeout(restTimer.current);
+                const trigger = details.trigger;
+                const isRestedOpen =
+                    details.reason === 'imperative-action' && trigger === restedTrigger.current;
+                restedTrigger.current = undefined;
+                if (details.reason === 'trigger-hover' && trigger === pointer.trigger) {
+                    const remaining = resolveCursorTooltipRestRemaining(
+                        pointer.enteredAt,
+                        performance.now(),
                     );
+                    if (trigger && remaining > 0) {
+                        /*
+                         * Base UI's instant switch between triggers would chain the popup row to row; close the
+                         * previous row's popup and wait out this row's own delay instead.
+                         */
+                        details.cancel();
+                        if (handle.isOpen) handle.close();
+                        restTimer.current = setTimeout(() => {
+                            if (pointer.trigger !== trigger || handle.isOpen) return;
+                            restedTrigger.current = trigger;
+                            handle.open(trigger.id);
+                        }, remaining);
+                        return;
+                    }
                 }
+                setCursorAnchor(
+                    resolveTooltipCursorAnchor(
+                        open,
+                        isRestedOpen ? 'trigger-hover' : details.reason,
+                        pointer.position,
+                    ),
+                );
             }}
             onOpenChangeComplete={(open) => {
                 if (!open) setCursorAnchor(undefined);
@@ -220,6 +268,16 @@ function CursorTooltipHost({
 
 function rememberPointer(pointer: TooltipPointer, event: ReactPointerEvent): void {
     pointer.position = { x: event.clientX, y: event.clientY };
+    if (pointer.trigger !== event.currentTarget) {
+        pointer.trigger = event.currentTarget;
+        pointer.enteredAt = performance.now();
+    }
+}
+
+function forgetPointer(pointer: TooltipPointer, event: ReactPointerEvent): void {
+    if (pointer.trigger !== event.currentTarget) return;
+    pointer.trigger = undefined;
+    pointer.enteredAt = undefined;
 }
 
 export function Tooltip({
@@ -294,6 +352,11 @@ export function Tooltip({
               rememberPointer(hosts.pointer, event);
           }
         : undefined;
+    const releasePointer = isCursorMode
+        ? (event: ReactPointerEvent) => {
+              forgetPointer(hosts.pointer, event);
+          }
+        : undefined;
     return (
         <TooltipPrimitive.Trigger
             disabled={disabled}
@@ -302,6 +365,7 @@ export function Tooltip({
             payload={payload}
             render={children}
             onPointerEnter={capturePointer}
+            onPointerLeave={releasePointer}
             onPointerMove={capturePointer}
         />
     );
