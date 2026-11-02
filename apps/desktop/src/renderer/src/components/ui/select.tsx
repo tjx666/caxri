@@ -84,3 +84,17 @@ export function SelectItem({ className, children, ...properties }: SelectPrimiti
         </SelectPrimitive.Item>
     );
 }
+
+export function SelectGroup(properties: SelectPrimitive.Group.Props) {
+    return <SelectPrimitive.Group data-slot="select-group" {...properties} />;
+}
+
+export function SelectLabel({ className, ...properties }: SelectPrimitive.GroupLabel.Props) {
+    return (
+        <SelectPrimitive.GroupLabel
+            data-slot="select-label"
+            className={cn('px-2 py-1 text-[11px] font-semibold text-muted uppercase', className)}
+            {...properties}
+        />
+    );
+}

@@ -206,4 +206,37 @@ describe('VS Code theme color role mapping', () => {
         expect(explicit.cursor).toBe('#ff0000');
         expect(explicit.red).toBe(vscodeLightPlusTheme.terminal.red);
     });
+
+    it('warns which preset paints the Terminal when a theme defines no ANSI colors', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-terminal-warning-'));
+        temporaryDirectories.push(directory);
+        const warningsFor = async (name: string, value: Record<string, unknown>) => {
+            const path = join(directory, `${name}.json`);
+            await writeFile(path, JSON.stringify({ name, ...value }), 'utf8');
+            return (await importTheme(path, draculaTheme)).warnings;
+        };
+        const fallback = (preset: string) => ({
+            id: 'terminal-palette-fallback',
+            message: `This theme defines no Terminal colors, so the Terminal uses the ${preset} colors. Edit them under Terminal below.`,
+        });
+
+        expect(
+            await warningsFor('Paper', {
+                type: 'light',
+                colors: { 'editor.background': '#fafafa' },
+            }),
+        ).toContainEqual(fallback('Light+'));
+        expect(
+            await warningsFor('Night', {
+                type: 'dark',
+                colors: { 'editor.background': '#101010' },
+            }),
+        ).toContainEqual(fallback('Dark+'));
+        expect(
+            await warningsFor('Explicit', {
+                type: 'dark',
+                colors: { 'editor.background': '#101010', 'terminal.ansiRed': '#aa0000' },
+            }),
+        ).not.toContainEqual(fallback('Dark+'));
+    });
 });
