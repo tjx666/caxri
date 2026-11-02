@@ -126,7 +126,7 @@ The upstream source is <https://github.com/microsoft/vscode-codicons>. Licensed 
 
 ## Lobe Icons
 
-Caxri bundles Claude Code, Codex, Grok, and OpenCode SVG assets from `@lobehub/icons-static-svg`. Color assets preserve their authored palette; monochrome assets are rendered as theme-colored masks.
+Caxri bundles Claude Code, Codex, Grok, and OpenCode SVG assets from `@lobehub/icons-static-svg`. Color assets preserve their authored palette; monochrome assets are rendered as theme-colored masks. The Codex color mark is vendored as `apps/desktop/src/renderer/src/icons/agents/codex-color.svg` (and inlined in the mobile client) with its white app-tile backdrop removed and its viewBox tightened.
 
 Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license text is in `licenses/LOBEHUB_ICONS_LICENSE.txt`; the upstream source is <https://github.com/lobehub/lobe-icons>.
 
