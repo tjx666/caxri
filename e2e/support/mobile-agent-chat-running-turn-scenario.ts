@@ -17,10 +17,10 @@ import {
     copyMobileFramebufferRecording,
     mobileDisplayState,
     mobileSemantics,
-    setEmulatorNetworkDelay,
     startMobileFramebufferRecording,
     waitForMobile,
 } from './mobile-android';
+import { setEmulatorNetworkDelay } from './mobile-android-network';
 import {
     departuresFromFinalPicture,
     heldPicturesBeforeFinal,
@@ -169,7 +169,7 @@ export async function executeMobileChatRunningTurnScenario(
 }
 
 /**
- * One-way latency the long-turn case adds while it opens the Chat, about what a phone sees through a distant Relay.
+ * Round-trip latency the long-turn case adds while it opens the Chat, below what a phone sees through a distant Relay.
  */
 const RELAY_DELAY_MS = 400;
 

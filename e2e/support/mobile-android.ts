@@ -93,19 +93,6 @@ export const adbShell = (serial: string, arguments_: string[]): Promise<string> 
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
 
 /**
- * Sets the disposable emulator's network latency in milliseconds (`0` clears it) through its console, so a case can
- * replay the round trips a phone pays over the Relay. A local gateway answers within one frame, which hides any
- * ordering that only shows when each request takes a noticeable time.
- */
-export const setEmulatorNetworkDelay = async (serial: string, ms: number): Promise<void> => {
-    await runMobileDeviceCommand(
-        adb,
-        ['-s', serial, 'emu', 'network', 'delay', ms === 0 ? 'none' : String(ms)],
-        'capture',
-    );
-};
-
-/**
  * Kills the app and launches it again, the way the OS reclaims a backgrounded app and the next open starts it fresh:
  * anything the app kept only in memory is gone.
  */
