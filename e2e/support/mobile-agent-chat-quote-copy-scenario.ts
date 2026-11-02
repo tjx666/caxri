@@ -7,6 +7,7 @@ import {
     hideChatKeyboard,
     sendFromPhone,
     waitForCheck,
+    waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import {
     adbShell,
@@ -38,9 +39,11 @@ export async function executeMobileChatQuoteCopyScenario(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('Done.') && !snapshot.activeTurnId,
         );
+        await waitForNoCheck(serial, 'agent-chat-activity');
         await hideChatKeyboard(serial);
+        // Captured before looking for Copy, so a build without it still records the quote it left without one.
+        await capture(environment, 'quote-reply', artifacts);
         await waitForCheck(serial, 'conversation-quote-0-copy');
-        await capture(environment, 'quote-copy', artifacts);
 
         await tapMobileCheckByBounds(serial, 'conversation-quote-0-copy');
         await waitForCheck(serial, 'conversation-quote-0-copy-copied');
