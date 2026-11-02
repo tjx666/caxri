@@ -18,6 +18,11 @@ import {
 import { SessionRowPullRequest } from './session-row-pull-request';
 import { SessionStatusGlyph } from './session-status-glyph';
 
+/**
+ * Roughly how many characters fit `worktreeShrinkable.minWidth` beside the icon.
+ */
+const WORKTREE_MIN_CHARACTERS = 6;
+
 const styles = StyleSheet.create({
     accent: {
         borderRadius: 2,
@@ -31,7 +36,15 @@ const styles = StyleSheet.create({
     age: { ...mobileType.meta, flexShrink: 0 },
     meta: { ...mobileType.meta, flexShrink: 1 },
     metaLine: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs, minWidth: 0 },
-    worktree: { alignItems: 'center', flexDirection: 'row', flexShrink: 1, gap: 2, minWidth: 0 },
+    worktree: { alignItems: 'center', flexDirection: 'row', gap: 2 },
+    /**
+     * The Project names the row more than the worktree does, so the worktree gives up its width first: its shrink
+     * weight dwarfs the Project's, and only once it is down to its minimum (the icon plus a few characters) does the
+     * Project start to truncate too. A name already about that short does not shrink at all, since a minimum wider than
+     * the name would pad it.
+     */
+    worktreeShrinkable: { flexShrink: 1000, minWidth: 56 },
+    worktreeFixed: { flexShrink: 0 },
     row: {
         alignItems: 'center',
         borderRadius: mobileRadius.md,
@@ -146,7 +159,15 @@ export const SessionRow = ({
                         </Text>
                     ) : null}
                     {worktree ? (
-                        <View style={styles.worktree} testID="session-row-worktree">
+                        <View
+                            style={[
+                                styles.worktree,
+                                worktree.length > WORKTREE_MIN_CHARACTERS
+                                    ? styles.worktreeShrinkable
+                                    : styles.worktreeFixed,
+                            ]}
+                            testID="session-row-worktree"
+                        >
                             <FolderTree color={theme.muted} size={12} />
                             <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
                                 {worktree}

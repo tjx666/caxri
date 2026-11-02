@@ -19,8 +19,8 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const BRANCH = 'feature/phone-merge';
-const SLUG = 'owner/example';
+export const BRANCH = 'feature/phone-merge';
+export const SLUG = 'owner/example';
 
 /**
  * The pull request the fake `gh` reports. `failing` has two failed checks among four, so the phone's confirmation names
@@ -51,7 +51,7 @@ const CHECKS: Record<FakeGhFixture, Array<{ name: string; conclusion: string }>>
     ],
 };
 
-async function git(root: string, ...arguments_: string[]): Promise<string> {
+export async function git(root: string, ...arguments_: string[]): Promise<string> {
     const { stdout } = await execFileAsync('git', arguments_, { cwd: root });
     return stdout.trim();
 }
@@ -143,7 +143,7 @@ esac
  * the GraphQL `name=` field) goes to that repository's script; every other call, including the token read, goes to the
  * first. All merges append to the one `merges.log`, so the order of merges across repositories stays visible.
  */
-async function writeFakeGh(
+export async function writeFakeGh(
     directory: string,
     fixture: FakeGhFixture,
     repos: readonly FakeRepo[],

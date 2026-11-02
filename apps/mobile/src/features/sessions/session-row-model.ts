@@ -130,11 +130,13 @@ const DEPLOYMENT_LABEL_KEY: Partial<Record<SessionPullRequestTone, TranslationKe
 };
 
 /**
- * The pull request mark a Session row shows beside its status, or `null` when it shows none. A saved copy's pull
- * request can be hours old (it may have merged since), so a row drawn from one shows no mark rather than a stale one.
+ * The pull request mark a Session row shows in its status slot, or `null` when it shows none. As on Desktop
+ * (`SessionRowStatus`), the PR is only the fallback: any status glyph (running, attention, failure, usage wait) takes
+ * the slot, so a row never shows a spinner and a PR mark side by side. A saved copy's pull request can be hours old (it
+ * may have merged since), so a row drawn from one shows no mark rather than a stale one.
  */
 export const sessionRowPullRequest = (
-    session: Pick<MobileSessionItem, 'pullRequest'>,
+    session: Pick<MobileSessionItem, 'pullRequest'> & Parameters<typeof sessionStatusGlyphKind>[0],
     isSaved: boolean,
     t: Translate = translate,
 ): {
@@ -144,6 +146,7 @@ export const sessionRowPullRequest = (
 } | null => {
     const { pullRequest } = session;
     if (isSaved || !pullRequest) return null;
+    if (sessionStatusGlyphKind(session, isSaved) !== null) return null;
     const visual = sessionPullRequestVisual(pullRequest);
     return {
         ...visual,

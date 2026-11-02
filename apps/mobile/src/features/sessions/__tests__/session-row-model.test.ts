@@ -141,19 +141,27 @@ describe('Session status on a saved copy', () => {
 });
 
 describe('sessionRowPullRequest', () => {
-    const open = { pullRequest: { number: 7, state: 'open' } } as const;
+    const settled = { agentActivityState: 'idle', hasUnread: false } as const;
+    const open = { ...settled, pullRequest: { number: 7, state: 'open' } } as const;
 
     it('shares Desktop glyph and tone for the same pull request', () => {
         expect(sessionRowPullRequest(open, false)).toMatchObject({ icon: 'open', tone: 'success' });
         expect(
-            sessionRowPullRequest({ pullRequest: { number: 7, state: 'merged' } }, false),
+            sessionRowPullRequest(
+                { ...settled, pullRequest: { number: 7, state: 'merged' } },
+                false,
+            ),
         ).toMatchObject({ icon: 'merged', tone: 'merged' });
         expect(
-            sessionRowPullRequest({ pullRequest: { number: 7, state: 'closed' } }, false),
+            sessionRowPullRequest(
+                { ...settled, pullRequest: { number: 7, state: 'closed' } },
+                false,
+            ),
         ).toMatchObject({ icon: 'closed', tone: 'danger' });
         expect(
             sessionRowPullRequest(
                 {
+                    ...settled,
                     pullRequest: { number: 7, state: 'merged', deployment: { state: 'success' } },
                 },
                 false,
@@ -164,7 +172,7 @@ describe('sessionRowPullRequest', () => {
     it('announces the deployment outcome instead of claiming success', () => {
         const label = (state: 'failure' | 'pending' | 'queued' | 'success') =>
             sessionRowPullRequest(
-                { pullRequest: { number: 12, state: 'merged', deployment: { state } } },
+                { ...settled, pullRequest: { number: 12, state: 'merged', deployment: { state } } },
                 false,
             )?.label;
         expect(label('success')).toBe('Pull request #12, merged and deployed');
@@ -178,7 +186,26 @@ describe('sessionRowPullRequest', () => {
     });
 
     it('shows nothing without a pull request or on a saved copy that may be out of date', () => {
-        expect(sessionRowPullRequest({}, false)).toBeNull();
+        expect(sessionRowPullRequest(settled, false)).toBeNull();
         expect(sessionRowPullRequest(open, true)).toBeNull();
+    });
+
+    it('gives the status slot to the status glyph, as on Desktop', () => {
+        expect(sessionRowPullRequest({ ...open, agentActivityState: 'running' }, false)).toBeNull();
+        expect(
+            sessionRowPullRequest(
+                {
+                    ...open,
+                    agentActivityState: 'running',
+                    primaryTerminal: { agentOperation: 'background' },
+                },
+                false,
+            ),
+        ).toBeNull();
+        expect(sessionRowPullRequest({ ...open, hasUnread: true }, false)).toBeNull();
+        expect(sessionRowPullRequest({ ...open, agentActivityState: 'failed' }, false)).toBeNull();
+        expect(
+            sessionRowPullRequest({ ...open, agentActivityState: 'idle' }, false),
+        ).not.toBeNull();
     });
 });
