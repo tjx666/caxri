@@ -15,7 +15,11 @@ DEVICE_VIDEO=/data/local/tmp/caxri-acceptance.mp4
 ```
 
 Run `screenrecord` in its own persistent terminal, wait until it is active, drive the pre-authored
-scenario, then stop it with `Ctrl-C`. Pull the finalized file and remove only that exact device path:
+scenario, then stop it with `Ctrl-C`. `screenrecord` writes a frame only when the screen changes,
+so a still screen adds no length: waiting on a settled view before stopping does not lengthen the
+video, and a short flow can fall under the 3-second evidence minimum. End on a real interaction
+instead, as `MOB-SESSION-NOTICE-SETTLE-01` taps a Session after its cold start and excludes that tap
+from analysis. Pull the finalized file and remove only that exact device path:
 
 ```bash
 "$ADB" -s "$SERIAL" pull "$DEVICE_VIDEO" "$ROUND_DIR/assets/android-flow.mp4"
