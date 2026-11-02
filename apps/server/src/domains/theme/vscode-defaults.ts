@@ -1,9 +1,13 @@
+import { vscodeDarkPlusTheme, vscodeLightPlusTheme } from '@caxri/protocol';
+
 /**
  * VS Code's registry defaults for the workbench colors Caxri maps, used exactly as VS Code uses them: when a theme
  * leaves a key unset, this is the color it actually paints. Seeding an unset role from Dracula instead (the previous
  * behavior for every role below) produced imports that mixed two palettes: a light VS Code theme kept Dracula's dark
  * `elevated`, `muted`, and `selection`. Decoration defaults come from the built-in Git extension's `contributes.colors`
- * rather than the core registry.
+ * rather than the core registry. `terminal` is the matching built-in preset's palette (Dark+ or the AA-darkened
+ * Light+), so a light theme that writes no `terminal.*` keys gets ANSI colors that read on a light canvas instead of
+ * Dracula's.
  */
 export const VSCODE_DEFAULTS = {
     dark: {
@@ -27,6 +31,7 @@ export const VSCODE_DEFAULTS = {
         gitDeleted: '#c74e39',
         gitUntracked: '#73c991',
         gitConflicting: '#e4676b',
+        terminal: vscodeDarkPlusTheme.terminal,
     },
     light: {
         surface: '#f3f3f3', // sideBar.background
@@ -50,5 +55,6 @@ export const VSCODE_DEFAULTS = {
         gitDeleted: '#ad0707',
         gitUntracked: '#007100',
         gitConflicting: '#ad0707',
+        terminal: vscodeLightPlusTheme.terminal,
     },
 } as const;
