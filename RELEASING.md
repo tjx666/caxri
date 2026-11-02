@@ -36,15 +36,15 @@ branch; it fetches `origin/main` and refuses any HEAD other than that commit, so
 git rebase origin/main # in the release worktree; release:prepare fetches and verifies the match
 bun run release:prepare -- patch # also accepts minor, major, or an explicit newer SemVer
 version="$(node -p 'require("./package.json").version')"
-git switch -c "release/v${version}"
+git switch -c "chore/release-v${version}"
 git add package.json packages/agent-skills/package.json packages/agent-skills/src/version.ts \
   packages/client/package.json packages/extension-api/package.json apps/cli/package.json \
   apps/cli/src/version.ts apps/desktop/package.json apps/mobile/package.json \
   apps/server/package.json extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
-git push -u origin "release/v${version}"
+git push -u origin "chore/release-v${version}"
 # --head: gh cannot infer the pushed branch when the clone fetches only main
-gh pr create --head "release/v${version}" --title "release: v${version}" --body "" --base main
+gh pr create --head "chore/release-v${version}" --title "release: v${version}" --body "" --base main
 # wait for the `guards` status check to pass, then squash-merge with the exact release subject so
 # `.github/workflows/release.yml` and scripts/ci-retry-policy.ts's exact-release check still match:
 gh pr merge --squash --subject "release: v${version}" --body ""

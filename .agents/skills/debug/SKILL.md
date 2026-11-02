@@ -275,6 +275,11 @@ bun run .agents/skills/debug/scripts/worktree-browser.ts screenshot /tmp/<task>/
 Pass `--packaged` first to reach the installed app on 9224 instead; the wrapper then requires a
 `Caxri/` user agent and no `__caxriWorktree`. Use the manual form below for another worktree's port.
 
+If an isolated-worktree harness rejects a caller-supplied `eval` expression, cover the visual check
+with the wrapper's structured commands instead, such as `hover '<selector>'`,
+`get text .tooltip-popup`, and `screenshot /tmp/<task>/tooltip.png`. The wrapper still runs its own
+ownership probe.
+
 For a scrollbar that flashes or a transcript that moves by itself, record instead of hand-writing
 loggers: `scroll-trace.ts start|read|reset [--packaged] [--json]` patches every programmatic scroll
 on `[role="log"]`, records content-free scroll, write, and row-resize entries, and marks a scroll
