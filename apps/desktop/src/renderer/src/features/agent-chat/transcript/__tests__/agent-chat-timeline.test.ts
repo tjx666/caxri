@@ -481,7 +481,7 @@ describe('steer reply thoughts', () => {
         expect(steerReplies(timeline)).toEqual([['r1']]);
     });
 
-    it('keeps the split inside a finished turn fold', () => {
+    it('keeps the thought out of a finished turn fold, still expanded', () => {
         const items = [
             user('u1', 't1'),
             steer,
@@ -496,7 +496,8 @@ describe('steer reply thoughts', () => {
         );
         const fold = timeline.find((entry) => entry.kind === 'turn' && entry.entries.length > 0);
 
-        expect(fold?.kind === 'turn' && steerReplies(fold.entries)).toEqual([['r1']]);
+        expect(steerReplies(timeline)).toEqual([['r1']]);
+        expect(fold?.kind === 'turn' && shape(fold.entries)).toEqual([['c2']]);
     });
 
     it('leaves the thought alone when a reply answers the steer, it still streams, or nothing was steered', () => {

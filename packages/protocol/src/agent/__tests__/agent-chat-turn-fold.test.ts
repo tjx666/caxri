@@ -47,6 +47,30 @@ describe('agentChatFinalReplyId', () => {
 });
 
 describe('foldAgentChatTurn', () => {
+    it('keeps the thought that answered a steer in view when only tool calls followed it', () => {
+        const steer: AgentChatItem = {
+            id: 'u2',
+            type: 'userMessage',
+            text: 'Why?',
+            delivery: 'steered',
+        };
+        const answer: AgentChatItem = { ...reasoning, id: 'r2', text: 'You are right' };
+        const items = [user, command, steer, answer, { ...command, id: 'c2' }, reply];
+        expect(shape(foldAgentChatTurn(items, 'a2'))).toEqual([
+            'u1',
+            'fold(c1)',
+            'u2',
+            'r2',
+            'fold(c2)',
+            'a2',
+        ]);
+        expect(shape(foldAgentChatTurn([user, reasoning, command, reply], 'a2'))).toEqual([
+            'u1',
+            'fold(r1,c1)',
+            'a2',
+        ]);
+    });
+
     it('folds work and commentary at the first folded position and keeps prompt, reply, and notices', () => {
         const items = [user, reasoning, retrying, commentary, command, compacted, reply];
         expect(shape(foldAgentChatTurn(items, 'a2'))).toEqual([

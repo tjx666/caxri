@@ -10,6 +10,7 @@ import type {
 import {
     agentChatFinalReplyId,
     agentChatFoldTiming,
+    agentChatSteerReplyThoughtIds,
     collectAgentChatTurnArtifacts,
     foldAgentChatTurn,
     isAgentChatAwaitingReply,
@@ -100,32 +101,6 @@ export type AgentChatTimelineEntry =
 type FlatEntry = Exclude<AgentChatTimelineEntry, { kind: 'turn' }>;
 
 const NO_STEER_REPLIES: ReadonlySet<string> = new Set();
-
-/**
- * The reasoning that opens the Agent's response to each message steered into its turn, when a tool call rather than an
- * Agent message follows it. A model sometimes answers the steer only in its thinking and goes straight back to work,
- * and a collapsed `Thought` row then hides the only answer the user got, which reads as the steer being ignored. A
- * reasoning run still streaming, or one followed by a reply, is left alone: the reply is the answer.
- */
-function agentChatSteerReplyThoughtIds(items: readonly AgentChatItem[]): ReadonlySet<string> {
-    const ids = new Set<string>();
-    let pending: string[] | undefined;
-    for (const item of items) {
-        if (!isAgentChatItemVisible(item)) continue;
-        if (item.type === 'userMessage') {
-            pending = item.delivery === 'steered' ? [] : undefined;
-            continue;
-        }
-        if (!pending) continue;
-        if (item.type === 'reasoning') {
-            pending.push(item.id);
-            continue;
-        }
-        if (isAgentChatWorkItem(item)) for (const id of pending) ids.add(id);
-        pending = undefined;
-    }
-    return ids.size === 0 ? NO_STEER_REPLIES : ids;
-}
 
 function groupWork(
     items: readonly AgentChatItem[],
@@ -245,7 +220,7 @@ function foldTurn(
         ? groupWork(visible, finalReplyId, false, steerReplies)
         : parts.flatMap((part): AgentChatTimelineEntry[] =>
               part.kind === 'kept'
-                  ? groupWork([part.item], finalReplyId)
+                  ? groupWork([part.item], finalReplyId, false, steerReplies)
                   : [
                         turnEntry(
                             turn,
