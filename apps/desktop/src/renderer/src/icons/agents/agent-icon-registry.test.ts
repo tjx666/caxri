@@ -7,6 +7,7 @@ import {
     resolveAgentIcon,
     resolveAgentIconRenderSource,
 } from './agent-icon-registry';
+import codexSvg from './codex-color.svg?raw';
 
 describe('agentIconRegistry', () => {
     it.each(agentProviderIds)('derives the %s label from the provider catalog', (provider) => {
@@ -44,9 +45,9 @@ describe('agentIconRegistry', () => {
         ]);
     });
 
-    it('draws the full-bleed Codex mark smaller so it matches the shorter Claude Code glyph', () => {
-        expect(agentIconRegistry.codex.opticalScale).toBeLessThan(1);
-        expect(agentIconRegistry.claude.opticalScale).toBeUndefined();
+    it('draws the Codex mark without the upstream white app-tile backdrop', () => {
+        expect(codexSvg).not.toMatch(/fill="#fff"/i);
+        expect(codexSvg).toContain('url(#codex-gradient)');
     });
 
     it('uses the deliberate unknown fallback for future adapters', () => {
