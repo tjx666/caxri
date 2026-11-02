@@ -3,6 +3,7 @@ import type { TextInputInstance } from 'react-native';
 import { TextInput } from 'react-native';
 
 import { useTranslation } from '../../i18n';
+import { useClearedDraftEchoGuard } from '../../lib/use-cleared-draft-echo-guard';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 
@@ -32,6 +33,7 @@ export const AgentChatComposerInput = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const onChangeText = useClearedDraftEchoGuard(draft, onDraftChange);
     return (
         <TextInput
             accessibilityHint={t(
@@ -41,7 +43,7 @@ export const AgentChatComposerInput = ({
             editable={isEditable}
             multiline
             numberOfLines={6}
-            onChangeText={onDraftChange}
+            onChangeText={onChangeText}
             onFocus={() => {
                 if (focusComposer) onComposerFocused?.();
             }}
