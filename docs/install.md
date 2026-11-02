@@ -44,6 +44,13 @@ If none is installed, tell the user Caxri needs at least one Agent CLI (Claude C
 Build), installed and signed in following its vendor's instructions. Installation can still
 continue.
 
+Also check the optional delivery CLIs. Caxri reads pull request, issue, acceptance, and deployment
+status through them; each one only adds information, and a missing one hides just its own rows:
+
+```bash
+for cli in gh linear lh vc; do command -v "$cli" >/dev/null && echo "$cli: installed" || echo "$cli: missing"; done
+```
+
 ## 2. Ask about optional setup
 
 Offer these choices in one message. Every item is optional.
@@ -51,6 +58,8 @@ Offer these choices in one message. Every item is optional.
 1. **Command line.** Add the `caxri` command to `PATH` so Agents and Terminals can drive Caxri?
 2. **Settings.** Any of the [initial settings](#initial-settings) below, such as the interface
    language, the default Agent, font sizes, or the external editor.
+3. **Delivery CLIs.** Install and sign in to any missing [delivery CLI](#delivery-clis) the user
+   works with? Recommend `gh` to every GitHub user; offer the others only for services they use.
 
 Notification banners need no setup: Caxri ships its notification helper inside the app.
 
@@ -99,6 +108,23 @@ sudo ln -sf /Applications/Caxri.app/Contents/Resources/bin/caxri /usr/local/bin/
 
 `sudo` asks for the user's password; let the user type it. The Command Palette's **Install 'caxri'
 Command in PATH** creates the same link from inside the app. See [CLI](cli.md).
+
+### Delivery CLIs
+
+Caxri never asks for these services' credentials itself; it runs the user's signed-in CLI. Install
+only the ones the user chose, then let the user finish each sign-in in the browser or prompt it
+opens:
+
+| CLI      | Install                             | Sign in             | What Caxri shows with it                                                                                     |
+| -------- | ----------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `gh`     | `brew install gh`                   | `gh auth login`     | Pull request and CI state in the status bar, sidebar, and Status panel; pull request diffs; the merge button |
+| `linear` | `npm install -g @schpet/linear-cli` | `linear auth login` | The Linear issue a branch or Session is delivering                                                           |
+| `lh`     | `npm install -g @lobehub/cli`       | `lh login`          | LobeHub acceptance report verdicts linked from a pull request or Session                                     |
+| `vc`     | `npm install -g vercel`             | `vc login`          | Vercel preview deployment state in the Status panel                                                          |
+
+Caxri ignores a `LINEAR_API_KEY` environment variable, so Linear needs `linear auth login` even when
+that variable is set. How Caxri limits its calls to these services is described in
+[External status](external-status-quota.md).
 
 ### Initial settings
 

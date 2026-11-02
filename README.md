@@ -91,6 +91,8 @@ New here? Read [Getting started](docs/getting-started.md) for the model in five 
 - An Apple Silicon Mac running macOS 13 (Ventura) or later.
 - At least one supported Agent CLI (Claude Code, Codex or Grok Build) installed and signed in. Check
   that it works in Terminal first. Shell Sessions work without one.
+- Optional: `gh`, `linear`, `lh`, and `vc`, signed in, for pull request, issue, acceptance, and
+  deployment status. See [Install](docs/install.md#delivery-clis).
 
 Release builds are currently Apple Silicon only; Intel Macs can build Caxri from source (see
 [CONTRIBUTING.md](CONTRIBUTING.md)). Other desktop platforms are not supported yet. A remote SSH
