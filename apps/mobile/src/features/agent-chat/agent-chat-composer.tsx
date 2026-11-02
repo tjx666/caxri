@@ -11,6 +11,7 @@ import {
 
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { useClearedDraftEchoGuard } from '../../lib/use-cleared-draft-echo-guard';
 import { mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { AttachmentSourceSheet } from '../sessions/components/attachment-source-sheet';
@@ -236,6 +237,8 @@ export const AgentChatComposer = ({
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
     const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
+    // The app's own draft writes go through `setDraft`, so a Send's clear survives the field echoing the sent text.
+    const draftInput = useClearedDraftEchoGuard(draft, onDraftChange);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
     const availability = agentChatComposerAvailability(access, t);
     const activeTurnId = chat.snapshot?.activeTurnId;
@@ -251,7 +254,7 @@ export const AgentChatComposer = ({
         chat,
         configureReason,
         isPinned,
-        onDraftChange,
+        onDraftChange: draftInput.setDraft,
         onSessionCommand,
         permissionReason,
         providerId,
@@ -282,7 +285,7 @@ export const AgentChatComposer = ({
         handoffSource,
         isStopAction,
         menuMatches: menu.matches,
-        onDraftChange,
+        onDraftChange: draftInput.setDraft,
         provider,
     });
     const isEditable = availability.isEnabled && !isRunningCommand && !isSendingEdit;
@@ -290,7 +293,7 @@ export const AgentChatComposer = ({
         draft,
         // An edit's text can cite files and Sessions too; only a composer that cannot send hides the list.
         isEnabled: availability.isEnabled,
-        onDraftChange,
+        onDraftChange: draftInput.setDraft,
         sessionId,
     });
     /**
@@ -395,7 +398,7 @@ export const AgentChatComposer = ({
                 <AgentChatEditBanner
                     onCancel={() => {
                         chat.setEditing(undefined);
-                        onDraftChange(editing.previousDraft);
+                        draftInput.setDraft(editing.previousDraft);
                     }}
                     removedTurns={editing.removedTurns}
                     theme={theme}
@@ -437,7 +440,7 @@ export const AgentChatComposer = ({
                     isEditable={isEditable}
                     isRunning={isRunning}
                     onComposerFocused={onComposerFocused}
-                    onDraftChange={onDraftChange}
+                    onDraftChange={draftInput.onChangeText}
                     provider={provider}
                     theme={theme}
                 />
