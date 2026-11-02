@@ -38,3 +38,31 @@ export function resolveTooltipCursorAnchor(
     };
     return { getBoundingClientRect: () => rectangle };
 }
+
+/**
+ * How long the pointer rests on a trigger before any shared Tooltip opens (Base UI `delay`).
+ */
+export const TOOLTIP_OPEN_DELAY_MS = 500;
+
+/**
+ * Absorbs timer jitter between the pointer-enter timestamp and Base UI's own rest timer, which starts on the
+ * `mouseenter` that follows it.
+ */
+const TOOLTIP_REST_TOLERANCE_MS = 20;
+
+/**
+ * Milliseconds a cursor-anchored tooltip must still wait before it may open, or `0` once the pointer has rested on its
+ * trigger for the full delay.
+ *
+ * Base UI opens a tooltip instantly while its delay group is warm or while a sibling trigger's popup is open or still
+ * closing. That suits toolbar buttons, but sweeping through tree rows then flashes a tooltip on every row. VS Code
+ * keeps its `'mouse'` placement hovers (Explorer rows) out of `instantHover`, so a row tooltip waits for each row.
+ */
+export function resolveCursorTooltipRestRemaining(
+    enteredAt: number | undefined,
+    now: number,
+): number {
+    if (enteredAt === undefined) return 0;
+    const remaining = TOOLTIP_OPEN_DELAY_MS - (now - enteredAt);
+    return remaining > TOOLTIP_REST_TOLERANCE_MS ? remaining : 0;
+}
