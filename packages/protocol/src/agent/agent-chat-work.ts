@@ -184,10 +184,10 @@ function describeAgentChatWorkAction(
             // expanded. A read, search, or listing already names what it looked at, so it keeps that.
             return item.description && presentation.kind === 'command'
                 ? { ...presentation, subject: item.description, isCodeSubject: false }
-                : withAgentChatPathTarget(presentation, item);
+                : withAgentChatPathTarget(presentation, item, t);
         }
         case 'toolCall': {
-            return withAgentChatPathTarget(describeAgentTool(item), item);
+            return withAgentChatPathTarget(describeAgentTool(item), item, t);
         }
         case 'fileChange': {
             const first = item.changes.at(0);

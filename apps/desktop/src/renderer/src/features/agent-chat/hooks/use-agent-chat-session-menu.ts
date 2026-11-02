@@ -28,6 +28,7 @@ import {
     agentChatSessionPreparingText,
     agentChatSessionSuggestions,
 } from '../composer-input/agent-chat-suggestions';
+import { agentChatSessionDropVerdict } from '../composer-input/chips/agent-chat-session-drop';
 import { useAgentChatFileMentions } from './use-agent-chat-file-mentions';
 import { useAgentChatPlacedCaret } from './use-agent-chat-placed-caret';
 
@@ -220,12 +221,14 @@ export function useAgentChatSessionMenu({
             searchSessionReferences(sessions, projects, currentSessionId, '').slice(0, limit),
         reference: referenceAtCaret,
         /**
-         * Whether a Session row dragged onto this Chat can be cited here, by the same rule as the `@` list.
+         * Whether a Session row dragged onto this Chat can be cited here, by the same rule as the `@` list, or why not.
          */
-        canReferenceSessionId: (sessionId: string): boolean => {
-            const session = sessions?.find((candidate) => candidate.id === sessionId);
-            return session !== undefined && isSessionReferenceable(session, currentSessionId);
-        },
+        sessionDropVerdict: (sessionId: string) =>
+            agentChatSessionDropVerdict(
+                sessions?.find((candidate) => candidate.id === sessionId),
+                currentSessionId,
+                sessionId,
+            ),
         /**
          * Cites a Session row dropped onto this Chat at the input's caret, as the Add menu does.
          */

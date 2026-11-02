@@ -120,6 +120,7 @@ export const agentChatLabelsEn = {
 
     // Work rows: completed (`label`), running (`active`), and settled-but-unsuccessful verbs
     'agentChat.tool.moreFiles': '{{name}} +{{count}} more',
+    'agentChat.tool.searchIn': '{{pattern}} in {{title}}',
     'agentChat.tool.label.ran': 'Ran',
     'agentChat.tool.label.checkedOutput': 'Checked output',
     'agentChat.tool.label.sentInput': 'Sent input',

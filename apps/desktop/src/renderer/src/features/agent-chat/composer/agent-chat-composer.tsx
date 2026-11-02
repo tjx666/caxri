@@ -272,7 +272,7 @@ export function AgentChatComposer({
         providerName,
         reserveImageTokens: placeholders.reserve,
         sessionDrop: {
-            canReference: sessionMenu.canReferenceSessionId,
+            verdict: sessionMenu.sessionDropVerdict,
             reference: sessionMenu.referenceSessionId,
         },
         setDraft,
@@ -371,6 +371,7 @@ export function AgentChatComposer({
             <AgentChatDropOverlay
                 isDragOver={fileInput.isDragOver}
                 isSessionDrag={fileInput.isSessionDragOver}
+                refusal={fileInput.dropRefusal}
                 supportsImages={supportsImages}
             />
             {/*
