@@ -421,6 +421,9 @@ describe('lintPipelineForFile', () => {
         expect(lintPipelineForFile('scripts/config.mts')).toBe('code');
         expect(lintPipelineForFile('scripts/config.cts')).toBe('code');
         expect(lintPipelineForFile('DESIGN.md')).toBe('format');
+        expect(
+            lintPipelineForFile('apps/desktop/src/renderer/src/icons/agents/codex-color.svg'),
+        ).toBe('format');
         expect(lintPipelineForFile('assets/font.woff2')).toBeUndefined();
     });
 });

@@ -101,7 +101,7 @@
             "markdownlint-cli2 --fix",
             "bun fmt --no-config --no-script"
         ],
-        "*.{css,html,json,jsonc,yaml,yml,toml}": [
+        "*.{css,html,json,jsonc,svg,yaml,yml,toml}": [
             "bun fmt --no-config --no-script"
         ]
     },
