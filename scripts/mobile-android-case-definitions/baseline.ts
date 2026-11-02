@@ -295,6 +295,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-running-turn',
     },
+    'MOB-CHAT-RUNNING-OPEN-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-long-turn-open',
+    },
     'MOB-CHAT-SEND-UNKNOWN-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

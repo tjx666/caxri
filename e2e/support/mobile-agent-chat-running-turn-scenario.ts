@@ -20,7 +20,11 @@ import {
     startMobileFramebufferRecording,
     waitForMobile,
 } from './mobile-android';
-import { departuresFromFinalPicture, readRecordingBand } from './mobile-motion-analysis';
+import {
+    departuresFromFinalPicture,
+    heldPicturesBeforeFinal,
+    readRecordingBand,
+} from './mobile-motion-analysis';
 
 const RUNNING_PROMPT = 'Find why the plan usage drains so fast';
 const LAST_NARRATION = 'Rewriting the Desktop side to read the dismissal.';
@@ -152,6 +156,107 @@ export async function executeMobileChatRunningTurnScenario(
                 frames: frames.length,
                 motion: 'live',
                 settledAtMs: Math.round(settledAt),
+                status: 'passed',
+            });
+        } finally {
+            await rm(analysis, { force: true, recursive: true });
+        }
+    } finally {
+        await recording?.stop();
+        await fixture.stop();
+    }
+}
+
+const LONG_TURN_PROMPT = 'Trace where the session list loses its order';
+
+/**
+ * A running turn of searches with no narration between them, so its whole work folds into one row under the request:
+ * the shape of a real investigation the phone opened with only that row, then swapped its rows twice while history
+ * pages arrived before the request finally showed.
+ */
+const longTurnScript: FakeClaudeScript = {
+    turns: [
+        {
+            prompt: LONG_TURN_PROMPT,
+            steps: [
+                ...Array.from({ length: 25 }, (_, index) => search(index)),
+                {
+                    kind: 'tool',
+                    name: 'Bash',
+                    input: { command: 'sleep 900', description: 'Wait for the rebuild' },
+                    output: 'done',
+                    durationMs: 900_000,
+                },
+            ],
+        },
+    ],
+};
+
+const isRunningLongTurn = (snapshot: AgentChatSnapshot): boolean =>
+    Boolean(snapshot.activeTurnId) &&
+    snapshot.items.some((item) => item.type === 'command' && item.command === 'sleep 900');
+
+/**
+ * `MOB-CHAT-RUNNING-OPEN-02`: a Chat whose running turn outgrew the phone's window opens straight onto the turn's
+ * request and its folded work. The phone used to show the window's few rows first and then swap the list once per
+ * history page, so the timeline held other pictures before the request appeared. Judged from every recorded frame of
+ * the timeline band: besides the Sessions list it was tapped from, no other picture may hold.
+ */
+export async function executeMobileChatLongTurnOpenScenario(
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
+    artifacts: string[],
+): Promise<void> {
+    const { remoteVideoPath, serial } = environment;
+    if (!remoteVideoPath)
+        throw new Error('MOB-CHAT-RUNNING-OPEN-02 judges the opened Chat from its recording');
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        claudeScript: longTurnScript,
+        mode: 'agent-chat',
+        serial,
+    });
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    try {
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await fixture.pair();
+        const row = (await mobileSemantics(serial)).find(
+            ({ checkId }) => checkId === `session-row-${fixture.allowedSessionId}`,
+        );
+        const bounds = row && androidBounds(row.bounds);
+        if (!bounds) throw new Error('The Session row is not laid out');
+        const { size } = await mobileDisplayState(serial);
+        const { height } = size.override ?? size.physical;
+        const timeline = { top: Math.floor(height * 0.12), bottom: Math.floor(height * 0.55) };
+        await chat.send({ text: LONG_TURN_PROMPT });
+        await waitForMobile(() => chat.read(), isRunningLongTurn, 60_000);
+        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.floor((bounds.left + bounds.right) / 2)),
+            String(Math.floor((bounds.top + bounds.bottom) / 2)),
+        ]);
+        await pause(WATCH_MS);
+        await capture(environment, 'opened', artifacts);
+        await recording.stop();
+        recording = undefined;
+        const analysis = await mkdtemp(join(tmpdir(), 'caxri-long-turn-'));
+        try {
+            const video = join(analysis, 'opened.mp4');
+            await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
+            const { frames } = await readRecordingBand(video, timeline);
+            const held = heldPicturesBeforeFinal(frames);
+            const { departures } = departuresFromFinalPicture(frames);
+            if (held > 1 || departures > 0)
+                throw new Error(
+                    `The opened Chat held ${held} pictures before its final one and left it in ${departures} frames`,
+                );
+            await finish(environment, artifacts, {
+                departures,
+                frames: frames.length,
+                heldPicturesBeforeFinal: held,
+                motion: 'live',
                 status: 'passed',
             });
         } finally {
