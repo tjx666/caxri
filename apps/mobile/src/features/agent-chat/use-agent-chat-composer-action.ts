@@ -185,6 +185,7 @@ export const useAgentChatComposerAction = ({
         );
         await sendAgentChatMessageOptimistically({
             clearComposer: () => {
+                console.log('[3463] clear', JSON.stringify({ draft }));
                 onDraftChange('');
                 images.clear();
                 files.clear();

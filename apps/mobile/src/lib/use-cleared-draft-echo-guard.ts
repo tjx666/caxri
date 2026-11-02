@@ -41,12 +41,14 @@ export const useClearedDraftEchoGuard = (
     const cleared = useRef<string | undefined>(undefined);
     useLayoutEffect(() => {
         const text = clearedDraftText(previousDraft.current, draft, nativeText.current);
+        console.log('[3463] effect', JSON.stringify({ previous: previousDraft.current, draft, native: nativeText.current, text }));
         if (text !== undefined) cleared.current = text;
         previousDraft.current = draft;
         // The field shows the draft from here on, whether the user typed it or the app set it.
         nativeText.current = draft;
     }, [draft]);
     return (text: string): void => {
+        console.log('[3463] change', JSON.stringify({ text, cleared: cleared.current }));
         if (isClearedDraftEcho(text, cleared.current)) return;
         cleared.current = undefined;
         nativeText.current = text;
