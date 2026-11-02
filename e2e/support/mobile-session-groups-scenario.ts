@@ -96,6 +96,9 @@ async function holdSwipeWithoutMovingList(
     const list = checkBounds(await mobileSemantics(serial), 'session-list');
     if (!list) throw new Error('The Session list is not laid out');
     const resting = await mobileRegionFingerprint(serial, list);
+    // A list that changes on its own would make the held comparison below blame the gesture for it.
+    if ((await mobileRegionFingerprint(serial, list)) !== resting)
+        throw new Error('The Session list is not stable at rest');
     const width = list.right - list.left;
     const y = Math.floor((list.top + list.bottom) / 2);
     const fromX = Math.floor(list.left + width * fromShare);
@@ -112,9 +115,13 @@ async function holdSwipeWithoutMovingList(
             'sleep 0.5',
         ].join('; '),
     ]);
-    const held = await mobileRegionFingerprint(serial, list);
-    await capture(environment, 'holding-swipe', artifacts);
-    await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
+    let held: string;
+    try {
+        held = await mobileRegionFingerprint(serial, list);
+        await capture(environment, 'holding-swipe', artifacts);
+    } finally {
+        await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
+    }
     if (held !== resting) throw new Error('The Session list moved with the finger mid-swipe');
 }
 
