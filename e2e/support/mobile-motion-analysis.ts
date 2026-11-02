@@ -157,17 +157,29 @@ export function departuresFromFinalPicture(frames: readonly GrayFrame[]): {
  * what was there before the tap; one that swaps its rows as data arrives holds each intermediate state too.
  */
 export function heldPicturesBeforeFinal(frames: readonly GrayFrame[], holdMs = 300): number {
+    return heldPicturesBeforeFinalAt(frames, holdMs).length;
+}
+
+/**
+ * The start time and duration of each picture `heldPicturesBeforeFinal` counts, so a failure can name when each one was
+ * on screen.
+ */
+export function heldPicturesBeforeFinalAt(
+    frames: readonly GrayFrame[],
+    holdMs = 300,
+): Array<{ heldMs: number; time: number }> {
     const final = frames.at(-1);
     if (!final) throw new Error('Recording has no frames');
     const background = backgroundOf(final);
-    let held = 0;
+    const held: Array<{ heldMs: number; time: number }> = [];
     for (let start = 0; start < frames.length;) {
         let next = start + 1;
         while (next < frames.length && !isDifferent(frames[next], frames[start])) next += 1;
         const holdsUntil = next < frames.length ? frames[next].time : Infinity;
         const isShown = inkCoverage(inkOf(frames[start], background)) >= BLANK_COVERAGE;
-        const isHoldsLongEnough = holdsUntil - frames[start].time >= holdMs;
-        if (isShown && isHoldsLongEnough && isDifferent(frames[start], final)) held += 1;
+        const heldMs = holdsUntil - frames[start].time;
+        if (isShown && heldMs >= holdMs && isDifferent(frames[start], final))
+            held.push({ heldMs, time: frames[start].time });
         start = next;
     }
     return held;
