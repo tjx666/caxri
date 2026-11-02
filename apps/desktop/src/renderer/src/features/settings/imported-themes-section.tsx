@@ -30,7 +30,7 @@ function slotsNaming(slots: ThemeSlots, id: string): SystemColorScheme[] {
 export function ImportedThemesSection({ slots }: { slots: ThemeSlots }) {
     const { t } = useTranslation();
     const importedThemes = useImportedThemes();
-    const [notice, setNotice] = useState<string>();
+    const [notice, setNotice] = useState<readonly string[]>();
     if (!notice && importedThemes.length === 0) return null;
 
     const remove = async (theme: ThemeTokens): Promise<void> => {
@@ -49,11 +49,11 @@ export function ImportedThemesSection({ slots }: { slots: ThemeSlots }) {
                     defaultThemeIdForScheme(scheme),
             }),
         );
-        setNotice(
-            [t('settings.themeEditor.imported.removed', { theme: theme.name }), ...fallbacks].join(
-                ' ',
-            ),
-        );
+        // One sentence per line: joining them with a space would leave a stray gap after a Chinese full stop.
+        setNotice([
+            t('settings.themeEditor.imported.removed', { theme: theme.name }),
+            ...fallbacks,
+        ]);
     };
 
     return (
@@ -67,7 +67,11 @@ export function ImportedThemesSection({ slots }: { slots: ThemeSlots }) {
                     role="status"
                     className="mb-2 flex items-start justify-between gap-2"
                 >
-                    <span>{notice}</span>
+                    <span className="flex flex-col">
+                        {notice.map((sentence) => (
+                            <span key={sentence}>{sentence}</span>
+                        ))}
+                    </span>
                     <Tooltip content={t('common.dismiss')}>
                         <Button
                             size="icon"
