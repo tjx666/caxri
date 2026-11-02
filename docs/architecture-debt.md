@@ -36,19 +36,19 @@ resolved most of them, and the fix batch of [issue caxri#2332](https://github.co
 Full audit 2026-10-26 @ `c23b63b9d` revalidated all seven as still present; its new findings were fixed by the batch of [issue caxri#2601](https://github.com/tjx666/caxri/issues/2601).
 Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answers` resolved; the owner closed the issues behind three other entries as not planned on 2026-10-29, so they moved to the intentional tradeoffs table. The batch of [issue caxri#3176](https://github.com/tjx666/caxri/issues/3176) fixed that audit's new findings and the two remaining entries.
 
-Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and the entries below need their own design or measurement.
-
-### AD-perf-renderer-hang-debugger-attach: [OPEN · Coverage or observability gap · S]
-
-- **Summary:** The Renderer hang probe keeps `webContents.debugger` attached with the Debugger domain enabled for each window's lifetime; its steady-state cost and its interaction with a DevTools session are unmeasured.
-- **Evidence:** `apps/desktop/src/main/renderer-diagnostics/renderer-hang-stack.ts` (from [PR caxri#3390](https://github.com/tjx666/caxri/pull/3390)).
-- **Tracking:** [issue caxri#3409](https://github.com/tjx666/caxri/issues/3409)
-- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-01 @ 39856632e
-- **Remediation target / Acceptance:** Measure idle CPU and Main event volume with the probe attached versus attached only on a suspected hang, and confirm a DevTools pause is not auto-resumed; keep or narrow the attachment from that evidence.
+Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and its one entry needing measurement was resolved by [issue caxri#3409](https://github.com/tjx666/caxri/issues/3409).
 
 ---
 
 ## RESOLVED
+
+### AD-perf-renderer-hang-debugger-attach: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** The Renderer hang probe keeps `webContents.debugger` attached with the Debugger domain enabled for each window's lifetime; its steady-state cost and its interaction with a DevTools session were unmeasured.
+- **Evidence:** Measured in a dev build: 120 s idle with the sampler attached cost Main 0.11 s and the Renderer 0.05 s of CPU, against 0.45 s and 0.06 s with it disabled, and the only steady event is one `Debugger.scriptParsed` per 2 s probe, so the lifetime attachment stays. The measurement found that a pause held by an external CDP client looked like a hang, and the timed-out capture made the sampler resume that client's next pause; `renderer-hang-stack.ts` now tracks a pause it did not request and `renderer-hang-observer.ts` skips probing while one holds.
+- **First seen:** 2026-11-01 @ 39856632e · **Last verified:** 2026-11-02 @ 24375da62
+- **Resolved:** 2026-11-02 via [issue caxri#3409](https://github.com/tjx666/caxri/issues/3409).
+- **Remediation target / Acceptance:** Measure idle CPU and Main event volume with the probe attached, and confirm a DevTools or CDP client pause is not auto-resumed; keep or narrow the attachment from that evidence.
 
 ### AD-dup-tree-keyboard-navigation: [RESOLVED · Architecture debt · M]
 
@@ -1399,9 +1399,9 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ---
 
-## Current priority guide (OPEN at 2026-11-01)
+## Current priority guide (OPEN at 2026-11-02)
 
-`AD-perf-renderer-hang-debugger-attach`.
+No OPEN entry.
 
 ## Historical priority guide (all resolved)
 

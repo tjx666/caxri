@@ -19,6 +19,11 @@ export interface RendererStackCapture {
 
 export interface RendererStackSampler {
     capture(): Promise<RendererStackCapture>;
+    /**
+     * Whether DevTools or an external CDP client (the remote-debugging port) holds the Renderer paused, which leaves
+     * probes unanswered without the page being hung.
+     */
+    isPausedByAnotherClient(): boolean;
 }
 
 interface CallFrame {
@@ -37,20 +42,29 @@ const CAPTURE_TIMEOUT_MS = 3_000;
  * The domain has to be enabled before the hang: only `Debugger.pause` interrupts running JavaScript, while
  * `Debugger.enable` waits for the thread to yield. Attaching and enabling at hang time never paused inside the loop;
  * the pause landed on the next statement after the hang ended and named the wrong code. With no breakpoints and no
- * async stack depth, an enabled debugger does not change how the page runs.
+ * async stack depth, an enabled debugger does not change how the page runs. Measured in a dev build (#3409), it adds
+ * one `Debugger.scriptParsed` event per probe and no idle CPU above noise.
  *
  * Every pause this sampler requests is resumed when it lands, however late. A pause requested during native work takes
  * effect on the next JavaScript statement, possibly long after the capture timed out, and must never leave the window
- * stopped. Pauses requested by DevTools or another client are left alone.
+ * stopped. Pauses requested by DevTools or another client are left alone, and no pause is requested while one holds the
+ * Renderer: that request never lands as its own `Debugger.paused`, so the client's next pause would be taken for it and
+ * resumed.
  */
 export function createRendererStackSampler(webContents: WebContents): RendererStackSampler {
     const { debugger: inspector } = webContents;
     let isOwned = false;
     let isPauseRequested = false;
+    let isPausedByAnotherClient = false;
     let waiter: ((frames: CallFrame[]) => void) | undefined;
 
     inspector.on('message', (_event, method, parameters) => {
-        if (method !== 'Debugger.paused' || !isPauseRequested) return;
+        if (method === 'Debugger.resumed') isPausedByAnotherClient = false;
+        if (method !== 'Debugger.paused') return;
+        if (!isPauseRequested) {
+            isPausedByAnotherClient = true;
+            return;
+        }
         isPauseRequested = false;
         void didSend('Debugger.resume');
         waiter?.((parameters as { callFrames: CallFrame[] }).callFrames);
@@ -59,6 +73,7 @@ export function createRendererStackSampler(webContents: WebContents): RendererSt
     inspector.on('detach', () => {
         isOwned = false;
         isPauseRequested = false;
+        isPausedByAnotherClient = false;
     });
     /**
      * A crashed Renderer comes back as a new process whose debugger session starts over.
@@ -83,6 +98,7 @@ export function createRendererStackSampler(webContents: WebContents): RendererSt
     }
 
     function ensureEnabled(): void {
+        isPausedByAnotherClient = false;
         if (webContents.isDestroyed()) return;
         if (!isOwned) {
             if (inspector.isAttached()) return;
@@ -98,7 +114,7 @@ export function createRendererStackSampler(webContents: WebContents): RendererSt
 
     return {
         async capture() {
-            if (!isOwned) return { outcome: 'debugger-busy' };
+            if (!isOwned || isPausedByAnotherClient) return { outcome: 'debugger-busy' };
             const frames = Promise.withResolvers<CallFrame[]>();
             waiter = frames.resolve;
             isPauseRequested = true;
@@ -113,6 +129,7 @@ export function createRendererStackSampler(webContents: WebContents): RendererSt
             }
             return { outcome: 'captured', stack: formatRendererStack(captured) };
         },
+        isPausedByAnotherClient: () => isPausedByAnotherClient,
     };
 }
 

@@ -21,7 +21,7 @@ function observe(
     const listeners = new Map<string, Array<() => void>>();
     let isBlocked = false;
     let waiting: Array<() => void> = [];
-    const flags = { devTools: false, loading: false };
+    const flags = { devTools: false, loading: false, pausedByAnotherClient: false };
     const webContents = {
         on: (event: string, listener: () => void) => {
             listeners.set(event, [...(listeners.get(event) ?? []), listener]);
@@ -46,7 +46,10 @@ function observe(
     const write = vi.fn();
     observeRendererHangs(webContents, EVENTS, () => ({ write }), options.isCurrent, {
         probe,
-        createStackSampler: () => ({ capture: captureStack }),
+        createStackSampler: () => ({
+            capture: captureStack,
+            isPausedByAnotherClient: () => flags.pausedByAnotherClient,
+        }),
         now: Date.now,
     });
     return {
@@ -236,8 +239,8 @@ describe('renderer hang observer', () => {
         );
     });
 
-    it('does not count a page load or an open DevTools as a hang', async () => {
-        const { flags, freeze, write } = observe();
+    it('does not count a page load, an open DevTools, or a client pause as a hang', async () => {
+        const { captureStack, flags, freeze, write } = observe();
 
         freeze();
         flags.loading = true;
@@ -245,8 +248,12 @@ describe('renderer hang observer', () => {
         flags.loading = false;
         flags.devTools = true;
         await hangPastThreshold();
+        flags.devTools = false;
+        flags.pausedByAnotherClient = true;
+        await hangPastThreshold();
 
         expect(write).not.toHaveBeenCalled();
+        expect(captureStack).not.toHaveBeenCalled();
     });
 
     it('does not count a suspended Main or machine as a hang', async () => {
