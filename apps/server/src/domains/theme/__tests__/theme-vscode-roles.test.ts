@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { vscodeDarkPlusTheme, vscodeLightPlusTheme } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { draculaTheme, importTheme } from '..';
@@ -161,5 +162,48 @@ describe('VS Code theme color role mapping', () => {
         expect(theme.colors.gitDeleted).toBe('#ff5555');
         // Unset decorations fall back to what VS Code's built-in Git extension would paint, not to the active theme.
         expect(theme.colors.gitUntracked).toBe('#73c991');
+    });
+    it('falls back to the Light+ or Dark+ Terminal palette by appearance, behind explicit terminal keys', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-terminal-'));
+        temporaryDirectories.push(directory);
+        const write = async (name: string, value: Record<string, unknown>) => {
+            const path = join(directory, `${name}.json`);
+            await writeFile(path, JSON.stringify({ name, ...value }), 'utf8');
+            return (await importTheme(path, draculaTheme)).terminal;
+        };
+        /**
+         * Background and foreground follow the editor colors; every other Terminal role comes from the preset.
+         */
+        const palette = (terminal: Record<string, string>) =>
+            Object.fromEntries(
+                Object.entries(terminal).filter(
+                    ([role]) => role !== 'background' && role !== 'foreground',
+                ),
+            );
+
+        const light = await write('Paper', {
+            type: 'light',
+            colors: { 'editor.background': '#fafafa', 'editor.foreground': '#222222' },
+        });
+        expect(palette(light)).toEqual(palette(vscodeLightPlusTheme.terminal));
+        expect(light.yellow).not.toBe(draculaTheme.terminal.yellow);
+
+        const dark = await write('Night', {
+            type: 'dark',
+            colors: { 'editor.background': '#101010', 'editor.foreground': '#dddddd' },
+        });
+        expect(palette(dark)).toEqual(palette(vscodeDarkPlusTheme.terminal));
+
+        const explicit = await write('Explicit', {
+            type: 'light',
+            colors: {
+                'editor.background': '#fafafa',
+                'terminal.ansiYellow': '#806000',
+                'terminalCursor.foreground': '#ff0000',
+            },
+        });
+        expect(explicit.yellow).toBe('#806000');
+        expect(explicit.cursor).toBe('#ff0000');
+        expect(explicit.red).toBe(vscodeLightPlusTheme.terminal.red);
     });
 });

@@ -232,12 +232,16 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
     );
     theme.terminal.background = firstHex(colors, ['terminal.background'], theme.editor.background);
     theme.terminal.foreground = firstHex(colors, ['terminal.foreground'], theme.editor.foreground);
-    theme.terminal.cursor = firstHex(colors, ['terminalCursor.foreground'], theme.terminal.cursor);
+    theme.terminal.cursor = firstHex(
+        colors,
+        ['terminalCursor.foreground'],
+        defaults.terminal.cursor,
+    );
     // Unlike opaque workbench colors, a translucent selection must retain its alpha for xterm to blend it correctly.
     theme.terminal.selectionBackground = firstHex(
         colors,
         ['terminal.selectionBackground'],
-        theme.terminal.selectionBackground,
+        defaults.terminal.selectionBackground,
         { preserveAlpha: true },
     );
     const ansiMap: Array<[keyof ThemeTokens['terminal'], string]> = [
@@ -259,7 +263,7 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
         ['brightWhite', 'terminal.ansiBrightWhite'],
     ];
     for (const [target, source] of ansiMap)
-        theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
+        theme.terminal[target] = firstHex(colors, [source], defaults.terminal[target]);
     if (syntaxMapping.missing.length > 0)
         theme.warnings.push({
             id: 'missing-syntax-colors',
