@@ -217,14 +217,24 @@ describe('ClaudeTurns goal', () => {
         local_command_source: '<local-command-stdout>Goal set: Green CI</local-command-stdout>',
     };
 
-    it('drops the goal when its turn completes with nothing left to wake Claude Code and no recorded outcome', async () => {
+    it('keeps the goal when its turn completes with no recorded outcome', async () => {
         const { host, turns } = harness();
         turns.begin('turn-1');
         turns.goals.applyFeedback(goalSet);
         expect(host.read().goal).toMatchObject({ objective: 'Green CI', pausable: false });
+        const goals: unknown[] = [];
+        const { apply } = host;
+        host.apply = (operations) => {
+            for (const operation of operations)
+                if (operation.op === 'state' && 'goal' in operation.state)
+                    goals.push(operation.state.goal);
+            apply(operations);
+        };
         turns.onSessionState('running');
         turns.onSessionState('idle');
-        await vi.waitFor(() => expect(host.read().goal).toBeUndefined());
+        // The transcript look ends with one write of the goal, which keeps it pursued.
+        await vi.waitFor(() => expect(goals).toHaveLength(1), { timeout: 3_000 });
+        expect(goals[0]).toMatchObject({ objective: 'Green CI', status: 'active' });
     });
 
     it('keeps the goal through an interrupt and while background work will wake Claude Code', () => {

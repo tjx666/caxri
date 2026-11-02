@@ -1672,15 +1672,17 @@ sessions, and its `goal_status` attachments reach only the transcript (verified 
 - The `/goal` replies (`parseAgentChatGoalReply`): `Goal set:` and `Goal active:` show the goal as
   `active`; `Goal cleared:`, `No goal set`, and Claude Code's `Goal cleared after an unrecoverable
 error` warning drop it.
-- `/goal <condition>` is one query that keeps going while the goal's Stop hook finds the condition
-  unmet, so a turn that completes with no background work left to wake Claude Code settled the goal.
+- A turn that completes with no background work left to wake Claude Code may have settled the goal.
   How it settled is written only to the transcript, as a `goal_status` attachment with `met: true`
   (achieved) or `failed: true` (the evaluator judged it impossible), each with the evaluator's
   `reason`, `durationMs`, and `tokens` (verified with Claude Code 2.1.312). Server Core reads the
   transcript's tail after such a turn, retrying briefly because Claude Code may append the record
   just after `result`, and keeps the goal as `complete` or `failed` with that reason, time, and
-  tokens (`latestClaudeGoalOutcome`). A check older than the turn does not count; with no readable
-  outcome the goal leaves as before. An ended goal stays until the user clears it or sets another,
+  tokens (`latestClaudeGoalOutcome`). A check older than the turn does not count. With no readable
+  outcome the goal stays `active` with the turn's time added: Claude Code skips the check at many turn
+  ends and keeps the goal armed across resumes (a two-day goal under Claude Code 2.1.312 was checked
+  twice, while every resume wrote a `met: false` sentinel), so a quiet turn end does not mean the goal
+  ended. An ended goal stays until the user clears it or sets another,
   as a completed Codex goal does, and later turns leave it as it is. An interrupted or failed turn,
   one waiting on background work, and one that only printed the goal's status keep an active goal,
   with the turn's time added to `timeUsedSeconds`.
