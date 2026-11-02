@@ -152,6 +152,7 @@ function createCliAdapter(
                 activityTurnId: localState?.activityTurnId,
                 attentionKind: reliableAttentionKind(localState?.status),
                 status: localState?.status ?? processStateToAgentActivity(context.processState),
+                statusUpdatedAt: localState?.statusUpdatedAt,
                 observedAt,
                 available: Boolean(executable),
                 executable,

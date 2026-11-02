@@ -51,18 +51,33 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
     await writeFile(
         join(shellHome, '.zshrc'),
         [
-            'kill -INT $$',
-            'alias cc=codex',
-            // Records which commands reached zsh and how they ended, never their output.
+            // Records which commands reached zsh and how they ended, never their output. Registered before the
+            // interrupt, whose delivery point zsh may defer past later lines.
             'autoload -Uz add-zsh-hook',
             `caxri_e2e_preexec() { print -r -- "run:$1" >> ${JSON.stringify(shellLog)} }`,
             `caxri_e2e_precmd() { print -r -- "status:$?" >> ${JSON.stringify(shellLog)} }`,
             'add-zsh-hook preexec caxri_e2e_preexec',
             'add-zsh-hook precmd caxri_e2e_precmd',
+            `print -r -- rc:\${+functions[__caxri_finish_startup]}:\${+functions[TRAPINT]} >> ${JSON.stringify(shellLog)}`,
+            'kill -INT $$',
+            'alias cc=codex',
+            `print -r -- rc:loaded >> ${JSON.stringify(shellLog)}`,
             '',
         ].join('\n'),
     );
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    // Marks whether the Terminal's own shell, the only one with Caxri's startup hook, read the user's `.zshenv`; other
+    // shells Caxri starts read these files too.
+    await writeFile(
+        join(shellHome, '.zshenv'),
+        `print -r -- env:\${+functions[__caxri_finish_startup]} >> ${JSON.stringify(shellLog)}\n`,
+    );
+    const running = await launchCaxri({
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        // An Agent Terminal keeps a bash `SHELL`, and hosted macOS runners export one; the startup files above are zsh's.
+        env: { SHELL: '/bin/zsh' },
+    });
     try {
         await createProjectSession(running.page, 'codex');
         const pane = running.page.locator('.terminal-pane');
@@ -96,8 +111,22 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
             })
             .toEqual({ agent: 'stopped', process: 'running', processId });
 
-        await typeTerminal(running.page, String.raw`printf 'RETURNED_TO_SHELL\n'`);
-        await expect(rows).toContainText('RETURNED_TO_SHELL');
+        /**
+         * Markers are split with `%s` so the echoed input never matches; only output proves zsh ran the line. The
+         * `.zshrc` interrupt can land once the line editor starts and discard a line typed into it, so retype until one
+         * runs.
+         */
+        await expect(async () => {
+            await typeTerminal(running.page, String.raw`printf 'RETURNED_%s\n' TO_SHELL`);
+            await expect(rows).toContainText('RETURNED_TO_SHELL', { timeout: 3_000 });
+        }).toPass({ timeout: 30_000 });
+        // Each line names a different failure: the Terminal shell skipped or aborted user startup before `.zshenv` or
+        // `.zshrc`, the one-time interrupt guard was missing at `.zshrc`, or `.zshrc` was still cut short.
+        const startup = await logLines(shellLog);
+        expect(startup).toContain('env:1');
+        expect(startup.some((line) => line.startsWith('rc:1:'))).toBe(true);
+        expect(startup).toContain('rc:1:1');
+        await expect.poll(async () => (await logLines(shellLog)).includes('rc:loaded')).toBe(true);
         await expect(pane).toHaveAttribute('data-terminal-id', terminalId);
         await expect.poll(() => runningWork(running.page)).toEqual({ terminals: 1, chats: 0 });
 
@@ -110,7 +139,7 @@ test('same-provider relaunch restores Agent Actions until the manual Agent exits
         // CODEX_SHIM separates a PATH that lost the E2E shim from a launch that failed after resolving it.
         await typeTerminal(
             running.page,
-            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_ALIAS_READY\n'; [[ $commands[codex] == */shell-bin/codex ]] && echo CODEX_SHIM`,
+            String.raw`alias cc >/dev/null && printf 'SAME_PROVIDER_%s\n' ALIAS_READY; [[ $commands[codex] == */shell-bin/codex ]] && printf 'CODEX_%s\n' SHIM`,
         );
         await expect(rows).toContainText('SAME_PROVIDER_ALIAS_READY');
         await expect(rows).toContainText('CODEX_SHIM');

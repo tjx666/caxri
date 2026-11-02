@@ -62,8 +62,10 @@ ${ZSH_PROMPT_HOOKS}`;
 /**
  * A second Ctrl+C can arrive after the Agent restores terminal input but before user startup finishes. Consume only the
  * first such interrupt for managed returns; another interrupt can still cancel a stuck startup file. Never replace an
- * existing trap or remove one installed by user startup. The first prompt also repairs integration state if an
- * intentional subsequent interrupt skips .zlogin.
+ * existing `TRAPINT` or remove one installed by user startup. Only an INT trap matters: a trap on any other signal left
+ * by the system startup files used to suppress this one, and the next interrupt then cut `.zshrc` short. A list-form
+ * `trap '...' INT` is not detected, since only the current shell can list it and `$(trap)` runs in a subshell. The
+ * first prompt also repairs integration state if an intentional subsequent interrupt skips .zlogin.
  */
 const ZSH_STARTUP_RECOVERY = `${ZSH_PROMPT_HOOKS}
 function __caxri_finish_startup() {
@@ -78,7 +80,7 @@ function __caxri_finish_startup() {
   return 0
 }
 add-zsh-hook precmd __caxri_finish_startup
-if [[ "\${__caxri_managed_agent_exited-}" == 1 && -z "$(trap)" ]]; then
+if [[ "\${__caxri_managed_agent_exited-}" == 1 && -z "\${functions[TRAPINT]-}" ]]; then
   function TRAPINT() {
     unfunction TRAPINT
     return 0

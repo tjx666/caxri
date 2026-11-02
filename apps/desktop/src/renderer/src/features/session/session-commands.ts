@@ -5,7 +5,7 @@ import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
-import { removeSessionQueries } from '../../queries/invalidation';
+import { removeSessionQueries } from '../../queries/session-queries';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { registerSessionCommandConvergence } from '../../stores/session-command-convergence';
 import { useSessionViewStore } from '../../stores/session-view';

@@ -43,6 +43,16 @@ const HOSTED_CACHED_FRAME_BUDGET = { maxFrameGapMs: 130, longestAnimationFrameMs
 export const CACHED_FRAME_BUDGET = IS_GITHUB_HOSTED
     ? HOSTED_CACHED_FRAME_BUDGET
     : LOCAL_CACHED_FRAME_BUDGET;
+/**
+ * Workbench React work while a hidden kept-alive Chat streams for the spec's hidden window. Following the stream
+ * measured 1,368 renders and 134 ms on 2026-10-21; a frozen Chat measured 5 renders and 0.6 ms. Hosted runners measured
+ * a 2.2 ms median and a 10.8 ms maximum across 40 receipts (performance-samples run 41320651948), so the hosted
+ * duration is about 1.5 times that maximum; the render budget, which is what catches a Chat that follows the stream, is
+ * shared.
+ */
+export const HIDDEN_STREAM_BUDGET = IS_GITHUB_HOSTED
+    ? { renders: 40, actualDurationMs: 16 }
+    : { renders: 40, actualDurationMs: 10 };
 export type ChatSwitchScenario = 'keptAlive' | 'cached' | 'uncached' | 'cold';
 
 /**
@@ -90,7 +100,9 @@ export const REACT_BUDGETS: Record<
  * primary sidebar 22.5 ms, cold secondary sidebar 10.3 ms. The kept-alive Workbench peaked at 3.8 ms against its 5 ms
  * budget, too little headroom for one noisy runner, so it gets 8 ms; its render budget still catches a re-rendered
  * transcript. Render counts did not vary with the runner except one: the cold primary sidebar rendered 5 times in 3 of
- * the 44 receipts (median 4), so it gets 5. These are catastrophic guards; the committed baseline catches creep.
+ * the 44 receipts (median 4), so it gets 5. Once the spec waited for a quiet sidebar, the uncached primary sidebar
+ * duration reached 6.6 ms across 40 receipts (performance-samples run 41320651948), so it gets 10 ms. These are
+ * catastrophic guards; the committed baseline catches creep.
  */
 const HOSTED_REACT_BUDGET_OVERRIDES: Partial<
     Record<
@@ -100,7 +112,10 @@ const HOSTED_REACT_BUDGET_OVERRIDES: Partial<
 > = {
     keptAlive: { workbench: { actualDurationMs: 8 } },
     cached: { workbench: { actualDurationMs: 115 } },
-    uncached: { workbench: { actualDurationMs: 260 } },
+    uncached: {
+        'primary-sidebar': { actualDurationMs: 10 },
+        'workbench': { actualDurationMs: 260 },
+    },
     cold: {
         'primary-sidebar': { renders: 5, actualDurationMs: 35 },
         'workbench': { actualDurationMs: 520 },

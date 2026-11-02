@@ -7,6 +7,7 @@ import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixt
 import type { ChatSwitchScenario } from './support/agent-chat-switch-budgets.ts';
 import {
     CACHED_FRAME_BUDGET,
+    HIDDEN_STREAM_BUDGET,
     REACT_BUDGETS,
     reactBudget,
     READABLE_P50_CEILING_MS,
@@ -66,11 +67,6 @@ const MAXIMUM_NEWER_SESSIONS = 12;
  * The hidden window is sampled while the fake Codex's `longstream` reply streams, which takes about thirty seconds.
  */
 const HIDDEN_STREAM_WINDOW_MS = 5000;
-/**
- * Workbench React work while a hidden kept-alive Chat streams for {@link HIDDEN_STREAM_WINDOW_MS}. Following the stream
- * measured 1,368 renders and 134 ms on 2026-10-21; a frozen Chat measured 5 renders and 0.6 ms.
- */
-const HIDDEN_STREAM_BUDGET = { renders: 40, actualDurationMs: 10 };
 
 /**
  * React work the Workbench commits over a quiet window with no interaction, bracketed as a Renderer scenario.
@@ -443,8 +439,10 @@ test('benchmark: switching to a long Agent Chat Session', async ({}, testInfo) =
                 uncached: summarize(uncachedSamples),
                 cold: summarize(coldSamples),
             },
+            // `sidebarRenders` only gates the quiet wait; the public receipt schema rejects unknown keys.
             hiddenStreaming: {
-                ...hiddenStreaming,
+                commitCount: hiddenStreaming.commitCount,
+                workbench: hiddenStreaming.workbench,
                 keptAliveStreaming: summarize([keptAliveStreaming]),
             },
             /**

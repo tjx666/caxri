@@ -21,7 +21,8 @@ import { cacheTreeChildren } from '../features/view-containers/extension-tree/ex
 import { controlledViewQueryKey } from '../features/view-containers/view-operation-client';
 import { useWorkbenchStore } from '../stores/workbench';
 import { caxriQueryKey } from './client';
-import { removeSessionQueries, subscribeRuntimeQueryInvalidation } from './invalidation';
+import { subscribeRuntimeQueryInvalidation } from './invalidation';
+import { removeSessionQueries } from './session-queries';
 
 /**
  * Every key here is produced by the same factory production code uses: `caxriQueryKey`, `controlledViewQueryKey`, or

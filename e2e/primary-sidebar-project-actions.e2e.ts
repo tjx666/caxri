@@ -104,16 +104,26 @@ test('the heading New Session tooltip stays clear of the list it opens beside it
          */
         await newSession.focus();
         const tooltip = running.page.locator('.tooltip-popup', { hasText: /^New .+ Session/u });
-        await expect(tooltip).toBeVisible();
-        const tooltipBox = await tooltip.boundingBox();
+        /**
+         * A visible popup can still be swapped for a fresh node before it is measured, which reads as no box on a slow
+         * hosted runner; retry the read instead of measuring the detached one.
+         */
+        const settledBox = async (locator: typeof tooltip) => {
+            let box: Awaited<ReturnType<typeof locator.boundingBox>> = null;
+            await expect
+                .poll(async () => {
+                    box = await locator.boundingBox();
+                    return box;
+                })
+                .not.toBeNull();
+            return box!;
+        };
+        const tooltipBox = await settledBox(tooltip);
         await newSession.press('ArrowDown');
         const menu = running.page.getByRole('menu', { name: /^New Session in /u });
-        await expect(menu).toBeVisible();
-        const menuBox = await menu.boundingBox();
-        expect(tooltipBox).not.toBeNull();
-        expect(menuBox).not.toBeNull();
+        const menuBox = await settledBox(menu);
         // The list opens on the trigger's right, so the tooltip must end left of it rather than cross it.
-        expect(tooltipBox!.x + tooltipBox!.width).toBeLessThanOrEqual(menuBox!.x);
+        expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(menuBox.x);
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

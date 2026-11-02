@@ -745,6 +745,14 @@ To top up from several runs, download each run into its own subdirectory (`--dir
 artifact names repeat across runs, so a shared download directory would overwrite earlier samples. Keep all runs
 on the same commit so the receipts describe one build.
 
+When a spec change alters how one metric is measured (waiting for a quiet sidebar moved the uncached primary sidebar
+render count from 2 to 3), refresh only the affected metrics instead of re-deriving the whole baseline from a corpus
+whose runners happened to run slower. Derive from the new samples, copy only those complete metric records into the
+committed baseline, and append their run and commit to `provenance`; the gate reads each `thresholdMs` and validates
+nothing else. Check that the spliced baseline passes every new receipt before committing it. Run 41320651948 refreshed
+`scenarios.uncached.react.surfaces.primary-sidebar.renders.p50` and `hiddenStreaming.workbench.actualDurationMs` this
+way, keeping the other 44 metrics from the original corpus.
+
 ### Per-run gate: design and backtest
 
 `scripts/performance-baseline.ts`'s `derivePerformanceMetricBaseline` classifies each metric as

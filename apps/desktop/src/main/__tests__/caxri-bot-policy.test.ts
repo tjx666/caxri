@@ -25,6 +25,7 @@ describe('Caxri Bot Renderer policy', () => {
         expect(() => policy.admit(request('bot.board'))).not.toThrow();
         // The board patches its pull request rows from this read after a `sessionPullRequests.changed` event.
         expect(() => policy.admit(request('session.pullRequests'))).not.toThrow();
+        expect(() => policy.admit(request('agentAvailability.get'))).not.toThrow();
         expect(() => policy.admit(request('caxriBot.revealSession'))).not.toThrow();
         expect(() => policy.admit(request('caxriBot.openSettings'))).not.toThrow();
         expect(() => policy.admit(request('caxriBot.stop'))).not.toThrow();

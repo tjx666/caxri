@@ -21,13 +21,15 @@ import { z } from 'zod';
  * `bot.session.takeBack` are the user's own grant of Sessions to Caxri Bot, the same requests the Workbench's Session
  * menu sends; Caxri Bot's Agent Endpoint still lacks the `agents.control` they require. `bot.switchAgent` and
  * `caxriBot.clearData` only touch the Caxri Bot's own Terminal, ledger, Inbox, and workspace, and clearing still passes
- * Main's native confirmation; `bot.data` reads the sizes that dialog shows.
+ * Main's native confirmation; `bot.data` reads the sizes that dialog shows. `agentAvailability.get` is the read-only
+ * installed-Agent list the start prompt checks before offering an Agent.
  */
 const ADMITTED_METHODS = new Set<string>([
     'caxriBot.clearData',
     'caxriBot.openSettings',
     'caxriBot.revealSession',
     'caxriBot.stop',
+    'agentAvailability.get',
     'agentChat.confirmRevertFiles',
     'agentChat.openPathReference',
     'bot.board',

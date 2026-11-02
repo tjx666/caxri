@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { openCaxriBot } from './support/caxri-bot.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { clickTerminalLink, createShellSession, launchCaxri } from './support/helpers.ts';
+import {
+    clickTerminalLink,
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+} from './support/helpers.ts';
 import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 /**
@@ -37,6 +42,8 @@ test('Caxri Bot Terminal opens Settings in the Workbench scrolled to the missing
         env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },
     });
     try {
+        // The start prompt refuses a missing CLI, so this is a Caxri Bot started before its CLI went missing.
+        await pageRequest(running.page, 'bot.ensure');
         await openCaxriBot(running.page);
         await expect.poll(() => running.app.windows().length).toBe(2);
         const bot = running.app.windows().find((page) => page !== running.page)!;

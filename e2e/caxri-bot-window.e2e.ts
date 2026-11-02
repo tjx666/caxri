@@ -23,7 +23,9 @@ async function boundsInsideWorkArea(
     const workArea = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
     const margin = 20;
     const width = Math.min(preferred.width, workArea.width - margin * 2);
-    const height = Math.min(preferred.height, workArea.height - margin * 2);
+    // The top offset is two margins, so the bottom keeps two as well: a window ending on the work area's edge came back
+    // shorter on a hosted runner's small display.
+    const height = Math.min(preferred.height, workArea.height - margin * 4);
     return { x: workArea.x + margin, y: workArea.y + margin * 2, width, height };
 }
 
@@ -351,14 +353,11 @@ test('Caxri Bot window reopens at its remembered bounds across an app restart', 
         await expect.poll(() => running.app.windows().length).toBe(2);
         /**
          * Size and position are asserted on separate lines because the public CI reporter carries only the failing
-         * line: a hosted-only failure here must say whether the reopened window lost its size or only moved.
+         * line: a hosted-only failure here must say whether the reopened window lost its size or only moved. Width
+         * alone separates a reopen at the 1320 px default (bounds never remembered) from a height-only adjustment.
          */
-        await expect
-            .poll(async () => {
-                const bounds = await botBounds();
-                return bounds && { width: bounds.width, height: bounds.height };
-            })
-            .toEqual({ width: moved.width, height: moved.height });
+        await expect.poll(async () => (await botBounds())?.width).toBe(moved.width);
+        await expect.poll(async () => (await botBounds())?.height).toBe(moved.height);
         await expect.poll(botBounds).toEqual(moved);
         // The Terminal was stopped by the quit, not restored: this is its persisted scrollback.
         const bot = running.app.windows().find((page) => page !== running.page)!;

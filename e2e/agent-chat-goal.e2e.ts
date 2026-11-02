@@ -331,7 +331,8 @@ test('a Claude Chat goal row says whether the goal was achieved or could not be'
         await setGoal('Ship an impossible fix');
         await expect(row).toHaveAttribute('data-agent-chat-goal', 'failed');
         await expect(row).toContainText('Goal not achieved');
-        await row.getByRole('button', { name: 'Show the whole goal' }).click();
+        // A goal that ended unfinished opens its reason by itself.
+        await expect(row.getByRole('button', { name: 'Collapse goal' })).toBeVisible();
         await expect(row.locator('[data-agent-chat-goal-reason]')).toHaveText(
             'The condition needs access this session does not have, so it cannot be met.',
         );

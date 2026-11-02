@@ -334,6 +334,11 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         // one: the tab stays dirty and the save below has to land at `cutMovedPath`.
         await expect(cutTab).toContainText('●');
         await cutTab.click();
+        // The file lands on disk before the Renderer reconciles the move and retargets the tab, so a save sent in
+        // between still writes the old path. The breadcrumbs name the tab's current path once the retarget is done.
+        await expect(
+            running.page.getByRole('navigation', { name: 'File breadcrumbs: destination/cut.txt' }),
+        ).toBeVisible();
         await running.page.keyboard.press('Meta+S');
         await expect.poll(() => readFile(cutMovedPath, 'utf8')).toContain(' moved');
 

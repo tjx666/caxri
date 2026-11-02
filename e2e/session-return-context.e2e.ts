@@ -57,26 +57,48 @@ test('scrolling up from the return hint settles instead of shaking', async ({}) 
         const transcript = page.locator(VISIBLE_SESSION).getByRole('log');
         /**
          * Scrolls the transcript up by `delta` and counts how often the view resized over the next second. The
-         * observer's first callback reports the initial size, so a view that holds still reports 1.
+         * observer's first callback reports the initial size, so a view that holds still reports 1. With `hintLeaves`,
+         * that second starts once the hint is gone, since a slow runner can hide it after a fixed second ran out.
          */
-        const scrollUp = (delta: number) =>
-            transcript.evaluate(async (view, by) => {
-                let count = 0;
-                const observer = new ResizeObserver(() => {
-                    count += 1;
-                });
-                observer.observe(view);
-                view.scrollTop -= by;
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-                observer.disconnect();
-                return count;
-            }, delta);
+        const scrollUp = (delta: number, shouldAwaitHintExit = false) =>
+            transcript.evaluate(
+                async (view, { by, shouldAwaitHintExit: isAwaitingHintExit }) => {
+                    let count = 0;
+                    const observer = new ResizeObserver(() => {
+                        count += 1;
+                    });
+                    observer.observe(view);
+                    view.scrollTop -= by;
+                    const isHintShown = () =>
+                        [...document.querySelectorAll('[role="status"]')].some(
+                            (node) =>
+                                node.textContent.includes('new replies') && node.checkVisibility(),
+                        );
+                    await new Promise<void>((resolve) => {
+                        const startedAt = performance.now();
+                        const timer = setInterval(() => {
+                            if (
+                                isAwaitingHintExit &&
+                                isHintShown() &&
+                                performance.now() - startedAt < 10_000
+                            )
+                                return;
+                            clearInterval(timer);
+                            resolve();
+                        }, 50);
+                    });
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                    observer.disconnect();
+                    return count;
+                },
+                { by: delta, shouldAwaitHintExit },
+            );
         // A scroll just past the follow threshold but inside the band the hint reserves used to hide the hint, give
         // the view its band back, bring the latest entry into view, and show the hint again, so the view shook.
         expect(await scrollUp(32)).toBe(1);
         await expect(hint).toBeVisible();
         // Scrolling on past the latest entry hides the hint once and lets the view keep its full height.
-        expect(await scrollUp(300)).toBe(2);
+        expect(await scrollUp(300, true)).toBe(2);
         await expect(hint).toBeHidden();
     } finally {
         await closeAppQuietly(running.app);

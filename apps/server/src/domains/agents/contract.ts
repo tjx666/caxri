@@ -64,6 +64,11 @@ export interface LocalAgentState {
      */
     sessionIsSubagent?: boolean;
     status?: AgentActivityState;
+    /**
+     * When the provider last wrote `status`, in epoch milliseconds. Lets a hook-started turn ignore a settled status
+     * the provider recorded before that turn began.
+     */
+    statusUpdatedAt?: number;
     title?: string;
     usage?: Array<{ label: string; value: string }>;
 }
@@ -72,6 +77,7 @@ export interface AgentProbeSnapshot extends AgentSnapshot {
     activityTurnId?: string;
     activitySource?: LocalAgentState['activitySource'];
     sessionIsSubagent?: boolean;
+    statusUpdatedAt?: LocalAgentState['statusUpdatedAt'];
 }
 
 /**

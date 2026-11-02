@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
-vi.mock('../../../queries/invalidation', () => ({
+vi.mock('../../../queries/session-queries', () => ({
     removeSessionQueries: mocks.removeSessionQueries,
 }));
 vi.mock('../../../stores/selectors', () => ({

@@ -70,7 +70,7 @@ vi.mock('../../../queries/client', () => ({
     caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
     queryClient: { getQueryData: mocks.getQueryData },
 }));
-vi.mock('../../../queries/invalidation', () => ({
+vi.mock('../../../queries/session-queries', () => ({
     removeSessionQueries: mocks.removeSessionQueries,
 }));
 vi.mock('../../../stores/chrome-layout', () => ({

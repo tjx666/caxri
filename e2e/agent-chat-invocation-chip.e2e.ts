@@ -27,10 +27,12 @@ test('a recognized leading /command shows as a chip in the Chat composer, while 
         // The chip hides only while the editor has DOM focus with the caret on the token, which a hosted runner's
         // unfocused window never reports.
         await forcePageFocus(page);
+        await createProjectSession(page, 'shell');
         // Slowed through opening the Chat, where the composer's setup dispatches race CodeMirror's focus transaction.
+        // Throttling starts only after the Session exists: on a hosted runner an 8x slower Renderer cannot open the Add
+        // Project dialog within the assertion timeout, and that step is not what this spec covers.
         const cdp = await page.context().newCDPSession(page);
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: 8 });
-        await createProjectSession(page, 'shell');
         await openAgentChat(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
