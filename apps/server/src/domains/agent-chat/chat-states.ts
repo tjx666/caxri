@@ -242,6 +242,13 @@ export class ChatStates {
                 onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
                 delegatedTask: (delegationId) =>
                     delegatedTaskDetails(this.options.database, delegationId),
+                sessionTitle: (agentSessionId) => {
+                    const { database } = this.options;
+                    const sessionId = database.agentSessionUsage.sessionIdOf(agentSessionId);
+                    return sessionId === undefined
+                        ? undefined
+                        : database.getSession(sessionId)?.title;
+                },
                 usageContinuedIn: (turnId) => this.options.usage?.continuedIn(terminalId, turnId),
                 ...(this.options.usageLimitWaits && {
                     usageLimitWaits: this.projectionWaits(terminalId, this.options.usageLimitWaits),

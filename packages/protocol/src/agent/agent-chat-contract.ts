@@ -34,6 +34,7 @@ import {
     agentChatUsageLimitSchema,
 } from './agent-usage-continuation.js';
 import { agentChatDelegatedTaskSchema } from './delegation/agent-delegated-task.js';
+import { agentChatPathTargetSchema } from './path-targets/agent-chat-path-targets.js';
 import { agentChatWebSourcesSchema } from './web-sources/agent-chat-web-source-schema.js';
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
@@ -207,6 +208,12 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * Its `status` then settles when the Agent hands it off, so `exitCode` and `durationMs` stay absent.
          */
         background: z.boolean().optional(),
+        /**
+         * The provider's id of the background task this command became (Claude Code's `backgroundTaskId`), which names
+         * its output file, so a later read of that file can say whose output it is.
+         */
+        taskId: z.string().min(1).max(200).optional(),
+        pathTarget: agentChatPathTargetSchema.optional(),
         status: agentChatItemStatusSchema,
         /**
          * Bounded tail of the combined command output.
@@ -256,6 +263,7 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         output: boundedOutput.optional(),
         durationMs: z.number().nonnegative().optional(),
         sources: agentChatWebSourcesSchema.optional(),
+        pathTarget: agentChatPathTargetSchema.optional(),
     }),
     z.strictObject({
         ...itemBase,

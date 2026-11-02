@@ -77,11 +77,11 @@ function settleClaudeCommand(
     output: string,
 ): AgentChatItem {
     const result = isRecord(structured) ? structured : {};
+    const taskId = stringField(result.backgroundTaskId)?.slice(0, 200);
     const isBackground =
-        item.background === true ||
-        stringField(result.backgroundTaskId) !== undefined ||
-        result.backgroundedByUser === true;
-    if (isBackground) return { ...item, background: true, status, output };
+        item.background === true || taskId !== undefined || result.backgroundedByUser === true;
+    if (isBackground)
+        return { ...item, background: true, status, output, ...(taskId && { taskId }) };
     const exitCode =
         block.is_error === true
             ? EXIT_CODE_PREFIX.exec(output)?.[1]

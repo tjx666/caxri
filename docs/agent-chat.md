@@ -1032,7 +1032,13 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   shared with the phone; the work row and
   summary wording, turn labels, and output-language inference every client shares live in
   `packages/protocol/src/agent/agent-chat-work.ts` and `agent-chat-work-output.ts`. Every surface
-  hides a sub-second duration through `formatNoticeableDuration`.
+  hides a sub-second duration through `formatNoticeableDuration`. A row that reads or searches one
+  file the user knows by another name says that name instead of the file name: a background shell's
+  output file (`tasks/<id>.output`) reads `Checked output <what the shell does>`, and an Agent
+  conversation record (`<id>.jsonl`) reads by its Caxri Session's title (`Searched x in <title>`).
+  Server Core stamps the item's `pathTarget` as it enters the projection
+  (`apps/server/src/domains/agent-chat/path-targets/path-targets.ts`), learning background shells
+  from Claude Code's `backgroundTaskId` on their command row, so replayed history reads the same.
 - Replies render Markdown through the shared `@caxri/markdown` block tree
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
   leveled headings, nested and task lists, quotes with a hover Copy quote (the quote's text without
