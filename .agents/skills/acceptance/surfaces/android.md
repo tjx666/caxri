@@ -88,10 +88,12 @@ uses ambient Metro or a stale APK. Include all generated
 files in the case evidence:
 
 - `assets/<case-id>-state-isolation.json`
-- `assets/<case-id>-mobile-device.json`
-- `assets/<case-id>-result.json`
-- `assets/<case-id>-android.png`
-- `assets/<case-id>-android.mp4`
+- `assets/<case-id>-mobile-device.json`, plus every screenshot and recording its `artifacts` array
+  lists: the cited Android media must match that list exactly, so a scenario that captures several
+  screens (such as `MOB-E2E-01`) cites all of them
+- `assets/<case-id>-result.json`, when the runner writes one
+- `assets/<case-id>-desktop-capture.json`, when the runner writes one, plus each Desktop screenshot
+  and recording it lists, tagged `"source": "isolated-desktop-renderer"`
 
 The receipts contain the report source commit, final lifecycle launch id, build hash, explicit
 emulator identity, cleanup state, observed user outcome, and the framebuffer artifact paths and
