@@ -226,7 +226,23 @@ process.stdout.write('Fake Codex ready\r\n');
                 await expect
                     .poll(() => acceptedHookCount(hookLogPath, 'turnFinished'))
                     .toBeGreaterThan(finishesBeforeFinish);
-            await expect(status).toHaveCount(0);
+            try {
+                await expect(status).toHaveCount(0);
+            } catch (error) {
+                /**
+                 * Hosted CI once kept the running status after an accepted Stop (#3351), and the public log keeps only
+                 * the failing line. Each cause below fails on its own line so the next hosted failure names it.
+                 */
+                const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                const activity = state.sessions[0]?.agentActivityState;
+                expect(activity, 'Server still holds the Session running after Stop').not.toBe(
+                    'running',
+                );
+                expect(activity, 'Renderer kept the running status after Server left it').toBe(
+                    'running',
+                );
+                throw error;
+            }
         } finally {
             await running.app.close();
             await rm(directory, { recursive: true, force: true });
