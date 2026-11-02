@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -52,6 +52,10 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
     list: RefObject<FlashListRef<Entry> | null>;
     viewportHeight: RefObject<number>;
 }): {
+    /**
+     * Room the footer draws below the spacer while a toggled row settles (`reserveForDisclosure`).
+     */
+    disclosureReserve: number;
     endSpacerHeight: () => number;
     /**
      * Records that the reader can now see the list, so a turn whose first row lands above the rows in view stays put.
@@ -66,7 +70,7 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
      * Grows the drawn spacer by the rows' height before the reader opens or closes a row in the latest turn. Closing a
      * row shrank the native content before JS re-measured the spacer, so Android clamped the scroll and the previous
      * turn flashed into view until the spacer grew back. The reserve lasts until the rows are measured at another
-     * height, or `DISCLOSURE_RESERVE_MS` when the toggle left their height alone.
+     * height and the re-measured spacer is drawn, or `DISCLOSURE_RESERVE_MS` when the toggle left their height alone.
      */
     reserveForDisclosure: () => void;
     /**
@@ -89,19 +93,23 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
     const firstRowWithoutTurn = useRef<string>(undefined);
     const heldTurn = useRef<string>(undefined);
     /**
-     * The rows' height when the reader opened or closed a row, while the drawn spacer still carries the room reserved
-     * for it (`reserveForDisclosure`); cleared once the rows were measured at another height.
+     * The rows' height when the reader opened or closed a row, until the rows were measured at another height
+     * (`reserveForDisclosure`).
      */
     const disclosedRowsHeight = useRef<number>(undefined);
-    const disclosureReserve = useRef(0);
     /**
-     * Counts reserve releases, so a release that a later one superseded does not draw its stale height.
+     * Room drawn below the spacer while a toggled row settles. It is React state, unlike the spacer's shared value, so
+     * it reaches the screen in the same commit as the toggle: a shared value set in the tap handler landed a frame
+     * after the shrunk row, and Android clamped the scroll in between.
+     */
+    const [disclosureReserve, setDisclosureReserve] = useState(0);
+    const reserveReference = useRef(0);
+    /**
+     * Counts reserve releases, so a release that a later toggle superseded does not drop the new reserve.
      */
     const releaseCount = useRef(0);
     /**
-     * Draws the measured spacer once the rows' new height reached the screen. FlashList commits the rows' height
-     * natively in the same layout pass that measured it, while a shared value reaches the UI thread a frame later;
-     * dropping the reserve in that pass still let Android clamp the scroll for a frame.
+     * Drops the reserve once the measured spacer reached the screen, two frames after it was set.
      */
     const releaseReserve = useCallback((): void => {
         releaseCount.current += 1;
@@ -109,24 +117,21 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         requestAnimationFrame(() =>
             requestAnimationFrame(() => {
                 if (release !== releaseCount.current) return;
-                disclosureReserve.current = 0;
-                console.log('WGDBG release', Date.now(), drawnHeight.current);
-                spacerHeight.set(Math.max(drawnHeight.current, 0));
+                reserveReference.current = 0;
+                setDisclosureReserve(0);
             }),
         );
-    }, [spacerHeight]);
+    }, []);
     const measureSpacer = useCallback((): boolean => {
         const { entries: rows, isTurnStart } = latest.current;
         const reference = list.current;
         if (!isTurnStart || !reference || viewportHeight.current <= 0) return false;
-        let isReleasing = false;
         if (disclosedRowsHeight.current !== undefined) {
             // The toggled row has not been measured yet; the reserved room stays until it has.
             if (reference.getChildContainerDimensions().height === disclosedRowsHeight.current)
                 return false;
-            console.log('WGDBG measured', Date.now(), reference.getChildContainerDimensions().height);
             disclosedRowsHeight.current = undefined;
-            isReleasing = true;
+            releaseReserve();
         }
         const index = latestConversationTurnStart(rows, isTurnStart);
         const turnId = index === -1 ? undefined : rows[index].id;
@@ -147,10 +152,7 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         let drawn = 0;
         if (turnId !== undefined && turnId !== heldTurn.current) {
             const layout = reference.getLayout(index);
-            if (!layout) {
-                if (isReleasing) releaseReserve();
-                return false;
-            }
+            if (!layout) return false;
             const turn = {
                 bottomInset,
                 contentHeight: reference.getChildContainerDimensions().height,
@@ -164,14 +166,6 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
                 ...turn,
                 viewportHeight: largestViewportHeight.current,
             });
-        }
-        if (isReleasing || disclosureReserve.current > 0) {
-            console.log('WGDBG drawn', Date.now(), height, drawn);
-            // Keep the reserve on screen until the shrunk rows are; the release draws the measured spacer.
-            endHeight.current = height;
-            drawnHeight.current = drawn;
-            releaseReserve();
-            return true;
         }
         if (height === endHeight.current && drawn === drawnHeight.current) return false;
         endHeight.current = height;
@@ -211,18 +205,18 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         const rowsHeight = reference.getChildContainerDimensions().height;
         disclosedRowsHeight.current = rowsHeight;
         // However far the row shrinks, the rows and spacer together never get shorter than they were.
-        disclosureReserve.current = rowsHeight;
-        console.log('WGDBG reserve', Date.now(), rowsHeight, drawnHeight.current, endHeight.current);
-        spacerHeight.set(Math.max(drawnHeight.current, 0) + rowsHeight);
+        releaseCount.current += 1;
+        reserveReference.current = rowsHeight;
+        setDisclosureReserve(rowsHeight);
         // A toggle that leaves the rows' height alone never triggers the measurement that ends the reserve.
         setTimeout(() => {
             if (disclosedRowsHeight.current !== rowsHeight) return;
             disclosedRowsHeight.current = undefined;
-            disclosureReserve.current = 0;
-            spacerHeight.set(Math.max(drawnHeight.current, 0));
+            releaseReserve();
         }, DISCLOSURE_RESERVE_MS);
-    }, [latest, list, spacerHeight]);
+    }, [latest, list, releaseReserve]);
     return {
+        disclosureReserve,
         endSpacerHeight: () => endHeight.current,
         markRevealed: () => {
             isRevealed.current = true;
@@ -231,7 +225,6 @@ export function useConversationTurnSpacer<Entry extends { id: string }>({
         reserveForDisclosure,
         scrollToLatest,
         spacerHeight,
-        spacerReserve: () =>
-            Math.max(drawnHeight.current, 0) + disclosureReserve.current - endHeight.current,
+        spacerReserve: () => drawnHeight.current + reserveReference.current - endHeight.current,
     };
 }

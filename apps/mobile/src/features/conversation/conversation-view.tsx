@@ -187,9 +187,22 @@ const CONTENT_BOTTOM_INSET = styles.listContent.paddingBottom;
  * The empty space after the rows that lets the latest turn rest at the top of the viewport. Its height is a shared
  * value, so resizing it never re-renders the list.
  */
-const ConversationTurnSpacer = ({ height }: { height: SharedValue<number> }) => {
+const ConversationTurnSpacer = ({
+    height,
+    reserve,
+}: {
+    height: SharedValue<number>;
+    /**
+     * Room below the spacer while a toggled row settles (`reserveForDisclosure`).
+     */
+    reserve: number;
+}) => {
     const style = useAnimatedStyle(() => ({ height: height.get() }));
-    return <Animated.View pointerEvents="none" style={style} testID="conversation-turn-spacer" />;
+    return (
+        <View pointerEvents="none" style={{ paddingBottom: reserve }}>
+            <Animated.View style={style} testID="conversation-turn-spacer" />
+        </View>
+    );
 };
 
 /**
@@ -272,6 +285,7 @@ export const ConversationList = <Entry extends { id: string }>({
         latest.current = { entries, isTurnStart, timeline };
     });
     const {
+        disclosureReserve,
         endSpacerHeight,
         markRevealed,
         measureSpacer,
@@ -325,7 +339,6 @@ export const ConversationList = <Entry extends { id: string }>({
      * commit (a measured row grew, or the spacer changed) also follows the end.
      */
     const onCommitLayout = useCallback((): void => {
-        console.log('WGDBG commit', Date.now(), list.current?.getChildContainerDimensions().height, follower.isFollowing);
         pin();
         onLayoutCommitted();
         readOlderAtTop();
@@ -335,7 +348,6 @@ export const ConversationList = <Entry extends { id: string }>({
             // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
             if (!isPositionedReference.current) return;
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            console.log('WGDBG scroll', Date.now(), contentOffset.y, contentSize.height, layoutMeasurement.height);
             // The spacer drawn for the largest viewport runs past the end while the keyboard is up.
             const distance =
                 contentSize.height - layoutMeasurement.height - contentOffset.y - spacerReserve();
@@ -433,8 +445,11 @@ export const ConversationList = <Entry extends { id: string }>({
         ? MAINTAIN_TURN_POSITION
         : MAINTAIN_VISIBLE_CONTENT_POSITION;
     const footer = useMemo(
-        () => (hasTurnSpacer ? <ConversationTurnSpacer height={spacerHeight} /> : null),
-        [hasTurnSpacer, spacerHeight],
+        () =>
+            hasTurnSpacer ? (
+                <ConversationTurnSpacer height={spacerHeight} reserve={disclosureReserve} />
+            ) : null,
+        [disclosureReserve, hasTurnSpacer, spacerHeight],
     );
     return (
         <ConversationDisclosure value={holdForDisclosure}>
