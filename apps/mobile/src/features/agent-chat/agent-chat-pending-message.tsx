@@ -38,23 +38,16 @@ export const AgentChatPendingMessage = ({
             style={[conversationStyles.message, conversationStyles.userRow, styles.pending]}
             testID={`agent-chat-pending-${id}`}
         >
-            {imageUris.length > 0 ? (
-                <View style={styles.images}>
-                    {imageUris.map((uri, index) => (
-                        <Image
-                            accessibilityLabel={t('chat.attachment', { number: index + 1 })}
-                            key={uri}
-                            resizeMode="cover"
-                            source={{ uri }}
-                            style={[styles.thumbnail, { borderColor: theme.border }]}
-                        />
-                    ))}
-                </View>
-            ) : null}
-            <AgentChatPathChips references={cited.references} skills={cited.skills} theme={theme} />
-            {cited.text.length > 0 ? (
+            {/* No card can show a video before the message is sent, so its chip stands in until then. */}
+            <AgentChatPathChips
+                hasVideoChips
+                references={cited.references}
+                skills={cited.skills}
+                theme={theme}
+            />
+            {cited.text.length > 0 || imageUris.length > 0 ? (
                 <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
-                    {user.kind === 'handoff' ? (
+                    {cited.text.length === 0 ? null : user.kind === 'handoff' ? (
                         <ConversationHandoffCard note={user.note} theme={theme} />
                     ) : (
                         <Text
@@ -64,6 +57,24 @@ export const AgentChatPendingMessage = ({
                             {cited.text}
                         </Text>
                     )}
+                    {imageUris.length > 0 ? (
+                        <View
+                            style={[
+                                styles.images,
+                                cited.text.length > 0 && conversationStyles.userAttachments,
+                            ]}
+                        >
+                            {imageUris.map((uri, index) => (
+                                <Image
+                                    accessibilityLabel={t('chat.attachment', { number: index + 1 })}
+                                    key={uri}
+                                    resizeMode="cover"
+                                    source={{ uri }}
+                                    style={[styles.thumbnail, { borderColor: theme.border }]}
+                                />
+                            ))}
+                        </View>
+                    ) : null}
                 </View>
             ) : null}
             <Text
@@ -79,7 +90,7 @@ export const AgentChatPendingMessage = ({
 
 const styles = StyleSheet.create({
     pending: { opacity: 0.6 },
-    images: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' },
+    images: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     thumbnail: {
         borderRadius: 12,
         borderWidth: StyleSheet.hairlineWidth,

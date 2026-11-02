@@ -44,6 +44,14 @@ describe('agentChatPathChips', () => {
             },
         ]);
     });
+
+    it('keeps the video chip for a message still on its way', () => {
+        expect(
+            agentChatPathChips([{ path: '/tmp/clip.mp4', isDirectory: false }], [], true),
+        ).toEqual([
+            { key: 'path:/tmp/clip.mp4', kind: 'file', name: 'clip.mp4', path: '/tmp/clip.mp4' },
+        ]);
+    });
 });
 
 describe('user messages that cite files', () => {

@@ -14,11 +14,13 @@ export interface AgentChatPathChip {
 
 /**
  * The chips for a message's citations in Desktop's order (skills first, then files and folders), each named by its last
- * path segment. A cited video has no chip: it plays from its card in the bubble (`AgentChatMessageVideos`).
+ * path segment. A cited video has no chip unless `hasVideoChips`: a sent message plays it from its card in the bubble
+ * (`AgentChatMessageVideos`).
  */
 export const agentChatPathChips = (
     references: readonly AgentChatPathReference[],
     skills: readonly AgentChatSkillReference[],
+    hasVideoChips = false,
 ): AgentChatPathChip[] => [
     ...skills.map(({ name }) => ({
         key: `skill:${name}`,
@@ -27,7 +29,7 @@ export const agentChatPathChips = (
         path: undefined,
     })),
     ...references.flatMap((reference) =>
-        !reference.isDirectory && isAgentChatVideoPath(reference.path)
+        !hasVideoChips && !reference.isDirectory && isAgentChatVideoPath(reference.path)
             ? []
             : [
                   {

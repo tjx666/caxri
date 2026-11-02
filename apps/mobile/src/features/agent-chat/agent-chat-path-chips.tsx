@@ -19,10 +19,15 @@ const GLYPHS = { file: File, folder: Folder, skill: Sparkles } as const;
  * under the pills instead.
  */
 export const AgentChatPathChips = ({
+    hasVideoChips = false,
     references,
     skills,
     theme,
 }: {
+    /**
+     * Keeps a chip for each cited video, for a message still on its way that has no video card yet.
+     */
+    hasVideoChips?: boolean;
     references: readonly AgentChatPathReference[];
     skills: readonly AgentChatSkillReference[];
     theme: MobileTheme;
@@ -30,7 +35,7 @@ export const AgentChatPathChips = ({
     const { t } = useTranslation();
     const [shownPath, setShownPath] = useState<string | undefined>();
     const openFile = use(ConversationFileOpener);
-    const chips = agentChatPathChips(references, skills);
+    const chips = agentChatPathChips(references, skills, hasVideoChips);
     if (chips.length === 0) return null;
     return (
         <View
