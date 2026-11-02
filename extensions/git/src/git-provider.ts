@@ -15,6 +15,7 @@ import caxri, { CancellationTokenSource, EventEmitter, GitPullRequestErrorMessag
 
 import { DetailQueue } from './detail-queue';
 import { canDetectPullRequest, shouldAutoSelectPullRequestMode } from './pull-request-detection';
+import { SourceControlActionRegistry } from './source-control-action-registry';
 import {
     buildSourceControlHistoryDetails,
     buildSourceControlHistoryPage,
@@ -28,11 +29,6 @@ import type {
 import { buildSourceControlViewModel } from './source-control-model';
 import { boundSourceControlViewModel } from './source-control-payload';
 
-interface RegisteredAction {
-    command: ActionRegistration['command'];
-    revision: string;
-}
-
 interface DetailState<Value> {
     errorMessage?: string;
     cancellation: CancellationTokenSource;
@@ -43,7 +39,7 @@ interface DetailState<Value> {
 }
 
 interface GitProviderScopeState {
-    actions: Map<string, RegisteredAction>;
+    actions: SourceControlActionRegistry;
     avatarHosts: Map<string, string | null>;
     commitDetails: Map<string, DetailState<GitCommitDetails>>;
     commitOpenSequence: number;
@@ -65,7 +61,6 @@ interface GitProviderScopeState {
     mode: GitSourceControlMode;
     pullRequests: Map<string, DetailState<GitPullRequestChanges | null>>;
     repositories: Map<string, GitRepositorySummary>;
-    actionSequence: number;
     revision: string;
     revisionSequence: number;
     refreshSequence: number;
@@ -122,7 +117,7 @@ export class GitProvider implements SourceControlProvider {
         const current = this.scopes.get(scopeId);
         if (current) return current;
         const state: GitProviderScopeState = {
-            actions: new Map(),
+            actions: new SourceControlActionRegistry(),
             avatarHosts: new Map(),
             commitDetails: new Map(),
             commitOpenSequence: 0,
@@ -133,7 +128,6 @@ export class GitProvider implements SourceControlProvider {
             pullRequests: new Map(),
             pullRequestForcedSequences: new Map(),
             repositories: new Map(),
-            actionSequence: 0,
             forceSequence: 0,
             refreshSequence: 0,
             revision: '0',
@@ -153,11 +147,7 @@ export class GitProvider implements SourceControlProvider {
     }
 
     private registerActionFor(state: GitProviderScopeState): RegisterSourceControlAction {
-        return (action) => {
-            const id = `action-${++state.actionSequence}`;
-            state.actions.set(id, { command: action.command, revision: state.revision });
-            return { id, ...action };
-        };
+        return state.actions.registerFor(() => state.revision);
     }
 
     private clearDetails(state: GitProviderScopeState, shouldPreserveSettled = false): void {

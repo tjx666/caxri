@@ -10,11 +10,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
-import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import type { StructuredTooltipData } from '../../../components/structured-tooltip';
 import { StructuredTooltip } from '../../../components/structured-tooltip';
 import { Button } from '../../../components/ui/button';
-import { Empty } from '../../../components/ui/empty';
 import { Tooltip } from '../../../components/ui/tooltip';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
@@ -28,17 +26,13 @@ import type {
 } from './hooks/use-source-control-controller';
 import { stableActionKey } from './source-control-action-resolution';
 import { SourceControlBranchRow } from './source-control-branch-row';
+import { SourceControlGroupBody } from './source-control-group-body';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
 import { changedFileCountLabel, changedFileCountText } from './source-control-row-labels';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
-import {
-    buildSourceControlResourceTree,
-    sourceControlGroupExpansionKeys,
-    sumSourceControlLineStats,
-} from './source-control-tree';
-import { SourceControlTreeItems } from './source-control-tree-items';
+import { sourceControlGroupExpansionKeys, sumSourceControlLineStats } from './source-control-tree';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
 type ReadyController = Extract<SourceControlController, { status: 'ready' }>;
@@ -462,57 +456,6 @@ function GroupCaption({
  * A group's file list with its truncation notice and empty state. `level` is the ARIA level of its top-level rows: one
  * below the caption, or one below the provider header when the caption is folded away.
  */
-function GroupBody({
-    controller,
-    group,
-    level,
-    provider,
-}: {
-    controller: ReadyController;
-    group: GroupModel;
-    level: number;
-    provider: ProviderModel;
-}) {
-    return (
-        <div className="git-changes-body">
-            {group.truncationMessage && (
-                <div
-                    role="status"
-                    aria-live="polite"
-                    className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
-                >
-                    {group.truncationMessage}
-                </div>
-            )}
-            {group.resources.length === 0 &&
-                (group.isLoading ? (
-                    <LoadingSkeleton
-                        variant="list"
-                        label={group.emptyMessage}
-                        rows={3}
-                        indent={12}
-                    />
-                ) : (
-                    <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
-                        {group.emptyMessage}
-                    </Empty>
-                ))}
-            {group.resources.length > 0 && (
-                <SourceControlTreeItems
-                    activeEditorResource={controller.activeEditorResource}
-                    expandedDirectories={controller.navigation.expandedDirectories}
-                    level={level}
-                    nodes={buildSourceControlResourceTree(group.resources)}
-                    providerKey={`${controller.model.selectedModeId}:${provider.id}`}
-                    repositoryRootPath={provider.rootPath}
-                    runAction={controller.runAction}
-                    setDirectoriesExpanded={controller.setDirectoriesExpanded}
-                />
-            )}
-        </div>
-    );
-}
-
 export function SourceControlProviderSection({
     controller,
     provider,
@@ -542,7 +485,7 @@ export function SourceControlProviderSection({
                             runAction={controller.runAction}
                         />
                         {foldedGroup ? (
-                            <GroupBody
+                            <SourceControlGroupBody
                                 controller={controller}
                                 group={foldedGroup}
                                 level={2}
@@ -567,7 +510,7 @@ export function SourceControlProviderSection({
                                             kind="git-changes"
                                         >
                                             {() => (
-                                                <GroupBody
+                                                <SourceControlGroupBody
                                                     controller={controller}
                                                     group={group}
                                                     level={3}

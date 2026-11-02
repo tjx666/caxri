@@ -62,7 +62,7 @@ describe('generic controlled Renderer surfaces', () => {
             ({ name }) => name === 'source-control-provider-section.tsx',
         )?.source;
         const treeItems = sources.find(
-            ({ name }) => name === 'source-control-tree-items.tsx',
+            ({ name }) => name === 'source-control-group-body.tsx',
         )?.source;
         expect(providerSection).not.toContain('actions.at(0)');
         expect(treeItems).not.toContain('actions?.[0]');

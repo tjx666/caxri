@@ -1,12 +1,18 @@
 import type { DragEvent, KeyboardEvent, MouseEvent, RefObject } from 'react';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import type { SourceControlAction, SourceControlResource } from '@caxri/protocol';
+import type {
+    SourceControlAction,
+    SourceControlResource,
+    SourceControlViewModel,
+} from '@caxri/protocol';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DiffStat } from '../../../components/diff-stat';
+import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Button } from '../../../components/ui/button';
+import { Empty } from '../../../components/ui/empty';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
@@ -16,6 +22,7 @@ import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/r
 import { cn } from '../../../lib/utilities';
 import { openFile } from '../../editor/document-commands';
 import { observeKeepAliveElementRect } from '../virtual-tree-keep-alive';
+import type { SourceControlController } from './hooks/use-source-control-controller';
 import { stableActionKey } from './source-control-action-resolution';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
@@ -25,6 +32,7 @@ import {
 } from './source-control-row-menu';
 import type { SourceControlTreeNode } from './source-control-tree';
 import {
+    buildSourceControlResourceTree,
     sourceControlDirectoryExpansionKeys,
     sourceControlDirectoryVisibleLineStats,
 } from './source-control-tree';
@@ -110,6 +118,9 @@ function useScrollerOffset(list: RefObject<HTMLElement | null>): number {
         const scroller = sourceControlScroller(element);
         if (!element || !scroller) return;
         const update = (): void => {
+            // A hidden tab lays out nothing and measures 0; keeping the last offset spares every row a re-render when
+            // the tab is shown again and measures the same offset as before.
+            if (scroller.getClientRects().length === 0) return;
             const next =
                 element.getBoundingClientRect().top -
                 scroller.getBoundingClientRect().top +
@@ -168,7 +179,7 @@ interface SourceControlTreeItemsProperties {
  * unconditionally, since every folder supports the Alt+Enter / Alt-click recursive toggle. Trailing Discard actions
  * keep their own tooltips.
  */
-export function SourceControlTreeItems({
+function SourceControlTreeItems({
     activeEditorResource,
     expandedDirectories,
     level,
@@ -435,6 +446,73 @@ function SourceControlVirtualRow({
                     </Button>
                 </Tooltip>
             ))}
+        </div>
+    );
+}
+
+type ReadyController = Extract<SourceControlController, { status: 'ready' }>;
+type ProviderModel = SourceControlViewModel['providers'][number];
+type GroupModel = ProviderModel['groups'][number];
+
+/**
+ * One expanded change group's body: its truncation notice, its empty or loading state, and its file tree.
+ */
+export function SourceControlGroupBody({
+    controller,
+    group,
+    level,
+    provider,
+}: {
+    controller: ReadyController;
+    group: GroupModel;
+    level: number;
+    provider: ProviderModel;
+}) {
+    /**
+     * Read into locals so React Compiler keys the tree element on these values alone. Read inline in the JSX, the
+     * element depended on the whole `controller` and `provider` objects, which every snapshot fetch replaces, so
+     * switching back to the Git tab re-rendered every row with unchanged content.
+     */
+    const nodes = buildSourceControlResourceTree(group.resources);
+    const { activeEditorResource, navigation, runAction, setDirectoriesExpanded } = controller;
+    const providerKey = `${controller.model.selectedModeId}:${provider.id}`;
+    const repoRootPath = provider.rootPath;
+    return (
+        <div className="git-changes-body">
+            {group.truncationMessage && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
+                >
+                    {group.truncationMessage}
+                </div>
+            )}
+            {group.resources.length === 0 &&
+                (group.isLoading ? (
+                    <LoadingSkeleton
+                        variant="list"
+                        label={group.emptyMessage}
+                        rows={3}
+                        indent={12}
+                    />
+                ) : (
+                    <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
+                        {group.emptyMessage}
+                    </Empty>
+                ))}
+            {group.resources.length > 0 && (
+                <SourceControlTreeItems
+                    activeEditorResource={activeEditorResource}
+                    expandedDirectories={navigation.expandedDirectories}
+                    level={level}
+                    nodes={nodes}
+                    providerKey={providerKey}
+                    repositoryRootPath={repoRootPath}
+                    runAction={runAction}
+                    setDirectoriesExpanded={setDirectoriesExpanded}
+                />
+            )}
         </div>
     );
 }

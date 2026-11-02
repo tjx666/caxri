@@ -73,7 +73,7 @@ the stack from rows passing beneath it.
 ## Source Control
 
 Each resource group's folder and file rows are virtualized
-(`source-control/source-control-tree-items.tsx`). Every group runs its own virtualizer against the
+(`source-control/source-control-group-body.tsx`). Every group runs its own virtualizer against the
 single `role="tree"` scroller, offset by where the group starts. Provider headers, group captions,
 File History, and the paged Commits history are not virtualized. They are bounded by page size,
 and flattening them would unmount their paging and hover state.

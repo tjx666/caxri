@@ -47,6 +47,41 @@ describe('GitProvider refresh nonce', () => {
     });
 
     /**
+     * #3413: action ids counted across the provider's lifetime, so every re-read of an unchanged repository produced a
+     * different model and the Renderer re-rendered every Source Control row.
+     */
+    it('re-reads an unchanged repository with equal rows whose old actions still expire', async () => {
+        const { provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+
+        const first = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+        provider.refresh(scopeId);
+        const second = await provider.provideView({ scopeId, refresh: 1 }, cancellation.token);
+        expect(second.revision).not.toBe(first.revision);
+        // Only revision-bound fields move; the rows' groups, resources, and actions stay equal.
+        expect(second.providers.map(({ groups }) => groups)).toEqual(
+            first.providers.map(({ groups }) => groups),
+        );
+        expect(second.refreshAction).toEqual(first.refreshAction);
+
+        await expect(
+            provider.runAction(
+                { actionId: first.refreshAction.id, scopeId, revision: first.revision },
+                cancellation.token,
+            ),
+        ).rejects.toThrow();
+        await expect(
+            provider.runAction(
+                { actionId: second.refreshAction.id, scopeId, revision: second.revision },
+                cancellation.token,
+            ),
+        ).resolves.toMatchObject({ refresh: true });
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
+    /**
      * A watcher-driven refresh used to drop every settled commit detail, so the panel repainted as `Loading last
      * commit…` with no files and then back to the identical content: the periodic flash. The detail is re-requested
      * either way; what must not happen is the empty frame in between.

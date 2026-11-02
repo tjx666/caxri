@@ -15,6 +15,7 @@ import {
     executeViewCatalogShortcut,
     invalidateControlledViewSnapshot,
 } from '../../../../features/view-containers/view-container-commands';
+import { useLatestReference } from '../../../../hooks/use-latest-reference';
 import { useOnVisible } from '../../../../hooks/use-on-visible';
 import { useTranslation } from '../../../../i18n';
 import { useToastOnQueryError } from '../../../../queries/client';
@@ -307,10 +308,16 @@ export function useSourceControlController(
             workbenchRootProjectId,
         ],
     );
-    const refetchSnapshot = snapshot.refetch;
+    /**
+     * Read at call time rather than captured: `runAction` reaches every Source Control row, so a callback rebuilt on
+     * each fetch-state flip re-rendered the whole row list whenever the tab came back into view and its query
+     * refetched.
+     */
+    const latestSnapshot = useLatestReference(snapshot);
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
-            if (action.disabled || !snapshot.data) return;
+            const current = latestSnapshot.current;
+            if (action.disabled || !current.data) return;
             const label =
                 action.errorMessage ??
                 presentation?.actionErrorMessage ??
@@ -326,9 +333,9 @@ export function useSourceControlController(
                 });
             const outcome = await runSourceControlActionAgainstLatest({
                 action,
-                isRefreshing: snapshot.isFetching,
-                model: snapshot.data,
-                refetch: async () => (await refetchSnapshot({ cancelRefetch: false })).data,
+                isRefreshing: current.isFetching,
+                model: current.data,
+                refetch: async () => (await current.refetch({ cancelRefetch: false })).data,
                 run,
             });
             if (outcome === SUPERSEDED) {
@@ -340,15 +347,7 @@ export function useSourceControlController(
             for (const effect of result.effects) applyActionEffect(effect);
             if (result.refresh) requestRefresh();
         },
-        [
-            client,
-            presentation?.actionErrorMessage,
-            requestRefresh,
-            snapshot.data,
-            snapshot.isFetching,
-            refetchSnapshot,
-            t,
-        ],
+        [client, latestSnapshot, presentation?.actionErrorMessage, requestRefresh, t],
     );
     const selectMode = useCallback(
         (mode: SourceControlMode): void => {

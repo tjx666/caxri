@@ -111,7 +111,7 @@ function SourceControlMessage({
 }
 
 function handleTreeKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    // A virtualized resource list already answered a move between two of its own rows (`source-control-tree-items.tsx`).
+    // A virtualized resource list already answered a move between two of its own rows (`source-control-group-body.tsx`).
     if (event.defaultPrevented) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const target = event.target;
