@@ -86,6 +86,16 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
                 },
                 terminal: { selectionBackground: '#55667788' },
             });
+        // The imported theme says it is in use, and the Preset picker offers it again under its own group.
+        await expect(settings.getByText('Current theme', { exact: true })).toBeVisible();
+        await settings.getByRole('combobox', { name: 'Theme preset' }).click();
+        const importedOption = running.page.getByRole('option', { name: 'full-theme' });
+        await expect(importedOption).toBeVisible();
+        await running.page.screenshot({
+            path: test.info().outputPath('theme-imported-preset.png'),
+        });
+        await running.page.keyboard.press('Escape');
+        await expect(importedOption).toBeHidden();
         // `Cmd+W` closes the Settings page (issue caxri#2369).
         await running.page.keyboard.press('Meta+w');
         await expect(settings).toBeHidden();

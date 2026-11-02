@@ -101,7 +101,13 @@ export const SessionHomeHeader = ({
         <>
             {/* The brand row names the paired computer, so the Project filters below get the full width. */}
             <View style={styles.header}>
-                <Image accessibilityIgnoresInvertColors source={caxriLogo} style={styles.logo} />
+                <Image
+                    accessibilityIgnoresInvertColors
+                    accessible={false}
+                    importantForAccessibility="no"
+                    source={caxriLogo}
+                    style={styles.logo}
+                />
                 <Text
                     accessibilityLabel={t('sessions.home.pairedComputer', {
                         host: hostDisplayName,

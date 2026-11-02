@@ -272,7 +272,7 @@ export function AgentChatComposer({
         providerName,
         reserveImageTokens: placeholders.reserve,
         sessionDrop: {
-            canReference: sessionMenu.canReferenceSessionId,
+            verdict: sessionMenu.sessionDropVerdict,
             reference: sessionMenu.referenceSessionId,
         },
         setDraft,
@@ -368,11 +368,7 @@ export function AgentChatComposer({
     };
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
-            <AgentChatDropOverlay
-                isDragOver={fileInput.isDragOver}
-                isSessionDrag={fileInput.isSessionDragOver}
-                supportsImages={supportsImages}
-            />
+            <AgentChatDropOverlay {...fileInput.dropOverlay} supportsImages={supportsImages} />
             {/*
              * The suggestion menus anchor to this wrapper rather than the form, so they open above the strip too.
              */}

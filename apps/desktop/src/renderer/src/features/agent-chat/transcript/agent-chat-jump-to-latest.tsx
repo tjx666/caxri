@@ -11,9 +11,11 @@ import { cn } from '../../../lib/utilities';
 /**
  * The floating "Jump to latest" control over a following scroll view (`useAgentChatScroll`), shown only while the
  * latest entry is out of view. It is a round down-arrow button without a caption, like the Codex app's: the arrow over
- * the transcript says enough, and its name stays in the accessible label and the hover tooltip. Jumping hides the
- * button, so focus would fall to the document body; it moves to `focusTarget` instead (the composer in a Chat, the
- * scroll container in a read-only task view), keeping keyboard users where they work.
+ * the transcript says enough, and its name stays in the accessible label and the tooltip, which opens on hover and on
+ * keyboard focus (not `hoverOnly`: the button is never focused programmatically, since a jump moves focus away to
+ * `focusTarget`, so a focus-opened tooltip is always the user's own Tab). Jumping hides the button, so focus would fall
+ * to the document body; it moves to `focusTarget` instead (the composer in a Chat, the scroll container in a read-only
+ * task view), keeping keyboard users where they work.
  *
  * It stays mounted so it can fade and rise in on `--motion-overlay-enter` and out on `--motion-overlay-exit` like the
  * other floating surfaces; while hidden it is `inert`, so neither Tab nor a screen reader reaches it.
@@ -43,7 +45,7 @@ export function AgentChatJumpToLatest({
     return (
         <>
             {!isLatestInView && <ScrollFade className="right-2" edge="bottom" fill="background" />}
-            <Tooltip hoverOnly content={label} side="top">
+            <Tooltip content={label} side="top">
                 <Button
                     aria-label={label}
                     className={cn(

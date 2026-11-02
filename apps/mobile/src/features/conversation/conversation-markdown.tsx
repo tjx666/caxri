@@ -13,13 +13,19 @@ import Markdown from '@ronradtke/react-native-markdown-display';
 
 import { CopyButton } from '../../components/copy-button';
 import { HighlightedCode } from '../../components/highlighted-code';
+import { useTranslation } from '../../i18n';
 import { openLink } from '../../lib/open-link';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import type { MobileTheme } from '../../theme/tokens';
 import { fenceLanguage } from '../panels/file-language';
 import { ConversationFileOpener } from './conversation-file-opener';
 import { MARKDOWN_IT, parseMarkdown } from './conversation-markdown-parser';
-import { quoteIndexOf, quotePlainText } from './conversation-quote-text';
+import {
+    isQuoteWorthCopying,
+    quoteIndexOf,
+    quoteNodeText,
+    quotePlainText,
+} from './conversation-quote-text';
 import type { ConversationTextReveal } from './conversation-text-reveal';
 import {
     colorWithOpacity,
@@ -151,6 +157,7 @@ const ConversationCodeBlock = ({
     testID: string;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const text = code.replace(/\n$/u, '');
     return (
         <View
@@ -178,7 +185,12 @@ const ConversationCodeBlock = ({
                     {language ? <HighlightedCode code={text} language={language} /> : text}
                 </Text>
             </ScrollView>
-            <CopyButton testID={`${testID}-copy`} text={text} theme={theme} />
+            <CopyButton
+                label={t('components.copyCode')}
+                testID={`${testID}-copy`}
+                text={text}
+                theme={theme}
+            />
         </View>
     );
 };
@@ -190,17 +202,28 @@ const ConversationCodeBlock = ({
 const ConversationQuoteSource = createContext('');
 
 /**
+ * Keeps the end of each line of a quote clear of the Copy chip in its corner.
+ */
+const QUOTE_WITH_COPY_STYLE: ViewStyle = { paddingRight: 44 };
+
+/**
  * A block quote in a reply, with Copy in its corner as on a code block, because an Agent often quotes the text it
  * suggests sending on: a draft reply or message. Desktop's Chat shows the same Copy on hover; a phone has no hover, so
- * it stays visible. The copy is the quote's words without its `>` markers (`quotePlainText`).
+ * it stays visible on a quote long enough to copy separately (`isQuoteWorthCopying`). The copy is the quote's words
+ * without its `>` markers (`quotePlainText`).
  */
 const ConversationQuote = ({
     children,
+    copyable,
     index,
     style,
     theme,
 }: {
     children: ReactNode;
+    /**
+     * Whether the quote is long enough to earn the Copy chip (`isQuoteWorthCopying`).
+     */
+    copyable: boolean;
     /**
      * The quote's position among the reply's quotes; unset leaves the quote without Copy.
      */
@@ -208,12 +231,16 @@ const ConversationQuote = ({
     style: ViewStyle;
     theme: MobileTheme;
 }) => {
+    const { t } = useTranslation();
     const source = use(ConversationQuoteSource);
+    const showCopy = index !== undefined && copyable;
     return (
-        <View style={style}>
+        // Only a quote with the Copy chip keeps the end of its lines clear of the corner; a short one uses the full width.
+        <View style={showCopy ? [style, QUOTE_WITH_COPY_STYLE] : style}>
             {children}
-            {index === undefined ? null : (
+            {index === undefined || !copyable ? null : (
                 <CopyButton
+                    label={t('components.copyQuote')}
                     testID={`conversation-quote-${index}-copy`}
                     text={() => quotePlainText(source, index)}
                     theme={theme}
@@ -257,8 +284,6 @@ export const ConversationMarkdown = memo(
                     borderLeftWidth: 3,
                     marginLeft: 0,
                     paddingHorizontal: 10,
-                    // Keeps the end of each line clear of the Copy button in the corner.
-                    paddingRight: 44,
                 },
                 heading1: headingStyle(19, theme.text),
                 heading2: headingStyle(17, theme.text),
@@ -299,6 +324,7 @@ export const ConversationMarkdown = memo(
                 image: () => null,
                 blockquote: (node, children, _parents, styles) => (
                     <ConversationQuote
+                        copyable={isQuoteWorthCopying(quoteNodeText(node))}
                         index={quoteIndexOf(node)}
                         key={node.key}
                         style={styles._VIEW_SAFE_blockquote as ViewStyle}

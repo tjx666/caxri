@@ -118,6 +118,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
 
     // Work rows: completed (`label`), running (`active`), and settled-but-unsuccessful verbs
     'agentChat.tool.moreFiles': '{{name}} 等 {{count}} 个其他文件',
+    'agentChat.tool.searchIn': '在 {{title}} 中搜索 {{pattern}}',
     'agentChat.tool.label.ran': '已运行',
     'agentChat.tool.label.checkedOutput': '已查看输出',
     'agentChat.tool.label.sentInput': '已发送输入',

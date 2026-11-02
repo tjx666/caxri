@@ -127,6 +127,8 @@ export const terminal = {
         'That file is in a Git worktree no Session is using as its Workbench Root. Continue a Session in the worktree first.',
     'terminal.links.openExternalFileFailed': 'Unable to open external file in this Session',
     'terminal.links.matchingFile.accessibleName': 'Open matching file {{path}} in {{project}}',
+    'terminal.links.fileAmbiguous':
+        "Several files are named {{name}}, so Caxri can't tell which one to open.",
     'terminal.links.fileNotFound': 'Could not find {{path}}',
     'terminal.links.fileLinkFailed': 'Terminal file link failed',
     'terminal.linkPicker.repository.title': 'Choose Git Repository',

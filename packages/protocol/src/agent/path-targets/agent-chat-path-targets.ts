@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import type { AgentChatItem } from '../agent-chat-contract.js';
+import type { AgentChatLabelTranslate } from '../agent-chat-labels.js';
+import { translateAgentChatLabel } from '../agent-chat-labels.js';
 import { describeShellCommand } from '../agent-shell-command.js';
 import type { AgentToolPresentation } from '../agent-tool-presentation.js';
 import { describeAgentTool, unwrapShellCommand } from '../agent-tool-presentation.js';
@@ -44,11 +46,13 @@ export function agentChatWorkTargetFile(
 /**
  * Names a recognized file by its title instead of its file name: reading a background shell's output reads `Checked
  * output <what the shell does>`, as Claude Code's own `BashOutput` row does, and a search reads `<pattern> in <title>`.
- * The kind stays, so the group summary still counts the read.
+ * The kind stays, so the group summary still counts the read. The label stays the English tool-table label that
+ * `agentToolLabel` translates at render time; the search subject is built here, so `t` supplies its wording.
  */
 export function withAgentChatPathTarget(
     presentation: AgentToolPresentation,
     item: Extract<AgentChatItem, { type: 'command' | 'toolCall' }>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): AgentToolPresentation {
     const target = item.pathTarget;
     if (!target) return presentation;
@@ -56,7 +60,11 @@ export function withAgentChatPathTarget(
         const pattern = agentChatWorkTargetFile(item)?.pattern;
         return pattern === undefined
             ? presentation
-            : { ...presentation, subject: `${pattern} in ${target.title}`, isCodeSubject: false };
+            : {
+                  ...presentation,
+                  subject: t('agentChat.tool.searchIn', { pattern, title: target.title }),
+                  isCodeSubject: false,
+              };
     }
     if (presentation.kind !== 'read') return presentation;
     return {

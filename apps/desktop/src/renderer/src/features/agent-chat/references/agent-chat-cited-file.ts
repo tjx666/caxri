@@ -21,22 +21,26 @@ export function agentChatTouchedFilePaths(
 }
 
 /**
- * The one touched file a bare or relative citation (`plan.md`, `docs/plan.md`) names, matched on whole trailing path
+ * What a bare or relative citation names among the touched files: the one file (`path`), or every file sharing the name
+ * (`candidates`, in the order the work touched them), which the user picks from.
+ */
+export type AgentChatCitedFile = { path: string } | { candidates: readonly string[] };
+
+/**
+ * The touched file a bare or relative citation (`plan.md`, `docs/plan.md`) names, matched on whole trailing path
  * segments. An Agent often cites a file it wrote outside every Project by its name alone, which the Project-scoped
- * resolver cannot find; the path its own tool call used can. An absolute, home, `./`, or `file://` citation, or a name
- * several touched files share, has no fallback.
+ * resolver cannot find; the path its own tool call used can. Two or more matches come back as `candidates` instead of a
+ * guess, so the caller can ask rather than claim the file is missing. An absolute, home, `./`, or `file://` citation,
+ * or a name no touched file ends with, has no fallback.
  */
 export function agentChatCitedFileFallback(
     target: string,
     touchedPaths: ReadonlySet<string>,
-): string | undefined {
+): AgentChatCitedFile | undefined {
     if (/^(?:\/|~|\.{1,2}\/|file:)/iu.test(target)) return undefined;
     const suffix = `/${target}`;
-    let match: string | undefined;
-    for (const path of touchedPaths) {
-        if (!path.endsWith(suffix)) continue;
-        if (match !== undefined) return undefined;
-        match = path;
-    }
-    return match;
+    const matches = [...touchedPaths].filter((path) => path.endsWith(suffix));
+    const only = matches.at(0);
+    if (only === undefined) return undefined;
+    return matches.length === 1 ? { path: only } : { candidates: matches };
 }

@@ -75,7 +75,7 @@ export function AgentChoiceMenuItems({
                         */
                         <MenuItem
                             aria-label={t('terminal.new.signInAgent', { agent: agentLabel })}
-                            className="pl-7.5 text-accent"
+                            className="pl-7.5"
                             data-agent-sign-in={kind}
                             onClick={() => onSignIn(signInCommand)}
                         >

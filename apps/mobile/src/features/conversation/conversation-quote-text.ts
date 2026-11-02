@@ -42,3 +42,47 @@ export const quotePlainText = (source: string, index: number): string => {
     const quote = quotesOf(parseMarkdownBlocks(source, { breaks: true, tables: true })).at(index);
     return quote ? blocksPlainText(quote.children) : '';
 };
+
+/**
+ * A quote at least this many characters long is worth copying on its own; a shorter single-line one is a phrase a
+ * reader can select, and a Copy chip beside it would only squeeze its words.
+ */
+export const QUOTE_COPY_MIN_CHARACTERS = 120;
+
+/**
+ * Node types after which a rendered quote starts a new line.
+ */
+const LINE_BREAK_TYPES = new Set([
+    'bullet_list',
+    'code_block',
+    'fence',
+    'hardbreak',
+    'heading1',
+    'heading2',
+    'heading3',
+    'heading4',
+    'heading5',
+    'heading6',
+    'list_item',
+    'ordered_list',
+    'paragraph',
+    'softbreak',
+]);
+
+/**
+ * The words a rendered quote shows, with a line break wherever the quote starts a new line. It reads the rendered tree
+ * so the decision to show Copy costs no re-parse of the reply.
+ */
+export const quoteNodeText = (node: Pick<ASTNode, 'children' | 'content' | 'type'>): string =>
+    `${node.content}${node.children.map((child) => quoteNodeText(child)).join('')}${
+        LINE_BREAK_TYPES.has(node.type) ? '\n' : ''
+    }`;
+
+/**
+ * Whether a quote's text is long enough to earn its own Copy chip: more than one line, or over
+ * `QUOTE_COPY_MIN_CHARACTERS` characters.
+ */
+export const isQuoteWorthCopying = (text: string): boolean => {
+    const trimmed = text.trim();
+    return trimmed.includes('\n') || trimmed.length > QUOTE_COPY_MIN_CHARACTERS;
+};

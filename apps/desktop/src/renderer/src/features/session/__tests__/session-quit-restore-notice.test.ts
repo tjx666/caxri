@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { quitRestoreNoticeKey } from '../session-quit-restore-notice';
+import { quitRestoreAllSkippedKey, quitRestoreNoticeKey } from '../session-quit-restore-notice';
 
 describe('quitRestoreNoticeKey', () => {
     it('offers nothing when the last quit stopped nothing', () => {
@@ -10,5 +10,18 @@ describe('quitRestoreNoticeKey', () => {
     it('uses the singular for one Session and the plural above', () => {
         expect(quitRestoreNoticeKey(1)).toBe('session.quitRestore.noticeOne');
         expect(quitRestoreNoticeKey(2)).toBe('session.quitRestore.noticeOther');
+    });
+});
+
+describe('quitRestoreAllSkippedKey', () => {
+    it('names the failure only when nothing was restored and something was skipped', () => {
+        expect(quitRestoreAllSkippedKey({ restored: 0, skipped: 1 })).toBe(
+            'session.quitRestore.allSkippedOne',
+        );
+        expect(quitRestoreAllSkippedKey({ restored: 0, skipped: 2 })).toBe(
+            'session.quitRestore.allSkippedOther',
+        );
+        expect(quitRestoreAllSkippedKey({ restored: 1, skipped: 2 })).toBeUndefined();
+        expect(quitRestoreAllSkippedKey({ restored: 0, skipped: 0 })).toBeUndefined();
     });
 });

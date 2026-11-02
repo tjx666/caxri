@@ -15,7 +15,9 @@ import { Field, FieldLabel } from '../../components/ui/field';
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
+    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
@@ -77,20 +79,62 @@ export function ThemeForm({
     appearance,
 }: ThemeFormProperties) {
     const { t } = useTranslation();
+    const importedThemes = useImportedThemes();
+    const usage = {
+        currentThemeId: theme.id,
+        isFollowingSystem: appearance.isFollowingSystem,
+        lightThemeId: appearance.lightThemeId,
+        darkThemeId: appearance.darkThemeId,
+    };
+    const importResultAlert = importResult && (
+        <Alert
+            variant={importResult.kind === 'failed' ? 'danger' : 'info'}
+            className="mb-3 flex items-start justify-between gap-2"
+            {...(importResult.kind === 'imported' && { role: 'status' })}
+        >
+            <span>
+                {importResult.kind === 'failed'
+                    ? importResult.message
+                    : t('settings.themeEditor.importSucceeded', {
+                          theme: importResult.themeName,
+                      })}
+            </span>
+            <Tooltip content={t('common.dismiss')}>
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-6 shrink-0"
+                    aria-label={t('settings.themeEditor.dismissImportResult')}
+                    onClick={onDismissImportResult}
+                >
+                    <X aria-hidden="true" size={12} />
+                </Button>
+            </Tooltip>
+        </Alert>
+    );
+    const importButton = onImport && (
+        <Button size="sm" variant="secondary" className="shrink-0" onClick={onImport}>
+            <Import size={13} /> {t('settings.themeEditor.importTheme')}
+        </Button>
+    );
     if (appearance.isFollowingSystem)
         return (
             <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div className="theme-editor structured-editor min-h-0 flex-1 overflow-auto p-3">
+                    {importResultAlert}
                     <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-muted">
                         <span role="status">{t('settings.themeEditor.followingNotice')}</span>
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            className="shrink-0"
-                            onClick={() => appearance.onFollowSystemChange(false)}
-                        >
-                            {t('settings.themeEditor.useSingleTheme')}
-                        </Button>
+                        <span className="flex shrink-0 items-center gap-2">
+                            {importButton}
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="shrink-0"
+                                onClick={() => appearance.onFollowSystemChange(false)}
+                            >
+                                {t('settings.themeEditor.useSingleTheme')}
+                            </Button>
+                        </span>
                     </div>
                     {(['light', 'dark'] as const).map((scheme) => (
                         <PreferredThemeField
@@ -106,11 +150,14 @@ export function ThemeForm({
                         />
                     ))}
                     <ThemePreview theme={appearance.effectiveTheme} />
-                    <ImportedThemesSection slots={slotsOf(appearance)} />
+                    <ImportedThemesSection usage={usage} />
                 </div>
             </div>
         );
     const selectedTheme = findMatchingBuiltinTheme(theme);
+    const selectedImportedTheme = selectedTheme
+        ? undefined
+        : importedThemes.find((candidate) => candidate.id === theme.id);
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
             <div className="theme-editor structured-editor min-h-0 flex-1 overflow-auto p-3">
@@ -121,32 +168,7 @@ export function ThemeForm({
                  * `role="alert"`: a theme that was rejected is exactly the case worth interrupting for, while a
                  * success downgrades to `status` so a screen reader finishes the sentence it was on.
                  */}
-                {importResult && (
-                    <Alert
-                        variant={importResult.kind === 'failed' ? 'danger' : 'info'}
-                        className="mb-3 flex items-start justify-between gap-2"
-                        {...(importResult.kind === 'imported' && { role: 'status' })}
-                    >
-                        <span>
-                            {importResult.kind === 'failed'
-                                ? importResult.message
-                                : t('settings.themeEditor.importSucceeded', {
-                                      theme: importResult.themeName,
-                                  })}
-                        </span>
-                        <Tooltip content={t('common.dismiss')}>
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                className="size-6 shrink-0"
-                                aria-label={t('settings.themeEditor.dismissImportResult')}
-                                onClick={onDismissImportResult}
-                            >
-                                <X aria-hidden="true" size={12} />
-                            </Button>
-                        </Tooltip>
-                    </Alert>
-                )}
+                {importResultAlert}
                 <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-muted">
                     <span>{t('settings.themeEditor.singleThemeNotice')}</span>
                     <Button
@@ -168,7 +190,7 @@ export function ThemeForm({
                             {t('settings.themeEditor.preset')}
                         </FieldLabel>
                         <Select
-                            value={selectedTheme?.id ?? null}
+                            value={selectedTheme?.id ?? selectedImportedTheme?.id ?? null}
                             onValueChange={(value) => {
                                 if (value) onSelectTheme(value);
                             }}
@@ -180,6 +202,7 @@ export function ThemeForm({
                             >
                                 <SelectValue>
                                     {selectedTheme?.name ??
+                                        selectedImportedTheme?.name ??
                                         (theme.source === 'custom'
                                             ? t('settings.themeEditor.customPreset', {
                                                   theme: theme.name,
@@ -193,17 +216,25 @@ export function ThemeForm({
                                         {candidate.name}
                                     </SelectItem>
                                 ))}
+                                {importedThemes.length > 0 && (
+                                    <SelectGroup>
+                                        <SelectLabel>
+                                            {t('settings.themeEditor.presetGroup.imported')}
+                                        </SelectLabel>
+                                        {importedThemes.map((candidate) => (
+                                            <SelectItem key={candidate.id} value={candidate.id}>
+                                                {candidate.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                )}
                             </SelectContent>
                         </Select>
                     </span>
-                    {onImport && (
-                        <Button size="sm" variant="secondary" onClick={onImport}>
-                            <Import size={13} /> {t('settings.themeEditor.importTheme')}
-                        </Button>
-                    )}
+                    {importButton}
                 </Field>
                 <ThemePreview theme={theme} />
-                <ImportedThemesSection slots={slotsOf(appearance)} />
+                <ImportedThemesSection usage={usage} />
                 {(['colors', 'terminal', 'editor'] as const).map((section) => (
                     <fieldset key={section} className="my-3 min-w-0 border-0 p-0">
                         <legend className="mb-2 text-[11px] font-semibold text-foreground uppercase">
@@ -256,13 +287,6 @@ export function ThemeForm({
             </div>
         </div>
     );
-}
-
-function slotsOf(appearance: ThemeFormProperties['appearance']) {
-    return {
-        'workbench.theme.light': appearance.lightThemeId,
-        'workbench.theme.dark': appearance.darkThemeId,
-    };
 }
 
 /**

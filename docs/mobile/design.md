@@ -341,8 +341,9 @@ parses provider files.
 
 - User messages: right-aligned bubbles on the raised surface color, max 85% width.
 - Agent replies: full-width Markdown, rendered natively. Code blocks scroll horizontally and never
-  wrap, and carry a Copy button in their top-right corner that copies the whole block; inline code
-  uses the monospace face.
+  wrap, and carry a Copy button (named `Copy code`) in their top-right corner that copies the whole
+  block; inline code uses the monospace face. A block quote carries `Copy quote` the same way only
+  when it spans several lines or exceeds 120 characters; a shorter quote keeps its full width.
 - Long-pressing a user bubble or an Agent reply opens a message sheet: `Copy Message` copies its
   whole text (a reply as its Markdown source), and `Select Text` shows that text selectable so any
   part can be copied. Message text in the timeline is not selectable itself, because on Android a
@@ -593,21 +594,21 @@ Every new surface composes these primitives from `apps/mobile/src/components/` b
 own styles. A feature that needs a variant extends the primitive instead of copying it, so the next
 feature finds one way to draw each job.
 
-| Job                                     | Component                                                  | Rule                                                                                                                                     |
-| --------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Text action                             | `Button`                                                   | `primary` once per screen, sheet, or card; `outline` for every other answer; `success` and `danger` only when the outcome is that state. |
-| Glyph-only action                       | `IconButton`                                               | Mandatory accessible name; `onDisabledPress` explains a disabled control.                                                                |
-| Bounded surface                         | `Card`                                                     | One radius, border, and fill. `attention` (amber border) only for what blocks the Agent on the user, so one thing on screen is loud.     |
-| Pill                                    | `Chip`                                                     | Project filters, header chips, path chips, inline card actions.                                                                          |
-| Group heading                           | `SectionLabel`                                             | Uppercase, muted, one size everywhere.                                                                                                   |
-| Usage bar                               | `Meter`                                                    | Always paired with a number.                                                                                                             |
-| Pushed screen header                    | `ScreenHeader`                                             | `back` or `close`, fixed for the screen's life.                                                                                          |
-| Remote state                            | `ScreenState`                                              | `loading`, `empty`, `error`, `offline`; an offline state always offers a way back.                                                       |
-| Top notice                              | `NoticeBanner`                                             | At most one per screen, the most severe state.                                                                                           |
-| Confirmation                            | `ConfirmSheet`                                             | Replaces the system `Alert`; the button names the verb; `danger` only when something is lost.                                            |
-| Result feedback                         | `Toast` (`showToast`)                                      | One transient card, ~3 s, a new one replaces the old; results only (copied, could not open). Confirmation stays `ConfirmSheet`.          |
-| Menu on a tapped control                | `PopoverMenu` + `PopoverAction`                            | Short anchored menus (a header's ⋮, a chip's choices).                                                                                   |
-| Actions on one object, choices, details | `BottomSheet` + `SheetTitle`, `SheetAction`, `SheetCancel` | Long-press menus, pickers, inspectors; `Cancel` for menus, `Done` when choices apply as tapped.                                          |
+| Job                                     | Component                                                  | Rule                                                                                                                                                                     |
+| --------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Text action                             | `Button`                                                   | `primary` once per screen, sheet, or card; `outline` for every other answer; `success` and `danger` only when the outcome is that state.                                 |
+| Glyph-only action                       | `IconButton`                                               | Mandatory accessible name; `onDisabledPress` explains a disabled control.                                                                                                |
+| Bounded surface                         | `Card`                                                     | One radius, border, and fill. `attention` (amber border) only for what blocks the Agent on the user, so one thing on screen is loud.                                     |
+| Pill                                    | `Chip`                                                     | Project filters, header chips, path chips, inline card actions.                                                                                                          |
+| Group heading                           | `SectionLabel`                                             | Uppercase, muted, one size everywhere.                                                                                                                                   |
+| Usage bar                               | `Meter`                                                    | Always paired with a number.                                                                                                                                             |
+| Pushed screen header                    | `ScreenHeader`                                             | `back` or `close`, fixed for the screen's life.                                                                                                                          |
+| Remote state                            | `ScreenState`                                              | `loading`, `empty`, `error`, `offline`; an offline state always offers a way back.                                                                                       |
+| Top notice                              | `NoticeBanner`                                             | At most one per screen, the most severe state.                                                                                                                           |
+| Confirmation                            | `ConfirmSheet`                                             | Replaces the system `Alert`; the button names the verb; `danger` only when something is lost.                                                                            |
+| Result feedback                         | `Toast` (`showToast`)                                      | One transient card, a new one replaces the old; results only (copied, could not open), ~3 s, errors 6 s, one action such as Undo 8 s. Confirmation stays `ConfirmSheet`. |
+| Menu on a tapped control                | `PopoverMenu` + `PopoverAction`                            | Short anchored menus (a header's ⋮, a chip's choices).                                                                                                                   |
+| Actions on one object, choices, details | `BottomSheet` + `SheetTitle`, `SheetAction`, `SheetCancel` | Long-press menus, pickers, inspectors; `Cancel` for menus, `Done` when choices apply as tapped.                                                                          |
 
 A multi-step task (New Session, Add Project) is a full screen, not a sheet.
 

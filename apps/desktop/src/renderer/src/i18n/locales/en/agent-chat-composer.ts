@@ -41,6 +41,9 @@ export const agentChatComposer = {
     'agentChat.attachments.dropImagesOrPaths': 'Drop to add images, files, or folders',
     'agentChat.attachments.dropPaths': 'Drop to add files or folders',
     'agentChat.attachments.dropSession': 'Drop to cite this Session',
+    'agentChat.attachments.dropRefusedSelf': "A Chat can't cite its own Session",
+    'agentChat.attachments.dropRefusedUnavailable':
+        'This Session has no Agent conversation to cite',
 
     'agentChat.pathReference.label': 'Attached files and folders',
     'agentChat.pathReference.openFolder': 'Open {{name}} in Finder',

@@ -264,6 +264,15 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
     ];
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], defaults.terminal[target]);
+    /**
+     * With no `terminal.ansi*` key at all the whole palette comes from the Light+ or Dark+ preset, which the user would
+     * otherwise only discover by seeing colors the theme never named.
+     */
+    if (ansiMap.every(([, source]) => !(source in colors)))
+        theme.warnings.push({
+            id: 'terminal-palette-fallback',
+            message: `This theme defines no Terminal colors, so the Terminal uses the ${defaults === VSCODE_DEFAULTS.light ? 'Light+' : 'Dark+'} colors. Edit them under Terminal below.`,
+        });
     if (syntaxMapping.missing.length > 0)
         theme.warnings.push({
             id: 'missing-syntax-colors',

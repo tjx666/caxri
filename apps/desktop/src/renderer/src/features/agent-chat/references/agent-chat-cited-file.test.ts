@@ -56,20 +56,22 @@ describe('agentChatCitedFileFallback', () => {
     ]);
 
     it('maps a bare name or a partial path to the one touched file it ends with', () => {
-        expect(agentChatCitedFileFallback('plan-config-decisions.md', touched)).toBe(
-            '/home/u/Documents/launch/plan-config-decisions.md',
-        );
-        expect(agentChatCitedFileFallback('launch/plan-config-decisions.md', touched)).toBe(
-            '/home/u/Documents/launch/plan-config-decisions.md',
-        );
+        expect(agentChatCitedFileFallback('plan-config-decisions.md', touched)).toEqual({
+            path: '/home/u/Documents/launch/plan-config-decisions.md',
+        });
+        expect(agentChatCitedFileFallback('launch/plan-config-decisions.md', touched)).toEqual({
+            path: '/home/u/Documents/launch/plan-config-decisions.md',
+        });
     });
 
     it('matches whole path segments only', () => {
         expect(agentChatCitedFileFallback('config-decisions.md', touched)).toBeUndefined();
     });
 
-    it('gives up when several touched files share the name', () => {
-        expect(agentChatCitedFileFallback('README.md', touched)).toBeUndefined();
+    it('returns every candidate when several touched files share the name', () => {
+        expect(agentChatCitedFileFallback('README.md', touched)).toEqual({
+            candidates: ['/work/a/README.md', '/work/b/README.md'],
+        });
     });
 
     it('leaves absolute, home, dot-relative, and file URL citations alone', () => {

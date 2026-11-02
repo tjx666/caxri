@@ -17,6 +17,11 @@ import {
     agentChatPickedImageFile,
 } from '../attachments/agent-chat-images';
 import type { AgentChatComposerPasteEvent } from '../composer/agent-chat-composer-view';
+import type {
+    AgentChatComposerDragKind,
+    AgentChatSessionDropRefusal,
+} from '../composer-input/chips/agent-chat-session-drop';
+import { agentChatComposerDragKind } from '../composer-input/chips/agent-chat-session-drop';
 
 /**
  * Whether a drag carries something the composer takes ({@link isChatPathDrop}). Only `types` is readable before the
@@ -30,16 +35,18 @@ function isComposerDrag(event: DragEvent): boolean {
 }
 
 /**
- * What the composer would take from a drag: paths to cite, a Session row to cite, or nothing. A Session row it may not
- * cite (this Chat's own Session, or one with no Agent conversation) is nothing, so the pane shows no drop tint for it.
+ * What the composer would take from a drag: paths to cite, a Session row to cite, a Session row it refuses (this Chat's
+ * own Session, or one with no Agent conversation), or nothing.
  */
 function composerDragKind(
     event: DragEvent,
-    canReferenceSession: (sessionId: string) => boolean,
-): 'paths' | 'session' | undefined {
-    const sessionId = draggedSessionId(event.dataTransfer);
-    if (sessionId !== undefined) return canReferenceSession(sessionId) ? 'session' : undefined;
-    return isComposerDrag(event) ? 'paths' : undefined;
+    sessionVerdict: (sessionId: string) => 'ok' | AgentChatSessionDropRefusal,
+): AgentChatComposerDragKind | undefined {
+    const id = draggedSessionId(event.dataTransfer);
+    return agentChatComposerDragKind(
+        id === undefined ? undefined : { id, verdict: sessionVerdict(id) },
+        () => isComposerDrag(event),
+    );
 }
 
 export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dropHandlers'];
@@ -74,10 +81,10 @@ export function useAgentChatFileInput({
      */
     providerName: string;
     /**
-     * Whether a dragged Session row may be cited here, and how to cite it (`useAgentChatSessionMenu`).
+     * Whether a dragged Session row may be cited here or why not, and how to cite it (`useAgentChatSessionMenu`).
      */
     sessionDrop: {
-        canReference: (sessionId: string) => boolean;
+        verdict: (sessionId: string) => 'ok' | AgentChatSessionDropRefusal;
         reference: (sessionId: string) => void;
     };
     /**
@@ -88,7 +95,7 @@ export function useAgentChatFileInput({
     /**
      * What the drag over the Chat would cite, which picks the drop tint's caption.
      */
-    const [dragOver, setDragOver] = useState<'paths' | 'session'>();
+    const [dragOver, setDragOver] = useState<AgentChatComposerDragKind>();
     const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     const attach = (files: readonly File[]): void => {
         if (isImageInputEnabled && files.length > 0) void add(files);
@@ -118,9 +125,25 @@ export function useAgentChatFileInput({
                 files.filter((file) => !attached.has(file)),
             ),
         );
+    const isDragOver = dragOver === 'paths' || dragOver === 'session';
     return {
-        isDragOver: dragOver !== undefined,
-        isSessionDragOver: dragOver === 'session',
+        /**
+         * The drag over the Chat would be accepted, which tints the composer.
+         */
+        isDragOver,
+        /**
+         * The whole-Chat drop overlay's props: what an accepted drag would cite, or why a Session row is refused.
+         */
+        dropOverlay: {
+            isDragOver,
+            isSessionDrag: dragOver === 'session',
+            refusal:
+                dragOver === 'refused-self'
+                    ? ('self' as const)
+                    : dragOver === 'refused-unavailable'
+                      ? ('unavailable' as const)
+                      : undefined,
+        },
         pick: (files: readonly File[]) => routeFiles(undefined, files),
         /**
          * Opens the native panel for files and folders together, or `undefined` in an SSH Host window (or before the
@@ -156,20 +179,26 @@ export function useAgentChatFileInput({
                     setDragOver(undefined);
             },
             onDragOver: (event: DragEvent) => {
-                const kind = composerDragKind(event, sessionDrop.canReference);
+                const kind = composerDragKind(event, sessionDrop.verdict);
                 if (!kind) return;
+                setDragOver(kind);
+                /**
+                 * A refused Session row only names why in the overlay: leaving the event uncanceled keeps the
+                 * not-allowed cursor and lets the pane underneath decide, exactly as before the overlay said anything.
+                 */
+                if (kind.startsWith('refused')) return;
                 /**
                  * The pane underneath would otherwise read an Option-held Editor tab drag as a move into this pane.
                  */
                 event.preventDefault();
                 event.stopPropagation();
                 event.dataTransfer.dropEffect = 'copy';
-                setDragOver(kind);
             },
             onDrop: (event: DragEvent) => {
                 setDragOver(undefined);
-                const kind = composerDragKind(event, sessionDrop.canReference);
-                if (!kind) return;
+                const kind = composerDragKind(event, sessionDrop.verdict);
+                // A refused Session row never drops here (its dragover stayed uncanceled); stay inert if one arrives.
+                if (!kind || kind.startsWith('refused')) return;
                 event.preventDefault();
                 event.stopPropagation();
                 const sessionId = draggedSessionId(event.dataTransfer);

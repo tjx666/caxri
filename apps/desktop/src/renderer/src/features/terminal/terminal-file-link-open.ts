@@ -32,9 +32,11 @@ export interface OpenTerminalFileTargetOptions {
     hasWorkbenchLinks: boolean;
     /**
      * Another path to try once when `target` resolves to no file at all. Agent Chat supplies the absolute path its own
-     * tool calls used for a file cited only by name, so a file written outside every Project still opens.
+     * tool calls used for a file cited only by name, so a file written outside every Project still opens. When several
+     * such files share the name it supplies them all as `candidates`, which report the ambiguity instead of a "could
+     * not find" error.
      */
-    fallbackTarget?: () => string | undefined;
+    fallbackTarget?: () => { path: string } | { candidates: readonly string[] } | undefined;
 }
 
 /**
@@ -119,8 +121,19 @@ export async function openTerminalFileTarget(
     } catch (error) {
         if (isCaxriError(error) && error.code === 'NOT_FOUND') {
             const fallback = fallbackTarget?.();
-            if (fallback && fallback !== target) {
-                await openTerminalFileTarget(terminalId, fallback, location, { hasWorkbenchLinks });
+            if (fallback && 'candidates' in fallback) {
+                /**
+                 * Several touched files share the cited name. The Terminal's candidate picker lives in a Terminal pane,
+                 * which a Chat surface does not show, so say why nothing opened instead of claiming the file is
+                 * absent.
+                 */
+                onError(translate('terminal.links.fileAmbiguous', { name: target }));
+                return;
+            }
+            if (fallback && fallback.path !== target) {
+                await openTerminalFileTarget(terminalId, fallback.path, location, {
+                    hasWorkbenchLinks,
+                });
                 return;
             }
             /**

@@ -45,20 +45,28 @@ const CodeBlock = ({
     copyTestID?: string;
     language: string | undefined;
     theme: MobileTheme;
-}) => (
-    <View>
-        <ScrollView
-            nestedScrollEnabled
-            style={[styles.code, { backgroundColor: theme.elevated }]}
-            testID="agent-chat-work-code"
-        >
-            <Text selectable style={[styles.codeText, { color: theme.text }]}>
-                <HighlightedCode code={code} language={codeLanguage(language)} />
-            </Text>
-        </ScrollView>
-        <CopyButton testID={copyTestID} text={code} theme={theme} />
-    </View>
-);
+}) => {
+    const { t } = useTranslation();
+    return (
+        <View>
+            <ScrollView
+                nestedScrollEnabled
+                style={[styles.code, { backgroundColor: theme.elevated }]}
+                testID="agent-chat-work-code"
+            >
+                <Text selectable style={[styles.codeText, { color: theme.text }]}>
+                    <HighlightedCode code={code} language={codeLanguage(language)} />
+                </Text>
+            </ScrollView>
+            <CopyButton
+                label={t('components.copyCode')}
+                testID={copyTestID}
+                text={code}
+                theme={theme}
+            />
+        </View>
+    );
+};
 
 const Output = ({
     language,
