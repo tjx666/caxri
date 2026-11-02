@@ -115,6 +115,7 @@ export const workspaceAliases = {
         'packages/client/src/supervise/index.ts',
     ),
     '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
+    '@caxri/markdown/blocks': resolve(import.meta.dirname, 'packages/markdown/src/blocks.ts'),
     '@caxri/markdown/file-reference': resolve(
         import.meta.dirname,
         'packages/markdown/src/file-reference.ts',

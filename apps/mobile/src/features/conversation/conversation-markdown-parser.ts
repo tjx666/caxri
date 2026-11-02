@@ -2,6 +2,8 @@ import type { ASTNode, MarkdownParser } from '@ronradtke/react-native-markdown-d
 import { parser } from '@ronradtke/react-native-markdown-display';
 import MarkdownIt from 'markdown-it';
 
+import { QUOTE_INDEX } from './conversation-quote-text';
+
 /**
  * The parser every reply renders with. The library defaults its `markdownit` prop inline, so every render built a new
  * parser; one module constant keeps it stable. It keeps the library's default typographer and adds `linkify`, the way
@@ -15,10 +17,21 @@ const markdownIt = new MarkdownIt({ linkify: true, typographer: true });
 /**
  * Markdown-it 15 types an attribute value as `string | number`, while the library's token shape says `string`. The only
  * numeric value is an ordered list's `start`, which the library already reads through `Number(...)`.
+ *
+ * Each block quote's opening token also records its position among the reply's quotes (`QUOTE_INDEX`), because the
+ * library's tree keeps no source lines and a rendered quote needs that position to copy its own text.
  */
 export const MARKDOWN_IT: MarkdownParser = {
-    parse: (value, environment) =>
-        markdownIt.parse(value, environment) as ReturnType<MarkdownParser['parse']>,
+    parse: (value, environment) => {
+        const tokens = markdownIt.parse(value, environment);
+        let quoteIndex = 0;
+        for (const token of tokens) {
+            if (token.type !== 'blockquote_open') continue;
+            token.meta = { [QUOTE_INDEX]: quoteIndex };
+            quoteIndex += 1;
+        }
+        return tokens as ReturnType<MarkdownParser['parse']>;
+    },
 };
 
 /**
