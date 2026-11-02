@@ -4,6 +4,7 @@ import { expect } from '../fixtures';
 import { pageRequest } from '../helpers';
 import { createMobileAcceptanceFixture } from '../mobile-acceptance-fixture';
 import { capture, finish, openComposerSession } from '../mobile-agent-actions-scenarios';
+import { executeMobileChatClearAfterSendScenario } from '../mobile-agent-chat-clear-scenario';
 import {
     mobileSemantics,
     startMobileFramebufferRecording,
@@ -173,4 +174,5 @@ export const handlers = {
     'MOB-COMPOSER-01': executeMultilineDelivery,
     'MOB-COMPOSER-02': executeStopRunningTurn,
     'MOB-COMPOSER-03': executeUnknownDeliveryResult,
+    'MOB-CHAT-CLEAR-01': executeMobileChatClearAfterSendScenario,
 } satisfies Record<string, MobileAndroidCaseHandler>;
