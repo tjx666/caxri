@@ -399,3 +399,17 @@ showed this.
 **Works:** After the media key, tap an area of the player that only toggles its controls (above
 the picture, not the center play button), wait about a second, then tap the close button
 (`MOB-CHAT-VIDEO-01`, `e2e/support/mobile-agent-chat-video-scenario.ts`).
+
+## Reproducing a mobile report that starts from a saved copy
+
+**Situation:** A user's recording of a mobile Chat or Session list first shows the "Showing
+messages saved just now" banner, then changes as live data arrives.
+
+**Does not work:** Opening the screen for the first time in a fresh fixture. The phone has no
+saved copy yet, so the reported first state never appears and the pre-fix baseline passes.
+Cold-starting right after the first open can also be too early: the read cache writes about one
+second after the live view settles.
+
+**Works:** Open the screen once and let it settle, go back, wait for the read cache write, call
+`coldStartMobileApp`, and only then reopen it while recording. See
+`executeMobileChatLongTurnOpenScenario` in `e2e/support/mobile-agent-chat-running-turn-scenario.ts`.
