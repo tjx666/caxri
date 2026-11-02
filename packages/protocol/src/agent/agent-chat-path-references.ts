@@ -336,13 +336,16 @@ export function agentChatAbsolutePaths(
  * serves a phone only a video this returns for the message it names, so a phone cannot read any other file.
  */
 export function agentChatMessageVideoPaths(text: string): string[] {
-    return [
-        ...new Set(
-            agentChatAbsolutePaths(text).flatMap(({ isDirectory, path }) =>
-                !isDirectory && isAgentChatVideoPath(path) ? [path] : [],
-            ),
-        ),
-    ];
+    // A reference line carries its path unquoted to the end of the line, so a path with a space (a phone upload under
+    // `~/Library/Application Support`) is read from the parsed block; the whole-word scan below would drop it.
+    const block = splitReferenceBlock(text);
+    const referenced = (block?.references ?? []).flatMap(({ isDirectory, path }) =>
+        !isDirectory && isAgentChatVideoPath(path) ? [path] : [],
+    );
+    const cited = agentChatAbsolutePaths(block?.rest ?? text).flatMap(({ isDirectory, path }) =>
+        !isDirectory && isAgentChatVideoPath(path) ? [path] : [],
+    );
+    return [...new Set([...referenced, ...cited])];
 }
 
 const VIDEO_CONTENT_TYPES: Record<string, string> = {

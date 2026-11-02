@@ -12,6 +12,10 @@ import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
 import { AgentChatMessageImages } from '../attachments/agent-chat-message-images';
 import { AgentChatMessageVideos } from '../attachments/agent-chat-message-videos';
+import {
+    agentChatMessageVideoPaths,
+    isAgentChatPlayableVideo,
+} from '../attachments/agent-chat-path-pills';
 import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-reference-chips';
 import { AgentChatInvocationChip } from '../composer/agent-chat-invocation-chip';
 import { agentChatLeadingInvocation } from '../composer-input/agent-chat-slash-commands';
@@ -125,7 +129,12 @@ export function AgentChatUserMessage({
             ref={container}
             onContextMenu={menu.onContextMenu}
         >
-            <AgentChatPathReferenceChips references={references} />
+            <AgentChatPathReferenceChips
+                references={references.filter(
+                    (reference) =>
+                        reference.isDirectory || !isAgentChatPlayableVideo(reference.path),
+                )}
+            />
             {delegatedTask ? (
                 <AgentChatDelegatedTaskBubble task={delegatedTask} text={text} />
             ) : (
@@ -155,6 +164,7 @@ export function AgentChatUserMessage({
                             isEditing={isEditing}
                             skills={skills}
                             text={handoff ? '' : words}
+                            videoText={text}
                             onOpenFile={onOpenFile}
                         />
                     </div>
@@ -168,8 +178,8 @@ export function AgentChatUserMessage({
  * The message bubble, shared with a message still on its way (`AgentChatPendingTimeline`): the text, then the images it
  * carried and the videos its text cites, in one bubble as LobeHub's chat lays a message out. A long message clamps to
  * twelve lines with Show more (the images stay visible under it); the message being edited keeps a `--muted` outline,
- * which marks it without competing with the edit banner's accent for attention. With no text, skills, or images it
- * renders nothing.
+ * which marks it without competing with the edit banner's accent for attention. With no text, skills, images, or videos
+ * it renders nothing.
  */
 export function AgentChatUserMessageBubble({
     images,
@@ -177,6 +187,7 @@ export function AgentChatUserMessageBubble({
     isEditing,
     skills = [],
     text,
+    videoText,
     onOpenFile,
 }: {
     /**
@@ -193,14 +204,20 @@ export function AgentChatUserMessageBubble({
      */
     skills?: readonly AgentChatSkillReference[];
     text: string;
+    /**
+     * The text whose cited videos show as tiles, when it differs from `text`: the whole sent message, so a video cited
+     * on a reference line (a phone upload) plays inside the bubble rather than only as a chip above it.
+     */
+    videoText?: string;
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
-    const invocation = agentChatLeadingInvocation(text);
+    const videos = agentChatMessageVideoPaths(videoText ?? text);
     const [isExpanded, setExpanded] = useState(false);
     const textReference = useRef<HTMLDivElement>(null);
     const isCut = useIsAgentChatClamped(textReference, { content: text, isClamped: !isExpanded });
-    if (!text && skills.length === 0 && !images?.length) return null;
+    const hasWords = text !== '' || skills.length > 0;
+    if (!hasWords && !images?.length && videos.length === 0) return null;
     return (
         <div
             className={cn(
@@ -209,27 +226,16 @@ export function AgentChatUserMessageBubble({
             )}
             data-agent-chat-user-bubble=""
         >
-            {(text || skills.length > 0) && (
+            {hasWords && (
                 <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
                     {skills.map(({ name }) => (
                         <AgentChatSkillPill key={name} name={name} />
                     ))}
-                    {invocation ? (
-                        <>
-                            <AgentChatInvocationChip invocation={invocation.invocation} />
-                            <AgentChatUserMessageBody
-                                images={images}
-                                text={invocation.rest}
-                                onOpenFile={onOpenFile}
-                            />
-                        </>
-                    ) : (
-                        <AgentChatUserMessageBody
-                            images={images}
-                            text={text}
-                            onOpenFile={onOpenFile}
-                        />
-                    )}
+                    <AgentChatUserMessageWords
+                        images={images}
+                        text={text}
+                        onOpenFile={onOpenFile}
+                    />
                 </div>
             )}
             {isCut && (
@@ -244,13 +250,41 @@ export function AgentChatUserMessageBubble({
             )}
             {images && images.length > 0 && (
                 <AgentChatMessageImages
-                    className={cn((text || skills.length > 0) && 'mt-2')}
+                    className={cn(hasWords && 'mt-2')}
                     firstNumber={agentChatFirstImageNumber(text, images.length)}
                     images={images}
                     message={imageRecord}
                 />
             )}
-            <AgentChatMessageVideos className="mt-2 first:mt-0" text={text} />
+            <AgentChatMessageVideos className="mt-2 first:mt-0" paths={videos} />
         </div>
+    );
+}
+
+/**
+ * The message's words, led by the slash command it invoked as a chip (`AgentChatInvocationChip`) when it starts with
+ * one.
+ */
+function AgentChatUserMessageWords({
+    images,
+    text,
+    onOpenFile,
+}: {
+    images?: ReadonlyArray<{ thumbnail?: string }>;
+    text: string;
+    onOpenFile?: (target: string) => void;
+}) {
+    const invocation = agentChatLeadingInvocation(text);
+    if (!invocation)
+        return <AgentChatUserMessageBody images={images} text={text} onOpenFile={onOpenFile} />;
+    return (
+        <>
+            <AgentChatInvocationChip invocation={invocation.invocation} />
+            <AgentChatUserMessageBody
+                images={images}
+                text={invocation.rest}
+                onOpenFile={onOpenFile}
+            />
+        </>
     );
 }

@@ -67,8 +67,8 @@ const Thumbnail = ({
 };
 
 /**
- * A user message's images, right-aligned above its text like Desktop's message strip. Thumbnails load as the message
- * renders, and a tap opens the original at full size, from where the message's other images are a swipe away.
+ * A user message's images, under its text inside the bubble like Desktop's message strip. Thumbnails load as the
+ * message renders, and a tap opens the original at full size, from where the message's other images are a swipe away.
  */
 export const AgentChatMessageImages = ({
     count,
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 6,
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-start',
     },
     thumbnail: {
         borderRadius: 12,

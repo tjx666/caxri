@@ -81,9 +81,9 @@ const VideoCard = ({
 };
 
 /**
- * The videos a user message cites, as cards right-aligned above its text like the message's images and like Desktop's
- * video tiles. A card shows the poster frame the computer drew, its file name, and a play button; a tap opens the
- * full-screen player. A deleted file reads as unavailable and cannot be opened.
+ * The videos a user message cites, as cards under its text inside the bubble like the message's images and like
+ * Desktop's video tiles. A card shows the poster frame the computer drew, its file name, and a play button; a tap opens
+ * the full-screen player. A deleted file reads as unavailable and cannot be opened.
  */
 export const AgentChatMessageVideos = ({
     itemId,
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 6,
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-start',
     },
     card: {
         borderRadius: 12,

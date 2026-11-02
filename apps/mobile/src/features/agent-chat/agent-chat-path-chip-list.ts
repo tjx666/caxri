@@ -1,5 +1,5 @@
 import type { AgentChatPathReference, AgentChatSkillReference } from '@caxri/protocol';
-import { agentChatPathReferenceName } from '@caxri/protocol';
+import { agentChatPathReferenceName, isAgentChatVideoPath } from '@caxri/protocol';
 
 /**
  * One chip under a user message: a skill, a file, or a folder the message cited. `path` is the file a tap opens, or the
@@ -14,11 +14,13 @@ export interface AgentChatPathChip {
 
 /**
  * The chips for a message's citations in Desktop's order (skills first, then files and folders), each named by its last
- * path segment.
+ * path segment. A cited video has no chip unless `hasVideoChips`: a sent message plays it from its card in the bubble
+ * (`AgentChatMessageVideos`).
  */
 export const agentChatPathChips = (
     references: readonly AgentChatPathReference[],
     skills: readonly AgentChatSkillReference[],
+    hasVideoChips = false,
 ): AgentChatPathChip[] => [
     ...skills.map(({ name }) => ({
         key: `skill:${name}`,
@@ -26,10 +28,16 @@ export const agentChatPathChips = (
         name,
         path: undefined,
     })),
-    ...references.map((reference) => ({
-        key: `path:${reference.path}`,
-        kind: reference.isDirectory ? ('folder' as const) : ('file' as const),
-        name: agentChatPathReferenceName(reference),
-        path: reference.path,
-    })),
+    ...references.flatMap((reference) =>
+        !hasVideoChips && !reference.isDirectory && isAgentChatVideoPath(reference.path)
+            ? []
+            : [
+                  {
+                      key: `path:${reference.path}`,
+                      kind: reference.isDirectory ? ('folder' as const) : ('file' as const),
+                      name: agentChatPathReferenceName(reference),
+                      path: reference.path,
+                  },
+              ],
+    ),
 ];

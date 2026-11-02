@@ -37,6 +37,7 @@ export const conversationStyles = StyleSheet.create({
         paddingVertical: mobileSpace.md,
     },
     userText: mobileType.body,
+    userAttachments: { marginTop: mobileSpace.sm },
     agentText: mobileType.body,
     toolGroup: { borderRadius: mobileRadius.md, borderWidth: 1, overflow: 'hidden' },
     toolRow: {

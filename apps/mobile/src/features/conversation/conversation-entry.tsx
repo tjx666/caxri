@@ -114,6 +114,87 @@ const ConversationMessagePress = ({
     );
 };
 
+/**
+ * The words the user typed, with each pasted URL a link.
+ */
+const ConversationUserRuns = ({
+    runs,
+    theme,
+}: {
+    runs: Extract<ConversationUserText, { kind: 'plain' }>['runs'];
+    theme: MobileTheme;
+}) => (
+    <Text style={[styles.userText, { color: theme.text }]}>
+        {runs.map((run) =>
+            run.kind === 'url' ? (
+                <Text
+                    accessibilityRole="link"
+                    key={run.from}
+                    onPress={() => openLink(run.url)}
+                    // Underlined like a reply's link: a phone has no hover to reveal it.
+                    style={{ color: theme.primary, textDecorationLine: 'underline' }}
+                >
+                    {run.text}
+                </Text>
+            ) : (
+                <Fragment key={run.from}>{run.text}</Fragment>
+            ),
+        )}
+    </Text>
+);
+
+/**
+ * The user's message: what it cites above (`userExtras`), then one bubble holding its words and, under them, the images
+ * and videos it carried, as Desktop lays a message out. With neither words nor attachments it has no bubble.
+ */
+const ConversationUserMessage = ({
+    entry,
+    handoff,
+    theme,
+    userExtras,
+}: {
+    entry: Extract<Entry, { type: 'userMessage' }>;
+    handoff?: { footer?: ReactNode; note: string };
+    theme: MobileTheme;
+    userExtras?: ReactNode;
+}) => {
+    const renderUserAttachments = use(ConversationUserAttachments);
+    const attachments = renderUserAttachments?.(entry.id) ?? null;
+    const hasText = entry.text.length > 0;
+    const user: ConversationUserText = handoff
+        ? { kind: 'handoff', note: handoff.note }
+        : conversationUserText(entry.text);
+    const words =
+        user.kind === 'handoff' ? (
+            <ConversationHandoffCard footer={handoff?.footer} note={user.note} theme={theme} />
+        ) : (
+            <ConversationUserRuns runs={user.runs} theme={theme} />
+        );
+    return (
+        <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>
+            {userExtras}
+            {attachments || hasText ? (
+                <ConversationMessagePress
+                    message={{
+                        id: entry.id,
+                        role: 'user',
+                        text: conversationActionText(entry.text),
+                    }}
+                    style={[styles.userBubble, { backgroundColor: theme.surface }]}
+                    testID={`conversation-user-bubble-${entry.id}`}
+                >
+                    {hasText ? words : null}
+                    {attachments ? (
+                        <View style={hasText ? styles.userAttachments : undefined}>
+                            {attachments}
+                        </View>
+                    ) : null}
+                </ConversationMessagePress>
+            ) : null}
+        </View>
+    );
+};
+
 export const ConversationEntry = memo(
     ({
         entry,
@@ -130,13 +211,12 @@ export const ConversationEntry = memo(
          */
         handoff?: { footer?: ReactNode; note: string };
         /**
-         * Drawn between a user message's attachments and its bubble, such as the files an Agent Chat message cites.
+         * Drawn above a user message's bubble, such as the files an Agent Chat message cites.
          */
         userExtras?: ReactNode;
     }) => {
         const { t } = useTranslation();
         const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
-        const renderUserAttachments = use(ConversationUserAttachments);
         if (entry.type === 'turnBoundary') {
             const divider = conversationTurnDivider(entry, t);
             return (
@@ -148,60 +228,15 @@ export const ConversationEntry = memo(
                 />
             );
         }
-        if (entry.type === 'userMessage') {
-            const user: ConversationUserText = handoff
-                ? { kind: 'handoff', note: handoff.note }
-                : conversationUserText(entry.text);
+        if (entry.type === 'userMessage')
             return (
-                <View
-                    style={[styles.message, styles.userRow]}
-                    testID={`conversation-user-${entry.id}`}
-                >
-                    {renderUserAttachments?.(entry.id)}
-                    {userExtras}
-                    {entry.text.length > 0 ? (
-                        <ConversationMessagePress
-                            message={{
-                                id: entry.id,
-                                role: 'user',
-                                text: conversationActionText(entry.text),
-                            }}
-                            style={[styles.userBubble, { backgroundColor: theme.surface }]}
-                            testID={`conversation-user-bubble-${entry.id}`}
-                        >
-                            {user.kind === 'handoff' ? (
-                                <ConversationHandoffCard
-                                    footer={handoff?.footer}
-                                    note={user.note}
-                                    theme={theme}
-                                />
-                            ) : (
-                                <Text style={[styles.userText, { color: theme.text }]}>
-                                    {user.runs.map((run) =>
-                                        run.kind === 'url' ? (
-                                            <Text
-                                                accessibilityRole="link"
-                                                key={run.from}
-                                                onPress={() => openLink(run.url)}
-                                                // Underlined like a reply's link: a phone has no hover to reveal it.
-                                                style={{
-                                                    color: theme.primary,
-                                                    textDecorationLine: 'underline',
-                                                }}
-                                            >
-                                                {run.text}
-                                            </Text>
-                                        ) : (
-                                            <Fragment key={run.from}>{run.text}</Fragment>
-                                        ),
-                                    )}
-                                </Text>
-                            )}
-                        </ConversationMessagePress>
-                    ) : null}
-                </View>
+                <ConversationUserMessage
+                    entry={entry}
+                    handoff={handoff}
+                    theme={theme}
+                    userExtras={userExtras}
+                />
             );
-        }
         if (entry.type === 'systemEvent')
             return <ConversationSystemEvent event={entry} theme={theme} />;
         if (entry.type === 'agentMessage')

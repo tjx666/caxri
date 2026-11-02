@@ -39,7 +39,8 @@ const VIDEO_NAME = 'demo.mp4';
 const VIDEO_SECONDS = 60;
 
 const createVideo = async (): Promise<string> => {
-    const directory = await mkdtemp('/tmp/caxri-video-');
+    // A space in the folder, like a phone upload under `~/Library/Application Support`, which once read as a plain file.
+    const directory = await mkdtemp('/tmp/caxri video-');
     const video = join(directory, VIDEO_NAME);
     await run('ffmpeg', [
         '-loglevel',
@@ -66,14 +67,15 @@ const createVideo = async (): Promise<string> => {
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Drags the timeline toward earlier messages until the whole card is below the timeline's top edge, so a screenshot
- * shows all of it rather than its lower strip.
+ * Drags the timeline toward earlier messages until the whole bubble holding the card (`<itemId>-<index>`) is below the
+ * timeline's top edge, so a screenshot shows the message's words above the card rather than the card's lower strip.
  */
 const showCard = (serial: string, card: string) =>
     scrollTimelineUntil(serial, async () => {
         const nodes = await mobileSemantics(serial);
         const frame = checkBounds(nodes, 'conversation-view');
-        const bounds = checkBounds(nodes, `agent-chat-message-video-${card}`);
+        const bubble = `conversation-user-bubble-${card.slice(0, card.lastIndexOf('-'))}`;
+        const bounds = checkBounds(nodes, bubble);
         return Boolean(frame && bounds && bounds.top >= frame.top + 16);
     });
 
