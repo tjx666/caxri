@@ -7,4 +7,5 @@ export {
 export { createProjectHidingHandlers } from './hiding-handlers';
 export { resolveOwnerProjectRoot, resolveProjectRoot } from './root-identity';
 export { ProjectRootResolver, type ResolvedSessionPath } from './roots';
+export { createProjectRunningOrderEvents } from './running-order-events';
 export { importProjectTransferFile, writeProjectTransfer } from './transfer';

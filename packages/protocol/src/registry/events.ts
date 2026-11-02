@@ -56,6 +56,7 @@ const fullStateChangeReasonSchema = z.enum([
     'project.import',
     'project.hide',
     'project.reorder',
+    'project.runningOrder',
     'project.setIcon',
     'project.setChatDefault',
     'session.create',

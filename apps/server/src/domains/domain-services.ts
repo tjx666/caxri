@@ -13,7 +13,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentAdapter, AgentEnvironment } from './agents';
-import type { ServerCredentialStores } from './db';
+import type { CaxriDatabase, ServerCredentialStores } from './db';
 import type { ProtocolRecoveryState } from './protocol-recovery';
 import type { TerminalExecutionPort, TerminalManagerOptions } from './terminal';
 
@@ -53,6 +53,10 @@ export interface DomainDependencies {
     userDataPath: string;
     logger: StructuredLogger;
     send: (event: ServerEvent) => void;
+    /**
+     * Runs once Root Services opened the database, before any other service is created.
+     */
+    onDatabaseOpened?: (database: CaxriDatabase) => void;
     startedAt?: number;
     pid?: number;
     searchWorkers?: SearchWorkers;
