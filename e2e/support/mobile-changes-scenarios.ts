@@ -1,6 +1,5 @@
 import { Buffer } from 'node:buffer';
 import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import process from 'node:process';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json';
@@ -9,7 +8,6 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
     androidBounds,
-    captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
     restoreMobileDisplayState,
@@ -19,6 +17,7 @@ import {
 } from './mobile-android';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 import { assertMobileComposerDraft } from './mobile-unicode-input';
 
 interface ChangesScenarioEnvironment {
@@ -108,9 +107,7 @@ async function capture(
     if (nodes.every(({ checkId }) => checkId !== requiredId)) {
         throw new Error(`Changes Acceptance did not reach ${requiredId}`);
     }
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 async function finish(

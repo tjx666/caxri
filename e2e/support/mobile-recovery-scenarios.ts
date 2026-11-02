@@ -8,7 +8,6 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture.ts';
 import { openComposerSession } from './mobile-agent-actions-scenarios.ts';
 import {
     adbShell,
-    captureMobileFramebuffer,
     mobileSemantics,
     observeMobileNode,
     openMobilePairingLink,
@@ -16,6 +15,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android.ts';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 import { enterComposerText } from './mobile-unicode-input.ts';
 
 interface Environment {
@@ -32,9 +32,7 @@ async function capture(
     label: string,
     artifacts: string[],
 ): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 async function finish(

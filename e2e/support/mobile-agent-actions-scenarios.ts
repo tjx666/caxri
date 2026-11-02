@@ -11,7 +11,6 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
     androidBounds,
-    captureMobileFramebuffer,
     mobileSemantics,
     observeMobileNode,
     startMobileFramebufferRecording,
@@ -23,6 +22,7 @@ import {
     pickMobileGalleryImages,
     removeMobileGalleryImages,
 } from './mobile-gallery';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 import {
     assertMobileComposerDraft,
     insertMobileInputUnicode,
@@ -42,9 +42,7 @@ export async function capture(
     label: string,
     artifacts: string[],
 ): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 export async function finish(

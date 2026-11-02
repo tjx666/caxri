@@ -6,7 +6,6 @@ import { allowE2EErrors, expect } from './fixtures';
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
-    captureMobileFramebuffer,
     mobileSemantics,
     startMobileFramebufferRecording,
     tapMobileCheck,
@@ -14,6 +13,7 @@ import {
 } from './mobile-android';
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 import { assertMobileComposerFocused } from './mobile-unicode-input';
 
 interface NewSessionEnvironment {
@@ -32,9 +32,7 @@ async function capture(
     label: string,
     artifacts: string[],
 ): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 async function finish(

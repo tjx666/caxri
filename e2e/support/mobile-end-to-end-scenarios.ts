@@ -10,7 +10,6 @@ import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
-    captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
     releaseMobileTerminalLease,
@@ -23,6 +22,7 @@ import {
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import type { MobileDesktopCapture } from './mobile-desktop-capture';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 import { tapTerminalKey } from './mobile-terminal-key';
 import {
     assertMobileComposerDraft,
@@ -63,9 +63,7 @@ async function capture(
     const nodes = await mobileSemantics(environment.serial);
     if (nodes.every(({ checkId }) => checkId !== requiredCheckId))
         throw new Error(`Integrated journey did not reach ${requiredCheckId}`);
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 async function finish(

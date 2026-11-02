@@ -10,13 +10,13 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
     androidBounds,
-    captureMobileFramebuffer,
     mobileRegionFingerprint,
     mobileSemantics,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 
 interface Environment {
     artifactManifestPath: string;
@@ -34,9 +34,7 @@ async function capture(
     label: string,
     artifacts: string[],
 ): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 async function finish(

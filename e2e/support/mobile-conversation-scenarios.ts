@@ -11,7 +11,6 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture.ts';
 import {
     adbShell,
     androidBounds,
-    captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
     restoreMobileDisplayState,
@@ -23,6 +22,7 @@ import {
     conversationAgentRecords,
     conversationBaselineRecords,
 } from './mobile-conversation-transcript.ts';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 
 export interface ScenarioEnvironment {
     artifactManifestPath: string;
@@ -52,9 +52,7 @@ export async function capture(
     label: string,
     artifacts: string[],
 ): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
+    await captureScenarioFrame(environment, label, artifacts);
 }
 
 export async function finish(
