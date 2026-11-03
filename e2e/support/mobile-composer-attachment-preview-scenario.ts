@@ -7,9 +7,10 @@ import { promisify } from 'node:util';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import { checkBounds, hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
+    mobileRegionFingerprint,
     mobileSemantics,
     pushMobileFixture,
     setMobileNetworkAvailable,
@@ -71,10 +72,33 @@ const closePreview = async (serial: string, id: string) => {
 };
 
 /**
+ * Waits for the player to open, then captures two frames apart and requires the picture to change between them, so the
+ * evidence shows playback rather than a player that only opened. The player keeps the screen moving, so it is followed
+ * by time and pixels, not by UIAutomator.
+ */
+const capturePlayback = async (
+    environment: MobileAgentScenarioEnvironment,
+    label: string,
+    artifacts: string[],
+) => {
+    const { serial } = environment;
+    await waitForCheck(serial, 'agent-chat-video-player');
+    const view = checkBounds(await mobileSemantics(serial), 'agent-chat-video-player');
+    if (!view) throw new Error('The player is not open');
+    await pause(2_000);
+    const first = await mobileRegionFingerprint(serial, view);
+    await capture(environment, `${label}-1`, artifacts);
+    await pause(1_500);
+    const second = await mobileRegionFingerprint(serial, view);
+    await capture(environment, `${label}-2`, artifacts);
+    if (first === second) throw new Error('The player opened but the video did not play');
+};
+
+/**
  * `MOB-COMPOSER-ATTACH-PREVIEW-01`: pending attachments preview from the phone's own copy whatever their upload state.
  * With the computer unreachable, a gallery image and a video picked from Files both fail to upload; the image still
  * opens full size and the video still plays, while each one's Retry opens the failure sheet. Back online, Retry uploads
- * the video and the ready card plays it again.
+ * each one, and the ready thumbnail and card open them again.
  */
 export async function executeMobileComposerAttachmentPreviewScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -116,11 +140,27 @@ export async function executeMobileComposerAttachmentPreviewScenario(
         await tapMobileCheckByBounds(serial, 'session-image-retry-0');
         await waitForCheck(serial, 'image-failure-sheet');
         await capture(environment, 'image-failed-sheet', artifacts);
-        await tapMobileCheck(serial, 'image-failure-remove');
-        await waitForNoCheck(serial, 'session-image-open-0');
+        await tapMobileCheck(serial, 'image-failure-cancel');
+        await waitForNoCheck(serial, 'image-failure-sheet');
 
-        // Attaching needs the computer, so the network returns for the Files picker and drops again before the pick.
+        // Back online, Retry uploads the image and the ready thumbnail opens the same way.
         await setNetwork(true);
+        await tapMobileCheckByBounds(serial, 'session-image-retry-0');
+        await waitForCheck(serial, 'image-failure-sheet');
+        await tapMobileCheck(serial, 'image-failure-retry');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                hasCheck(nodes, 'session-image-open-0') &&
+                !hasCheck(nodes, 'session-image-status-0'),
+            90_000,
+        );
+        await tapMobileCheckByBounds(serial, 'session-image-open-0');
+        await waitForCheck(serial, 'agent-chat-image-viewer-image');
+        await capture(environment, 'image-ready-viewer', artifacts);
+        await closePreview(serial, 'agent-chat-image-viewer');
+
+        // Attaching needs the computer, so the Files picker opens online and the network drops before the pick.
         await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
         await tapMobileCheck(serial, 'image-source-files');
         await setNetwork(false);
@@ -136,10 +176,7 @@ export async function executeMobileComposerAttachmentPreviewScenario(
         if (!fileId) throw new Error('The video card did not fail');
         await capture(environment, 'video-failed', artifacts);
         await tapMobileCheckByBounds(serial, `session-file-${fileId}`);
-        await waitForCheck(serial, 'agent-chat-video-player');
-        // The player keeps the screen moving, so it is followed by time, not by UIAutomator.
-        await pause(3_000);
-        await capture(environment, 'video-failed-playing', artifacts);
+        await capturePlayback(environment, 'video-failed-playing', artifacts);
         await closePreview(serial, 'agent-chat-video-player');
         await tapMobileCheckByBounds(serial, `session-file-retry-${fileId}`);
         await waitForCheck(serial, 'image-failure-sheet');
@@ -164,13 +201,12 @@ export async function executeMobileComposerAttachmentPreviewScenario(
             throw new Error('The uploaded video card is missing');
         await capture(environment, 'video-ready', artifacts);
         await tapMobileCheckByBounds(serial, `session-file-${readyId}`);
-        await waitForCheck(serial, 'agent-chat-video-player');
-        await pause(3_000);
-        await capture(environment, 'video-ready-playing', artifacts);
+        await capturePlayback(environment, 'video-ready-playing', artifacts);
         await closePreview(serial, 'agent-chat-video-player');
 
         await finish(environment, artifacts, {
             failedImage: 'viewer-and-retry-sheet',
+            readyImage: 'viewer',
             failedVideo: 'played-and-retry-sheet',
             readyVideo: 'played',
             status: 'passed',
