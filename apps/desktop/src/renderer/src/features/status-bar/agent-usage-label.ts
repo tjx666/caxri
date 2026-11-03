@@ -1,4 +1,4 @@
-import type { AgentUsageReadout, AppSettings, UsageLimit } from '@caxri/protocol';
+import type { AgentUsageReadout, AppSettings, UsageDay, UsageLimit } from '@caxri/protocol';
 import {
     agentUsageCostLabel,
     currentLimitWindows,
@@ -8,6 +8,7 @@ import {
     LIMIT_WARNING_PERCENT,
     limitPaceShortfall,
     remainingLimitPercent,
+    shiftLocalDate,
 } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
@@ -269,4 +270,32 @@ export function agentUsageClockSignature(
         .join('|');
     const credits = agentUsageResetCreditsValue(limit, now, t);
     return credits === undefined ? windows : `${windows}|${credits}`;
+}
+
+/**
+ * Days the hover card charts the Agent's spend over, ending today.
+ */
+export const DAILY_COST_DAYS = 7;
+
+/**
+ * One charted day of an Agent's estimated spend.
+ */
+export interface DailyCost {
+    /**
+     * Local day, `YYYY-MM-DD`.
+     */
+    date: string;
+    costUsd: number;
+}
+
+/**
+ * The trailing {@link DAILY_COST_DAYS} local days ending `today`, oldest first. The report omits days without usage, so
+ * they are filled in as zero to keep each bar on its own calendar day.
+ */
+export function dailyCostSeries(activity: readonly UsageDay[], today: string): DailyCost[] {
+    const costByDate = new Map(activity.map((day) => [day.date, day.costUsd]));
+    return Array.from({ length: DAILY_COST_DAYS }, (_, index) => {
+        const date = shiftLocalDate(today, index - (DAILY_COST_DAYS - 1));
+        return { date, costUsd: costByDate.get(date) ?? 0 };
+    });
 }

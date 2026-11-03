@@ -21,6 +21,7 @@ import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-f
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
+import { AgentDailyCostBars } from './agent-daily-cost-bars';
 import {
     agentUsageLabel,
     agentUsageLimitTone,
@@ -28,6 +29,7 @@ import {
     agentUsageResetCreditsNote,
     agentUsageResetCreditsValue,
     agentUsageWarningReason,
+    DAILY_COST_DAYS,
 } from './agent-usage-label';
 import { useAgentUsageClock } from './hooks/use-agent-usage-clock';
 import { StatusItem } from './status-item';
@@ -122,6 +124,10 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                                   },
                               ]
                             : []),
+                        {
+                            label: t('statusBar.usage.dailyCost', { count: DAILY_COST_DAYS }),
+                            value: <AgentDailyCostBars provider={readout.provider} />,
+                        },
                         { label: t('statusBar.usage.models'), value: readout.models.join(', ') },
                         ...limitWindows.map((window) => {
                             const used = t('statusBar.usage.limitLeft', {

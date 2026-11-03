@@ -10,6 +10,7 @@ import {
     agentUsageResetCreditsNote,
     agentUsageResetCreditsValue,
     agentUsageWarningReason,
+    dailyCostSeries,
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
@@ -345,5 +346,24 @@ describe('banked reset credits', () => {
         expect(agentUsageClockSignature(credits, NOW, translate)).not.toBe(
             agentUsageClockSignature(credits, NOW + DAY, translate),
         );
+    });
+});
+
+describe('daily cost series', () => {
+    it('fills days without usage with zero across the trailing week, today last', () => {
+        const activity = [
+            { date: '2026-02-20', tokens: 9, costUsd: 9, activeMs: 0 },
+            { date: '2026-02-26', tokens: 1, costUsd: 1.5, activeMs: 0 },
+            { date: '2026-03-02', tokens: 1, costUsd: 4, activeMs: 0 },
+        ];
+        expect(dailyCostSeries(activity, '2026-03-02')).toEqual([
+            { date: '2026-02-24', costUsd: 0 },
+            { date: '2026-02-25', costUsd: 0 },
+            { date: '2026-02-26', costUsd: 1.5 },
+            { date: '2026-02-27', costUsd: 0 },
+            { date: '2026-02-28', costUsd: 0 },
+            { date: '2026-03-01', costUsd: 0 },
+            { date: '2026-03-02', costUsd: 4 },
+        ]);
     });
 });
