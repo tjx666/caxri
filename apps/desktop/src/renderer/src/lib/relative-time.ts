@@ -27,9 +27,18 @@ function formatterFor(locale: AppLocale, style: RelativeTimeStyle): Intl.Relativ
 }
 
 /**
+ * Chinese copy puts a space between a number and a Han character ("3 分钟前"), and every hand-written zh-CN string does.
+ * `Intl.RelativeTimeFormat`'s zh-CN output omits that space, so it is inserted here to match the rest of the
+ * interface.
+ */
+function spaceNumbersFromHan(text: string): string {
+    return text.replaceAll(/(\d)(?=\p{Script=Han})|(\p{Script=Han})(?=\d)/gu, '$1$2 ');
+}
+
+/**
  * "3 minutes ago" in the interface language. English goes through the shared `relativeTime` unchanged, so its wording
  * stays byte-identical to every other surface; another locale uses Chromium's own `Intl.RelativeTimeFormat` wording ("3
- * 分钟前"), which the Renderer always has.
+ * 分钟前", spaced by `spaceNumbersFromHan`), which the Renderer always has.
  */
 export function localizedRelativeTime(
     timestamp: number,
@@ -40,7 +49,9 @@ export function localizedRelativeTime(
     if (locale === 'en') return relativeTime(timestamp, now, style);
     const seconds = Math.round((timestamp - now) / 1_000);
     const formatter = formatterFor(locale, style);
-    for (const [unit, size] of RELATIVE_TIME_RANGES)
-        if (Math.abs(seconds) >= size) return formatter.format(Math.round(seconds / size), unit);
-    return formatter.format(seconds, 'second');
+    const [unit, size] = RELATIVE_TIME_RANGES.find(([, size]) => Math.abs(seconds) >= size) ?? [
+        'second',
+        1,
+    ];
+    return spaceNumbersFromHan(formatter.format(Math.round(seconds / size), unit));
 }
