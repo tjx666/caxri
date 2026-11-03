@@ -1,10 +1,12 @@
+import type { FakeClaudeScript } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-script.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     isRunningLastCommand,
+    LAST_NARRATION,
     RUNNING_PROMPT,
-    runningInvestigationScript,
+    search,
 } from './mobile-agent-chat-running-turn-scenario';
 import {
     adbShell,
@@ -18,6 +20,37 @@ import {
 import { setEmulatorNetworkDelay } from './mobile-android-network';
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A running turn whose search runs are each longer than one mobile history page (about a dozen of these searches), so
+ * the phone's window and every page it reads cut a run in two. Only such a cut gives the page an older call at the
+ * front of the reader's top row; with short runs a cut can fall between a run and its narration, and the old code held
+ * its place by luck.
+ */
+const longRunsScript: FakeClaudeScript = {
+    turns: [
+        {
+            prompt: RUNNING_PROMPT,
+            steps: [
+                { kind: 'thinking', text: 'Looking at how usage is counted.' },
+                ...Array.from({ length: 12 }, (_, round) => [
+                    ...Array.from({ length: 14 + (round % 4) }, (_, index) =>
+                        search(round * 20 + index),
+                    ),
+                    { kind: 'text' as const, text: `Step ${round}: now the protocol edits.` },
+                ]).flat(),
+                { kind: 'text', text: LAST_NARRATION },
+                {
+                    kind: 'tool',
+                    name: 'Bash',
+                    input: { command: 'sleep 900', description: 'Declare lanes and recheck' },
+                    output: 'done',
+                    durationMs: 900_000,
+                },
+            ],
+        },
+    ],
+};
 
 /**
  * Round-trip latency while the reader scrolls back, so each history page lands after the fling that asked for it came
@@ -90,7 +123,7 @@ export async function executeMobileChatScrollbackScenario(
         throw new Error('MOB-CHAT-SCROLLBACK-01 films the scroll-back for its reviewer');
     const fixture = await createMobileAcceptanceFixture({
         chatProvider: 'claude',
-        claudeScript: runningInvestigationScript,
+        claudeScript: longRunsScript,
         mode: 'agent-chat',
         serial,
     });

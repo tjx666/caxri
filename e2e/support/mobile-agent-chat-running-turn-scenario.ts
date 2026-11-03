@@ -29,7 +29,7 @@ import {
 } from './mobile-motion-analysis';
 
 export const RUNNING_PROMPT = 'Find why the plan usage drains so fast';
-const LAST_NARRATION = 'Rewriting the Desktop side to read the dismissal.';
+export const LAST_NARRATION = 'Rewriting the Desktop side to read the dismissal.';
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -42,7 +42,7 @@ const WATCH_MS = 5_000;
  * A search whose output fills most of a mobile field, so the phone's small window holds only a few of them and a
  * history page brings about twenty items.
  */
-const search = (index: number): FakeClaudeScriptStep => ({
+export const search = (index: number): FakeClaudeScriptStep => ({
     kind: 'tool',
     name: 'Bash',
     input: {
