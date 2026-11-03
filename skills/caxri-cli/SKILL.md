@@ -240,8 +240,9 @@ Then write the task to a file and run
   instead of following the task.
 - Add `--consult` (only with `--new-session`, never with `--handoff`) for a question or review that
   changes no files, whose answer you read back. Caxri records that Session as a consult of yours
-  rather than as delegated work. A task that is neither a hand-off nor a consult, such as one that
-  changes files and that you wait on, takes neither flag.
+  rather than as delegated work, and its Session takes no sidebar row while yours is listed. A task
+  that is neither a hand-off nor a consult, such as one that changes files and that you wait on,
+  takes neither flag.
 - Add `--worktree <new-branch>` (only with `--new-session`) to work on the same repository in
   parallel: Caxri creates a Git worktree on that new branch beside the Project folder
   (`<project>.worktrees/<branch>`) and runs the Session there, listed under the original Project.

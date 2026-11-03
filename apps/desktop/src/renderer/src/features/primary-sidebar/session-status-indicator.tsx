@@ -2,13 +2,26 @@ import type { ReactNode } from 'react';
 import { useId } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
-import { CircleQuestionMark, Clock, Unplug } from 'lucide-react';
+import { CircleQuestionMark, CircleX, Clock, Unplug } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { BackgroundArc, RunningArc } from './running-arc';
 import type { SessionStatus, SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
+
+/**
+ * The slot's class per visible status: the `session-status-<kind>` hook that tests and styles read, and the tone. Only
+ * attention (warning) and a failed delegation (danger) are colored; every other signal stays `--muted` so a list of
+ * working Agents never turns into a wall of color.
+ */
+const STATUS_SLOT_CLASS: Record<Exclude<SessionStatus['kind'], 'default'>, string> = {
+    attention: 'session-status-attention text-warning',
+    detached: 'session-status-detached text-muted',
+    failed: 'session-status-failed text-danger',
+    running: 'session-status-running text-muted',
+    usageWait: 'session-status-usage-wait text-muted',
+};
 
 /**
  * The right-edge lifecycle glyph shared by the PrimarySidebar and the MRU switcher, in the place Codex and most chat
@@ -25,12 +38,17 @@ import { sessionStatus } from './session-status';
  */
 export function SessionStatusIndicator({
     className,
+    delegationFailed,
     fallback,
     reserveSlot = false,
     session,
     terminal,
 }: {
     className?: string;
+    /**
+     * True for a nested Session whose delegation failed (see `sessionStatus`). Only nested rows pass it.
+     */
+    delegationFailed?: boolean;
     /**
      * Lower-priority content occupies the same slot only when no lifecycle signal is visible.
      */
@@ -45,7 +63,7 @@ export function SessionStatusIndicator({
 }) {
     const descriptionId = useId();
     const { t } = useTranslation();
-    const status = sessionStatus(session, terminal ?? {}, t);
+    const status = sessionStatus(session, terminal ?? {}, t, { delegationFailed });
     if (status.kind === 'default')
         return (
             <>
@@ -74,13 +92,7 @@ export function SessionStatusIndicator({
                 aria-describedby={descriptionId}
                 className={cn(
                     'session-status relative flex size-3.5 flex-none items-center justify-center',
-                    status.kind === 'attention'
-                        ? 'session-status-attention text-warning'
-                        : status.kind === 'detached'
-                          ? 'session-status-detached text-muted'
-                          : status.kind === 'usageWait'
-                            ? 'session-status-usage-wait text-muted'
-                            : 'session-status-running text-muted',
+                    STATUS_SLOT_CLASS[status.kind],
                     className,
                 )}
                 data-agent-operation={terminal?.agentOperation}
@@ -109,12 +121,16 @@ export function SessionStatusIndicator({
 }
 
 /**
- * The glyph inside a visible status slot: a pinging ring for attention, an unplugged plug when detached, and a running
- * arc that turns into a slower dotted ring while the Agent only waits on its own background work.
+ * The glyph inside a visible status slot: a pinging ring for attention, an unplugged plug when detached, a circled X
+ * when a delegated task failed, and a running arc that turns into a slower dotted ring while the Agent only waits on
+ * its own background work.
  */
 function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind: 'default' }> }) {
     if (status.kind === 'detached') return <Unplug aria-hidden="true" size={12} />;
     if (status.kind === 'usageWait') return <Clock aria-hidden="true" size={12} />;
+    // The same circled X the Chat's failed tool rows and the Activity view draw, at the question mark's size and weight.
+    if (status.kind === 'failed')
+        return <CircleX aria-hidden="true" size={14} strokeWidth={2.25} />;
     if (status.kind === 'running')
         return status.variant === 'background' ? <BackgroundArc /> : <RunningArc />;
     return (

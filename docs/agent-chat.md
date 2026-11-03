@@ -583,6 +583,12 @@ only; the PTY surface and Grok never get them.
 - A Codex subagent first seen through a multi-agent v2 `subAgentActivity` item is titled with the
   last segment of its `agentPath` (`/root/planner/reviewer` reads `reviewer`).
 - Clicking a row selects its Session first, then opens the subagent's task tab.
+- Sessions the Chat's Agent delegated work to nest under the same host row, after its subagent rows
+  and under the same guide line, each with its own Project's name; see
+  [Sidebar rows](agent-delegation.md#sidebar-rows). A nested Session lists no subagent rows of its
+  own: only a Session with a top-level row does, so a subagent of a delegated Session appears once
+  the user opens that Session. The setting `primarySidebar.showSubagents` does not hide nested
+  Sessions.
 
 ## Follow-up queue
 

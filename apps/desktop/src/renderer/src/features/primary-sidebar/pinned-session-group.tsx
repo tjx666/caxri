@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { Fragment } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
@@ -8,10 +8,11 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
-import { ActiveSessionRow } from './active-session-row';
+import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import { useHeldModifierChord } from './hooks/use-held-modifier-chord';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
+import { MemoizedActiveSessionRow } from './memoized-active-session-row';
 import { pinnedShortcutCommand, pinnedShortcutHint } from './pinned-shortcut-hints';
 import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
@@ -23,12 +24,6 @@ import { SessionRevealRow } from './session-reveal-row';
 import { rovingSubagentRowId } from './session-subagents';
 
 const PINNED_DISCLOSURE_ID = 'pinned-sessions-group';
-
-/**
- * Rows render through a memo boundary so a Session switch renders only the rows whose selection moved; the props this
- * list passes are shaped for it, as `ActiveSessionRow` explains (issue #1356).
- */
-const MemoizedActiveSessionRow = memo(ActiveSessionRow);
 
 interface PinnedSessionGroupProperties {
     animate: boolean;
@@ -47,6 +42,10 @@ interface PinnedSessionGroupProperties {
     onRenameValueChange: (value: string) => void;
     onRevealMoreSessions: () => void;
     onToggle: () => void;
+    /**
+     * Renders the Sessions nested under a host Session, right after the host's row.
+     */
+    renderDelegatedRows?: RenderDelegatedRows;
     /**
      * Owning Project keyed by Session id. Every pinned Session needs one: the group spans Projects, so the row has to
      * say which one it came from, and the context menu's Project actions act on it.
@@ -80,9 +79,9 @@ interface PinnedSessionGroupProperties {
 }
 
 /**
- * The global Pinned group, above every Project. A pinned Session stays listed under its own Project as well: this group
- * is a second view of the same Sessions rather than a folder they move into, so unpinning never has to put anything
- * back and a user scanning their Projects still finds every Session where they left it.
+ * The global Pinned group, above every Project. Pinning moves a Session here and takes it out of its own Project group,
+ * so the sidebar lists it once; unpinning returns it to its Project in that group's own order. Sessions nested under a
+ * pinned host stay under it here, wherever their own Projects are.
  *
  * The heading is a `treeitem` at level 1 like a Project heading (it is a collapsible group the arrow keys walk) but it
  * carries no drag source and no Session count menu, because it owns nothing: its membership is a per-Session property,
@@ -103,6 +102,7 @@ export function PinnedSessionGroup({
     onRevealMoreSessions,
     onToggle,
     projects,
+    renderDelegatedRows,
     renameError,
     renameSuggestingSessionId,
     renameValue,
@@ -206,39 +206,42 @@ export function PinnedSessionGroup({
                                 heldChord,
                             );
                             return (
-                                <MemoizedActiveSessionRow
-                                    key={session.id}
-                                    focusRenameInput={focusRenameInput}
-                                    onBeginRename={onBeginRename}
-                                    onBlurRename={onBlurRename}
-                                    onCancelRename={onCancelRename}
-                                    onCommitRename={onCommitRename}
-                                    onSuggestRename={onSuggestRename}
-                                    onRenameValueChange={onRenameValueChange}
-                                    projectTitle={project.title}
-                                    projectIcon={project.icon}
-                                    projectId={project.id}
-                                    projectRootPath={project.rootPath}
-                                    renameError={renameError}
-                                    renameSuggesting={session.id === renameSuggestingSessionId}
-                                    renameValue={renameValue}
-                                    renaming={rowId === renamingRowId}
-                                    roving={rowId === rovingRowId}
-                                    rowId={rowId}
-                                    selected={session.id === selectedSessionId}
-                                    session={session}
-                                    sessionOrder={sessionOrder}
-                                    shortcutHint={shortcutHint}
-                                    showProjectName
-                                    showSubagents={showSubagents}
-                                    subagentRovingRowId={rovingSubagentRowId(
-                                        rovingRowId,
-                                        session.id,
-                                    )}
-                                    terminal={sessionAgentTerminal(session, terminals)}
-                                    visibleSessionIds={visibleSessionIds}
-                                    worktreeProject={worktreeProjects?.[session.id]}
-                                />
+                                <Fragment key={session.id}>
+                                    <MemoizedActiveSessionRow
+                                        focusRenameInput={focusRenameInput}
+                                        onBeginRename={onBeginRename}
+                                        onBlurRename={onBlurRename}
+                                        onCancelRename={onCancelRename}
+                                        onCommitRename={onCommitRename}
+                                        onSuggestRename={onSuggestRename}
+                                        onRenameValueChange={onRenameValueChange}
+                                        projectTitle={project.title}
+                                        projectIcon={project.icon}
+                                        projectId={project.id}
+                                        projectRootPath={project.rootPath}
+                                        renameError={renameError}
+                                        renameSuggesting={session.id === renameSuggestingSessionId}
+                                        renameValue={renameValue}
+                                        renaming={rowId === renamingRowId}
+                                        roving={rowId === rovingRowId}
+                                        inPinnedGroup
+                                        rowId={rowId}
+                                        selected={session.id === selectedSessionId}
+                                        session={session}
+                                        sessionOrder={sessionOrder}
+                                        shortcutHint={shortcutHint}
+                                        showProjectName
+                                        showSubagents={showSubagents}
+                                        subagentRovingRowId={rovingSubagentRowId(
+                                            rovingRowId,
+                                            session.id,
+                                        )}
+                                        terminal={sessionAgentTerminal(session, terminals)}
+                                        visibleSessionIds={visibleSessionIds}
+                                        worktreeProject={worktreeProjects?.[session.id]}
+                                    />
+                                    {renderDelegatedRows?.(session, sessionOrder)}
+                                </Fragment>
                             );
                         })}
                         {hiddenSessionCount > 0 && (

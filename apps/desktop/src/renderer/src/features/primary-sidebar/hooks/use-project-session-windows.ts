@@ -5,11 +5,30 @@ import { nextRevealedSessionCount, sessionListWindow } from '@caxri/protocol';
 
 export interface ProjectSessionWindow extends SessionListWindow<SessionRecord> {
     project: ProjectRecord;
+    /**
+     * The Project's own Sessions with an ordinary row, in sidebar order. This is what its session count and its window
+     * measure.
+     */
     projectSessions: SessionRecord[];
+    /**
+     * `projectSessions` plus the nested and hidden Sessions its hosts hold, for the status counts a collapsed heading
+     * shows: a running or unread child must not fold out of sight with its host. The same array as `projectSessions`
+     * when no host holds any.
+     */
+    statusSessions: SessionRecord[];
 }
 
 interface UseProjectSessionWindowsInput {
+    /**
+     * The nested and hidden Sessions each group holds through its hosts (`DelegatedPlacement.hostedByGroup`).
+     */
+    hostedByGroup?: ReadonlyMap<string, readonly SessionRecord[]>;
     projects: readonly ProjectRecord[];
+    /**
+     * The host of the selected Session when that Session is nested. The host's row stays inside its Project's window
+     * like a selected row, so the selection is never folded away behind `Show N more`.
+     */
+    selectedHostSessionId?: string;
     selectedSessionId: string | undefined;
     /**
      * Every active Session already in sidebar order, across all Projects.
@@ -22,7 +41,9 @@ interface UseProjectSessionWindowsInput {
  * relaunch should start from the short list again, the same way it starts scrolled to the top.
  */
 export function useProjectSessionWindows({
+    hostedByGroup,
     projects,
+    selectedHostSessionId,
     selectedSessionId,
     sidebarSessions,
 }: UseProjectSessionWindowsInput) {
@@ -36,17 +57,27 @@ export function useProjectSessionWindows({
                 const projectSessions: SessionRecord[] = [];
                 for (const session of sidebarSessions)
                     if (session.projectId === project.id) projectSessions.push(session);
+                const hosted = hostedByGroup?.get(project.id);
                 return {
                     project,
                     projectSessions,
+                    statusSessions: hosted ? [...projectSessions, ...hosted] : projectSessions,
                     ...sessionListWindow(
                         projectSessions,
                         revealedCounts[project.id],
                         selectedSessionId,
+                        { selectedHostSessionId },
                     ),
                 };
             }),
-        [projects, revealedCounts, selectedSessionId, sidebarSessions],
+        [
+            hostedByGroup,
+            projects,
+            revealedCounts,
+            selectedHostSessionId,
+            selectedSessionId,
+            sidebarSessions,
+        ],
     );
 
     /**

@@ -1,7 +1,11 @@
 import type { FocusEvent, RefObject } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
-import type { PrimarySidebarSubagentNode, PrimarySidebarTreeRow } from '../primary-sidebar-tree';
+import type {
+    PrimarySidebarDelegatedNode,
+    PrimarySidebarSubagentNode,
+    PrimarySidebarTreeRow,
+} from '../primary-sidebar-tree';
 import {
     flattenPrimarySidebarRows,
     PINNED_GROUP_ROW_ID,
@@ -11,6 +15,11 @@ import type { ProjectSessionWindow } from './use-project-session-windows';
 import { useVanishedRowFocus } from './use-vanished-row-focus';
 
 interface PrimarySidebarTreeInput {
+    /**
+     * The nested Session rows each host shows, keyed by host Session id (`useDelegatedChildren`); empty when nothing is
+     * delegated.
+     */
+    delegatedNodes: ReadonlyMap<string, PrimarySidebarDelegatedNode>;
     /**
      * True when the Pinned group's window hides at least one Session, which is what puts its reveal row in the order.
      */
@@ -25,6 +34,11 @@ interface PrimarySidebarTreeInput {
      * One windowed Session list per Project, in sidebar order, so the row order can never reach a hidden Session.
      */
     projectWindows: readonly ProjectSessionWindow[];
+    /**
+     * Rows the roving Tab stop falls back to when the selected Session is nested and has no row on screen
+     * (`DelegatedSessionsModel.selectedFallbackRowIds`).
+     */
+    selectedFallbackRowIds: readonly string[];
     selectedProjectId: string | undefined;
     selectedSessionId: string | undefined;
     /**
@@ -62,11 +76,13 @@ export interface PrimarySidebarTreeModel {
  * component keeps owning only what it renders.
  */
 export function usePrimarySidebarTree({
+    delegatedNodes,
     hasHiddenPinnedSessions,
     isProjectExpanded,
     isPinnedExpanded,
     pinnedSessionIds,
     projectWindows,
+    selectedFallbackRowIds,
     selectedProjectId,
     selectedSessionId,
     subagentNodes,
@@ -95,8 +111,10 @@ export function usePrimarySidebarTree({
                     sessionIds: pinnedSessionIds,
                 },
                 subagentNodes,
+                delegatedNodes,
             ),
         [
+            delegatedNodes,
             projectWindows,
             isProjectExpanded,
             hasHiddenPinnedSessions,
@@ -107,12 +125,19 @@ export function usePrimarySidebarTree({
     );
 
     /**
-     * Falls back through the selected Session, then the selected Project, then the first row whenever `focusedRowId` is
-     * unset or has gone stale (archived Session, collapsed Project).
+     * Falls back through the selected Session, then its host, then the selected Project, then the first row whenever
+     * `focusedRowId` is unset or has gone stale (archived Session, collapsed Project).
      */
     const rovingRowId = useMemo(
-        () => rovingPrimarySidebarRowId(rows, focusedRowId, selectedSessionId, selectedProjectId),
-        [rows, focusedRowId, selectedSessionId, selectedProjectId],
+        () =>
+            rovingPrimarySidebarRowId(
+                rows,
+                focusedRowId,
+                selectedSessionId,
+                selectedProjectId,
+                selectedFallbackRowIds,
+            ),
+        [rows, focusedRowId, selectedSessionId, selectedProjectId, selectedFallbackRowIds],
     );
 
     const focusRow = useCallback(

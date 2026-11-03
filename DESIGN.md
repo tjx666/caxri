@@ -510,8 +510,10 @@ started still run is still running, but shows a slower dotted ring in the same `
 quiet monitoring sub-mode) so it reads as waiting rather than busy; unacknowledged attention shows a pinging warning ring around a warning dot; a
 detached Agent shows a static unplugged glyph. Attention wins over running; there is deliberately no
 second, static amber state, so reading a Session is the only thing that clears it and nothing can
-bring it back unread. Lifecycle outranks delivery: only a settled Session (idle, unknown, failed,
-exited, or read) shows its pull request and production deployment glyph in that slot, and while a
+bring it back unread. A nested delegated row whose delegation failed shows a red `CircleX` in
+`--danger`, ranked below the live signals above and the detached glyph, and above unread and the
+settled default; it is a failed delegation, never an ordinary process exit. Lifecycle outranks
+delivery: only a settled Session (idle, unknown, process-exited, or read) shows its pull request and production deployment glyph in that slot, and while a
 lifecycle glyph holds it the PR stays reachable from the row menu. A visible
 glyph claims the 14px slot and every such glyph shares one vertical line; a Session with neither
 collapses the empty slot to zero so its title gains one more character while retaining the 8px
@@ -623,6 +625,48 @@ the row's context menu, which is where the keyboard reaches it, since the hover 
 the tree's single Tab stop. Archiving clears the pin, because an archived Session would otherwise
 keep sitting at the top of the sidebar; unarchiving does not restore it, since the pin was a separate
 decision.
+
+A Delegated Session nests under the Session that created it (issue #3572), as a level-3 row (`aria-level` 3) on the same decorative guide line the subagent rows hang from, instead of as a row of its own in
+its Project group. A person watching the Session that handed the work off reads the delegated work
+beneath it, wherever it runs. The rules:
+
+- **Which host.** The host is the nearest Session up the creator chain that has a top-level row, so a
+  chain of delegations flattens to one level under that Session and the sidebar never nests deeper.
+  Archiving or deleting a creator breaks the chain, and what it created returns to its own Project
+  group. A Hand-off is the creator's work continuing and keeps an ordinary row. A pinned Delegated
+  Session is a flat Pinned row, because pinning is the user's explicit request to see it there. A
+  Consult takes no row at all while a Session above it is listed, since its answer comes back
+  through the Session that asked; it shows nested only while it is the selected Session, so
+  selection never lands on nothing, and the palette still finds it.
+- **Row.** Each nested row is an ordinary Session row (hover card, context menu, rename, and
+  archive, including the Delete and Backspace keys) with the Agent icon, the title, its own Project's name trailing in `--muted`
+  (a delegated task usually runs in another Project, so without the name the row would read as the
+  host's own), and the right-edge status glyph. Nested rows follow the host's subagent rows. A
+  nested row lists no subagent rows of its own: this is a deliberate cut, since a third indent would
+  bury the Session the user is following; open the Session to see them. Every action uses the
+  Session's real id. The hover card names the creator (`Delegated by <title>`) as its own sentence,
+  separate from `In Pinned group.`, which describes only a Pinned row.
+- **Fixed position.** A nested row cannot be dragged, is not a drop target, and takes no
+  `Option+Up` / `Option+Down` (its `aria-keyshortcuts` omits them): its place follows its host. Right
+  on a host steps to its first child row (subagent rows, then nested ones); Left on a nested row
+  returns to the host.
+- **Child window.** Each host windows its own nested rows, independent of its Project's five-Session
+  window. Every nested Session that currently shows a status (running, waiting for you, usage wait,
+  unread, detached, failed) is always shown, plus the newest three settled ones; the rest sit behind a
+  level-3 `Show N more` row, built from the same `SessionRevealRow`, which reveals ten more per
+  activation. The selected nested Session always renders, and selecting one holds its host inside
+  the Project's or the Pinned group's window, so a selection never hides behind `Show N more`.
+- **Rollups.** A collapsed Project heading counts the nested and hidden Sessions its hosts carry in
+  its running arc and unread dot, so folding a group cannot hide delegated work that needs a
+  person. Auto-collapse protection counts them the same way. A Session still belongs to its own
+  `projectId`; only the sidebar's grouping moves.
+- **Failure glyph.** A nested row whose delegation ended `failed` shows a `CircleX` in `--danger`,
+  labeled `Delegation failed`. Live signals win (a usage-limit wait, an approval the Agent is blocked
+  on, a running turn) and a detached Agent keep their glyphs, and the failure outranks only unread
+  and the settled default, so it stays visible after the result was read until a later task replaces it. This is not the
+  "failed process is not a persistent list alert" case above: an Agent process exit is routine,
+  while a task the user handed off that did not complete is the one thing the delegation exists to
+  report. It never appears on an ordinary row or in a collapsed heading's summary.
 
 A Session working in a Git worktree rather than its Project root carries no mark on its row: in
 daily use a leading worktree glyph added a column without changing what the user did next. The

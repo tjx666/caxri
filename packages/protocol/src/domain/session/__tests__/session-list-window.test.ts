@@ -79,6 +79,61 @@ describe('sessionListWindow', () => {
         expect(window.visibleSessions).toHaveLength(DEFAULT_VISIBLE_SESSION_COUNT);
     });
 
+    it('pins the host of a nested selected Session without revealing its neighbours', () => {
+        const window = sessionListWindow(sessions(12), undefined, 'nested-elsewhere', {
+            selectedHostSessionId: 'session-9',
+        });
+        expect(window.visibleSessions.map((session) => session.id)).toEqual([
+            'session-1',
+            'session-2',
+            'session-3',
+            'session-4',
+            'session-5',
+            'session-9',
+        ]);
+        expect(window.windowCount).toBe(DEFAULT_VISIBLE_SESSION_COUNT);
+        expect(window.hiddenCount).toBe(6);
+    });
+
+    it('leaves a host that is already inside the window alone', () => {
+        const window = sessionListWindow(sessions(12), undefined, 'nested-elsewhere', {
+            selectedHostSessionId: 'session-2',
+        });
+        expect(window.visibleSessions).toHaveLength(DEFAULT_VISIBLE_SESSION_COUNT);
+        expect(window.hiddenCount).toBe(7);
+    });
+
+    it('counts the pinned host into the next reveal exactly like a pinned selected row', () => {
+        const options = { selectedHostSessionId: 'session-13' };
+        const before = sessionListWindow(sessions(20), undefined, undefined, options);
+        const after = sessionListWindow(
+            sessions(20),
+            nextRevealedSessionCount(before.windowCount),
+            undefined,
+            options,
+        );
+        expect(after.visibleSessions.length - before.visibleSessions.length).toBe(
+            before.nextRevealCount,
+        );
+    });
+
+    it('starts from a shorter window when the list asks for one', () => {
+        const window = sessionListWindow(sessions(10), undefined, undefined, { initialCount: 3 });
+        expect(window.visibleSessions.map((session) => session.id)).toEqual([
+            'session-1',
+            'session-2',
+            'session-3',
+        ]);
+        expect(window.hiddenCount).toBe(7);
+        expect(window.nextRevealCount).toBe(7);
+    });
+
+    it('never narrows a short window below its initial count for a stale revealed count', () => {
+        expect(
+            sessionListWindow(sessions(10), 1, undefined, { initialCount: 3 }).visibleSessions,
+        ).toHaveLength(3);
+    });
+
     it('handles a Project with no Sessions', () => {
         const window = sessionListWindow([], undefined, undefined);
         expect(window.visibleSessions).toEqual([]);

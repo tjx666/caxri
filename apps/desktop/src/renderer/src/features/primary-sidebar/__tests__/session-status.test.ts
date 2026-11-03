@@ -185,6 +185,105 @@ describe('Session list status', () => {
     });
 });
 
+describe('failed delegation status', () => {
+    const failed = { delegationFailed: true };
+
+    it('shows a read Session whose delegation failed as failed', () => {
+        expect(sessionStatus(sessionSource('idle'), {}, translate, failed)).toEqual({
+            ariaDescription: 'The delegated task failed.',
+            ariaLabel: 'Delegation failed',
+            kind: 'failed',
+        });
+    });
+
+    it('does nothing without the flag, so only nested rows can read as failed', () => {
+        expect(sessionStatus(sessionSource('idle'), {}, translate)).toEqual({ kind: 'default' });
+        expect(
+            sessionStatus(sessionSource('idle'), {}, translate, { delegationFailed: false }),
+        ).toEqual({ kind: 'default' });
+    });
+
+    it('outranks an unread result, since the failure is what the news is about', () => {
+        expect(
+            sessionStatus(
+                sessionSource('completed', { hasUnread: true, lastAttentionKind: 'completed' }),
+                {},
+                translate,
+                failed,
+            ),
+        ).toMatchObject({ kind: 'failed' });
+        expect(
+            sessionStatus(sessionSource('idle', { hasUnread: true }), {}, translate, failed),
+        ).toMatchObject({ kind: 'failed' });
+    });
+
+    it('yields to a detached Agent, which keeps its glyph', () => {
+        expect(
+            sessionStatus(
+                sessionSource('idle'),
+                { lastProcessState: 'detached' },
+                translate,
+                failed,
+            ),
+        ).toMatchObject({ kind: 'detached' });
+    });
+
+    it('yields to a usage-limit wait', () => {
+        expect(
+            sessionStatus(
+                sessionSource('idle'),
+                { usageLimitWaitAt: Date.UTC(2026, 9, 30, 12, 0) },
+                translate,
+                failed,
+            ),
+        ).toMatchObject({ kind: 'usageWait' });
+    });
+
+    it('yields to a pending approval request, which asks for the user right now', () => {
+        expect(
+            sessionStatus(
+                sessionSource('waiting', { hasUnread: true, lastAttentionKind: 'waiting' }),
+                {},
+                translate,
+                failed,
+            ),
+        ).toMatchObject({ kind: 'attention', variant: 'waiting' });
+    });
+
+    it('yields to a turn that is running or compacting, such as a follow-up after the failure', () => {
+        expect(sessionStatus(sessionSource('running'), {}, translate, failed)).toMatchObject({
+            kind: 'running',
+        });
+        expect(
+            sessionStatus(
+                sessionSource('idle'),
+                { agentOperation: 'compacting' },
+                translate,
+                failed,
+            ),
+        ).toMatchObject({ kind: 'running' });
+        // Unread news about a live turn keeps the unread cue as well.
+        expect(
+            sessionStatus(
+                sessionSource('running', { hasUnread: true, lastAttentionKind: 'completed' }),
+                {},
+                translate,
+                failed,
+            ),
+        ).toMatchObject({ kind: 'attention' });
+    });
+
+    it('stays out of the Project heading counts', () => {
+        expect(
+            summarizeSessionStatuses(
+                [sessionSource('idle'), sessionSource('running')],
+                () => {},
+                translate,
+            ),
+        ).toEqual({ attention: 0, running: 1 });
+    });
+});
+
 describe('summarizeSessionStatuses', () => {
     it('counts running and unread Sessions with the same projection as their rows', () => {
         const sessions = [

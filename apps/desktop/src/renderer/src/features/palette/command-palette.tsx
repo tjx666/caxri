@@ -22,7 +22,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useIsLocalOnlyAvailable, useIsSshHost } from '../../stores/environment';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
-import { pinnedSessions } from '../primary-sidebar/pinned-session-order';
+import { placedPinnedSessions } from '../primary-sidebar/delegated/delegated-order';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { hasDetachedAgentTerminal, hasLiveAgentTerminal } from '../session/session-agent-commands';
@@ -245,7 +245,7 @@ function CommandPaletteBody() {
             selectedSessionId: selectedSession?.id,
         }),
         localMachine: isLocalOnlyAvailable,
-        pinnedSessions: pinnedSessions(allSessions).length > 0,
+        pinnedSessions: placedPinnedSessions(projects, allSessions, selectedSession?.id).length > 0,
         settingsPageOpen: isSettingsPageOpen,
         sshHost: isSshHost,
         sessionHasLiveAgent:

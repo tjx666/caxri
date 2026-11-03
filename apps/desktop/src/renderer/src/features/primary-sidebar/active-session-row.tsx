@@ -26,6 +26,27 @@ import { SessionSubagentRows } from './session-subagent-rows';
 interface ActiveSessionRowProperties {
     sessionOrder: SessionOrderController;
     /**
+     * The title of the Session that created this one. Set only on a nested Session row, where the hover card's
+     * description says `Delegated by <title>`.
+     */
+    delegatedBy?: string;
+    /**
+     * True for a nested Session whose delegation failed, which shows the red X in the status slot (see
+     * `sessionStatus`). A primitive from the sidebar's single feed read, so no row subscribes to the feed itself.
+     */
+    delegationFailed?: boolean;
+    /**
+     * True on a row in the Pinned group, where the hover card's description opens with `In Pinned group.` and the
+     * accessible description tells the row from a Project's. Independent of `showProjectName`, which a nested row sets
+     * too.
+     */
+    inPinnedGroup?: boolean;
+    /**
+     * True for a Session nested under its host (level 3): a fixed child of the Session that created it, so it is not
+     * draggable, not a drop target, has no `Alt+Arrow` reorder, and shows no subagent rows of its own.
+     */
+    nested?: boolean;
+    /**
      * The rows this row's list shows, in order, for `Alt+Arrow` reordering.
      */
     visibleSessionIds: readonly string[];
@@ -49,9 +70,9 @@ interface ActiveSessionRowProperties {
     projectId: string;
     projectRootPath: string;
     /**
-     * Names the owning Project beside the title, and tells assistive technology which copy of a doubly listed Session
-     * this row is. Set only in the Pinned group, where rows arrive from several Projects at once and the title alone no
-     * longer says which one this is.
+     * Names the owning Project beside the title. Set where a row is not under its own Project's heading: the Pinned
+     * group, where rows arrive from several Projects at once, and a nested Session, which sits under its host's
+     * Project. The title alone no longer says which one this is.
      */
     showProjectName?: boolean;
     renameError?: string;
@@ -63,8 +84,8 @@ interface ActiveSessionRowProperties {
      */
     roving: boolean;
     /**
-     * The row's id in the tree. Defaults to the Session id; the Pinned group passes a namespaced one because the same
-     * Session also has a row under its own Project.
+     * The row's id in the tree. Defaults to the Session id; the Pinned group and a nested row pass a namespaced one
+     * (`pinned-session:<id>`, `delegated-session:<id>`), so a row id says which list it sits in.
      */
     rowId?: string;
     selected: boolean;
@@ -98,20 +119,25 @@ const HIDDEN_ON_ROW_HOVER =
     'group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden';
 
 /**
- * One active Session row, shared by the Project groups and the Pinned group. A pinned Session is rendered twice (once
- * in each), so everything that varies between the two copies (its tree row id, whether the owning Project is named) is
- * a prop rather than a second component: two row implementations would drift, and this row already carries the drag
- * source, the hover card, the context menu, and the tree semantics.
+ * One active Session row, shared by the Project groups, the Pinned group, and a host's nested Sessions. Everything that
+ * varies between them (its tree row id, whether the owning Project is named, whether it is nested) is a prop rather
+ * than a second component: two row implementations would drift, and this row already carries the drag source, the hover
+ * card, the context menu, and the tree semantics.
  *
- * Both lists render it through `memo`. Each list renders its rows from one `.map()`, which React Compiler caches as a
- * whole, so any change to the list's inputs (a Session switch moves the selection and replaces the opened Session's
- * record) recreates every row element. The memo boundary lets a row whose props kept their identity skip rendering,
- * which on a switch is every row but the two whose selection moved, and its props are shaped for exactly that: shared
- * handlers, an id list keyed by content, and the Project as fields (issue #1356). A new prop derived per render from a
- * list or a record would quietly undo it.
+ * Every list renders it through `MemoizedActiveSessionRow` (`memoized-active-session-row.ts`). Each list renders its
+ * rows from one `.map()`, which React Compiler caches as a whole, so any change to the list's inputs (a Session switch
+ * moves the selection and replaces the opened Session's record) recreates every row element. The memo boundary lets a
+ * row whose props kept their identity skip rendering, which on a switch is every row but the two whose selection moved,
+ * and its props are shaped for exactly that: shared handlers, an id list keyed by content, and the Project as fields
+ * (issue #1356). A new prop derived per render from a list or a record would quietly undo it, which is why a nested
+ * row's failure and creator title arrive as a boolean and a string rather than as the delegation feed they came from.
  */
 export function ActiveSessionRow({
     sessionOrder,
+    delegatedBy,
+    delegationFailed,
+    inPinnedGroup,
+    nested,
     visibleSessionIds,
     focusRenameInput,
     onBeginRename,
@@ -177,6 +203,7 @@ export function ActiveSessionRow({
         <SessionRowTrigger
             session={session}
             rowId={rowId}
+            nested={nested}
             selected={selected}
             renaming={renaming}
             roving={roving}
@@ -262,6 +289,7 @@ export function ActiveSessionRow({
              */}
             <SessionRowStatus
                 className={HIDDEN_ON_ROW_HOVER}
+                delegationFailed={delegationFailed}
                 pullRequest={pullRequestUnavailable ? undefined : pullRequest}
                 renaming={renaming}
                 renameSuggesting={renameSuggesting}
@@ -291,7 +319,9 @@ export function ActiveSessionRow({
                 sessionCard
             ) : (
                 <SessionActivityCard
-                    inPinnedGroup={showProjectName}
+                    delegatedBy={delegatedBy}
+                    delegationFailed={delegationFailed}
+                    inPinnedGroup={inPinnedGroup}
                     project={project}
                     pullRequest={pullRequest}
                     pullRequestUnavailable={pullRequestUnavailable}
@@ -306,7 +336,8 @@ export function ActiveSessionRow({
             {!renaming && <SessionRowActions session={session} />}
         </div>
     );
-    const subagentRows = (
+    // A nested Session lists no subagents: a delegation chain is one level deep, and the host's group stays short.
+    const subagentRows = nested ? null : (
         <SessionSubagentRows
             rovingRowId={subagentRovingRowId}
             sessionId={session.id}

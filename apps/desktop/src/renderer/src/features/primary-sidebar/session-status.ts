@@ -29,6 +29,7 @@ type SessionRunningVariant = 'active' | 'background';
 export type SessionStatus =
     | (VisibleSessionStatus & { kind: 'attention'; variant: SessionAttentionVariant })
     | (VisibleSessionStatus & { kind: 'detached' })
+    | (VisibleSessionStatus & { kind: 'failed' })
     | (VisibleSessionStatus & { kind: 'running'; variant: SessionRunningVariant })
     | (VisibleSessionStatus & { kind: 'usageWait' })
     | { kind: 'default' };
@@ -58,14 +59,21 @@ type SessionStatusSource = Pick<
  * animated unread state and always clears once the Session is read; there is deliberately no quieter "still waiting"
  * variant. A second, static amber state keyed off `agentActivityState` alone used to survive acknowledgement, which
  * left read Sessions marked with a cue no amount of reading could clear and made the animated one impossible to trust.
+ *
+ * `delegationFailed` is the one signal a Session record cannot carry: the delegation that runs in a nested Session
+ * ended in `failed` (see `useDelegationFeed`). It only ever changes how a nested row reads, so the caller passes it for
+ * those rows alone. Live signals outrank it, because they say the Session is doing something now or asks for you: a
+ * usage-limit wait, an approval the Agent is blocked on, and a turn that is running (a follow-up after the failure).
+ * Below those, `failed` outranks an unread result and the settled default (a detached Agent keeps its glyph), so a task
+ * that failed and was then read still shows it until a later task replaces the failure.
  */
 export function sessionStatus(
     session: SessionStatusSource,
     terminal: SessionStatusTerminal,
     t: Translate,
+    { delegationFailed = false }: { delegationFailed?: boolean } = {},
 ): SessionStatus {
     const { agentOperation } = terminal;
-
     if (terminal.usageLimitWaitAt !== undefined) {
         return {
             ariaDescription: t('primarySidebar.status.usageWait.description', {
@@ -76,6 +84,13 @@ export function sessionStatus(
         };
     }
 
+    const isLive = agentOperation === 'compacting' || session.agentActivityState === 'running';
+    const failedStatus = (): SessionStatus => ({
+        ariaDescription: t('primarySidebar.status.failed.description'),
+        ariaLabel: t('primarySidebar.status.failed.label'),
+        kind: 'failed',
+    });
+
     const currentActivity = sessionActivityPresentation(
         session.agentActivityState,
         agentOperation,
@@ -83,6 +98,10 @@ export function sessionStatus(
     );
 
     if (session.hasUnread) {
+        // An unread result is news about a task that already ended, which the failure replaces; an unread approval
+        // request or a running turn is not, and stays.
+        if (delegationFailed && !isLive && session.lastAttentionKind !== 'waiting')
+            return failedStatus();
         const attentionActivity = sessionActivityPresentation(
             session.lastAttentionKind ?? 'unknown',
             undefined,
@@ -110,7 +129,8 @@ export function sessionStatus(
 
     /**
      * A detached Agent was handed to another client on purpose, so whatever activity the last probe recorded is no
-     * longer Caxri's to animate. Unread attention still wins above: it was raised before the hand-over.
+     * longer Caxri's to animate. Unread attention still wins above: it was raised before the hand-over. A live signal
+     * keeps its glyph, so a recorded delegation failure does not replace the detached one.
      */
     if (terminal.lastProcessState === 'detached') {
         return {
@@ -120,7 +140,7 @@ export function sessionStatus(
         };
     }
 
-    if (agentOperation === 'compacting' || session.agentActivityState === 'running') {
+    if (isLive) {
         return {
             ariaDescription: currentActivity.description,
             ariaLabel: currentActivity.label,
@@ -129,7 +149,7 @@ export function sessionStatus(
         };
     }
 
-    return { kind: 'default' };
+    return delegationFailed ? failedStatus() : { kind: 'default' };
 }
 
 export interface SessionStatusSummary {

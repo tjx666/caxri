@@ -18,6 +18,7 @@ import { SessionStatusIndicator } from './session-status-indicator';
  */
 export function SessionRowStatus({
     className,
+    delegationFailed,
     pullRequest,
     renaming,
     renameSuggesting,
@@ -30,6 +31,10 @@ export function SessionRowStatus({
      * status as one muted line.
      */
     className: string;
+    /**
+     * True for a nested Session whose delegation failed: the red X glyph (see `sessionStatus`).
+     */
+    delegationFailed?: boolean;
     pullRequest?: SessionPullRequest;
     renaming: boolean;
     /**
@@ -58,6 +63,7 @@ export function SessionRowStatus({
             )}
         >
             <SessionStatusIndicator
+                delegationFailed={delegationFailed}
                 fallback={!renaming && <SessionPullRequestIndicator pullRequest={pullRequest} />}
                 session={session}
                 terminal={terminal}

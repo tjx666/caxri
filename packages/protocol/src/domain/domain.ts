@@ -64,9 +64,9 @@ export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
  *   start it in the creator's Project).
  * - `consult`: a question or review the creator asks, which changes no files.
  *
- * The Session records the relation and `session.query` returns it; no Renderer surface reads it yet. The Delegated
- * Sessions feed (issue #3572) is meant to list `delegated` Sessions under their creator and give a `consult` Session no
- * row of its own.
+ * The Session records the relation and `session.query` returns it. The PrimarySidebar (issue #3572) lists a `delegated`
+ * Session under the Session that created it and gives a `consult` Session no row of its own while a Session above it is
+ * listed; a `handoff` keeps an ordinary row.
  *
  * The relation kinds follow the thread relations of T3 Code (see `competitors/references/feature-references.md`).
  */
@@ -167,8 +167,8 @@ export const sessionRecordSchema = z.object({
     pinnedAt: z.number().optional(),
     /**
      * Ascending position inside the Pinned group, changed by dragging. Separate from `sidebarOrder`, which keeps
-     * ordering the same Session inside its own Project group: a Session is listed in both places at once, and one
-     * number cannot answer for two lists.
+     * ordering the same Session inside its own Project group: a pinned Session is listed only in the Pinned group, but
+     * unpinning returns it to its Project group at its old place, and one number cannot answer for two lists.
      */
     pinnedOrder: z.number().int().optional(),
     /**

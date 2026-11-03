@@ -23,23 +23,34 @@ export interface PrimarySidebarTreeRow {
     id: string;
     /**
      * `subagent` and `subagentMore` rows sit one level under their Session row: a Chat's subagent, and the row that
-     * shows the rest of that Chat's subagents (or folds them again).
+     * shows the rest of that Chat's subagents (or folds them again). `delegatedSession` and `delegatedReveal` sit at
+     * the same level under their host Session row: a Session the host delegated work to, and the row that shows the
+     * rest of the host's settled ones.
      */
-    kind: 'project' | 'session' | 'reveal' | 'createSession' | 'subagent' | 'subagentMore';
+    kind:
+        | 'project'
+        | 'session'
+        | 'reveal'
+        | 'createSession'
+        | 'subagent'
+        | 'subagentMore'
+        | 'delegatedSession'
+        | 'delegatedReveal';
     /**
      * The owning group's heading row id; equals `id` itself for a Project row, and `PINNED_GROUP_ROW_ID` for everything
      * inside the Pinned group. Named for the Project because that is what it is everywhere except that one group.
      */
     projectId: string;
     /**
-     * The Session this row acts on, for `kind: 'session'` only. Distinct from `id` because a row inside the Pinned
-     * group carries a namespaced row id rather than the Session id; every action still has to reach the Session
-     * itself.
+     * The Session this row acts on: the Session of a `session` or `delegatedSession` row, and the host Session of a
+     * `subagent`, `subagentMore`, or `delegatedReveal` row. Distinct from `id` because a row inside the Pinned group
+     * (and a nested one) carries a namespaced row id rather than the Session id; every action still has to reach the
+     * Session itself.
      */
     sessionId?: string;
     /**
-     * The Session row a `subagent` or `subagentMore` row nests under, which Left returns to. Its own id rather than a
-     * Session id because a pinned Session's row carries a namespaced one.
+     * The Session row a `subagent`, `subagentMore`, `delegatedSession`, or `delegatedReveal` row nests under, which
+     * Left returns to. Its own id rather than a Session id because a pinned Session's row carries a namespaced one.
      */
     parentRowId?: string;
     /**
@@ -98,6 +109,38 @@ export function primarySidebarSubagentMoreRowId(sessionId: string): string {
 }
 
 /**
+ * Row id of a nested Session's row under its host. Namespaced because a Session has exactly one row, and this one says
+ * it is a child: `focusRow`'s `[data-row-id]` lookup, the roving Tab stop, and the selection fallback address it by
+ * this id, while every action still goes through the row's `sessionId`.
+ */
+export function primarySidebarDelegatedRowId(sessionId: string): string {
+    return `delegated-session:${sessionId}`;
+}
+
+/**
+ * Row id of the row that shows the rest of a host's nested Sessions. Keyed by the host Session id, which owns exactly
+ * one such row.
+ */
+export function primarySidebarDelegatedRevealRowId(hostSessionId: string): string {
+    return `reveal-delegated:${hostSessionId}`;
+}
+
+/**
+ * The nested Sessions one host shows under it, already ordered and windowed (see `delegated-child-window.ts`).
+ */
+export interface PrimarySidebarDelegatedNode {
+    /**
+     * True when the host's child window hides at least one settled nested Session, which is what puts its reveal row on
+     * screen.
+     */
+    hasHiddenSessions?: boolean;
+    /**
+     * The nested Sessions the window actually renders, in display order.
+     */
+    sessionIds: readonly string[];
+}
+
+/**
  * The subagent rows one Session shows under it, already ordered and windowed (see `session-subagents.ts`).
  */
 export interface PrimarySidebarSubagentNode {
@@ -137,8 +180,11 @@ export interface PrimarySidebarPinnedNode {
  * for.
  *
  * A Session that shows subagents (`subagents`, keyed by Session id) follows its own row with their rows and, when it
- * has more than the collapsed window, the show-more row right after the first few, all one level deeper than the
- * Session.
+ * has more than the collapsed window, the show-more row right after the first few, one level deeper than the Session. A
+ * host Session that shows nested Sessions (`delegated`, keyed by host Session id) then follows with their rows and,
+ * when its child window hides some, the reveal row, at the same depth, so Right on a host steps into its subagents
+ * first. Nested Sessions are never hosts themselves and show no subagent rows: a delegation chain flattens onto one
+ * level.
  *
  * An expanded Project with no visible Sessions renders the "New Session" row in place of that list, so it takes the
  * Session rows' place here too. The condition is read straight off `sessionIds` rather than a separate emptiness flag:
@@ -150,8 +196,37 @@ export function flattenPrimarySidebarRows(
     isExpanded: (projectId: string) => boolean,
     pinned?: PrimarySidebarPinnedNode,
     subagents?: ReadonlyMap<string, PrimarySidebarSubagentNode>,
+    delegated?: ReadonlyMap<string, PrimarySidebarDelegatedNode>,
 ): PrimarySidebarTreeRow[] {
     const rows: PrimarySidebarTreeRow[] = [];
+    /**
+     * A host's nested Session rows follow its subagent rows, one level deeper, closed by the reveal row when the child
+     * window hides some. The host's row id is passed in because a pinned Session's differs from its id.
+     */
+    const pushDelegatedRows = (
+        hostSessionId: string,
+        hostRowId: string,
+        projectId: string,
+    ): void => {
+        const node = delegated?.get(hostSessionId);
+        if (!node) return;
+        for (const sessionId of node.sessionIds)
+            rows.push({
+                id: primarySidebarDelegatedRowId(sessionId),
+                kind: 'delegatedSession',
+                parentRowId: hostRowId,
+                projectId,
+                sessionId,
+            });
+        if (node.hasHiddenSessions)
+            rows.push({
+                id: primarySidebarDelegatedRevealRowId(hostSessionId),
+                kind: 'delegatedReveal',
+                parentRowId: hostRowId,
+                projectId,
+                sessionId: hostSessionId,
+            });
+    };
     /**
      * A Session's subagent rows follow its own row, one level deeper. The Session's row id is passed in because a
      * pinned Session's differs from its id.
@@ -196,11 +271,9 @@ export function flattenPrimarySidebarRows(
                     projectId: PINNED_GROUP_ROW_ID,
                     sessionId,
                 });
-                pushSubagentRows(
-                    sessionId,
-                    primarySidebarPinnedRowId(sessionId),
-                    PINNED_GROUP_ROW_ID,
-                );
+                const rowId = primarySidebarPinnedRowId(sessionId);
+                pushSubagentRows(sessionId, rowId, PINNED_GROUP_ROW_ID);
+                pushDelegatedRows(sessionId, rowId, PINNED_GROUP_ROW_ID);
             }
             if (pinned.hasHiddenSessions)
                 rows.push({
@@ -216,6 +289,7 @@ export function flattenPrimarySidebarRows(
         for (const sessionId of project.sessionIds) {
             rows.push({ id: sessionId, kind: 'session', projectId: project.id, sessionId });
             pushSubagentRows(sessionId, sessionId, project.id);
+            pushDelegatedRows(sessionId, sessionId, project.id);
         }
         if (project.hasHiddenSessions)
             rows.push({
@@ -234,12 +308,26 @@ export function flattenPrimarySidebarRows(
 }
 
 /**
- * Project (and Pinned) headings sit at the top level, their Session, reveal, and "New Session" rows one level in, and a
- * Session's subagent rows one level further.
+ * Project (and Pinned) headings sit at the top level, their Session, reveal, and "New Session" rows one level in, and
+ * the rows under a Session (its subagents, its nested Sessions and their reveal row) one level further.
  */
 const primarySidebarRowModel: TreeRowModel<PrimarySidebarTreeRow> = {
-    depthOf: (row) =>
-        row.kind === 'project' ? 0 : row.kind === 'subagent' || row.kind === 'subagentMore' ? 2 : 1,
+    depthOf: (row) => {
+        switch (row.kind) {
+            case 'project': {
+                return 0;
+            }
+            case 'subagent':
+            case 'subagentMore':
+            case 'delegatedSession':
+            case 'delegatedReveal': {
+                return 2;
+            }
+            default: {
+                return 1;
+            }
+        }
+    },
 };
 
 /**
@@ -267,9 +355,11 @@ export interface PrimarySidebarHorizontalIntent {
 
 /**
  * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project and
- * steps into the first row of an already open one, Left closes an open Project. A Session, reveal, or "New Session" row
- * has no children of its own, so Left instead moves focus to its owning Project heading (a subagent row's Left goes to
- * its Session row): only a Project is a collapse/expand target, and Right on one of those rows does nothing.
+ * steps into the first row of an already open one, Left closes an open Project. Any other row is not a collapse/expand
+ * target (a host's nested Sessions are always listed), so Left moves focus to its parent row (a Session, reveal, or
+ * "New Session" row goes to its Project heading; a subagent, nested Session, or nested reveal row goes to its host
+ * Session row) and Right steps into the row's first child, which only a Session row that lists subagents or nested
+ * Sessions has. Right on a row without children does nothing.
  *
  * Right on an already expanded Project used to be a dead key, which is the half of the pattern that leaves a user who
  * opened a Project with the arrow keys no way to continue into it with the same key.
@@ -286,8 +376,8 @@ export function primarySidebarHorizontalIntent(
         return target === undefined ? undefined : rows[target].id;
     };
     if (row.kind !== 'project') {
-        const parentId = key === 'ArrowLeft' ? targetId('parent') : undefined;
-        return parentId ? { focusRowId: parentId } : {};
+        const targetRowId = targetId(key === 'ArrowLeft' ? 'parent' : 'firstChild');
+        return targetRowId ? { focusRowId: targetRowId } : {};
     }
     if (key === 'ArrowLeft') return isExpanded ? { expanded: false } : {};
     if (!isExpanded) return { expanded: true };
@@ -299,42 +389,54 @@ export function primarySidebarHorizontalIntent(
  * Resolves which row owns the PrimarySidebar tree's single roving Tab stop (standard ARIA tree authoring pattern: one
  * Tab stop, arrow keys move focus inside it). Prefers the last row the user actually focused, but that id can go stale
  * (a Session gets archived, or a Project collapses over the Session that was focused) so it falls back through the
- * selected Session's row, then the selected Project's heading row, then the first row, exactly like a fresh tree with
- * no focus history yet.
+ * selected Session's row (in its Project, the Pinned group, or under its host), then the first of
+ * `selectedFallbackRowIds` that is on screen, then the selected Project's heading row, then the first row, exactly like
+ * a fresh tree with no focus history yet.
+ *
+ * `selectedFallbackRowIds` is for a selected Session that has no row of its own right now, in preference order. A
+ * nested Session whose host is collapsed away passes its host row and then its host's group heading, so the Tab stop
+ * lands where the Session lives rather than on a Project it does not belong to.
  */
 export function rovingPrimarySidebarRowId(
     rows: readonly PrimarySidebarTreeRow[],
     focusedRowId: string | undefined,
     selectedSessionId: string | undefined,
     selectedProjectId: string | undefined,
+    selectedFallbackRowIds: readonly string[] = [],
 ): string | undefined {
-    if (focusedRowId && rows.some((row) => row.id === focusedRowId)) return focusedRowId;
-    if (selectedSessionId && rows.some((row) => row.id === selectedSessionId))
-        return selectedSessionId;
-    /**
-     * A pinned Session whose own Project group is collapsed still has a row on screen, in the Pinned group. Reaching
-     * for it before falling back to the Project heading keeps the Tab stop on the selected Session whenever any row for
-     * it exists.
-     */
-    const pinnedRowId = selectedSessionId && primarySidebarPinnedRowId(selectedSessionId);
-    if (pinnedRowId && rows.some((row) => row.id === pinnedRowId)) return pinnedRowId;
-    if (selectedProjectId && rows.some((row) => row.id === selectedProjectId))
-        return selectedProjectId;
+    const hasRow = (rowId: string): boolean => rows.some((row) => row.id === rowId);
+    if (focusedRowId && hasRow(focusedRowId)) return focusedRowId;
+    if (selectedSessionId) {
+        /**
+         * A pinned Session whose own Project group is collapsed still has a row on screen, in the Pinned group.
+         * Reaching for it before falling back to the Project heading keeps the Tab stop on the selected Session
+         * whenever any row for it exists. A nested Session's row is likewise addressed by its own namespaced id.
+         */
+        const sessionRowId = [
+            selectedSessionId,
+            primarySidebarPinnedRowId(selectedSessionId),
+            primarySidebarDelegatedRowId(selectedSessionId),
+        ].find(hasRow);
+        if (sessionRowId) return sessionRowId;
+    }
+    const fallbackRowId = selectedFallbackRowIds.find(hasRow);
+    if (fallbackRowId) return fallbackRowId;
+    if (selectedProjectId && hasRow(selectedProjectId)) return selectedProjectId;
     return rows[0]?.id;
 }
 
 export type PrimarySidebarRowKeyIntent = 'archive';
 
 /**
- * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row has an archive action, so a
- * Project, reveal, or "New Session" row (or any other key) resolves to no intent; the caller is responsible for the
- * actual `archiveSession` side effect (archiving is reversible via the Archived Sessions dialog, so it asks only when
- * the Agent is still working; see `archiveSession`).
+ * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row, top-level or nested, has
+ * an archive action, so a Project, reveal, subagent, or "New Session" row (or any other key) resolves to no intent; the
+ * caller is responsible for the actual `archiveSession` side effect (archiving is reversible via the Archived Sessions
+ * dialog, so it asks only when the Agent is still working; see `archiveSession`).
  */
 export function primarySidebarArchiveIntent(
     row: PrimarySidebarTreeRow,
     key: string,
 ): PrimarySidebarRowKeyIntent | undefined {
-    if (row.kind !== 'session') return undefined;
+    if (row.kind !== 'session' && row.kind !== 'delegatedSession') return undefined;
     return key === 'Delete' || key === 'Backspace' ? 'archive' : undefined;
 }

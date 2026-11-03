@@ -126,6 +126,88 @@ describe('Project collapse policy', () => {
     });
 });
 
+describe('Project collapse protection for delegated Sessions', () => {
+    /**
+     * A nested Session lives under its host, so the group that must stay open is the host's, not the Project the nested
+     * Session itself belongs to.
+     */
+    const delegatedSessions = [
+        session('host', 'host-project'),
+        session('child', 'child-project', { agentActivityState: 'running' }),
+        session('unread-consult', 'consult-project', { hasUnread: true }),
+    ];
+    const groupIdBySessionId = new Map([
+        ['child', 'host-project'],
+        ['unread-consult', 'host-project'],
+    ]);
+    const delegatedPolicy = (overrides: Partial<Parameters<typeof policy>[0]> = {}) =>
+        policy({
+            collapsedProjects: {
+                'child-project': 'automatic',
+                'consult-project': 'automatic',
+                'host-project': 'automatic',
+            },
+            projects: [
+                project('host-project', 0),
+                project('child-project', 0),
+                project('consult-project', 0),
+            ],
+            selectedSessionId: undefined,
+            sessions: delegatedSessions,
+            ...overrides,
+        });
+
+    it('protects the host group of a running nested Session and an unread hidden consult', () => {
+        expect(delegatedPolicy({ groupIdBySessionId })).toEqual({
+            'child-project': 'automatic',
+            'consult-project': 'automatic',
+        });
+    });
+
+    it('protects the host group of the selected nested Session', () => {
+        expect(
+            delegatedPolicy({
+                groupIdBySessionId: new Map([['quiet-child', 'host-project']]),
+                selectedSessionId: 'quiet-child',
+                sessions: [session('quiet-child', 'child-project')],
+            }),
+        ).toEqual({ 'child-project': 'automatic', 'consult-project': 'automatic' });
+    });
+
+    it('does not protect the own Project of a Session hosted by a pinned Session', () => {
+        // The Pinned group is not a Project and has no disclosure entry; the nested Session must simply stop protecting
+        // the Project it only belongs to by record.
+        expect(
+            delegatedPolicy({
+                groupIdBySessionId: new Map([
+                    ['child', 'pinned-sessions'],
+                    ['unread-consult', 'pinned-sessions'],
+                ]),
+            }),
+        ).toEqual({
+            'child-project': 'automatic',
+            'consult-project': 'automatic',
+            'host-project': 'automatic',
+        });
+    });
+
+    it('falls back to the own Project when a Session is not nested', () => {
+        expect(delegatedPolicy()).toEqual({ 'host-project': 'automatic' });
+    });
+
+    it('applies the same attribution to a plain reconciliation', () => {
+        expect(
+            reconcile({
+                collapsedProjects: { 'child-project': 'automatic', 'host-project': 'automatic' },
+                groupIdBySessionId,
+                projects: [project('host-project', 0), project('child-project', 0)],
+                selectedSessionId: undefined,
+                sessions: delegatedSessions,
+            }),
+        ).toEqual({ 'child-project': 'automatic' });
+    });
+});
+
 describe('Project disclosure toggle', () => {
     it('records both directions of the user decision', () => {
         expect(projectCollapseAfterToggle({}, 'alpha')).toEqual({ alpha: 'user-collapsed' });

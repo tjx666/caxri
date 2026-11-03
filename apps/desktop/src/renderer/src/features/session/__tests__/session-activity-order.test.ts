@@ -52,4 +52,55 @@ describe('Session Activity order', () => {
             ]).map(({ id }) => id),
         ).toEqual(['project-1-newest', 'project-1-oldest', 'project-2-newest']);
     });
+
+    describe('delegated Sessions', () => {
+        const projects = [project('project-1', 0), project('project-2', 1)];
+        const created = (
+            id: string,
+            projectId: string,
+            creatorId: string,
+            relation: 'consult' | 'delegated',
+            sessionActivityAt: number,
+        ) =>
+            session(id, projectId, sessionActivityAt, {
+                createdByRelation: relation,
+                createdBySessionId: creatorId,
+            });
+        const sessions = [
+            session('host', 'project-1', 10),
+            session('other', 'project-1', 5),
+            created('child-old', 'project-2', 'host', 'delegated', 1),
+            created('child-new', 'project-2', 'host', 'delegated', 2),
+            created('consult', 'project-1', 'host', 'consult', 3),
+            session('own-row', 'project-2', 50),
+        ];
+
+        it('lists a nested Session right after its host, whatever Project it belongs to', () => {
+            expect(activeSessionsInSidebarOrder(projects, sessions).map(({ id }) => id)).toEqual([
+                'host',
+                'child-new',
+                'child-old',
+                'consult',
+                'other',
+                'own-row',
+            ]);
+        });
+
+        it('leaves hidden consults out when asked for navigable Sessions only', () => {
+            expect(
+                activeSessionsInSidebarOrder(projects, sessions, { navigableOnly: true }).map(
+                    ({ id }) => id,
+                ),
+            ).toEqual(['host', 'child-new', 'child-old', 'other', 'own-row']);
+        });
+
+        it('keeps the selected consult in the navigable order', () => {
+            expect(
+                activeSessionsInSidebarOrder(projects, sessions, {
+                    navigableOnly: true,
+                    selectedSessionId: 'consult',
+                }).map(({ id }) => id),
+            ).toEqual(['host', 'consult', 'child-new', 'child-old', 'other', 'own-row']);
+        });
+    });
 });

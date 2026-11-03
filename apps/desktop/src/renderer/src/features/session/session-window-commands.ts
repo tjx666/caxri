@@ -3,7 +3,7 @@ import { caxri } from '../../lib/caxri';
 import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
-import { pinnedSessions } from '../primary-sidebar/pinned-session-order';
+import { placedPinnedSessions } from '../primary-sidebar/delegated/delegated-order';
 import { didSelectSession } from './session-commands';
 
 /**
@@ -68,7 +68,11 @@ export function openPinnedSessionAtPosition(position: number): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
     const target = pinnedSessionTargetId(
-        pinnedSessions(bootstrap.sessions).map(({ id }) => id),
+        placedPinnedSessions(
+            bootstrap.projects,
+            bootstrap.sessions,
+            bootstrap.selectedSessionId,
+        ).map(({ id }) => id),
         position,
     );
     if (!target || target === (pinnedNavigation.pendingTarget ?? bootstrap.selectedSessionId))

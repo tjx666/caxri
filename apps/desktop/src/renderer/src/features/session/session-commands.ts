@@ -17,6 +17,10 @@ import {
 } from '../../stores/workbench-session-titles';
 import { forgetDeletedSessions } from '../closed-items/recording';
 import { recordSessionSwitchLatency } from '../performance-monitor/collector';
+import {
+    firstSessionOfProject,
+    sidebarSessionOrder,
+} from '../primary-sidebar/delegated/delegated-order';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { beginSessionSwitchTiming } from '../renderer-performance/jank-monitor';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
@@ -169,8 +173,9 @@ function selectMruSession(sessionId: string): void {
 export function selectProject(projectId: string): void {
     const bootstrap = getBootstrap();
     const session = bootstrap
-        ? activeSessionsInSidebarOrder(bootstrap.projects, bootstrap.sessions).find(
-              (item) => item.projectId === projectId,
+        ? firstSessionOfProject(
+              sidebarSessionOrder(bootstrap.projects, bootstrap.sessions, getSelectedSession()?.id),
+              projectId,
           )
         : undefined;
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
@@ -398,7 +403,11 @@ export function moveTerminalToNewSession(terminalId: string, isOnlyWorkTab = fal
 export function selectAdjacentSession(delta: 1 | -1): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
-    const activeSessions = activeSessionsInSidebarOrder(bootstrap.projects, bootstrap.sessions);
+    // Steps through the rows the sidebar shows: a consult hidden under its creator is skipped, unless it is selected.
+    const activeSessions = activeSessionsInSidebarOrder(bootstrap.projects, bootstrap.sessions, {
+        navigableOnly: true,
+        selectedSessionId: getSelectedSession()?.id,
+    });
     if (activeSessions.length === 0) return;
     const selectedIndex = activeSessions.findIndex(
         (session) => session.id === getSelectedSession()?.id,
