@@ -25,6 +25,7 @@ export const workbench = {
 
     'workbench.tab.closeEditor': 'Close Editor',
     'workbench.tab.closeTerminal': 'Close Terminal',
+    'workbench.tab.compactingBadge': 'Compacting',
     'workbench.tab.compacting': 'Compacting context',
     'workbench.tab.compactingTooltip':
         'The Agent is summarizing earlier context before continuing.',

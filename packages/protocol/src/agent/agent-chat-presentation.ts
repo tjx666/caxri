@@ -251,7 +251,15 @@ export type AgentChatActivity =
            */
           usage?: AgentChatTurnUsage;
       }
-    | { kind: 'compacting'; text: string; isStoppable: boolean }
+    | {
+          kind: 'compacting';
+          text: string;
+          isStoppable: boolean;
+          /**
+           * When the compaction started, so a long one reads as progress; absent when the provider did not say.
+           */
+          startedAt: number | undefined;
+      }
     | { kind: 'waiting'; text: string };
 
 /**
@@ -266,7 +274,14 @@ export function agentChatActivity(
     snapshot:
         | Pick<
               AgentChatSnapshot,
-              'status' | 'activeTurnId' | 'items' | 'operation' | 'requests' | 'turns' | 'turnUsage'
+              | 'status'
+              | 'activeTurnId'
+              | 'items'
+              | 'operation'
+              | 'operationStartedAt'
+              | 'requests'
+              | 'turns'
+              | 'turnUsage'
           >
         | undefined,
     providerName: string,
@@ -288,6 +303,7 @@ export function agentChatActivity(
             kind: 'compacting',
             text: t('agentChat.timeline.compacting'),
             isStoppable: Boolean(turnId),
+            startedAt: snapshot.operationStartedAt,
         };
     if (!turnId) return undefined;
     const work = agentChatTurnActiveWork(snapshot.items, turnId);

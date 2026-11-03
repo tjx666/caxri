@@ -535,6 +535,11 @@ export const agentChatSnapshotSchema = z.strictObject({
      * Provider-wide work in progress that is not a turn, such as compacting the context.
      */
     operation: z.enum(['compacting']).optional(),
+    /**
+     * When the current `operation` started (epoch milliseconds), so a Client can show how long a compaction has run.
+     * Cleared together with `operation`.
+     */
+    operationStartedAt: z.number().int().nonnegative().optional(),
     tasks: z.array(agentChatTaskSchema).max(MAX_AGENT_CHAT_TASKS).optional(),
     queue: z.array(agentChatQueuedMessageSchema).max(MAX_AGENT_CHAT_QUEUE).optional(),
     /**

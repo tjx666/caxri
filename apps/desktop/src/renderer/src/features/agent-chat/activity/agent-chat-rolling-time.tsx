@@ -1,8 +1,11 @@
 import { Fragment } from 'react';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { AnimatedNumber, AnimatedNumberGroup } from '../../../components/animated-number';
+import { useTranslation } from '../../../i18n';
 import type { ElapsedTimeFigure } from './agent-chat-elapsed-time';
-import { elapsedTimeText } from './agent-chat-elapsed-time';
+import { elapsedTimeFigures, elapsedTimeText } from './agent-chat-elapsed-time';
 
 /**
  * The tens of a count below a larger unit stop at 5, so 59 rolls forward to 00. Minutes count on past 59 when no hours
@@ -48,4 +51,15 @@ export function AgentChatRollingTime({
             </AnimatedNumberGroup>
         </span>
     );
+}
+
+/**
+ * How long a turn or a compaction has run, its digits rolling forward like a clock's every second
+ * (`elapsedTimeFigures`). Shows nothing until the time is worth reading.
+ */
+export function AgentChatElapsedTime({ startedAt }: { startedAt: number }) {
+    const { t } = useTranslation();
+    const figures = elapsedTimeFigures(useClockTick('second') - startedAt, t);
+    if (!figures) return null;
+    return <AgentChatRollingTime data-agent-chat-elapsed-time="" figures={figures} />;
 }

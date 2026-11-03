@@ -53,6 +53,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.attaching': '正在附加…',
     'agentChat.message.sending': '正在发送…',
     'agentChat.message.sendingAfterStep': '当前步骤结束后发出',
+    'agentChat.message.sendingAfterCompaction': '上下文压缩完成后发出',
+    'agentChat.message.compactingBeforeReply': '完成后 Agent 会接着处理你的消息',
     'agentChat.message.sendingAfterStart': 'Agent 启动后发出',
     'agentChat.message.typeToSend': '输入消息后即可发送',
     'agentChat.message.steered': '已插入本轮',

@@ -66,7 +66,10 @@ import {
     isAgentChatConversationLoading,
 } from './transcript/agent-chat-presentation';
 import { AgentChatReturnHint } from './transcript/agent-chat-return-hint';
-import { isAgentChatAwaitingReplyInTimeline } from './transcript/agent-chat-timeline';
+import {
+    agentChatCompactionInTimeline,
+    isAgentChatAwaitingReplyInTimeline,
+} from './transcript/agent-chat-timeline';
 import {
     AgentChatAwayRecap,
     AgentChatJumpToLatestWithRecap,
@@ -344,6 +347,10 @@ function AgentChatPaneContent({
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
                                     <AgentChatTimelineBody
+                                        compaction={agentChatCompactionInTimeline(
+                                            snapshot,
+                                            timeline,
+                                        )}
                                         dayBreaks={dayBreaks}
                                         isAwaitingReply={
                                             pending.timeline.length === 0 &&

@@ -283,6 +283,20 @@ describe('Agent Chat reducer', () => {
 });
 
 describe('Agent Chat reducer: tasks, queue, and operation state', () => {
+    it('clears when the operation started together with the operation', () => {
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'state',
+            state: { operation: 'compacting', operationStartedAt: 1000 },
+        });
+        expect(agentChatSnapshotSchema.parse(snapshot)).toMatchObject({
+            operation: 'compacting',
+            operationStartedAt: 1000,
+        });
+        snapshot = applyAgentChatOperation(snapshot, { op: 'state', state: { operation: null } });
+        expect(snapshot).not.toHaveProperty('operation');
+        expect(snapshot).not.toHaveProperty('operationStartedAt');
+    });
+
     it('keeps the follow-up queue across a conversation reset, but not the tasks', () => {
         let snapshot = applyAgentChatOperation(empty(), {
             op: 'state',

@@ -342,7 +342,12 @@ export class CodexUsage {
             const trigger = this.isManualCompactionNext ? 'manual' : 'auto';
             this.compaction = { beforeTokens: tokens, trigger };
             this.isManualCompactionNext = false;
-            return [{ op: 'state', state: { operation: 'compacting' } }];
+            return [
+                {
+                    op: 'state',
+                    state: { operation: 'compacting', operationStartedAt: Date.now() },
+                },
+            ];
         }
         const started = this.compaction;
         this.compaction = undefined;

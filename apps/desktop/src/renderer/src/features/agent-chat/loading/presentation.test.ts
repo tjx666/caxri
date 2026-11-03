@@ -21,6 +21,7 @@ const compacting: BusyActivity = {
     kind: 'compacting',
     text: 'Compacting…',
     isStoppable: true,
+    startedAt: undefined,
 };
 
 describe('buddyMood', () => {

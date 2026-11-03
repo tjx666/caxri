@@ -23,12 +23,13 @@ import type { AgentChatVersionView } from '../../versions/use-agent-chat-version
 import { AgentChatVersionsContext } from '../../versions/use-agent-chat-versions';
 import { AgentChatPendingTimeline } from '../agent-chat-pending-timeline';
 import { AgentChatSettledTimeline } from '../agent-chat-settled-timeline';
-import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
+import type { agentChatCompactionInTimeline, AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
     AGENT_CHAT_TURN_START_ATTRIBUTE,
     agentChatTimelineEntryKey,
     agentChatTurnStartId,
 } from '../agent-chat-timeline';
+import { AgentChatCompactingNotice } from '../compaction/agent-chat-compacting-notice';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 
 /**
@@ -75,6 +76,7 @@ function LiveTimelineEntries({
  * The Chat's settled, live, and pending timelines under the contexts their rows read.
  */
 export function AgentChatTimelineBody({
+    compaction,
     dayBreaks,
     isAwaitingReply,
     mcpServers,
@@ -87,6 +89,10 @@ export function AgentChatTimelineBody({
     timeline,
     versionView,
 }: {
+    /**
+     * The compaction running now (`agentChatCompactionInTimeline`), whose row holds the reply's place until it ends.
+     */
+    compaction: ReturnType<typeof agentChatCompactionInTimeline>;
     dayBreaks: ReadonlyMap<string, number>;
     isAwaitingReply: boolean;
     mcpServers: AgentChatSnapshot['mcpServers'];
@@ -137,6 +143,12 @@ export function AgentChatTimelineBody({
                             </AgentChatVersionsContext>
                             {isAwaitingReply && !isViewingEarlier && (
                                 <AgentChatReplyPlaceholder turnId={snapshot?.activeTurnId} />
+                            )}
+                            {compaction && !isViewingEarlier && (
+                                <AgentChatCompactingNotice
+                                    isAfterUserMessage={compaction.isAfterUserMessage}
+                                    startedAt={compaction.startedAt}
+                                />
                             )}
                             <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
                         </AgentChatEditContext>

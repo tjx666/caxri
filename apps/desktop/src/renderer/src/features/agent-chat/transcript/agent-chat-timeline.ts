@@ -429,6 +429,26 @@ export function isAgentChatAwaitingReplyInTimeline(
     );
 }
 
+/**
+ * The compaction running now, for the row that holds its place at the end of the timeline: when it started, and whether
+ * the timeline ends with a message the Agent has not answered yet, which it reads only once the compaction ends. A
+ * `/compact` the user sent is the compaction itself, not a message waiting on it. `undefined` while nothing compacts.
+ */
+export function agentChatCompactionInTimeline(
+    snapshot: Pick<AgentChatSnapshot, 'operation' | 'operationStartedAt'> | undefined,
+    timeline: readonly AgentChatTimelineEntry[],
+): { startedAt: number | undefined; isAfterUserMessage: boolean } | undefined {
+    if (snapshot?.operation !== 'compacting') return undefined;
+    const last = timeline.at(-1);
+    return {
+        startedAt: snapshot.operationStartedAt,
+        isAfterUserMessage:
+            last?.kind === 'item' &&
+            last.item.type === 'userMessage' &&
+            !/^\/compact(?:\s|$)/u.test(last.item.text.trimStart()),
+    };
+}
+
 type Entry<Kind extends AgentChatTimelineEntry['kind']> = Extract<
     AgentChatTimelineEntry,
     { kind: Kind }

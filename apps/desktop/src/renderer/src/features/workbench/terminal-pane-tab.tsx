@@ -80,7 +80,7 @@ export function TerminalPaneTab({
                             data-agent-operation="compacting"
                             role="status"
                         >
-                            Compacting
+                            {t('workbench.tab.compactingBadge')}
                         </span>
                     </Tooltip>
                 ) : progress ? (

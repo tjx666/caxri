@@ -288,4 +288,11 @@ describe('what a message on its way waits for', () => {
         expect(sent(undefined, snapshot({ status: 'stopped' })).wait).toBe('start');
         expect(agentChatPendingWait(undefined, undefined)).toBe('start');
     });
+
+    it('waits on the compaction while the context compacts, steered or not', () => {
+        expect(
+            sent('steer', snapshot({ activeTurnId: 'turn-1', operation: 'compacting' })).wait,
+        ).toBe('compaction');
+        expect(sent(undefined, snapshot({ operation: 'compacting' })).wait).toBe('compaction');
+    });
 });

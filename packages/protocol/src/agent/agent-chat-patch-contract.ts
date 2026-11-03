@@ -53,6 +53,9 @@ const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 truncated: agentChatSnapshotSchema.shape.truncated,
                 historyId: agentChatSnapshotSchema.shape.historyId.unwrap(),
                 operation: agentChatSnapshotSchema.shape.operation.unwrap().nullable(),
+                operationStartedAt: agentChatSnapshotSchema.shape.operationStartedAt
+                    .unwrap()
+                    .nullable(),
                 tasks: agentChatSnapshotSchema.shape.tasks.unwrap(),
                 queue: agentChatSnapshotSchema.shape.queue.unwrap(),
                 queueLength: agentChatSnapshotSchema.shape.queueLength.unwrap(),

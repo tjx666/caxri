@@ -51,10 +51,35 @@ const MID_TURN_COMPACTIONS = [
 ];
 
 /**
+ * `compact first`: Claude Code compacts on its own before it reads the prompt, as it does when the context is already
+ * past its threshold, then replies. The compaction holds while `isHeld` says so, so a spec can see the Chat mid-way.
+ * Returns whether the turn was this scenario.
+ */
+async function didRunCompactFirstTurn(
+    io: FakeClaudeIo,
+    startedAt: number,
+    text: string,
+    isHeld: () => boolean,
+): Promise<boolean> {
+    if (!text.includes('compact first')) return false;
+    io.system('status', { status: 'compacting' });
+    // eslint-disable-next-line no-await-in-loop -- polls the spec's control file, like `hold-reply`
+    while (isHeld()) await delay(100);
+    io.system('compact_boundary', {
+        compact_metadata: { trigger: 'auto', ...MID_TURN_COMPACTIONS[0] },
+    });
+    io.record({ type: 'system', subtype: 'compact_boundary' });
+    io.system('status', { status: null, compact_result: 'success' });
+    await io.didStreamFully('Picked up your message after compacting.', 0);
+    io.result(startedAt, 'done');
+    return true;
+}
+
+/**
  * `compact mid turn`: a long turn Claude Code compacts twice on its own, with a command before, between, and after the
  * compactions and then the reply. Returns whether the turn was this scenario.
  */
-export async function didRunCompactingTurn(
+async function didRunCompactingTurn(
     io: FakeClaudeIo,
     startedAt: number,
     text: string,
@@ -82,4 +107,21 @@ export async function didRunCompactingTurn(
     await io.didStreamFully('Finished after two compactions.', 0);
     io.result(startedAt, 'done');
     return true;
+}
+
+/**
+ * The turns in which Claude Code compacts on its own (`compact first`, `compact mid turn`); `isControlled` reads the
+ * spec's control files (`hold-compaction`). Returns whether the turn was one of them.
+ */
+export async function didRunCompactionTurn(
+    io: FakeClaudeIo,
+    startedAt: number,
+    text: string,
+    isControlled: (name: string) => boolean,
+): Promise<boolean> {
+    return (
+        (await didRunCompactFirstTurn(io, startedAt, text, () =>
+            isControlled('hold-compaction'),
+        )) || didRunCompactingTurn(io, startedAt, text)
+    );
 }

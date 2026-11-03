@@ -11,6 +11,7 @@ import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questi
 import { AgentChatTimelineEntryView } from './timeline/agent-chat-timeline-entry-view';
 
 const SENDING_HINT_KEYS = {
+    compaction: 'agentChat.message.sendingAfterCompaction',
     delivery: 'agentChat.message.sending',
     start: 'agentChat.message.sendingAfterStart',
     step: 'agentChat.message.sendingAfterStep',

@@ -291,6 +291,10 @@ export function applyAgentChatOperation(
             if (state.commands !== undefined) next.commands = state.commands;
             if (state.mcpServers !== undefined) next.mcpServers = state.mcpServers;
             if (state.operation !== undefined) next.operation = state.operation ?? undefined;
+            // The start belongs to the operation, so clearing the operation takes it along.
+            if (state.operation === null) next.operationStartedAt = undefined;
+            if (state.operationStartedAt !== undefined)
+                next.operationStartedAt = state.operationStartedAt ?? undefined;
             if (state.tasks !== undefined) next.tasks = state.tasks;
             if (state.queue !== undefined) next.queue = state.queue;
             if (state.queueLength !== undefined) next.queueLength = state.queueLength;
@@ -318,6 +322,7 @@ export function applyAgentChatOperation(
                 'usage',
                 'turnUsage',
                 'operation',
+                'operationStartedAt',
                 'queuePauseReason',
                 'usageGuard',
                 'idleCompactionHold',
