@@ -11,7 +11,7 @@ _Researched 2026-08-06._
 
 Verified local source at `b9ce96869e89937278d673d70ae4c135dd318469`:
 
-- `skills/herdr/SKILL.md:95` creates a sibling pane in the caller's tab and cwd. Wide panes split
+- `herdr/skills/herdr/SKILL.md:95` creates a sibling pane in the caller's tab and cwd. Wide panes split
   right; narrow or tall panes split down. `pane split --no-focus` preserves the caller's focus.
 - `src/app/api/panes.rs:34` passes `params.focus` through the layout operation and only switches
   the active workspace/tab and records a focus change when it is true.
@@ -47,3 +47,26 @@ Sources: [coordination workflow](https://github.com/herdrdev/herdr/blob/b9ce9686
 ## Community sentiment
 
 - HN praise: SSH/Tailscale mobile access, replacing tmux/Zellij, socket API for custom tooling. Criticism: default keybindings, copy/paste friction in WezTerm, beta Windows support, screen-scraping edge cases (alexdunlop.com comparison, 2026-06-22).
+
+## Desktop app reception (2026-11-03)
+
+On 2026-10-29 herdrdev split the always-on server out as `herdr-core` and shipped an open-source
+desktop app on it ([announcement](https://x.com/herdrdev/status/2115841099575222765),
+[herdrdev/herdr-app](https://github.com/herdrdev/herdr-app)). It is Rust on a vendored GPUI (Zed's
+UI framework) with `libghostty-vt`, not Electron, although some replies assumed Electron. Reception
+in the first week, from X replies and quote posts (not a full sample):
+
+- **TUI and app do not share state** (the most repeated, clearest complaint): TUI sessions cannot
+  be opened in the app, TUI customization has to be redone, an Agent-spawns-Agent skill stopped
+  working after switching, and several users asked whether the TUI will attach to the same core.
+- **CPU and memory**: "takes too much cpu and ram"; one reply discussed about 170 MB. Also "the app
+  feels too slow", rendering stutter on Linux, and a v0.1.11 changelog entry mostly about stutter.
+- **Unpolished UI**: buttons wrapping for no reason, a draggable onboarding window, poor sidebar
+  padding, SVG icons read as cheap, bad Terminal font settings.
+- **Form factor**: a GUI that "still renders terminals"; a request for a desktop-style Chat with a
+  proportional font instead of a wrapped terminal.
+
+Caxri comparison: the split-state complaint cannot arise, since Desktop, the `caxri` CLI, and
+Mobile are all Clients of one Server and see the same Sessions (`docs/cli.md`). Resource cost is
+Caxri's exposure: Electron, about 650 MB idle with a Chat in front and about 1.08 GB with a
+Terminal, measured in [Idle CPU and memory baseline](../../../../docs/idle-resources.md).

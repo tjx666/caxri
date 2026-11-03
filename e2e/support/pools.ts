@@ -163,6 +163,10 @@ export const desktopExclusiveSpecs: Readonly<Record<string, DesktopExclusiveClas
         reasons: ['clipboard'],
         why: 'Requests the system pasteboard (clipboard: true).',
     },
+    'e2e/idle.performance.e2e.ts': {
+        reasons: ['benchmark', 'gpu', 'visible-window', 'opt-in-only'],
+        why: 'Idle CPU and memory benchmark; skipped outside its benchmark command.',
+    },
     'e2e/logs-panel.e2e.ts': {
         reasons: ['wall-clock'],
         why: "Asserts the panel's own query cadence in real milliseconds.",
