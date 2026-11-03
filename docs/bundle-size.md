@@ -148,3 +148,42 @@ size, its Source Map size, its budget, and a percentage delta of the shipped siz
 `~/.cache/caxri/bundle-baseline.json`. Disposable hosted runners do not inherit that user cache, so
 their delta normally reports `n/a`; the absolute byte and time budgets remain the portable gate.
 When releases begin, switch the comparison source to the latest published release artifact.
+
+## Pull request size report
+
+Every source pull request gets one sticky comment, updated in place after each CI run, that shows
+what the change does to shipped bytes. It answers "how much bigger did this make Main, the
+Renderer, or the mobile bundle?" without opening a job summary.
+
+| Section            | Measured by                                                                                                              | When                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Desktop build      | `size-report` job: `out/main`, `out/preload`, `out/renderer` (with its Monaco workers and fonts), and the Server bundles | `full`, `affected`, and `focused-source` scopes           |
+| Mobile (Android)   | `size-report` job: `expo export --platform android` Hermes bytecode and bundled assets                                   | Same as Desktop build                                     |
+| Packaged macOS app | `bundle-budget` job: `Caxri.app`, the Electron runtime, `app.asar`, and the embedded Server                              | `full` scope only; other pull requests say "Not measured" |
+| Performance        | Agent Chat Session switch receipt from a `hosted-full` dispatch on the same head                                         | Only after such a dispatch; never started for the comment |
+
+How it works:
+
+1. `scripts/ci-size-report.ts` writes one JSON report per kind (`desktop`, `mobile`, `packaged`),
+   counting shipped bytes and Source Map bytes separately with the same `measureBytes` the budget
+   gate uses. The `size-report` job checks out the pushed head rather than GitHub's merge commit
+   and runs on Linux, because every byte it measures is platform-neutral. The packaged row comes
+   from the macOS budget job, which packages the merge result, so it can include `main` changes
+   made since the merge base.
+2. Pull request runs upload `size-report-<kind>` (7 days); `main` pushes upload
+   `size-baseline-<kind>` (30 days).
+3. `.github/workflows/pr-report-comment.yml` runs on `workflow_run` after CI, from `main`, with
+   the only `pull-requests: write` token in this flow. `scripts/ci-size-comment.ts` resolves the
+   pull request from the head branch and SHA (fork runs carry no pull request association), finds
+   the nearest `size-baseline-<kind>` among the 30 commits at or before the merge base (cancelled
+   `main` runs and release commits leave gaps), and upserts the comment marked
+   `<!-- caxri-pr-report:v1 -->`. A missing baseline shows absolute sizes only.
+4. Reports from pull requests, forks included, are untrusted. `parseSizeReport` caps them at
+   64 KiB, accepts only integer byte counts, and keeps only the labels in
+   `SIZE_REPORT_COMPONENTS`, so no artifact text reaches the Markdown. Renaming a label drops its
+   delta until `main` records the new name.
+
+The comment is informational: `size-report` is not part of the `CI gate`, and the byte budgets
+above remain the only size gate. Preview a comment without posting it with
+`bun run scripts/ci-size-comment.ts --dry-run --repo <owner/name> --head-sha <sha>
+--head-repository <owner/name> --head-branch <branch>`.

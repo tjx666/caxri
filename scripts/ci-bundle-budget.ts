@@ -93,7 +93,8 @@ interface Measurement {
     unit: 'bytes' | 'seconds';
 }
 
-interface ComponentSpec {
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/ci-size-report.ts
+export interface ComponentSpec {
     label: string;
     /**
      * Repository-relative directory whose file sizes are summed.
@@ -202,7 +203,8 @@ const SOURCE_MAP = /\.map$/u;
  * so they must not crowd real code and assets out of a budget. `sourceMaps` counts only the maps so the summary still
  * reports them and the gate can fail when they disappear.
  */
-type ByteSelection = 'all' | 'shipped' | 'sourceMaps';
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/ci-size-report.ts
+export type ByteSelection = 'all' | 'shipped' | 'sourceMaps';
 
 function isSelected(selection: ByteSelection, name: string, match?: RegExp): boolean {
     if (match && !match.test(name)) return false;
@@ -260,7 +262,8 @@ async function readAsarHeader(archivePath: string): Promise<AsarEntry> {
  * traverse, double-counting the Electron framework; dirent type checks never follow symlinks, so each real file is
  * counted exactly once. An `.asar` archive is measured by its contents, so excluding Source Maps reaches inside it.
  */
-async function measureBytes(
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/ci-size-report.ts
+export async function measureBytes(
     targetPath: string,
     selection: ByteSelection,
     match?: RegExp,
