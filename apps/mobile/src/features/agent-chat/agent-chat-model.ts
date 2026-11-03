@@ -117,6 +117,27 @@ export const agentChatHandedOffBanner = (t: Translate = translate): string =>
     t('chat.handedOffBanner', { notice: agentChatHandedOffNotice(t) });
 
 /**
+ * How long an opened Chat waits for its live read before it draws the copy saved on this phone.
+ */
+export const AGENT_CHAT_SAVED_COPY_GRACE_MS = 1_000;
+
+/**
+ * Whether an opened Chat keeps its saved copy off screen for now. While connected the live read usually lands within a
+ * moment; drawing the saved copy first and then swapping in the live snapshot moved every row (newer messages, a status
+ * row, the saved-copy note leaving) a second after the Chat opened. Offline, or once the grace has passed, the saved
+ * copy shows as before.
+ */
+export const shouldWithholdSavedAgentChat = ({
+    isGraceOver,
+    isObservable,
+    savedAt,
+}: {
+    isGraceOver: boolean;
+    isObservable: boolean;
+    savedAt: number | undefined;
+}): boolean => isObservable && savedAt !== undefined && !isGraceOver;
+
+/**
  * Whether the Chat shows its "could not be updated" notice: only after a read actually failed. A Chat the phone stops
  * observing (a screen such as the in-app browser covers it, or another tab shows) also reads as `stale` and keeps its
  * last copy, but nothing failed, and the notice would flash on it while the covering screen slides in. While the phone

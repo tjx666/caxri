@@ -91,6 +91,23 @@ describe('Agent Chat reader', () => {
         chat.stop();
     });
 
+    it('reads again after a failed read while the subscription carries no change', async () => {
+        vi.useFakeTimers();
+        const chat = harness();
+        chat.ack();
+        chat.reads[0]?.reject(new Error('reconnecting'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(chat.read).toHaveBeenCalledOnce();
+        await vi.advanceTimersByTimeAsync(2_500);
+        expect(chat.read).toHaveBeenCalledTimes(2);
+        chat.reads[1]?.resolve(snapshot(3, 'live'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(textOf(chat.latest())).toBe('live');
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(chat.read).toHaveBeenCalledTimes(2);
+        chat.stop();
+    });
+
     it('replays patches that arrived during a read only when they are newer than it', async () => {
         const chat = harness();
         chat.ack();

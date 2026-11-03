@@ -38,6 +38,7 @@ const afterScrollLands = (scroll: Promise<void> | void, run: () => void): void =
  */
 export function useConversationOpening<Entry>({
     enterFrom,
+    fillsAfterReveal,
     fillWithOlder,
     isPositionedReference,
     isShort,
@@ -46,6 +47,12 @@ export function useConversationOpening<Entry>({
     onReveal,
 }: {
     enterFrom: -1 | 0 | 1 | null;
+    /**
+     * Whether a revealed list keeps reading older pages while its rows are shorter than the viewport. A list that pins
+     * its latest turn to the top has no blank band above its rows to fill, and each page that landed in view pushed the
+     * turn down and back up; it fills only while hidden, and reads further back once the reader scrolls up.
+     */
+    fillsAfterReveal: boolean;
     fillWithOlder: () => void;
     /**
      * Set once the first scroll to the end has landed; the list ignores scroll events and older pages until then.
@@ -77,7 +84,7 @@ export function useConversationOpening<Entry>({
             revealProgress.set(
                 enterFrom === null ? 1 : withTiming(1, { duration: PANEL_ENTER_MS }),
             );
-            fillWithOlder();
+            if (fillsAfterReveal) fillWithOlder();
         });
     };
     /**
@@ -100,8 +107,8 @@ export function useConversationOpening<Entry>({
      * After each layout commit: an opening list reads its next page or reveals itself, an open one keeps filling.
      */
     const onLayoutCommitted = (): void => {
-        if (isRevealing.current) fillWithOlder();
-        else settle();
+        if (!isRevealing.current) settle();
+        else if (fillsAfterReveal) fillWithOlder();
     };
     return { onLayoutCommitted, onLoad, revealStyle };
 }

@@ -522,8 +522,6 @@ export const AgentChatView = ({
                         tone="muted"
                     />
                 ) : null}
-                {/* Saved-copy and state notices share the top of the segment, as on the Conversation. */}
-                <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
                 <View style={[styles.body, isTimelineYielding && styles.bodyYielding]}>
                     <AgentChatBody
                         canFork={deviceRole === 'control'}
@@ -537,6 +535,8 @@ export const AgentChatView = ({
                         provider={provider}
                         theme={theme}
                     />
+                    {/* Floats over the timeline's top, as on the Conversation. */}
+                    <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
                 </View>
                 {dockedPlan ? (
                     <AgentChatPlanCard

@@ -335,6 +335,7 @@ export const ConversationList = <Entry extends { id: string }>({
     });
     const { onLayoutCommitted, onLoad, revealStyle } = useConversationOpening({
         enterFrom,
+        fillsAfterReveal: !hasTurnSpacer,
         fillWithOlder,
         isPositionedReference,
         isShort,
@@ -467,14 +468,9 @@ export const ConversationList = <Entry extends { id: string }>({
         <ConversationDisclosure value={holdForDisclosure}>
             <View style={styles.root} testID="conversation-view">
                 {/*
-                 * Notices sit above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
+                 * The stale notice sits above the timeline, as on a Chat. Offline, the app-wide Reconnecting banner already explains
                  * a stale Conversation, so this one appears only when the connection is up but the read failed.
                  */}
-                <SavedCopyNote
-                    savedAt={timeline.savedAt}
-                    testID="conversation-saved"
-                    theme={theme}
-                />
                 {isConnected && timeline.status === 'stale' ? (
                     <NoticeBanner
                         actionLabel={t('common.retry')}
@@ -512,6 +508,11 @@ export const ConversationList = <Entry extends { id: string }>({
                         renderItem={renderItem}
                         scrollEventThrottle={32}
                         style={styles.list}
+                    />
+                    <SavedCopyNote
+                        savedAt={timeline.savedAt}
+                        testID="conversation-saved"
+                        theme={theme}
                     />
                 </Animated.View>
                 {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (

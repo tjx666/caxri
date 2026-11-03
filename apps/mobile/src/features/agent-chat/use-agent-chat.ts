@@ -20,6 +20,7 @@ import {
     trimChatSnapshot,
 } from '../read-cache/read-cache-model';
 import type { AgentChatMessageEdit } from './agent-chat-message-edit';
+import { AGENT_CHAT_SAVED_COPY_GRACE_MS, shouldWithholdSavedAgentChat } from './agent-chat-model';
 import {
     isMissingNewestTurnStart,
     mergeAgentChatOlderHistory,
@@ -131,8 +132,25 @@ export const useAgentChat = ({
     const observable =
         enabled && terminalId !== null && isForeground && connectionStatus === 'connected';
     const stored = record.terminalId === terminalId ? record.state : initialState();
-    const state: AgentChatState =
-        !observable && stored.snapshot ? { ...stored, status: 'stale' } : stored;
+    /**
+     * The Chat whose saved-copy grace (`shouldWithholdSavedAgentChat`) has run out.
+     */
+    const [graceOverFor, setGraceOverFor] = useState<string | null>(null);
+    useEffect(() => {
+        if (terminalId === null) return;
+        const timer = setTimeout(() => setGraceOverFor(terminalId), AGENT_CHAT_SAVED_COPY_GRACE_MS);
+        return () => clearTimeout(timer);
+    }, [terminalId]);
+    const isWithholdingSavedCopy = shouldWithholdSavedAgentChat({
+        isGraceOver: graceOverFor === terminalId,
+        isObservable: observable,
+        savedAt: stored.savedAt,
+    });
+    const state: AgentChatState = isWithholdingSavedCopy
+        ? initialState()
+        : !observable && stored.snapshot
+          ? { ...stored, status: 'stale' }
+          : stored;
     /**
      * Where this Chat's optimistic sends and answers live; see `agent-chat-pending.ts`.
      */
