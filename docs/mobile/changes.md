@@ -22,7 +22,16 @@ total may exceed the displayed rows.
 
 The four-state mobile status maps a conflicted Git entry to `M`; resolve conflicts on the computer.
 
-`mobile.changes.diff({ sessionId, repositoryId, path })` returns a unified text patch when available.
+Both methods take an optional `mode` matching Desktop Source Control's three modes: `working`
+(the default, uncommitted working-tree files), `commit` (the HEAD commit against its first parent),
+and `pull-request` (the current branch's pull request over `base...head`). Commit and pull request
+modes reuse the same `git.commitDetails` and `git.pullRequestChanges` reads as Desktop's Last Commit
+and Pull Request modes, so both clients list the same files. Every list also returns
+`uncommittedCount` and, outside `working`, one `contexts` entry per repository naming its commit
+(`shortSha`, `subject`) or pull request (`number`, `title`); a repository with no commit or no pull
+request contributes no files and no context.
+
+`mobile.changes.diff({ sessionId, repositoryId, path, mode? })` returns a unified text patch when available.
 Its patch is capped at 48 KiB and 1,000 lines. A binary or oversized diff returns a status instead
 of content; a file that no longer resolves in the current Git summary or has no current patch
 returns `stale`.
@@ -49,7 +58,15 @@ Disconnect marks the last snapshot stale; reconnect reads it again. The view dis
 empty Git repository, no Git repository, error, stale, and truncated-list states, with refresh and
 retry actions.
 
-The Session header shows the changed-file count once known. Each row shows its status, emphasized
+A row of **Working Tree**, **Last Commit**, and **Pull Request** chips above the summary switches the
+mode; the choice is remembered per Session across segment switches. Outside Working Tree, a single
+repository's commit (`abc1234 Subject`) or pull request (`#42 Title`) appears under the summary, a
+notice counts the uncommitted changes the mode is not showing with **Show** returning to Working
+Tree, and the empty state says the repository has no commit or the branch has no pull request, with no file count above it. Only
+the Working Tree list subscribes and polls; its change hints invalidate every mode's list and the
+open diff.
+
+The Session header shows the uncommitted changed-file count once known, whatever the mode. Each row shows its status, emphasized
 filename, parent path, and line counts. When multiple repositories appear, the row also shows the
 repository name; its accessibility label spells out the repository, status, and rename source. A
 phone opens a full-page unified diff with line numbers, `+`/`−` markers, color, and horizontal
@@ -58,7 +75,7 @@ not text. Review it on your computer.** At a window width of at least 1100dp and
 at least 600dp, a wide tablet keeps the preceding Conversation or Terminal view beside Changes in
 the right pane, with the Session list still available on the left.
 
-For a `reply` or `control` device with an Agent endpoint, **Ask Agent to commit** fills the current
+In Working Tree mode, for a `reply` or `control` device with an Agent endpoint, **Ask Agent to commit** fills the current
 Session's composer with `Commit the current changes with a clear message.` It does not send the
 draft. The user must review it and tap **Send**. The Agent remains responsible for any Git
 operation after receiving that instruction; the Changes view itself cannot commit.

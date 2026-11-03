@@ -30,6 +30,7 @@ import {
 import {
     mobileChangesDiffResultSchema,
     mobileChangesListResultSchema,
+    mobileChangesModeSchema,
 } from './mobile-changes-contract.js';
 import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
 import { mobileDesktopUpdateMethods } from './mobile-desktop-update-contract.js';
@@ -321,6 +322,7 @@ export const mobileMethods = {
         params: z.strictObject({
             sessionId: identifierSchema,
             refresh: z.boolean().default(false),
+            mode: mobileChangesModeSchema.default('working'),
         }),
         result: mobileChangesListResultSchema,
     },
@@ -330,6 +332,7 @@ export const mobileMethods = {
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
             path: z.string().min(1).max(2_048),
+            mode: mobileChangesModeSchema.default('working'),
         }),
         result: mobileChangesDiffResultSchema,
     },
@@ -470,6 +473,7 @@ export const mobileInternalMethods = {
         params: z.strictObject({
             sessionId: identifierSchema,
             refresh: z.boolean().default(false),
+            mode: mobileChangesModeSchema.default('working'),
             principal: principalSchema,
         }),
         result: mobileChangesListResultSchema,
@@ -480,6 +484,7 @@ export const mobileInternalMethods = {
             sessionId: identifierSchema,
             repositoryId: identifierSchema,
             path: z.string().min(1).max(2_048),
+            mode: mobileChangesModeSchema.default('working'),
             principal: principalSchema,
         }),
         result: mobileChangesDiffResultSchema,

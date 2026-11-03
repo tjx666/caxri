@@ -1,14 +1,16 @@
 import type { MethodResult } from '@caxri/protocol';
 
-import type { ChangesSnapshot } from './changes-model';
+import type { ChangesMode, ChangesSnapshot } from './changes-model';
 
 const changesSnapshot = (result: MethodResult<'mobile.changes.list'>): ChangesSnapshot => ({
     additions: result.additions,
     changedFileCount: result.total,
+    contexts: result.contexts,
     deletions: result.deletions,
     files: result.files,
     isRepository: result.isRepository,
     truncated: result.truncated,
+    uncommittedCount: result.uncommittedCount,
 });
 
 /**
@@ -17,14 +19,16 @@ const changesSnapshot = (result: MethodResult<'mobile.changes.list'>): ChangesSn
 export const readChangesSnapshot = async (
     request: (
         method: 'mobile.changes.list',
-        parameters: { sessionId: string; refresh?: boolean },
+        parameters: { sessionId: string; refresh?: boolean; mode?: ChangesMode },
     ) => Promise<MethodResult<'mobile.changes.list'>>,
     sessionId: string,
     isManualRefresh = false,
+    mode: ChangesMode = 'working',
 ): Promise<ChangesSnapshot> =>
     changesSnapshot(
         await request('mobile.changes.list', {
             sessionId,
             ...(isManualRefresh && { refresh: true }),
+            ...(mode !== 'working' && { mode }),
         }),
     );

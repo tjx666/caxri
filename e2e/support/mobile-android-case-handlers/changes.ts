@@ -6,4 +6,5 @@ export const handlers = {
     'MOB-CHANGES-02': executeMobileChangesScenario,
     'MOB-CHANGES-03': executeMobileChangesScenario,
     'MOB-CHANGES-04': executeMobileChangesScenario,
+    'MOB-CHANGES-MODES-01': executeMobileChangesScenario,
 } satisfies Record<string, MobileAndroidCaseHandler>;

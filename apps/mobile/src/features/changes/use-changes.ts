@@ -3,13 +3,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
-import type { ChangedFile } from './changes-model';
+import type { ChangedFile, ChangesMode } from './changes-model';
 import { readChangesSnapshot } from './changes-query';
 
 const changesQueryKey = (scope: string, sessionId: string) =>
     ['mobile', 'changes', scope, sessionId] as const;
 
-export const useChangesList = (isEnabled: boolean, sessionId: string) => {
+/**
+ * One Changes mode's file list. The Working Tree list owns the `changes` subscription; its events invalidate every mode
+ * and open diff under the Session key, so a commit or pull request list read beside it passes `shouldSubscribe: false`
+ * instead of opening a second subscription to the same events.
+ */
+export const useChangesList = (
+    isEnabled: boolean,
+    sessionId: string,
+    mode: ChangesMode = 'working',
+    { shouldSubscribe = true }: { shouldSubscribe?: boolean } = {},
+) => {
     const {
         connectionEpoch,
         connectionScopeKey,
@@ -21,14 +31,15 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
     } = useMobileClient();
     const queryClient = useQueryClient();
     const scope = connectionScopeKey ?? 'unpaired';
-    const queryKey = useMemo(() => changesQueryKey(scope, sessionId), [scope, sessionId]);
+    const sessionKey = useMemo(() => changesQueryKey(scope, sessionId), [scope, sessionId]);
+    const queryKey = useMemo(() => [...sessionKey, 'list', mode] as const, [mode, sessionKey]);
     const observable =
         isEnabled && connectionScopeKey !== null && isForeground && status === 'connected';
     const [subscription, setSubscription] = useState<{ identity: string; active: boolean }>({
         identity: '',
         active: false,
     });
-    const identity = `${scope}:${sessionId}:${connectionEpoch}`;
+    const identity = `${scope}:${sessionId}:${mode}:${connectionEpoch}`;
     const manualRefreshInFlight = useRef(new Set<string>());
     const [manualRefreshingIdentity, setManualRefreshingIdentity] = useState<string | null>(null);
     const [manualFailureIdentities, setManualFailureIdentities] = useState<Set<string>>(
@@ -41,9 +52,11 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
         enabled: observable,
         gcTime: 5 * 60_000,
         networkMode: 'always',
-        queryFn: () => readChangesSnapshot(request, sessionId),
+        queryFn: () => readChangesSnapshot(request, sessionId, false, mode),
         queryKey,
-        refetchInterval: observable && !hasSubscription ? 2_500 : false,
+        // Only the Working Tree list polls without a subscription: commit and pull request lists change with HEAD, which
+        // the Working Tree subscription or poll already reports, and a pull request read can reach GitHub.
+        refetchInterval: observable && shouldSubscribe && !hasSubscription ? 2_500 : false,
         refetchIntervalInBackground: false,
         refetchOnReconnect: false,
         refetchOnWindowFocus: false,
@@ -51,7 +64,7 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
         staleTime: 0,
     });
     useEffect(() => {
-        if (!observable || !subscriptionAvailable) return;
+        if (!observable || !subscriptionAvailable || !shouldSubscribe) return;
         let isDisposed = false;
         let isResyncRequired = false;
         let handle: Awaited<ReturnType<typeof subscribe>> | null = null;
@@ -63,7 +76,7 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
                         (message.kind !== 'changes.changed' && message.kind !== 'resync-required')
                     )
                         return;
-                    void queryClient.invalidateQueries({ queryKey, exact: false });
+                    void queryClient.invalidateQueries({ queryKey: sessionKey, exact: false });
                     if (message.kind === 'resync-required') {
                         isResyncRequired = true;
                         setSubscription({ identity, active: false });
@@ -76,7 +89,7 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
                 handle = acquired;
                 setSubscription({ identity, active: !isResyncRequired });
                 // Close the subscribe-before-snapshot gap.
-                void queryClient.invalidateQueries({ queryKey, exact: false });
+                void queryClient.invalidateQueries({ queryKey: sessionKey, exact: false });
             } catch {
                 if (!isDisposed) setSubscription({ identity, active: false });
             }
@@ -87,7 +100,16 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
             setSubscription({ identity, active: false });
             if (handle) void handle.unsubscribe();
         };
-    }, [identity, observable, queryClient, queryKey, sessionId, subscribe, subscriptionAvailable]);
+    }, [
+        identity,
+        observable,
+        queryClient,
+        sessionId,
+        sessionKey,
+        shouldSubscribe,
+        subscribe,
+        subscriptionAvailable,
+    ]);
     return {
         state: {
             error: query.isError || hasManualRefreshError,
@@ -106,7 +128,7 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
                 try {
                     // Cancel an older Query read so it cannot replace the post-click forced snapshot.
                     await queryClient.cancelQueries({ queryKey, exact: true });
-                    const snapshot = await readChangesSnapshot(request, sessionId, true);
+                    const snapshot = await readChangesSnapshot(request, sessionId, true, mode);
                     await queryClient.cancelQueries({ queryKey, exact: true });
                     queryClient.setQueryData(queryKey, snapshot);
                     setManualFailureIdentities((current) => {
@@ -128,7 +150,12 @@ export const useChangesList = (isEnabled: boolean, sessionId: string) => {
     };
 };
 
-export const useChangesDiff = (isEnabled: boolean, sessionId: string, file: ChangedFile | null) => {
+export const useChangesDiff = (
+    isEnabled: boolean,
+    sessionId: string,
+    file: ChangedFile | null,
+    mode: ChangesMode = 'working',
+) => {
     const { connectionScopeKey, isForeground, request, status } = useMobileClient();
     const observable =
         isEnabled &&
@@ -145,10 +172,12 @@ export const useChangesDiff = (isEnabled: boolean, sessionId: string, file: Chan
                 sessionId,
                 repositoryId: file!.repositoryId,
                 path: file!.path,
+                ...(mode !== 'working' && { mode }),
             }),
         queryKey: [
             ...changesQueryKey(connectionScopeKey ?? 'unpaired', sessionId),
             'diff',
+            mode,
             file?.repositoryId,
             file?.path,
         ],
