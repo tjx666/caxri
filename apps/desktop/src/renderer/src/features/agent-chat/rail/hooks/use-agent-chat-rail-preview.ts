@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { TOOLTIP_OPEN_DELAY_MS } from '../../../../components/tooltip-positioning';
 import type {
     AgentChatRailPreviewEvent,
     AgentChatRailPreviewState,
@@ -10,7 +11,7 @@ import { agentChatRailPreviewStep } from '../agent-chat-rail-preview';
  * The shared Tooltip's open and close delays (`TooltipProvider`), so the rail's card answers a hover at the same pace
  * as every other hover hint in the workbench.
  */
-const OPEN_DELAY_MS = 500;
+const OPEN_DELAY_MS = TOOLTIP_OPEN_DELAY_MS;
 const CLOSE_DELAY_MS = 80;
 
 /**
