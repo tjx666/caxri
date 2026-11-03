@@ -59,8 +59,18 @@ const ConversationHistory = ({
     truncated: boolean;
 }) => {
     const { t } = useTranslation();
+    /**
+     * The tallest the header has been. FlashList keeps the reader's row in place only against rows, not this header, so
+     * when the last older page removed the load-earlier button the shorter header pulled every row up by its height.
+     * Keeping the space trades a gap above the conversation's start for a list that stays put.
+     */
+    const [minHeight, setMinHeight] = useState(0);
+    const onLayout = (event: LayoutChangeEvent): void => {
+        const { height } = event.nativeEvent.layout;
+        setMinHeight((current) => Math.max(current, height));
+    };
     return (
-        <View style={styles.history}>
+        <View onLayout={onLayout} style={[styles.history, { minHeight }]}>
             {historyExpired ? (
                 <Text
                     accessibilityRole="alert"
