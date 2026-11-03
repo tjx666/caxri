@@ -10,6 +10,11 @@ interface TerminalAgentWork {
      * provider reports it drained or the stale window passes.
      */
     backgroundEvidenceAt?: number;
+    /**
+     * The sender of `backgroundEvidenceAt` reports the drain itself (`agentBackgroundDrainReported`), so that evidence
+     * holds until a later finish clears it rather than expiring after the stale window.
+     */
+    isBackgroundDrainReported?: boolean;
     deferredParentFinish?: AgentLifecycleSignal;
     /**
      * Bounds the wait for the parent turn to resume after its last background subagent stopped.
@@ -123,7 +128,11 @@ export class AgentWorkTracker {
         const staleBefore = Date.now() - this.staleTimeoutMs;
         for (const [agentId, lastEvidenceAt] of work.activeSubagents)
             if (lastEvidenceAt <= staleBefore) work.activeSubagents.delete(agentId);
-        if (work.backgroundEvidenceAt !== undefined && work.backgroundEvidenceAt <= staleBefore)
+        if (
+            !work.isBackgroundDrainReported &&
+            work.backgroundEvidenceAt !== undefined &&
+            work.backgroundEvidenceAt <= staleBefore
+        )
             work.backgroundEvidenceAt = undefined;
     }
 
@@ -134,10 +143,15 @@ export class AgentWorkTracker {
     private armStaleTimeout(terminalId: string, work: TerminalAgentWork): void {
         this.clearStaleTimeout(work);
         if (!work.deferredParentFinish || !this.hasPendingWork(work)) return;
+        const staleableBackgroundAt = work.isBackgroundDrainReported
+            ? undefined
+            : work.backgroundEvidenceAt;
         const oldestEvidenceAt = Math.min(
             ...work.activeSubagents.values(),
-            work.backgroundEvidenceAt ?? Infinity,
+            staleableBackgroundAt ?? Infinity,
         );
+        // Only drain-reported evidence remains: nothing can go stale, and the sender's later finish settles the wait.
+        if (!Number.isFinite(oldestEvidenceAt)) return;
         const delay = Math.max(0, oldestEvidenceAt + this.staleTimeoutMs - Date.now());
         const timeout = setTimeout(() => {
             work.staleTimeout = undefined;
@@ -186,6 +200,7 @@ export class AgentWorkTracker {
         this.clearTimeouts(work);
         work.deferredParentFinish = undefined;
         work.backgroundEvidenceAt = undefined;
+        work.isBackgroundDrainReported = undefined;
         if (work.activeSubagents.size === 0) this.workByTerminal.delete(terminalId);
     }
 
@@ -203,8 +218,10 @@ export class AgentWorkTracker {
             }
             const finish = { ...signal };
             delete finish.agentBackgroundWork;
+            delete finish.agentBackgroundDrainReported;
             work.deferredParentFinish = finish;
             work.backgroundEvidenceAt = Date.now();
+            work.isBackgroundDrainReported = signal.agentBackgroundDrainReported === true;
             this.clearResumeTimeout(work);
             this.armStaleTimeout(signal.terminalId, work);
             return true;
@@ -216,6 +233,7 @@ export class AgentWorkTracker {
         )
             return false;
         work.backgroundEvidenceAt = undefined;
+        work.isBackgroundDrainReported = undefined;
         this.clearStaleTimeout(work);
         this.armResumeTimeout(signal.terminalId, work);
         return true;

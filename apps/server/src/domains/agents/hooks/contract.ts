@@ -129,6 +129,14 @@ export interface AgentLifecycleSignal {
      */
     agentBackgroundWork?: true;
     /**
+     * Server-only qualifier of `agentBackgroundWork`: the sender watches that work itself and sends a plain
+     * `turnFinished` once it drains, so the evidence never goes stale. A Chat lists every background task and sees it
+     * end, while a hook reports the work once at `Stop` and may lose the hook that ends it. A subagent or workflow can
+     * stay silent for longer than the stale window, and expiring a Chat's evidence settled the Session as finished
+     * while its task still ran. Never accepted from the hook wire.
+     */
+    agentBackgroundDrainReported?: true;
+    /**
      * Closed StopFailure classification; provider error text never crosses the hook boundary.
      */
     agentFailure?:

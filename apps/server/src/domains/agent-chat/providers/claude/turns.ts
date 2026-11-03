@@ -153,7 +153,11 @@ export class ClaudeTurns {
                       agentSessionId,
                       agentTurnId: id,
                       ...(answer && { agentResponseDigest: chatTextDigest(answer.text) }),
-                      ...(isWaitingOnBackground && { agentBackgroundWork: true as const }),
+                      // `onTasksChanged` sends the plain finish once the task list drains, so no stale window applies.
+                      ...(isWaitingOnBackground && {
+                          agentBackgroundWork: true as const,
+                          agentBackgroundDrainReported: true as const,
+                      }),
                   },
         );
     }

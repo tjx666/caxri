@@ -58,5 +58,7 @@ export function validateTurnOutcomeSignal(
             signal.agentId !== undefined)
     )
         return 'invalidSignal';
+    // Only a Chat, which watches its own background tasks, may waive the stale window; a hook never can.
+    if (signal.agentBackgroundDrainReported !== undefined) return 'invalidSignal';
     return undefined;
 }

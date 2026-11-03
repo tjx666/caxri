@@ -81,6 +81,30 @@ describe('AgentWorkTracker', () => {
             );
         });
 
+        it('keeps waiting past the stale window when the sender reports the drain itself', () => {
+            vi.useFakeTimers();
+            const onDeferredParentFinished = vi.fn();
+            const onWaitingChange = vi.fn();
+            const tracker = new AgentWorkTracker(onDeferredParentFinished, {
+                onWaitingChange,
+                resumeGraceMs: 1_000,
+                staleTimeoutMs: 5_000,
+            });
+
+            tracker.observe({ ...backgroundFinish, agentBackgroundDrainReported: true });
+            vi.advanceTimersByTime(60 * 60_000);
+            expect(onDeferredParentFinished).not.toHaveBeenCalled();
+            expect(tracker.operation('terminal-1')).toBe('background');
+
+            expect(tracker.observe(signal('turnFinished')).deferCompletion).toBe(true);
+            vi.advanceTimersByTime(1_000);
+            expect(onDeferredParentFinished).toHaveBeenCalledExactlyOnceWith(
+                signal('turnFinished'),
+            );
+            expect(tracker.operation('terminal-1')).toBeUndefined();
+            expect(onWaitingChange).toHaveBeenCalledTimes(2);
+        });
+
         it('leaves an ordinary finish without reported work untouched', () => {
             const tracker = new AgentWorkTracker(vi.fn());
 
