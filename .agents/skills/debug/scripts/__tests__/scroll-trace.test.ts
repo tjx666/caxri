@@ -31,6 +31,16 @@ describe('scroll-trace', () => {
         expect(() => parseScrollTraceCommand(['read', '--verbose'])).toThrow(/Unknown option/u);
     });
 
+    it('installs into the installed app only with the user approval flag', () => {
+        expect(() => parseScrollTraceCommand(['start', '--packaged'])).toThrow(/Ask the user/u);
+        expect(parseScrollTraceCommand(['start', '--packaged', '--user-approved'])).toEqual({
+            action: 'start',
+            isJson: false,
+            isPackaged: true,
+        });
+        expect(parseScrollTraceCommand(['start'])).toMatchObject({ action: 'start' });
+    });
+
     it('flags a scroll with the scrollbar shown only when the user gave no input just before it', () => {
         expect(isUnexpectedReveal(scroll({ sinceInput: null }))).toBe(true);
         expect(isUnexpectedReveal(scroll({ sinceInput: 5000 }))).toBe(true);

@@ -3,8 +3,11 @@
  * revealed the overlay scrollbar. The recorder is content-free: offsets, sizes, whether the scrollbar was hidden, the
  * calling function of a programmatic scroll, and the tag, data attribute names, and first classes of a row that
  * resized. It never reads text, so it may run against the installed app (`--packaged`) while the user reproduces.
+ * Installing it there patches the window the user is working in, so `start --packaged` also needs `--user-approved`,
+ * passed only after the user agreed in the current conversation.
  *
- * Usage: `bun run .agents/skills/debug/scripts/scroll-trace.ts <start|read|reset> [--packaged] [--json]`
+ * Usage: `bun run .agents/skills/debug/scripts/scroll-trace.ts <start|read|reset> [--packaged [--user-approved]]
+ * [--json]`
  *
  * - `start` installs the recorder; a reload or relaunch removes it, so install it again after either.
  * - `read` prints the trace. `REVEAL` marks a scroll event that ran with the scrollbar visible and no user input in the
@@ -135,16 +138,23 @@ export function parseScrollTraceCommand(argv: string[]): {
     isJson: boolean;
     isPackaged: boolean;
 } {
+    const knownFlags = new Set(['--json', '--packaged', '--user-approved']);
     const flags = new Set(argv.filter((value) => value.startsWith('--')));
     const positional = argv.filter((value) => !value.startsWith('--'));
     for (const flag of flags) {
-        if (flag !== '--packaged' && flag !== '--json') {
+        if (!knownFlags.has(flag)) {
             throw new CommandError(`Unknown option ${flag}`, 2);
         }
     }
     const [action, ...rest] = positional;
     if (!ACTIONS.includes(action as Action) || rest.length > 0) {
         throw new CommandError(`Pass one action: ${ACTIONS.join(', ')}`, 2);
+    }
+    if (action === 'start' && flags.has('--packaged') && !flags.has('--user-approved')) {
+        throw new CommandError(
+            'Installing the recorder in the installed app patches the window the user is working in. Ask the user first, then pass --user-approved.',
+            2,
+        );
     }
     return {
         action: action as Action,

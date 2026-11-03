@@ -288,7 +288,9 @@ ownership probe.
 For a scrollbar that flashes or a transcript that moves by itself, record instead of hand-writing
 loggers: `scroll-trace.ts start|read|reset [--packaged] [--json]` patches every programmatic scroll
 on `[role="log"]`, records content-free scroll, write, and row-resize entries, and marks a scroll
-that showed the scrollbar without user input as `REVEAL`. A reload removes the recorder. For a
+that showed the scrollbar without user input as `REVEAL`. A reload removes the recorder. Installing
+it in the installed app (`start --packaged`) patches the window the user is working in, so ask the
+user first; the script refuses without `--user-approved`. For a
 cold-open case: select another Session, `switch-worktree stop`, relaunch `dev`, `drive-app.ts ready`,
 `scroll-trace.ts start`, `drive-app.ts select-session <target>`, then `scroll-trace.ts read`.
 
