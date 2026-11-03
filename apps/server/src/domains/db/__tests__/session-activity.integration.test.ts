@@ -111,8 +111,9 @@ describe('Session Activity persistence', () => {
         const fourth = database.createSession(project.id, 'shell').session;
         database.touchSessionActivity(first.id, 'user_submission');
         database.selectSession(fourth.id, 'main');
+        // The sidebar now reads first, fourth, second: archiving the middle row selects the row below it.
         database.archiveSession(fourth.id);
-        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(first.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(second.id);
 
         const otherProject = database.createProject(join(directory, 'other'));
         database.selectSession(database.createSession(otherProject.id, 'shell').session.id, 'main');
