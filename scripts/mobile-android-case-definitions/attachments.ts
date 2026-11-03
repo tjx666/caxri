@@ -24,6 +24,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-video',
     },
+    'MOB-COMPOSER-ATTACH-PREVIEW-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'composer-attachment-preview',
+    },
     'MOB-CHAT-VIDEO-02': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

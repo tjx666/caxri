@@ -1,17 +1,15 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useEvent } from 'expo';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { Film, Play, VideoOff, X } from 'lucide-react-native';
+import { Film, Play, VideoOff } from 'lucide-react-native';
 
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
-import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
+import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { PlayerMessage, StreamPlayer, VideoPlayerFrame } from './agent-chat-video-player';
 import type { AgentChatVideoTarget } from './agent-chat-videos';
 import { agentChatVideoBlocker } from './agent-chat-videos';
 import { useAgentChatVideoPoster, useAgentChatVideoStream } from './use-agent-chat-video';
@@ -142,7 +140,6 @@ const VideoPlayerScreen = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
     const { route, status } = useMobileClient();
     const blocker = agentChatVideoBlocker({ route, status }, t);
     const stream = useAgentChatVideoStream(target, blocker === null);
@@ -163,10 +160,7 @@ const VideoPlayerScreen = ({
                 : null));
     const canRetry = stream.isError && !stream.isMissing && blocker === null && !stream.url;
     return (
-        <View
-            style={[styles.backdrop, { backgroundColor: theme.scrim }]}
-            testID="agent-chat-video-player"
-        >
+        <VideoPlayerFrame onClose={onClose} theme={theme}>
             {message ? (
                 <PlayerMessage
                     message={message}
@@ -180,86 +174,7 @@ const VideoPlayerScreen = ({
                     <Spinner color={theme.onScrim} size={36} />
                 </View>
             )}
-            <Pressable
-                accessibilityLabel={t('chat.video.close')}
-                accessibilityRole="button"
-                hitSlop={12}
-                onPress={onClose}
-                style={[
-                    styles.close,
-                    { backgroundColor: theme.scrimControl, top: insets.top + 12 },
-                ]}
-                testID="agent-chat-video-player-close"
-            >
-                <X color={theme.onScrim} size={22} strokeWidth={2.5} />
-            </Pressable>
-        </View>
-    );
-};
-
-const PlayerMessage = ({
-    message,
-    onRetry,
-    theme,
-}: {
-    message: string;
-    /**
-     * Present when trying again can help (a failed playback or stream request), as the image viewer offers Retry.
-     */
-    onRetry?: () => void;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    return (
-        <View style={styles.center} testID="agent-chat-video-player-error">
-            <Text style={[styles.message, { color: theme.onScrim }]}>{message}</Text>
-            {onRetry ? (
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={onRetry}
-                    style={[styles.retry, { backgroundColor: theme.elevated }]}
-                    testID="agent-chat-video-player-retry"
-                >
-                    <Text style={[styles.retryText, { color: theme.text }]}>
-                        {t('common.retry')}
-                    </Text>
-                </Pressable>
-            ) : null}
-        </View>
-    );
-};
-
-/**
- * Plays the stream with the platform's own controls (play, pause, and the scrubber), which seek through range requests.
- * A playback that fails, such as a codec the phone cannot decode, replaces the picture with a message.
- */
-const StreamPlayer = ({
-    onRetry,
-    theme,
-    url,
-}: {
-    onRetry: () => void;
-    theme: MobileTheme;
-    url: string;
-}) => {
-    const { t } = useTranslation();
-    const player = useVideoPlayer(url, (created) => {
-        created.play();
-    });
-    const { status } = useEvent(player, 'statusChange', { status: player.status });
-    if (status === 'error')
-        return (
-            <PlayerMessage message={t('chat.video.playFailed')} onRetry={onRetry} theme={theme} />
-        );
-    return (
-        <VideoView
-            allowsPictureInPicture={false}
-            contentFit="contain"
-            nativeControls
-            player={player}
-            style={styles.fill}
-            testID="agent-chat-video-player-view"
-        />
+        </VideoPlayerFrame>
     );
 };
 
@@ -299,29 +214,6 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
         position: 'absolute',
         right: 0,
-    },
-    backdrop: { flex: 1 },
-    fill: { flex: 1 },
-    message: {
-        ...mobileType.body,
-        paddingHorizontal: mobileSpace.xl,
-        textAlign: 'center',
-    },
-    retry: {
-        borderRadius: mobileRadius.md,
-        justifyContent: 'center',
-        minHeight: mobileControl.row,
-        paddingHorizontal: mobileSpace.lg,
-    },
-    retryText: { ...mobileType.bodyStrong },
-    close: {
-        alignItems: 'center',
-        borderRadius: mobileRadius.pill,
-        height: mobileControl.row,
-        justifyContent: 'center',
-        position: 'absolute',
-        right: mobileSpace.lg,
-        width: mobileControl.row,
     },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

@@ -98,7 +98,7 @@ describe('composer image attachment copy', () => {
                 attachment({ state: 'uploading' }),
                 attachment({ id: 'image_b', state: 'failed' }),
             ]),
-        ).toBe("An image didn't upload. Tap it to retry or remove it.");
+        ).toBe("An image didn't upload. Tap Retry to try again or remove it.");
     });
 
     it('names each thumbnail by its place in the strip and its state', () => {

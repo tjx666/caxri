@@ -5,10 +5,12 @@ import {
     executeMobileChatVideoUnavailableScenario,
 } from '../mobile-agent-chat-video-scenario';
 import type { MobileAndroidCaseHandler } from '../mobile-android-case-registry';
+import { executeMobileComposerAttachmentPreviewScenario } from '../mobile-composer-attachment-preview-scenario';
 
 export const handlers = {
     'MOB-CHAT-FILE-01': executeMobileChatFileScenario,
     'MOB-CHAT-IMAGE-PENDING-01': executeMobileChatImagePendingScenario,
     'MOB-CHAT-VIDEO-01': executeMobileChatVideoScenario,
     'MOB-CHAT-VIDEO-02': executeMobileChatVideoUnavailableScenario,
+    'MOB-COMPOSER-ATTACH-PREVIEW-01': executeMobileComposerAttachmentPreviewScenario,
 } satisfies Record<string, MobileAndroidCaseHandler>;
