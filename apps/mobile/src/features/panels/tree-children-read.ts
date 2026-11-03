@@ -40,15 +40,21 @@ export const readTreeChildren = async ({
     const root = { items: result.items };
     if (parentHandle === undefined) return root;
     onLevelSnapshot(undefined, root);
-    for (const ancestorHandle of ancestorHandles) {
-        // eslint-disable-next-line no-await-in-loop -- each level registers the handle the next level's read needs.
+    /**
+     * Strictly in order: each level registers the handle the next level's read needs.
+     */
+    const reloadAncestors = async (handles: readonly string[]): Promise<void> => {
+        if (handles.length === 0) return;
+        const [ancestorHandle, ...deeper] = handles;
         const level = await read(ancestorHandle);
         if (level.reset) {
             onLevelSnapshot(undefined, { items: level.items });
             throw new Error('Tree changed while its branch was loading');
         }
         onLevelSnapshot(ancestorHandle, level);
-    }
+        await reloadAncestors(deeper);
+    };
+    await reloadAncestors(ancestorHandles);
     const retry = await read(parentHandle);
     if (!retry.reset) return retry;
     onLevelSnapshot(undefined, { items: retry.items });
