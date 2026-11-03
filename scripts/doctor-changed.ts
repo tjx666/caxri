@@ -16,7 +16,11 @@ export function createDoctorCommand(environment: NodeJS.ProcessEnv): string[] {
     // base, not be kept as `''`.
     // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- see comment above
     const base = requestedBase || 'origin/main';
-    return ['run', 'doctor', '--', '--scope', 'changed', '--base', base];
+    /**
+     * React Doctor's changed scope reads only `git diff` against the base, so a new file not yet committed passed the
+     * local gate and failed CI's. `--include-untracked` adds `git ls-files --others --exclude-standard`.
+     */
+    return ['run', 'doctor', '--', '--scope', 'changed', '--base', base, '--include-untracked'];
 }
 
 async function runDoctor(): Promise<number> {
