@@ -62,7 +62,9 @@ const waitForSelectedProject = (serial: string, projectId: string) =>
  * back.
  *
  * The band from the first Agent card to the bottom of the Open as group does not depend on which Project is selected,
- * so every recorded frame of every switch is compared with the settled picture the recording ends on.
+ * so every recorded frame of every switch is compared with the settled picture the recording ends on. The Create button
+ * is judged the same way on its own band: until Create stopped waiting on the new Project's read, it dimmed to its
+ * disabled look for one round trip on every switch.
  */
 export async function executeMobileNewSessionSwitchScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -96,9 +98,12 @@ export async function executeMobileNewSessionSwitchScenario(
         );
         const top = settled.find(({ checkId }) => checkId === 'new-session-agent-claude');
         const bottom = settled.find(({ checkId }) => checkId === 'new-session-surface-chat');
+        const create = settled.find(({ checkId }) => checkId === 'new-session-create');
         const topBounds = top && androidBounds(top.bounds);
         const bottomBounds = bottom && androidBounds(bottom.bounds);
-        if (!topBounds || !bottomBounds) throw new Error('New Session cards are not laid out');
+        const createBounds = create && androidBounds(create.bounds);
+        if (!topBounds || !bottomBounds || !createBounds)
+            throw new Error('New Session cards are not laid out');
         await tapMobileCheck(serial, `new-session-project-${projects[0]}`);
         await waitForSelectedProject(serial, projects[0]);
         await pause(WATCH_MS);
@@ -125,12 +130,23 @@ export async function executeMobileNewSessionSwitchScenario(
             { bottom: bottomBounds.bottom, top: topBounds.top },
             2,
         );
+        const { frames: createFrames } = await readRecordingBand(
+            video,
+            { bottom: createBounds.bottom, top: createBounds.top },
+            2,
+        );
         const reference = frames.at(-1);
-        if (!reference) throw new Error('The switch recording has no frames');
+        const createReference = createFrames.at(-1);
+        if (!reference || !createReference) throw new Error('The switch recording has no frames');
         const shares = frames.map((frame) => changedShare(frame, reference));
         const changed = frames.filter((_, index) => shares[index] >= CHANGED_SHARE);
         const peakShare = Math.max(...shares);
         const peakTimeMs = frames[shares.indexOf(peakShare)].time;
+        const createShares = createFrames.map((frame) => changedShare(frame, createReference));
+        const createChanged = createFrames.filter(
+            (_, index) => createShares[index] >= CHANGED_SHARE,
+        );
+        const createPeakShare = Math.max(...createShares);
         await capture(environment, 'after-switches', artifacts);
         await waitForMobile(
             () => mobileSemantics(serial),
@@ -141,7 +157,12 @@ export async function executeMobileNewSessionSwitchScenario(
             throw new Error(
                 `Switching Project changed the Agent and Open as cards in ${changed.length} frames at ${changed.map(({ time }) => Math.round(time)).join(', ')} ms (peak changed share ${peakShare.toFixed(3)})`,
             );
+        if (createChanged.length > 0)
+            throw new Error(
+                `Switching Project dimmed the Create button in ${createChanged.length} frames at ${createChanged.map(({ time }) => Math.round(time)).join(', ')} ms (peak changed share ${createPeakShare.toFixed(3)})`,
+            );
         await finish(environment, artifacts, {
+            createPeakChangedShare: Number(createPeakShare.toFixed(4)),
             frames: frames.length,
             peakChangedShare: Number(peakShare.toFixed(4)),
             peakTimeMs: Math.round(peakTimeMs),

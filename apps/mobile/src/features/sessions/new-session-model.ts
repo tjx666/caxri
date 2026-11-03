@@ -191,10 +191,11 @@ export const canCreateNewSession = ({
     !['partial', 'uncertain', 'creating'].includes(createState.kind);
 
 /**
- * Whether the Agent cards show the availability read as loading. Switching Project starts a new read keyed by that
- * Project; the previous Project's answer stays on screen as placeholder data until it settles, so the cards and the
- * surface choice do not drop out for one frame. Creating stays blocked meanwhile, because {@link canCreateNewSession}
- * takes `isFetching`, so a placeholder answer can never launch a Session in the new Project.
+ * Whether the screen shows the availability read as loading: the Agent cards and Create both take it. Switching Project
+ * starts a new read keyed by that Project; the previous Project's answer stays on screen as placeholder data until it
+ * settles, so the cards, the surface choice, and an enabled Create do not flicker for one round trip. A placeholder
+ * answer never launches a Session by itself: a Create pressed meanwhile waits for the new Project's answer and
+ * re-checks it with {@link confirmNewSessionLaunch}.
  */
 export const isNewSessionAvailabilityLoading = ({
     isFetching,
@@ -205,6 +206,26 @@ export const isNewSessionAvailabilityLoading = ({
     isPending: boolean;
     isPlaceholderData: boolean;
 }): boolean => isPending || (isFetching && !isPlaceholderData);
+
+/**
+ * The Agent and surface a Create pressed during a Project switch launches with, once the new Project's availability
+ * answer arrived, or `null` when that answer no longer offers the chosen Agent. The Agent is never swapped for another
+ * one the reader did not see selected; the cards re-render from the new answer and Create is pressed again.
+ */
+export const confirmNewSessionLaunch = ({
+    agent,
+    agents,
+    openAgentsInChat,
+    surfacePreference,
+}: {
+    agent: TerminalKind;
+    agents: NewSessionAgent[];
+    openAgentsInChat: boolean | undefined;
+    surfacePreference: TerminalSurface | null;
+}): { agent: TerminalKind; surface: TerminalSurface | null } | null =>
+    agents.some((candidate) => candidate.kind === agent && candidate.available)
+        ? { agent, surface: newSessionSurface(surfacePreference, agent, openAgentsInChat === true) }
+        : null;
 
 /**
  * The previous Project's availability answer, kept on screen while the newly selected Project's read is in flight. Only

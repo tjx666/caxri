@@ -5,6 +5,7 @@ import {
     acknowledgeCheckedUncertainCreate,
     availableNewSessionAgent,
     canCreateNewSession,
+    confirmNewSessionLaunch,
     forgetNewSessionProject,
     isNewSessionAvailabilityLoading,
     isNewSessionAvailabilityOffline,
@@ -239,6 +240,62 @@ describe('newSessionCreateFailure', () => {
 });
 
 describe('New Session availability across a Project switch', () => {
+    it('keeps Create enabled while the next Project is read over the previous answer', () => {
+        const base = {
+            agent: 'claude' as const,
+            createState: { kind: 'idle' as const },
+            dashboardError: null,
+            hasDashboard: true,
+            isAvailabilityError: false,
+            isForeground: true,
+            projectId: 'project-b',
+            role: 'control' as const,
+            status: 'connected' as const,
+        };
+        const placeholderRead = isNewSessionAvailabilityLoading({
+            isFetching: true,
+            isPending: false,
+            isPlaceholderData: true,
+        });
+        expect(canCreateNewSession({ ...base, isAvailabilityLoading: placeholderRead })).toBe(true);
+        const firstRead = isNewSessionAvailabilityLoading({
+            isFetching: true,
+            isPending: true,
+            isPlaceholderData: false,
+        });
+        expect(canCreateNewSession({ ...base, isAvailabilityLoading: firstRead })).toBe(false);
+    });
+
+    it('launches a Create pressed during the switch only when the new answer still offers the Agent', () => {
+        expect(
+            confirmNewSessionLaunch({
+                agent: 'claude',
+                agents: [{ available: true, kind: 'claude' }],
+                openAgentsInChat: true,
+                surfacePreference: null,
+            }),
+        ).toEqual({ agent: 'claude', surface: 'chat' });
+        expect(
+            confirmNewSessionLaunch({
+                agent: 'claude',
+                agents: [{ available: true, kind: 'claude' }],
+                openAgentsInChat: true,
+                surfacePreference: 'pty',
+            }),
+        ).toEqual({ agent: 'claude', surface: 'pty' });
+        expect(
+            confirmNewSessionLaunch({
+                agent: 'claude',
+                agents: [
+                    { available: false, kind: 'claude' },
+                    { available: true, kind: 'codex' },
+                ],
+                openAgentsInChat: true,
+                surfacePreference: null,
+            }),
+        ).toBeNull();
+    });
+
     it('keeps the cards steady while the next Project is read over the previous answer', () => {
         expect(
             isNewSessionAvailabilityLoading({
