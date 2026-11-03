@@ -1384,8 +1384,8 @@ could not resume adds a body naming the cause and Open as Terminal), or a hand-o
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
 and Resume. The card is inset 12px like the composer strip so the two share edges; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
 as collapsible sections rather than cards or popovers. The Background work section lists failed then running
-tasks with elapsed time and their own Stop, and an `Ended N` row at the foot of the list expands the ended tasks, most
-recent first, with how each ended; a shell is named by the Agent's
+tasks with elapsed time and their own Stop, and an `Ended N` button in its header, before Stop all, expands the ended
+tasks under them, most recent first, with how each ended (from a folded section it unfolds the section too); a shell is named by the Agent's
 description of it (Claude Code's `Bash` or `Monitor` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as

@@ -24,7 +24,7 @@ export interface AgentChatBackgroundWork {
     failed: AgentChatTask[];
     /**
      * Every other ended task (completed, stopped, and failures already dismissed or older than the latest turn), most
-     * recent first, behind the `Ended N` disclosure at the foot of the list.
+     * recent first, behind the `Ended N` disclosure in the section's header.
      */
     ended: AgentChatTask[];
 }

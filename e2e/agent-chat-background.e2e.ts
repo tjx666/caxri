@@ -135,6 +135,30 @@ test('a Codex Chat stops all of its running background work at once', async ({},
         await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(3);
         await page.screenshot({ path: testInfo.outputPath('codex-stop-all.png') });
 
+        // A stopped task moves behind the header's `Ended N` toggle, not a row of its own under the list. A second
+        // background shell keeps two tasks running, so the section keeps its header once the subagent stops.
+        await message.fill('run it in the background');
+        await message.press('Enter');
+        // Three task Stops plus Stop all.
+        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(4);
+        await strip.getByRole('button', { name: /^Stop Inspect the fixtures/u }).click();
+        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(3);
+        const ended = strip.getByRole('button', { name: 'Ended 1' });
+        await expect(ended).toHaveAttribute('aria-expanded', 'false');
+        await expect(strip.getByRole('list', { name: 'Ended background work' })).toBeHidden();
+        await ended.click();
+        await expect(ended).toHaveAttribute('aria-expanded', 'true');
+        await expect(strip.getByRole('list', { name: 'Ended background work' })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-ended-expanded.png') });
+
+        // Folded, asking for the ended tasks unfolds the section too.
+        const fold = strip.locator('[data-agent-chat-strip-fold]');
+        await fold.click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await ended.click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'true');
+        await expect(strip.getByRole('list', { name: 'Ended background work' })).toBeVisible();
+
         await stopAll.click();
         await expect(chat.getByRole('button', { name: /^Stop / })).toHaveCount(0);
         await expect(chat.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
