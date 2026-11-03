@@ -29,7 +29,6 @@ import {
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { AgentChatAwayRecapEntry } from './agent-chat-away-recap-entry';
-import type { AgentChatWorkEntry } from './agent-chat-timeline-work';
 import { agentChatWorkEntry } from './agent-chat-timeline-work';
 
 /**
@@ -49,7 +48,6 @@ type AgentChatMessageEntry = Extract<
  */
 export type AgentChatTimelineEntry =
     | AgentChatAwayRecapEntry
-    | AgentChatWorkEntry
     | { kind: 'feedback'; id: string; notice: Extract<AgentChatItem, { type: 'notice' }> }
     | {
           kind: 'message';
@@ -97,6 +95,17 @@ export type AgentChatTimelineEntry =
           isExpanded: boolean;
           text: string;
           task: AgentChatDelegatedTask;
+      }
+    | {
+          kind: 'work';
+          id: string;
+          /**
+           * The running turn's trailing work, which the next tool call can still join. Its summary names the current
+           * step and stays marked running between calls, as on Desktop; the aggregate replaces it once the run ends.
+           */
+          isOpen?: true;
+          summarized: readonly AgentChatWorkItem[];
+          rows: readonly AgentChatWorkItem[];
       }
     | { kind: 'artifacts'; id: string; artifacts: AgentChatTurnArtifacts }
     | {
