@@ -25,6 +25,7 @@ type DeviceRole = 'view' | 'reply' | 'control' | null;
 const INDENT = 16;
 
 const TreeChildren = ({
+    ancestorHandles,
     depth,
     deviceRole,
     onOpenChat,
@@ -34,6 +35,10 @@ const TreeChildren = ({
     theme,
     viewId,
 }: {
+    /**
+     * Expanded rows between the root level and `parentHandle`, outermost first, so a reset can re-read them in order.
+     */
+    ancestorHandles: readonly string[];
     depth: number;
     deviceRole: DeviceRole;
     onOpenChat?: () => void;
@@ -44,7 +49,7 @@ const TreeChildren = ({
     viewId: string;
 }) => {
     const { t } = useTranslation();
-    const children = useTreeChildren(sessionId, viewId, parentHandle);
+    const children = useTreeChildren(sessionId, viewId, parentHandle, ancestorHandles);
     const view = treeChildrenView({
         depth,
         isError: children.isError,
@@ -108,6 +113,9 @@ const TreeChildren = ({
                 // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-use-before-define -- Rows and their children recurse into each other.
                 <TreeRow
                     key={item.handle}
+                    ancestorHandles={
+                        parentHandle === undefined ? [] : [...ancestorHandles, parentHandle]
+                    }
                     depth={depth}
                     deviceRole={deviceRole}
                     item={item}
@@ -125,6 +133,7 @@ const TreeChildren = ({
 };
 
 const TreeRow = ({
+    ancestorHandles,
     depth,
     deviceRole,
     item,
@@ -134,6 +143,10 @@ const TreeRow = ({
     theme,
     viewId,
 }: {
+    /**
+     * Expanded rows above `item`, outermost first; empty for a root row.
+     */
+    ancestorHandles: readonly string[];
     depth: number;
     deviceRole: DeviceRole;
     item: TreeItem;
@@ -207,6 +220,7 @@ const TreeRow = ({
             </View>
             {isCollapsible && isExpanded ? (
                 <TreeChildren
+                    ancestorHandles={ancestorHandles}
                     depth={depth + 1}
                     deviceRole={deviceRole}
                     onOpenChat={onOpenChat}
@@ -242,6 +256,7 @@ export const TreePanel = ({
     return (
         <ScrollView style={styles.root} testID={`tree-panel-${viewId}`}>
             <TreeChildren
+                ancestorHandles={[]}
                 depth={0}
                 deviceRole={deviceRole}
                 onOpenChat={onOpenChat}
