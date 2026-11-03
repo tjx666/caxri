@@ -61,6 +61,7 @@ export interface ChatLifecycleEvent {
      */
     agentResponseDigest?: string;
     agentBackgroundWork?: true;
+    agentBackgroundDrainReported?: true;
     /**
      * The directory Claude Code moved itself to with `EnterWorktree` or `ExitWorktree`. An unproven claim: Server Core
      * validates it against the owning Project's worktree topology. Never the hook `cwd`, which a Bash `cd` also moves.

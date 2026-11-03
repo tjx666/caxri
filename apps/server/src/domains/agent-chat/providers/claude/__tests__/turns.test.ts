@@ -57,6 +57,7 @@ describe('ClaudeTurns background work', () => {
             agentSessionId: 'agent-session',
             agentTurnId: 'turn-1',
             agentBackgroundWork: true,
+            agentBackgroundDrainReported: true,
         });
     });
 
@@ -112,6 +113,7 @@ describe('ClaudeTurns background work', () => {
         turns.onSessionState('idle');
 
         expect(events.at(-1)).toHaveProperty('agentBackgroundWork', true);
+        expect(events.at(-1)).toHaveProperty('agentBackgroundDrainReported', true);
     });
 
     it.each([

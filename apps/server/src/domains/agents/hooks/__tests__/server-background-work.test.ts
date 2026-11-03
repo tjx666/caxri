@@ -9,6 +9,8 @@ describe('AgentHookServer background work flag', () => {
         { provider: 'claude', phase: 'turnStarted', accepted: false },
         { provider: 'claude', agentId: 'child', accepted: false },
         { provider: 'codex', accepted: false },
+        // Waiving the stale window is a Chat-only, Server-side qualifier.
+        { provider: 'claude', agentBackgroundDrainReported: true, accepted: false },
     ] as const)(
         'validates main-turn Claude background work (%#)',
         async ({ accepted, provider, ...fields }) => {
