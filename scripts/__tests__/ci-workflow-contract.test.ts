@@ -513,6 +513,39 @@ describe('CI workflow contract', () => {
         }
     });
 
+    it('measures the Agent Chat switch on pull requests without gating the merge', () => {
+        const job = document.jobs['chat-switch-performance'] as WorkflowJob & {
+            steps: Array<{
+                'continue-on-error'?: boolean;
+                'id'?: string;
+                'run'?: string;
+                'with'?: Record<string, unknown>;
+            }>;
+        };
+
+        expect(job['runs-on']).toBe('macos-15');
+        expect(job.if).toContain("github.event_name == 'pull_request'");
+        // The same scopes `size-report` measures, so every report comment can carry the timings.
+        expect(job.if).toBe(
+            document.jobs['size-report'].if?.replace(
+                "github.event_name != 'workflow_dispatch'",
+                "github.event_name == 'pull_request'",
+            ),
+        );
+        expect(document.jobs.ci.needs).not.toContain('chat-switch-performance');
+        const benchmark = job.steps.find(({ id }) => id === 'agent-chat-switch-performance');
+        expect(benchmark?.run).toBe('bun run benchmark:chat-switch');
+        expect(benchmark?.['continue-on-error']).toBe(true);
+        const baselineGate = job.steps.find(({ run }) =>
+            run?.includes('performance-baseline-gate.ts'),
+        );
+        expect(baselineGate?.['continue-on-error']).toBe(true);
+        // `scripts/ci-size-comment.ts` downloads this exact artifact name from the pull request run.
+        expect(job.steps.map((step) => step.with?.name)).toContain(
+            'agent-chat-switch-performance-receipt',
+        );
+    });
+
     it('measures sizes on Linux outside the gate and posts them only from the default-branch workflow', async () => {
         const commentWorkflow = parse(
             await readFile(

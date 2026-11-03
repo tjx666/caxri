@@ -123,7 +123,15 @@ export function summarizeChatSwitch(receipt: unknown, baseline: unknown): ChatSw
 export interface CommentInput {
     baselines: Partial<Record<SizeReportKind, SizeReport>>;
     headSha: string;
-    performance?: { rows: ChatSwitchRow[]; runUrl: string };
+    performance?: {
+        rows: ChatSwitchRow[];
+        runUrl: string;
+        /**
+         * Which run measured it: the pull request CI run's `chat-switch-performance` job, or a manual `hosted-full`
+         * dispatch's `e2e-perf` job.
+         */
+        source: 'hosted-full' | 'pull-request';
+    };
     reports: Partial<Record<SizeReportKind, SizeReport>>;
     runUrl: string;
 }
@@ -181,11 +189,12 @@ function renderPerformanceSection(performance: CommentInput['performance']): str
         return [
             title,
             '',
-            '_No performance run on this head. A `hosted-full` CI dispatch adds Agent Chat Session switch timings._',
+            '_Not measured: the Agent Chat Session switch benchmark uploaded no receipt for this head._',
             '',
         ];
+    const runLabel = performance.source === 'pull-request' ? 'CI run' : 'hosted-full run';
     return [
-        `${title} (Agent Chat Session switch, [hosted-full run](${performance.runUrl}); one run on a shared macOS runner, so timings are noisy)`,
+        `${title} (Agent Chat Session switch, [${runLabel}](${performance.runUrl}); one run on a shared macOS runner, so timings are noisy)`,
         '',
         '| Scenario | Readable p50 | Interactive p50 | React commits p50 | Readable p50 gate |',
         '| --- | ---: | ---: | ---: | ---: |',
@@ -412,8 +421,13 @@ async function main(): Promise<void> {
         }
 
         let performance: CommentInput['performance'];
-        const dispatchRuns = newestFirst.filter(({ event }) => event === 'workflow_dispatch');
-        for (const run of dispatchRuns) {
+        // The pull request run's own `chat-switch-performance` job first, then the newest `hosted-full` dispatch, for
+        // a head whose pull request run skipped it.
+        const performanceRuns = [
+            sizeRun,
+            ...newestFirst.filter(({ event }) => event === 'workflow_dispatch'),
+        ];
+        for (const run of performanceRuns) {
             // eslint-disable-next-line no-await-in-loop -- stops at the newest run that carries a receipt
             const receipt = await downloadArtifactFile(
                 repo,
@@ -423,11 +437,22 @@ async function main(): Promise<void> {
                 scratch,
             );
             if (receipt === undefined) continue;
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(receipt);
+            } catch (error) {
+                // A pull request run uploads untrusted bytes; a malformed receipt must not drop the size report.
+                console.warn(
+                    `Ignoring ${CHAT_SWITCH_ARTIFACT} from run ${run.id}: ${String(error)}`,
+                );
+                continue;
+            }
             // eslint-disable-next-line no-await-in-loop -- runs once, right before the loop exits
             const baseline = await readChatSwitchBaseline();
             performance = {
-                rows: summarizeChatSwitch(JSON.parse(receipt), baseline),
+                rows: summarizeChatSwitch(parsed, baseline),
                 runUrl: run.html_url,
+                source: run.event === 'pull_request' ? 'pull-request' : 'hosted-full',
             };
             break;
         }

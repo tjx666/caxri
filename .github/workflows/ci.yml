@@ -1353,3 +1353,112 @@ jobs:
           path: size-report/mobile.json
           if-no-files-found: error
           retention-days: ${{ github.event_name == 'push' && 30 || 7 }}
+  # The Agent Chat switch benchmark on every pull request that `size-report` measures, so the sticky report comment shows
+  # its timings without a manual `hosted-full` dispatch. It cannot reuse another job's build: the spec requires the
+  # React profiling bundles, which no pull request job otherwise builds. It runs beside `unit`, whose shards are the
+  # longest leg, and stays outside the `CI gate`: one sample on a shared runner is noisy, so a failed budget or baseline
+  # comparison reports through its step result and the comment, never by blocking a merge.
+  chat-switch-performance:
+    name: chat switch performance
+    needs: retry-policy
+    if: >-
+      github.event_name == 'pull_request' && (
+        needs.retry-policy.outputs.checks_scope == 'full' ||
+        needs.retry-policy.outputs.checks_scope == 'affected' ||
+        needs.retry-policy.outputs.checks_scope == 'focused-source'
+      )
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      CAXRI_E2E_AGENT_MODE: blocked
+      # Selects the GitHub-hosted fixed budgets in e2e/support/agent-chat-switch-budgets.ts.
+      CAXRI_E2E_RUNNER_KIND: github-hosted
+      CAXRI_E2E_RUNNER_REASON: pull-request-performance
+      CAXRI_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      CAXRI_RUNNER_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = macOS
+          test "$RUNNER_ARCH" = ARM64
+      - name: Prepare hosted E2E temporary root
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          test ! -e "$temporary_root"
+          test ! -L "$temporary_root"
+          umask 077
+          mkdir "$temporary_root"
+          printf '%s\n' "$owner" > "$temporary_root/.caxri-owner"
+          {
+            echo "TEMP=$temporary_root"
+            echo "TMP=$temporary_root"
+            echo "TMPDIR=$temporary_root"
+          } >> "$GITHUB_ENV"
+      # The pushed head, like `size-report`, so the comment's timings belong to the head it names.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify read-only event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login }}
+          allow-external-pull-request: 'true'
+      - id: setup
+        uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+          install-electron: 'true'
+      # Builds the profiling bundles and runs the spec. A failed fixed budget still writes the receipt first, so the
+      # comment shows the numbers that failed it.
+      - name: Run Agent Chat switch performance benchmark
+        id: agent-chat-switch-performance
+        continue-on-error: true
+        run: bun run benchmark:chat-switch
+      - name: Compare with the Agent Chat switch baseline
+        if: always() && steps.setup.outcome == 'success'
+        continue-on-error: true
+        env:
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+        run: >-
+          bun run scripts/performance-baseline-gate.ts --receipt
+          test-results/receipts/agent-chat-session-switch.json
+          --baseline scripts/performance-baseline.agent-chat-switch.json
+      - name: Prepare public receipts
+        id: prepare-public-receipts
+        if: always() && steps.setup.outcome == 'success'
+        run: bun run scripts/prepare-public-e2e-receipts.ts
+      - name: Upload Agent Chat switch performance receipt
+        if: always() && steps.prepare-public-receipts.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agent-chat-switch-performance-receipt
+          path: test-results/public-receipts/agent-chat-session-switch.json
+          # A run that failed before writing its receipt already reports through its own step.
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove hosted E2E temporary root
+        if: always()
+        shell: bash
+        run: |
+          owner="$CAXRI_RUNNER_OWNER"
+          [[ "$owner" =~ ^caxri-[0-9]+-[0-9]+-e2e$ ]]
+          temporary_root="/private/tmp/$owner"
+          if [[ -e "$temporary_root" || -L "$temporary_root" ]]; then
+            test -d "$temporary_root"
+            test ! -L "$temporary_root"
+            test "$(cat "$temporary_root/.caxri-owner")" = "$owner"
+            rm -rf -- "$temporary_root"
+          fi

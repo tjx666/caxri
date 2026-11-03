@@ -703,6 +703,11 @@ derived on 2026-10-31 from 44 receipts of the same `macos-15` image (the dispatc
 the job. The benchmark adds one Electron launch of about two minutes to the job; see
 [Agent Chat Session switch](renderer-performance.md#agent-chat-session-switch).
 
+Pull requests run the same benchmark and baseline comparison in the `chat-switch-performance` job, one runner of
+about 8 minutes beside the `unit` shards, so the
+[pull request size report](bundle-size.md#pull-request-size-report) shows switch timings without a dispatch. There the
+fixed budgets and the baseline only report: both steps use `continue-on-error`, and the `CI gate` does not need the job.
+
 The receipt flattens to 204 numbers, most of them restatements of a few measurements, so the derivation gates 46 of
 them and records the other 158 under `excluded` with their evidence (rules and reasons in
 `EXCLUDED_PERFORMANCE_METRIC_PATTERNS`, `scripts/performance-baseline.ts`). In short: only `p50` is gated for times and React
