@@ -30,6 +30,9 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.createDialog.makeDefaultFailed': '无法更改默认 Agent',
     'session.openInChat.label': '始终在对话中打开 Agent',
     'session.openInChat.failed': '无法更改 Agent 的打开方式',
+    'session.openAgentsIn.label': 'Agent 打开方式',
+    'session.openAgentsIn.chat': '对话',
+    'session.openAgentsIn.terminal': '终端',
 
     // Recently used Sessions switcher
     'session.mru.title': '最近使用的会话',

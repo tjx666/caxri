@@ -123,7 +123,9 @@ describe('drive-app', () => {
     it('finds the Chat row of the add-Project dialog in either interface language', () => {
         expect(chatChoiceName('codex').test('Codex Chat')).toBe(true);
         expect(chatChoiceName('codex').test('Codex对话')).toBe(true);
+        expect(chatChoiceName('codex').test('Codex Chat Signed out')).toBe(true);
         expect(chatChoiceName('codex').test('Codex')).toBe(false);
+        expect(chatChoiceName('codex').test('Codex Signed out')).toBe(false);
         expect(chatChoiceName('claude').test('Codex Chat')).toBe(false);
     });
 

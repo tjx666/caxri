@@ -11,6 +11,7 @@ import {
 } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { createFakeAgentMode } from './agent-fixture.ts';
 import { chooseTerminalFromCreateMenu, VISIBLE_SESSION } from './helpers.ts';
+import { setOpenAgentsIn } from './open-agents-in.ts';
 
 /**
  * The fake Codex provider definition whose `app-server` is the deterministic Server-test fixture; threads persist under
@@ -114,7 +115,8 @@ export function fakeAntigravityChatAgentMode(directory: string, userData: string
 }
 
 /**
- * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open Agents in Chat toggle on.
+ * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open Agents In preference set to
+ * Chat.
  */
 export async function openAgentChat(
     page: Page,
@@ -131,8 +133,7 @@ export async function openAgentChat(
     await session.getByRole('button', { name }).hover();
     // Base UI names the popup after the trigger that opened it.
     const terminalMenu = page.getByRole('menu', { name });
-    const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' });
-    if (!(await openInChat.isChecked())) await openInChat.click();
+    await setOpenAgentsIn(terminalMenu, 'Chat');
     await chooseTerminalFromCreateMenu(page, label);
     // A pointer left on + would reopen the hover list, which takes focus from the new Chat's message box.
     await page.mouse.move(0, 300);

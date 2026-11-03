@@ -62,6 +62,7 @@ export function AgentChoiceMenuItems({
                             <AgentChoiceMarker
                                 isDefault={isDefault}
                                 issue={issue}
+                                kind={kind}
                                 surface={surface}
                             />
                             {isLastUsedAgentRow(kind, { isDefault, repeatedKind }) && (

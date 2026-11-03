@@ -21,6 +21,7 @@ import {
     contextMenuItemDisabledReason,
     dismissContextMenu,
 } from './support/native-context-menu.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 
 const FAKE_APP_SERVER = join(
     import.meta.dirname,
@@ -85,10 +86,7 @@ if (process.argv.includes('app-server')) {
         const { app, page } = running;
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
-        await page
-            .getByRole('menu', { name: 'New Terminal' })
-            .getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' })
-            .click();
+        await setOpenAgentsIn(page.getByRole('menu', { name: 'New Terminal' }), 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
         const session = page.locator(VISIBLE_SESSION);
         const message = session.getByRole('textbox', { name: 'Message' });

@@ -269,6 +269,7 @@ export const terminal = {
     'terminal.new.defaultMarker': 'Default',
     'terminal.new.notInstalledMarker': 'Not installed',
     'terminal.new.signedOutMarker': 'Signed out',
+    'terminal.new.terminalMarker': 'Terminal',
     'terminal.new.signIn': 'Sign in…',
     'terminal.new.signInAgent': 'Sign in to {{agent}}…',
     'terminal.new.signInHint.claude':

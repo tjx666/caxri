@@ -12,6 +12,7 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Claude Code Chat streams a reply, answers an approval and a question, and resumes after a crash', async ({}, testInfo) => {
@@ -31,7 +32,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
 
         const chat = page.locator(VISIBLE_SESSION);

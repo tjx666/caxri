@@ -1,5 +1,5 @@
 import { Menu as MenuPrimitive } from '@base-ui/react/menu';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 
 import { useModalRegistration } from '@/hooks/use-modal-registration';
 import { cn } from '@/lib/utilities';
@@ -99,6 +99,35 @@ export function MenuCheckboxItem({
                 </MenuPrimitive.CheckboxItemIndicator>
             </span>
         </MenuPrimitive.CheckboxItem>
+    );
+}
+
+/**
+ * A row that opens a nested menu on hover or Right Arrow, reading `Label Value ›` like the composer's model and effort
+ * picker, so a preference with named choices shows its saved value in place. Put the trigger and a {@link MenuContent}
+ * (`side="right"`) inside one {@link MenuSubmenu}.
+ */
+export function MenuSubmenu(properties: MenuPrimitive.SubmenuRoot.Props) {
+    return <MenuPrimitive.SubmenuRoot {...properties} />;
+}
+
+export function MenuSubmenuTrigger({
+    children,
+    className,
+    ...properties
+}: MenuPrimitive.SubmenuTrigger.Props) {
+    return (
+        <MenuPrimitive.SubmenuTrigger
+            data-slot="menu-submenu-trigger"
+            className={cn(
+                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-[var(--selection)] data-popup-open:bg-[var(--selection)]',
+                className,
+            )}
+            {...properties}
+        >
+            {children}
+            <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted" />
+        </MenuPrimitive.SubmenuTrigger>
     );
 }
 

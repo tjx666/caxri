@@ -160,12 +160,13 @@ function CreateSessionChoices() {
                                     </span>
                                     {/**
                                      * Two lines reserved so tiles with and without a marker keep their labels on one baseline, and a long marker ("Signed
-                                     * out · Chat") wraps inside its tile instead of running into the next.
+                                     * out · Terminal") wraps inside its tile instead of running into the next.
                                      */}
                                     <span className="h-8 text-center text-[11px] leading-4">
                                         <AgentChoiceMarker
                                             isDefault={false}
                                             issue={issue}
+                                            kind={kind}
                                             surface={newAgentSurface(kind, openInChat)}
                                         />
                                     </span>

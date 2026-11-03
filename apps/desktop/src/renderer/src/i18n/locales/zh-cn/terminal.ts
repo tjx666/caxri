@@ -250,6 +250,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.new.defaultMarker': '默认',
     'terminal.new.notInstalledMarker': '未安装',
     'terminal.new.signedOutMarker': '未登录',
+    'terminal.new.terminalMarker': '终端',
     'terminal.new.signIn': '登录…',
     'terminal.new.signInAgent': '登录 {{agent}}…',
     'terminal.new.signInHint.claude':

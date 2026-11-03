@@ -301,19 +301,25 @@ export function newSessionActionLabel(
 }
 
 /**
- * The one muted suffix an Agent row in the New Session and New Terminal menus carries: `Not installed` when the CLI was
- * not found, `Signed out` when the CLI reported it is signed out, `Chat` when choosing it opens a Chat, `Default` for
- * the configured default Agent, those joined with `·` when several apply, or nothing. One suffix rather than two
- * separate markers, so both menus mark a row the same way and the words stay text a screen reader reads.
+ * The one visible muted suffix an Agent row in the New Session and New Terminal menus carries: `Not installed` when the
+ * CLI was not found, `Signed out` when the CLI reported it is signed out, `Terminal` when Agents open in Chat but this
+ * one cannot, `Default` for the configured default Agent, those joined with `·` when several apply, or nothing. Where
+ * the row opens is otherwise the menu's "Open Agents In" row's job: repeating `Chat` on every row when every Agent
+ * supports Chat said nothing, so a row only speaks up when it is the exception (`AgentChoiceMarker` keeps `Chat` in the
+ * accessible name).
  */
 export function agentChoiceMarker(
-    choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'issue' | 'surface'>,
+    choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'issue' | 'kind' | 'surface'>,
+    openInChat: OpenAgentsInChat,
     t: Translate,
 ): string | undefined {
     const parts = [
         choice.issue === 'notInstalled' && t('terminal.new.notInstalledMarker'),
         choice.issue === 'signInRequired' && t('terminal.new.signedOutMarker'),
-        choice.surface === 'chat' && t('terminal.new.chatMarker'),
+        openInChat === true &&
+            choice.kind !== 'shell' &&
+            choice.surface === 'pty' &&
+            t('terminal.new.terminalMarker'),
         choice.isDefault && t('terminal.new.defaultMarker'),
     ].filter((part): part is string => typeof part === 'string');
     return parts.length > 0 ? parts.join(' · ') : undefined;

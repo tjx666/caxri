@@ -1,6 +1,12 @@
-import type { TerminalSurface } from '@caxri/protocol';
+import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 
-import { MenuCheckboxItem } from '../../components/ui/menu';
+import {
+    MenuContent,
+    MenuRadioGroup,
+    MenuRadioItem,
+    MenuSubmenu,
+    MenuSubmenuTrigger,
+} from '../../components/ui/menu';
 import { Switch } from '../../components/ui/switch';
 import { translate, useTranslation } from '../../i18n';
 import { useSettings } from '../../stores/selectors';
@@ -11,9 +17,8 @@ import type { AgentReadinessIssue } from '../terminal/new-terminal-agent';
 import { agentChoiceMarker } from '../terminal/new-terminal-agent';
 
 /**
- * The toggle writes the persistent `session.openAgentsInChat` setting, not a choice for the next pick, so its label
- * (`session.openInChat.label`) says so with "Always": sitting in a menu of one-off choices, the Settings title alone
- * read like an action for the Agent about to be picked.
+ * Both controls write the persistent `session.openAgentsInChat` setting, not a choice for the next pick. The dialog's
+ * Switch says so with "Always" (`session.openInChat.label`); the menus' "Open Agents In" row shows the saved value.
  */
 
 /**
@@ -34,16 +39,45 @@ function useIsOpenInChatOn(): boolean {
 }
 
 /**
- * The New Session and New Terminal menus' footer toggle. It stays in the open menu so each Agent row's "Chat" marker
- * updates before the user picks one.
+ * The New Session and New Terminal menus' footer row, `Open Agents In Chat ›`, with Chat and Terminal in a submenu like
+ * the composer's model and effort picker. The saved value stays visible without opening anything and both outcomes are
+ * named, where an unchecked "Open Agents in Chat" left the user to infer the Terminal. Choosing keeps the menus open
+ * (Base UI's default for radio items) so the Agent rows' markers update before the user picks one.
  */
 export function OpenInChatMenuItem() {
     const isOn = useIsOpenInChatOn();
     const { t } = useTranslation();
+    const value: TerminalSurface = isOn ? 'chat' : 'pty';
     return (
-        <MenuCheckboxItem checked={isOn} onCheckedChange={setOpenAgentsInChat}>
-            <span className="flex-1 truncate">{t('session.openInChat.label')}</span>
-        </MenuCheckboxItem>
+        <MenuSubmenu>
+            <MenuSubmenuTrigger>
+                <span className="flex-1 truncate">{t('session.openAgentsIn.label')}</span>
+                <span className="text-muted">
+                    {t(isOn ? 'session.openAgentsIn.chat' : 'session.openAgentsIn.terminal')}
+                </span>
+            </MenuSubmenuTrigger>
+            <MenuContent
+                align="start"
+                alignOffset={-4}
+                className="min-w-28"
+                side="right"
+                sideOffset={6}
+            >
+                <MenuRadioGroup
+                    value={value}
+                    onValueChange={(next: TerminalSurface) => setOpenAgentsInChat(next === 'chat')}
+                >
+                    <MenuRadioItem value="chat">
+                        <span className="flex-1 truncate">{t('session.openAgentsIn.chat')}</span>
+                    </MenuRadioItem>
+                    <MenuRadioItem value="pty">
+                        <span className="flex-1 truncate">
+                            {t('session.openAgentsIn.terminal')}
+                        </span>
+                    </MenuRadioItem>
+                </MenuRadioGroup>
+            </MenuContent>
+        </MenuSubmenu>
     );
 }
 
@@ -63,19 +97,29 @@ export function OpenInChatSwitch() {
 }
 
 /**
- * The one muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog: `Not
- * installed`, `Signed out`, `Chat`, `Default`, or those joined (`agentChoiceMarker`).
+ * The muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog
+ * (`agentChoiceMarker`). A row that opens a Chat still names it, to assistive tech only: sighted users read the setting
+ * once on the footer control, while a screen reader moving through the rows would otherwise never hear where one
+ * opens.
  */
 export function AgentChoiceMarker({
     isDefault,
     issue,
+    kind,
     surface,
 }: {
     isDefault: boolean;
     issue?: AgentReadinessIssue;
+    kind: TerminalKind;
     surface: TerminalSurface;
 }) {
+    const isOn = useIsOpenInChatOn();
     const { t } = useTranslation();
-    const marker = agentChoiceMarker({ isDefault, issue, surface }, t);
-    return marker ? <span className="text-muted">{marker}</span> : null;
+    const marker = agentChoiceMarker({ isDefault, issue, kind, surface }, isOn, t);
+    return (
+        <>
+            {surface === 'chat' && <span className="sr-only">{t('terminal.new.chatMarker')}</span>}
+            {marker && <span className="text-muted">{marker}</span>}
+        </>
+    );
 }
