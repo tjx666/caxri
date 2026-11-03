@@ -16,7 +16,6 @@ import {
     setMobileNetworkAvailable,
     tapMobileCheck,
     tapMobileCheckByBounds,
-    tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
 import {
@@ -96,9 +95,9 @@ const capturePlayback = async (
 
 /**
  * `MOB-COMPOSER-ATTACH-PREVIEW-01`: pending attachments preview from the phone's own copy whatever their upload state.
- * With the computer unreachable, a gallery image and a video picked from Files both fail to upload; the image still
- * opens full size and the video still plays, while each one's Retry opens the failure sheet. Back online, Retry uploads
- * each one, and the ready thumbnail and card open them again.
+ * With the computer unreachable, a gallery image and a gallery video both fail to upload; the image still opens full
+ * size and the video still plays, while each one's Retry opens the failure sheet. Back online, Retry uploads each one,
+ * and the ready thumbnail and card open them again.
  */
 export async function executeMobileComposerAttachmentPreviewScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -118,8 +117,6 @@ export async function executeMobileComposerAttachmentPreviewScenario(
         if (isAvailable) await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
     };
     try {
-        await pushMobileFixture(serial, await createVideo(directory), REMOTE_VIDEO);
-        await rescan(serial);
         await addMobileGalleryImages(serial);
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
@@ -160,11 +157,15 @@ export async function executeMobileComposerAttachmentPreviewScenario(
         await capture(environment, 'image-ready-viewer', artifacts);
         await closePreview(serial, 'agent-chat-image-viewer');
 
-        // Attaching needs the computer, so the Files picker opens online and the network drops before the pick.
+        // The video joins the gallery only now, so it becomes the picker's newest (first) tile, as a phone's latest
+        // recording would be. Attaching needs the computer, so the picker opens online and the network drops before
+        // the pick.
+        await pushMobileFixture(serial, await createVideo(directory), REMOTE_VIDEO);
+        await rescan(serial);
         await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
-        await tapMobileCheck(serial, 'image-source-files');
+        await tapMobileCheck(serial, 'image-source-library');
         await setNetwork(false);
-        await tapMobileNativeControl(serial, { text: VIDEO_NAME });
+        await pickMobileGalleryImages(serial);
         const failed = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) => nodes.some(({ checkId }) => checkId.startsWith('session-file-retry-')),
