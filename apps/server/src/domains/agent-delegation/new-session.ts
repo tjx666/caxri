@@ -6,6 +6,11 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+/**
+ * Server domain boundaries require the owning public root; structure tests reject cross-domain deep imports.
+ */
+// react-doctor-disable-next-line react-doctor/no-barrel-import
+import { assertAgentTitleLanguage } from '../agents';
 import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 import type { AgentDelegationServiceOptions } from './service-options';
@@ -55,6 +60,12 @@ export async function admitDelegationRequest(
         (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
             ? database.getTerminal(authority.callerTerminalId)?.sessionId
             : undefined;
+    /**
+     * Checked before the worktree so a refused title leaves no branch behind. Only an Agent is held to it: the owner's
+     * own title, from a Client or the CLI, stands as typed.
+     */
+    if (kind === 'agent' && !isBot && callerSessionId && title)
+        assertAgentTitleLanguage(title, database.getSession(callerSessionId)?.title);
     /**
      * The worktree comes first: when Git refuses it, no Session was created and none needs removing.
      */

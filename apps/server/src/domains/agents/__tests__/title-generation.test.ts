@@ -10,6 +10,7 @@ import {
     hasTitleNamingMaterial,
     normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
+    requiredAgentTitleLanguage,
     sampleAgentTitle,
 } from '../title-generation';
 import type { AgentTranscriptLocation } from '../transcript-security';
@@ -471,5 +472,22 @@ describe('Session title transcript reading', () => {
         expect(context.opening[0]?.text).toBe([...text].slice(0, 1600).join(''));
         expect(context.opening[0]?.text).not.toContain('�');
         await rm(location.baseRoot, { force: true, recursive: true });
+    });
+});
+
+describe('Agent-chosen Session title language', () => {
+    it("requires the script of the creating Session's title", () => {
+        expect(requiredAgentTitleLanguage('Delegated task: schema tests', '排查 CI 耗时')).toBe(
+            'Chinese',
+        );
+        expect(requiredAgentTitleLanguage('补充 schema 测试', '排查 CI 耗时')).toBeUndefined();
+        expect(requiredAgentTitleLanguage('Fix login', 'ログイン修正')).toBe('Japanese');
+        expect(requiredAgentTitleLanguage('Fix login', '로그인 수정')).toBe('Korean');
+    });
+
+    it('imposes nothing for a Latin, unnamed, or missing reference', () => {
+        expect(requiredAgentTitleLanguage('Fix login', 'Investigate CI')).toBeUndefined();
+        expect(requiredAgentTitleLanguage('Fix login', 'Untitled')).toBeUndefined();
+        expect(requiredAgentTitleLanguage('Fix login', undefined)).toBeUndefined();
     });
 });

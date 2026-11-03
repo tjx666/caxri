@@ -232,7 +232,10 @@ Then write the task to a file and run
   Project for an added folder and shows a hidden one again, so tell the user when you add or
   unhide one.
 - `--new-session --title <subject>` creates the Session together with its task. Name it after the
-  task's concrete subject; the user reads it in the sidebar. Without `--new-session`, `--session`
+  task's concrete subject, in the language the user speaks with you even when the task file is in
+  English, and without a generic prefix such as `Delegated task:`; the user reads it in the
+  sidebar. Caxri refuses a title (here and in `agent session rename`) whose script differs from
+  your own Session's Chinese, Japanese, or Korean title. Without `--new-session`, `--session`
   accepts only your own Session or a Session you already delegated into.
 - Add `--handoff` when the user is done with your Session and the new one carries its work on (the
   Chat composer's `/new-session` asks for exactly this): the new Session's first message then reads

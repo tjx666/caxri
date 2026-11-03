@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { FileHandle } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
 
-import { sessionRenameTitleSchema } from '@caxri/protocol';
+import { CaxriError, DEFAULT_SESSION_TITLE, sessionRenameTitleSchema } from '@caxri/protocol';
 
 import { compactInlineMediaPayloads } from './inline-media';
 import type { AgentTranscriptLocation } from './transcript-security';
@@ -350,6 +350,39 @@ function messageLanguage(text: string): 'Chinese' | 'Japanese' | 'Korean' | 'Lat
     if (/\p{Script=Han}/u.test(prose)) return 'Chinese';
     if (/[A-Za-z]{2}/u.test(prose)) return 'Latin';
     return undefined;
+}
+
+/**
+ * The language an Agent-chosen Session title must use, or `undefined` when `title` already fits. An Agent that
+ * delegates or renames a Session writes the title itself, usually right after drafting an English task file, so a
+ * Chinese conversation spawned `Delegated task: …` rows in an otherwise Chinese sidebar. The creating Session's title
+ * is the reference: automatic naming already wrote it in the user's language. A Latin, unnamed (`Untitled`), or missing
+ * reference imposes nothing, since Latin script alone does not identify one language.
+ */
+export function requiredAgentTitleLanguage(
+    title: string,
+    referenceTitle: string | undefined,
+): 'Chinese' | 'Japanese' | 'Korean' | undefined {
+    if (!referenceTitle || referenceTitle === DEFAULT_SESSION_TITLE) return undefined;
+    const language = messageLanguage(referenceTitle);
+    if (language === 'Chinese') return /\p{Script=Han}/u.test(title) ? undefined : language;
+    if (language === 'Japanese')
+        return /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title) ? undefined : language;
+    if (language === 'Korean') return /\p{Script=Hangul}/u.test(title) ? undefined : language;
+    return undefined;
+}
+
+/**
+ * Refuses an Agent-chosen Session title in the wrong language; see {@link requiredAgentTitleLanguage}. The message is
+ * read by the Agent that sent it, so it says exactly how to retry.
+ */
+export function assertAgentTitleLanguage(title: string, referenceTitle: string | undefined): void {
+    const language = requiredAgentTitleLanguage(title, referenceTitle);
+    if (language)
+        throw new CaxriError(
+            'VALIDATION',
+            `Write the Session title in ${language}, the language of your own Session's title, naming the task's subject without a generic prefix such as "Delegated task:"`,
+        );
 }
 
 function firstLanguageForRole(

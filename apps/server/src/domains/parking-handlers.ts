@@ -8,6 +8,7 @@ import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { AgentChatService } from './agent-chat';
 import { isCaxriBotCaller } from './agent-delegation';
+import { assertAgentTitleLanguage } from './agents';
 import { requireBotSession } from './bot';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
@@ -230,9 +231,16 @@ export function createSessionHandlers(
             finalizeDurably,
         ) => {
             authorizeAgentSessionManagement(database, authority, sessionId);
-            if (operation.action === 'rename')
+            if (operation.action === 'rename') {
+                // Admission above already proved the caller Terminal exists.
+                const callerSessionId = database.getTerminal(authority.callerTerminalId)!.sessionId;
+                if (!isCaxriBotCaller(database, authority))
+                    assertAgentTitleLanguage(
+                        operation.title,
+                        database.getSession(callerSessionId)?.title,
+                    );
                 await renames.rename(sessionId, operation.title, signal, finalizeDurably);
-            else if (operation.action === 'archive')
+            } else if (operation.action === 'archive')
                 await parkingHandlers['session.archive']({ sessionId });
             else await parkingHandlers['session.unarchive']({ sessionId, placement: 'top' });
             return { sessionId };

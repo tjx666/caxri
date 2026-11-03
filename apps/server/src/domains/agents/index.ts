@@ -113,6 +113,7 @@ export {
 export { AgentTimelineService } from './timeline';
 export type { AgentTitleContext } from './title-generation';
 export {
+    assertAgentTitleLanguage,
     hasOpeningRequestMaterial,
     hasTitleNamingMaterial,
     isBareIssueReferenceTitle,

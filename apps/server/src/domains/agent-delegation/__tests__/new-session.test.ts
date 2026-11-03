@@ -219,6 +219,30 @@ describe('Delegation into a new Session for Caxri Bot', () => {
  * or Chat, used to be refused here, and was steered toward borrowing the owner's identity instead.
  */
 describe('Delegation into a new Session from an ordinary Agent', () => {
+    /**
+     * An Agent drafts its task file in English and then titled the Session `Delegated task: …` in English, which read
+     * as the odd row out in a sidebar the user speaks Chinese in.
+     */
+    it("refuses a title outside the language of the caller's own Session title", async () => {
+        const { database, service, agentAuthority, callerSessionId, request } = await fixture();
+        database.renameSession(callerSessionId, '优化子模块的 CI 耗时');
+        const before = database.listSessions().length;
+
+        await expect(
+            service.create(randomUUID(), agentAuthority, {
+                ...request,
+                title: 'Delegated task: schema, migration and trigger tests',
+            }),
+        ).rejects.toThrow('Write the Session title in Chinese');
+        expect(database.listSessions()).toHaveLength(before);
+
+        const receipt = await service.create(randomUUID(), agentAuthority, {
+            ...request,
+            title: '补充 schema 迁移与触发器测试',
+        });
+        expect(database.getSession(receipt.sessionId)?.title).toBe('补充 schema 迁移与触发器测试');
+    });
+
     it('runs the new Session in a worktree grouped under its Project', async () => {
         const { database, service, agentAuthority, project, request, directory } = await fixture();
         await mkdir(join(directory, 'wt-feat'));
