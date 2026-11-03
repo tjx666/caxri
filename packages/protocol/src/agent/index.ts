@@ -81,3 +81,5 @@ export {
 export * from './trackers/agent-chat-trackers.js';
 export * from './web-sources/agent-chat-web-source-schema.js';
 export * from './web-sources/agent-chat-web-sources.js';
+export * from './workflow/agent-chat-workflow.js';
+export * from './workflow/agent-chat-workflow-contract.js';

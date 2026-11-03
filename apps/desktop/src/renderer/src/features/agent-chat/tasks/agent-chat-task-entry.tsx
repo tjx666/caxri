@@ -19,6 +19,7 @@ import {
 import { AgentChatStatusGlyph } from '../tools/agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { agentChatTaskTitle } from './agent-chat-tasks';
+import { AgentChatWorkflowProgress } from './workflow/agent-chat-workflow-progress';
 
 const TASK_ENTRY_CLASS_NAME =
     'flex min-w-0 flex-1 items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-muted';
@@ -82,7 +83,7 @@ export function AgentChatTaskEntry({
     const title = agentChatTaskTitle(task, t);
     const summary = (
         <>
-            <AgentChatTaskGlyph kind={task.kind} />
+            <AgentChatTaskGlyph isWorkflow={task.workflow !== undefined} kind={task.kind} />
             <span
                 className={
                     isAgentChatTaskTitleCommand(task)
@@ -93,6 +94,12 @@ export function AgentChatTaskEntry({
                 {title}
             </span>
             <span className="ml-auto flex shrink-0 items-center gap-2">
+                {task.workflow && (
+                    <AgentChatWorkflowProgress
+                        isRunning={task.status === 'running'}
+                        workflow={task.workflow}
+                    />
+                )}
                 <AgentChatTaskElapsed task={task} />
                 {task.status === 'running' ? (
                     <Spinner className="size-3.5" role="presentation" />

@@ -189,6 +189,26 @@ describe('LiveAgentUsage.readTask', () => {
         expect((await usage.readTask('terminal-1', 'toolu_a'))?.tokens.output).toBe(9);
     });
 
+    it('prices each workflow member under its member task id and leaves the run journal out', async () => {
+        const { environment, directory } = await claudeProject();
+        await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));
+        const run = join(directory, FIRST, 'subagents', 'workflows', 'wf_1');
+        await mkdir(run, { recursive: true });
+        await writeFile(join(run, 'agent-a1.jsonl'), line('w1', 7));
+        await writeFile(join(run, 'agent-b2.jsonl'), line('w2', 11));
+        await writeFile(join(run, 'journal.jsonl'), line('j1', 100));
+        const usage = new LiveAgentUsage(
+            boundTerminal({ agentSessionId: FIRST }),
+            environment,
+            () => PRICE,
+            () => T0,
+        );
+
+        expect((await usage.readTask('terminal-1', 'workflow:wf_1:a1'))?.tokens.output).toBe(7);
+        expect((await usage.readTask('terminal-1', 'workflow:wf_1:b2'))?.tokens.output).toBe(11);
+        expect((await usage.read('terminal-1'))?.tokens.output).toBe(5 + 7 + 11);
+    });
+
     it('ignores a subagent sidecar that is oversized or not a regular file', async () => {
         const { environment, directory } = await claudeProject();
         await writeFile(join(directory, `${FIRST}.jsonl`), line('m1', 5));

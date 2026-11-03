@@ -12,7 +12,17 @@ import { useCaxriQuery } from '../../../queries/client';
  * `isUnavailable` is true when Server Core answered `NOT_FOUND`: neither the live Chat nor the provider's history knows
  * the task, which a retry will not change.
  */
-export function useAgentChatTask(terminalId: string, taskId: string) {
+export function useAgentChatTask(
+    terminalId: string,
+    taskId: string,
+    options: {
+        /**
+         * Re-reads the task this often, for a task Server Core cannot patch live (a running workflow member, whose
+         * transcript is the only view of it).
+         */
+        pollMs?: number;
+    } = {},
+) {
     const chat = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
     const task = findAgentChatTask(chat.data?.tasks, taskId);
     const requestedId = task?.id ?? taskId;
@@ -24,7 +34,7 @@ export function useAgentChatTask(terminalId: string, taskId: string) {
     const lookup = useCaxriQuery(
         'agentChat.readTask',
         { terminalId, taskId: requestedId },
-        { staleTime: Infinity },
+        { staleTime: Infinity, refetchInterval: options.pollMs ?? false },
     );
     const canonicalId = lookup.data?.taskId ?? requestedId;
     const canonical = useCaxriQuery(
@@ -47,7 +57,7 @@ export function useAgentChatTask(terminalId: string, taskId: string) {
  */
 export function useCachedAgentChatTask(
     tabPath: string,
-): Pick<AgentChatTask, 'kind' | 'title'> | undefined {
+): (Pick<AgentChatTask, 'kind' | 'title'> & { isWorkflow: boolean }) | undefined {
     const tab = parseAgentTaskTab(tabPath);
     const query = useCaxriQuery(
         'agentChat.read',
@@ -56,7 +66,13 @@ export function useCachedAgentChatTask(
             enabled: false,
             select: (snapshot) => {
                 const task = tab ? findAgentChatTask(snapshot.tasks, tab.taskId) : undefined;
-                return task && { kind: task.kind, title: task.title };
+                return (
+                    task && {
+                        kind: task.kind,
+                        title: task.title,
+                        isWorkflow: task.workflow !== undefined,
+                    }
+                );
             },
         },
     );

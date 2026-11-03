@@ -557,8 +557,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
-        const { environment, cwd } = this.options;
-        return readClaudeTaskHistory({ environment, cwd, sessionId: this.sessionId, taskId });
+        return readClaudeTaskHistory(this.options, this.sessionId, taskId);
     }
 
     readContext() {

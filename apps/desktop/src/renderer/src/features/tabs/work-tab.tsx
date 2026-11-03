@@ -100,8 +100,8 @@ interface WorkTabProperties {
     gitDecoration?: GitDecoration;
     /**
      * `'file'` resolves a file type icon from `fileIconName`; the built-in glyphs mark virtual pages such as Usage and
-     * Environment. `'agent-task'` and `'shell-task'` mark an Agent Chat's subagent and background shell tabs with the
-     * glyphs their timeline rows use.
+     * Environment. `'agent-task'`, `'workflow-task'`, and `'shell-task'` mark an Agent Chat's subagent, workflow run,
+     * and background shell tabs with the glyphs their timeline rows use.
      */
     icon: 'file' | WorkTabGlyph | AgentIconIdentity;
     label: string;

@@ -289,6 +289,82 @@ describe('Claude Code background work in Agent Chat', () => {
         });
     });
 
+    it("follows a workflow run's phases and members and opens each member's conversation", async () => {
+        const chat = await fixture({ provider: 'claude' });
+        const { service, terminal, until } = chat;
+        await service.send(terminal.id, { text: 'run a quick workflow' });
+        const running = await until(
+            (snapshot) =>
+                snapshot.tasks?.[0]?.workflow?.members.some(
+                    (member) => member.status === 'running',
+                ) === true,
+        );
+        const workflow = running.tasks?.[0]?.workflow;
+        expect(workflow?.runId).toMatch(/^wf_/u);
+        expect(workflow?.phases).toEqual([{ title: 'Inspect' }, { title: 'Review' }]);
+        expect(workflow?.members.map((member) => [member.label, member.status])).toEqual([
+            ['inspect:layout', 'completed'],
+            ['review:correctness', 'running'],
+            ['review:security', 'queued'],
+        ]);
+        expect(workflow?.members[0]).toMatchObject({
+            phase: 'Inspect',
+            agentType: 'Explore',
+            resultPreview: 'Layout is consistent.',
+            usage: { totalTokens: 1200, toolUses: 2, durationMs: 40 },
+            taskId: expect.stringMatching(/^workflow:wf_[\w-]+:\w+$/u) as string,
+        });
+
+        const member = await service.readTask(terminal.id, workflow?.members[1]?.taskId ?? '');
+        expect(member.items.map((item) => 'text' in item && item.text)).toEqual([
+            'Run review:correctness on the change.',
+            'No correctness issues found.',
+        ]);
+
+        const done = await until((snapshot) => snapshot.tasks?.[0]?.status === 'completed');
+        expect(
+            done.tasks?.[0]?.workflow?.members.map((entry) => [entry.status, entry.error]),
+        ).toEqual([
+            ['completed', undefined],
+            ['completed', undefined],
+            ['failed', 'Read failed: permission denied'],
+        ]);
+
+        // After a restart nothing lists the run any more; its row still opens it from the run record.
+        const rowId = done.tasks?.[0]?.itemId ?? '';
+        const restarted = await chat.restartServer();
+        await expect
+            .poll(() => restarted.read(terminal.id).items.some((item) => item.id === rowId))
+            .toBe(true);
+        const restored = await restarted.readTask(terminal.id, rowId);
+        expect(restored.workflow).toMatchObject({
+            runId: workflow?.runId,
+            phases: [{ title: 'Inspect' }, { title: 'Review' }],
+            result: expect.stringContaining('One member failed') as string,
+        });
+        expect(restored.workflow?.isInterrupted).toBeUndefined();
+        expect(restored.workflow?.members.map((entry) => entry.status)).toEqual([
+            'completed',
+            'completed',
+            'failed',
+        ]);
+    });
+
+    it("stops a running workflow's unfinished members with it", async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'start a workflow' });
+        const listed = await until(
+            (snapshot) => (snapshot.tasks?.[0]?.workflow?.members.length ?? 0) > 0,
+        );
+        await service.stopTask(terminal.id, listed.tasks?.[0]?.id ?? '');
+        const stopped = await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+        expect(stopped.tasks?.[0]?.workflow?.members.map((member) => member.status)).toEqual([
+            'completed',
+            'stopped',
+            'stopped',
+        ]);
+    });
+
     it('ends a subagent resumed after a restart instead of leaving its original call running', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'resume the audit' });

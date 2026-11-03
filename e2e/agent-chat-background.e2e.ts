@@ -328,6 +328,9 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         // Priced from the subagent's own transcript, not the provider's latest-request token count.
         await expect(subagent.getByText(/66\.9k tokens · \$0\.\d\d · 1 tool use/u)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-subagent-tab.png') });
+        // The Portal overlays the Chat's right edge, where the next row's Stop button sits.
+        await page.getByRole('button', { name: 'Close Portal' }).click();
+        await expect(subagent).toHaveCount(0);
 
         // A background subagent's call returns as soon as it launches, yet its row reads as running until it ends.
         await message.fill('background agent');
@@ -363,7 +366,8 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(shell.getByText(/^\$ while true/u)).toBeVisible();
         await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-shell-tab.png') });
-        await strip.getByRole('button', { name: /^Stop / }).click();
+        // The Portal covers the strip's trailing Stop when the Secondary Sidebar is hidden; stop from the tab instead.
+        await shell.getByRole('button', { name: 'Stop' }).click();
         // Background work is live status: the section leaves once nothing runs.
         await expect(strip).toHaveCount(0);
         await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);

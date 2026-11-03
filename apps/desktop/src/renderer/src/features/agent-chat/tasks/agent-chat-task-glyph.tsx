@@ -1,6 +1,6 @@
 import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskElapsedMs, formatNoticeableDuration } from '@caxri/protocol';
-import { Bot, SquareTerminal } from 'lucide-react';
+import { Bot, Network, SquareTerminal } from 'lucide-react';
 
 import { useClockTick } from '@/hooks/use-clock-tick';
 
@@ -8,17 +8,19 @@ import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 
 /**
- * The kind glyph a subagent or a background shell shows wherever it is listed: the glyphs of the `agent` and `command`
- * timeline rows.
+ * The kind glyph a subagent, a workflow run, or a background shell shows wherever it is listed: the glyphs of the
+ * `agent` and `command` timeline rows, and a branching graph for a run that fans out into subagents.
  */
 export function AgentChatTaskGlyph({
     className,
+    isWorkflow = false,
     kind,
 }: {
     className?: string;
+    isWorkflow?: boolean;
     kind: AgentChatTask['kind'];
 }) {
-    const Icon = kind === 'shell' ? SquareTerminal : Bot;
+    const Icon = kind === 'shell' ? SquareTerminal : isWorkflow ? Network : Bot;
     return <Icon aria-hidden="true" className={cn('size-3.5 shrink-0', className)} />;
 }
 

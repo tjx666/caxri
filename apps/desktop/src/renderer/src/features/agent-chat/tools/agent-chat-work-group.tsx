@@ -8,6 +8,7 @@ import {
     agentChatTaskActivity,
     agentChatTaskGlyphStatus,
     agentChatWorkDuration,
+    agentChatWorkflowCurrentPhase,
     agentChatWorkGroupFailure,
     agentChatWorkSummaryGlyph,
     agentChatWorkSummaryItems,
@@ -32,6 +33,7 @@ import { useAgentChatExpansion } from '../hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from '../hooks/use-agent-chat-task-link';
 import { AgentChatTaskElapsed } from '../tasks/agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from '../tasks/agent-chat-task-open-button';
+import { AgentChatWorkflowProgress } from '../tasks/workflow/agent-chat-workflow-progress';
 import { agentChatChevronMotion } from '../transcript/agent-chat-disclosure';
 import {
     agentChatItemExpansionKey,
@@ -253,6 +255,12 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
             {!task && item.type === 'command' && <CommandFacts item={item} />}
             {task ? (
                 <>
+                    {task.workflow && (
+                        <AgentChatWorkflowProgress
+                            isRunning={task.status === 'running'}
+                            workflow={task.workflow}
+                        />
+                    )}
                     <AgentChatTaskElapsed task={task} />
                     {/* A running task already sweeps its title and ticks its timer; a spinner would say it a third time. */}
                     {task.status !== 'completed' && task.status !== 'running' && (
@@ -289,7 +297,11 @@ const AgentChatWorkRow = memo(
         const presentation = describeAgentChatWorkRow(item, t);
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
-        const taskActivity = task && agentChatTaskActivity(task, t);
+        // A running workflow names its phase rather than its last tool, which is always the `Agent` it launched.
+        const taskActivity =
+            task?.workflow && task.status === 'running'
+                ? agentChatWorkflowCurrentPhase(task.workflow)?.title
+                : task && agentChatTaskActivity(task, t);
         // A subagent call settles as soon as the subagent launches; the row keeps running until the subagent ends.
         const isRunning = isAgentChatWorkRowRunning(item, task);
         const verb = agentChatWorkVerb(item, presentation, t, task);

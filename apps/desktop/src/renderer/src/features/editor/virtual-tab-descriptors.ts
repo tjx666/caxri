@@ -35,7 +35,7 @@ export interface VirtualTabPresentationOptions {
     /**
      * The Agent Chat task an `agentTaskTabPath` tab shows, when the Chat still lists it.
      */
-    task?: { kind: 'agent' | 'shell'; title: string };
+    task?: { kind: 'agent' | 'shell'; title: string; isWorkflow?: boolean };
     /**
      * Name an untitled buffer takes from its first line, when that line has one.
      */
@@ -166,7 +166,11 @@ export const virtualTabDescriptors: Record<VirtualEditorTabScheme, VirtualTabDes
         present: (_path, options, t) =>
             glyphPresentation(
                 taskTabLabel(options.task, t),
-                options.task?.kind === 'shell' ? 'shell-task' : 'agent-task',
+                options.task?.kind === 'shell'
+                    ? 'shell-task'
+                    : options.task?.isWorkflow
+                      ? 'workflow-task'
+                      : 'agent-task',
             ),
         loading: { labelKey: 'editor.load.loadingTask', variant: 'document' },
         statusBar: 'hidden',

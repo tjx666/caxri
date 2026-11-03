@@ -115,6 +115,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **PTY slot usage**: Machine-wide PTY use against the kernel limit, with per-process holders so the user can find what to close (Orca's Resource Manager "PTY manager"); Caxri adds the near-limit alert and the `pty_exhausted` launch reason. Evidence: `docs/process-explorer.md`.
 - **Antigravity turn hooks**: `PreInvocation` as the turn start and a `Stop` that is not `fullyIdle` ignored (Orca's `antigravity-events.ts` and `antigravity-event-rules.ts`); Caxri also starts only on `invocationNum` 0 and leaves `SessionStart` unbound so a subagent cannot rebind the Terminal. Evidence: `docs/antigravity.md`; `apps/server/src/domains/agents/providers/antigravity/hooks.ts`.
 - **Mobile Relay splice and route switching**: A host control socket plus a single-use ticketed dial-back socket per phone, spliced without parsing; 256 KiB / 64 KiB backpressure watermarks; a 2.5 second direct-route grace and a switch back to direct after three probes and 60 seconds. Borrowed: the topology and values only, no code. Evidence: `docs/mobile/relay.md`; `apps/relay/src/splice.ts`; `apps/mobile/src/features/connection/gateway-routes.ts`.
+- **Workflow member rows**: A member row keeps only its status and a number or two, with the current action or result on a second line (also Jean and the Codex app). Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/workflow/agent-chat-workflow.ts`; `docs/agent-chat.md` (Background work).
 
 ## Wake (MIT)
 
@@ -160,6 +161,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Claude process entrypoint label**: Overwriting `CLAUDE_CODE_ENTRYPOINT` with the client's own name on every Claude process it starts. Evidence: `apps/server/src/domains/agents/providers/claude/entrypoint.ts`.
 - **Agent secret request card**: An Agent-raised request answered in a card with a masked value field that password managers ignore (`data-1p-ignore`), the Agent's reason, a privacy note, and Decline or Save; the value never enters the transcript. Evidence: `apps/desktop/src/renderer/src/features/agent-secrets/secret-request-cards.tsx`; `docs/agent-secrets.md`.
 - **Session relation kinds**: A Session records how its creator started it (`delegated`, `handoff`, `consult`) instead of a bare creator link, after T3 Code's thread relations (parent, fork, subagent, transfer). Evidence: `packages/protocol/src/domain/domain.ts`; `docs/agent-delegation.md`.
+- **Workflow progress merge**: Parse `workflow_progress` into phases and members and never let a settled member regress to running. Evidence: `apps/server/src/domains/agent-chat/providers/claude/workflow/record.ts`.
 
 ## PandaCode (MIT with fork attribution)
 
@@ -195,6 +197,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Background work header**: A visible section label with its running count (`Background work 3`), and folded a one-line summary after it. Reference: Superset (work drawer; also Grok Build's `Tasks 3` dock and Claude Code's `3 background tasks`). Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer/strip/agent-chat-background-work-section.tsx`.
 - **Ended background work disclosure**: Ended tasks folded behind one quiet `Ended N` control, as Synara folds finished tasks and Claude Code files them under `Completed`; Caxri puts it in the section header rather than a row of its own, so it costs no height. Reference: Synara (also Claude Code's `Completed` group). Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer/strip/agent-chat-background-work-section.tsx`.
 - **Window-level Settings page**: Settings replaces the center workspace as a full page instead of a modal or pane tab, with a Back return. Reference: Superset (also Orca, T3 Code). Evidence: `DESIGN.md` (Settings); `apps/desktop/src/renderer/src/features/settings/settings-page-host.tsx`.
+- **Workflow resume entry**: An interrupted workflow offers a continue action; Caxri's only fills the draft. Reference: Synara. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/workflow/agent-chat-workflow.ts`; `docs/agent-chat.md` (Background work).
 
 ## LibreChat (MIT)
 
@@ -227,6 +230,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 - **One Session per window**: A Session belongs to one window (`PageClaims`, one page per window); opening it elsewhere focuses the owner (also: cmux, LobeHub `TopicPopupGuard`). Evidence: `docs/open-sessions.md`; `apps/server/src/domains/db/open-sessions.ts`.
 - **Mobile computer status memory**: Used memory from `vm_stat` plus swap from `sysctl vm.swapusage` (approach only; AGPL code not copied). Evidence: `packages/system/src/process/system-resources.ts`.
+
+## Mux (AGPL; ideas only)
+
+- **Workflow tab phases**: Failed phases open by default, the result pinned on top, and an interrupted run resumable. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/workflow/agent-chat-workflow.ts`; `docs/agent-chat.md` (Background work).
 
 ## Codex app and Claude Code (closed or product references)
 

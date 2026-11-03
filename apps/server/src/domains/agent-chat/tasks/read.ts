@@ -2,7 +2,9 @@ import type { AgentChatHistoryPage, AgentChatTaskSnapshot } from '@caxri/protoco
 import {
     agentChatHistoryPageSchema,
     agentChatTaskSnapshotSchema,
+    applyAgentChatTaskOperation,
     CaxriError,
+    emptyAgentChatTaskSnapshot,
     isAgentChatWaitingOnAgents,
     logEventCatalog,
 } from '@caxri/protocol';
@@ -67,6 +69,13 @@ export async function readChatTask(
     const history = await session.readTaskHistory(taskId);
     if (!history || !isCurrent())
         throw new CaxriError('NOT_FOUND', 'This task is no longer available');
+    if (history.isLive)
+        return agentChatTaskSnapshotSchema.parse(
+            history.operations.reduce(
+                applyAgentChatTaskOperation,
+                emptyAgentChatTaskSnapshot(terminalId, history.taskId),
+            ),
+        );
     return agentChatTaskSnapshotSchema.parse(state.projection.tasks.install(history));
 }
 

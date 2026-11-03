@@ -92,6 +92,8 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
     web_search: { kind: 'web', label: 'Searched the web' },
     task: { kind: 'agent', label: 'Ran agent' },
     agent: { kind: 'agent', label: 'Ran agent' },
+    // Claude Code's tool that runs a script fanning out into subagents.
+    workflow: { kind: 'agent', label: 'Ran workflow' },
     // Codex's collab tool that starts a subagent thread.
     spawnagent: { kind: 'agent', label: 'Started agent' },
     /**
@@ -418,6 +420,7 @@ export const agentToolActiveLabel = (
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string => {
     if (presentation.label === 'Waited for') return t('agentChat.tool.active.waitNamed');
+    if (presentation.label === 'Ran workflow') return t('agentChat.tool.active.workflow');
     const cliKey =
         presentation.kind === 'command'
             ? CLI_ACTIVE_LABEL_KEYS[presentation.label as AgentShellCliLabel]

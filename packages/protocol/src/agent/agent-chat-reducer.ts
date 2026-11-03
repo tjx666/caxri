@@ -416,6 +416,7 @@ export function applyAgentChatTaskOperation(
             if (state.output !== undefined) next.output = state.output;
             if (state.isOutputCapped !== undefined) next.isOutputCapped = state.isOutputCapped;
             if (state.truncated !== undefined) next.truncated = state.truncated;
+            if (state.workflow !== undefined) next.workflow = state.workflow;
             return next;
         }
     }

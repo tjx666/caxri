@@ -226,16 +226,21 @@ function describeAgentChatWorkAction(
  * Tool names whose row starts a subagent, compared without case or separators: Claude Code's `Task` and `Agent`, and
  * Codex's collab `spawnAgent` (also seen as `spawn_agent`).
  */
-const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'spawnagent']);
+const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
+    'task',
+    'agent',
+    'spawnagent',
+    'workflow',
+]);
 
 function normalizedToolName(name: string): string {
     return name.toLowerCase().replaceAll(/[^a-z]/gu, '');
 }
 
 /**
- * The subagent tools whose settled verb is `Ran agent`: Claude Code's `Task` and `Agent`.
+ * The subagent tools whose row follows the task they start: Claude Code's `Task`, `Agent`, and `Workflow`.
  */
-const RAN_AGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent']);
+const RAN_AGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task', 'agent', 'workflow']);
 
 export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
     item.type === 'reasoning' ? item.streaming : item.status === 'running';

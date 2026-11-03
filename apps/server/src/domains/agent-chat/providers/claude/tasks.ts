@@ -11,6 +11,7 @@ import { ClaudeStream } from './stream';
 import { ClaudeTaskFeedback } from './task-feedback';
 import { claudeTaskStatus, claudeTaskUsage } from './task-fields';
 import { settleClaudeToolItem } from './tool-results';
+import { ClaudeWorkflowRuns, settleClaudeWorkflow } from './workflow';
 
 /**
  * Background work a Claude Code Chat lists: subagents (`Agent`, formerly `Task`), workflows (`Workflow`, a
@@ -18,7 +19,8 @@ import { settleClaudeToolItem } from './tool-results';
  * frames keyed by its own `task_id`, plus a `background_tasks_changed` level signal; subagent conversation frames carry
  * the spawning tool call's id as `parent_tool_use_id`. Caxri keys a subagent by that tool call id (the timeline row's
  * id, so the row opens the tab), and a background shell by Claude Code's `task_id` with `itemId` naming its Bash row. A
- * workflow is listed as a background `agent` task named by its script's `workflow_name`. Inputs are untrusted JSON.
+ * workflow is listed as a background `agent` task named by its script's `workflow_name`, whose `workflow` field follows
+ * the phases and members its `task_progress` frames report (see `./workflow.ts`). Inputs are untrusted JSON.
  *
  * @see https://code.claude.com/docs/en/agent-sdk/typescript
  */
@@ -77,6 +79,8 @@ export class ClaudeTasks {
 
     private readonly shellOutput: ClaudeShellOutput;
 
+    private readonly workflowRuns: ClaudeWorkflowRuns;
+
     constructor(
         private readonly options: {
             host: AgentChatSessionHost;
@@ -93,6 +97,7 @@ export class ClaudeTasks {
         },
     ) {
         this.list = new ChatTaskList(options.host);
+        this.workflowRuns = new ClaudeWorkflowRuns(this.list);
         this.feedback = new ClaudeTaskFeedback(options.host);
         this.shellOutput = new ClaudeShellOutput({
             host: options.host,
@@ -117,6 +122,7 @@ export class ClaudeTasks {
      */
     private noteToolUse(block: Json): void {
         const toolUseId = stringField(block.id);
+        if (toolUseId) this.workflowRuns.noteToolUse(toolUseId, text(block.name));
         if (!toolUseId || !AGENT_TOOLS.has(text(block.name))) return;
         const id = clip(toolUseId, 200);
         const input = isRecord(block.input) ? block.input : {};
@@ -164,7 +170,13 @@ export class ClaudeTasks {
         status: AgentChatTask['status'],
         fields: Partial<AgentChatTask> = {},
     ): void {
-        const task = this.list.upsert(id, { ...fields, status, canStop: false });
+        const workflow = this.list.get(id)?.workflow;
+        const task = this.list.upsert(id, {
+            ...fields,
+            status,
+            canStop: false,
+            ...(workflow && { workflow: settleClaudeWorkflow(workflow, status) }),
+        });
         if (task.kind === 'agent') {
             const items = this.options.host.readTask(id)?.items ?? [];
             const closed = items.flatMap((item) => {
@@ -264,6 +276,9 @@ export class ClaudeTasks {
                 ...(agentType && { agentType }),
                 isBackground,
                 canStop: isBackground,
+                ...(isWorkflow && {
+                    workflow: this.workflowRuns.started(existing?.workflow, toolUseId),
+                }),
             });
             return;
         }
@@ -311,10 +326,12 @@ export class ClaudeTasks {
         const usage = claudeTaskUsage(message.usage);
         const lastToolName = stringField(message.last_tool_name);
         const summary = stringField(message.summary);
+        const workflow = this.workflowRuns.progress(id, message.workflow_progress);
         this.list.upsert(id, {
             ...(usage && { usage }),
             ...(lastToolName && { lastToolName }),
             ...(summary && { summary }),
+            ...(workflow && { workflow }),
         });
     }
 
@@ -456,7 +473,9 @@ export class ClaudeTasks {
                 isRecord(block) && block.type === 'tool_result'
                     ? stringField(block.tool_use_id)
                     : undefined;
-            if (toolUseId && isRecord(block)) this.settleAgentResult(clip(toolUseId, 200), block);
+            if (!toolUseId || !isRecord(block)) continue;
+            this.workflowRuns.noteResult(clip(toolUseId, 200), block);
+            this.settleAgentResult(clip(toolUseId, 200), block);
         }
     }
 

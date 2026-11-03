@@ -9,6 +9,7 @@ import {
     MAX_AGENT_CHAT_TASK_ITEMS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from './agent-chat-limits.js';
+import { agentChatWorkflowSchema } from './workflow/agent-chat-workflow-contract.js';
 
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
 
@@ -31,6 +32,10 @@ export const agentChatTaskSnapshotSchema = z.strictObject({
      * says the output is no longer live instead of looking idle.
      */
     isOutputCapped: z.boolean().optional(),
+    /**
+     * A workflow run rebuilt from the provider's run record, for a run the Chat no longer lists (after a restart).
+     */
+    workflow: agentChatWorkflowSchema.optional(),
 });
 
 const agentChatTaskPatchOperationSchema = z.discriminatedUnion('op', [
@@ -51,6 +56,7 @@ const agentChatTaskPatchOperationSchema = z.discriminatedUnion('op', [
                 output: boundedOutput,
                 isOutputCapped: z.boolean(),
                 truncated: z.boolean(),
+                workflow: agentChatWorkflowSchema,
             })
             .partial(),
     }),

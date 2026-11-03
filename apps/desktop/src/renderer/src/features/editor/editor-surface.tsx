@@ -63,7 +63,7 @@ const AgentTranscriptEditor = lazy(async () => {
  * Lazy so a Session that never opens a subagent or background shell tab does not load the Chat timeline for it.
  */
 const AgentChatTaskTab = lazy(async () => {
-    const module = await import('../agent-chat/tasks/agent-chat-task-tab');
+    const module = await import('../agent-chat/tasks/tab/agent-chat-task-tab');
     return { default: module.AgentChatTaskTab };
 });
 
