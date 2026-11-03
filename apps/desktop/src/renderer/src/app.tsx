@@ -371,16 +371,7 @@ export function App() {
                          * The Portal floats over the right edge of the same area Settings spans, covering the
                          * SecondarySidebar rather than taking a track of its own; see `AgentChatPortal`.
                          */}
-                        {!isSettingsPageOpen && (
-                            <AgentChatPortal
-                                className={cn(
-                                    '[grid-row:1/2]',
-                                    isPrimarySidebarVisible
-                                        ? '[grid-column:3/-1]'
-                                        : '[grid-column:1/-1]',
-                                )}
-                            />
-                        )}
+                        <AgentChatPortal />
                         {isSecondarySidebarVisible && !isSettingsPageOpen && (
                             <PanelDivider
                                 ariaLabel={t('workbench.resizeSecondarySidebar')}

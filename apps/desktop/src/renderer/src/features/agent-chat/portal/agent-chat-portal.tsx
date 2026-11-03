@@ -9,11 +9,13 @@ import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { cn } from '../../../lib/utilities';
 import {
+    isPrimarySidebarShown,
     PORTAL_DEFAULT_WIDTH,
     PORTAL_MAX_WIDTH,
     PORTAL_MIN_WIDTH,
     useChromeLayoutStore,
 } from '../../../stores/chrome-layout';
+import { useDialogStore } from '../../../stores/dialogs';
 import { useSelectedSessionId, useTerminals } from '../../../stores/selectors';
 import { EditorSurface } from '../../editor/editor-surface';
 import { useDocumentTabPresentation } from '../../editor/hooks/use-document-tab-presentation';
@@ -37,8 +39,10 @@ const PORTAL_SURFACE_PANE_ID = 'agent-chat-portal';
  * Clicking back into the Chat leaves it open, so the user can read a subagent while typing to the main Agent. Escape
  * inside it, its X, or "Open in Split" (which turns the item into an ordinary pane tab) closes it.
  */
-export function AgentChatPortal({ className }: { className?: string }) {
+export function AgentChatPortal() {
     const sessionId = useSelectedSessionId();
+    const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
+    const isSettingsPageOpen = useDialogStore((state) => state.settingsPageOpen);
     const items = usePortalItems(sessionId);
     const width = useChromeLayoutStore((state) => state.portalWidth);
     useEffect(() => {
@@ -46,7 +50,7 @@ export function AgentChatPortal({ className }: { className?: string }) {
     }, [width]);
     useRetainLivePortalItems(sessionId);
     const { activePath } = items;
-    if (!sessionId || !activePath) return null;
+    if (!sessionId || !activePath || isSettingsPageOpen) return null;
     const closeOnEscape = (event: KeyboardEvent<HTMLElement>): void => {
         // A key the content already handled (a menu's or picker's own Escape) is not a request to close.
         if (event.key !== 'Escape' || event.defaultPrevented || isImeComposing(event)) return;
@@ -61,7 +65,9 @@ export function AgentChatPortal({ className }: { className?: string }) {
                     'agent-chat-portal absolute top-0 right-0 bottom-0 z-20 flex',
                     'w-(--agent-chat-portal-width,480px) max-w-[calc(100%-320px)] min-w-0',
                     'border-l border-border bg-surface shadow-[0_8px_24px_var(--shadow)]',
-                    className,
+                    // Settings covers the same grid area and hides the Portal; see `SettingsPageHost` in `app.tsx`.
+                    '[grid-row:1/2]',
+                    isPrimarySidebarVisible ? '[grid-column:3/-1]' : '[grid-column:1/-1]',
                 )}
                 onKeyDown={closeOnEscape}
             >
