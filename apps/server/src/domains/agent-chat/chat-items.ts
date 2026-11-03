@@ -10,6 +10,7 @@ import {
     agentChatModelSchema,
     CaxriError,
     MAX_AGENT_CHAT_MODELS,
+    MAX_AGENT_CHAT_OUTPUT_LENGTH,
 } from '@caxri/protocol';
 
 import { ownedSlice } from '../owned-string';
@@ -60,6 +61,54 @@ export function stringField(value: unknown): string | undefined {
  */
 export function clip(value: string, limit: number): string {
     return value.length <= limit ? value : ownedSlice(value, 0, limit);
+}
+
+/**
+ * A string argument longer than this is cut inside an MCP call's JSON summary, so the summary stays parseable JSON.
+ */
+const MAX_MCP_ARGUMENT_STRING_LENGTH = 200;
+
+/**
+ * An array argument keeps this many items in an MCP call's JSON summary.
+ */
+const MAX_MCP_ARGUMENT_ARRAY_ITEMS = 10;
+
+function shortenedArgument(value: unknown): unknown {
+    if (typeof value === 'string')
+        return value.length > MAX_MCP_ARGUMENT_STRING_LENGTH
+            ? `${clip(value, MAX_MCP_ARGUMENT_STRING_LENGTH)}…`
+            : value;
+    if (Array.isArray(value))
+        return value.slice(0, MAX_MCP_ARGUMENT_ARRAY_ITEMS).map((item) => shortenedArgument(item));
+    if (isRecord(value))
+        return Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key, shortenedArgument(item)]),
+        );
+    return value;
+}
+
+/**
+ * An MCP call's arguments as the JSON its `summary` carries. Clients read them back (the row subject, tracker cards,
+ * the expanded argument list), so a long string argument such as an issue description is cut inside the JSON rather
+ * than the serialized text being cut mid-token. Only arguments too wide even after that fall back to a plain cut.
+ */
+export function mcpArgumentsSummary(value: unknown, limit: number): string | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'string') return value ? clip(value, limit) : undefined;
+    try {
+        const serialized = JSON.stringify(shortenedArgument(value));
+        return serialized && serialized !== '{}' ? clip(serialized, limit) : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * An MCP call's result text. Unlike command output, whose end shows how it finished, a JSON result leads with what it
+ * describes (an issue's identifier and title before its description), so the head is kept.
+ */
+export function mcpResultText(value: string): string {
+    return clip(value, MAX_AGENT_CHAT_OUTPUT_LENGTH);
 }
 
 /**

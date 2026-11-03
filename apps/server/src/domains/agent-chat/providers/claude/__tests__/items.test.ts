@@ -94,6 +94,19 @@ describe('Claude item mapping', () => {
         ).not.toHaveProperty('sources');
     });
 
+    it("keeps the head of an MCP result, where a Linear issue's title is", () => {
+        const item = mapClaudeToolUse(
+            { id: 'm1', name: 'mcp__linear__get_issue', input: { id: 'LOBE-1' } },
+            'turn',
+        );
+        if (!item) throw new Error('expected an item');
+        const result = `{"id":"LOBE-1","title":"Fix it","description":"${'x'.repeat(20_000)}"}`;
+        const settled = settleClaudeToolItem(item, { tool_use_id: 'm1', content: result });
+        expect(settled?.type === 'toolCall' && settled.output).toMatch(
+            /^\{"id":"LOBE-1","title":"Fix it"/u,
+        );
+    });
+
     it('marks a written file as added and a declined tool as declined', () => {
         const item = mapClaudeToolUse(
             { id: 't1', name: 'Write', input: { file_path: '/p/new.ts', content: 'x' } },
@@ -197,6 +210,19 @@ describe('Claude item mapping', () => {
         expect(summary('mcp__github__create_issue', { owner: 'o', repo: 'r', title: 'Bug' })).toBe(
             '{"owner":"o","repo":"r","title":"Bug"}',
         );
+        // Even when an argument is a subject field (`query`, `description`), and with long strings cut inside the JSON
+        // so it still parses.
+        expect(summary('mcp__exa__web_search_exa', { query: 'electron' })).toBe(
+            '{"query":"electron"}',
+        );
+        const long = summary('mcp__linear__save_issue', {
+            id: 'LOBE-1',
+            description: 'x'.repeat(5_000),
+        });
+        expect(JSON.parse(long ?? '')).toEqual({
+            id: 'LOBE-1',
+            description: `${'x'.repeat(200)}…`,
+        });
     });
 
     it('keeps the JSON arguments of a readably summarized tool for its expanded row', () => {

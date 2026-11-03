@@ -7,7 +7,7 @@ import {
 } from '@caxri/protocol';
 import { omit } from 'es-toolkit';
 
-import { clip, isRecord, stringField, tail } from '../../chat-items';
+import { clip, isRecord, mcpResultText, stringField, tail } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { structuredPatchDiff, text } from './items';
 
@@ -136,10 +136,11 @@ export function settleClaudeToolItem(
         case 'toolCall': {
             // Read from the whole result: a search lists its pages first, which the output's tail may have cut.
             const sources = isError ? [] : readAgentChatWebSources(item, fullOutput);
+            const toolOutput = item.name.startsWith('mcp__') ? mcpResultText(fullOutput) : output;
             return {
                 ...item,
                 status,
-                ...(output && { output }),
+                ...(toolOutput && { output: toolOutput }),
                 ...(sources.length > 0 && { sources }),
                 ...(durationMs !== undefined && { durationMs }),
             };

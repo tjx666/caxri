@@ -23,7 +23,14 @@ import {
     codexApprovalDecisions,
     codexExecpolicyAmendment,
 } from '../../approval/codex-decisions';
-import { clip, isRecord, readableToolInputSummary, tail } from '../../chat-items';
+import {
+    clip,
+    isRecord,
+    mcpArgumentsSummary,
+    mcpResultText,
+    readableToolInputSummary,
+    tail,
+} from '../../chat-items';
 import { withCacheRewriteEstimate } from '../../chat-usage';
 import { mapCodexReviewItem } from '../../review/codex-review';
 import type { CodexComputerUseBindings } from './computer-use';
@@ -78,23 +85,13 @@ function itemStatus(value: unknown): AgentChatItemStatus {
     }
 }
 
-function summarizeJson(value: unknown): string | undefined {
-    if (value === undefined || value === null) return undefined;
-    try {
-        const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-        return serialized ? clip(serialized, 1_000) : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
 function mcpOutput(item: Json): string | undefined {
     if (isRecord(item.error)) return optionalText(item.error.message, MAX_AGENT_CHAT_OUTPUT_LENGTH);
     if (!isRecord(item.result) || !Array.isArray(item.result.content)) return undefined;
     const parts = item.result.content.flatMap((part) =>
         isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
     );
-    return parts.length > 0 ? tail(parts.join('\n'), MAX_AGENT_CHAT_OUTPUT_LENGTH) : undefined;
+    return parts.length > 0 ? mcpResultText(parts.join('\n')) : undefined;
 }
 
 /**
@@ -279,7 +276,7 @@ export function mapCodexItem(
                     }),
                 };
             const output = mcpOutput(raw);
-            const summary = summarizeJson(raw.arguments);
+            const summary = mcpArgumentsSummary(raw.arguments, 1_000);
             return {
                 ...base,
                 type: 'toolCall',
@@ -298,8 +295,8 @@ export function mapCodexItem(
             const arguments_ = raw.arguments;
             const summary = isRecord(arguments_)
                 ? readableToolInputSummary(arguments_, 1_000)
-                : summarizeJson(arguments_);
-            const input = isRecord(arguments_) ? summarizeJson(arguments_) : undefined;
+                : mcpArgumentsSummary(arguments_, 1_000);
+            const input = isRecord(arguments_) ? mcpArgumentsSummary(arguments_, 1_000) : undefined;
             return {
                 ...base,
                 type: 'toolCall',

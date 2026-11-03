@@ -185,8 +185,84 @@ describe('describeAgentTool', () => {
         expect(
             describe('gh pr checks https://github.com/owner/project/pull/12 --watch'),
         ).toMatchObject({ label: 'Checked PR', subject: '#12' });
-        for (const command of ['git status', 'git commit --amend && rm -rf out', 'gh pr list'])
+        expect(describe('gh pr list --search "tool rows"')).toMatchObject({
+            kind: 'pullRequest',
+            label: 'Listed PRs',
+            subject: 'tool rows',
+        });
+        for (const command of ['git status', 'git commit --amend && rm -rf out'])
             expect(describe(command)).toMatchObject({ kind: 'command' });
+    });
+
+    it('names gh, vc, and lh steps by what they did, without the cd before them', () => {
+        const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
+        const cases: Array<[string, { label: string; subject?: string; isCodeSubject?: boolean }]> =
+            [
+                [
+                    'cd ~/code/app && gh issue view 12 --comments',
+                    { label: 'Viewed issue', subject: '#12' },
+                ],
+                [
+                    'gh issue view https://github.com/owner/app/issues/34',
+                    { label: 'Viewed issue', subject: '#34' },
+                ],
+                [
+                    'gh issue list --repo owner/app --search "login loop" --limit 10',
+                    { label: 'Listed issues', subject: 'login loop', isCodeSubject: false },
+                ],
+                [
+                    'gh issue create --title "Fix the login loop" --body-file /tmp/b.md',
+                    { label: 'Opened issue', subject: 'Fix the login loop' },
+                ],
+                [
+                    'gh issue comment 5 --body-file /tmp/c.md',
+                    { label: 'Commented on issue', subject: '#5' },
+                ],
+                ['gh run view 123456 --log-failed', { label: 'Read CI logs', subject: '123456' }],
+                ['rtk gh run watch 123456', { label: 'Checked CI run', subject: '123456' }],
+                [
+                    'gh run list --branch feat/x --limit 5',
+                    { label: 'Listed CI runs', subject: 'feat/x' },
+                ],
+                ['gh run rerun 99 --failed', { label: 'Reran CI', subject: '99' }],
+                [
+                    "gh api repos/owner/app/pulls/12/comments --jq '.[].body' | jq length",
+                    { label: 'Called GitHub API', subject: 'owner/app/pulls/12/comments' },
+                ],
+                [
+                    "gh api graphql -f query='query { viewer { login } }'",
+                    { label: 'Called GitHub API', subject: 'GraphQL' },
+                ],
+                [
+                    'vc inspect https://example.vercel.app --scope team',
+                    { label: 'Inspected deployment', subject: 'example.vercel.app' },
+                ],
+                ['vc logs dpl_123', { label: 'Read deployment logs', subject: 'dpl_123' }],
+                ['vc env ls production', { label: 'Listed env vars', subject: 'production' }],
+                ['lh acceptance preflight --json', { label: 'Checked acceptance setup' }],
+                [
+                    'lh acceptance view acc_1 --json',
+                    { label: 'Viewed acceptance', subject: 'acc_1' },
+                ],
+                [
+                    'cd ~/code/app && lh acceptance run ingest --dir .records/x',
+                    { label: 'Published acceptance round' },
+                ],
+                [
+                    'cd ~/code/app && gh label list --repo owner/app',
+                    { label: 'Ran', subject: 'gh label list --repo owner/app' },
+                ],
+            ];
+        for (const [command, expected] of cases)
+            expect(describe(command), command).toMatchObject({ kind: 'command', ...expected });
+    });
+
+    it('says what a gh, vc, or lh step is doing while it runs', () => {
+        const running = (summary: string) =>
+            agentToolActiveLabel(describeAgentTool({ name: 'Bash', summary }));
+        expect(running('gh issue view 12')).toBe('Viewing issue');
+        expect(running('vc inspect dpl_1')).toBe('Inspecting deployment');
+        expect(running('gh label list')).toBe('Running');
     });
 
     it('keeps any other command a command', () => {
