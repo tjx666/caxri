@@ -19,6 +19,7 @@ export const viewContainersSourceControl: TranslatedNamespace<typeof source> = {
     'viewContainers.sourceControl.stateSaveFailed': '无法保存源代码管理视图状态',
     'viewContainers.sourceControl.hintSeparator': '。',
     'viewContainers.sourceControl.rowMenuHint': '按 Shift+F10 打开操作菜单',
+    'viewContainers.sourceControl.menu.revealInFinder': '在访达中显示',
     'viewContainers.sourceControl.menu.copyPath': '复制路径',
     'viewContainers.sourceControl.menu.copyRelativePath': '复制相对路径',
     'viewContainers.sourceControl.menu.copyName': '复制文件名',

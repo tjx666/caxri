@@ -20,6 +20,7 @@ export const viewContainersSourceControl = {
     'viewContainers.sourceControl.stateSaveFailed': 'Source Control view state could not be saved',
     'viewContainers.sourceControl.hintSeparator': '. ',
     'viewContainers.sourceControl.rowMenuHint': 'Press Shift+F10 for actions',
+    'viewContainers.sourceControl.menu.revealInFinder': 'Reveal in Finder',
     'viewContainers.sourceControl.menu.copyPath': 'Copy Path',
     'viewContainers.sourceControl.menu.copyRelativePath': 'Copy Relative Path',
     'viewContainers.sourceControl.menu.copyName': 'Copy Name',

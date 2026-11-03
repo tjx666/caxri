@@ -8,6 +8,7 @@ import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 import {
     chooseContextMenuItem,
+    contextMenuLabels,
     dismissContextMenu,
     expectNoContextMenu,
 } from './support/native-context-menu.ts';
@@ -58,9 +59,12 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         /**
          * Group actions share the row menu, so keyboard access does not add another Tab stop to the tree.
          */
-        await running.app.evaluate(({ dialog }) => {
+        await running.app.evaluate(({ dialog, shell }) => {
             const scope = globalThis as Record<string, unknown>;
             scope.__caxriScmDiscardConfirmations = 0;
+            shell.showItemInFolder = (path) => {
+                scope.__caxriScmRevealedPath = path;
+            };
             dialog.showMessageBox = () => {
                 scope.__caxriScmDiscardConfirmations =
                     Number(scope.__caxriScmDiscardConfirmations) + 1;
@@ -109,6 +113,24 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         await copyFromRow('Copy Path', absolutePath);
         await copyFromRow('Copy Relative Path', 'nested/file-00.txt');
         await copyFromRow('Copy Name', 'file-00.txt');
+
+        // Reveal in Finder leads the path entries, as in the Files tree row and the Editor tab.
+        await nestedFile.click({ button: 'right' });
+        const labels = await contextMenuLabels(running.app);
+        expect(labels.slice(labels.indexOf('Reveal in Finder'))).toEqual([
+            'Reveal in Finder',
+            'Copy Path',
+            'Copy Relative Path',
+            'Copy Name',
+        ]);
+        await chooseContextMenuItem(running.app, 'Reveal in Finder');
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () => (globalThis as Record<string, unknown>).__caxriScmRevealedPath,
+                ),
+            )
+            .toBe(absolutePath);
         await directory.focus();
 
         await running.page.keyboard.press('End');
