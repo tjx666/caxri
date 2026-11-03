@@ -1,0 +1,45 @@
+name: PR report comment
+
+# Posts the sticky size and performance comment after each CI run (docs/bundle-size.md#pull-request-size-report).
+# `workflow_run` always runs this file and its scripts from the default branch, so pull request code, including a
+# fork's, never runs with the write token; the pull request only supplies JSON reports that
+# `scripts/ci-size-comment.ts` validates. A dispatch run on the same head adds its performance receipt.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+concurrency:
+  group: pr-report-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  comment:
+    name: Update size report comment
+    if: >-
+      (github.event.workflow_run.event == 'pull_request' ||
+        github.event.workflow_run.event == 'workflow_dispatch') &&
+      github.event.workflow_run.conclusion != 'cancelled' &&
+      github.event.workflow_run.conclusion != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # The comment script imports only Node built-ins and sibling scripts, so Bun is the whole toolchain.
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+      - name: Post or update the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAXRI_REPORT_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CAXRI_REPORT_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          CAXRI_REPORT_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: bun run scripts/ci-size-comment.ts

@@ -512,4 +512,27 @@ describe('CI workflow contract', () => {
             expect(upload.with?.name).toContain('-sample-${{ matrix.sample }}');
         }
     });
+
+    it('measures sizes on Linux outside the gate and posts them only from the default-branch workflow', async () => {
+        const commentWorkflow = parse(
+            await readFile(
+                new URL('../../.github/workflows/pr-report-comment.yml', import.meta.url),
+                'utf8',
+            ),
+        ) as WorkflowDocument & { on: Record<string, { workflows: string[] }> };
+        const sizeReport = document.jobs['size-report'];
+
+        expect(sizeReport['runs-on']).toBe('ubuntu-latest');
+        expect(sizeReport.if).toContain("github.event_name != 'workflow_dispatch'");
+        expect(document.jobs.ci.needs).not.toContain('size-report');
+        // Only the `workflow_run` workflow holds a write token, and it never checks out pull request code.
+        expect(Object.keys(commentWorkflow.on)).toEqual(['workflow_run']);
+        expect(commentWorkflow.on.workflow_run.workflows).toEqual(['CI']);
+        expect(commentWorkflow.permissions).toEqual({
+            'actions': 'read',
+            'contents': 'read',
+            'pull-requests': 'write',
+        });
+        expect(JSON.stringify(commentWorkflow.jobs)).not.toContain('ref:');
+    });
 });

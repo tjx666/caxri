@@ -317,6 +317,21 @@ jobs:
           install-electron: 'true'
       - name: Run bundle budget gate
         run: bun run scripts/ci-metrics.ts --label "Bundle budget gate" -- bun run scripts/ci-bundle-budget.ts
+      # The packaged app for the sticky size comment (`size-report` measures the rest). Pull requests package GitHub's
+      # merge result here, so the row carries the pushed head's SHA but also includes `main` changes since the merge base.
+      - name: Measure packaged app size
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          CAXRI_REPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun run scripts/ci-size-report.ts --kind packaged --sha "$CAXRI_REPORT_SHA" --out size-report/packaged.json
+      - name: Upload packaged size report
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ github.event_name == 'push' && 'size-baseline' || 'size-report' }}-packaged
+          path: size-report/packaged.json
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'push' && 30 || 7 }}
   # Vitest dominates both the `full` and `affected` scopes, so it runs in shards beside the lint and type gates instead
   # of after them. The CI gate requires every shard whenever `checks` runs one of those scopes.
   unit:
@@ -1263,3 +1278,73 @@ jobs:
               exit 1
               ;;
           esac
+  # Informational, not part of the CI gate: measures the pushed head's build output and mobile JavaScript payload for the
+  # sticky size comment (`pr-report-comment.yml`, docs/bundle-size.md#pull-request-size-report). A `main` push uploads
+  # the same reports as the baseline later pull requests compare with. Every measured byte is platform-neutral, so it
+  # runs on Linux instead of holding a scarce macOS runner.
+  size-report:
+    name: size report
+    needs: retry-policy
+    if: >-
+      github.event_name != 'workflow_dispatch' && (
+        needs.retry-policy.outputs.checks_scope == 'full' ||
+        needs.retry-policy.outputs.checks_scope == 'affected' ||
+        needs.retry-policy.outputs.checks_scope == 'focused-source'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CAXRI_REPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CAXRI_RUNNER_AGENT_DISCOVERY: blocked
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - name: Verify hosted runner boundary before checkout
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+      # The pushed head, not GitHub's synthetic merge commit, so a delta against the merge-base baseline reflects only
+      # this pull request's changes.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify read-only event trust boundary
+        uses: ./.github/actions/verify-trust-boundary
+        with:
+          policy-domain: ci
+          event-name: ${{ github.event_name }}
+          actor: ${{ github.actor }}
+          triggering-actor: ${{ github.triggering_actor }}
+          event-repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          event-ref: ${{ github.ref }}
+          pull-request-author: ${{ github.event.pull_request.user.login || github.actor }}
+          allow-external-pull-request: 'true'
+      - uses: ./.github/actions/setup-caxri-job
+        with:
+          setup-toolchain: 'true'
+          install-dependencies: 'true'
+      - name: Build
+        run: bun run scripts/ci-metrics.ts --label "Size report build" -- bun run build
+      - name: Measure desktop build size
+        run: bun run scripts/ci-size-report.ts --kind desktop --sha "$CAXRI_REPORT_SHA" --out size-report/desktop.json
+      - name: Export the Android JavaScript bundle
+        run: |
+          bun run --cwd apps/mobile build:dependencies
+          pnpm --filter @caxri/mobile exec expo export --platform android --output-dir "$RUNNER_TEMP/mobile-export"
+      - name: Measure mobile bundle size
+        run: bun run scripts/ci-size-report.ts --kind mobile --sha "$CAXRI_REPORT_SHA" --root "$RUNNER_TEMP/mobile-export" --out size-report/mobile.json
+      - name: Upload desktop size report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ github.event_name == 'push' && 'size-baseline' || 'size-report' }}-desktop
+          path: size-report/desktop.json
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'push' && 30 || 7 }}
+      - name: Upload mobile size report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ github.event_name == 'push' && 'size-baseline' || 'size-report' }}-mobile
+          path: size-report/mobile.json
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'push' && 30 || 7 }}
