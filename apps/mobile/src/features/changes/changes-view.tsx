@@ -27,6 +27,92 @@ import { changesStyles as styles } from './changes-styles';
  */
 export const COMMIT_DRAFT = 'Commit the current changes with a clear message.';
 
+/**
+ * The mode chips and the summary with its refresh action. Hidden outside a Git repository, where a "0 files changed"
+ * summary would contradict the empty state below it.
+ */
+const ChangesToolbar = ({
+    mode,
+    onModeChange,
+    onRefresh,
+    state,
+    theme,
+}: {
+    mode: ChangesMode;
+    onModeChange: (mode: ChangesMode) => void;
+    onRefresh: () => void;
+    state: ChangesViewState;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            <View
+                accessibilityLabel={t('changes.modeGroup')}
+                accessibilityRole="tablist"
+                style={styles.modes}
+                testID="changes-modes"
+            >
+                {CHANGES_MODES.map((candidate) => (
+                    <Chip
+                        key={candidate}
+                        label={changesModeLabel(candidate, t)}
+                        onPress={() => onModeChange(candidate)}
+                        selected={candidate === mode}
+                        testID={`changes-mode-${candidate}`}
+                        theme={theme}
+                    />
+                ))}
+            </View>
+            <View style={[styles.toolbar, { borderColor: theme.border }]}>
+                <Text
+                    accessibilityRole="header"
+                    accessibilityLabel={
+                        state.snapshot
+                            ? changesSummaryLabel(
+                                  state.snapshot.changedFileCount,
+                                  state.snapshot.additions,
+                                  state.snapshot.deletions,
+                                  t,
+                              )
+                            : undefined
+                    }
+                    style={[styles.summary, { color: theme.text }]}
+                    testID="changes-summary"
+                >
+                    {state.snapshot ? (
+                        <>
+                            {changedFilesSummary(state.snapshot.changedFileCount, t)} ·{' '}
+                            <ChangesDiffStat
+                                additions={state.snapshot.additions}
+                                deletions={state.snapshot.deletions}
+                                theme={theme}
+                            />
+                        </>
+                    ) : (
+                        t('changes.title')
+                    )}
+                </Text>
+                {state.isRefreshing ? (
+                    <View style={styles.refresh} testID="changes-refresh">
+                        <Spinner color={theme.primary} />
+                    </View>
+                ) : (
+                    <IconButton
+                        accessibilityLabel={t('changes.refresh')}
+                        color={theme.primary}
+                        icon={RotateCw}
+                        onPress={onRefresh}
+                        size={20}
+                        testID="changes-refresh"
+                        theme={theme}
+                    />
+                )}
+            </View>
+        </>
+    );
+};
+
 export const ChangesView = ({
     canAskAgent,
     mode,
@@ -53,72 +139,14 @@ export const ChangesView = ({
     return (
         <View style={styles.root} testID="changes-view">
             {isRepo ? (
-                <View
-                    accessibilityLabel={t('changes.modeGroup')}
-                    accessibilityRole="tablist"
-                    style={styles.modes}
-                    testID="changes-modes"
-                >
-                    {CHANGES_MODES.map((candidate) => (
-                        <Chip
-                            key={candidate}
-                            label={changesModeLabel(candidate, t)}
-                            onPress={() => onModeChange(candidate)}
-                            selected={candidate === mode}
-                            testID={`changes-mode-${candidate}`}
-                            theme={theme}
-                        />
-                    ))}
-                </View>
+                <ChangesToolbar
+                    mode={mode}
+                    onModeChange={onModeChange}
+                    onRefresh={onRefresh}
+                    state={state}
+                    theme={theme}
+                />
             ) : null}
-            {/* Outside a Git repository a "0 files changed" summary contradicts the empty state below it. */}
-            {!isRepo ? null : (
-                <View style={[styles.toolbar, { borderColor: theme.border }]}>
-                    <Text
-                        accessibilityRole="header"
-                        accessibilityLabel={
-                            state.snapshot
-                                ? changesSummaryLabel(
-                                      state.snapshot.changedFileCount,
-                                      state.snapshot.additions,
-                                      state.snapshot.deletions,
-                                      t,
-                                  )
-                                : undefined
-                        }
-                        style={[styles.summary, { color: theme.text }]}
-                        testID="changes-summary"
-                    >
-                        {state.snapshot ? (
-                            <>
-                                {changedFilesSummary(state.snapshot.changedFileCount, t)} ·{' '}
-                                <ChangesDiffStat
-                                    additions={state.snapshot.additions}
-                                    deletions={state.snapshot.deletions}
-                                    theme={theme}
-                                />
-                            </>
-                        ) : (
-                            t('changes.title')
-                        )}
-                    </Text>
-                    {state.isRefreshing ? (
-                        <View style={styles.refresh} testID="changes-refresh">
-                            <Spinner color={theme.primary} />
-                        </View>
-                    ) : (
-                        <IconButton
-                            accessibilityLabel={t('changes.refresh')}
-                            color={theme.primary}
-                            icon={RotateCw}
-                            onPress={onRefresh}
-                            size={20}
-                            testID="changes-refresh"
-                            theme={theme}
-                        />
-                    )}
-                </View>
-            )}
             {contextLine ? (
                 <Text
                     numberOfLines={1}
