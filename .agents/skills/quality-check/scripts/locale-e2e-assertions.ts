@@ -9,11 +9,17 @@ import { walkMatchingFiles } from './source-imports';
 
 const execFileAsync = promisify(execFile);
 /**
- * English copy the Desktop Renderer shows: its own locale catalog and the protocol's shared Agent Chat labels, which
- * the Renderer's locale spreads in.
+ * English copy the clients show: the Desktop Renderer's and Mobile's locale catalogs, plus the protocol's shared Agent
+ * Chat labels, which the Renderer's locale spreads in.
  */
 const EN_LOCALE_FILE =
-    /^(?:apps\/desktop\/src\/renderer\/src\/i18n\/locales\/en\/[^/]+|packages\/protocol\/src\/agent\/agent-chat-labels-en)\.ts$/;
+    /^(?:apps\/(?:desktop\/src\/renderer\/src|mobile\/src)\/i18n\/locales\/en\/[^/]+|packages\/protocol\/src\/agent\/agent-chat-labels-en)\.ts$/;
+/**
+ * Vitest files under the workspaces. A store test can assert a translated string (`t('...')` resolved against the
+ * English catalog) without importing the catalog file, so `--test` never selects it and the reworded copy failed only
+ * in the hosted unit shard.
+ */
+const UNIT_TEST_FILE = /\.test\.tsx?$/;
 /**
  * Shorter fragments (a word or two) match unrelated spec text too often to be a useful warning.
  */
@@ -21,7 +27,7 @@ const MIN_FRAGMENT_LENGTH = 12;
 
 export interface StaleLocaleCopyWarning {
     /**
-     * Line-qualified spec location, `e2e/example.e2e.ts:42`.
+     * Line-qualified spec or unit-test location, `e2e/example.e2e.ts:42`.
      */
     location: string;
     /**
@@ -98,9 +104,9 @@ async function readOrEmpty(path: string): Promise<string> {
 }
 
 /**
- * Advisory only: finds E2E specs that still assert English locale copy the change edited or removed. A spec that
- * asserts rendered text is invisible to import-based discovery, so a reworded string used to fail only in CI. `baseRef`
- * is the revision the old copy is read from (the `origin/main` merge base, or `HEAD` for `--staged`).
+ * Advisory only: finds E2E specs and unit tests that still assert English locale copy the change edited or removed. A
+ * test that asserts rendered text is invisible to import-based discovery, so a reworded string used to fail only in CI.
+ * `baseRef` is the revision the old copy is read from (the `origin/main` merge base, or `HEAD` for `--staged`).
  */
 export async function staleLocaleCopyWarnings(
     root: string,
@@ -123,9 +129,15 @@ export async function staleLocaleCopyWarnings(
     ];
     if (fragments.length === 0) return [];
 
-    const specs = (await walkMatchingFiles(root, 'e2e', /\.ts$/)).toSorted((a, b) =>
-        a.localeCompare(b),
-    );
+    const specs = (
+        await Promise.all([
+            walkMatchingFiles(root, 'e2e', /\.ts$/),
+            walkMatchingFiles(root, 'apps', UNIT_TEST_FILE),
+            walkMatchingFiles(root, 'packages', UNIT_TEST_FILE),
+        ])
+    )
+        .flat()
+        .toSorted((a, b) => a.localeCompare(b));
     const specLines = await Promise.all(
         specs.map(async (spec) => ({
             spec,
@@ -145,7 +157,7 @@ export async function staleLocaleCopyWarnings(
 }
 
 function formatStaleLocaleCopyWarnings(warnings: readonly StaleLocaleCopyWarning[]): string {
-    return `Stale English copy asserted by E2E (run explicitly):\n${warnings
+    return `Stale English copy asserted by tests (run explicitly):\n${warnings
         .map(({ location, fragment }) => `  ${location} "${fragment}"`)
         .join('\n')}`;
 }
