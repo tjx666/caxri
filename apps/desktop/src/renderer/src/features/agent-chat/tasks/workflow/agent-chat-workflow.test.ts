@@ -11,6 +11,7 @@ import {
     agentChatWorkflowMemberType,
     agentChatWorkflowPhaseDurationMs,
     agentChatWorkflowPhaseState,
+    agentChatWorkflowPhaseSummary,
     agentChatWorkflowProgressLabel,
     agentChatWorkflowResumeDraft,
     isAgentChatWorkflowMemberQuiet,
@@ -211,6 +212,30 @@ describe('agentChatWorkflowPhaseDurationMs', () => {
         expect(
             agentChatWorkflowPhaseDurationMs([member(0, 'running', { startedAt: 1_000 })]),
         ).toBeUndefined();
+    });
+});
+
+describe('agentChatWorkflowPhaseSummary', () => {
+    it('counts done members while a phase runs, and names its size and duration once it ended', () => {
+        const running = [
+            member(0, 'completed', { startedAt: 0 }),
+            member(1, 'running', { startedAt: 0 }),
+        ];
+        expect(
+            agentChatWorkflowPhaseSummary(
+                { counts: agentChatWorkflowCounts(running), members: running },
+                'running',
+                translate,
+            ),
+        ).toEqual(['1/2']);
+        const ended = [member(0, 'completed', { startedAt: 0, usage: { durationMs: 90_000 } })];
+        expect(
+            agentChatWorkflowPhaseSummary(
+                { counts: agentChatWorkflowCounts(ended), members: ended },
+                'ended',
+                translate,
+            ),
+        ).toEqual(['1 subagent', '1m 30s']);
     });
 });
 

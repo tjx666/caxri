@@ -164,9 +164,10 @@ export function AgentChatWorkflowMemberRow({
                         {body}
                     </button>
                 ) : (
-                    <div className={className} tabIndex={0}>
+                    // Not openable yet, but still a focusable trigger so its tooltip reaches keyboard users.
+                    <button aria-disabled="true" className={className} type="button">
                         {body}
-                    </div>
+                    </button>
                 )}
             </Tooltip>
         </li>

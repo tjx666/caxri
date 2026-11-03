@@ -5,7 +5,7 @@ import type {
     AgentChatWorkflowPhaseGroup,
     AgentUsageReadout,
 } from '@caxri/protocol';
-import { agentChatWorkflowPhaseGroups, formatNoticeableDuration } from '@caxri/protocol';
+import { agentChatWorkflowPhaseGroups } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Copy, MessageSquarePlus } from 'lucide-react';
 
 import { Button } from '../../../../components/ui/button';
@@ -13,10 +13,7 @@ import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { AgentChatStatusGlyph } from '../../tools/agent-chat-status-glyph';
-import {
-    agentChatWorkflowPhaseDurationMs,
-    agentChatWorkflowPhaseState,
-} from './agent-chat-workflow';
+import { agentChatWorkflowPhaseState, agentChatWorkflowPhaseSummary } from './agent-chat-workflow';
 import { copyAgentChatWorkflowError, resumeAgentChatWorkflow } from './agent-chat-workflow-actions';
 import { AgentChatWorkflowMemberRow } from './agent-chat-workflow-member-row';
 
@@ -128,12 +125,8 @@ function WorkflowPhase({
                 <span className="text-[11px]">{t('agentChat.workflow.notStarted')}</span>
             </li>
         );
-    const duration =
-        state === 'ended'
-            ? formatNoticeableDuration(agentChatWorkflowPhaseDurationMs(group.members), t)
-            : null;
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
-    const done = group.counts.completed + group.counts.failed + group.counts.stopped;
+    const isClean = state === 'ended' && group.counts.failed === 0 && group.counts.stopped === 0;
     return (
         <li>
             <button
@@ -154,23 +147,9 @@ function WorkflowPhase({
                 <Chevron aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
                 <span className="min-w-0 flex-1 truncate font-medium text-foreground">{title}</span>
                 <span className="flex shrink-0 items-center gap-2 text-[11px] text-muted tabular-nums">
-                    {state === 'ended' ? (
-                        <>
-                            <span>
-                                {t(
-                                    group.counts.total === 1
-                                        ? 'agentChat.workflow.phaseSubagentOne'
-                                        : 'agentChat.workflow.phaseSubagents',
-                                    { count: group.counts.total },
-                                )}
-                            </span>
-                            {duration && <span>{duration}</span>}
-                        </>
-                    ) : (
-                        <span>
-                            {t('agentChat.workflow.progress', { done, total: group.counts.total })}
-                        </span>
-                    )}
+                    {agentChatWorkflowPhaseSummary(group, state, t).map((part) => (
+                        <span key={part}>{part}</span>
+                    ))}
                     {group.counts.failed > 0 && (
                         <span className="text-danger">
                             {t('agentChat.workflow.failed', { count: group.counts.failed })}
@@ -181,9 +160,7 @@ function WorkflowPhase({
                             {t('agentChat.workflow.stopped', { count: group.counts.stopped })}
                         </span>
                     )}
-                    {state === 'ended' &&
-                        group.counts.failed === 0 &&
-                        group.counts.stopped === 0 && <AgentChatStatusGlyph status="completed" />}
+                    {isClean && <AgentChatStatusGlyph status="completed" />}
                 </span>
             </button>
             {isExpanded && (

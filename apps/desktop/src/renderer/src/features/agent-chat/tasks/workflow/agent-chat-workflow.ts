@@ -9,6 +9,7 @@ import {
     agentChatWorkflowAgentKind,
     agentChatWorkflowCounts,
     agentChatWorkflowCurrentPhase,
+    formatNoticeableDuration,
     formatTokens,
     formatUsd,
 } from '@caxri/protocol';
@@ -209,6 +210,36 @@ export function agentChatWorkflowPhaseDurationMs(
             end = Math.max(end, member.startedAt + member.usage.durationMs);
     }
     return Number.isFinite(start) && Number.isFinite(end) && end >= start ? end - start : undefined;
+}
+
+/**
+ * The counts a phase header shows before its failure and interruption tallies: an ended phase names how many subagents
+ * it ran and how long it took, any other phase how many of its members are done.
+ */
+export function agentChatWorkflowPhaseSummary(
+    group: {
+        counts: AgentChatWorkflowCounts;
+        members: ReadonlyArray<Pick<AgentChatWorkflowMember, 'startedAt' | 'usage'>>;
+    },
+    state: AgentChatWorkflowPhaseState,
+    t: Translate,
+): string[] {
+    const { counts } = group;
+    if (state !== 'ended')
+        return [
+            t('agentChat.workflow.progress', {
+                done: counts.completed + counts.failed + counts.stopped,
+                total: counts.total,
+            }),
+        ];
+    const size = t(
+        counts.total === 1
+            ? 'agentChat.workflow.phaseSubagentOne'
+            : 'agentChat.workflow.phaseSubagents',
+        { count: counts.total },
+    );
+    const duration = formatNoticeableDuration(agentChatWorkflowPhaseDurationMs(group.members), t);
+    return duration ? [size, duration] : [size];
 }
 
 /**
