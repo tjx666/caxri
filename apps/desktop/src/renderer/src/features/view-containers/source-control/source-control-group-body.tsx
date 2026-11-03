@@ -385,7 +385,12 @@ function SourceControlVirtualRow({
                 menuItems={sourceControlActionMenuItems(trailingActions, runAction)}
                 pathMenu={
                     resourcePath
-                        ? () => sourceControlResourcePathMenu(resourcePath, repositoryRootPath)
+                        ? () =>
+                              sourceControlResourcePathMenu(
+                                  resourcePath,
+                                  repositoryRootPath,
+                                  openablePath !== undefined,
+                              )
                         : undefined
                 }
                 className={cn(
