@@ -21,11 +21,12 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Round-trip latency while the reader scrolls back, so each history page lands after the fling that asked for it came
- * to rest and any movement it causes is the list's own, not the finger's. It stays under the phone's 3 second read
- * timeout (`READ_REQUEST_TIMEOUT_MS`): at 3 seconds the reads failed and the Reconnecting banner pushed the whole
- * timeline down.
+ * to rest and any movement it causes is the list's own, not the finger's. The delay holds back the phone's TCP
+ * acknowledgements too, so a large page needs several delayed round trips: at 1.8 seconds a page read outlived the
+ * phone's 3 second read timeout (`READ_REQUEST_TIMEOUT_MS`) and the Reconnecting banner pushed the whole timeline
+ * down.
  */
-const PAGE_DELAY_MS = 1_800;
+const PAGE_DELAY_MS = 900;
 
 /**
  * Quick flings toward older rows, as a reader skimming back does. A fling coasts to the very top of the loaded rows, so
