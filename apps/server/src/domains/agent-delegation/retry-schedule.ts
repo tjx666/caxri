@@ -260,8 +260,8 @@ export class DelegationRetrySchedules {
             if (this.isClosed) return;
             if (this.firing.has(receipt.delegationId)) continue;
             try {
-                // eslint-disable-next-line no-await-in-loop -- one provider start at a time.
-                await this.handle(receipt.delegationId);
+                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one provider start at a time
+                await this.handle(receipt.delegationId); // eslint-disable-line no-await-in-loop -- one provider start at a time
             } catch {
                 this.refuseUnexpected(receipt.delegationId);
             }
