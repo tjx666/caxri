@@ -535,15 +535,20 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   terminal that completed while a read was in flight is not taken back running from that answer.
 - **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
   answers `CONFLICT`, and `readTaskHistory` knows no task.
-- **Pane.** A subagent or background row opens its task in a Workbench tab
-  (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in a
-  split beside the Chat, reusing that side pane for later tasks. The split keeps the Chat readable
-  instead of halving the host: the Chat grows to at most 800px, the side pane takes the rest but no
-  less than 360px, and a host too narrow for a 420px Chat plus that minimum opens the tab as an
-  ordinary tab. While such a pane sits right of its own Chat, the Secondary Sidebar yields its width;
-  `Cmd+]` reveals it for that Session and Root, and it returns when the side pane closes
-  (`features/agent-chat/tasks/beside-chat-layout.ts`). Turn reviews, the side chat, and the Context
-  breakdown share this side pane. A subagent tab is a read-only
+- **Portal.** A subagent or background row opens its task
+  (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in
+  the Portal: a flyout over the window's right edge that covers the Secondary Sidebar (or the Chat's
+  right edge when the sidebar is hidden), so it takes no Workbench width, never reflows the Chat,
+  and never counts as a tab (`features/agent-chat/portal/`). Turn reviews, the side chat, and the
+  Context breakdown open there too; two or more items show as tabs in its header. Each Session keeps
+  its own items in memory only, so switching Sessions swaps them and a restart starts closed.
+  Clicking back into the Chat leaves it open; Escape inside it or its X closes it. Its left edge
+  resizes it (360px to 960px, 480px by default, double-click resets), stored per device like the
+  sidebar widths. **Open in Split** moves the item into the Workbench as an ordinary tab split
+  beside the Chat: the Chat grows to at most 800px, the side pane takes the rest but no less than
+  360px, and a Chat pane too narrow for a 420px Chat plus that minimum opens it as an ordinary tab
+  (`features/agent-chat/tasks/beside-chat-layout.ts`); an item already open as a tab is focused
+  there instead of opening in the Portal. A subagent view is a read-only
   timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
   in the composer strip's collapsible Background work section, headed `Background work N` and, folded, by the latest
@@ -1222,8 +1227,8 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and its `trackers/` subdirectory, Undo in the
   Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
   [Mobile](#mobile).
-- Review on that card opens the turn as one diff in a `Turn changes` tab beside the Chat, in the
-  side pane task tabs use (`caxri-agent-turn-review://<terminal>/<turn>`). It lists the same files
+- Review on that card opens the turn as one diff, `Turn changes`, in the Portal where task views
+  open (`caxri-agent-turn-review://<terminal>/<turn>`). It lists the same files
   the card does, each with its Git status letter, Project-relative path, `+A -D`, and every edit
   the turn made to it in order; the projection is read from the shared `agentChat.read` cache, so
   nothing new crosses IPC. Hovering a line of code shows `+`, which opens a comment on it;
@@ -1727,7 +1732,7 @@ Grok Build does not, and the PTY surface is untouched.
   `/btw <question>` in the main composer, which asks in the side chat instead of sending a message (while
   the previous question is still being answered the draft stays and the composer says so), and the
   composer `+` menu's Side chat row. The
-  side chat opens as a tab beside the Chat, in the same side pane task tabs use
+  side chat opens in the Portal where task views open
   (`caxri-agent-side-chat://<terminalId>`, one per Chat), with its own composer and multi-turn
   follow-ups.
 - **No persistence.** The thread lives only in Renderer memory (`agent-chat-side-chat-commands.ts`).
@@ -1868,7 +1873,7 @@ no transcript on disk refuses with an error instead of opening an empty Chat.
 
 The meter's card in a Workbench Chat offers **Details**, which opens a read-only Context tab
 (`caxri-agent-context://<terminalId>`, `apps/desktop/src/renderer/src/features/agent-chat/context/`)
-beside the Chat, the way task tabs open. It is Claude Code only, so the other providers' meter has
+in the Portal, the way task views open. It is Claude Code only, so the other providers' meter has
 no Details button and the tab shows an unsupported notice. Codex records each request's input and
 cache-hit tokens (`last_token_usage.cached_input_tokens`), but no cache writes (its
 `cache_write_input_tokens` stays 0), no item-by-item window, and no prefix change to blame for a

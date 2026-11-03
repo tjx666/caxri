@@ -61,4 +61,9 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.history.loadFailed': '无法加载更早的消息。',
     'agentChat.history.loading': '正在加载更早的消息…',
     'agentChat.history.unavailable': '更早的消息无法在对话中显示，{{provider}} 仍保留着全部内容。',
+    'agentChat.portal.label': '浮层',
+    'agentChat.portal.openInSplit': '在分屏中打开',
+    'agentChat.portal.close': '关闭浮层',
+    'agentChat.portal.closeItem': '关闭{{label}}',
+    'agentChat.portal.resize': '调整浮层宽度',
 };

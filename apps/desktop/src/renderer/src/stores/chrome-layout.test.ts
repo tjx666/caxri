@@ -7,13 +7,13 @@ import {
     clampWidth,
     isPanelShown,
     isPrimarySidebarShown,
-    isSecondarySidebarShownFor,
     MIN_MAIN_WIDTH,
     MIN_WORK_SURFACE_HEIGHT,
     PANEL_DEFAULT_HEIGHT,
     PANEL_DIVIDER_HEIGHT,
     PANEL_MAX_HEIGHT,
     PANEL_MIN_HEIGHT,
+    PORTAL_DEFAULT_WIDTH,
     PRIMARY_SIDEBAR_DEFAULT_WIDTH,
     PRIMARY_SIDEBAR_MIN_WIDTH,
     SECONDARY_SIDEBAR_DEFAULT_WIDTH,
@@ -50,6 +50,7 @@ describe('clampLayoutToViewport', () => {
         panelVisible: false,
         desiredPanelViewContainerId: 'caxri.logs',
         primarySidebarActivityMode: false,
+        portalWidth: PORTAL_DEFAULT_WIDTH,
     };
 
     it('leaves widths untouched when the viewport has plenty of room', () => {
@@ -207,89 +208,12 @@ describe('Primary Side Bar Activity mode', () => {
     });
 });
 
-describe('SecondarySidebar yield', () => {
-    const scope = 'session-1:project-1';
-    const isShown = (yieldScope?: string): boolean => {
-        const state = useChromeLayoutStore.getState();
-        return isSecondarySidebarShownFor(
-            state.secondarySidebarVisible,
-            yieldScope,
-            state.secondarySidebarRevealedScope,
-        );
-    };
-
-    beforeEach(() => {
-        useChromeLayoutStore.setState({
-            secondarySidebarVisible: true,
-            secondarySidebarRevealedScope: undefined,
-        });
-    });
-
-    it('yields while a scope holds a pane beside its Chat', () => {
-        expect(isShown()).toBe(true);
-        expect(isShown(scope)).toBe(false);
-    });
-
-    it('reveals a yielding SecondarySidebar on toggle and keeps the stored preference', () => {
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        expect(isShown(scope)).toBe(true);
-        expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(true);
-    });
-
-    it('hides a revealed SecondarySidebar back into the yield, not into a stored hide', () => {
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        expect(isShown(scope)).toBe(false);
-        expect(isShown()).toBe(true);
-    });
-
-    it('reveals a stored hide inside a yield without turning the preference on', () => {
-        useChromeLayoutStore.setState({ secondarySidebarVisible: false });
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        expect(isShown(scope)).toBe(true);
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        useChromeLayoutStore.getState().syncSecondarySidebarYieldScope(undefined);
-        expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(false);
-        expect(isShown()).toBe(false);
-    });
-
-    it('lets a view command override the yield and leaves a stored hide alone', () => {
-        useChromeLayoutStore.setState({ secondarySidebarVisible: false });
-        useChromeLayoutStore.getState().setSecondarySidebarVisible(true, scope);
-        expect(isShown(scope)).toBe(true);
-        expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(false);
-    });
-
-    it('does not carry a reveal into another scope', () => {
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        expect(isShown('session-2:project-1')).toBe(false);
-    });
-
-    it('drops a reveal once its arrangement ends, so returning yields again', () => {
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        useChromeLayoutStore.getState().syncSecondarySidebarYieldScope(undefined);
-        expect(isShown(scope)).toBe(false);
-    });
-
-    it('keeps a reveal while its arrangement holds', () => {
-        useChromeLayoutStore.getState().toggleSecondarySidebar(scope);
-        useChromeLayoutStore.getState().syncSecondarySidebarYieldScope(scope);
-        expect(isShown(scope)).toBe(true);
-    });
-
-    it('hides normally without a yield', () => {
-        useChromeLayoutStore.getState().toggleSecondarySidebar();
-        expect(useChromeLayoutStore.getState().secondarySidebarVisible).toBe(false);
-    });
-});
-
 describe('Zen Mode', () => {
     beforeEach(() => {
         useChromeLayoutStore.setState({
             zenMode: false,
             primarySidebarVisible: true,
             secondarySidebarVisible: true,
-            secondarySidebarRevealedScope: undefined,
             panelVisible: true,
         });
     });

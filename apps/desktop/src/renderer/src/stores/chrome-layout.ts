@@ -29,6 +29,15 @@ export const SECONDARY_SIDEBAR_MAX_WIDTH = 600;
  */
 export const SECONDARY_SIDEBAR_DEFAULT_WIDTH = 310;
 
+/**
+ * The Portal (`features/agent-chat/portal/`) floats over the right edge of the window rather than taking a grid track,
+ * so its width only bounds what it covers. 360px matches t3code's right panel minimum; the default leaves room for the
+ * transcript's readable column inside a subagent timeline.
+ */
+export const PORTAL_MIN_WIDTH = 360;
+export const PORTAL_MAX_WIDTH = 960;
+export const PORTAL_DEFAULT_WIDTH = 480;
+
 export const PANEL_MIN_HEIGHT = 120;
 export const PANEL_MAX_HEIGHT = 900;
 export const PANEL_DEFAULT_HEIGHT = 220;
@@ -61,6 +70,7 @@ const STORAGE_KEY = 'caxri.chrome-layout';
 export interface ChromeLayout {
     primarySidebarWidth: number;
     secondarySidebarWidth: number;
+    portalWidth: number;
     panelHeight: number;
     primarySidebarVisible: boolean;
     secondarySidebarVisible: boolean;
@@ -77,6 +87,7 @@ export interface ChromeLayout {
 const DEFAULT_CHROME_LAYOUT: ChromeLayout = {
     primarySidebarWidth: PRIMARY_SIDEBAR_DEFAULT_WIDTH,
     secondarySidebarWidth: SECONDARY_SIDEBAR_DEFAULT_WIDTH,
+    portalWidth: PORTAL_DEFAULT_WIDTH,
     panelHeight: PANEL_DEFAULT_HEIGHT,
     primarySidebarVisible: true,
     secondarySidebarVisible: true,
@@ -92,20 +103,6 @@ const DEFAULT_CHROME_LAYOUT: ChromeLayout = {
 export function clampWidth(width: number, min: number, max: number): number {
     if (!Number.isFinite(width)) return min;
     return clamp(width, min, max);
-}
-
-/**
- * Whether the SecondarySidebar is on screen. The stored flag is the user's preference; while the selected Session's
- * layout shows a pane beside its Chat (`yieldScope`, see `hasBesideChatArrangement`), the SecondarySidebar yields its
- * width to that pair unless the user revealed it again in that same scope (`revealedScope`). The reveal overrides the
- * yield without touching the stored flag, so the preference the user had comes back once the arrangement ends.
- */
-export function isSecondarySidebarShownFor(
-    isVisible: boolean,
-    yieldScope: string | undefined,
-    revealedScope: string | undefined,
-): boolean {
-    return yieldScope === undefined ? isVisible : revealedScope === yieldScope;
 }
 
 /**
@@ -182,6 +179,11 @@ function readPersistedLayout(): ChromeLayout {
             SECONDARY_SIDEBAR_MIN_WIDTH,
             SECONDARY_SIDEBAR_MAX_WIDTH,
         ),
+        portalWidth: clampWidth(
+            typeof parsed.portalWidth === 'number' ? parsed.portalWidth : PORTAL_DEFAULT_WIDTH,
+            PORTAL_MIN_WIDTH,
+            PORTAL_MAX_WIDTH,
+        ),
         panelHeight: clampWidth(
             typeof parsed.panelHeight === 'number' ? parsed.panelHeight : PANEL_DEFAULT_HEIGHT,
             PANEL_MIN_HEIGHT,
@@ -213,36 +215,15 @@ function writePersistedLayout(layout: ChromeLayout): void {
 /**
  * Revalidates a visibility change immediately instead of waiting for the next window resize.
  */
-function fitCurrentViewport(layout: ChromeLayout, isSecondarySidebarShown?: boolean): ChromeLayout {
+function fitCurrentViewport(layout: ChromeLayout): ChromeLayout {
     if (!isBrowser()) return layout;
     return {
-        ...fitWidthsToViewport(layout, window.innerWidth, isSecondarySidebarShown),
+        ...clampLayoutToViewport(layout, window.innerWidth),
         panelHeight: clampPanelHeight(layout.panelHeight, window.innerHeight),
     };
 }
 
-/**
- * {@link clampLayoutToViewport} against what is on screen: a yielding SecondarySidebar reserves no width, so it must not
- * shrink the PrimarySidebar either. The stored visibility passes through unchanged.
- */
-function fitWidthsToViewport(
-    layout: ChromeLayout,
-    viewportWidth: number,
-    isSecondarySidebarShown = layout.secondarySidebarVisible,
-): ChromeLayout {
-    const fitted = clampLayoutToViewport(
-        { ...layout, secondarySidebarVisible: isSecondarySidebarShown },
-        viewportWidth,
-    );
-    return { ...fitted, secondarySidebarVisible: layout.secondarySidebarVisible };
-}
-
 interface ChromeLayoutState extends ChromeLayout {
-    /**
-     * The yield scope in which the user revealed the SecondarySidebar while it was yielding; see
-     * {@link isSecondarySidebarShownFor}. Window-local and never persisted: it only lasts while that arrangement does.
-     */
-    secondarySidebarRevealedScope?: string;
     /**
      * Zen mode: a window-local overlay that hides both side bars, the Panel, the tab bars, and the status bar without
      * touching their stored visibility, so leaving it restores the layout exactly. Never persisted; every launch starts
@@ -265,11 +246,9 @@ interface ChromeLayoutState extends ChromeLayout {
      */
     togglePrimarySidebar(): void;
     /**
-     * Reveals or hides the SecondarySidebar as it is on screen, not as stored, and hands keyboard focus over with it;
-     * see {@link handOffChromeFocus}. Inside a yield it only adds or drops the reveal and leaves the stored preference
-     * alone, so that preference comes back once the arrangement ends.
+     * Reveals or hides the SecondarySidebar and hands keyboard focus over with it; see {@link handOffChromeFocus}.
      */
-    toggleSecondarySidebar(yieldScope?: string): void;
+    toggleSecondarySidebar(): void;
     /**
      * Reveals or hides the Panel and hands keyboard focus over with it; see {@link handOffChromeFocus}.
      *
@@ -281,16 +260,7 @@ interface ChromeLayoutState extends ChromeLayout {
      */
     togglePanel(): void;
     setPrimarySidebarVisible(isVisible: boolean): void;
-    /**
-     * Reveals or hides the stored preference. Inside a yield (`yieldScope`) it reveals over the yield instead, so a
-     * command that shows a SecondarySidebar view never selects one the user cannot see, and leaves the preference
-     * alone.
-     */
-    setSecondarySidebarVisible(isVisible: boolean, yieldScope?: string): void;
-    /**
-     * Drops a reveal that no longer matches the current yield scope, so returning to an arrangement yields again.
-     */
-    syncSecondarySidebarYieldScope(yieldScope: string | undefined): void;
+    setSecondarySidebarVisible(isVisible: boolean): void;
     setPanelVisible(isVisible: boolean): void;
     /**
      * Selects a Panel view, revealing the panel when it is collapsed so a command can never select a view the user
@@ -311,13 +281,15 @@ interface ChromeLayoutState extends ChromeLayout {
      * Re-clamps the persisted layout against a new viewport; see {@link clampLayoutToViewport} and
      * {@link clampPanelHeight}.
      */
-    clampToViewport(viewportWidth: number, viewportHeight: number, yieldScope?: string): void;
+    clampToViewport(viewportWidth: number, viewportHeight: number): void;
+    setPortalWidth(width: number): void;
 }
 
 function pickLayout(state: ChromeLayout): ChromeLayout {
     return {
         primarySidebarWidth: state.primarySidebarWidth,
         secondarySidebarWidth: state.secondarySidebarWidth,
+        portalWidth: state.portalWidth,
         panelHeight: state.panelHeight,
         primarySidebarVisible: state.primarySidebarVisible,
         secondarySidebarVisible: state.secondarySidebarVisible,
@@ -406,37 +378,20 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         writePersistedLayout(layout);
         set(layout);
     },
-    toggleSecondarySidebar(yieldScope) {
+    toggleSecondarySidebar() {
         if (get().zenMode) {
             set({ zenMode: false });
-            const state = get();
-            if (
-                isSecondarySidebarShownFor(
-                    state.secondarySidebarVisible,
-                    yieldScope,
-                    state.secondarySidebarRevealedScope,
-                )
-            )
-                return;
+            if (get().secondarySidebarVisible) return;
         }
-        const state = get();
-        const isRevealing = !isSecondarySidebarShownFor(
-            state.secondarySidebarVisible,
-            yieldScope,
-            state.secondarySidebarRevealedScope,
-        );
-        const layout = fitCurrentViewport(
-            {
-                ...pickLayout(state),
-                secondarySidebarVisible:
-                    yieldScope === undefined ? isRevealing : state.secondarySidebarVisible,
-            },
-            isRevealing,
-        );
+        const isRevealing = !get().secondarySidebarVisible;
+        const layout = fitCurrentViewport({
+            ...pickLayout(get()),
+            secondarySidebarVisible: isRevealing,
+        });
         // Same contract as the Panel: `Cmd+]` reaches through a focused Terminal too, so it owes the same handoff.
         handOffChromeFocus('secondarySidebar', isRevealing);
         writePersistedLayout(layout);
-        set({ ...layout, secondarySidebarRevealedScope: isRevealing ? yieldScope : undefined });
+        set(layout);
     },
     setPrimarySidebarVisible(isVisible) {
         const layout = fitCurrentViewport({
@@ -446,27 +401,13 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         writePersistedLayout(layout);
         set({ ...layout, ...(isVisible && { zenMode: false }) });
     },
-    setSecondarySidebarVisible(isVisible, yieldScope) {
-        const state = get();
-        const layout = fitCurrentViewport(
-            {
-                ...pickLayout(state),
-                secondarySidebarVisible:
-                    yieldScope === undefined ? isVisible : state.secondarySidebarVisible,
-            },
-            isVisible,
-        );
-        writePersistedLayout(layout);
-        set({
-            ...layout,
-            secondarySidebarRevealedScope: isVisible ? yieldScope : undefined,
-            ...(isVisible && { zenMode: false }),
+    setSecondarySidebarVisible(isVisible) {
+        const layout = fitCurrentViewport({
+            ...pickLayout(get()),
+            secondarySidebarVisible: isVisible,
         });
-    },
-    syncSecondarySidebarYieldScope(yieldScope) {
-        const revealed = get().secondarySidebarRevealedScope;
-        if (revealed !== undefined && revealed !== yieldScope)
-            set({ secondarySidebarRevealedScope: undefined });
+        writePersistedLayout(layout);
+        set({ ...layout, ...(isVisible && { zenMode: false }) });
     },
     togglePanel() {
         if (get().zenMode) {
@@ -515,19 +456,10 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         writePersistedLayout(layout);
         set({ ...layout, zenMode: false });
     },
-    clampToViewport(viewportWidth, viewportHeight, yieldScope) {
-        const state = get();
-        const current = pickLayout(state);
+    clampToViewport(viewportWidth, viewportHeight) {
+        const current = pickLayout(get());
         const next = {
-            ...fitWidthsToViewport(
-                current,
-                viewportWidth,
-                isSecondarySidebarShownFor(
-                    current.secondarySidebarVisible,
-                    yieldScope,
-                    state.secondarySidebarRevealedScope,
-                ),
-            ),
+            ...clampLayoutToViewport(current, viewportWidth),
             panelHeight: clampPanelHeight(current.panelHeight, viewportHeight),
         };
         if (
@@ -538,6 +470,11 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             return;
         writePersistedLayout(next);
         set(next);
+    },
+    setPortalWidth(width) {
+        const portalWidth = clampWidth(width, PORTAL_MIN_WIDTH, PORTAL_MAX_WIDTH);
+        writePersistedLayout({ ...pickLayout(get()), portalWidth });
+        set({ portalWidth });
     },
 }));
 
@@ -559,20 +496,17 @@ export function isPanelShown(state: Pick<ChromeLayoutState, 'panelVisible' | 'ze
 
 /**
  * Keeps the persisted layout valid as the window resizes. Runs once on mount (a persisted layout from a larger window
- * could otherwise overflow a smaller one) and again on every `resize` event. `getYieldScope` reads the current
- * SecondarySidebar yield scope, which lives with the Session layout rather than in this store.
+ * could otherwise overflow a smaller one) and again on every `resize` event.
  */
-export function useChromeViewportClamp(getYieldScope: () => string | undefined): void {
+export function useChromeViewportClamp(): void {
     useEffect(() => {
         const clamp = (): void =>
-            useChromeLayoutStore
-                .getState()
-                .clampToViewport(window.innerWidth, window.innerHeight, getYieldScope());
+            useChromeLayoutStore.getState().clampToViewport(window.innerWidth, window.innerHeight);
         clamp();
         // ResizeObserver on the root element reacts to viewport width changes without a
         // window-level `resize` listener, satisfying unicorn/prefer-observer-apis.
         const observer = new ResizeObserver(clamp);
         observer.observe(document.documentElement);
         return () => observer.disconnect();
-    }, [getYieldScope]);
+    }, []);
 }

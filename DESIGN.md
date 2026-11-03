@@ -1389,7 +1389,10 @@ tasks under them, most recent first, with how each ended (from a folded section 
 description of it (Claude Code's `Bash` or `Monitor` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as
-a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
+a read-only view in the Portal, the flyout over the window's right edge (`bg-surface`, a left
+`border-border` hairline, and the drawer shadow) that covers the Secondary Sidebar instead of
+splitting the Workbench; its header is a plain title for one item and tabs for several, with Open in
+Split and Close on the right. A user
 message steered into a running turn carries a `--muted` `CornerDownRight` glyph before its bubble,
 with a tooltip saying it was sent while the Agent was working and joined the running turn, and the
 same accessible name; a queued one is an
