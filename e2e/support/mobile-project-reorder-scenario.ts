@@ -16,6 +16,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import type { GrayFrame } from './mobile-motion-analysis';
 import { departuresFromFinalPicture, readRecordingBand } from './mobile-motion-analysis';
 import type { Environment } from './mobile-project-panels-scenarios';
 import { addProjectFromPhone, capture, finish, hasCheck } from './mobile-project-panels-scenarios';
@@ -26,12 +27,35 @@ const chipBounds = (nodes: Awaited<ReturnType<typeof mobileSemantics>>, projectI
 };
 
 /**
+ * The same frames cut down to columns `left`..`right`.
+ */
+const columnWindow = (
+    frames: readonly GrayFrame[],
+    width: number,
+    { left, right }: { left: number; right: number },
+): GrayFrame[] =>
+    frames.map(({ data, time }) => {
+        const columns = right - left;
+        const rows = data.length / width;
+        const cut = new Uint8Array(columns * rows);
+        for (let row = 0; row < rows; row += 1)
+            cut.set(data.subarray(row * width + left, row * width + right), row * columns);
+        return { data: cut, time };
+    });
+
+/**
+ * How long the strip rests after the recording starts. `screenrecord` writes its first frame a moment after the process
+ * starts, and the video must open on the resting strip so it carries the whole drag and drop.
+ */
+const RECORDING_LEAD_MS = 1000;
+
+/**
  * `MOB-PROJECT-REORDER-01`: the phone holds two of the Mac's three Projects. Dragging the second Project chip in front
  * of the first moves it on the phone and in the Mac's Project order, while the Project the phone cannot see keeps its
  * place relative to the others; a plain tap on a chip still filters.
  *
- * The drop is recorded: once the strip first shows its final order it must hold it, since the move's own dashboard
- * event once settled the refresh early and the strip flashed the old order for a frame (#3532).
+ * The drag and drop are recorded: once the neighbor chip has stepped into its final slot it must stay there, since the
+ * move's own dashboard event once settled the refresh early and the strip flashed the old order for a frame (#3532).
  */
 export async function executeMobileProjectReorderScenario(
     environment: Environment,
@@ -79,6 +103,8 @@ export async function executeMobileProjectReorderScenario(
             top: added.top - 8,
         };
         const resting = await mobileRegionFingerprint(environment.serial, strip);
+        recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
+        await new Promise((resolve) => setTimeout(resolve, RECORDING_LEAD_MS));
         // The finger stays down past the pick-up delay, slides onto the other chip, and holds there while the frame is
         // captured, so the evidence shows the lifted chip and its neighbor stepping aside before the drop.
         const y = Math.floor((added.top + added.bottom) / 2);
@@ -99,7 +125,6 @@ export async function executeMobileProjectReorderScenario(
         ]);
         const moving = await mobileRegionFingerprint(environment.serial, strip);
         await capture(environment, 'dragging', artifacts);
-        recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
         await adbShell(environment.serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
         if (moving === resting) throw new Error('The held chip did not move while dragged');
         const after = await waitForMobile(desktopOrder, (order) => order[0] === addedId);
@@ -125,11 +150,26 @@ export async function executeMobileProjectReorderScenario(
         try {
             const video = join(analysis, 'drop.mp4');
             await copyMobileFramebufferRecording(environment.serial, remoteVideoPath, video);
-            const { frames } = await readRecordingBand(video, strip);
-            const { departures, settledAt } = departuresFromFinalPicture(frames);
+            const { frames, geometry, scale } = await readRecordingBand(video, strip);
+            // Once the held chip has pushed its neighbor aside, the neighbor already sits in its final slot, and the drop
+            // only glides the held chip into the gap. So from the first frame that shows the neighbor there, that slot keeps
+            // one picture to the end; a frame that redraws the old order, even half-laid-out, moves the neighbor out.
+            const neighbor = chipBounds(moved, allowedId)!;
+            const slot = columnWindow(frames, geometry.width, {
+                left: Math.floor(neighbor.left / scale),
+                right: Math.ceil(neighbor.right / scale),
+            });
+            const { departures, settledAt } = departuresFromFinalPicture(slot);
+            // Without the held frames before the drop settled the check could not see a flash at all.
+            if (!(
+                slot[0].time < settledAt && settledAt < departuresFromFinalPicture(frames).settledAt
+            ))
+                throw new Error(
+                    'The recording does not show the neighbor held aside before the drop settled',
+                );
             if (departures > 0)
                 throw new Error(
-                    `The strip left its dropped order for ${departures} frames after ${Math.round(settledAt)}ms`,
+                    `The neighbor chip left its dropped slot for ${departures} frames after ${Math.round(settledAt)}ms`,
                 );
             dropDepartures = departures;
         } finally {
