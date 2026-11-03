@@ -12,6 +12,7 @@ import {
     isAgentChatTurnStart,
     withAgentChatPendingEntries,
 } from '../agent-chat-timeline';
+import { agentChatFormerEntryIds } from '../agent-chat-timeline-work';
 
 const items = (reply: string): AgentChatItem[] => [
     { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Fix the build' },
@@ -89,6 +90,68 @@ describe('stabilizeAgentChatEntries', () => {
         const first = stabilize(timelineWith('Done'));
         expect(stabilize(timelineWith('Done'))).toBe(first);
         expect(stabilize(timelineWith('Done!'))[0]).toBe(first[0]);
+    });
+
+    it('keeps the top work row keyed the same while older pages extend it at its front', () => {
+        const command = (id: string): AgentChatItem => ({
+            id,
+            turnId: 't1',
+            type: 'command',
+            command: `echo ${id}`,
+            output: '',
+            status: 'completed',
+        });
+        const reply: AgentChatItem = {
+            id: 'a1',
+            turnId: 't1',
+            type: 'agentMessage',
+            text: 'Checked.',
+            streaming: false,
+        };
+        const stabilize =
+            createAgentChatEntryStabilizer<AgentChatTimelineEntry>(agentChatFormerEntryIds);
+        const window = timeline([command('c3'), command('c4'), reply]);
+        const firstPage = timeline([command('c2'), command('c3'), command('c4'), reply]);
+        const secondPage = timeline([
+            command('c1'),
+            command('c2'),
+            command('c3'),
+            command('c4'),
+            reply,
+        ]);
+        // Without the carry-over the run is re-keyed by each page's oldest call.
+        expect(ids(firstPage)[0]).not.toBe(ids(window)[0]);
+        const opened = stabilize(window);
+        expect(ids(stabilize(firstPage))).toEqual(ids(opened));
+        const extended = stabilize(secondPage);
+        expect(ids(extended)).toEqual(ids(opened));
+        expect(extended[0]).toMatchObject({ kind: 'work', itemIds: ['c1', 'c2', 'c3', 'c4'] });
+    });
+
+    it('keeps a new work row its own key when no earlier row holds one of its calls', () => {
+        const command = (id: string): AgentChatItem => ({
+            id,
+            turnId: 't1',
+            type: 'command',
+            command: `echo ${id}`,
+            output: '',
+            status: 'completed',
+        });
+        const message = (id: string): AgentChatItem => ({
+            id,
+            turnId: 't1',
+            type: 'agentMessage',
+            text: id,
+            streaming: false,
+        });
+        const stabilize =
+            createAgentChatEntryStabilizer<AgentChatTimelineEntry>(agentChatFormerEntryIds);
+        const opened = stabilize(timeline([command('c3'), message('a2')]));
+        // An older page brings a separate run before a message: it is a new row, not the opened one.
+        const paged = stabilize(
+            timeline([command('c1'), command('c2'), message('a1'), command('c3'), message('a2')]),
+        );
+        expect(ids(paged)).toEqual(['work:c1', 'a1', ...ids(opened)]);
     });
 });
 

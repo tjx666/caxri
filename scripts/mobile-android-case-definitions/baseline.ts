@@ -302,6 +302,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-long-turn-open',
     },
+    'MOB-CHAT-SCROLLBACK-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-scrollback',
+    },
     'MOB-CHAT-SEND-UNKNOWN-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],

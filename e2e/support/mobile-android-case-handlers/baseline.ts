@@ -47,6 +47,7 @@ import {
     executeMobileChatLongTurnOpenScenario,
     executeMobileChatRunningTurnScenario,
 } from '../mobile-agent-chat-running-turn-scenario';
+import { executeMobileChatScrollbackScenario } from '../mobile-agent-chat-scrollback-scenario';
 import {
     executeMobileChatChineseScenario,
     executeMobileChatSkillsQuestionScenario,
@@ -551,6 +552,7 @@ export const handlers = {
     'MOB-CHAT-GOAL-OUTCOME-01': executeMobileChatGoalOutcomeScenario,
     'MOB-CHAT-RUNNING-OPEN-01': executeMobileChatRunningTurnScenario,
     'MOB-CHAT-RUNNING-OPEN-02': executeMobileChatLongTurnOpenScenario,
+    'MOB-CHAT-SCROLLBACK-01': executeMobileChatScrollbackScenario,
     'MOB-CHAT-SEND-UNKNOWN-01': executeMobileChatSendUnknownScenario,
     'MOB-CHAT-SURFACE-SWITCH-01': executeMobileChatSurfaceSwitchScenario,
     'MOB-CHAT-USAGE-GUARD-01': executeMobileChatUsageGuardScenario,

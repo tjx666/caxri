@@ -1,0 +1,227 @@
+import type { FakeClaudeScript } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-script.ts';
+import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
+import { capture, finish } from './mobile-agent-actions-scenarios';
+import {
+    isRunningLastCommand,
+    LAST_NARRATION,
+    RUNNING_PROMPT,
+    search,
+} from './mobile-agent-chat-running-turn-scenario';
+import {
+    adbShell,
+    androidBounds,
+    mobileDisplayState,
+    mobileRegionFingerprint,
+    mobileSemantics,
+    startMobileFramebufferRecording,
+    waitForMobile,
+} from './mobile-android';
+import { setEmulatorNetworkDelay } from './mobile-android-network';
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A running turn whose search runs are each longer than one mobile history page (about a dozen of these searches), so
+ * the phone's window and every page it reads cut a run in two. Only such a cut gives the page an older call at the
+ * front of the reader's top row; with short runs a cut can fall between a run and its narration, and the old code held
+ * its place by luck.
+ */
+const longRunsScript: FakeClaudeScript = {
+    turns: [
+        {
+            prompt: RUNNING_PROMPT,
+            steps: [
+                { kind: 'thinking', text: 'Looking at how usage is counted.' },
+                ...Array.from({ length: 12 }, (_, round) => [
+                    ...Array.from({ length: 14 + (round % 4) }, (_, index) =>
+                        search(round * 20 + index),
+                    ),
+                    { kind: 'text' as const, text: `Step ${round}: now the protocol edits.` },
+                ]).flat(),
+                { kind: 'text', text: LAST_NARRATION },
+                {
+                    kind: 'tool',
+                    name: 'Bash',
+                    input: { command: 'sleep 900', description: 'Declare lanes and recheck' },
+                    output: 'done',
+                    durationMs: 900_000,
+                },
+            ],
+        },
+    ],
+};
+
+/**
+ * Round-trip latency while the reader scrolls back, so each history page lands after the fling that asked for it came
+ * to rest and any movement it causes is the list's own, not the finger's. The delay holds back the phone's TCP
+ * acknowledgements too, so a large page needs several delayed round trips: at 1.8 seconds a page read outlived the
+ * phone's 3 second read timeout (`READ_REQUEST_TIMEOUT_MS`) and the Reconnecting banner pushed the whole timeline
+ * down.
+ */
+const PAGE_DELAY_MS = 900;
+
+/**
+ * Quick flings toward older rows, as a reader skimming back does. A fling coasts to the very top of the loaded rows, so
+ * the row FlashList keeps in place is the topmost one: the work run the next page extends at its front. A slow drag
+ * asked for the page while a few rows still sat above, and the row kept in place was one the page never touched.
+ */
+const DRAG_COUNT = 6;
+const DRAG_MS = 120;
+
+/**
+ * Flings that must each find older rows before the reader may reach the turn's request: the fixture's turn needs
+ * several pages, so a list stuck sooner never received the page it asked for.
+ */
+const MIN_MOVING_DRAGS = 3;
+
+/**
+ * How long after a fling the list may still move on its own: a page lands at {@link PAGE_DELAY_MS} and one scroll-back
+ * reads several pages in a row.
+ */
+const WATCH_AFTER_DRAG_MS = 8_000;
+
+/**
+ * Lets the lifted finger's last scroll events and the scroll bar's fade finish before the reference picture.
+ */
+const LIFT_SETTLE_MS = 700;
+
+/**
+ * The picture a band settles on: two reads in a row that match, so a row still measuring is not taken as the reference.
+ */
+async function settledFingerprint(
+    serial: string,
+    band: Parameters<typeof mobileRegionFingerprint>[1],
+): Promise<string> {
+    let last = await mobileRegionFingerprint(serial, band);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each read compares with the one before it
+        await pause(200);
+        // eslint-disable-next-line no-await-in-loop -- see above
+        const next = await mobileRegionFingerprint(serial, band);
+        if (next === last) return next;
+        last = next;
+    }
+    throw new Error('The timeline band never settled after the drag');
+}
+
+/**
+ * `MOB-CHAT-SCROLLBACK-01`: a reader who scrolls back through a long running turn keeps their place while older pages
+ * load. Each page that extended the top work run gave that row a new id, FlashList lost the row it keeps in place, and
+ * the list jumped page after page to the turn's request while the reader's finger was off the screen.
+ *
+ * UIAutomator never reads a Chat whose running status keeps ticking, so the rows are compared as pixels: after each
+ * drag, a band of the timeline below the history header (and left of the scroll bar) must still show the picture it
+ * showed when the finger lifted once the pages that drag asked for have landed.
+ */
+export async function executeMobileChatScrollbackScenario(
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
+    artifacts: string[],
+): Promise<void> {
+    const { remoteVideoPath, serial } = environment;
+    if (!remoteVideoPath)
+        throw new Error('MOB-CHAT-SCROLLBACK-01 films the scroll-back for its reviewer');
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        claudeScript: longRunsScript,
+        mode: 'agent-chat',
+        serial,
+    });
+    let isDelayed = false;
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    try {
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await fixture.pair();
+        const row = (await mobileSemantics(serial)).find(
+            ({ checkId }) => checkId === `session-row-${fixture.allowedSessionId}`,
+        );
+        const bounds = row && androidBounds(row.bounds);
+        if (!bounds) throw new Error('The Session row is not laid out');
+        const { size } = await mobileDisplayState(serial);
+        const { height, width } = size.override ?? size.physical;
+        await chat.send({ text: RUNNING_PROMPT });
+        await waitForMobile(() => chat.read(), isRunningLastCommand, 60_000);
+        await adbShell(serial, [
+            'input',
+            'tap',
+            String(Math.floor((bounds.left + bounds.right) / 2)),
+            String(Math.floor((bounds.top + bounds.bottom) / 2)),
+        ]);
+        await pause(5_000);
+        await capture(environment, 'opened', artifacts);
+        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        await setEmulatorNetworkDelay(serial, PAGE_DELAY_MS);
+        isDelayed = true;
+        const band = {
+            bottom: Math.floor(height * 0.55),
+            left: 0,
+            right: Math.floor(width * 0.9),
+            top: Math.floor(height * 0.3),
+        };
+        const x = String(Math.floor(width / 2));
+        const moves: Array<{ drag: number; changedSamples: number }> = [];
+        const stuck: number[] = [];
+        for (let drag = 1; drag <= DRAG_COUNT; drag += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each drag starts where the previous one left the list
+            const before = await mobileRegionFingerprint(serial, band);
+            // eslint-disable-next-line no-await-in-loop -- each drag starts where the previous one left the list
+            await adbShell(serial, [
+                'input',
+                'swipe',
+                x,
+                String(Math.floor(height * 0.25)),
+                x,
+                String(Math.floor(height * 0.7)),
+                String(DRAG_MS),
+            ]);
+            // eslint-disable-next-line no-await-in-loop -- see above
+            await pause(LIFT_SETTLE_MS);
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const lifted = await settledFingerprint(serial, band);
+            // A drag that cannot move the rows found no older rows above them: either a page never came or the reader
+            // already reached the turn's request.
+            if (lifted === before) stuck.push(drag);
+            let changedSamples = 0;
+            const deadline = Date.now() + WATCH_AFTER_DRAG_MS;
+            while (Date.now() < deadline) {
+                // eslint-disable-next-line no-await-in-loop -- one framebuffer read at a time
+                await pause(400);
+                // eslint-disable-next-line no-await-in-loop -- see above
+                if ((await mobileRegionFingerprint(serial, band)) !== lifted) changedSamples += 1;
+            }
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const settled = await mobileRegionFingerprint(serial, band);
+            if (settled !== lifted || changedSamples > 0) moves.push({ changedSamples, drag });
+        }
+        await setEmulatorNetworkDelay(serial, 0);
+        isDelayed = false;
+        await capture(environment, 'scrolled-back', artifacts);
+        await recording.stop();
+        recording = undefined;
+        if (moves.length > 0)
+            throw new Error(
+                `The timeline moved without a touch after ${moves.length} of ${DRAG_COUNT} drags: ${JSON.stringify(moves)}`,
+            );
+        // Once the reader reaches the turn's request nothing older is left, so only trailing drags may stay put. A
+        // stuck drag followed by a moving one, or too few moving drags, means a page never reached the list.
+        const firstStuck = stuck[0] ?? DRAG_COUNT + 1;
+        if (
+            firstStuck <= MIN_MOVING_DRAGS ||
+            stuck.some((drag, index) => drag !== firstStuck + index)
+        )
+            throw new Error(
+                `Drags ${stuck.join(', ')} could not move the timeline, so no older page reached it`,
+            );
+        await finish(environment, artifacts, {
+            drags: DRAG_COUNT,
+            movingDrags: firstStuck - 1,
+            pageDelayMs: PAGE_DELAY_MS,
+            status: 'passed',
+        });
+    } finally {
+        if (isDelayed) await setEmulatorNetworkDelay(serial, 0);
+        await recording?.stop();
+        await fixture.stop();
+    }
+}
