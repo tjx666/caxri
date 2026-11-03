@@ -32,6 +32,35 @@ export const orderedProjects = <Project extends { id: string }>(
 };
 
 /**
+ * A move the phone shows before the Server's dashboard carries it, and the Server order it was made from.
+ */
+export interface PendingProjectOrder {
+    /**
+     * The Server's Project order when the move was made, joined with newlines.
+     */
+    baseline: string;
+    order: string[];
+}
+
+/**
+ * A comparable key for a Project order.
+ */
+export const projectOrderKey = (ids: readonly string[]): string => ids.join('\n');
+
+/**
+ * Whether a pending move still applies: only while the dashboard shows the order it was made from. Once the dashboard
+ * carries any other order (the move itself, or a change from elsewhere) the Server's order wins.
+ *
+ * Waiting for the dashboard to change, rather than for a refresh call to settle, matters because a refresh can settle
+ * without new data: the dashboard event the move triggers cancels the refresh's in-flight read, and TanStack Query
+ * resolves a cancelled refetch silently, so clearing the move then flashed the old order for a frame.
+ */
+export const isPendingProjectOrderCurrent = (
+    serverOrder: string,
+    pending: PendingProjectOrder | null,
+): pending is PendingProjectOrder => serverOrder === pending?.baseline;
+
+/**
  * Moves `projectId` to `toIndex` and names the neighbor it lands beside, because the Server places a phone's move
  * relative to a Project the phone can see rather than at a global index. Returns `null` when nothing moves.
  */
