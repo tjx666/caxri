@@ -30,7 +30,7 @@ function MatchStepButton({
 }) {
     const Icon = direction === 'next' ? ChevronDown : ChevronUp;
     return (
-        <Tooltip content={label}>
+        <Tooltip content={label} shortcut={direction === 'next' ? 'Alt+Down' : 'Alt+Up'}>
             <button
                 aria-label={label}
                 className="grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"

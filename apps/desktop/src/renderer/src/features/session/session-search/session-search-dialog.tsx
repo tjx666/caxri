@@ -154,13 +154,15 @@ function SessionSearchBody() {
                 </div>
             </div>
             <div className="flex h-7 flex-none items-center gap-3 border-t border-border px-3 text-[11px] text-muted">
-                <span>{t('session.search.helpMove')}</span>
-                <span>{t('session.search.helpAction')}</span>
-                <span>{t('session.search.helpMatch')}</span>
-                <span>{t('session.search.helpFilter')}</span>
-                <span>{t('session.search.helpSort')}</span>
+                {/* Filter, sort, and match-step shortcuts live in their controls' tooltips; the footer keeps only what
+                    has no control of its own. */}
+                <span className="flex-none">{t('session.search.helpMove')}</span>
+                <span className="flex-none">{t('session.search.helpAction')}</span>
                 {search.entries.some((entry) => entry.branches) && (
-                    <span>{t('session.search.helpBranches')}</span>
+                    <span className="flex-none">{t('session.search.helpBranches')}</span>
+                )}
+                {search.query.trim() === '' && (
+                    <span className="min-w-0 truncate">{t('session.search.operatorHint')}</span>
                 )}
                 {search.result && (
                     <span
@@ -234,11 +236,6 @@ function SessionSearchContent({
     const relaxedKey = sessionSearchRelaxationNoticeKey(search.result?.relaxation);
     return (
         <>
-            {search.query.trim() === '' && (
-                <div className="flex-none px-3 py-1.5 text-[12px] text-muted">
-                    {t('session.search.operatorHint')}
-                </div>
-            )}
             {relaxedKey && (
                 <div
                     className="flex-none border-b border-border bg-elevated px-3 py-1.5 text-[12px] text-muted"

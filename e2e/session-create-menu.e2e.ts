@@ -156,9 +156,10 @@ test('Import Conversation opens Session search on conversations not in Caxri', a
         const statusFilter = (filter: string) =>
             running.page.locator(`[data-session-search-status-filter="${filter}"]`);
         await expect(statusFilter('external')).toHaveAttribute('aria-pressed', 'true');
-        await expect(
-            running.page.locator('[data-session-search-scope="currentProject"]'),
-        ).toHaveAttribute('aria-pressed', 'true');
+        await expect(running.page.locator('[data-session-search-scope]')).toHaveAttribute(
+            'data-session-search-scope',
+            'currentProject',
+        );
         await running.page.screenshot({ path: testInfo.outputPath('import-from-history.png') });
 
         await running.page.keyboard.press('Escape');

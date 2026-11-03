@@ -268,23 +268,23 @@ test('Session search finds open, archived, and external conversations and acts o
         await expect(search.results.getByRole('option')).toHaveCount(3);
 
         // Sort and Project scope switch from the filter bar or with Option+S and Option+P.
-        const sortRecent = search.dialog.locator('[data-session-search-sort="recent"]');
-        const sortRelevance = search.dialog.locator('[data-session-search-sort="relevance"]');
-        await expect(sortRelevance).toHaveAttribute('aria-pressed', 'true');
-        await sortRecent.click();
-        await expect(sortRecent).toHaveAttribute('aria-pressed', 'true');
+        const sort = search.dialog.locator('[data-session-search-sort]');
+        await expect(sort).toHaveAttribute('data-session-search-sort', 'relevance');
+        await sort.click();
+        await page.getByRole('option', { name: 'Recent' }).click();
+        await expect(sort).toHaveAttribute('data-session-search-sort', 'recent');
         await expect(search.results.getByRole('option')).toHaveCount(3);
+        await search.input.focus();
         await search.input.press('Alt+S');
-        await expect(sortRelevance).toHaveAttribute('aria-pressed', 'true');
-        const currentProjectScope = search.dialog.locator(
-            '[data-session-search-scope="currentProject"]',
-        );
-        const allProjectsScope = search.dialog.locator('[data-session-search-scope="allProjects"]');
-        await expect(currentProjectScope).toHaveAttribute('aria-pressed', 'true');
-        await allProjectsScope.click();
-        await expect(allProjectsScope).toHaveAttribute('aria-pressed', 'true');
+        await expect(sort).toHaveAttribute('data-session-search-sort', 'relevance');
+        const scope = search.dialog.locator('[data-session-search-scope]');
+        await expect(scope).toHaveAttribute('data-session-search-scope', 'currentProject');
+        await scope.click();
+        await page.getByRole('option', { name: 'All Projects' }).click();
+        await expect(scope).toHaveAttribute('data-session-search-scope', 'allProjects');
+        await search.input.focus();
         await search.input.press('Alt+P');
-        await expect(currentProjectScope).toHaveAttribute('aria-pressed', 'true');
+        await expect(scope).toHaveAttribute('data-session-search-scope', 'currentProject');
         await expect(search.results.getByRole('option')).toHaveCount(3);
 
         await search.dialog.locator('[data-session-search-status-filter="external"]').click();
