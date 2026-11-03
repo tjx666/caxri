@@ -43,7 +43,10 @@ describe('Runtime service handler cancellation', () => {
             introspection: {} as ReturnType<typeof createIntrospectionServices>,
             logger: {} as never,
             longPastes: {} as never,
-            projectStatus: { useSessionPullRequests: () => {} } as unknown as ProjectStatusService,
+            projectStatus: {
+                useMergeListener: () => {},
+                useSessionPullRequests: () => {},
+            } as unknown as ProjectStatusService,
             sessionContext: {} as never,
             settlementWiring: new PullRequestSettlementWiring(() => {}),
             terminals: {} as never,
@@ -90,7 +93,10 @@ describe('Theme import handler', () => {
             introspection: {} as ReturnType<typeof createIntrospectionServices>,
             logger: {} as never,
             longPastes: {} as never,
-            projectStatus: { useSessionPullRequests: () => {} } as unknown as ProjectStatusService,
+            projectStatus: {
+                useMergeListener: () => {},
+                useSessionPullRequests: () => {},
+            } as unknown as ProjectStatusService,
             sessionContext: {} as never,
             settlementWiring: new PullRequestSettlementWiring(() => {}),
             terminals: {} as never,

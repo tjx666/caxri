@@ -287,6 +287,11 @@ const projectStatusRepoSchema = z.object({
              * PR lifecycle is independent of the CI rollup; absent when the provider omits it.
              */
             lifecycle: sessionPullRequestStateSchema.optional(),
+            /**
+             * When GitHub merged the pull request, in epoch milliseconds; absent while unmerged. Server Core uses it to
+             * tell a merge the Session's own Agent made from one made elsewhere before announcing it.
+             */
+            mergedAt: z.number().optional(),
             state: projectStatusStateSchema,
             checks: z.array(projectStatusCheckSchema),
             hiddenCheckCount: z.number().int().nonnegative(),
