@@ -181,3 +181,21 @@ pages still landed within one frame and the baseline could not fail.
 It applies a `netem` qdisc to `wlan0` and `eth0` through the emulator image's `su`. Confirm it once
 with `adb -s <serial> shell ping -c 1 10.0.2.2`, and clear it with `setEmulatorNetworkDelay(serial, 0)`
 in the case's `finally` so the next case starts without latency.
+
+Calibrate the delay on the recording before trusting a verdict: in `MOB-CHAT-SCROLLBACK-01`,
+1.8 seconds dropped the phone into Reconnecting mid-case, and the banner moved the timeline exactly
+as the defect would. Pick a delay at which the recording shows no reconnect or other layout change.
+
+## Make history page cuts land where the defect needs them
+
+**Situation:** A mobile defect depends on where the window or a history page cuts the
+conversation, such as an older page extending the reader's top work row at its front.
+
+**Does not work:** A fixture sized by item count. Mobile pages are cut by serialized bytes
+(`windowAgentChatHistoryPageForMobile` in `packages/protocol/src/mobile/mobile-agent-chat-window.ts`),
+so in `MOB-CHAT-SCROLLBACK-01` a cut fell between a tool run and its narration: one baseline failed by
+luck and the next passed with the defect still in the code.
+
+**Works:** Shape the fixture so the byte budget can only cut inside the triggering structure (there,
+search runs whose serialized size exceeds a whole page), then require the baseline with the fix
+reverted to fail on its recording before accepting the fixed round.

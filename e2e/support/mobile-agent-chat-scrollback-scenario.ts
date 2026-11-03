@@ -54,10 +54,9 @@ const longRunsScript: FakeClaudeScript = {
 
 /**
  * Round-trip latency while the reader scrolls back, so each history page lands after the fling that asked for it came
- * to rest and any movement it causes is the list's own, not the finger's. The delay holds back the phone's TCP
- * acknowledgements too, so a large page needs several delayed round trips: at 1.8 seconds a page read outlived the
- * phone's 3 second read timeout (`READ_REQUEST_TIMEOUT_MS`) and the Reconnecting banner pushed the whole timeline
- * down.
+ * to rest and any movement it causes is the list's own, not the finger's. At 1.8 seconds the phone dropped into
+ * Reconnecting mid-case and its banner pushed the whole timeline down, a movement the pixel check cannot tell from the
+ * defect; the reconnect's cause was not isolated, and 900 ms kept the connection up in every recorded run.
  */
 const PAGE_DELAY_MS = 900;
 
