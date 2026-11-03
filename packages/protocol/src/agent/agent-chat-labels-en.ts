@@ -472,4 +472,11 @@ export const agentChatLabelsEn = {
     'agentChat.tasks.toolUseOne': '1 tool use',
     'agentChat.tasks.toolUseOther': '{{count}} tool uses',
     'agentChat.tasks.usingTool': 'Using {{tool}}',
+    'agentChat.tasks.activity.command': 'Running a command',
+    'agentChat.tasks.activity.edit': 'Editing files',
+    'agentChat.tasks.activity.list': 'Listing files',
+    'agentChat.tasks.activity.read': 'Reading files',
+    'agentChat.tasks.activity.search': 'Searching files',
+    'agentChat.tasks.activity.web': 'Browsing the web',
+    'agentChat.tasks.activity.write': 'Writing files',
 } as const;

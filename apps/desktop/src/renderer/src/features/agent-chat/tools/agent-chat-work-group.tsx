@@ -10,6 +10,7 @@ import {
     agentChatWorkDuration,
     agentChatWorkflowCurrentPhase,
     agentChatWorkGroupFailure,
+    agentChatWorkSubject,
     agentChatWorkSummaryGlyph,
     agentChatWorkSummaryItems,
     agentChatWorkSummaryPhrases,
@@ -305,7 +306,8 @@ const AgentChatWorkRow = memo(
         // A subagent call settles as soon as the subagent launches; the row keeps running until the subagent ends.
         const isRunning = isAgentChatWorkRowRunning(item, task);
         const verb = agentChatWorkVerb(item, presentation, t, task);
-        const { path, subject } = presentation;
+        const { path } = presentation;
+        const subject = agentChatWorkSubject(item, presentation, task);
         return (
             <DisclosureRow
                 action={link?.open && <AgentChatTaskOpenButton task={task} onOpen={link.open} />}

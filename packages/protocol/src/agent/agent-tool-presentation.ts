@@ -172,6 +172,53 @@ const agentDisplayName = (subject: string | undefined): string | undefined => {
 };
 
 /**
+ * Claude Code's `SendMessage` row summary, `to <recipient>: <first line>` (built by the Server's `sendMessageSummary`).
+ */
+const AGENT_MESSAGE_SUMMARY = /^to (\S+?)(?:: (.+))?$/su;
+
+/**
+ * A recipient Claude Code names by its generated agent id (`a9fa29d284b88501c`) rather than a teammate name; the id
+ * means nothing to a reader, so the row shows the subagent's title or only the message instead.
+ */
+const AGENT_ID_RECIPIENT = /^[\da-f]{12,}$/u;
+
+export interface AgentMessageSummary {
+    /**
+     * The teammate name the message went to; absent when Claude Code addressed a generated agent id.
+     */
+    recipient?: string;
+    message?: string;
+}
+
+/**
+ * Splits a Claude Code `SendMessage` summary into who it went to and what it said, or `undefined` for any other summary
+ * (a Codex multi-agent v2 `sendMessage` summary is the subagent's path, read by {@link agentDisplayName}).
+ */
+export const parseAgentMessageSummary = (
+    summary: string | undefined,
+): AgentMessageSummary | undefined => {
+    const match = summary === undefined ? null : AGENT_MESSAGE_SUMMARY.exec(summary);
+    if (!match) return undefined;
+    const [, recipient = '', message] = match;
+    return {
+        ...(!AGENT_ID_RECIPIENT.test(recipient) && { recipient }),
+        ...(message && { message }),
+    };
+};
+
+/**
+ * A message row's subject: `researcher: Check the tests`, or only the message when the recipient has no readable name.
+ * `recipientName` overrides the parsed recipient, for a row whose subagent's title is known.
+ */
+export const agentMessageSubject = (
+    { message, recipient }: AgentMessageSummary,
+    recipientName: string | undefined = recipient,
+): string | undefined => {
+    if (recipientName && message) return `${recipientName}: ${message}`;
+    return recipientName ?? message;
+};
+
+/**
  * MCP tools arrive as `mcp__<server>__<tool>` from Claude Code and as `<server>/<tool>` from Codex; the server name
  * reads better than the raw identifier.
  */
@@ -255,6 +302,11 @@ export const describeAgentTool = (
     if (!known)
         return { kind: 'other', label: tool.name, subject: rawSubject, isCodeSubject: true };
     const toolName = tool.name.toLowerCase();
+    const message = toolName === 'sendmessage' ? parseAgentMessageSummary(rawSubject) : undefined;
+    if (message) {
+        const subject = agentMessageSubject(message);
+        return { ...known, ...(subject && { subject }), isCodeSubject: false };
+    }
     if (known.kind === 'wait' || AGENT_SUBJECT_TOOLS.has(toolName)) {
         // A receiver count (`1 agent`) says nothing the label does not; only a subagent name says who it was. The
         // Server names a v1 receiver by its Background work title (`Review the diff`), which is shown as written.

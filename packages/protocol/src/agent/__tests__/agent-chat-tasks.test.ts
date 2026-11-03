@@ -180,8 +180,21 @@ describe('task presentation', () => {
         expect(agentChatTaskActivity({ status: 'running', summary: ' Reading files ' })).toBe(
             'Reading files',
         );
+        // The last tool reads as what the subagent does, not the provider's tool name.
+        expect(agentChatTaskActivity({ status: 'running', lastToolName: 'Bash' })).toBe(
+            'Running a command',
+        );
         expect(agentChatTaskActivity({ status: 'running', lastToolName: 'Grep' })).toBe(
-            'Using Grep',
+            'Searching files',
+        );
+        expect(agentChatTaskActivity({ status: 'running', lastToolName: 'Read' })).toBe(
+            'Reading files',
+        );
+        expect(
+            agentChatTaskActivity({ status: 'running', lastToolName: 'mcp__github__get_issue' }),
+        ).toBe('Using github');
+        expect(agentChatTaskActivity({ status: 'running', lastToolName: 'Skill' })).toBe(
+            'Using Skill',
         );
         expect(
             agentChatTaskActivity({ status: 'completed', lastToolName: 'Grep' }),

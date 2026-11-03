@@ -467,4 +467,11 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.tasks.toolUseOne': '1 次工具调用',
     'agentChat.tasks.toolUseOther': '{{count}} 次工具调用',
     'agentChat.tasks.usingTool': '正在使用 {{tool}}',
+    'agentChat.tasks.activity.command': '正在运行命令',
+    'agentChat.tasks.activity.edit': '正在编辑文件',
+    'agentChat.tasks.activity.list': '正在列出文件',
+    'agentChat.tasks.activity.read': '正在读取文件',
+    'agentChat.tasks.activity.search': '正在搜索文件',
+    'agentChat.tasks.activity.web': '正在浏览网页',
+    'agentChat.tasks.activity.write': '正在写入文件',
 };
