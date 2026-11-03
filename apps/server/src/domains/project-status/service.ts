@@ -25,7 +25,6 @@ import {
 } from '../external-status';
 import type { GitService } from '../git';
 import { loadPullRequestAcceptances } from './acceptance';
-import { ProjectStatusAlertTracker } from './alerts';
 import type { BranchPublicationContext } from './branch';
 import {
     prepareStatusRepo,
@@ -39,6 +38,7 @@ import { pendingSummaryEntry, preparedFingerprint } from './carry-over';
 import { EmptyCheckRollupTracker } from './empty-check-rollup';
 import { emptyGitHubLoad, failedGitHubLoad } from './github-load';
 import { loadPullRequestLinearIssues } from './linear';
+import type { ProjectStatusMerge } from './merge-tracker';
 import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
 import { projectStatusClock } from './options';
 import { loadProjectStatusOverview } from './overview';
@@ -48,6 +48,7 @@ import { refreshLogRecord } from './refresh-log';
 import { ResidentPoll } from './resident-poll';
 import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
 import { repoPullRequestNumber, resolvePullRequestTarget } from './session-pull-request';
+import { ProjectStatusSummaryObservers } from './summary-observers';
 import { VercelDeploymentStore } from './vercel-store';
 import type { WatchOutcome, WatchRound } from './watch';
 import { deliveryKeys, DeliveryWatch, isWatchFresh } from './watch';
@@ -75,7 +76,7 @@ export class ProjectStatusService {
     private readonly github: GitHubPullRequestStore;
     private readonly extras: PullRequestExtras;
     private readonly linear: LinearIssueStore;
-    private readonly alerts: ProjectStatusAlertTracker;
+    private readonly observers: ProjectStatusSummaryObservers;
     private resolveSessionPullRequest?: SessionPullRequestResolver;
     private readonly residentPoll: ResidentPoll;
     private readonly watch?: DeliveryWatch;
@@ -102,7 +103,12 @@ export class ProjectStatusService {
             logger,
             refresh: (sessionId) => this.summary(sessionId),
         });
-        this.alerts = new ProjectStatusAlertTracker({ now: () => this.now() });
+        this.observers = new ProjectStatusSummaryObservers({
+            areAlertsEnabled: () => this.areAlertsEnabled(),
+            emit: options.emit,
+            logger,
+            now: () => this.now(),
+        });
         const { cli } = logEventCatalog.projectStatus;
         this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
         const { listWatchedSessions } = options;
@@ -318,25 +324,6 @@ export class ProjectStatusService {
     }
 
     /**
-     * Emits one `projectStatus.alert` per newly failing check or deployment. The tracker is fed even while
-     * notifications are disabled so re-enabling them does not replay every failure that accumulated in the meantime as
-     * if it had just happened.
-     */
-    private publishAlerts(sessionId: string, summary: ProjectStatusSummary): void {
-        const alerts = this.alerts.observe(summary);
-        if (alerts.length === 0 || !this.areAlertsEnabled()) return;
-        for (const alert of alerts) {
-            this.logger.write('info', logEventCatalog.projectStatus.alert, {
-                fields: { kind: alert.kind },
-            });
-            this.options.emit?.({
-                event: 'projectStatus.alert',
-                payload: { sessionId, ...alert },
-            });
-        }
-    }
-
-    /**
      * Refreshes one background Session's delivery status unless another Session in this round already covered the same
      * repository and branch. Deduplication runs on the local Git projection, so a Session that has since switched
      * branches is judged by the branch it is on now rather than the one it last reported.
@@ -446,7 +433,7 @@ export class ProjectStatusService {
                     durationMs: performance.now() - startedAt,
                     fields: record.fields,
                 });
-                this.publishAlerts(sessionId, value);
+                this.observers.observe(sessionId, value);
                 this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
                 // The fresh TTL is what paces the next resident poll, so re-arm against it rather than the stale one.
                 this.residentPoll.schedule();
@@ -532,6 +519,14 @@ export class ProjectStatusService {
         if (isCurrent) return;
         this.rememberSummary(sessionId, { ...entry, expiresAt: 0 });
         return this.rereadSummary(sessionId);
+    }
+
+    /**
+     * Hands this Service the listener told about each pull request a Session's Status snapshot saw turn merged, in any
+     * of its repositories (see `ProjectStatusMergeTracker`). Late-bound like {@link useSessionPullRequests}.
+     */
+    useMergeListener(listener: (sessionId: string, merge: ProjectStatusMerge) => void): void {
+        this.observers.onMerged = listener;
     }
 
     /**

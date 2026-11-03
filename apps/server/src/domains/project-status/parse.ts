@@ -266,6 +266,7 @@ export function parseGitHubPullRequest(
             ? 'neutral'
             : aggregateChecks(checks);
     const mergeBlocker = pullRequestMergeBlocker({ mergeState, state });
+    const mergedAt = mergedAtMilliseconds(raw.mergedAt);
     return {
         body: raw.body ?? '',
         mergeCommit:
@@ -273,14 +274,13 @@ export function parseGitHubPullRequest(
             /^[\da-f]{40}$/i.test(raw.mergeCommit?.oid ?? '')
                 ? raw.mergeCommit?.oid
                 : undefined,
-        ...(mergedAtMilliseconds(raw.mergedAt) !== undefined && {
-            mergedAt: mergedAtMilliseconds(raw.mergedAt),
-        }),
+        ...(mergedAt !== undefined && { mergedAt }),
         pullRequest: {
             number: raw.number,
             title: raw.title,
             url: raw.url,
             lifecycle,
+            ...(mergedAt !== undefined && { mergedAt }),
             /**
              * An empty rollup on an open pull request means GitHub has not reported a check yet, which is genuinely
              * pending. Two empty cases settle as neutral instead of a permanent spinner: a rollup that is empty only

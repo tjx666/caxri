@@ -478,7 +478,12 @@ to the current launch for a Terminal Agent, or an ordinary turn for a Chat Agent
 pull request however the merge happened: the Project Status button, GitHub, or another person. The
 Session pull request sweep notices a pull request that it saw open turn merged, so a pull request
 that was already merged when Server Core started is not announced unless Caxri last saw it open
-(see below). The button path records its
+(see below). That sweep follows one pull request per Session, so the Project Status refresh also
+announces merges in the Session's other repositories (a submodule, nested, or linked repository with
+its own pull request): one it saw open and now sees merged, or one first seen merged whose `mergedAt`
+is after Server Core started and within the last 30 minutes. Only Sessions the Status refresh
+covers (visible ones, plus every Session while Status notifications are on) are watched this way, and
+nothing is persisted across a restart. The button path records its
 send first, so a sweep that sees the same merge does not send a second message. A merge whose
 `mergedAt` falls inside one of that Session's Agent turns (plus a few seconds of clock skew) is
 skipped as `self-merged`, because the Agent that merged it already knows. A missing or stopped Agent

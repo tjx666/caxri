@@ -188,6 +188,14 @@ export function createServiceHandlers(services: {
         },
     );
     projectStatus.useSessionPullRequests((sessionId) => sessionPullRequests.resolve(sessionId));
+    // The sidebar sweep follows one pull request per Session; the Status refresh covers the Session's submodule and
+    // linked-repository pull requests too. The notice itself drops the one both of them see.
+    projectStatus.useMergeListener((sessionId, { mergedAt, url }) => {
+        void noticeMergedPullRequest(sessionId, url, {
+            origin: 'detected',
+            ...(mergedAt !== undefined && { mergedAt }),
+        });
+    });
     services.archivedWorktrees.useSessionPullRequests((id) => sessionPullRequests.resolve(id));
     const bot = new CaxriBotService({
         ...services.bot,

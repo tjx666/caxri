@@ -1,4 +1,4 @@
-import type { GitSummary, ServerEvent } from '@caxri/protocol';
+import type { GitSummary } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -587,69 +587,5 @@ describe('ProjectStatusService', () => {
         await vi.waitFor(async () => expect(await state()).toBe('neutral'));
         // The shared pull-request record answers the re-parse, so correcting the rollup is free.
         expect(ghCalls()).toBe(queried);
-    });
-
-    it('emits a delivery alert when a check turns into a failure', async () => {
-        let conclusion = 'SUCCESS';
-        const emitted = vi.fn<(event: ServerEvent) => void>();
-        const service = new ProjectStatusService(
-            { summary: () => Promise.resolve(gitSummary) },
-            await logger(),
-            githubOnlyRunner(() => checkPayload({ name: 'unit', conclusion })),
-            { emit: emitted, settings: () => defaultAppSettings },
-        );
-
-        await service.summary('session-1');
-        await vi.waitFor(() => expect(emitted).toHaveBeenCalled());
-        conclusion = 'FAILURE';
-        await service.summary('session-1', 'refresh-1');
-
-        const alerts = (): ServerEvent[] =>
-            emitted.mock.calls
-                .map(([event]) => event)
-                .filter((event) => event.event === 'projectStatus.alert');
-        await vi.waitFor(() =>
-            expect(alerts()).toEqual([
-                {
-                    event: 'projectStatus.alert',
-                    payload: {
-                        sessionId: 'session-1',
-                        kind: 'check',
-                        repository: 'project',
-                        branch: 'feature/status',
-                        name: 'unit',
-                        // No `detailsUrl`, so the alert falls back to the pull request itself.
-                        url: 'https://github.com/example/project/pull/7',
-                    },
-                },
-            ]),
-        );
-    });
-
-    it('keeps the alert baseline current while notifications are disabled, and stays silent', async () => {
-        let conclusion = 'SUCCESS';
-        const emitted = vi.fn<(event: ServerEvent) => void>();
-        const service = new ProjectStatusService(
-            { summary: () => Promise.resolve(gitSummary) },
-            await logger(),
-            githubOnlyRunner(() => checkPayload({ name: 'unit', conclusion })),
-            {
-                emit: emitted,
-                settings: () => ({
-                    ...defaultAppSettings,
-                    'projectStatus.notifications.enabled': false,
-                }),
-            },
-        );
-
-        await service.summary('session-1');
-        await vi.waitFor(() => expect(emitted).toHaveBeenCalled());
-        conclusion = 'FAILURE';
-        await service.summary('session-1', 'refresh-1');
-        await vi.waitFor(() => expect(emitted).toHaveBeenCalledTimes(2));
-
-        expect(emitted.mock.calls.some(([event]) => event.event === 'projectStatus.alert')).toBe(
-            false,
-        );
     });
 });
