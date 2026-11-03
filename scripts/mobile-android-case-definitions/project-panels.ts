@@ -28,6 +28,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'browse-panels',
     },
+    'MOB-PANELS-TABS-SAVED-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'open-session-with-saved-view-tabs',
+    },
     'MOB-PANELS-TREE-REFRESH-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

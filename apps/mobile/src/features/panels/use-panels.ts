@@ -1,21 +1,21 @@
 import { useEffect, useMemo } from 'react';
 
-import type { MethodResult } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { sessionPullRequestQueryKey } from '../pull-request/use-session-pull-request';
+import { useReadCache } from '../read-cache/read-cache-context';
+import type { PanelsList } from './saved-panels';
+import {
+    cachedPanelsSchema,
+    panelQueryKey,
+    panelsListQueryKey,
+    seedSavedPanels,
+} from './saved-panels';
 import { readTreeChildren } from './tree-children-read';
 import { refreshTreeThenPullRequest } from './tree-refresh';
 
-export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
-
-const panelQueryKey = (connectionScopeKey: string | null, key: readonly unknown[]) => [
-    'mobile',
-    'panels',
-    connectionScopeKey ?? 'unpaired',
-    ...key,
-];
+export type Panel = PanelsList['panels'][number];
 
 /**
  * Every Panels read is a one-shot, read-only request. Only the extension tree subscribes (see
@@ -40,9 +40,52 @@ const usePanelRead = <Result>(
     });
 };
 
+/**
+ * The Desktop's view list, shared by every Session of this pairing (see {@link panelsListQueryKey}). Each live read is
+ * saved on the phone so the next launch can show the view tabs before it connects (see {@link useSavedPanels}).
+ */
 const usePanelsList = (sessionId: string) => {
-    const { request } = useMobileClient();
-    return usePanelRead(['list', sessionId], () => request('mobile.panels.list', { sessionId }));
+    const { connectionScopeKey, isForeground, request, status } = useMobileClient();
+    const readCache = useReadCache();
+    return useQuery({
+        enabled: connectionScopeKey !== null && isForeground && status === 'connected',
+        // A few views per pairing; kept so a Session opened later still finds them without a read.
+        gcTime: Infinity,
+        networkMode: 'always',
+        queryFn: async () => {
+            const result = await request('mobile.panels.list', { sessionId });
+            if (connectionScopeKey !== null)
+                readCache.save(connectionScopeKey, { kind: 'panels' }, result);
+            return result;
+        },
+        queryKey: panelsListQueryKey(connectionScopeKey),
+        refetchOnReconnect: false,
+        refetchOnWindowFocus: false,
+        retry: false,
+        staleTime: 15_000,
+    });
+};
+
+/**
+ * Seeds the view list this pairing saved into the query cache once per launch or pairing change, ahead of any Session
+ * being opened.
+ */
+export const useSavedPanels = (): void => {
+    const { connectionScopeKey } = useMobileClient();
+    const readCache = useReadCache();
+    const queryClient = useQueryClient();
+    useEffect(() => {
+        if (connectionScopeKey === null) return;
+        let isActive = true;
+        void readCache
+            .load(connectionScopeKey, { kind: 'panels' }, cachedPanelsSchema)
+            .then((entry) => {
+                if (isActive && entry) seedSavedPanels(queryClient, connectionScopeKey, entry);
+            });
+        return () => {
+            isActive = false;
+        };
+    }, [connectionScopeKey, queryClient, readCache]);
 };
 
 export const useTreeChildren = (

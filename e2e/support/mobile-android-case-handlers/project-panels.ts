@@ -4,6 +4,7 @@ import { executeMobileProjectReorderScenario } from '../mobile-project-reorder-s
 
 export const handlers = {
     'MOB-PANELS-01': executeMobileProjectPanelsScenario,
+    'MOB-PANELS-TABS-SAVED-01': executeMobileProjectPanelsScenario,
     'MOB-PANELS-TREE-REFRESH-01': executeMobileProjectPanelsScenario,
     'MOB-PROJECT-01': executeMobileProjectPanelsScenario,
     'MOB-PROJECT-CHIP-HOLD-01': executeMobileProjectPanelsScenario,

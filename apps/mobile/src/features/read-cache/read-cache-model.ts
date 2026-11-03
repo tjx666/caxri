@@ -32,6 +32,7 @@ export const READ_CACHE_MAX_CONVERSATIONS = 20;
 export type ReadCacheKey =
     | { kind: 'dashboard' }
     | { kind: 'drafts' }
+    | { kind: 'panels' }
     | { kind: 'timeline'; sessionId: string }
     | { kind: 'chat'; terminalId: string };
 
@@ -44,6 +45,9 @@ export const readCacheFileName = (key: ReadCacheKey): string => {
         }
         case 'drafts': {
             return 'drafts.json';
+        }
+        case 'panels': {
+            return 'panels.json';
         }
         case 'timeline': {
             return `timeline-${encodeURIComponent(key.sessionId)}.json`;
