@@ -74,4 +74,49 @@ describe('agent.delegation.statuses', () => {
             }),
         ]);
     });
+
+    it('links a retried task to its retry in both directions', async () => {
+        const f = await delegatedFixture();
+        const task = await f.delegate();
+        const record = f.database.agentDelegations.get(task.id)!;
+        f.database.agentDelegations.save({
+            ...record,
+            receipt: {
+                ...record.receipt,
+                status: 'failed',
+                failure: 'provider_failed',
+                settledAt: 5000,
+                retriedAs: 'retry-1',
+                retryOf: 'earlier-1',
+            },
+        });
+
+        expect(await f.statuses([task.id])).toEqual([
+            expect.objectContaining({ retriedAs: 'retry-1', retryOf: 'earlier-1' }),
+        ]);
+    });
+
+    it('carries the links into the Delegated Sessions feed', async () => {
+        const f = await delegatedFixture();
+        const task = await f.delegate();
+        const record = f.database.agentDelegations.get(task.id)!;
+        f.database.agentDelegations.save({
+            ...record,
+            receipt: { ...record.receipt, status: 'failed', retriedAs: 'retry-1' },
+        });
+
+        expect(await f.sessions([f.callerSessionId])).toEqual([
+            expect.objectContaining({ delegationId: task.id, retriedAs: 'retry-1' }),
+        ]);
+    });
+
+    it('omits the links from a task that was never retried', async () => {
+        const f = await delegatedFixture();
+        const task = await f.delegate();
+
+        const [status] = await f.statuses([task.id]);
+
+        expect(status).not.toHaveProperty('retryOf');
+        expect(status).not.toHaveProperty('retriedAs');
+    });
 });

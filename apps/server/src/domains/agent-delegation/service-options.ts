@@ -65,6 +65,13 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
     currentLaunchId?(terminalId: string): string | undefined;
     isIdle?(terminalId: string, launchId: string, turnId: string): boolean;
     /**
+     * The Agent Endpoint generation currently live in a Terminal, or `undefined` when none is active. A retry
+     * (`agent.delegation.retry`) runs as the Agent that delegated the task, which can read the new task only while its
+     * stored principal still names this exact generation. Absent means no generation can be proven, so a retry as an
+     * Agent is refused (`caller_gone`).
+     */
+    callerEndpoint?(terminalId: string): { endpointId: string; generation: number } | undefined;
+    /**
      * Writes to one exact Agent launch. The return value is the synchronous admission; for a Terminal with no Renderer
      * attachment that answer is provisional, and `onDelivered` reports what the Terminal Host actually did.
      */

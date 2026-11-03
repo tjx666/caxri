@@ -4,12 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import { delegationCopy } from '../delegation-copy';
 import {
+    collapseRetryChains,
+    delegationAttemptNumbers,
     delegationAttentionCounts,
     delegationElapsedMs,
     delegationFeedCreatorIdChunks,
     failedDelegationSessionIds,
     isDelegationFailed,
     isDelegationNeedsInput,
+    isRetryCandidate,
 } from '../delegation-feed';
 
 describe('delegationFeedCreatorIdChunks', () => {
@@ -137,5 +140,91 @@ describe('delegationElapsedMs', () => {
     it('has no duration without a task or before its creation', () => {
         expect(delegationElapsedMs({}, 9000)).toBeUndefined();
         expect(delegationElapsedMs({ createdAt: 10_000 }, 9000)).toBeUndefined();
+    });
+});
+
+describe('isRetryCandidate', () => {
+    const failed = { delegationId: 'd1', failure: 'quota_exhausted', status: 'failed' } as const;
+
+    it('offers a retryable failure nothing has retried', () => {
+        expect(isRetryCandidate(failed)).toBe(true);
+    });
+
+    it('refuses a retried, taken-over, non-retryable, or unidentified task', () => {
+        expect(isRetryCandidate({ ...failed, retriedAs: 'd2' })).toBe(false);
+        expect(isRetryCandidate({ ...failed, takenOverAt: 5 })).toBe(false);
+        expect(isRetryCandidate({ ...failed, failure: 'human_input' })).toBe(false);
+        expect(isRetryCandidate({ ...failed, failure: undefined })).toBe(false);
+        expect(isRetryCandidate({ ...failed, status: 'interrupted' })).toBe(false);
+        expect(isRetryCandidate({ ...failed, delegationId: undefined })).toBe(false);
+    });
+});
+
+describe('collapseRetryChains', () => {
+    it('drops a failure whose fresh retry is in the list', () => {
+        const entries = [
+            { delegationId: 'f1', retriedAs: 'n1' },
+            { delegationId: 'n1', retryOf: 'f1' },
+        ];
+        expect(collapseRetryChains(entries).map((entry) => entry.delegationId)).toEqual(['n1']);
+    });
+
+    it('keeps the failure when its successor is not in the list', () => {
+        const entries = [{ delegationId: 'f1', retriedAs: 'gone' }, { delegationId: 'other' }];
+        expect(collapseRetryChains(entries)).toEqual(entries);
+    });
+
+    it('drops the original of a mixed chain: fresh, then resume of the successor', () => {
+        // The successor Session now shows its newest receipt n2, which retries n1; f1 still names n1.
+        const entries = [
+            { delegationId: 'f1', retriedAs: 'n1' },
+            { delegationId: 'n2', retryOf: 'n1' },
+        ];
+        expect(collapseRetryChains(entries).map((entry) => entry.delegationId)).toEqual(['n2']);
+    });
+
+    it('keeps unrelated entries in order', () => {
+        const entries = [{ delegationId: 'a' }, { delegationId: 'b' }];
+        expect(collapseRetryChains(entries)).toEqual(entries);
+    });
+
+    it('lets the header count only the surviving attempt', () => {
+        const entries = [
+            { delegationId: 'f1', failure: 'quota_exhausted', retriedAs: 'n1', status: 'failed' },
+            { delegationId: 'n1', retryOf: 'f1', status: 'running' },
+        ] as const;
+        expect(delegationAttentionCounts(entries)).toEqual({ failed: 1, needsInput: 0 });
+        expect(delegationAttentionCounts(collapseRetryChains(entries))).toEqual({
+            failed: 0,
+            needsInput: 0,
+        });
+    });
+});
+
+describe('delegationAttemptNumbers', () => {
+    it('numbers a retry 2 and a retry of a retry 3, leaving first attempts absent', () => {
+        const attempts = delegationAttemptNumbers([
+            { delegationId: 'a' },
+            { delegationId: 'b', retryOf: 'a' },
+            { delegationId: 'c', retryOf: 'b' },
+        ]);
+        expect(attempts.get('a')).toBeUndefined();
+        expect(attempts.get('b')).toBe(2);
+        expect(attempts.get('c')).toBe(3);
+    });
+
+    it('counts a resume retry whose failed task is no longer listed as attempt 2', () => {
+        expect(delegationAttemptNumbers([{ delegationId: 'n', retryOf: 'gone' }]).get('n')).toBe(2);
+    });
+});
+
+describe('failedDelegationSessionIds with retries', () => {
+    it('leaves out a failure a retry superseded', () => {
+        expect(
+            failedDelegationSessionIds([
+                { failure: 'quota_exhausted', retriedAs: 'n1', sessionId: 's1', status: 'failed' },
+                { failure: 'quota_exhausted', sessionId: 's2', status: 'failed' },
+            ]),
+        ).toEqual(['s2']);
     });
 });

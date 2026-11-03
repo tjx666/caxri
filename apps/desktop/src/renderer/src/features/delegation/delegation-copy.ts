@@ -216,8 +216,9 @@ function isOpenSessionAsked(
  *
  * `status` decides the shape and `failure` the wording of the statuses that carry one (`failed`, `interrupted`,
  * `blocked`, `answer_unavailable`, `human_intervened`); an active or completed task ignores a stray failure. A reset
- * time appears only for a recorded `failureResetsAt` that is still ahead of `now`. This step offers no retry, so the
- * only `primaryAction` is opening the Session.
+ * time appears only for a recorded `failureResetsAt` that is still ahead of `now`. `primaryAction` is only opening the
+ * Session: Retry is not derived from the status alone (the Server decides which modes are open, see
+ * `useDelegationRetryOptions`), so it is a separate control.
  */
 export function delegationCopy(
     input: DelegationCopyInput,

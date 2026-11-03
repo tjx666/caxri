@@ -177,15 +177,25 @@ type DelegationTarget = Pick<
 >;
 
 /**
+ * Whether a retry of `parent` (`agent.delegation.retry`) is claimed for another task than `successorId`, so an ordinary
+ * follow-up or resume must not also take the parent's conversation. The retry's own resume passes its task ID and so
+ * passes its own claim.
+ */
+function isClaimedByRetry(parent: StoredAgentDelegation, successorId?: string): boolean {
+    return parent.receipt.retriedAs !== undefined && parent.receipt.retriedAs !== successorId;
+}
+
+/**
  * The first condition that keeps a follow-up from reaching its parent's live launch, in admission order.
  */
 export function followUpRejection(
     parent: StoredAgentDelegation,
     target: DelegationTarget,
     isBusy: (terminalId: string) => boolean,
+    successorId?: string,
 ): DelegationFollowUpRejection | undefined {
     const { terminalId } = parent.receipt;
-    if (parent.nextDelegationId) return 'parent_chained';
+    if (parent.nextDelegationId || isClaimedByRetry(parent, successorId)) return 'parent_chained';
     if (terminalId && isBusy(terminalId)) return 'terminal_busy';
     if (!terminalId) return 'no_terminal';
     if (parent.hasLostTarget) return 'target_lost';
@@ -207,13 +217,14 @@ export function resumeRejection(
     parent: StoredAgentDelegation,
     target: DelegationTarget,
     isBusy: (terminalId: string) => boolean,
+    successorId?: string,
 ): DelegationResumeRejection | undefined {
     const { terminalId } = parent.receipt;
     if (!terminalId) return 'no_terminal';
     if (!parent.providerSessionId) return 'no_provider_session';
     if (target.database.getTerminal(terminalId)?.agentSessionId !== parent.providerSessionId)
         return 'provider_session_replaced';
-    if (parent.nextDelegationId) return 'parent_chained';
+    if (parent.nextDelegationId || isClaimedByRetry(parent, successorId)) return 'parent_chained';
     if (isBusy(terminalId)) return 'terminal_busy';
     if (parent.hasLostTarget) return 'target_lost';
     const currentLaunchId = target.currentLaunchId?.(terminalId);

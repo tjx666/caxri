@@ -278,6 +278,9 @@ Then write the task to a file and run
   same idle Terminal. Use `agent delegate stop <id>` to interrupt your active task.
   `agent delegate create --resume <id>` explicitly starts a new task in the exact saved native
   conversation with frozen settings; it never replays the old prompt.
+  The owner may retry a failed task from Caxri, and the receipt then carries `retriedAs`: the task
+  was restarted as that ID under your authority and you are told once. Stop waiting on the failed
+  ID, `agent delegate wait <retriedAs>` instead, and do not create or retry the task yourself.
   Human input or another launch prevents automatic continuation. A restarted caller generation
   does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
   Caxri Bot is the one exception: its tasks stay its own across its restarts.

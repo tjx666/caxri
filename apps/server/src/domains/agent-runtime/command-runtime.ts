@@ -163,6 +163,15 @@ export function createAgentCommandRuntime(
         },
         isIdle: (terminalId, launchId, turnId) =>
             options.coordinator.hasIdleProof(terminalId, launchId, turnId),
+        callerEndpoint: (terminalId) => {
+            const endpoint = options.endpoints?.endpointForTerminal(terminalId);
+            return (
+                endpoint && {
+                    endpointId: endpoint.ref.endpointId,
+                    generation: endpoint.ref.generation,
+                }
+            );
+        },
         write: (terminalId, launchId, data, onDelivered) => {
             const chats = chatOf(terminalId);
             if (chats)

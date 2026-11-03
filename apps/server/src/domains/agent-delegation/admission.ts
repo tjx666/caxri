@@ -1,5 +1,6 @@
 import type {
     AgentDelegationCreate,
+    AgentDelegationReceipt,
     AgentDelegationSettings,
     AgentLaunchSettings,
     AgentProvider,
@@ -224,6 +225,13 @@ export function resolveDelegationAdmission(options: {
      * The turn an Agent Chat caller is in, recorded on the task; see `AgentDelegationServiceOptions.callerTurnId`.
      */
     callerTurnId?(terminalId: string): string | undefined;
+    /**
+     * A retry keeps the failed task's place in the delegation tree instead of reading the caller's live launch and
+     * turn, which describe whatever the Agent is doing now.
+     */
+    inherited?: Pick<AgentDelegationReceipt, 'depth' | 'parentDelegationId'> & {
+        callerTurnId?: string;
+    };
 }) {
     const { input, previous, settings, database, authority } = options;
     const caller = delegationCaller(database, authority, input.callerProvider);
@@ -284,7 +292,10 @@ export function resolveDelegationAdmission(options: {
                   .filter((record) => record.launchId === callerLaunch)
                   .toSorted((a, b) => b.receipt.createdAt - a.receipt.createdAt)[0]
             : undefined;
-    const depth = previous?.receipt.depth ?? (parent ? (parent.receipt.depth ?? 1) + 1 : 1);
+    const { inherited } = options;
+    const depth = inherited
+        ? (inherited.depth ?? 1)
+        : (previous?.receipt.depth ?? (parent ? (parent.receipt.depth ?? 1) + 1 : 1));
     if (depth > settings.maxDepth)
         throw new CaxriError('FORBIDDEN', 'Delegation exceeds the configured maximum depth');
     return {
@@ -292,9 +303,12 @@ export function resolveDelegationAdmission(options: {
         frozenLaunch,
         frozenInstructions: instructions,
         depth,
-        parentDelegationId: previous?.receipt.parentDelegationId ?? parent?.receipt.delegationId,
-        callerTurnId:
-            authority.callerTerminalId && options.callerTurnId?.(authority.callerTerminalId),
+        parentDelegationId: inherited
+            ? inherited.parentDelegationId
+            : (previous?.receipt.parentDelegationId ?? parent?.receipt.delegationId),
+        callerTurnId: inherited
+            ? inherited.callerTurnId
+            : authority.callerTerminalId && options.callerTurnId?.(authority.callerTerminalId),
     };
 }
 
@@ -314,6 +328,10 @@ export function admittedDelegation(options: {
      * The conversation a hand-over continues; a new root task otherwise gets a fresh one.
      */
     providerSessionId?: string;
+    /**
+     * The failed task this one retries; see `agentDelegationReceiptSchema`.
+     */
+    retryOf?: string;
 }): StoredAgentDelegation {
     const { id, now, authority, input, admission, previous } = options;
     const provider = admission.selection.provider;
@@ -325,6 +343,7 @@ export function admittedDelegation(options: {
             callerTerminalId: authority.callerTerminalId,
             followUpOf: input.followUpOf,
             resumeFrom: input.resumeFrom,
+            ...(options.retryOf && { retryOf: options.retryOf }),
             provider,
             selection: admission.selection,
             depth: admission.depth,

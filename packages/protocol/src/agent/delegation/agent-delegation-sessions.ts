@@ -72,6 +72,12 @@ const agentDelegationSessionSchema = z.strictObject({
     status: agentDelegationStatusSchema.optional(),
     failure: agentDelegationFailureSchema.optional(),
     failureResetsAt: z.number().int().positive().optional(),
+    /**
+     * The failed task this one retries, and the task a retry of this failed one runs as; see
+     * `agentDelegationReceiptSchema`. Either may name a task pruned since.
+     */
+    retryOf: identifierSchema.optional(),
+    retriedAs: identifierSchema.optional(),
     createdAt: z.number().int().positive().optional(),
     settledAt: z.number().int().positive().optional(),
     /**
@@ -124,9 +130,49 @@ const agentDelegationStatusEntrySchema = z.strictObject({
     failure: agentDelegationFailureSchema.optional(),
     failureResetsAt: z.number().int().positive().optional(),
     settledAt: z.number().int().positive().optional(),
+    retryOf: identifierSchema.optional(),
+    retriedAs: identifierSchema.optional(),
 });
 
 export type AgentDelegationStatusEntry = z.infer<typeof agentDelegationStatusEntrySchema>;
+
+/**
+ * How a failed task can be retried. `resume` continues the same Session's native conversation; `fresh` starts the task
+ * again in a new Session on the same workbench root.
+ */
+export const delegationRetryModeSchema = z.enum(['resume', 'fresh']);
+export type DelegationRetryMode = z.infer<typeof delegationRetryModeSchema>;
+
+/**
+ * Why a retry mode cannot run now, as a closed enum a Client words itself.
+ */
+const delegationRetryUnavailableReasonSchema = z.enum([
+    'human_input',
+    'target_changed',
+    'session_changed',
+    'target_busy',
+    'no_provider_session',
+    'resume_unsupported',
+    'caller_gone',
+    'worktree_gone',
+    'already_retried',
+    'not_retryable',
+]);
+export type DelegationRetryUnavailableReason = z.infer<
+    typeof delegationRetryUnavailableReasonSchema
+>;
+
+const delegationRetryOptionSchema = z.strictObject({
+    mode: delegationRetryModeSchema,
+    /**
+     * Always the failed task's provider: a retry never switches provider.
+     */
+    provider: delegationProviderSchema,
+    available: z.boolean(),
+    unavailableReason: delegationRetryUnavailableReasonSchema.optional(),
+});
+
+export type DelegationRetryOption = z.infer<typeof delegationRetryOptionSchema>;
 
 export const agentDelegationSessionsMethods = {
     /**
@@ -158,5 +204,28 @@ export const agentDelegationSessionsMethods = {
         result: z.strictObject({
             statuses: z.array(agentDelegationStatusEntrySchema).max(MAX_DELEGATION_STATUS_IDS),
         }),
+    },
+    /**
+     * Which retry modes the owner may use for one failed task now, for the Retry action's menu. Owner-only and
+     * read-only: it changes nothing and claims nothing.
+     */
+    'agent.delegation.retryOptions': {
+        ...ownerOnlyCommandPolicy('server', 'read'),
+        params: z.strictObject({ delegationId: identifierSchema }),
+        result: z.strictObject({ options: z.array(delegationRetryOptionSchema).max(2) }),
+    },
+    /**
+     * Retries one failed task now, as the Agent that delegated it: the new task keeps that Agent's ownership, so it can
+     * still `wait` on and read the result. Owner-only (an Agent cannot retry for itself) and idempotent per failed task
+     * and mode: the same mode again returns the same new task, the other mode is a conflict. It takes no provider; the
+     * failed task's provider is always used.
+     */
+    'agent.delegation.retry': {
+        ...ownerOnlyCommandPolicy('server', 'control'),
+        params: z.strictObject({
+            delegationId: identifierSchema,
+            mode: delegationRetryModeSchema,
+        }),
+        result: z.strictObject({ delegationId: identifierSchema, sessionId: identifierSchema }),
     },
 } as const satisfies Record<string, MethodSpec>;

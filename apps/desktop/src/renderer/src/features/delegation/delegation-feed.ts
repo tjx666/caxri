@@ -3,7 +3,7 @@ import type {
     AgentDelegationSession,
     SessionRecord,
 } from '@caxri/protocol';
-import { MAX_DELEGATION_CREATORS } from '@caxri/protocol';
+import { isRetryableDelegationFailure, MAX_DELEGATION_CREATORS } from '@caxri/protocol';
 
 type AgentDelegationFailure = NonNullable<AgentDelegationReceipt['failure']>;
 
@@ -86,14 +86,105 @@ export function isDelegationNeedsInput(
 }
 
 /**
+ * Whether the owner may be offered Retry for this entry: the newest task failed with a failure the Server accepts
+ * (`isRetryableDelegationFailure`), nothing retried it yet, and the user did not take the Session over. Only a hint to
+ * show the action; the Server decides again when the options are read and when the retry runs.
+ */
+export function isRetryCandidate(
+    entry: Pick<
+        AgentDelegationSession,
+        'delegationId' | 'failure' | 'retriedAs' | 'status' | 'takenOverAt'
+    >,
+): boolean {
+    return (
+        entry.delegationId !== undefined &&
+        entry.retriedAs === undefined &&
+        entry.takenOverAt === undefined &&
+        entry.status !== undefined &&
+        isRetryableDelegationFailure({ failure: entry.failure, status: entry.status })
+    );
+}
+
+type RetryChainEntry = Pick<AgentDelegationSession, 'delegationId' | 'retriedAs' | 'retryOf'>;
+
+/**
+ * Drops each failed entry a retry superseded, so a chain of attempts counts and lists as its newest attempt only.
+ *
+ * The feed holds one entry per Session, its newest task. A fresh retry runs in another Session, so the failed entry
+ * names the successor in `retriedAs` and the successor entry is `delegationId`. A resume retry reuses the Session, so
+ * the failed task is no longer any entry's `delegationId`: the Session's entry is the new task with `retryOf` set. A
+ * mixed chain (fresh, then resume of the successor) leaves the original `retriedAs` naming a task that is now the
+ * successor's `retryOf`. An entry is therefore superseded when its `retriedAs` equals another entry's `delegationId` or
+ * `retryOf`. A successor missing from the list (pruned, or created by another Session) keeps the failed entry. Two or
+ * more resume retries in a row hide the middle task from every entry, so a chain that long under a fresh retry is still
+ * listed at its first attempt.
+ */
+export function collapseRetryChains<T extends RetryChainEntry>(entries: readonly T[]): T[] {
+    const successors = new Set<string>();
+    for (const entry of entries) {
+        if (entry.delegationId !== undefined) successors.add(entry.delegationId);
+        if (entry.retryOf !== undefined) successors.add(entry.retryOf);
+    }
+    return entries.filter(
+        (entry) => entry.retriedAs === undefined || !successors.has(entry.retriedAs),
+    );
+}
+
+/**
+ * The attempt number of each retried task, by task ID: 2 for the first retry, 3 for a retry of that, and so on, found
+ * by walking `retryOf` through the entries. A task nothing retries is absent, and a chain whose earlier tasks are gone
+ * from the list counts only the attempts it can see.
+ */
+export function delegationAttemptNumbers(
+    entries: ReadonlyArray<Pick<AgentDelegationSession, 'delegationId' | 'retryOf'>>,
+): ReadonlyMap<string, number> {
+    const byTask = new Map<string, Pick<AgentDelegationSession, 'delegationId' | 'retryOf'>>();
+    for (const entry of entries)
+        if (entry.delegationId !== undefined) byTask.set(entry.delegationId, entry);
+    const attempts = new Map<string, number>();
+    for (const entry of entries)
+        if (entry.delegationId !== undefined && entry.retryOf !== undefined)
+            attempts.set(
+                entry.delegationId,
+                attemptNumber(entry.delegationId, entry.retryOf, byTask),
+            );
+    return attempts;
+}
+
+/**
+ * Counts the attempts before a task by following `retryOf` through the tasks the list still holds; a cycle ends the
+ * walk.
+ */
+function attemptNumber(
+    taskId: string,
+    retryOf: string,
+    byTask: ReadonlyMap<string, Pick<AgentDelegationSession, 'delegationId' | 'retryOf'>>,
+): number {
+    const seen = new Set([taskId]);
+    let attempt = 2;
+    let previous = byTask.get(retryOf);
+    while (previous?.delegationId !== undefined && !seen.has(previous.delegationId)) {
+        seen.add(previous.delegationId);
+        if (previous.retryOf === undefined) return attempt;
+        attempt += 1;
+        previous = byTask.get(previous.retryOf);
+    }
+    return attempt;
+}
+
+/**
  * The nested Sessions whose delegation failed, as a sorted list: plain data, so React Query's structural sharing keeps
- * the same reference while the answer is unchanged and a row only re-renders when its own status moves.
+ * the same reference while the answer is unchanged and a row only re-renders when its own status moves. A failure a
+ * retry superseded (`retriedAs`) is left out: its row stays, but the red cross belongs to the attempt that replaced
+ * it.
  */
 export function failedDelegationSessionIds(
-    entries: ReadonlyArray<Pick<AgentDelegationSession, 'failure' | 'sessionId' | 'status'>>,
+    entries: ReadonlyArray<
+        Pick<AgentDelegationSession, 'failure' | 'retriedAs' | 'sessionId' | 'status'>
+    >,
 ): string[] {
     return entries
-        .filter((entry) => isDelegationFailed(entry))
+        .filter((entry) => isDelegationFailed(entry) && entry.retriedAs === undefined)
         .map((entry) => entry.sessionId)
         .toSorted(compareIds);
 }
@@ -101,7 +192,8 @@ export function failedDelegationSessionIds(
 /**
  * How many delegated Sessions a header counts as needing the user and as failed. A task waiting on a question or a
  * permission (`isDelegationNeedsInput`) and a task that failed (`isDelegationFailed`) are separate counts; an
- * `answer_unavailable` task is neither, because its work may be done.
+ * `answer_unavailable` task is neither, because its work may be done. Pass the collapsed list (`collapseRetryChains`)
+ * so a retried failure no longer counts.
  */
 export function delegationAttentionCounts(
     entries: ReadonlyArray<Pick<AgentDelegationSession, 'failure' | 'status'>>,

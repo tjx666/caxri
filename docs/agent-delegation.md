@@ -473,6 +473,50 @@ durably, and a fresh restart starts a different conversation, which fences every
 tasks; managed caller authority remains generation-scoped, so a newly launched caller does not
 inherit the previous caller's delegation ownership.
 
+### Retry now
+
+The owner can retry a failed delegated task from the Delegated Sessions strip or the child's origin
+row ([issue #3572](https://github.com/tjx666/caxri/issues/3572)). It is owner-only: the Desktop
+Renderer calls `agent.delegation.retryOptions` (`{ delegationId }`, returns the two modes with
+`available` and a closed `unavailableReason`) and `agent.delegation.retry` (`{ delegationId, mode }`
+with `mode` of `fresh` or `resume`, no provider). An Agent Endpoint, a delegation client, Caxri Bot,
+and Benchmark are refused, and mobile role methods do not list either method. Code:
+`apps/server/src/domains/agent-delegation/retry.ts`.
+
+- **Eligible.** A task with `status: "failed"` whose failure is one of `rate_limited`,
+  `authentication_failed`, `output_limit`, `startup_not_ready`, `provider_failed`, `launch_failed`,
+  `hooks_required`, or `quota_exhausted` (`isRetryableDelegationFailure`). Any other failure
+  (including `submission_unconfirmed`, whose prompt may have arrived) is `not_retryable`. A task the
+  user took over, one already followed up, and one already retried are refused too.
+- **Fresh.** Starts the same task in a new Session in the failed Session's Project, reusing its
+  linked worktree only after proving the directory is still the one bound (`worktree_gone`
+  otherwise). The provider must resolve to the failed task's provider under the current settings.
+  The new record carries `retryOf`; the failed one gets `retriedAs`.
+- **Resume.** Continues the failed Session through the resume path, with the saved launch settings
+  and `resumeFrom` set to the failed task; its refusals read as `no_provider_session`,
+  `session_changed`, `target_busy`, `target_changed`, `human_input`, or `resume_unsupported`.
+- **Authority.** The retry runs as the Agent that delegated the failed task (its stored principal and
+  caller Terminal), so that Agent can still `wait` on and read the new task. If that Agent is no
+  longer the live generation of its Terminal, the retry is refused as `caller_gone`.
+- **Claim.** `retriedAs` and the mode are saved in one synchronous step with the checks, so two
+  clicks, or a click racing another window, start one task: a second request in the same mode
+  shares the run, and the other mode is refused as `already_retried`. The new task's ID derives from
+  the failed task's, not from the mode. A claim whose task was never stored is released when
+  admission refuses the retry, and at Server startup. A claimed task cannot be followed up or
+  resumed normally (`parent_chained`, shown to the user as `target_busy`).
+- **Preface.** The task file of a retry opens with one fixed sentence (fresh or resume wording),
+  added when the file is written. It is not part of the stored prompt, so it does not count against
+  the 16 KiB task limit or repeat on a later retry.
+- **Notice.** The Agent that delegated the task gets one line through the launch-pinned `write` a
+  follow-up pointer uses, once per retry: `Delegated task <failed> was retried as <new>. Wait on
+<new> for the result.` It is never an Agent Chat message, so it does not count as the user taking
+  the Chat over, and a changed launch refuses it. Delivery is best effort and never fails the
+  retry. The log carries a closed outcome and IDs only.
+- **Pruning.** A failed task's `retriedAs` always protects its successor from pruning,
+  and the successor protects the failed task (`retryOf`) only while it is active. Once the
+  successor settles, the failed task is releasable and the chain drains oldest first.
+- **Not here.** There is no attempt cap, and no scheduled retry (a later phase of the issue).
+
 ## Agent Chat children
 
 With `session.openAgentsInChat` on, a new Claude Code or Codex child opens as an
@@ -587,7 +631,8 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
 - **`agent.delegation.sessions`.** An owner-only read: `{ createdBySessionIds }` (1 to 64 IDs)
   returns `{ sessions }`, the Sessions those Sessions created with a relation, newest first (at most
   1000). Each entry carries `sessionId`, `createdBySessionId`, the relation, the newest task's
-  `delegationId`, `provider`, `status`, `failure`, `failureResetsAt`, `createdAt`, `settledAt`, the
+  `delegationId`, `provider`, `status`, `failure`, `failureResetsAt`, `retryOf`, `retriedAs` (see
+  [Retry now](#retry-now); either may name a task pruned since), `createdAt`, `settledAt`, the
   live `step` while the task is active in a Chat, and the stored `result` (`summary`, `source`, the
   `delegationId` of the task that wrote it, and its `completedAt`), and `takenOverAt` once the user
   took the Session over by first acting in it (input, Stop, or Rewind; set once; see
@@ -606,7 +651,7 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   its to read. Caxri Bot and Benchmark windows deny it.
 - **`agent.delegation.statuses`.** An owner-only, non-claiming read like the feed:
   `{ delegationIds }` (1 to 64 IDs) returns `{ statuses }`, one `{ delegationId, sessionId,
-provider, status, failure?, failureResetsAt?, settledAt? }` per task the Server still has. It
+provider, status, failure?, failureResetsAt?, retryOf?, retriedAs?, settledAt? }` per task the Server still has. It
   names the exact task rather than a Session's newest, carries no summary, step, or answer text,
   and omits a pruned or unknown ID. Caxri Bot and Benchmark windows deny it, an Agent Endpoint
   principal is refused, and mobile role methods do not list it. The same invalidation as the
@@ -648,7 +693,8 @@ that decide which Sessions take which place.
   row its failure glyph. A `failed` task whose failure is a takeover, a changed target, a
   refusal, or a stop (`human_input`, `target_changed`, `session_changed`, `caller_stopped`,
   `host_reset`, `target_busy`, `target_not_ready`, and the unreadable-result and waiting values)
-  is not counted as failed anywhere, matching the row's glyph. An interrupted,
+  is not counted as failed anywhere, matching the row's glyph. A failed task that has a
+  `retriedAs` is not failed either: the retry stands for it. An interrupted,
   human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
 - **Not shown.** A nested row lists no subagent rows of its own, and it is not reorderable, so its
   position follows its host. The result summary and the live step have no sidebar surface; the
@@ -672,6 +718,16 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
   pull request found for its Session and the whole pull request's `changedFiles`
   (`<n> PR files`, labeled as the pull request's, not the delegation's). The sidebar owns the pull
   request poll; the strip starts the same poll only while the sidebar is hidden.
+  A failed row whose failure can be retried carries a `Retry` action (a sibling of the row's open
+  button) that opens a menu of the modes the Server allows now, read lazily on hover or focus
+  (`agent.delegation.retryOptions`); an unavailable mode stays in the menu, disabled, with its
+  reason. Both modes ask for confirmation first: file changes are not rolled back, and a fresh retry
+  may repeat earlier side effects. Once retried, the failed row is dropped when its `retriedAs`
+  equals another row's `delegationId` or `retryOf` (a fresh retry followed by a resume keeps
+  working), so the strip shows one current row labeled `Attempt N`, and the header counts the
+  collapsed list. Where the successor is missing from the feed the failed row stays. Several
+  resume retries in a row hide the middle tasks, because the feed shows only the newest task per
+  Session. A timeline record of a retried task shows a `Retried` mark.
 - **Timeline records.** A command in the Chat's own Terminal that created delegations carries
   `delegations: [{ delegationId, sessionId }]` (at most 8), stamped by Server Core from the
   delegation records of that Terminal (`CommandDelegationStamper`). The Desktop timeline draws such
@@ -694,7 +750,8 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
   `takenOverAt`. When the position is uncertain (an earlier entry has no time, earlier history is
   not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
   composer instead of a guessed position.
-  An archived parent stays named but cannot be opened.
+  An archived parent stays named but cannot be opened. When the Session's newest task failed with
+  a retryable failure, the row offers the same `Retry` action as the strip.
 
 Privacy: projection metadata, logs, and diagnostics carry IDs and closed enums only. Summaries,
 steps, and answer text reach the Renderer through the owner-only reads above and nowhere else.

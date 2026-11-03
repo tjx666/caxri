@@ -1,4 +1,4 @@
-import { rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { BootstrapState } from '@caxri/protocol';
@@ -15,6 +15,7 @@ import {
     DELEGATING_PROJECT,
     HOLD_CHILD_FILE,
     launchDelegatingChat,
+    RETRY_NOTICE_REPLY,
 } from './support/delegating-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest, selectedSessionId, VISIBLE_SESSION } from './support/helpers.ts';
@@ -235,6 +236,109 @@ test('the Caxri Bot window shows no Delegated Sessions region', async ({}) => {
         await expect(bot.getByText('You said: hello')).toBeVisible();
         await expect(bot.getByRole('region', { name: 'Delegated Sessions' })).toHaveCount(0);
         await expect(bot.locator('[data-agent-chat-delegation-record]')).toHaveCount(0);
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+interface FeedSession {
+    delegationId?: string;
+    retriedAs?: string;
+    retryOf?: string;
+    sessionId: string;
+    status?: string;
+}
+
+/**
+ * Retry now, end to end: the parent Chat's fake Agent really delegates through the CLI, the task is then marked failed
+ * in the database (a fake child cannot fail like a provider), and the owner retries it from the strip. Cancelling
+ * starts nothing; the confirmed retry starts exactly one new Session, whose task file opens with the retry preface; the
+ * parent hears of it; and the strip folds the failed attempt into one current row.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the owner retries a failed delegated task from the strip and the Agent that delegated it is told', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-retry-');
+    try {
+        const { page } = chat.running;
+        const { projectId, sessionId: parentId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await openAgentChat(page, 'Codex Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill(DELEGATE_PROMPT);
+        await message.press('Enter');
+
+        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const rows = strip.locator('[data-agent-chat-delegated-session]');
+        await expect(rows).toHaveCount(1);
+        await expect(rows).toContainText(CHILD_SUMMARY);
+        const childId = (await rows.getAttribute('data-agent-chat-delegated-session'))!;
+        const feed = async () =>
+            (
+                await pageRequest<{ sessions: FeedSession[] }>(page, 'agent.delegation.sessions', {
+                    createdBySessionIds: [parentId],
+                })
+            ).sessions;
+
+        const failedId = await runServerDatabase<string>('delegation-failure', {
+            userData: chat.userData,
+            sessionId: childId,
+        });
+        await page.reload();
+        await expect(strip).toContainText('1 failed');
+        const retryAction = strip.locator(`[data-delegation-retry="${failedId}"]`);
+        const chooseFresh = async () => {
+            await retryAction.click();
+            await page.locator('[data-delegation-retry-mode="fresh"]').click();
+        };
+        await page.screenshot({ path: testInfo.outputPath('delegation-retry-failed.png') });
+
+        // Cancelling the confirmation starts nothing.
+        await chooseFresh();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toContainText('Retry in a new Session?');
+        await dialog.getByRole('button', { name: 'Cancel' }).click();
+        await expect(dialog).toHaveCount(0);
+        await page.waitForTimeout(500);
+        expect(await feed()).toHaveLength(1);
+        await expect(rows).toHaveCount(1);
+
+        // Confirmed, with two more requests racing the click: still exactly one successor.
+        await chooseFresh();
+        const raced = [
+            pageRequest(page, 'agent.delegation.retry', { delegationId: failedId, mode: 'fresh' }),
+            pageRequest(page, 'agent.delegation.retry', { delegationId: failedId, mode: 'fresh' }),
+        ];
+        await dialog.getByRole('button', { name: 'Retry', exact: true }).dblclick();
+        await Promise.allSettled(raced);
+        await expect.poll(async () => (await feed()).length).toBe(2);
+        await page.waitForTimeout(500);
+        const sessions = await feed();
+        expect(sessions).toHaveLength(2);
+        const failed = sessions.find((entry) => entry.delegationId === failedId)!;
+        const successor = sessions.find((entry) => entry.retryOf === failedId)!;
+        expect(failed.retriedAs).toBe(successor.delegationId);
+        expect(successor.sessionId).not.toBe(childId);
+
+        // The new task opens with the retry preface.
+        const taskFile = join(chat.userData, 'delegations', successor.delegationId!, 'task.md');
+        expect(await readFile(taskFile, 'utf8')).toContain(
+            'A previous attempt at this task failed before finishing.',
+        );
+
+        // The strip folds the failed attempt into one current row, labeled as the second attempt.
+        await expect(rows).toHaveCount(1);
+        await expect(rows).toHaveAttribute(
+            'data-agent-chat-delegated-session',
+            successor.sessionId,
+        );
+        await expect(rows).toContainText('Attempt 2');
+        await expect(rows).toContainText(CHILD_SUMMARY);
+        await expect(strip).not.toContainText('failed');
+
+        // The Agent that delegated the task heard of the retry through its own Chat.
+        await expect(session.getByText(RETRY_NOTICE_REPLY)).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('delegation-retry-done.png') });
     } finally {
         await chat.cleanup();
     }

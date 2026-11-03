@@ -17,6 +17,8 @@ describe('assertOwnerOnlyMethod', () => {
             // The Delegated Sessions feed reads other Sessions' results; an Agent grant must not.
             'agent.delegation.sessions',
             'agent.delegation.statuses',
+            'agent.delegation.retryOptions',
+            'agent.delegation.retry',
         ])
             for (const kind of ['agent', 'delegation-client'])
                 expect(() => assertOwnerOnlyMethod(contextFor(kind), method)).toThrow(/owner/);

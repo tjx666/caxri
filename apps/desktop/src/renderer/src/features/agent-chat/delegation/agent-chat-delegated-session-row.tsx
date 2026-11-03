@@ -8,7 +8,8 @@ import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
 import { delegationCopy, delegationCopyInput } from '../../delegation/delegation-copy';
-import { delegationElapsedMs } from '../../delegation/delegation-feed';
+import { delegationElapsedMs, isRetryCandidate } from '../../delegation/delegation-feed';
+import { DelegationRetryAction } from '../../delegation/delegation-retry-action';
 import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
 import { SessionPullRequestIndicator } from '../../primary-sidebar/session-pull-request-indicator';
 import { openSession } from '../../session/session-commands';
@@ -44,33 +45,27 @@ function DelegatedResultMeta({ sessionId }: { sessionId: string }) {
     );
 }
 
-const ROW_CLASS_NAME =
-    'flex w-full min-w-0 items-start gap-2 rounded px-2 py-0.5 text-[12px] leading-5 text-muted';
-
 /**
- * One child Session in the Delegated Sessions strip: the Agent, the child's title and Project, what it is doing or what
- * it produced, how long it ran, and the state glyph. The whole row opens the child; a pull request link sits under it
- * as its own control. The button has no `aria-label` of its own: its content (title, Project, step or summary, elapsed
- * time, and the glyph's label) names it, so assistive technology hears what a sighted user reads. A child the Workbench
- * no longer lists (deleted, or in a hidden Project) stays as a plain row.
+ * The row's visible content: the Agent, title, Project, attempt, the status or summary line, elapsed time, and glyph.
  */
-export function AgentChatDelegatedSessionRow({
+function DelegatedSessionRowContent({
+    attempt,
     entry,
     now,
+    projectTitle,
+    title,
 }: {
+    attempt?: number;
     entry: AgentDelegationSession;
     now: number;
+    projectTitle?: string;
+    title: string;
 }) {
     const { t } = useTranslation();
-    const session = useSessionById(entry.sessionId);
-    const project = useProjectById(session?.projectId);
     const copy = delegationCopy(delegationCopyInput(entry), now, t);
     const line = delegatedSessionLine(entry, copy);
-    const title = session
-        ? sessionTitleForDisplay(session.title, t)
-        : t('delegation.strip.unavailable');
     const elapsed = formatNoticeableDuration(delegationElapsedMs(entry, now), t);
-    const content = (
+    return (
         <>
             <span className="flex h-5 w-4 shrink-0 items-center justify-center">
                 <AgentIdentityIcon identity={entry.provider} size={14} />
@@ -78,7 +73,14 @@ export function AgentChatDelegatedSessionRow({
             <span className="flex min-w-0 flex-1 flex-col text-left">
                 <span className="flex min-w-0 items-center gap-1.5">
                     <span className="min-w-0 truncate text-foreground">{title}</span>
-                    {project && <span className="min-w-0 shrink truncate">{project.title}</span>}
+                    {projectTitle && (
+                        <span className="min-w-0 shrink truncate">{projectTitle}</span>
+                    )}
+                    {attempt !== undefined && (
+                        <span className="shrink-0">
+                            {t('delegation.retry.attempt', { number: attempt })}
+                        </span>
+                    )}
                 </span>
                 <span
                     className={cn('min-w-0 truncate', line.kind === 'step' && 'activity-shimmer')}
@@ -95,6 +97,46 @@ export function AgentChatDelegatedSessionRow({
             {elapsed && <span className="shrink-0 tabular-nums">{elapsed}</span>}
             <AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />
         </>
+    );
+}
+
+const ROW_CLASS_NAME =
+    'flex w-full min-w-0 items-start gap-2 rounded px-2 py-0.5 text-[12px] leading-5 text-muted';
+
+/**
+ * One child Session in the Delegated Sessions strip: the Agent, the child's title and Project, what it is doing or what
+ * it produced, how long it ran, and the state glyph. The whole row opens the child; a pull request link sits under it
+ * and a failed task's Retry action sit under it as their own controls. The button has no `aria-label` of its own: its
+ * content (title, Project, step or summary, elapsed time, and the glyph's label) names it, so assistive technology
+ * hears what a sighted user reads. A child the Workbench no longer lists (deleted, or in a hidden Project) stays as a
+ * plain row.
+ */
+export function AgentChatDelegatedSessionRow({
+    attempt,
+    entry,
+    now,
+}: {
+    /**
+     * Which attempt this task is when it retries a failed one (2 or more); `undefined` for a first attempt.
+     */
+    attempt?: number;
+    entry: AgentDelegationSession;
+    now: number;
+}) {
+    const { t } = useTranslation();
+    const session = useSessionById(entry.sessionId);
+    const project = useProjectById(session?.projectId);
+    const title = session
+        ? sessionTitleForDisplay(session.title, t)
+        : t('delegation.strip.unavailable');
+    const content = (
+        <DelegatedSessionRowContent
+            attempt={attempt}
+            entry={entry}
+            now={now}
+            projectTitle={project?.title}
+            title={title}
+        />
     );
     return (
         <li className="flex min-w-0 flex-col" data-agent-chat-delegated-session={entry.sessionId}>
@@ -114,6 +156,16 @@ export function AgentChatDelegatedSessionRow({
             )}
             {entry.status === 'completed' && session && (
                 <DelegatedResultMeta sessionId={entry.sessionId} />
+            )}
+            {session && entry.delegationId !== undefined && isRetryCandidate(entry) && (
+                <span className="flex min-w-0 pl-8 leading-5">
+                    <DelegationRetryAction
+                        delegationId={entry.delegationId}
+                        projectTitle={project?.title ?? ''}
+                        provider={entry.provider}
+                        sessionTitle={title}
+                    />
+                </span>
             )}
         </li>
     );

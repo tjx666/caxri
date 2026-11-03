@@ -37,6 +37,11 @@ export interface ExactResumeHost {
      * `DelegationSubmissions.submit`: writes a `submitting` task's pointer into one exact live launch.
      */
     submit(id: string, terminalId: string, launchId: string, pointer: string): boolean;
+    /**
+     * Called synchronously before the task claims or launches anything. It throws to stop a retry whose delegating
+     * Agent is gone; see `RetryAdmission.guard`.
+     */
+    beforeStart?(): void;
 }
 
 /**
@@ -130,8 +135,11 @@ export async function followUpTask(
         host.fail(id, reportFollowUpRejection(options.logger, id, reason));
         return host.owned(id).receipt;
     };
-    const rejection = followUpRejection(parent, options, (terminalId) =>
-        host.hasActiveTask(terminalId),
+    const rejection = followUpRejection(
+        parent,
+        options,
+        (terminalId) => host.hasActiveTask(terminalId),
+        id,
     );
     if (rejection) return reject(rejection);
     const terminalId = parent.receipt.terminalId!;
@@ -178,10 +186,14 @@ export async function resumeTask(
         return host.owned(id).receipt;
     };
     if (!isDelegationActive(host.owned(id).receipt)) return host.owned(id).receipt;
-    const rejection = resumeRejection(parent, options, (terminalId) =>
-        host.hasActiveTask(terminalId),
+    const rejection = resumeRejection(
+        parent,
+        options,
+        (terminalId) => host.hasActiveTask(terminalId),
+        id,
     );
     if (rejection) return reject(rejection);
+    host.beforeStart?.();
     const terminalId = parent.receipt.terminalId!;
     const expectedLaunchId = options.currentLaunchId?.(terminalId);
     host.save({ ...parent, nextDelegationId: id });

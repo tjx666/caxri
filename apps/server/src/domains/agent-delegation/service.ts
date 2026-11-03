@@ -16,12 +16,11 @@ import {
     admittedDelegation,
     authorizeDelegationSession,
     delegationCaller,
-    delegationPaneCaller,
     delegationRoster,
     isCaxriBotCaller,
     resolveDelegationAdmission,
 } from './admission';
-import { assertTerminalChildHooks, childLaunchFailure, delegationChildLaunch } from './chat-child';
+import { assertTerminalChildHooks, childLaunchFailure } from './chat-child';
 import { readDelegationCompletion } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
 import {
@@ -30,9 +29,8 @@ import {
     isNewlyCompleted,
     recordDelegationResult,
 } from './feed';
-import { prepareDelegationLaunch } from './launch';
+import { startFreshTask } from './fresh-start';
 import { fenceTerminalLaunch } from './launch-fence';
-import { assertDelegationLayout, delegationLayout } from './layout';
 import {
     applyDelegationLifecycle,
     canFailDelegation,
@@ -52,11 +50,12 @@ import {
     handoverTarget,
     resumeTask,
 } from './resume';
+import type { RetryAdmission } from './retry';
+import { assertRetryProvider, DelegationRetries } from './retry';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
-import { delegationTaskBody } from './task-body';
 import { pollDelegations } from './wait';
 
 /**
@@ -79,12 +78,20 @@ export class AgentDelegationService {
 
     private readonly submissions: DelegationSubmissions;
     private readonly progress?: DelegationProgress;
+    private readonly retries: DelegationRetries;
 
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
         this.submissions = new DelegationSubmissions(options, (id, failure) =>
             this.fail(id, failure),
         );
+        this.retries = new DelegationRetries({
+            options,
+            save: (record, isAnnounced) => this.save(record, isAnnounced),
+            hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
+            admit: (id, authority, input, isNewSession, retry) =>
+                this.createInSession(id, authority, input, isNewSession, retry),
+        });
         if (options.onProgress)
             this.progress = new DelegationProgress(
                 (progress) => options.onProgress?.(progress),
@@ -236,8 +243,12 @@ export class AgentDelegationService {
         return { receipt: record.receipt, answer: record.answer };
     }
 
-    private exactResumeHost(authority: DelegationAuthority): ExactResumeHost {
+    private exactResumeHost(
+        authority: DelegationAuthority,
+        retry?: RetryAdmission,
+    ): ExactResumeHost {
         return {
+            beforeStart: retry && (() => retry.guard()),
             hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
             options: this.options,
             owned: (id) => this.owned(id, authority),
@@ -266,6 +277,7 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         input: AgentDelegationCreate,
         isNewSession: boolean,
+        retry?: RetryAdmission,
     ): Promise<AgentDelegationReceipt> {
         this.authorize(authority, input, 'create', isNewSession);
         const fingerprint = createHash('sha256')
@@ -311,13 +323,16 @@ export class AgentDelegationService {
                 previous,
                 settings:
                     this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
+                inherited: retry?.inherited,
             });
+            assertRetryProvider(retry, config.selection);
             const { frozenLaunch } = config;
             if (!previous || input.resumeFrom)
                 await this.options.verifyLaunch(frozenLaunch, config.selection.provider);
             // After the last await before the record exists, so input during `verifyLaunch` is fenced.
+            retry?.guard();
             const admitted = handoverRequest && handoverAdmission(...handoverRequest);
-            let record = this.options.database.agentDelegations.insert(
+            const record = this.options.database.agentDelegations.insert(
                 admittedDelegation({
                     id,
                     now: this.now(),
@@ -327,6 +342,7 @@ export class AgentDelegationService {
                     admission: config,
                     previous,
                     providerSessionId: handover?.providerSessionId,
+                    retryOf: retry?.retryOf,
                 }),
                 (pruned) => reclaimPrunedDelegationFiles(this.options.userDataPath, pruned),
             );
@@ -349,80 +365,21 @@ export class AgentDelegationService {
                     );
                 if (previous)
                     return await (input.resumeFrom
-                        ? resumeTask(this.exactResumeHost(authority), record, authority, previous)
+                        ? resumeTask(
+                              this.exactResumeHost(authority, retry),
+                              record,
+                              authority,
+                              previous,
+                          )
                         : followUpTask(this.exactResumeHost(authority), record, previous));
-                const pane = delegationPaneCaller(this.options.database, authority, input);
-                const prepared = await prepareDelegationLaunch(
-                    this.options.userDataPath,
-                    id,
-                    config.selection.provider,
-                    record.providerSessionId,
-                    delegationTaskBody(this.options.database, record),
-                    frozenLaunch,
+                const early = await startFreshTask(
+                    this.exactResumeHost(authority, retry),
+                    record,
+                    authority,
+                    input,
+                    config,
                 );
-                record = this.owned(id, authority);
-                if (!isDelegationActive(record.receipt)) return record.receipt;
-                record = this.save({
-                    ...record,
-                    promptDigest: prepared.promptDigest,
-                    receipt: { ...record.receipt, status: 'launching' },
-                });
-                const dispatched = await this.options.dispatch.start(
-                    id,
-                    authority.principal,
-                    {
-                        projectId: input.projectId,
-                        sessionId: input.sessionId,
-                        provider: config.selection.provider,
-                    },
-                    {
-                        delegationId: id,
-                        ...delegationChildLaunch(this.options, record, prepared),
-                        shouldStart: () => {
-                            const current = this.options.database.agentDelegations.get(id);
-                            return (
-                                current !== undefined &&
-                                isDelegationActive(current.receipt) &&
-                                !this.deletingSessions.has(input.sessionId)
-                            );
-                        },
-                        beforeCreate: () => {
-                            if (!isDelegationActive(this.owned(id, authority).receipt))
-                                throw new CaxriError(
-                                    'CANCELLED',
-                                    'Delegation was stopped before launch',
-                                );
-                            assertDelegationLayout(
-                                this.options.database.getSessionState(input.sessionId).paneLayout,
-                                pane?.id,
-                            );
-                        },
-                        cwd: pane?.cwd,
-                        prepared: (terminal) => {
-                            record = this.owned(id, authority);
-                            if (!isDelegationActive(record.receipt))
-                                throw new CaxriError(
-                                    'CANCELLED',
-                                    'Delegation was stopped before launch',
-                                );
-                            record = this.save({
-                                ...record,
-                                receipt: { ...record.receipt, terminalId: terminal.id },
-                            });
-                            const state = this.options.database.getSessionState(input.sessionId);
-                            this.options.database.updateSessionState({
-                                ...state,
-                                paneLayout: delegationLayout(
-                                    state.paneLayout,
-                                    terminal.id,
-                                    pane?.id,
-                                    pane && this.options.dimensions?.(pane.id),
-                                ),
-                            });
-                        },
-                    },
-                );
-                if (dispatched.status === 'failed') this.fail(id, 'launch_failed');
+                if (early) return early;
             } catch (error) {
                 this.fail(id, childLaunchFailure(error));
             }
@@ -616,7 +573,19 @@ export class AgentDelegationService {
         }).receipt;
     }
 
+    /**
+     * Owner-only retry of a failed task; see {@link DelegationRetries}.
+     */
+    retry(...request: Parameters<DelegationRetries['retry']>) {
+        return this.retries.retry(...request);
+    }
+
+    retryOptions(failedId: string) {
+        return this.retries.options(failedId);
+    }
+
     initialize(): void {
+        this.retries.recoverClaims();
         for (const record of this.options.database.agentDelegations.active()) {
             const { next, shouldCollect } = recoveredDelegation(
                 record,
