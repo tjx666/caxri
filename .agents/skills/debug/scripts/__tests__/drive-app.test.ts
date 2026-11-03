@@ -120,6 +120,23 @@ describe('drive-app', () => {
         ).toBe(9440);
     });
 
+    it('answers a Main confirmation with a button index through the inspector', () => {
+        const environment = { V8_INSPECTOR_PORT: '9339' };
+        expect(parseDriveCommand(['stub-message-box', '1'], environment)).toMatchObject({
+            step: 'stub-message-box',
+            argument: '1',
+            inspectorPort: 9339,
+        });
+        expect(() => parseDriveCommand(['stub-message-box', '1'], {})).toThrow(
+            /V8_INSPECTOR_PORT/u,
+        );
+        for (const index of ['-1', '1.5', 'update']) {
+            expect(() => parseDriveCommand(['stub-message-box', index], environment)).toThrow(
+                /button index/u,
+            );
+        }
+    });
+
     it('finds the Chat row of the add-Project dialog in either interface language', () => {
         expect(chatChoiceName('codex').test('Codex Chat')).toBe(true);
         expect(chatChoiceName('codex').test('Codex对话')).toBe(true);

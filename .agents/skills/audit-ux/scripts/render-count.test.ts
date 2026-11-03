@@ -94,7 +94,7 @@ describe('render-count options', () => {
         await expect(
             collectRenderSample(options as Exclude<typeof options, 'help'>, connect),
         ).rejects.toThrow('stop after selection');
-        expect(connect).toHaveBeenCalledWith(9233, 'caxri-bot');
+        expect(connect).toHaveBeenCalledWith(9233, { urlContains: 'caxri-bot' });
     });
 
     it('returns help for no arguments so a bare run explains itself', () => {

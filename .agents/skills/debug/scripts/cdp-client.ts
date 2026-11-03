@@ -9,6 +9,7 @@ const CDP_TIMEOUT_MS = 10_000;
 export interface CdpTarget {
     type: string;
     url: string;
+    title?: string;
     webSocketDebuggerUrl?: string;
 }
 
@@ -37,12 +38,30 @@ function isDevelopmentMainPage(url: string): boolean {
 }
 
 /**
+ * Narrows target selection to a secondary window. Both filters must match when both are given.
+ */
+export interface RendererTargetFilter {
+    /**
+     * A substring of the page URL, such as `process-explorer.html`.
+     */
+    urlContains?: string;
+    /**
+     * A substring of the window title. An SSH Host window loads the same `index.html` as the local window, so only its
+     * title, which names the host, tells them apart.
+     */
+    titleContains?: string;
+}
+
+/**
  * Picks the single main-window Renderer target. A packaged or built launch exposes `<app>/out/renderer/index.html` next
  * to secondary windows such as the Process Explorer; an unpackaged dev launch exposes the Vite dev-server root next to
  * the same secondary entries served by Vite. Without a built page the dev root wins, and only a launch with neither
  * falls back to every page. DevTools windows are never candidates: attaching to one silently inspects the inspector.
  */
-export function selectRendererTarget(targets: CdpTarget[], urlContains?: string): CdpTarget {
+export function selectRendererTarget(
+    targets: CdpTarget[],
+    { urlContains, titleContains }: RendererTargetFilter = {},
+): CdpTarget {
     const pages = targets.filter(
         (target) =>
             target.type === 'page' &&
@@ -54,16 +73,28 @@ export function selectRendererTarget(targets: CdpTarget[], urlContains?: string)
     );
     const rendererPages = pages.filter((target) => target.url.includes('/out/renderer/'));
     const developmentMainPages = pages.filter((target) => isDevelopmentMainPage(target.url));
-    const candidates = urlContains
-        ? pages.filter((target) => target.url.includes(urlContains))
-        : ([mainRendererPages, rendererPages, developmentMainPages].find(
-              (group) => group.length > 0,
-          ) ?? pages);
+    const candidates =
+        urlContains || titleContains
+            ? pages.filter(
+                  (target) =>
+                      (!urlContains || target.url.includes(urlContains)) &&
+                      (!titleContains || (target.title ?? '').includes(titleContains)),
+              )
+            : ([mainRendererPages, rendererPages, developmentMainPages].find(
+                  (group) => group.length > 0,
+              ) ?? pages);
     if (candidates.length !== 1) {
-        const urls = pages.map((target) => target.url).join(', ') || 'none';
-        const selector = urlContains ? ` matching "${urlContains}"` : '';
+        const urls =
+            pages.map((target) => `${target.url} (${target.title ?? 'untitled'})`).join(', ') ||
+            'none';
+        const selector = [
+            urlContains && `URL "${urlContains}"`,
+            titleContains && `title "${titleContains}"`,
+        ]
+            .filter(Boolean)
+            .join(' and ');
         throw new Error(
-            `Expected exactly one Caxri Renderer CDP target${selector}; available: ${urls}`,
+            `Expected exactly one Caxri Renderer CDP target${selector ? ` matching ${selector}` : ''}; available: ${urls}`,
         );
     }
     return candidates[0];
@@ -162,13 +193,13 @@ class CdpClient implements CdpConnection {
 
 export async function connectToRenderer(
     port: number,
-    urlContains?: string,
+    filter?: RendererTargetFilter,
 ): Promise<CdpConnection> {
     const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
         signal: AbortSignal.timeout(CDP_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`CDP target discovery failed with HTTP ${response.status}`);
-    const target = selectRendererTarget((await response.json()) as CdpTarget[], urlContains);
+    const target = selectRendererTarget((await response.json()) as CdpTarget[], filter);
     if (!target.webSocketDebuggerUrl) throw new Error('Renderer target has no WebSocket URL');
     return CdpClient.connect(target.webSocketDebuggerUrl);
 }

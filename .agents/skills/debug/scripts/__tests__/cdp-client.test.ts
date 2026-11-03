@@ -35,9 +35,10 @@ describe('Renderer CDP target selection', () => {
         ];
 
         expect(selectRendererTarget(targets).webSocketDebuggerUrl).toBe('ws://main');
-        expect(selectRendererTarget(targets, 'process-explorer.html').webSocketDebuggerUrl).toBe(
-            'ws://process-explorer',
-        );
+        expect(
+            selectRendererTarget(targets, { urlContains: 'process-explorer.html' })
+                .webSocketDebuggerUrl,
+        ).toBe('ws://process-explorer');
     });
 
     it('selects the dev server page of an unpackaged launch', () => {
@@ -65,7 +66,9 @@ describe('Renderer CDP target selection', () => {
         ];
 
         expect(selectRendererTarget(targets).webSocketDebuggerUrl).toBe('ws://main');
-        expect(selectRendererTarget(targets, 'caxri-bot').webSocketDebuggerUrl).toBe('ws://bot');
+        expect(
+            selectRendererTarget(targets, { urlContains: 'caxri-bot' }).webSocketDebuggerUrl,
+        ).toBe('ws://bot');
     });
 
     it('treats a dev index.html page as the main window', () => {
@@ -83,6 +86,30 @@ describe('Renderer CDP target selection', () => {
                 },
             ]).webSocketDebuggerUrl,
         ).toBe('ws://main');
+    });
+
+    it('tells the local and SSH Host windows apart by title', () => {
+        const targets = [
+            {
+                type: 'page',
+                url: 'http://localhost:5173/',
+                title: 'Caxri',
+                webSocketDebuggerUrl: 'ws://local',
+            },
+            {
+                type: 'page',
+                url: 'http://localhost:5173/',
+                title: 'dev-box — Caxri',
+                webSocketDebuggerUrl: 'ws://ssh',
+            },
+        ];
+
+        expect(
+            selectRendererTarget(targets, { titleContains: 'dev-box' }).webSocketDebuggerUrl,
+        ).toBe('ws://ssh');
+        expect(() => selectRendererTarget(targets, { titleContains: 'Caxri' })).toThrow(
+            /title "Caxri".*dev-box/u,
+        );
     });
 
     it('refuses an ambiguous target list instead of guessing', () => {

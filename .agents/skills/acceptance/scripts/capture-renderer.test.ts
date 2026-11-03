@@ -157,6 +157,18 @@ describe('Acceptance Renderer capture', () => {
         ).toMatchObject({ command: 'frames', count: 8, intervalMs: 100, port: 9222 });
     });
 
+    it('targets a window by title, as an SSH Host window shares the local window URL', () => {
+        expect(
+            parseCaptureOptions([
+                'screenshot',
+                '--output',
+                './ssh.png',
+                '--title-contains',
+                'dev-box',
+            ]),
+        ).toMatchObject({ command: 'screenshot', titleContains: 'dev-box' });
+    });
+
     it('requires and enforces fixture preflight for Terminal fixture frame capture', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-capture-preflight-'));
         temporaryDirectories.push(directory);
