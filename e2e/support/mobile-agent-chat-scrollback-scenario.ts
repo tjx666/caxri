@@ -37,6 +37,12 @@ const DRAG_COUNT = 6;
 const DRAG_MS = 120;
 
 /**
+ * Flings that must each find older rows before the reader may reach the turn's request: the fixture's turn needs
+ * several pages, so a list stuck sooner never received the page it asked for.
+ */
+const MIN_MOVING_DRAGS = 3;
+
+/**
  * How long after a fling the list may still move on its own: a page lands at {@link PAGE_DELAY_MS} and one scroll-back
  * reads several pages in a row.
  */
@@ -140,7 +146,8 @@ export async function executeMobileChatScrollbackScenario(
             await pause(LIFT_SETTLE_MS);
             // eslint-disable-next-line no-await-in-loop -- see above
             const lifted = await settledFingerprint(serial, band);
-            // A drag that cannot move the rows found no older rows above them: the pages it should have read never came.
+            // A drag that cannot move the rows found no older rows above them: either a page never came or the reader
+            // already reached the turn's request.
             if (lifted === before) stuck.push(drag);
             let changedSamples = 0;
             const deadline = Date.now() + WATCH_AFTER_DRAG_MS;
@@ -163,12 +170,19 @@ export async function executeMobileChatScrollbackScenario(
             throw new Error(
                 `The timeline moved without a touch after ${moves.length} of ${DRAG_COUNT} drags: ${JSON.stringify(moves)}`,
             );
-        if (stuck.length > 0)
+        // Once the reader reaches the turn's request nothing older is left, so only trailing drags may stay put. A
+        // stuck drag followed by a moving one, or too few moving drags, means a page never reached the list.
+        const firstStuck = stuck[0] ?? DRAG_COUNT + 1;
+        if (
+            firstStuck <= MIN_MOVING_DRAGS ||
+            stuck.some((drag, index) => drag !== firstStuck + index)
+        )
             throw new Error(
                 `Drags ${stuck.join(', ')} could not move the timeline, so no older page reached it`,
             );
         await finish(environment, artifacts, {
             drags: DRAG_COUNT,
+            movingDrags: firstStuck - 1,
             pageDelayMs: PAGE_DELAY_MS,
             status: 'passed',
         });
