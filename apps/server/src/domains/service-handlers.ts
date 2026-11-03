@@ -176,8 +176,12 @@ export function createServiceHandlers(services: {
             agentEnvironment,
             emit,
             github: externalStatus.github,
-            onPullRequestChanged: (sessionId, previous, next) =>
-                settlementWiring.observePullRequest(sessionId, previous, next),
+            onPullRequestChanged: (sessionId, previous, next) => {
+                settlementWiring.observePullRequest(sessionId, previous, next);
+                // A first sighting (Server Core start) is not a change the Status panel missed; skip it so startup does
+                // not re-read every visible Session at once.
+                if (previous && next) void projectStatus.pullRequestChanged(sessionId, next);
+            },
             sessionContext: (session) => sessionContext.read(session),
             settings: () => configuration.getSettings().value,
             vercel,
