@@ -60,12 +60,14 @@ const ConversationHistory = ({
 }) => {
     const { t } = useTranslation();
     /**
-     * The tallest the header has been. FlashList keeps the reader's row in place only against rows, not this header, so
-     * when the last older page removed the load-earlier button the shorter header pulled every row up by its height.
-     * Keeping the space trades a gap above the conversation's start for a list that stays put.
+     * The tallest the header has been while it offered older messages. FlashList keeps the reader's row in place only
+     * against rows, not this header, so when the last older page removed the load-earlier button the shorter header
+     * pulled every row up by its height. Keeping the space trades a gap above the conversation's start for a list that
+     * stays put; a passing error or offline note does not count, so it leaves no lasting gap.
      */
     const [minHeight, setMinHeight] = useState(0);
     const onLayout = (event: LayoutChangeEvent): void => {
+        if (!olderCursor || error || needsConnection || historyExpired) return;
         const { height } = event.nativeEvent.layout;
         setMinHeight((current) => Math.max(current, height));
     };

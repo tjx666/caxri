@@ -127,6 +127,32 @@ describe('stabilizeAgentChatEntries', () => {
         expect(ids(extended)).toEqual(ids(opened));
         expect(extended[0]).toMatchObject({ kind: 'work', itemIds: ['c1', 'c2', 'c3', 'c4'] });
     });
+
+    it('keeps a new work row its own key when no earlier row holds one of its calls', () => {
+        const command = (id: string): AgentChatItem => ({
+            id,
+            turnId: 't1',
+            type: 'command',
+            command: `echo ${id}`,
+            output: '',
+            status: 'completed',
+        });
+        const message = (id: string): AgentChatItem => ({
+            id,
+            turnId: 't1',
+            type: 'agentMessage',
+            text: id,
+            streaming: false,
+        });
+        const stabilize =
+            createAgentChatEntryStabilizer<AgentChatTimelineEntry>(agentChatFormerEntryIds);
+        const opened = stabilize(timeline([command('c3'), message('a2')]));
+        // An older page brings a separate run before a message: it is a new row, not the opened one.
+        const paged = stabilize(
+            timeline([command('c1'), command('c2'), message('a1'), command('c3'), message('a2')]),
+        );
+        expect(ids(paged)).toEqual(['work:c1', 'a1', ...ids(opened)]);
+    });
 });
 
 describe('isAgentChatTurnStart', () => {
