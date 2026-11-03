@@ -30,6 +30,11 @@ export const COMMENT_MARKER = '<!-- caxri-pr-report:v1 -->';
  */
 const BASELINE_DEPTH = 30;
 
+/**
+ * Baseline artifacts expire after 30 days, so 5 pages of 100 cover every live `main` push at the current merge rate.
+ */
+const BASELINE_ARTIFACT_PAGES = 5;
+
 const KiB = 1_024;
 const MiB = 1_024 * KiB;
 
@@ -280,29 +285,38 @@ async function findBaseline(
     scratch: string,
 ): Promise<SizeReport | undefined> {
     const name = baselineArtifact(kind);
-    const { artifacts } = await ghJson<{
-        artifacts: Array<{
-            expired: boolean;
-            workflow_run?: {
-                head_branch?: string;
-                head_repository_id?: number;
-                head_sha?: string;
-                id?: number;
-                repository_id?: number;
-            };
-        }>;
-    }>(`repos/${repo}/actions/artifacts?name=${name}&per_page=100`);
-    const candidates = artifacts.flatMap(({ expired, workflow_run: run }) =>
-        !expired &&
-        run?.id !== undefined &&
-        run.head_sha !== undefined &&
-        run.head_branch === 'main' &&
-        // A fork's pull request run can upload any artifact name, but never from this repository's own `main`.
-        run.head_repository_id === run.repository_id
-            ? [{ runId: run.id, sha: run.head_sha }]
-            : [],
-    );
-    const picked = pickBaseline(ancestors, candidates);
+    const candidates: BaselineArtifact[] = [];
+    let picked: BaselineArtifact | undefined;
+    // Newest first, one artifact per `main` push: an older merge base sits pages back, so page until it is found.
+    for (let page = 1; !picked && page <= BASELINE_ARTIFACT_PAGES; page++) {
+        // eslint-disable-next-line no-await-in-loop -- each page decides whether the next one is needed
+        const { artifacts } = await ghJson<{
+            artifacts: Array<{
+                expired: boolean;
+                workflow_run?: {
+                    head_branch?: string;
+                    head_repository_id?: number;
+                    head_sha?: string;
+                    id?: number;
+                    repository_id?: number;
+                };
+            }>;
+        }>(`repos/${repo}/actions/artifacts?name=${name}&per_page=100&page=${page}`);
+        candidates.push(
+            ...artifacts.flatMap(({ expired, workflow_run: run }) =>
+                !expired &&
+                run?.id !== undefined &&
+                run.head_sha !== undefined &&
+                run.head_branch === 'main' &&
+                // A fork's pull request run can upload any artifact name, but never from this repository's own `main`.
+                run.head_repository_id === run.repository_id
+                    ? [{ runId: run.id, sha: run.head_sha }]
+                    : [],
+            ),
+        );
+        picked = pickBaseline(ancestors, candidates);
+        if (artifacts.length < 100) break;
+    }
     if (!picked) return undefined;
     const report = await readReport(repo, picked.runId, name, kind, scratch);
     return report?.sha === picked.sha ? report : undefined;
