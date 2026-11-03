@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentLaunchSettings } from '@caxri/protocol';
+import type { AgentChatSnapshot, AgentLaunchSettings } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 
@@ -164,7 +164,16 @@ export class ChatDelegationLinks {
      * See {@link chatTurnAnswer}.
      */
     turnAnswer(terminalId: string, turnId: string): ChatTurnAnswer {
-        return chatTurnAnswer(this.options.state(terminalId)?.projection.snapshot, turnId);
+        return chatTurnAnswer(this.snapshot(terminalId), turnId);
+    }
+
+    /**
+     * The Chat's current projection snapshot, or `undefined` when this Server Core holds none for it. Agent delegation
+     * reads what the active turn is doing (a Delegated Session's progress) and why a turn failed (a usage limit's reset
+     * time).
+     */
+    snapshot(terminalId: string): AgentChatSnapshot | undefined {
+        return this.options.state(terminalId)?.projection.snapshot;
     }
 
     /**

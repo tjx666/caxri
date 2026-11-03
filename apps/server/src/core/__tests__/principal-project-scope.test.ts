@@ -14,8 +14,11 @@ describe('assertOwnerOnlyMethod', () => {
             'bot.conversations',
             'bot.managedSessions',
             'session.permissionAutoAllowStatus',
+            // The Delegated Sessions feed reads other Sessions' results; an Agent grant must not.
+            'agent.delegation.sessions',
         ])
-            expect(() => assertOwnerOnlyMethod(contextFor('agent'), method)).toThrow(/owner/);
+            for (const kind of ['agent', 'delegation-client'])
+                expect(() => assertOwnerOnlyMethod(contextFor(kind), method)).toThrow(/owner/);
     });
 
     it('allows the owner clients and unrestricted methods', () => {

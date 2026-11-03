@@ -10,4 +10,5 @@ export * from './bot';
 export * from './claude-windows';
 export * from './core';
 export * from './credentials';
+export * from './session-results';
 export * from './usage';

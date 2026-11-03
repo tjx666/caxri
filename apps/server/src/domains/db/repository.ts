@@ -20,11 +20,7 @@ import type {
     TerminalSnapshot,
     TerminalSurface,
 } from '@caxri/protocol';
-import {
-    CaxriError,
-    initialAgentChatPermission,
-    resolveAgentChatPermissionChange,
-} from '@caxri/protocol';
+import { CaxriError, resolveAgentChatPermissionChange } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -68,8 +64,6 @@ import {
 } from './session-ordering';
 import type { ShutdownReason } from './session-policy';
 import {
-    choosePrimaryAgentForNewTerminal,
-    defaultTerminalTitle,
     firstActiveSession,
     processExitActivityState,
     sessionActivityReasonForAgentState,
@@ -80,8 +74,8 @@ import {
     listActiveWorktreeBindings,
     selectWorkbenchProject as selectSessionWorkbenchProject,
 } from './session-workbench-binding';
-import { assertTerminalCapacity } from './terminal-capacity';
 import { terminalIdsBySession } from './terminal-ids-by-session';
+import { insertSessionTerminal } from './terminal-insert';
 import { moveTerminalToNewSession } from './terminal-move';
 import { TerminalSurfaces } from './terminal-surface';
 
@@ -98,6 +92,7 @@ export class CaxriDatabase {
     readonly credentials: CaxriDatabase_['credentials'];
     readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
+    readonly createdSessions: CaxriDatabase_['createdSessions'];
     readonly agentSessionUsage: CaxriDatabase_['agentSessionUsage'];
     readonly botInbox: CaxriDatabase_['botInbox'];
     readonly botTasks: CaxriDatabase_['botTasks'];
@@ -112,40 +107,13 @@ export class CaxriDatabase {
         this.credentials = this.db.credentials;
         this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
+        this.createdSessions = this.db.createdSessions;
         this.agentSessionUsage = this.db.agentSessionUsage;
         this.botInbox = this.db.botInbox;
         this.botTasks = this.db.botTasks;
         this.botPendingNotices = this.db.botPendingNotices;
         this.terminalSurfaces = new TerminalSurfaces(this.db);
         this.windowOpenSessions = new WindowOpenSessionsStore(this.db);
-    }
-
-    private insertTerminal(
-        sessionId: string,
-        kind: TerminalKind,
-        cwd?: string,
-        surface?: TerminalSurface,
-    ): TerminalRecord {
-        const session = this.db.sessions.get(sessionId);
-        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const ownerProject = this.db.projects.get(session.projectId);
-        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        assertTerminalCapacity(this.db.terminals, sessionId);
-        const terminal = this.db.terminals.insert({
-            sessionId,
-            kind,
-            cwd: cwd ?? ownerProject.rootPath,
-            surface,
-            title: defaultTerminalTitle(kind),
-            ...(surface === 'chat' &&
-                kind !== 'shell' && {
-                    chatPermission: initialAgentChatPermission(kind, ownerProject.chatDefaults),
-                }),
-        });
-        const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
-        if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
-        this.db.sessions.addTerminalToAllRootStates(sessionId, terminal.id);
-        return terminal;
     }
 
     /**
@@ -513,7 +481,9 @@ export class CaxriDatabase {
         cwd?: string,
         surface?: TerminalSurface,
     ): TerminalRecord {
-        return this.db.transaction(() => this.insertTerminal(sessionId, kind, cwd, surface));
+        return this.db.transaction(() =>
+            insertSessionTerminal(this.db, sessionId, kind, cwd, surface),
+        );
     }
 
     /**
@@ -527,7 +497,7 @@ export class CaxriDatabase {
     ): { stored: StoredAgentDispatchReceipt; terminal: TerminalRecord } {
         return this.db.transaction(() =>
             insertAgentDispatchWithTerminal(this.db, input, () =>
-                this.insertTerminal(input.sessionId, kind, cwd, surface),
+                insertSessionTerminal(this.db, input.sessionId, kind, cwd, surface),
             ),
         );
     }

@@ -10,6 +10,7 @@ import { AppStateModel } from './models/app-state';
 import { BotInboxModel } from './models/bot-inbox';
 import { BotPendingNoticesModel } from './models/bot-pending-notices';
 import { BotTasksModel } from './models/bot-tasks';
+import { CreatedSessionsModel } from './models/created-sessions';
 import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
@@ -80,6 +81,7 @@ export class CaxriDatabaseConnection {
     readonly agentDispatchReceipts: AgentDispatchReceiptsModel;
     readonly mobileAgentSubmitReceipts: MobileAgentSubmitReceiptsModel;
     readonly agentDelegations: AgentDelegationsModel;
+    readonly createdSessions: CreatedSessionsModel;
     readonly agentSessionUsage: AgentSessionUsageModel;
     readonly botInbox: BotInboxModel;
     readonly protocolState: ProtocolStateModel;
@@ -110,6 +112,7 @@ export class CaxriDatabaseConnection {
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
         this.mobileAgentSubmitReceipts = new MobileAgentSubmitReceiptsModel(this.db);
         this.agentDelegations = new AgentDelegationsModel(this.db);
+        this.createdSessions = new CreatedSessionsModel(this.db);
         this.botInbox = new BotInboxModel(this.db, (work) => this.transaction(work));
         this.botTasks = new BotTasksModel(this.db);
         this.botPendingNotices = new BotPendingNoticesModel(this.db);

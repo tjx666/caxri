@@ -2,12 +2,25 @@ import type {
     AgentDelegationCreate,
     AgentDelegationCreateRequest,
     AgentDelegationReceipt,
+    SessionRelation,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 import type { AgentDelegationServiceOptions } from './service-options';
+
+/**
+ * How the caller's Session started the Session this request creates: a hand-off continues the caller's work, a consult
+ * asks a question that changes no files, and anything else is a task the caller waits on. Recorded only with a creator,
+ * so an owner or Caxri Bot caller gets none.
+ */
+function newSessionRelation(
+    fields: Pick<AgentDelegationCreate, 'consult' | 'handoff'>,
+): SessionRelation {
+    if (fields.handoff) return 'handoff';
+    return fields.consult ? 'consult' : 'delegated';
+}
 
 /**
  * Resolves the Session a create request runs in, then admits it. `newSession` creates the Session here, right before
@@ -48,11 +61,13 @@ export async function admitDelegationRequest(
     const worktree = worktreeBranch
         ? await newSessions.prepareWorktree!(fields.projectId, worktreeBranch)
         : undefined;
+    const creatorSessionId = isBot ? undefined : callerSessionId;
     const sessionId = newSessions.create(
         fields.projectId,
         title,
         isBot,
-        isBot ? undefined : callerSessionId,
+        creatorSessionId,
+        creatorSessionId ? newSessionRelation(fields) : undefined,
         worktree,
     );
     try {

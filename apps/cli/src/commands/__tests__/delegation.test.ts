@@ -71,6 +71,38 @@ describe('delegation CLI', () => {
             await command.parseParams([
                 ...base,
                 '--new-session',
+                '--consult',
+                '--title',
+                'Review the retry design',
+            ]),
+        ).toMatchObject({ newSession: true, consult: true });
+        await expect(
+            command.parseParams([...base, '--session', 'session', '--consult']),
+        ).rejects.toThrow(/--consult applies only with --new-session/u);
+        await expect(
+            command.parseParams([
+                ...base,
+                '--new-session',
+                '--consult',
+                '--handoff',
+                '--title',
+                'Fix login retry',
+            ]),
+        ).rejects.toThrow(/--consult or --handoff, not both/u);
+        await expect(
+            command.parseParams([
+                ...base,
+                '--new-session',
+                '--consult',
+                '--consult',
+                '--title',
+                'Fix login retry',
+            ]),
+        ).rejects.toThrow(/--consult at most once/u);
+        expect(
+            await command.parseParams([
+                ...base,
+                '--new-session',
                 '--title',
                 'Fix login retry',
                 '--worktree',

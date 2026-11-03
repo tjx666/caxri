@@ -149,14 +149,25 @@ export const agentDelegationLogEvents = {
     /**
      * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, or resume; `newSession`),
      * whether Caxri Bot sent it, and the request's correlation ID, so a delegation can be traced back to the CLI call
-     * that created it. Never the prompt.
+     * that created it. `fields.relation` is how the Session was started (`delegated`, `handoff`, `consult`, or `none`
+     * for a Session with no creator relation: the owner's, or one Caxri Bot dispatched to), which decides whether the
+     * task reports a result. Never the prompt.
      */
     requested: 'agent_delegation.requested',
     /**
      * A task's receipt `status` or `failure` changed: the delegation lifecycle as a sequence of state transitions, with
-     * the previous status and the time since the task was created. Receipt state only, never prompt or answer.
+     * the previous status and the time since the task was created. A transition whose `failure` is `quota_exhausted` or
+     * `rate_limited` also carries `fields.hasFailureResetsAt`, whether a reset time was known, so a missing countdown
+     * can be told from a limit that never reported one. Receipt state only, never prompt or answer.
      */
     transitioned: 'agent_delegation.transitioned',
+    /**
+     * A completed task of a delegated or consulted Session changed the Session's stored result (the Delegated Sessions
+     * feed). `fields.outcome` is `stored` (with `fields.summarySource`, `authored` or `excerpt`) or `no_summary` (the
+     * answer had no text to summarize, so any earlier task's result was removed; `summarySource` is null), with
+     * `durationMs` from the task's creation to its completion. Never the summary or the answer.
+     */
+    resultRecorded: 'agent_delegation.result_recorded',
 } as const;
 
 export const agentDispatchLogEvents = {

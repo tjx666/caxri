@@ -307,6 +307,18 @@ export class BotCompletionNotifier {
         if (isReopened) this.options.database.botPendingNotices.markTurnStarted(this.now());
     }
 
+    /**
+     * A blocked task can run again (its permission prompt was approved, or the user answered a startup prompt), so a
+     * "needs input" notice still queued for it is stale: delivering it later would send Caxri Bot to unblock a task
+     * that is already running. A queued `completed` or `failed` notice stays owed.
+     */
+    private withdrawNeedsInput(delegationId: string): void {
+        const stale = this.pendingDelegations().find(
+            (notice) => notice.delegationId === delegationId && notice.status === 'needsInput',
+        );
+        if (stale) this.options.database.botPendingNotices.removeDelegations([stale]);
+    }
+
     private markInterrupted(): void {
         this.options.database.botPendingNotices.clearTurn();
         this.escapedTurnLaunchId = this.turnStartBaseline?.launchId;
@@ -488,7 +500,10 @@ export class BotCompletionNotifier {
         if (!this.options.database.caxriBotRows()?.sessionIds.includes(receipt.sessionId)) return;
         this.queued.observeDelegation(receipt.sessionId, receipt.status);
         const status = classifyBotCompletionNotice(receipt);
-        if (!status) return;
+        if (!status) {
+            this.withdrawNeedsInput(receipt.delegationId);
+            return;
+        }
         /**
          * A task that fails straight out of `requested` was refused at admission (`target_busy`, `target_not_ready`,
          * ...) inside the very `agent delegate create` call Caxri Bot is still waiting on, so the CLI already returned

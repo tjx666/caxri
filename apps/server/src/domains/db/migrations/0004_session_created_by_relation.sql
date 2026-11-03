@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `created_by_relation` text;

@@ -16,7 +16,13 @@ describe('Benchmark window policy', () => {
         const onDenied = vi.fn();
         for (const method of ['benchmark.start', 'benchmark.list', 'app.bootstrap', 'theme.get'])
             expect(() => admitBenchmarkWindowRequest(request(method), onDenied)).not.toThrow();
-        for (const method of ['files.write', 'session.create', 'terminal.input', 'app.records'])
+        for (const method of [
+            'files.write',
+            'session.create',
+            'terminal.input',
+            'app.records',
+            'agent.delegation.sessions',
+        ])
             expect(() => admitBenchmarkWindowRequest(request(method), onDenied)).toThrow(
                 expect.objectContaining({ code: 'FORBIDDEN' }),
             );
@@ -25,6 +31,7 @@ describe('Benchmark window policy', () => {
             ['session.create'],
             ['terminal.input'],
             ['app.records'],
+            ['agent.delegation.sessions'],
         ]);
     });
 
@@ -46,6 +53,9 @@ describe('Benchmark window policy', () => {
         expect(isBenchmarkWindowEvent({ event: 'host.connectionChanged', payload: {} })).toBe(true);
         expect(isBenchmarkWindowEvent({ event: 'command.execute', payload: {} })).toBe(false);
         expect(isBenchmarkWindowEvent({ event: 'terminal.output', payload: {} })).toBe(false);
+        expect(isBenchmarkWindowEvent({ event: 'agent.delegation.progress', payload: {} })).toBe(
+            false,
+        );
         expect(isBenchmarkWindowEvent(null)).toBe(false);
     });
 });

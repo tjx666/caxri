@@ -6,6 +6,9 @@ import baselineMigrationSql from './0000_baseline.sql?raw';
 import terminalPtyExhaustedMigrationSql from './0001_terminal_pty_exhausted.sql?raw';
 import agentChatVersionsMigrationSql from './0002_agent_chat_versions.sql?raw';
 import mobileDeviceAllProjectsMigrationSql from './0003_mobile_device_all_projects.sql?raw';
+import sessionCreatedByRelationMigrationSql from './0004_session_created_by_relation.sql?raw';
+import sessionCreatedByRelationCheckMigrationSql from './0005_session_created_by_relation_check.sql?raw';
+import sessionResultsMigrationSql from './0006_session_results.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -46,6 +49,12 @@ export const migrationManifest = [
     { tag: '0001_terminal_pty_exhausted', sql: terminalPtyExhaustedMigrationSql },
     { tag: '0002_agent_chat_versions', sql: agentChatVersionsMigrationSql },
     { tag: '0003_mobile_device_all_projects', sql: mobileDeviceAllProjectsMigrationSql },
+    { tag: '0004_session_created_by_relation', sql: sessionCreatedByRelationMigrationSql },
+    {
+        tag: '0005_session_created_by_relation_check',
+        sql: sessionCreatedByRelationCheckMigrationSql,
+    },
+    { tag: '0006_session_results', sql: sessionResultsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

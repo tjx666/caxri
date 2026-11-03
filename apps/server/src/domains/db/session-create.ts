@@ -1,4 +1,4 @@
-import type { SessionRecord, TerminalKind, TerminalRecord } from '@caxri/protocol';
+import type { SessionRecord, SessionRelation, TerminalKind, TerminalRecord } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
@@ -25,6 +25,11 @@ export interface CreateSessionOptions {
      * only an Agent-created Session carries a creator.
      */
     createdBySessionId?: string;
+    /**
+     * How the creator started it (`delegated`, `handoff`, or `consult`). Stored only with `createdBySessionId`; Caxri
+     * Bot's Sessions name their creator without one.
+     */
+    createdByRelation?: SessionRelation;
     /**
      * An automatic title to start from instead of the default, which a later Agent conversation name still replaces.
      */
@@ -53,7 +58,10 @@ export function createSession(
     const session = database.sessions.insert({
         projectId,
         title: options.title ?? DEFAULT_SESSION_TITLE,
-        ...(options.createdBySessionId && { createdBySessionId: options.createdBySessionId }),
+        ...(options.createdBySessionId && {
+            createdBySessionId: options.createdBySessionId,
+            ...(options.createdByRelation && { createdByRelation: options.createdByRelation }),
+        }),
     });
     let terminal: TerminalRecord | null = null;
     if (kind) {

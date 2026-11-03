@@ -1,6 +1,6 @@
 import { isChatTerminal } from '@caxri/protocol';
 
-import type { DelegationChatTurn } from '../agent-delegation';
+import type { DelegationChatSnapshot, DelegationChatTurn } from '../agent-delegation';
 import type { DispatchChats } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
 
@@ -12,6 +12,7 @@ export interface DelegationChats extends DispatchChats {
         sendToLaunch(terminalId: string, launchId: string, text: string): Promise<void>;
         inputEpoch(terminalId: string): number;
         turnAnswer(terminalId: string, turnId: string): DelegationChatTurn;
+        snapshot(terminalId: string): DelegationChatSnapshot | undefined;
     };
 }
 
