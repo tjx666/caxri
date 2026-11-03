@@ -24,10 +24,10 @@ interface PrimarySidebarTreeKeyOptions {
  * - Up/Down/Home/End walk every Project heading and its active Sessions.
  * - Left/Right expand or collapse a Project, step into its first row once it is open, or move a Session row to its owning
  *   Project.
- * - Delete/Backspace on a focused Session row archives it (reversible via the Archived Sessions dialog, so no
- *   confirmation), the keyboard equivalent of the Archive button. Focus moves to the next row (falling back to the
- *   previous row when the archived row was last) before the row leaves the DOM, so the roving Tab stop never falls out
- *   of the tree.
+ * - Delete/Backspace on a focused Session row archives it (reversible via the Archived Sessions dialog, so it confirms
+ *   only when the Agent is still working, like the button), the keyboard equivalent of the Archive button. Focus moves
+ *   to the next row (falling back to the previous row when the archived row was last) before the row leaves the DOM, so
+ *   the roving Tab stop never falls out of the tree.
  *
  * Which row each key resolves to is decided by the pure functions in `primary-sidebar-tree.ts`, which are unit tested;
  * what stays here is only the DOM glue those answers drive.

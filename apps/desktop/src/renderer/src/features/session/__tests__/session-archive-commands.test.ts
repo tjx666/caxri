@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => {
     const pushToast = vi.fn<(kind: ToastKind, message: string, options?: ToastOptions) => void>();
     return {
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
+        confirmBeforeEndingTurn:
+            vi.fn<(terminalId: string, copy: unknown, proceed: () => void) => Promise<void>>(),
         getBootstrap: vi.fn((): unknown => undefined),
         getSelectedSession: vi.fn(),
         pushToast,
@@ -50,6 +52,9 @@ vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWor
 vi.mock('../../closed-items/recording', () => ({
     recordClosedSession: mocks.recordClosedSession,
 }));
+vi.mock('../../terminal/agent-turn-guard', () => ({
+    confirmBeforeEndingTurn: mocks.confirmBeforeEndingTurn,
+}));
 
 import {
     archiveSelectedSession,
@@ -62,6 +67,7 @@ describe('Session archive and restore notices', () => {
     beforeEach(() => {
         mocks.caxriRequest.mockReset();
         mocks.caxriRequest.mockResolvedValue([]);
+        mocks.confirmBeforeEndingTurn.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.getSelectedSession.mockReset();
         mocks.pushToast.mockClear();
@@ -86,6 +92,65 @@ describe('Session archive and restore notices', () => {
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
         expect(mocks.recordClosedSession).toHaveBeenCalledExactlyOnceWith('session-1');
         expect(mocks.pushToast).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Archiving parks the Session and stops its live Agent, so a working Agent asks through the shared running-turn
+     * guard first; the archive request is the guard's `proceed`, sent only once the user confirms.
+     */
+    it('asks before archiving a Session whose Agent is still live', async () => {
+        mocks.getBootstrap.mockReturnValue({
+            sessions: [{ id: 'session-1', primaryAgentTerminalId: 'agent-1' }],
+            settings: {},
+            terminals: [
+                {
+                    id: 'agent-1',
+                    lastProcessState: 'running',
+                    provider: 'claude',
+                    sessionId: 'session-1',
+                },
+            ],
+        });
+
+        archiveSession('session-1');
+
+        expect(mocks.confirmBeforeEndingTurn).toHaveBeenCalledOnce();
+        const [terminalId, copy] = mocks.confirmBeforeEndingTurn.mock.calls[0] ?? [];
+        expect(terminalId).toBe('agent-1');
+        expect(copy).toMatchObject({ confirmLabel: 'Stop and Archive' });
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
+        mocks.confirmBeforeEndingTurn.mock.calls[0]?.[2]();
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
+            sessionId: 'session-1',
+        });
+    });
+
+    it('archives a Session with no live Agent without asking', async () => {
+        mocks.getBootstrap.mockReturnValue({
+            sessions: [{ id: 'session-1', primaryAgentTerminalId: 'agent-1' }],
+            settings: {},
+            terminals: [
+                {
+                    id: 'agent-1',
+                    lastProcessState: 'exited',
+                    provider: 'claude',
+                    sessionId: 'session-1',
+                },
+            ],
+        });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', title: 'api-fix' });
+
+        archiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.confirmBeforeEndingTurn).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.archive', {
+            sessionId: 'session-1',
+        });
     });
 
     /**
