@@ -1,6 +1,7 @@
 import type { AgentChatTask, AgentChatWorkItem, AgentToolKind } from '@caxri/protocol';
 import {
     agentChatItemStatusLabel,
+    agentChatWorkSubject,
     agentChatWorkVerb,
     describeAgentChatWork,
     describeAgentChatWorkRow,
@@ -48,11 +49,13 @@ export function agentChatWorkRowPresentation(
     item: AgentChatWorkItem,
     t: Translate = translate,
     hasServerIcon = false,
-    linkedTask?: Pick<AgentChatTask, 'kind' | 'status'>,
+    linkedTask?: Pick<AgentChatTask, 'kind' | 'status'> & Partial<Pick<AgentChatTask, 'title'>>,
 ): AgentChatWorkRowPresentation {
-    const presentation = hasServerIcon
+    const described = hasServerIcon
         ? describeAgentChatWorkRow(item, t)
         : describeAgentChatWork(item, t);
+    const subject = agentChatWorkSubject(item, described, linkedTask);
+    const presentation = { ...described, ...(subject !== undefined && { subject }) };
     const isRunning = isAgentChatWorkRowRunning(item, linkedTask);
     const verb = agentChatWorkVerb(item, presentation, t, linkedTask);
     const isSettledCommand = item.type === 'command' && !isRunning;

@@ -19,8 +19,8 @@ const subagent = (snapshot: AgentChatSnapshot): AgentChatTask | undefined =>
 
 /**
  * `MOB-CHAT-26`: a background subagent the Agent started from a phone message. Its timeline row says what it is doing
- * (`Using Grep`) and keeps its own status after the tool call that started it returned; the row opens the subagent with
- * its type, model, usage, transcript, and Stop behind a confirmation. The fake Claude Code reports the same
+ * (`Searching files`) and keeps its own status after the tool call that started it returned; the row opens the subagent
+ * with its type, model, usage, transcript, and Stop behind a confirmation. The fake Claude Code reports the same
  * `task_started` and `task_progress` frames as the real CLI.
  *
  * While the subagent runs, its sheet counts the elapsed time up every second, so UIAutomator never finds the idle
@@ -72,7 +72,7 @@ export async function executeMobileChatSubagentScenario(
         // The row's accessibility label merges its lines into `content-desc`; the activity line carries the text.
         const row = await observeMobileNode(serial, `${rowId}-activity`, {
             kind: 'includes',
-            value: 'Using Grep',
+            value: 'Searching files',
         });
         if (!row.exists || row.textMatches !== true)
             throw new Error('The subagent row does not say what it is doing');

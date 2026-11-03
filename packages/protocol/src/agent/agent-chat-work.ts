@@ -16,12 +16,14 @@ import {
 import { agentChatMcpToolTitle } from './agent-chat-mcp.js';
 import type { AgentToolKind, AgentToolPresentation } from './agent-tool-presentation.js';
 import {
+    agentMessageSubject,
     agentToolActiveLabel,
     agentToolGroupPhrases,
     agentToolKindCounts,
     agentToolOutcomeLabel,
     describeAgentTool,
     parseAgentMcpToolName,
+    parseAgentMessageSummary,
 } from './agent-tool-presentation.js';
 import { withAgentChatPathTarget } from './path-targets/agent-chat-path-targets.js';
 import { agentChatMcpSubject } from './tool-rows/agent-chat-mcp-subjects.js';
@@ -540,6 +542,25 @@ export function describeAgentChatWorkRow(
     };
     if (item.status === 'running') return action;
     return { ...action, label: agentToolOutcomeLabel(action, item.status, t) };
+}
+
+/**
+ * A work row's subject once its linked task is known. A Claude Code `SendMessage` to a subagent addresses it by a
+ * generated id (`to a9fa29d284b88501c: Round 10`), so the row names the subagent by its task title instead (`Acceptance
+ * watcher: Round 10`). Every other row keeps the presentation's subject.
+ */
+export function agentChatWorkSubject(
+    item: AgentChatWorkItem,
+    presentation: Pick<AgentToolPresentation, 'subject'>,
+    task: (Pick<AgentChatTask, 'kind'> & Partial<Pick<AgentChatTask, 'title'>>) | undefined,
+): string | undefined {
+    if (task?.kind !== 'agent' || item.type !== 'toolCall' || item.name !== 'SendMessage')
+        return presentation.subject;
+    const message = parseAgentMessageSummary(item.summary);
+    const title = task.title?.trim();
+    // A teammate addressed by name keeps that name; only a generated id gives way to the title.
+    if (!title || !message || message.recipient) return presentation.subject;
+    return agentMessageSubject(message, title);
 }
 
 /**

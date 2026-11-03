@@ -1,7 +1,9 @@
 import { formatTokens } from '../domain/usage-format.js';
 import type { AgentChatItemStatus, AgentChatTask } from './agent-chat-contract.js';
-import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
+import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
+import type { AgentToolKind } from './agent-tool-presentation.js';
+import { describeAgentTool } from './agent-tool-presentation.js';
 
 /**
  * Presentation rules for a Chat's background work (`snapshot.tasks`) that Desktop's strip and task tab and the phone's
@@ -94,8 +96,32 @@ export function agentChatTaskSummary(
 }
 
 /**
+ * The tool kinds a subagent's activity line names in words (`Running a command` for `Bash`), so the line says what the
+ * subagent is doing rather than which provider tool it called. Any other tool keeps its name (`Using Skill`).
+ */
+const TASK_ACTIVITY_KEYS: Partial<Record<AgentToolKind, AgentChatLabelKey>> = {
+    command: 'agentChat.tasks.activity.command',
+    edit: 'agentChat.tasks.activity.edit',
+    list: 'agentChat.tasks.activity.list',
+    read: 'agentChat.tasks.activity.read',
+    search: 'agentChat.tasks.activity.search',
+    web: 'agentChat.tasks.activity.web',
+    write: 'agentChat.tasks.activity.write',
+};
+
+function agentChatTaskToolActivity(toolName: string, t: AgentChatLabelTranslate): string {
+    const presentation = describeAgentTool({ name: toolName });
+    const key = TASK_ACTIVITY_KEYS[presentation.kind];
+    if (key) return t(key);
+    // An MCP tool reads as its server (`Using github`), not `mcp__github__create_issue`.
+    return t('agentChat.tasks.usingTool', {
+        tool: presentation.kind === 'mcp' ? presentation.label : toolName,
+    });
+}
+
+/**
  * What a running task is doing now, for its timeline row and strip entry: the provider's progress line, else the tool
- * it last used. An ended task shows its final summary.
+ * it last used, in words. An ended task shows its final summary.
  */
 export function agentChatTaskActivity(
     task: Pick<AgentChatTask, 'lastToolName' | 'status' | 'summary'>,
@@ -104,7 +130,7 @@ export function agentChatTaskActivity(
     const summary = agentChatTaskSummary(task);
     if (summary) return summary;
     if (task.status === 'running' && task.lastToolName)
-        return t('agentChat.tasks.usingTool', { tool: task.lastToolName });
+        return agentChatTaskToolActivity(task.lastToolName, t);
     return undefined;
 }
 
