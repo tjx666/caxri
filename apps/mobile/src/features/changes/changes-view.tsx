@@ -18,6 +18,7 @@ import {
     changesContextLine,
     changesModeLabel,
     changesSummaryLabel,
+    hasChangesSubject,
 } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
@@ -45,6 +46,8 @@ const ChangesToolbar = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const snapshot =
+        state.snapshot && hasChangesSubject(mode, state.snapshot) ? state.snapshot : undefined;
     return (
         <>
             <View
@@ -68,11 +71,11 @@ const ChangesToolbar = ({
                 <Text
                     accessibilityRole="header"
                     accessibilityLabel={
-                        state.snapshot
+                        snapshot
                             ? changesSummaryLabel(
-                                  state.snapshot.changedFileCount,
-                                  state.snapshot.additions,
-                                  state.snapshot.deletions,
+                                  snapshot.changedFileCount,
+                                  snapshot.additions,
+                                  snapshot.deletions,
                                   t,
                               )
                             : undefined
@@ -80,12 +83,12 @@ const ChangesToolbar = ({
                     style={[styles.summary, { color: theme.text }]}
                     testID="changes-summary"
                 >
-                    {state.snapshot ? (
+                    {snapshot ? (
                         <>
-                            {changedFilesSummary(state.snapshot.changedFileCount, t)} ·{' '}
+                            {changedFilesSummary(snapshot.changedFileCount, t)} ·{' '}
                             <ChangesDiffStat
-                                additions={state.snapshot.additions}
-                                deletions={state.snapshot.deletions}
+                                additions={snapshot.additions}
+                                deletions={snapshot.deletions}
                                 theme={theme}
                             />
                         </>

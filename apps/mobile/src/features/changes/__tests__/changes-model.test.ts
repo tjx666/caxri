@@ -8,6 +8,7 @@ import {
     changesSummaryLabel,
     diffLineNumber,
     diffLineNumberDigits,
+    hasChangesSubject,
     hasMultipleRepositories,
     parseUnifiedDiff,
     visibleDiffLines,
@@ -135,6 +136,18 @@ describe('Changes modes', () => {
                 { kind: 'commit', repositoryId: 'b', shortSha: 'def5678', subject: 'Two' },
             ]),
         ).toBeNull();
+    });
+
+    it('counts files only when the mode has a commit or pull request to show', () => {
+        expect(hasChangesSubject('working', { contexts: [] })).toBe(true);
+        expect(hasChangesSubject('pull-request', { contexts: [] })).toBe(false);
+        expect(
+            hasChangesSubject('commit', {
+                contexts: [
+                    { kind: 'commit', repositoryId: 'r', shortSha: 'abc1234', subject: 'One' },
+                ],
+            }),
+        ).toBe(true);
     });
 
     it('explains an empty list in the terms of its mode', () => {

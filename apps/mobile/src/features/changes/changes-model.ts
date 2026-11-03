@@ -241,6 +241,15 @@ export const changesContextLine = (contexts: readonly MobileChangesContext[]): s
 };
 
 /**
+ * Whether the summary can count files for this mode. A commit or pull request mode with no subject (no commit yet, no
+ * pull request) has nothing to count, so "0 files changed" would contradict its empty state.
+ */
+export const hasChangesSubject = (
+    mode: ChangesMode,
+    snapshot: Pick<ChangesSnapshot, 'contexts'>,
+): boolean => mode === 'working' || snapshot.contexts.length > 0;
+
+/**
  * The empty state's title and body for each mode: a clean worktree, a repository with no commit yet, or a branch with
  * no pull request.
  */

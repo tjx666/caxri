@@ -62,7 +62,7 @@ A row of **Working Tree**, **Last Commit**, and **Pull Request** chips above the
 mode; the choice is remembered per Session across segment switches. Outside Working Tree, a single
 repository's commit (`abc1234 Subject`) or pull request (`#42 Title`) appears under the summary, a
 notice counts the uncommitted changes the mode is not showing with **Show** returning to Working
-Tree, and the empty state says the repository has no commit or the branch has no pull request. Only
+Tree, and the empty state says the repository has no commit or the branch has no pull request, with no file count above it. Only
 the Working Tree list subscribes and polls; its change hints invalidate every mode's list and the
 open diff.
 
