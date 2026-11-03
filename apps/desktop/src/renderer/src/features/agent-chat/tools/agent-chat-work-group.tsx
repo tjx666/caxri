@@ -30,6 +30,9 @@ import { useScrollEdges } from '../../../hooks/use-scroll-edges';
 import { useTranslation } from '../../../i18n';
 import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { cn } from '../../../lib/utilities';
+import { AgentChatDelegationRecordRows } from '../delegation/agent-chat-delegation-record-rows';
+import { isDelegationRecordItem } from '../delegation/agent-chat-delegation-records';
+import { useCanShowDelegatedSessions } from '../delegation/hooks/use-can-show-delegated-sessions';
 import { useAgentChatExpansion } from '../hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from '../hooks/use-agent-chat-task-link';
 import { AgentChatTaskElapsed } from '../tasks/agent-chat-task-glyph';
@@ -482,10 +485,16 @@ export function AgentChatWorkGroup({
     onOpenFile?: (target: string) => void;
 }) {
     const links = useContext(AgentChatTaskLinksContext);
+    const canShowDelegated = useCanShowDelegatedSessions();
     const merged = useMemo(() => mergeAgentChatReasoning(items), [items]);
+    /**
+     * A command that delegated work leaves the summary and draws its record rows, where a window can show Sessions.
+     */
+    const isRecord = (item: AgentChatWorkItem): boolean =>
+        canShowDelegated && isDelegationRecordItem(item);
     const { summarized, rows } = splitAgentChatWork(
         merged,
-        (item) => links?.tasksByItem.has(item.id) === true,
+        (item) => links?.tasksByItem.has(item.id) === true || isRecord(item),
     );
     const single = !isOpen && summarized.length === 1 ? summarized[0] : undefined;
     return (
@@ -499,14 +508,18 @@ export function AgentChatWorkGroup({
                     onOpenFile={onOpenFile}
                 />
             )}
-            {rows.map((item) => (
-                <AgentChatWorkRow
-                    isDefaultExpanded={isSteerReply && item.type === 'reasoning'}
-                    item={item}
-                    key={item.id}
-                    onOpenFile={onOpenFile}
-                />
-            ))}
+            {rows.map((item) =>
+                isRecord(item) ? (
+                    <AgentChatDelegationRecordRows item={item} key={item.id} />
+                ) : (
+                    <AgentChatWorkRow
+                        isDefaultExpanded={isSteerReply && item.type === 'reasoning'}
+                        item={item}
+                        key={item.id}
+                        onOpenFile={onOpenFile}
+                    />
+                ),
+            )}
         </div>
     );
 }

@@ -22,7 +22,11 @@ export function parseSessionPullRequest(
     source: SessionPullRequest['source'],
     ignoredChecks: readonly string[],
 ): SessionPullRequest | undefined {
-    const { mergedAt, pullRequest: parsed } = parseGitHubPullRequest(output, ignoredChecks);
+    const {
+        changedFiles,
+        mergedAt,
+        pullRequest: parsed,
+    } = parseGitHubPullRequest(output, ignoredChecks);
     if (!parsed) return undefined;
     const state = parsed.lifecycle;
     if (!state) return undefined;
@@ -33,6 +37,8 @@ export function parseSessionPullRequest(
         state,
         checks: projectedChecks(parsed.checks, parsed.state),
         source,
+        // GitHub reports 0 for a pull request it has not computed yet; a count of nothing is shown as unknown.
+        ...(changedFiles !== undefined && changedFiles > 0 && { changedFiles }),
         ...(state === 'merged' && mergedAt !== undefined && { mergedAt }),
     };
 }
@@ -80,6 +86,7 @@ export function isRowChanged(
         next.value?.state !== previous?.value?.state ||
         next.value?.checks !== previous?.value?.checks ||
         next.value?.url !== previous?.value?.url ||
+        next.value?.changedFiles !== previous?.value?.changedFiles ||
         next.value?.deployment?.state !== previous?.value?.deployment?.state ||
         next.unavailable?.reason !== previous?.unavailable?.reason
     );

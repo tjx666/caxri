@@ -5,11 +5,22 @@ import { Forward, MessageSquareShare } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { useSessions } from '../../../stores/selectors';
+import { useProjectById, useSessions } from '../../../stores/selectors';
 import { resolveSessionCreator } from '../../primary-sidebar/session-creator';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { useIsAgentChatClamped } from '../hooks/use-is-agent-chat-clamped';
+
+/**
+ * The Project of the Session that delegated, after its title (`Delegated by Plan the release · caxri`), so two Sessions
+ * with the same title in different Projects can be told apart. Nothing when the Project is not in the Workbench.
+ */
+function DelegatingProject({ projectId }: { projectId: string }) {
+    const project = useProjectById(projectId);
+    return project ? (
+        <span className="min-w-0 flex-none truncate text-muted">{`· ${project.title}`}</span>
+    ) : null;
+}
 
 /**
  * "Delegated by" and who: a link to an open Session, Caxri Bot, or an archived Session's title. A source the Workbench
@@ -35,6 +46,8 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
     const creator =
         source &&
         resolveSessionCreator({ createdBySessionId: source.sessionId }, sessions ?? [], undefined);
+    const creatorProjectId =
+        creator && sessions?.find((candidate) => candidate.id === source.sessionId)?.projectId;
     if (creator?.kind === 'session') {
         const title = sessionTitleForDisplay(creator.session.title, t);
         return (
@@ -47,6 +60,7 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
                 >
                     {title}
                 </button>
+                {creatorProjectId && <DelegatingProject projectId={creatorProjectId} />}
             </>
         );
     }
@@ -59,6 +73,7 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
                         title: sessionTitleForDisplay(creator.title, t),
                     })}
                 </span>
+                {creatorProjectId && <DelegatingProject projectId={creatorProjectId} />}
             </>
         );
     return (

@@ -55,6 +55,17 @@ const storedDelegationSchema = z.strictObject({
     nextDelegationId: z.string().optional(),
     inputEpoch: z.number().int().nonnegative().optional(),
     hasHumanIntervention: z.boolean().optional(),
+    /**
+     * When a human first acted in the child Session (input, Stop, or Rewind), in epoch milliseconds, set where
+     * `hasHumanIntervention` is. Set once, so a completed task's takeover is still dated.
+     */
+    humanInterventionAt: z.number().int().positive().optional(),
+    /**
+     * The turn of the caller's Agent Chat that was running when this task was created, so the caller's timeline can
+     * place the delegation in the turn that made it. Absent for a caller that is not a Chat. Context only: an ID, never
+     * text.
+     */
+    callerTurnId: z.string().min(1).max(256).optional(),
     hasLostTarget: z.boolean().optional(),
     continuationPromptDigests: z
         .array(z.string().regex(/^[\da-f]{64}$/u))
@@ -181,6 +192,58 @@ export class AgentDelegationsModel {
             .where(inArray(agentDelegations.sessionId, [...sessionIds]))
             .all()
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).receipt);
+    }
+
+    /**
+     * When the user first took over each of the named Sessions: the earliest `humanInterventionAt` among its tasks. A
+     * Session never taken over is absent.
+     */
+    takeoversForSessions(sessionIds: readonly string[]): Map<string, number> {
+        const takeovers = new Map<string, number>();
+        if (sessionIds.length === 0) return takeovers;
+        const rows = this.database
+            .select({ recordJson: agentDelegations.recordJson })
+            .from(agentDelegations)
+            .where(inArray(agentDelegations.sessionId, [...sessionIds]))
+            .all();
+        for (const row of rows) {
+            const { receipt, humanInterventionAt } = storedDelegationSchema.parse(
+                JSON.parse(row.recordJson),
+            );
+            if (humanInterventionAt === undefined) continue;
+            const known = takeovers.get(receipt.sessionId);
+            if (known === undefined || humanInterventionAt < known)
+                takeovers.set(receipt.sessionId, humanInterventionAt);
+        }
+        return takeovers;
+    }
+
+    /**
+     * The receipts of the named tasks, in no particular order; an unknown or pruned ID is absent.
+     */
+    receiptsByIds(ids: readonly string[]): AgentDelegationReceipt[] {
+        if (ids.length === 0) return [];
+        return this.database
+            .select({ recordJson: agentDelegations.recordJson })
+            .from(agentDelegations)
+            .where(inArray(agentDelegations.id, [...ids]))
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).receipt);
+    }
+
+    /**
+     * The tasks a caller Terminal created during one of its Chat turns (`callerTurnId`). Reads the JSON blob in SQL, so
+     * the lookup parses only matching rows.
+     */
+    forCallerTurn(callerTerminalId: string, turnId: string): StoredAgentDelegation[] {
+        return this.database
+            .select()
+            .from(agentDelegations)
+            .where(
+                sql`json_extract(${agentDelegations.recordJson}, '$.receipt.callerTerminalId') = ${callerTerminalId} and json_extract(${agentDelegations.recordJson}, '$.callerTurnId') = ${turnId}`,
+            )
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
     }
 
     forTerminal(terminalId: string): StoredAgentDelegation[] {

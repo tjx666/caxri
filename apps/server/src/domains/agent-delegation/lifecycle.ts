@@ -231,3 +231,15 @@ export function applyDelegationLifecycle(
         return patch('answer_unavailable', 'correlation_missing', 'answer_digest_missing');
     return { ...patch('collecting'), responseDigest: signal.agentResponseDigest };
 }
+
+/**
+ * The task with the first human action in its Terminal recorded: `hasHumanIntervention` revokes its continuation
+ * authority, and `humanInterventionAt` dates the takeover for the Session's feed entry (`takenOverAt`). Both are set
+ * together.
+ */
+export function withHumanIntervention(
+    task: StoredAgentDelegation,
+    at: number,
+): StoredAgentDelegation {
+    return { ...task, hasHumanIntervention: true, humanInterventionAt: at };
+}

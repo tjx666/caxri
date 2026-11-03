@@ -589,14 +589,33 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   1000). Each entry carries `sessionId`, `createdBySessionId`, the relation, the newest task's
   `delegationId`, `provider`, `status`, `failure`, `failureResetsAt`, `createdAt`, `settledAt`, the
   live `step` while the task is active in a Chat, and the stored `result` (`summary`, `source`, the
-  `delegationId` of the task that wrote it, and its `completedAt`). A follow-up or resume the Server
-  refused as `target_busy` never ran and does not stand for the Session: a task still in flight
+  `delegationId` of the task that wrote it, and its `completedAt`), and `takenOverAt` once the user
+  took the Session over by first acting in it (input, Stop, or Rewind; set once; see
+  [Chat surfaces](#chat-surfaces)). A follow-up or resume the Server
+  refused as `target_busy` (another task holds the Session) or as `target_not_ready` (the Session
+  was not ready for it) never ran and does not stand for the Session: a task still in flight
   wins over it, and so does the newest task that ran, so a Session whose task is running never
-  reads `failed` because a second follow-up was turned away. It never claims an unread answer
+  reads `failed` because a second follow-up was turned away. `takenOverAt` comes from the stored
+  record's `humanInterventionAt`, written beside `hasHumanIntervention` on the first human input
+  (input, Stop, or Rewind) of each task that lacks the mark, including a task that already
+  completed and one delegated into a Terminal the user had already typed in; startup-prompt input
+  does not count. It never claims an unread answer
   (`markCollected`), so looking at
   the feed cannot make a caller's answer evictable before the caller reads it. An Agent Endpoint
   principal is refused even though it can read its own delegations: other Sessions' results are not
   its to read. Caxri Bot and Benchmark windows deny it.
+- **`agent.delegation.statuses`.** An owner-only, non-claiming read like the feed:
+  `{ delegationIds }` (1 to 64 IDs) returns `{ statuses }`, one `{ delegationId, sessionId,
+provider, status, failure?, failureResetsAt?, settledAt? }` per task the Server still has. It
+  names the exact task rather than a Session's newest, carries no summary, step, or answer text,
+  and omits a pruned or unknown ID. Caxri Bot and Benchmark windows deny it, an Agent Endpoint
+  principal is refused, and mobile role methods do not list it. The same invalidation as the
+  feed refreshes it.
+- **`callerTurnId`.** When `agent.delegation.create` runs from a caller Terminal that is an Agent
+  Chat, the record stores that Chat's current turn ID (an optional field of the JSON record, so no
+  SQL migration), taken through the service option `callerTurnId`. The Chat projection uses it to
+  place the timeline record when the command output does not name the delegation ID (see
+  [Chat surfaces](#chat-surfaces)). IDs only.
 - **`agent.delegation.progress`.** A transient event `{ sessionId, delegationId, step? }` tells
   Workbench windows that an active Chat Session's step changed. The step is the Chat's current work
   as one label (the verb and subject the Chat shows, such as "Running pnpm lint"), clipped to 120
@@ -625,11 +644,60 @@ that decide which Sessions take which place.
 - **Feed.** The Renderer reads `agent.delegation.sessions` for the direct creators of the nested
   Sessions, with no poll. A `state.changed` push of the delegated Session and `agent.delegation.progress`
   refresh it (`queries/invalidation-delegation-feed.ts`). Today the sidebar uses one field of the
-  feed: a newest task with `status: "failed"` gives the nested row its failure glyph. An interrupted,
+  feed: a newest task with `status: "failed"` and a failure that is a real one gives the nested
+  row its failure glyph. A `failed` task whose failure is a takeover, a changed target, a
+  refusal, or a stop (`human_input`, `target_changed`, `session_changed`, `caller_stopped`,
+  `host_reset`, `target_busy`, `target_not_ready`, and the unreadable-result and waiting values)
+  is not counted as failed anywhere, matching the row's glyph. An interrupted,
   human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
 - **Not shown.** A nested row lists no subagent rows of its own, and it is not reorderable, so its
-  position follows its host. The result summary and the live step are in the feed but have no
-  sidebar surface yet.
+  position follows its host. The result summary and the live step have no sidebar surface; the
+  parent's [Chat strip](#chat-surfaces) shows them.
+
+## Chat surfaces
+
+An Agent Chat in a Workbench window shows delegated work in three places
+([issue #3572](https://github.com/tjx666/caxri/issues/3572)). The visual contract is in
+[DESIGN.md](../DESIGN.md); this section keeps what each surface reads and when it shows. Caxri Bot
+and Benchmark windows show none of them: the host reports no Delegated Sessions capability
+(`canShowDelegatedSessions` in `agent-chat-host.ts`), and the denied reads would only fail.
+
+- **Parent strip.** The Chat of the Session that delegated has a collapsible Delegated Sessions
+  section in the composer strip, one row per Session it created (`delegation/` in the Agent Chat
+  feature). Its data is the `agent.delegation.sessions` feed for that one Session ID, so a progress
+  or state push refreshes the rows without re-rendering the transcript. The section mounts only
+  while the Chat is shown, so a hidden Chat does not subscribe. A hidden kept-alive Chat also
+  reads no record statuses, ticks no record clock, and follows no change of its origin row's
+  takeover time (`DelegationLiveContext`); showing it reads the cached values again. A completed row also shows the
+  pull request found for its Session and the whole pull request's `changedFiles`
+  (`<n> PR files`, labeled as the pull request's, not the delegation's). The sidebar owns the pull
+  request poll; the strip starts the same poll only while the sidebar is hidden.
+- **Timeline records.** A command in the Chat's own Terminal that created delegations carries
+  `delegations: [{ delegationId, sessionId }]` (at most 8), stamped by Server Core from the
+  delegation records of that Terminal (`CommandDelegationStamper`). The Desktop timeline draws such
+  a command as `Delegated to <child title> · <child Project>` rows in place of a command row, and
+  keeps them in view when the turn folds (`foldAgentChatTurn`'s optional `isAlsoKept`; mobile folds
+  the command away as before). Each row's glyph is the status of that `delegationId`, read through
+  `agent.delegation.statuses`, so a record keeps the outcome of the task it stands for after a
+  follow-up replaced the Session's newest task. The call that created a turn's delegations is
+  associated with the Chat's turn by the recorded `callerTurnId`: the projection stamps a task onto
+  the command whose output names its ID (several IDs per command are allowed), and a task recorded
+  for a turn but named by no command output onto that turn's last command, so a created delegation
+  is never lost. A later wait or result command that names an already recorded ID is not a second
+  record, and a history restore stamps again. The statuses read carries `provider` and
+  `failureResetsAt` so the record words a limit failure like the strip row.
+- **Child Chat.** A Delegated Session's own Chat keeps the `Delegated by <title> · <parent Project>`
+  bubble and adds an origin row at the top of the composer strip: the origin, that the result goes
+  back automatically, and `Back to <parent>`, plus a hint that acting here takes the Session over.
+  Once `takenOverAt` is set the row says `You took over this Session` and drops the hint and the
+  button, and the timeline carries a `You took over` divider at the first entry at or after
+  `takenOverAt`. When the position is uncertain (an earlier entry has no time, earlier history is
+  not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
+  composer instead of a guessed position.
+  An archived parent stays named but cannot be opened.
+
+Privacy: projection metadata, logs, and diagnostics carry IDs and closed enums only. Summaries,
+steps, and answer text reach the Renderer through the owner-only reads above and nowhere else.
 
 ## Provider-reported usage
 

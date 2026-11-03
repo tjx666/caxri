@@ -90,7 +90,7 @@ describe('ProjectStatusService overview', () => {
             '--repo',
             'example/project',
             '--json',
-            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid,mergeCommit,mergedAt,mergeable,mergeStateStatus',
+            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid,mergeCommit,mergedAt,mergeable,mergeStateStatus,changedFiles',
         ]);
     });
 

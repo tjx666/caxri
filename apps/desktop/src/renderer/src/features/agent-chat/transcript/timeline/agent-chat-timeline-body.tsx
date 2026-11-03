@@ -1,8 +1,10 @@
 import type { ComponentProps } from 'react';
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { AgentChatTakeoverDividerRow } from '../../delegation/agent-chat-takeover-divider-row';
+import { useTakeoverDivider } from '../../delegation/hooks/use-takeover-divider';
 import { AgentChatEditContext } from '../../hooks/use-agent-chat-edit';
 import {
     AgentChatMcpServersContext,
@@ -42,11 +44,16 @@ function LiveTimelineEntries({
     dayBreaks,
     mountedFrom,
     onOpenFile,
+    takeoverBeforeKey,
     timeline,
 }: {
     dayBreaks: ReadonlyMap<string, number>;
     mountedFrom: number;
     onOpenFile: (reference: string) => void;
+    /**
+     * The entry the "You took over" divider goes before, in a delegated child the user took over.
+     */
+    takeoverBeforeKey: string | undefined;
     timeline: readonly AgentChatTimelineEntry[];
 }) {
     return timeline.slice(mountedFrom).map((entry, offset) => {
@@ -57,6 +64,7 @@ function LiveTimelineEntries({
         const view = <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />;
         return (
             <Fragment key={key}>
+                {key === takeoverBeforeKey && <AgentChatTakeoverDividerRow />}
                 {dayBreak !== undefined && <AgentChatDayBreak timestamp={dayBreak} />}
                 {turnStartId === undefined ? (
                     view
@@ -79,11 +87,12 @@ function LiveTimelineEntries({
 export function AgentChatTimelineBody({
     dayBreaks,
     isAwaitingReply,
+    isHistoryComplete,
     mcpServers,
     mountedFrom,
     onOpenFile,
     pending,
-    readBackHistory,
+    canFork,
     settledChunks,
     terminalId,
     timeline,
@@ -91,6 +100,10 @@ export function AgentChatTimelineBody({
 }: {
     dayBreaks: ReadonlyMap<string, number>;
     isAwaitingReply: boolean;
+    /**
+     * Whether the whole conversation is on screen: nothing earlier is unread or read back above the live timeline.
+     */
+    isHistoryComplete: boolean;
     mcpServers: AgentChatSnapshot['mcpServers'];
     /**
      * Index of the first live entry to mount; earlier ones are added by the idle backfill.
@@ -98,7 +111,7 @@ export function AgentChatTimelineBody({
     mountedFrom: number;
     onOpenFile: (reference: string) => void;
     pending: ComponentProps<typeof AgentChatPendingTimeline>['pending'];
-    readBackHistory: ComponentProps<typeof AgentChatReadBackHistoryContext>['value'];
+    canFork: boolean;
     settledChunks: ComponentProps<typeof AgentChatSettledTimeline>['chunks'];
     terminalId: string;
     timeline: readonly AgentChatTimelineEntry[];
@@ -109,11 +122,17 @@ export function AgentChatTimelineBody({
     versionView: AgentChatVersionView;
 }) {
     const { editActions, isViewingEarlier, snapshot, versions } = versionView;
+    const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const servers = useAgentChatMcpServers(mcpServers);
     const skills = useAgentChatSkillHost(terminalId);
     const references = useAgentChatReferenceIndex(settledChunks, timeline);
     // The compaction running now holds the reply's place until it ends.
     const compaction = agentChatCompactionInTimeline(snapshot, timeline);
+    const takeover = useTakeoverDivider(
+        terminalId,
+        timeline,
+        isHistoryComplete && settledChunks.length === 0,
+    );
     return (
         <AgentChatMcpServersContext value={servers}>
             <AgentChatTerminalContext value={terminalId}>
@@ -135,9 +154,13 @@ export function AgentChatTimelineBody({
                                 <LiveTimelineEntries
                                     dayBreaks={dayBreaks}
                                     mountedFrom={mountedFrom}
+                                    takeoverBeforeKey={
+                                        takeover?.kind === 'before' ? takeover.entryKey : undefined
+                                    }
                                     timeline={timeline}
                                     onOpenFile={onOpenFile}
                                 />
+                                {takeover?.kind === 'standalone' && <AgentChatTakeoverDividerRow />}
                             </AgentChatVersionsContext>
                             {isAwaitingReply && !isViewingEarlier && (
                                 <AgentChatReplyPlaceholder turnId={snapshot?.activeTurnId} />

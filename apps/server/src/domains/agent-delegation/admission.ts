@@ -220,6 +220,10 @@ export function resolveDelegationAdmission(options: {
     settings: AgentDelegationSettings;
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     currentLaunchId?(terminalId: string): string | undefined;
+    /**
+     * The turn an Agent Chat caller is in, recorded on the task; see `AgentDelegationServiceOptions.callerTurnId`.
+     */
+    callerTurnId?(terminalId: string): string | undefined;
 }) {
     const { input, previous, settings, database, authority } = options;
     const caller = delegationCaller(database, authority, input.callerProvider);
@@ -289,6 +293,8 @@ export function resolveDelegationAdmission(options: {
         frozenInstructions: instructions,
         depth,
         parentDelegationId: previous?.receipt.parentDelegationId ?? parent?.receipt.delegationId,
+        callerTurnId:
+            authority.callerTerminalId && options.callerTurnId?.(authority.callerTerminalId),
     };
 }
 
@@ -340,5 +346,6 @@ export function admittedDelegation(options: {
         transcriptOffset: previous?.transcriptOffset,
         rootDelegationId: previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
         promptDigest: '',
+        ...(admission.callerTurnId && { callerTurnId: admission.callerTurnId }),
     };
 }

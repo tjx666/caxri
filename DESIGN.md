@@ -1529,7 +1529,27 @@ muted `Hand off the next task to a new Session`), and, once the Agent created th
 hairline-separated 12px `Continued in` row whose title opens it. The new Session's first message
 wears the same glyph in `--accent` with `Continued from` and the asking Session's title, so both
 ends of a hand-off read as one move; an ordinary delegated task keeps the muted `Forward` glyph and
-`Delegated by`.
+`Delegated by <title> · <parent Project>`.
+
+**Delegated work in Agent Chat** (issue #3572) has four surfaces, none in Caxri Bot or Benchmark
+windows. The **Delegated Sessions strip section** sits in the composer strip after Background work
+and before queued messages, with the same 32px foldable header: a `Forward` glyph, `Delegated
+Sessions`, then `3 delegated` with `1 needs input` and `1 failed` (the latter in `--danger`) only
+when there are some. Rows sort needs-input, then failed, then the rest; each is a 12px row with the
+Agent icon, the title, the child's Project in `--muted`, a second line (the live step with the
+activity shimmer, the result summary with an `Excerpt` chip when it is the first paragraph rather
+than the Agent's `Summary:` line, or the status copy), the elapsed time, and the status glyph
+(running arc, `CircleX`, needs-input mark, or an empty slot when settled). A completed row adds a
+line with the pull request indicator, an `--accent` `Open pull request #N` link, and `<n> PR files`
+when GitHub reported the count. The whole row opens the child. A **timeline record** replaces the
+command row of a command that delegated: `Delegated to <title> · <Project>` with a muted `Forward` glyph
+(not the Agent icon) and the status glyph of that task, one row per task, kept in view when the turn folds. In the child, the **origin
+row** tops the composer strip as a non-collapsible 12px `--muted` row: `Delegated from <title>`, the
+automatic-return line, an `--accent` `Back to <title>` button, and a hint that acting here takes
+the Session over. After takeover it reads `You took over this Session · its replies no longer go
+back to <title>` with no hint or button. The **takeover divider** is a hairline with `You took over`
+centered on it, `role="separator"`, placed before the first entry at or after the takeover; when
+that position cannot be known it is a standalone marker above the composer.
 
 **Agent Chat plan**: the latest plan docks above the composer as one 32px radius-8 `--surface`
 row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on truncated in `--muted`,

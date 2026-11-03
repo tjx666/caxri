@@ -378,6 +378,7 @@ export function AgentChatComposer({
                     activity={activity}
                     goalActivity={goalActivity}
                     isQueuePaused={isQueuePaused}
+                    isShown={isShown}
                     isTurnRunning={isTurnRunning}
                     pendingQueue={pendingQueue}
                     queue={queue}

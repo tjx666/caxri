@@ -3,12 +3,8 @@ import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it } from 'vitest';
 
-import {
-    carryAnsweredNotices,
-    ChatProjection,
-    stampNewItems,
-    stampStoppedTurns,
-} from '../chat-projection';
+import { carryAnsweredNotices, ChatProjection } from '../chat-projection';
+import { stampNewItems, stampStoppedTurns } from '../stamps/item-stamps';
 
 const NOW = 1_700_000_000_000;
 

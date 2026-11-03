@@ -5,6 +5,8 @@ import type { AgentChatHost } from '../agent-chat-host';
 import { agentChatHostCapabilities } from '../agent-chat-host';
 import type { AgentChatPaneCapabilities } from '../agent-chat-pane';
 import { AgentChatPane } from '../agent-chat-pane';
+import { CanShowDelegatedSessionsContext } from '../delegation/hooks/use-can-show-delegated-sessions';
+import { DelegationLiveContext } from '../delegation/hooks/use-is-delegation-live';
 import { CanContinueInAgentContext } from '../usage-limit/use-can-continue-in-agent';
 
 /**
@@ -43,17 +45,22 @@ export function AgentChatTerminalContent({
     terminal: TerminalRecord;
 }) {
     const provider = terminal.provider ? agentProviderCatalog[terminal.provider] : undefined;
+    const { canContinueInAgent, canShowDelegatedSessions } = agentChatHostCapabilities(host);
     return (
-        <CanContinueInAgentContext value={agentChatHostCapabilities(host).canContinueInAgent}>
-            <AgentChatPane
-                ariaLabel={ariaLabel ?? terminal.title}
-                capabilities={provider?.capabilities ?? NO_CAPABILITIES}
-                host={host}
-                isSessionVisible={isSessionVisible}
-                isShown={isShown}
-                providerName={provider?.displayName ?? 'the Agent'}
-                terminalId={terminal.id}
-            />
+        <CanContinueInAgentContext value={canContinueInAgent}>
+            <CanShowDelegatedSessionsContext value={canShowDelegatedSessions}>
+                <DelegationLiveContext value={isSessionVisible}>
+                    <AgentChatPane
+                        ariaLabel={ariaLabel ?? terminal.title}
+                        capabilities={provider?.capabilities ?? NO_CAPABILITIES}
+                        host={host}
+                        isSessionVisible={isSessionVisible}
+                        isShown={isShown}
+                        providerName={provider?.displayName ?? 'the Agent'}
+                        terminalId={terminal.id}
+                    />
+                </DelegationLiveContext>
+            </CanShowDelegatedSessionsContext>
         </CanContinueInAgentContext>
     );
 }

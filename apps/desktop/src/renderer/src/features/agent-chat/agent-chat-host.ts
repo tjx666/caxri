@@ -33,6 +33,12 @@ export interface AgentChatHostCapabilities {
      * which only a Workbench can show.
      */
     canContinueInAgent: boolean;
+    /**
+     * The Delegated Sessions strip and the delegation records in the timeline: both open another Session and read
+     * `agent.delegation.sessions` and `agent.delegation.statuses`, which only a Workbench can show and Main's Caxri Bot
+     * and Benchmark window policies refuse. Gates the rendering and the queries.
+     */
+    canShowDelegatedSessions: boolean;
 }
 
 export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCapabilities {
@@ -43,5 +49,6 @@ export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCap
         canSaveProjectDefault: isWorkbench,
         canOpenContext: isWorkbench,
         canContinueInAgent: isWorkbench,
+        canShowDelegatedSessions: isWorkbench,
     };
 }

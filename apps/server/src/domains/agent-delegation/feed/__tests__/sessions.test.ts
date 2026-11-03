@@ -201,6 +201,82 @@ describe('agent.delegation.sessions', () => {
         });
     });
 
+    it('reports the settled task, not a follow-up refused because the Session was not ready', async () => {
+        let isIdle = true;
+        const f = await delegatedFixture({ isIdle: () => isIdle });
+        const first = await f.delegate();
+        await f.finish(first, 'Summary: First finding.');
+        f.database.rebindAgentSession(
+            first.terminalId,
+            'claude',
+            f.database.agentDelegations.get(first.id)!.providerSessionId!,
+        );
+        isIdle = false;
+        f.state.clock += 1000;
+        const refusedId = randomUUID();
+        const refused = await f.service.create(refusedId, f.authority, {
+            projectId: f.project.id,
+            sessionId: first.receipt.sessionId,
+            provider: 'claude',
+            prompt: 'Synthetic follow-up task',
+            followUpOf: first.id,
+        });
+
+        expect(refused).toMatchObject({ status: 'failed', failure: 'target_not_ready' });
+        const [session] = await f.sessions([f.callerSessionId]);
+        expect(session).toMatchObject({ delegationId: first.id, status: 'completed' });
+        expect(session).not.toHaveProperty('failure');
+    });
+
+    it('dates the takeover of a Session, including after its task completed', async () => {
+        const f = await delegatedFixture();
+        const task = await f.delegate();
+        await f.finish(task, 'Summary: Done.');
+        expect((await f.sessions([f.callerSessionId]))[0]).not.toHaveProperty('takenOverAt');
+
+        f.state.clock += 5000;
+        f.service.interruptTerminal(task.terminalId, true);
+        const takenOverAt = f.state.clock;
+        f.state.clock += 5000;
+        f.service.interruptTerminal(task.terminalId, true);
+
+        const [session] = await f.sessions([f.callerSessionId]);
+        expect(session).toMatchObject({ status: 'completed', takenOverAt });
+        expect(f.database.agentDelegations.get(task.id)).toMatchObject({
+            hasHumanIntervention: true,
+            humanInterventionAt: takenOverAt,
+        });
+    });
+
+    it('dates the takeover of a task delegated into a Terminal the user already typed in', async () => {
+        const f = await delegatedFixture();
+        const first = await f.delegate();
+        f.start(first);
+        f.state.clock += 1000;
+        f.service.interruptTerminal(first.terminalId, true);
+
+        // A later task lands in the same Terminal (`--session`), after the first input already marked the first one.
+        const stored = f.database.agentDelegations.get(first.id)!;
+        const secondId = randomUUID();
+        const unmarked = structuredClone(stored);
+        delete unmarked.hasHumanIntervention;
+        delete unmarked.humanInterventionAt;
+        f.database.agentDelegations.insert({
+            ...unmarked,
+            receipt: { ...stored.receipt, delegationId: secondId, status: 'running' },
+        });
+        expect(f.database.agentDelegations.get(secondId)).not.toHaveProperty('humanInterventionAt');
+
+        f.state.clock += 1000;
+        const takenOverAt = f.state.clock;
+        f.service.interruptTerminal(first.terminalId, true);
+
+        expect(f.database.agentDelegations.get(secondId)).toMatchObject({
+            hasHumanIntervention: true,
+            humanInterventionAt: takenOverAt,
+        });
+    });
+
     it('ignores Sessions without a relation and lists nothing under other Sessions', async () => {
         const f = await delegatedFixture();
         const related = await f.delegate();

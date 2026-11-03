@@ -1,0 +1,37 @@
+import type { SessionRecord } from '@caxri/protocol';
+
+/**
+ * What the composer's first strip row says in a Chat that another Session delegated its work to.
+ */
+export interface DelegationOrigin {
+    /**
+     * Whether the user already took this Session over (`takenOverAt` on the feed entry). Until then the row promises
+     * the result goes back and warns that acting here ends that.
+     */
+    isTakenOver: boolean;
+    /**
+     * An archived parent stays named but cannot be opened: navigating to it never restores it.
+     */
+    isParentArchived: boolean;
+    parent: Pick<SessionRecord, 'id' | 'title'>;
+}
+
+/**
+ * The origin row for a delegated or consult child, or `undefined` when there is nothing to say: a hand-off carries the
+ * work on and nothing returns, a Session the user or Caxri Bot created has no relation, and a parent that was deleted
+ * (the creator fields are dropped) or sits in a hidden Project is not in `parent`.
+ */
+export function delegationOrigin(
+    session: Pick<SessionRecord, 'createdByRelation'>,
+    parent: Pick<SessionRecord, 'archivedAt' | 'id' | 'title'> | undefined,
+    takenOverAt: number | undefined,
+): DelegationOrigin | undefined {
+    if (session.createdByRelation !== 'delegated' && session.createdByRelation !== 'consult')
+        return undefined;
+    if (!parent) return undefined;
+    return {
+        isParentArchived: parent.archivedAt !== undefined,
+        isTakenOver: takenOverAt !== undefined,
+        parent: { id: parent.id, title: parent.title },
+    };
+}

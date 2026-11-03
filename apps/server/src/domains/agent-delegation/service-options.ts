@@ -95,6 +95,12 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      */
     chatStep?(terminalId: string): string | undefined;
     /**
+     * The turn an Agent Chat Terminal is in now, or `undefined` for a Terminal that is not a Chat and for a Chat
+     * between turns. Read once, when a task is created, so the caller's timeline can place the delegation in the turn
+     * that made it; the ID is stored and never logged.
+     */
+    callerTurnId?(terminalId: string): string | undefined;
+    /**
      * Called, at most once per second per task, when an active Chat Session's step changed. The step is private domain
      * data: the callee must not log it.
      */

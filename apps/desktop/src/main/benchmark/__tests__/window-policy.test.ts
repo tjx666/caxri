@@ -22,6 +22,7 @@ describe('Benchmark window policy', () => {
             'terminal.input',
             'app.records',
             'agent.delegation.sessions',
+            'agent.delegation.statuses',
         ])
             expect(() => admitBenchmarkWindowRequest(request(method), onDenied)).toThrow(
                 expect.objectContaining({ code: 'FORBIDDEN' }),
@@ -32,6 +33,7 @@ describe('Benchmark window policy', () => {
             ['terminal.input'],
             ['app.records'],
             ['agent.delegation.sessions'],
+            ['agent.delegation.statuses'],
         ]);
     });
 
