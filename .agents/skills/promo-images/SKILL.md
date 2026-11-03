@@ -39,6 +39,14 @@ bun run .agents/skills/promo-images/scripts/promo.ts \
     --android-serial emulator-5596 --out docs/assets/readme-hero.png
 ```
 
+The capture takes the shared desktop lease and fails at once when a sibling session holds it. To
+queue behind that run instead, wrap the same command:
+
+```sh
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop --wait 1800 \
+    --label "promo capture" -- bun run .agents/skills/promo-images/scripts/promo.ts ...
+```
+
 `promo.ts` validates the scene, checks the APK, prepares the emulator (no animations, demo-mode
 status bar), runs `promo-capture.pw.ts`, then composes with `promo-image.ts`. The capture and
 composition steps:
