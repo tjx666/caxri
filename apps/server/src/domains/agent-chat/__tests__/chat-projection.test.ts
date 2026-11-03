@@ -1,8 +1,14 @@
 import type { AgentChatItem, AgentChatPatchOperation } from '@caxri/protocol';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it } from 'vitest';
 
-import { carryAnsweredNotices, stampNewItems, stampStoppedTurns } from '../chat-projection';
+import {
+    carryAnsweredNotices,
+    ChatProjection,
+    stampNewItems,
+    stampStoppedTurns,
+} from '../chat-projection';
 
 const NOW = 1_700_000_000_000;
 
@@ -150,5 +156,32 @@ describe('stampStoppedTurns', () => {
             { op: 'state', state: { turns: [{ id: 'turn-1', status: 'completed' }] } },
         ];
         expect(stampStoppedTurns(operations, stops)[0]).toBe(operations[0]);
+    });
+});
+
+describe('ChatProjection history replay', () => {
+    const message = (id: string): AgentChatPatchOperation => ({
+        op: 'upsertItem',
+        item: { id, type: 'agentMessage', text: id, streaming: false },
+    });
+    const projection = () =>
+        new ChatProjection({
+            terminalId: 'terminal-1',
+            revision: 0,
+            taskRevisionFloors: new Map(),
+            logger: { write: () => {} } as unknown as StructuredLogger,
+            send: () => {},
+            onChange: () => {},
+            delegatedTask: () => ({}),
+        });
+
+    it('keeps the historyId when a resumed Chat replays the history it already held', () => {
+        const chat = projection();
+        chat.apply([{ op: 'reset' }, message('a'), message('b')]);
+        const { historyId } = chat.snapshot;
+        chat.apply([{ op: 'reset' }, message('a'), message('b')]);
+        expect(chat.snapshot.historyId).toBe(historyId);
+        chat.apply([{ op: 'reset' }, message('a')]);
+        expect(chat.snapshot.historyId).not.toBe(historyId);
     });
 });

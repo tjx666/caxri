@@ -168,6 +168,13 @@ export class ChatHistoryArchive {
         this.isIncomplete = false;
     }
 
+    /**
+     * The archived items' ids, oldest first.
+     */
+    ids(): string[] {
+        return this.items.map((item) => item.id);
+    }
+
     hasTurn(turnId: string): boolean {
         return this.turnReferences.has(turnId);
     }
