@@ -8,6 +8,7 @@ import { Input, InputGroup } from '../../components/ui/input';
 import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import { isDirectoryEntry } from '../../lib/file-entry';
 import { cn } from '../../lib/utilities';
 import { setPathBrowserOpen, useDialogStore } from '../../stores/dialogs';
 import { useIsSshHost } from '../../stores/environment';
@@ -108,7 +109,6 @@ function PathBrowserContent({
                 {isListboxRendered && !displayedError && (
                     <PathBrowserResults
                         createDirectoryLabel={createDirectoryLabel}
-                        isFreeBrowsing={snapshot?.mode === 'free'}
                         listboxId={listboxId}
                         rows={rows}
                         selectedIndex={effectiveSelectedIndex}
@@ -241,7 +241,6 @@ function PathBrowserQueryField({
 
 function PathBrowserResults({
     createDirectoryLabel,
-    isFreeBrowsing,
     listboxId,
     rows,
     selectedIndex,
@@ -251,7 +250,6 @@ function PathBrowserResults({
     onSelectIndex,
 }: {
     createDirectoryLabel: string;
-    isFreeBrowsing: boolean;
     listboxId: string;
     rows: readonly PathBrowserRow[];
     selectedIndex: number;
@@ -319,7 +317,6 @@ function PathBrowserResults({
                         id={`${listboxId}-option-${index}`}
                         entry={row.entry}
                         groupLabel={row.group && t(row.group)}
-                        isFreeBrowsing={isFreeBrowsing}
                         isSelected={index === selectedIndex}
                         onClick={() => onChoose(row.entry)}
                         onMouseMove={() => onSelectIndex(index)}
@@ -337,16 +334,10 @@ function PathBrowserResults({
  * Written as a choice rather than a hover utility plus an override because the hover fill has to be withheld from the
  * keyboard row: the pointer re-selects only when it moves, so a pointer left resting while the arrow keys walk away is
  * exactly when the two are different rows, and painting both would make both look current.
- *
- * A row that cannot be opened keeps its muted label through the hover. The fill still follows the pointer, but
- * recolouring the text would take away the one thing saying this row is refused, and a `hover:` utility outweighs the
- * plain `text-muted` the caller adds afterwards, so it has to be withheld here rather than overridden there.
  */
-function rowStateClassName(isSelected: boolean, isDisabled = false): string {
+function rowStateClassName(isSelected: boolean): string {
     if (isSelected) return 'bg-list-focus-background text-list-focus-foreground';
-    return isDisabled
-        ? 'hover:bg-list-hover-background'
-        : 'hover:bg-list-hover-background hover:text-list-hover-foreground';
+    return 'hover:bg-list-hover-background hover:text-list-hover-foreground';
 }
 
 /**
@@ -445,7 +436,6 @@ function PathBrowserOption({
     entry,
     groupLabel,
     id,
-    isFreeBrowsing,
     isSelected,
     onClick,
     onMouseMove,
@@ -453,30 +443,25 @@ function PathBrowserOption({
     entry: PathBrowserEntry;
     groupLabel: string | undefined;
     id: string;
-    isFreeBrowsing: boolean;
     isSelected: boolean;
     onClick: () => void;
     onMouseMove: () => void;
 }) {
     const { t } = useTranslation();
     const isSymlink = entry.kind === 'symlink';
-    const isDisabled = isSymlink && isFreeBrowsing;
     const description = isSymlink ? symlinkRowDescription(entry, t) : undefined;
     return (
         <Tooltip content={description} disabled={description === undefined}>
             <button
                 id={id}
                 aria-describedby={isSymlink ? `${id}-reason` : undefined}
-                aria-disabled={isDisabled}
                 aria-selected={isSelected}
                 className={cn(
                     'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground',
-                    rowStateClassName(isSelected, isDisabled),
-                    isDisabled && 'cursor-not-allowed text-muted',
+                    rowStateClassName(isSelected),
                 )}
                 role="option"
                 type="button"
-                disabled={isDisabled}
                 onClick={onClick}
                 onMouseMove={onMouseMove}
             >
@@ -492,7 +477,7 @@ function PathBrowserOption({
                         {description}
                     </span>
                 )}
-                {entry.kind === 'directory' && (
+                {isDirectoryEntry(entry) && (
                     <CornerDownLeft
                         aria-label={t('pathBrowser.results.directory')}
                         className="text-muted"

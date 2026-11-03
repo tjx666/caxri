@@ -4,19 +4,19 @@ import { homedir } from 'node:os';
 import { dirname, relative, resolve, sep } from 'node:path';
 
 import type { MainRequest, MethodResult } from '@caxri/protocol';
-import { CaxriError, MAX_PATH_BROWSER_ENTRIES } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { DesktopServerConnection } from '../connection/server-connection';
 import type { PathBrowserDirectories } from './directories';
 import { localPathBrowserDirectories, outsideProjectRootError } from './directories';
-import { listFreeDirectory, readFreeDocument, resolveBrowseInput } from './free';
+import { followFreeLink, listFreeDirectory, readFreeDocument, resolveBrowseInput } from './free';
 import type { FileIdentity, RootIdentity } from './identity';
 import { authorizeCandidate, directoryIdentity, isSameOrInside } from './identity';
 import type { PathBrowserLogger } from './log';
 import { logSearchFailed, logSearchFallback } from './log';
 import type { ProjectSearchMatch } from './search';
-import { memoizedProjectSearch, rankProjectSearchMatches, rememberProjectSearch } from './search';
+import { memoizedProjectSearch, projectSearchCandidates, rememberProjectSearch } from './search';
 import { memoizedSubpathPrefix, projectSubpathSuffix } from './subpath';
 
 type StartParameters = Extract<MainRequest, { method: 'pathBrowser.start' }>['params'];
@@ -38,8 +38,8 @@ interface Candidate {
     kind: Entry['kind'];
     source: Entry['source'];
     /**
-     * Display-only symlink metadata forwarded from Server Core. Workspace opens are reauthorized by Server Core; links
-     * encountered during free browsing remain unavailable.
+     * Display-only symlink metadata, forwarded from Server Core or probed by the free listing. Workspace opens are
+     * reauthorized by Server Core; a free-browsing link is re-resolved to its target when activated.
      */
     linkKind?: Entry['linkKind'];
     linkTarget?: Entry['linkTarget'];
@@ -331,34 +331,6 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     }
 
     /**
-     * Ranks the search hits and drops the ones the directory listing already shows, so a file in the current directory
-     * appears once rather than in both groups. The two groups share one entry budget: the directory listing is what the
-     * user navigated to, so it is served first and the search fills whatever is left.
-     */
-    function projectSearchCandidates(
-        matches: readonly ProjectSearchMatch[],
-        filter: string,
-        listed: readonly Candidate[],
-    ): { candidates: Candidate[]; isComplete: boolean } {
-        const budget = MAX_PATH_BROWSER_ENTRIES - listed.length;
-        if (budget <= 0) return { candidates: [], isComplete: matches.length === 0 };
-        const alreadyListed = new Set(listed.map((candidate) => candidate.path));
-        const elsewhere = matches.filter((match) => !alreadyListed.has(match.path));
-        const ranked = rankProjectSearchMatches(elsewhere, filter, budget);
-        return {
-            candidates: ranked.map((match) => ({
-                directoryLabel: match.directoryLabel,
-                id: randomUUID(),
-                kind: 'file' as const,
-                name: match.name,
-                path: match.path,
-                source: 'projectSearch' as const,
-            })),
-            isComplete: ranked.length === elsewhere.length,
-        };
-    }
-
-    /**
      * VS Code-style subpath fallback: when the typed directory does not exist under the current directory, look for a
      * Project-local directory whose path ends with those segments (for example `packages/x/` copied from Agent output
      * while the Project holds `example/packages/x/`). Server Core bounds and excludes the traversal and picks the
@@ -506,10 +478,26 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         return browseFree(context, directory, parsed.filter, input);
     }
 
-    async function openCandidate(context: BrowserContext, candidate: Candidate): Promise<Opened> {
+    /**
+     * A link listed outside the Project is replaced by its current target, which then takes the same path as a row
+     * listed in the target's own directory; see `followFreeLink`.
+     */
+    async function resolveCandidate(
+        context: BrowserContext,
+        candidate: Candidate,
+    ): Promise<Candidate> {
+        if (candidate.kind !== 'symlink' || isSameOrInside(context.root.path, candidate.path))
+            return candidate;
+        return {
+            id: candidate.id,
+            source: candidate.source,
+            ...(await followFreeLink(candidate.parent, candidate.path, candidate.snapshot)),
+        };
+    }
+
+    async function openCandidate(context: BrowserContext, listed: Candidate): Promise<Opened> {
+        const candidate = await resolveCandidate(context, listed);
         const isCurrentProjectPath = isSameOrInside(context.root.path, candidate.path);
-        if (!isCurrentProjectPath && candidate.kind === 'symlink')
-            throw new CaxriError('PATH_DENIED', 'Links outside the workspace cannot be opened');
         if (!isCurrentProjectPath && context.mode === 'free') {
             if (candidate.kind !== 'file')
                 throw new CaxriError('VALIDATION', 'Path is not a regular file');
@@ -661,13 +649,9 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                     }
                     return browseProject(context, directory, '', '');
                 }
-                const candidate = context.candidates.get(target.entryId);
-                if (!candidate) throw new CaxriError('PATH_DENIED', 'Path browser entry expired');
-                if (
-                    candidate.kind === 'symlink' &&
-                    !isSameOrInside(context.root.path, candidate.path)
-                )
-                    throw new CaxriError('PATH_DENIED', 'Symbolic links cannot be opened');
+                const listed = context.candidates.get(target.entryId);
+                if (!listed) throw new CaxriError('PATH_DENIED', 'Path browser entry expired');
+                const candidate = await resolveCandidate(context, listed);
                 const kind =
                     candidate.kind === 'symlink'
                         ? (
