@@ -30,9 +30,10 @@ import {
 
 const CARD_WIDTH = 176;
 /**
- * Grows the small Retry label toward a comfortable touch target without reaching the remove button above it.
+ * Grows the small Retry label downward and sideways only: the file name sits just above it, so a tap there must still
+ * preview.
  */
-const RETRY_HIT_SLOP = { bottom: 12, left: 8, right: 8, top: 4 };
+const RETRY_HIT_SLOP = { bottom: 12, left: 8, right: 8, top: 0 };
 
 const GLYPHS: Record<FileAttachmentKind, typeof File> = {
     archive: FileArchive,
