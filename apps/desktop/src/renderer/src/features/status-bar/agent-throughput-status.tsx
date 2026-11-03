@@ -33,52 +33,24 @@ import {
     spokenThroughputRate,
     throughputRate,
 } from './agent-throughput-label';
+import { StatusBars } from './status-bars';
 import { StatusItem } from './status-item';
 
-const BAR_WIDTH = 4;
-const BAR_GAP = 2;
-const CHART_HEIGHT = 24;
-
 /**
- * Per-response rates, oldest to newest, on a zero-based scale whose top is labelled so the bars read as values rather
- * than as a shape. The newest bar is drawn in the foreground ink; the rest stay muted.
+ * Per-response rates, oldest to newest, captioned with the fastest.
  */
 function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[] }) {
     const { t } = useTranslation();
-    const rates = samples.map((sample) => throughputRate(sample) ?? 0);
-    const max = Math.max(...rates);
-    if (max <= 0) return null;
-    const width = rates.length * (BAR_WIDTH + BAR_GAP) - BAR_GAP;
     return (
-        <span className="flex items-end gap-1.5">
-            <svg
-                aria-hidden="true"
-                className="flex-none"
-                height={CHART_HEIGHT}
-                viewBox={`0 0 ${width} ${CHART_HEIGHT}`}
-                width={width}
-            >
-                {samples.map((sample, index) => {
-                    const height = Math.max(1, (rates[index] / max) * CHART_HEIGHT);
-                    return (
-                        <rect
-                            key={`${sample.completedAt}:${index}`}
-                            className={
-                                index === rates.length - 1 ? 'fill-foreground' : 'fill-muted'
-                            }
-                            height={height}
-                            rx={1}
-                            width={BAR_WIDTH}
-                            x={index * (BAR_WIDTH + BAR_GAP)}
-                            y={CHART_HEIGHT - height}
-                        />
-                    );
-                })}
-            </svg>
-            <span className="text-muted tabular-nums">
-                {t('statusBar.throughput.max', { rate: formatThroughputRate(max, t.locale) })}
-            </span>
-        </span>
+        <StatusBars
+            bars={samples.map((sample, index) => ({
+                key: `${sample.completedAt}:${index}`,
+                value: throughputRate(sample) ?? 0,
+            }))}
+            caption={(max) =>
+                t('statusBar.throughput.max', { rate: formatThroughputRate(max, t.locale) })
+            }
+        />
     );
 }
 

@@ -16,6 +16,12 @@ export interface UsageRangeDraft {
     end: string | undefined;
 }
 
+/**
+ * The IANA zone usage reports draw day boundaries in. Read once: a report's day boundaries only need to match the zone
+ * the user saw when the page loaded.
+ */
+export const LOCAL_TIME_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**

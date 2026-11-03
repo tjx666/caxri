@@ -22,6 +22,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useSessionById } from '../../stores/selectors';
 import type { UsageCustomRange } from './usage-custom-range';
+import { LOCAL_TIME_ZONE } from './usage-custom-range';
 import type { UsageAgentFilter } from './usage-filter-store';
 import { ALL_AGENTS, rememberUsageFilters, useUsageFilterStore } from './usage-filter-store';
 import {
@@ -54,11 +55,6 @@ const SCOPES: ReadonlyArray<{
         descriptionKey: 'usage.scope.thisMacDescription',
     },
 ];
-
-/**
- * Read once: a report's day boundaries only need to match the zone the user saw when the page loaded.
- */
-const LOCAL_TIME_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 /**
  * The date range plus the price basis: every dollar figure below is an API list-price estimate, not what a subscription
