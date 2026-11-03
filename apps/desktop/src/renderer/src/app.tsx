@@ -9,6 +9,7 @@ import { HoverCardProvider } from './components/ui/hover-card';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-client';
+import { AgentChatPortal } from './features/agent-chat/portal/agent-chat-portal';
 import { AgentChatWaitingPopup } from './features/agent-chat/waiting/agent-chat-waiting-popup';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
@@ -37,11 +38,7 @@ import { ProjectSearchDialog } from './features/project-search/project-search-di
 import { RendererPerformanceProfiler } from './features/renderer-performance/renderer-performance-profiler';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
 import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
-import {
-    getSecondarySidebarYieldScope,
-    useIsSecondarySidebarShown,
-    useSecondarySidebarYieldSync,
-} from './features/secondary-sidebar/secondary-sidebar-visibility';
+import { useIsSecondarySidebarShown } from './features/secondary-sidebar/secondary-sidebar-visibility';
 import { useStatusOnNewPullRequest } from './features/secondary-sidebar/status-on-new-pull-request';
 import { AirplaneModeDialog } from './features/session/airplane-mode/airplane-mode-dialog';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
@@ -256,8 +253,7 @@ export function App() {
     useSessionMruSwitcherLifecycle();
     useCommandShortcuts();
     useExternalDocumentSync();
-    useChromeViewportClamp(getSecondarySidebarYieldScope);
-    useSecondarySidebarYieldSync();
+    useChromeViewportClamp();
     useStatusOnNewPullRequest();
     useWorkbenchAppearance();
     useTranslucentSidebar();
@@ -371,6 +367,20 @@ export function App() {
                                     : '[grid-column:1/-1]',
                             )}
                         />
+                        {/*
+                         * The Portal floats over the right edge of the same area Settings spans, covering the
+                         * SecondarySidebar rather than taking a track of its own; see `AgentChatPortal`.
+                         */}
+                        {!isSettingsPageOpen && (
+                            <AgentChatPortal
+                                className={cn(
+                                    '[grid-row:1/2]',
+                                    isPrimarySidebarVisible
+                                        ? '[grid-column:3/-1]'
+                                        : '[grid-column:1/-1]',
+                                )}
+                            />
+                        )}
                         {isSecondarySidebarVisible && !isSettingsPageOpen && (
                             <PanelDivider
                                 ariaLabel={t('workbench.resizeSecondarySidebar')}

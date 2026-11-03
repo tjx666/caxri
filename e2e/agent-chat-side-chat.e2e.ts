@@ -68,8 +68,8 @@ test('a Claude Chat answers side questions beside the conversation and converts 
     }
 });
 
-test('switching to a Session whose side chat makes the Secondary Sidebar yield keeps keyboard focus on screen', async () => {
-    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-side-chat-yield-'));
+test('the side chat opens in a Portal over the Secondary Sidebar, kept per Session, and moves into a split on request', async () => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-side-chat-portal-'));
     const directory = await realpath(created);
     const root = join(directory, 'project');
     await mkdir(root);
@@ -80,34 +80,51 @@ test('switching to a Session whose side chat makes the Secondary Sidebar yield k
     try {
         const { page } = running;
         const secondarySidebar = page.locator('.secondary-sidebar');
+        const portal = page.locator('[data-agent-chat-portal]');
         await createProjectSession(page, 'shell');
         await openAgentChat(page, 'Claude Chat');
         const chatSession = await selectedSessionId(page);
-        const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        const tabCount = await chat.getByRole('tab').count();
         await message.click();
         await page.keyboard.press('Meta+;');
-        await expect(page.getByRole('textbox', { name: 'Ask a side question' })).toBeVisible();
-        await expect(secondarySidebar).toHaveCount(0);
+        const sideInput = portal.getByRole('textbox', { name: 'Ask a side question' });
+        await expect(sideInput).toBeVisible();
 
-        // A Session without the arrangement shows the Secondary Sidebar again; park focus on one of its rows.
+        // The Portal floats over the Secondary Sidebar instead of splitting the Workbench: the sidebar stays mounted,
+        // and the Workbench gains no tab.
+        await expect(secondarySidebar).toBeVisible();
+        await expect(chat.getByRole('tab')).toHaveCount(tabCount);
+        const chatBox = await chat.boundingBox();
+        const portalBox = await portal.boundingBox();
+        expect(portalBox && chatBox && portalBox.x + portalBox.width).toBeGreaterThan(
+            (chatBox?.x ?? 0) + (chatBox?.width ?? 0),
+        );
+
+        // Clicking back into the Chat leaves the Portal open.
+        await message.click();
+        await expect(portal).toBeVisible();
+
+        // Another Session has its own (empty) Portal; returning finds the side chat again.
         await createAdditionalShellSession(page);
-        const row = secondarySidebar.getByRole('treeitem', { name: 'notes.txt' });
-        await row.focus();
-        await expect(row).toBeFocused();
-
-        // Back to the Chat's Session by shortcut: the yield unmounts the row that owned focus.
+        await expect(portal).toHaveCount(0);
         await page.keyboard.press('Control+Alt+ArrowLeft');
         await expect.poll(() => selectedSessionId(page)).toBe(chatSession);
-        await expect(secondarySidebar).toHaveCount(0);
-        await expect
-            .poll(() =>
-                page.evaluate(() => {
-                    const active = document.activeElement;
-                    if (!active || active === document.body) return 'body';
-                    return active.checkVisibility() ? 'visible' : 'hidden';
-                }),
-            )
-            .toBe('visible');
+        await expect(sideInput).toBeVisible();
+
+        // Escape inside the Portal closes it; reopening and choosing Open in Split turns it into a pane tab.
+        await sideInput.focus();
+        await page.keyboard.press('Escape');
+        await expect(portal).toHaveCount(0);
+        await message.click();
+        await page.keyboard.press('Meta+;');
+        await expect(sideInput).toBeVisible();
+        await portal.getByRole('button', { name: 'Open in Split' }).click();
+        await expect(portal).toHaveCount(0);
+        await expect(
+            page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Ask a side question' }),
+        ).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

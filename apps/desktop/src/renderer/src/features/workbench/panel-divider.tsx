@@ -62,6 +62,7 @@ interface PanelDividerProperties {
      * Custom property this divider drives directly during a drag, bypassing React state.
      */
     cssVariable:
+        | '--agent-chat-portal-width'
         | '--bot-board-width'
         | '--bot-inbox-width'
         | '--panel-height'

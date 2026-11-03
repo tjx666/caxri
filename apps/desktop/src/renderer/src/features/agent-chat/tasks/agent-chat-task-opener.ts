@@ -1,4 +1,3 @@
-import type { PaneLayout } from '@caxri/protocol';
 import {
     agentContextTabPath,
     agentSideChatTabPath,
@@ -7,12 +6,8 @@ import {
     findResourceTabs,
 } from '@caxri/protocol';
 
-import { useChromeLayoutStore } from '../../../stores/chrome-layout';
+import { getSelectedSession } from '../../../stores/selectors';
 import { openEditorTab } from '../../editor/document-commands';
-import {
-    getSecondarySidebarYieldScope,
-    isSecondarySidebarShown,
-} from '../../secondary-sidebar/secondary-sidebar-visibility';
 import { focusTerminalById } from '../../terminal/terminal-pane-handlers';
 import {
     findPaneTabId,
@@ -21,30 +16,30 @@ import {
     splitPaneTab,
 } from '../../workbench/pane-actions';
 import { runAgentChatComposerCommandWhenReady } from '../composer/agent-chat-composer-commands';
+import { usePortalStore } from '../portal/portal-store';
 import { planAgentChatTaskTabPlacement } from './agent-chat-task-placement';
-import { workbenchWidthShare } from './beside-chat-layout';
+import { besideChatTabTerminalId } from './beside-chat-layout';
 
 /**
- * Opens a subagent's or background shell's tab beside its Chat (see {@link planAgentChatTaskTabPlacement}): focused when
- * already open, in the task side pane when one exists, otherwise split off to the right of the Chat. Closing the tab
- * later never stops the task.
+ * Opens a subagent's or background shell's view beside its Chat (see {@link openBesideAgentChat}). Closing it later
+ * never stops the task.
  */
 export function openAgentChatTaskTab(terminalId: string, taskId: string): void {
-    openBesideAgentChat(terminalId, agentTaskTabPath(terminalId, taskId));
+    openBesideAgentChat(agentTaskTabPath(terminalId, taskId));
 }
 
 /**
  * Opens the review of one turn's file changes beside its Chat, where task tabs open.
  */
 export function openAgentChatTurnReview(terminalId: string, turnId: string): void {
-    openBesideAgentChat(terminalId, agentTurnReviewTabPath(terminalId, turnId));
+    openBesideAgentChat(agentTurnReviewTabPath(terminalId, turnId));
 }
 
 /**
  * Opens a Chat's Context tab beside it, from the context meter's card, so the conversation stays in view.
  */
 export function openAgentChatContext(terminalId: string): void {
-    openBesideAgentChat(terminalId, agentContextTabPath(terminalId));
+    openBesideAgentChat(agentContextTabPath(terminalId));
 }
 
 /**
@@ -52,44 +47,46 @@ export function openAgentChatContext(terminalId: string): void {
  * untouched, so this works mid-turn.
  */
 export function openAgentChatSideChat(terminalId: string): void {
-    openBesideAgentChat(terminalId, agentSideChatTabPath(terminalId));
+    openBesideAgentChat(agentSideChatTabPath(terminalId));
 }
 
 /**
- * Whether the split about to open will make the SecondarySidebar yield: it is on screen and no beside-Chat arrangement
- * holds it open yet. An arrangement that already exists while it is shown means the user revealed it there.
+ * Shows a beside-Chat view: focuses its pane tab when the user already moved it into the Workbench with "Open in
+ * Split", otherwise opens it in the selected Session's Portal, the flyout over the window's right edge that takes no
+ * Workbench width and never counts as a tab.
  */
-function willSecondarySidebarYield(): boolean {
-    return isSecondarySidebarShown() && getSecondarySidebarYieldScope() === undefined;
+function openBesideAgentChat(tabPath: string): void {
+    // The Caxri Bot window mounts neither a pane layout nor a Portal, so nothing there could show the view.
+    if (!getPaneLayout()) return;
+    const tabId = findPaneTabId({ kind: 'file', path: tabPath });
+    if (tabId) {
+        selectPaneTab(tabId);
+        return;
+    }
+    const sessionId = getSelectedSession()?.id;
+    if (!sessionId) return;
+    usePortalStore.getState().open(sessionId, tabPath);
 }
 
 /**
- * The width the Chat's split will have once committed: the Chat pane as laid out now, plus its share of the
- * SecondarySidebar when it is about to yield. In a layout the user already split, the released width spreads across the
- * panes by their split ratios (see {@link workbenchWidthShare}), so a Chat stacked above a Terminal receives all of it
- * and a Chat beside a file only its own fraction.
+ * The Portal's "Open in Split": moves its item into the Workbench as a pane tab beside its Chat (see
+ * {@link planAgentChatTaskTabPlacement}), for a view the user wants to keep open next to the conversation. The Portal
+ * covers the SecondarySidebar, so the split only divides the Chat pane's own width.
  */
-function measureBesideChatSplitHost(layout: PaneLayout, chatPaneId: string): number {
-    const slot = document.querySelector(`[data-pane-slot="${CSS.escape(chatPaneId)}"]`);
-    const width = slot?.getBoundingClientRect().width ?? 0;
-    if (!willSecondarySidebarYield()) return width;
-    const released = useChromeLayoutStore.getState().secondarySidebarWidth;
-    return width + released * workbenchWidthShare(layout, chatPaneId);
-}
-
-function openBesideAgentChat(terminalId: string, tabPath: string): void {
+export function openPortalItemInSplit(sessionId: string, tabPath: string): void {
+    usePortalStore.getState().close(sessionId, tabPath);
     const layout = getPaneLayout();
-    if (!layout) return;
+    const terminalId = besideChatTabTerminalId(tabPath);
+    if (!layout || !terminalId) return;
     const chatPaneId = findResourceTabs(layout, { kind: 'terminal', terminalId }).at(0)?.pane.id;
-    const hostWidth = chatPaneId ? measureBesideChatSplitHost(layout, chatPaneId) : 0;
+    const slot = chatPaneId
+        ? document.querySelector(`[data-pane-slot="${CSS.escape(chatPaneId)}"]`)
+        : null;
+    const hostWidth = slot?.getBoundingClientRect().width ?? 0;
     const placement = planAgentChatTaskTabPlacement(layout, terminalId, tabPath, hostWidth);
     switch (placement.kind) {
         case 'select': {
             selectPaneTab(placement.tabId);
-            return;
-        }
-        case 'open': {
-            openEditorTab(tabPath, { paneId: placement.paneId });
             return;
         }
         case 'split': {
@@ -100,6 +97,7 @@ function openBesideAgentChat(terminalId: string, tabPath: string): void {
             if (tabId) splitPaneTab(tabId, placement.chatPaneId, 'right', placement.ratio);
             return;
         }
+        case 'open':
         case 'tab': {
             openEditorTab(tabPath, { paneId: placement.paneId });
             return;

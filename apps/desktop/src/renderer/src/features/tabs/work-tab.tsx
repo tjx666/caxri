@@ -203,7 +203,7 @@ function useWorkTabMotion(shouldFill: boolean) {
     } as const;
 }
 
-function WorkTabIcon({
+export function WorkTabIcon({
     fileIconName,
     icon,
     label,
