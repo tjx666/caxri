@@ -9,6 +9,7 @@ export type SettingsView =
     | 'trusted-domains'
     | 'agent-actions'
     | 'agent-executable'
+    | 'agent-hooks'
     | 'hardware-acceleration'
     | 'remote-debugging'
     | 'notifications'

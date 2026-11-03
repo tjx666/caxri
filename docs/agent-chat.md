@@ -606,8 +606,9 @@ only; the PTY surface and Grok never get them.
 - The same delegated work shows inside the Chat: a Delegated Sessions section in the composer strip,
   `Delegated to` records in the timeline that stay in view when the turn folds, and in the child's
   Chat an origin row and a `You took over` divider. A failed row in the strip (and the origin row)
-  offers `Retry` for a retryable failure (plus `Retry with <Agent>` and `Retry after <time>` for a usage limit, and `Cancel`
-  while a scheduled retry waits), and a retried attempt collapses into one `Attempt N` row. See
+  offers `Retry` for a retryable failure (preceded by `Sign in` for a signed-out Agent or
+  `Enable hooks` for missing lifecycle hooks; plus `Retry with <Agent>` and `Retry after <time>`
+  for a usage limit, and `Cancel` while a scheduled retry waits), and a retried attempt collapses into one `Attempt N` row. See
   [Chat surfaces](agent-delegation.md#chat-surfaces). Caxri Bot and Benchmark windows show none.
 
 ## Follow-up queue

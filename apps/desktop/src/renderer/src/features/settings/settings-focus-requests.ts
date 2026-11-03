@@ -20,8 +20,14 @@ const FOCUSED_ROW_IDS: Partial<Record<SettingsView, string>> = {
 
 export function rowFocusRequest(request: {
     id: number;
+    provider?: AgentProvider;
     view: SettingsView;
 }): { id: number; rowId: string } | undefined {
+    // `agent-hooks` names a provider: the lifecycle hooks row of that provider (a failed delegation's "Enable hooks").
+    if (request.view === 'agent-hooks')
+        return request.provider
+            ? { id: request.id, rowId: `agents.${request.provider}.hooks` }
+            : undefined;
     const rowId = FOCUSED_ROW_IDS[request.view];
     return rowId ? { id: request.id, rowId } : undefined;
 }

@@ -161,6 +161,7 @@ export function AgentChatDelegatedSessionRow({
                 <DelegationRetryControls
                     className="pl-8 leading-5"
                     entry={entry}
+                    projectId={session.projectId}
                     projectTitle={project?.title ?? ''}
                     sessionTitle={title}
                 />

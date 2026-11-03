@@ -10,9 +10,9 @@ import { useDelegationOrigin } from './hooks/use-delegation-origin';
 /**
  * The first row of the composer strip in a Chat another Session delegated its work to: who delegated, that the result
  * goes back on its own, and a way back to that Session. Until the user takes the Session over it also warns that
- * sending a message, Stop, or Rewind here does so; afterwards it says the replies no longer go back. An archived parent
- * is named without a way back, because navigating to it never restores it. Renders nothing for a hand-off, an unrelated
- * Session, or a parent that is gone.
+ * sending a message, Stop, or Rewind here does so; afterwards it says the replies no longer go back, and the way back
+ * stays. An archived parent is named without a way back, because navigating to it never restores it. Renders nothing
+ * for a hand-off, an unrelated Session, or a parent that is gone.
  *
  * Not collapsible: it is the Session's standing context, and folding it would hide the warning exactly when it matters.
  */
@@ -39,28 +39,26 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
                         {t('delegation.origin.takenOverDetail', { title })}
                     </span>
                 ) : (
-                    <>
-                        <span className="min-w-0 truncate">
-                            <span className="text-foreground">
-                                {t('delegation.origin.from', { title })}
-                            </span>
-                            {!origin.isParentArchived && (
-                                <>
-                                    {' · '}
-                                    {t('delegation.origin.autoReturn')}
-                                </>
-                            )}
+                    <span className="min-w-0 truncate">
+                        <span className="text-foreground">
+                            {t('delegation.origin.from', { title })}
                         </span>
                         {!origin.isParentArchived && (
-                            <button
-                                className="ml-auto max-w-[40%] shrink-0 cursor-pointer truncate border-0 bg-transparent p-0 text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                                type="button"
-                                onClick={() => openSession(origin.parent.id)}
-                            >
-                                {t('delegation.origin.back', { title })}
-                            </button>
+                            <>
+                                {' · '}
+                                {t('delegation.origin.autoReturn')}
+                            </>
                         )}
-                    </>
+                    </span>
+                )}
+                {!origin.isParentArchived && (
+                    <button
+                        className="ml-auto max-w-[40%] shrink-0 cursor-pointer truncate border-0 bg-transparent p-0 text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                        type="button"
+                        onClick={() => openSession(origin.parent.id)}
+                    >
+                        {t('delegation.origin.back', { title })}
+                    </button>
                 )}
             </span>
             {!origin.isTakenOver && !origin.isParentArchived && (
@@ -70,6 +68,7 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
                 <DelegationRetryControls
                     className="pl-5"
                     entry={task}
+                    projectId={session?.projectId}
                     projectTitle={project?.title ?? ''}
                     sessionTitle={sessionTitleForDisplay(session?.title ?? '', t)}
                 />
