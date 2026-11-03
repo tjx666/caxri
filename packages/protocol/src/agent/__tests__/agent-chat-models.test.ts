@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatModel } from '../agent-chat-contract.js';
 import { agentChatLabelsZhCN } from '../agent-chat-labels-zh-cn.js';
-import type { AgentChatPendingSelection } from '../agent-chat-models.js';
+import type { AgentChatModel, AgentChatPendingSelection } from '../agent-chat-models.js';
 import {
     agentChatEffortLabel,
     agentChatMenuModel,
