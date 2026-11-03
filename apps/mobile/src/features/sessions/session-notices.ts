@@ -100,11 +100,12 @@ const LIST_ONLY_NOTICES: ReadonlySet<HomeNoticeKind> = new Set([
 ]);
 
 /**
- * Picks the single notice to draw. `update` is the Mobile update banner's kind: a version mismatch that offers no build
- * (`mismatch`) or one that does (`required`, `checking`, `unreachable`) outranks everything because the app cannot
- * reconnect until it is resolved; an optional update (`available`) yields to any connection or list problem.
+ * Every notice that applies, most severe first. `update` is the Mobile update banner's kind: a version mismatch that
+ * offers no build (`mismatch`) or one that does (`required`, `checking`, `unreachable`) outranks everything because the
+ * app cannot reconnect until it is resolved; an optional update (`available`) yields to any connection or list
+ * problem.
  */
-export const selectHomeNotice = ({
+export const homeNoticeCandidates = ({
     connection,
     isListVisible,
     isListErrorShown,
@@ -118,7 +119,7 @@ export const selectHomeNotice = ({
     isSavedCopy: boolean;
     isTruncated: boolean;
     update: 'available' | 'checking' | 'mismatch' | 'required' | 'unreachable' | null;
-}): HomeNoticeKind | null => {
+}): HomeNoticeKind[] => {
     const active = new Set<HomeNoticeKind>();
     if (update === 'mismatch') active.add('update-mismatch');
     else if (update === 'available') active.add('update-available');
@@ -127,12 +128,17 @@ export const selectHomeNotice = ({
     if (isListErrorShown) active.add('list-error');
     if (isSavedCopy) active.add('saved-copy');
     if (isTruncated) active.add('truncated');
-    return (
-        HOME_NOTICE_PRIORITY.find(
-            (kind) => active.has(kind) && (isListVisible || !LIST_ONLY_NOTICES.has(kind)),
-        ) ?? null
+    return HOME_NOTICE_PRIORITY.filter(
+        (kind) => active.has(kind) && (isListVisible || !LIST_ONLY_NOTICES.has(kind)),
     );
 };
+
+/**
+ * The single notice to draw: the most severe of {@link homeNoticeCandidates}.
+ */
+export const selectHomeNotice = (
+    input: Parameters<typeof homeNoticeCandidates>[0],
+): HomeNoticeKind | null => homeNoticeCandidates(input)[0] ?? null;
 
 /**
  * How long a notice must stay selected before it takes space at the top of Session home.
@@ -156,6 +162,14 @@ const SELF_CLEARING_NOTICES: ReadonlySet<HomeNoticeKind> = new Set([
  */
 export const homeNoticeSettleDelay = (kind: HomeNoticeKind | null): number =>
     kind !== null && SELF_CLEARING_NOTICES.has(kind) ? HOME_NOTICE_SETTLE_MS : 0;
+
+/**
+ * What Session home draws while the most severe candidate is still waiting out its settle delay: the most severe
+ * candidate that needs no delay. Without it, an update offer already on screen vanished the moment a reconnect selected
+ * the (not yet drawn) Reconnecting notice above it, and came back once the connection returned.
+ */
+export const waitingHomeNotice = (candidates: readonly HomeNoticeKind[]): HomeNoticeKind | null =>
+    candidates.find((kind) => homeNoticeSettleDelay(kind) === 0) ?? null;
 
 /**
  * When each self-clearing notice was first selected by any mounted screen, shared across screens. Opening a Session on

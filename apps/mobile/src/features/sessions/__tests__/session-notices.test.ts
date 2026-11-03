@@ -5,10 +5,12 @@ import {
     connectionNoticeMessage,
     createHomeNoticeSelections,
     HOME_NOTICE_SETTLE_MS,
+    homeNoticeCandidates,
     homeNoticeSettleDelay,
     isConnectionBannerShown,
     isSessionListErrorShown,
     selectHomeNotice,
+    waitingHomeNotice,
 } from '../session-notices';
 
 describe('offline notices', () => {
@@ -156,6 +158,35 @@ describe('connection banner model', () => {
             action: 'retry',
             tone: 'warning',
         });
+    });
+});
+
+describe('waitingHomeNotice', () => {
+    const none = {
+        connection: null,
+        isListErrorShown: false,
+        isListVisible: true,
+        isSavedCopy: false,
+        isTruncated: false,
+        update: null,
+    } as const;
+
+    it('keeps an update offer on screen while a reconnect notice waits to settle', () => {
+        const candidates = homeNoticeCandidates({
+            ...none,
+            connection: 'stale',
+            update: 'available',
+        });
+        expect(candidates).toEqual(['connection-stale', 'update-available']);
+        expect(waitingHomeNotice(candidates)).toBe('update-available');
+    });
+
+    it('draws nothing while only self-clearing notices wait', () => {
+        expect(
+            waitingHomeNotice(
+                homeNoticeCandidates({ ...none, connection: 'stale', isSavedCopy: true }),
+            ),
+        ).toBeNull();
     });
 });
 

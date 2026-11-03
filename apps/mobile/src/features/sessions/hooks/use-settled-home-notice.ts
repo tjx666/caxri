@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import type { HomeNoticeKind } from '../session-notices';
-import { createHomeNoticeSelections, homeNoticeSettleDelay } from '../session-notices';
+import {
+    createHomeNoticeSelections,
+    homeNoticeSettleDelay,
+    waitingHomeNotice,
+} from '../session-notices';
 
 const selections = createHomeNoticeSelections();
 
@@ -15,9 +19,13 @@ const isSettled = (kind: HomeNoticeKind | null, delay: number, now: number): boo
  * The notice Session home actually draws. A self-clearing notice (`homeNoticeSettleDelay`) appears only once it has
  * stayed selected for the whole delay, counted from the first screen that selected it, so a startup that connects
  * quickly never shifts the list while a Session opened during an outage shows the notice at once. Any other notice, and
- * the absence of one, applies on the same render.
+ * the absence of one, applies on the same render. While the most severe candidate waits, the most severe candidate that
+ * needs no wait is drawn instead (`waitingHomeNotice`).
  */
-export const useSettledHomeNotice = (kind: HomeNoticeKind | null): HomeNoticeKind | null => {
+export const useSettledHomeNotice = (
+    candidates: readonly HomeNoticeKind[],
+): HomeNoticeKind | null => {
+    const kind = candidates.at(0) ?? null;
     const delay = homeNoticeSettleDelay(kind);
     // Read once at mount so a screen opened after the delay already passed draws the notice on its first frame.
     const [settled, setSettled] = useState<HomeNoticeKind | null>(() =>
@@ -35,5 +43,5 @@ export const useSettledHomeNotice = (kind: HomeNoticeKind | null): HomeNoticeKin
             setSettled(null);
         };
     }, [delay, kind]);
-    return delay === 0 || settled === kind ? kind : null;
+    return delay === 0 || settled === kind ? kind : waitingHomeNotice(candidates);
 };

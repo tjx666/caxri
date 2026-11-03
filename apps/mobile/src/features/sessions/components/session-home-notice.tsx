@@ -2,7 +2,7 @@ import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileUpdateNotice } from '../../update/use-mobile-update-notice';
 import { useSettledHomeNotice } from '../hooks/use-settled-home-notice';
-import { isSessionListErrorShown, selectHomeNotice } from '../session-notices';
+import { homeNoticeCandidates, isSessionListErrorShown } from '../session-notices';
 import { savedAgeLabel } from '../session-row-model';
 import { useHostSessions } from './host-sessions-provider';
 import type { HomeNoticeKind } from './session-home-notice-banners';
@@ -25,9 +25,10 @@ const homeNoticeFamily: Record<HomeNoticeKind, 'connection' | 'list' | 'update'>
 
 /**
  * The one notice across the top of Session home. Connection, update, list failure, saved copy, and truncation can all
- * be true at once; `selectHomeNotice` keeps only the most severe so the bars never stack above the list. The saved
- * copy's age rides inside the stale connection message. A notice that usually clears within a moment waits
- * `useSettledHomeNotice`'s delay first, so a quick startup does not push the list down and back up.
+ * be true at once; `homeNoticeCandidates` orders them and Session home keeps only the most severe so the bars never
+ * stack above the list. The saved copy's age rides inside the stale connection message. A notice that usually clears
+ * within a moment waits `useSettledHomeNotice`'s delay first, so a quick startup does not push the list down and back
+ * up.
  */
 export const SessionHomeNotice = ({
     connection,
@@ -54,7 +55,7 @@ export const SessionHomeNotice = ({
     const { t } = useTranslation();
     const { sessions } = useHostSessions();
     const { error, hasLoaded, savedAt, sections } = sessions;
-    const selected = selectHomeNotice({
+    const candidates = homeNoticeCandidates({
         connection,
         isListErrorShown: isSessionListErrorShown({
             error,
@@ -66,7 +67,7 @@ export const SessionHomeNotice = ({
         isTruncated: sections.truncated,
         update: update?.kind ?? null,
     });
-    const kind = useSettledHomeNotice(selected);
+    const kind = useSettledHomeNotice(candidates);
     if (kind === null) return null;
     const saved = savedAt === null ? null : savedAgeLabel(savedAt, now, t);
     switch (homeNoticeFamily[kind]) {
