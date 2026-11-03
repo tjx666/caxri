@@ -352,9 +352,12 @@ async function openSessionWithSavedTabs(
         await new Promise((resolve) => setTimeout(resolve, 3_000));
         await setMobileNetworkAvailable(environment.serial, false);
         await coldStartMobileApp(environment.serial);
+        // The saved-list notice proves the phone is offline: no live read answered after the restart.
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, `session-row-${sessionId}`),
+            (nodes) =>
+                hasCheck(nodes, `session-row-${sessionId}`) &&
+                hasCheck(nodes, 'session-list-saved'),
         );
         await tapMobileCheck(environment.serial, `session-row-${sessionId}`);
         await waitForMobile(
