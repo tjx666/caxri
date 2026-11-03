@@ -460,7 +460,7 @@ export async function collectRenderSample(
     options: RenderCountOptions,
     connect = connectToRenderer,
 ): Promise<RenderSample> {
-    const client = await connect(options.port, options.url);
+    const client = await connect(options.port, { urlContains: options.url });
     /**
      * Set for `boot`, so the arming script can be withdrawn again and only this one reload is instrumented.
      */

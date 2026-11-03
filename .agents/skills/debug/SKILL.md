@@ -209,7 +209,9 @@ throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as 
 partial patch. If the fixture's test root does not cover the flow, export
 `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to Main as `--inspect`) before `dev`, then run
 `drive-app.ts stub-folder-dialog <absolute path> --inspector-port <port>` so Main's folder picker
-returns that path, as `e2e/support/packaged-project-dialog.ts` does. Prefer `switch-worktree dev --user-data-dir <absolute
+returns that path, as `e2e/support/packaged-project-dialog.ts` does. With the same port,
+`drive-app.ts stub-message-box <button index>` makes every Main confirmation answer with that
+button (`1` is a prompt's Not Now), so a flow behind a native confirmation never opens the real box. Prefer `switch-worktree dev --user-data-dir <absolute
 task temp dir>` for a fixture run, so fixture Projects never reach the worktree profile. Otherwise, before stopping, close every fixture Terminal, archive its Sessions
 (`session.archive`), and verify `app.bootstrap` contains no fixture Agent Terminals. A later plain
 `dev` run must not restore a synthetic conversation with a real CLI. Do not delete the Project

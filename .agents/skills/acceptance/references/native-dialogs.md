@@ -26,7 +26,9 @@ When a product flow crosses a native dialog:
 Stub `dialog.showMessageBox`, `dialog.showOpenDialog`, or `dialog.showSaveDialog` through
 Playwright's Main-process evaluation and return the intended response. Assert the resulting product
 state in the Renderer, Runtime, configuration, or filesystem. This is the fast, deterministic
-pattern already used by Caxri's focused Electron E2E specs.
+pattern already used by Caxri's focused Electron E2E specs. Against a running dev instance, use the
+`debug` skill's `drive-app.ts` steps instead: `stub-message-box <button index>` answers every
+confirmation, and `stub-folder-dialog <absolute path>` answers the folder picker.
 
 Use `CAXRI_TEST_ROOT_PATH` / `CAXRI_TEST_ROOT_PATHS` for Project selection. The Acceptance launcher
 supplies these by default, so setup never falls through to a folder chooser. For file import/export,

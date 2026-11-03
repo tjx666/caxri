@@ -34,6 +34,8 @@
  *   `settings.trustFolder` is Main-only and refuses a Renderer call.
  * - `stub-folder-dialog <absolute path>`: makes Main's native folder picker return that path. Needs the dev instance
  *   started with `V8_INSPECTOR_PORT=<port>` exported; pass the same port as `--inspector-port` or in that variable.
+ * - `stub-message-box <button index>`: makes every Main confirmation (`dialog.showMessageBox`) answer with that button,
+ *   such as `1` for a prompt's Not Now. Needs the inspector port as `stub-folder-dialog` does.
  * - `screenshot <absolute path>`.
  */
 import { readFile, realpath } from 'node:fs/promises';
@@ -47,8 +49,9 @@ import { chromium } from '@playwright/test';
 
 import { CommandError } from '../../switch-worktree/scripts/process';
 import type { CdpTarget } from './cdp-client';
-import { connectToNodeInspector, selectRendererTarget } from './cdp-client';
+import { selectRendererTarget } from './cdp-client';
 import { IDLE_POLL_MS, waitForIdle } from './drive-app-idle';
+import { stubFolderDialog, stubMessageBox } from './drive-app-main-dialogs';
 import {
     request,
     settingsSourceWithLanguage,
@@ -70,6 +73,7 @@ const STEPS = [
     'new-session',
     'hold-press',
     'stub-folder-dialog',
+    'stub-message-box',
     'trust-folder',
     'theme',
     'screenshot',
@@ -193,8 +197,14 @@ export function parseDriveCommand(
             throw new CommandError(`Screenshot path must be absolute: ${path}`, 2);
         }
     }
+    if (
+        step === 'stub-message-box' &&
+        !(Number.isSafeInteger(Number(argument)) && Number(argument) >= 0)
+    ) {
+        throw new CommandError(`\`stub-message-box\` takes a button index, not ${argument}`, 2);
+    }
     const port = inspectorPort ? Number(inspectorPort) : undefined;
-    if (step === 'stub-folder-dialog' && !Number.isSafeInteger(port)) {
+    if (isMainStep(step) && !Number.isSafeInteger(port)) {
         throw new CommandError(
             'Start the dev instance with V8_INSPECTOR_PORT exported and pass --inspector-port',
             2,
@@ -207,6 +217,13 @@ export function parseDriveCommand(
         inspectorPort: port,
         ...(times !== undefined && { times: Number(times) }),
     };
+}
+
+/**
+ * Steps that run in Main through its inspector rather than in the window, which may not even be open yet.
+ */
+function isMainStep(step: string | undefined): boolean {
+    return step === 'stub-folder-dialog' || step === 'stub-message-box';
 }
 
 /**
@@ -319,28 +336,6 @@ async function openChat(page: Page, provider: AgentProvider): Promise<void> {
         .filter({ visible: true })
         .last()
         .waitFor({ timeout: OPEN_CHAT_TIMEOUT_MS });
-}
-
-/**
- * Main has no page target, so the stub goes through its Node inspector. `includeCommandLineAPI` exposes `require`
- * there, as `e2e/support/packaged-project-dialog.ts` gets `dialog` through Playwright's Electron handle.
- */
-async function stubFolderDialog(inspectorPort: number, folder: string): Promise<void> {
-    const connection = await connectToNodeInspector(inspectorPort);
-    try {
-        const expression = `(() => {
-            const { dialog } = require('electron');
-            dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [${JSON.stringify(folder)}] });
-            return 'stubbed';
-        })()`;
-        const result = await connection.request<{ exceptionDetails?: { text: string } }>(
-            'Runtime.evaluate',
-            { expression, includeCommandLineAPI: true },
-        );
-        if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
-    } finally {
-        connection.close();
-    }
 }
 
 /**
@@ -488,6 +483,8 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
             return;
         case 'stub-folder-dialog':
             return stubFolderDialog(command.inspectorPort!, argument);
+        case 'stub-message-box':
+            return stubMessageBox(command.inspectorPort!, Number(argument));
     }
 }
 
@@ -543,9 +540,12 @@ async function connectWhenReady(
 
 async function main(): Promise<void> {
     const command = parseDriveCommand(process.argv.slice(2));
-    // Main is reached through its own inspector; the window may not even be open yet.
     if (command.step === 'stub-folder-dialog') {
         await stubFolderDialog(command.inspectorPort!, command.argument!);
+        return;
+    }
+    if (command.step === 'stub-message-box') {
+        await stubMessageBox(command.inspectorPort!, Number(command.argument));
         return;
     }
     // Playwright's CDP connection would also follow a proxy for a loopback address.

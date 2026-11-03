@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import type { CdpConnection } from '../../debug/scripts/cdp-client';
+import type { CdpConnection, RendererTargetFilter } from '../../debug/scripts/cdp-client';
 import { connectToRenderer } from '../../debug/scripts/cdp-client';
 import type { TerminalFixturePreflightReceipt } from './fixture-preflight';
 import { verifyTerminalFixturePreflightReceipt } from './fixture-preflight';
@@ -19,6 +19,7 @@ interface FrameOptions {
     outDir: string;
     port?: number;
     urlContains?: string;
+    titleContains?: string;
 }
 
 interface DomOptions {
@@ -27,6 +28,7 @@ interface DomOptions {
     port?: number;
     selector: string;
     urlContains?: string;
+    titleContains?: string;
 }
 
 interface ScreenshotOptions {
@@ -34,6 +36,7 @@ interface ScreenshotOptions {
     output: string;
     port?: number;
     urlContains?: string;
+    titleContains?: string;
 }
 
 export type CaptureOptions = DomOptions | FrameOptions | ScreenshotOptions;
@@ -50,9 +53,9 @@ const FRAMES_LOG = 'frames.log';
 const HELP = `Capture the owned isolated Caxri Renderer through CDP.
 
 Usage:
-  capture-renderer.ts frames --out-dir DIR [--fixture-preflight FIXTURE_JSON] [--port PORT] [--url-contains TEXT] [--count 40] [--interval-ms 250]
-  capture-renderer.ts dom --output FILE --selector SELECTOR [--port PORT] [--url-contains TEXT]
-  capture-renderer.ts screenshot --output FILE [--port PORT] [--url-contains TEXT]
+  capture-renderer.ts frames --out-dir DIR [--fixture-preflight FIXTURE_JSON] [--port PORT] [--url-contains TEXT] [--title-contains TEXT] [--count 40] [--interval-ms 250]
+  capture-renderer.ts dom --output FILE --selector SELECTOR [--port PORT] [--url-contains TEXT] [--title-contains TEXT]
+  capture-renderer.ts screenshot --output FILE [--port PORT] [--url-contains TEXT] [--title-contains TEXT]
 `;
 
 function requiredValue(arguments_: string[], index: number, option: string): string {
@@ -81,15 +84,16 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
     const values = new Map<string, string>();
     const allowedOptions =
         command === 'dom'
-            ? new Set(['--output', '--port', '--selector', '--url-contains'])
+            ? new Set(['--output', '--port', '--selector', '--title-contains', '--url-contains'])
             : command === 'screenshot'
-              ? new Set(['--output', '--port', '--url-contains'])
+              ? new Set(['--output', '--port', '--title-contains', '--url-contains'])
               : new Set([
                     '--count',
                     '--fixture-preflight',
                     '--interval-ms',
                     '--out-dir',
                     '--port',
+                    '--title-contains',
                     '--url-contains',
                 ]);
     for (let index = 1; index < arguments_.length; index += 2) {
@@ -107,13 +111,14 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
     const rawPort = values.get('--port');
     const port = rawPort ? boundedPositiveInteger(rawPort, '--port', 65_535) : undefined;
     const urlContains = values.get('--url-contains');
+    const titleContains = values.get('--title-contains');
 
     if (command === 'dom') {
         const output = values.get('--output');
         if (!output) throw new Error('--output is required');
         const selector = values.get('--selector');
         if (!selector) throw new Error('--selector is required');
-        return { command, output: resolve(output), port, selector, urlContains };
+        return { command, output: resolve(output), port, selector, titleContains, urlContains };
     }
 
     if (command === 'screenshot') {
@@ -122,7 +127,7 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
         if (!output.toLowerCase().endsWith('.png')) {
             throw new Error('--output must use a .png extension');
         }
-        return { command, output: resolve(output), port, urlContains };
+        return { command, output: resolve(output), port, titleContains, urlContains };
     }
 
     const outputDirectory = values.get('--out-dir');
@@ -139,6 +144,7 @@ export function parseCaptureOptions(arguments_: string[]): CaptureOptions | 'hel
         ),
         outDir: resolve(outputDirectory),
         port,
+        titleContains,
         urlContains,
     };
 }
@@ -172,7 +178,11 @@ export function requiresRuntimeTerminalFixturePreflight(
     return acceptanceCase?.requiresTerminalFixturePreflight !== false;
 }
 
-type CaptureConnector = (port: number, urlContains?: string) => Promise<CdpConnection>;
+type CaptureConnector = (port: number, filter?: RendererTargetFilter) => Promise<CdpConnection>;
+
+function targetFilter({ titleContains, urlContains }: CaptureOptions): RendererTargetFilter {
+    return { titleContains, urlContains };
+}
 
 export async function captureFrames(
     options: FrameOptions,
@@ -192,7 +202,7 @@ export async function captureFrames(
         throw new Error(`Frame directory already contains captures: ${options.outDir}`);
     }
 
-    const client = await connectClient(port, options.urlContains);
+    const client = await connectClient(port, targetFilter(options));
     try {
         await client.request('Page.enable');
         const startedAt = Date.now();
@@ -241,7 +251,7 @@ export async function captureFrames(
 }
 
 async function captureDom(options: DomOptions, port: number): Promise<void> {
-    const client = await connectToRenderer(port, options.urlContains);
+    const client = await connectToRenderer(port, targetFilter(options));
     try {
         const expression = `(() => {
             const node = document.querySelector(${JSON.stringify(options.selector)});
@@ -268,7 +278,7 @@ export async function captureScreenshot(
     port: number,
     connectClient: CaptureConnector = connectToRenderer,
 ): Promise<void> {
-    const client = await connectClient(port, options.urlContains);
+    const client = await connectClient(port, targetFilter(options));
     try {
         await client.request('Page.enable');
         const result = await client.request<{ data: string }>('Page.captureScreenshot', {

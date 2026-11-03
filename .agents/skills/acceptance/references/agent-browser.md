@@ -111,7 +111,8 @@ bun run .agents/skills/acceptance/scripts/capture-renderer.ts dom \
 
 The capture helper reads and validates the port from the owned Acceptance
 runtime. Add `--url-contains <text>` only when intentionally targeting a
-secondary Caxri window.
+secondary Caxri window, or `--title-contains <text>` for a window that shares the
+local window's URL, such as an SSH Host window (its title names the host).
 
 Open the saved `.html` file and confirm it contains the intended settled state.
 Do not use interactive `snapshot -i` text as a `dom_snapshot` artifact.
