@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -46,6 +46,17 @@ describe('resolveRatchetBase', () => {
     it('falls back to the origin/main merge-base locally', async () => {
         expect(await resolveRatchetBase([], { CAXRI_REACT_DOCTOR_BASE: ' ' }, mergeBase)).toBe(
             'merge-base-sha',
+        );
+    });
+
+    it('is given the push before SHA in the guards job, where the main merge-base is HEAD itself', async () => {
+        const workflow = await readFile(
+            join(import.meta.dirname, '../../.github/workflows/guards.yml'),
+            'utf8',
+        );
+        const step = workflow.slice(workflow.indexOf('- name: Run source-size-ratchet'));
+        expect(step.slice(0, step.indexOf('run: bun run source-size-ratchet'))).toContain(
+            "CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'push' && github.event.before || '' }}",
         );
     });
 });

@@ -223,6 +223,7 @@ describe('resolveCommitSha', () => {
 describe('followSupersedingRuns', () => {
     const cancelled = run({ conclusion: 'cancelled', id: '10', status: 'completed' });
     const noWait = () => Promise.resolve();
+    const noFailedJobs = () => Promise.resolve<string[]>([]);
     const origin = (conclusion: string) => ({
         branch: 'main',
         conclusion,
@@ -241,6 +242,7 @@ describe('followSupersedingRuns', () => {
                     { id: '10', sha: 'a'.repeat(40) },
                 ]),
             readRun: () => Promise.resolve(origin('cancelled')),
+            readFailedJobs: noFailedJobs,
         });
         expect(result).toBe(true);
         expect(isRunGood).toHaveBeenCalledWith('11');
@@ -261,9 +263,37 @@ describe('followSupersedingRuns', () => {
                     { id: '11', sha: 'b' },
                 ]),
             readRun: (runId) => Promise.resolve(origin(conclusions.get(runId) ?? '')),
+            readFailedJobs: noFailedJobs,
         });
         expect(result).toBe(false);
         expect(isRunGood.mock.calls).toEqual([['12']]);
+    });
+
+    it('fails a cancelled run whose job had already failed, even when a newer run succeeds', async () => {
+        const conclusions = new Map([
+            ['10', 'cancelled'],
+            ['11', 'cancelled'],
+        ]);
+        const failedJobs = new Map([['11', ['checks']]]);
+        const isRunGood = vi.fn(() => Promise.resolve(false));
+        const listBranchRuns = vi.fn(() => Promise.resolve([{ id: '11', sha: 'b' }]));
+        const dependencies = {
+            contains: () => Promise.resolve(true),
+            listBranchRuns,
+            readFailedJobs: (runId: string) => Promise.resolve(failedJobs.get(runId) ?? []),
+            readRun: (runId: string) => Promise.resolve(origin(conclusions.get(runId) ?? '')),
+        };
+        // The merge commit's own run: its checks job failed before the next merge cancelled it.
+        failedJobs.set('10', ['checks']);
+        expect(
+            await followSupersedingRuns(cancelled, 'a', () => Promise.resolve(true), dependencies),
+        ).toBe(false);
+        expect(listBranchRuns).not.toHaveBeenCalled();
+
+        // A successor that failed a job before it too was cancelled is a failure, not unverified.
+        failedJobs.delete('10');
+        expect(await followSupersedingRuns(cancelled, 'a', isRunGood, dependencies)).toBe(false);
+        expect(isRunGood).toHaveBeenCalledWith('11');
     });
 
     it('leaves a run alone when it was not cancelled by a newer push of the same branch', async () => {
@@ -272,11 +302,13 @@ describe('followSupersedingRuns', () => {
             contains: () => Promise.resolve(false),
             listBranchRuns: () => Promise.resolve([{ id: '11', sha: 'b' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
+            readFailedJobs: noFailedJobs,
             wait: noWait,
         });
         const manuallyCancelled = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             listBranchRuns: () => Promise.resolve([{ id: '10', sha: 'a' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
+            readFailedJobs: noFailedJobs,
             wait: noWait,
         });
         expect([notSuperseded, manuallyCancelled]).toEqual([undefined, undefined]);
@@ -296,6 +328,7 @@ describe('followSupersedingRuns', () => {
             contains: () => Promise.resolve(true),
             listBranchRuns: () => Promise.resolve(listings.shift() ?? []),
             readRun: (runId) => Promise.resolve(origin(conclusions.get(runId) ?? '')),
+            readFailedJobs: noFailedJobs,
             wait: noWait,
         });
         expect(result).toBe(true);
@@ -309,6 +342,7 @@ describe('followSupersedingRuns', () => {
             contains: () => Promise.resolve(true),
             listBranchRuns,
             readRun: () => Promise.resolve({ ...origin('cancelled'), event: 'workflow_run' }),
+            readFailedJobs: noFailedJobs,
             wait: noWait,
         });
         expect(result).toBe(true);
@@ -322,6 +356,7 @@ describe('followSupersedingRuns', () => {
             contains: () => Promise.resolve(true),
             listBranchRuns: () => Promise.resolve(listings.shift() ?? [{ id: '11', sha: 'b' }]),
             readRun: () => Promise.resolve(origin('cancelled')),
+            readFailedJobs: noFailedJobs,
             wait: noWait,
         });
         expect(result).toBe('unverified');
@@ -339,6 +374,7 @@ describe('followSupersedingRuns', () => {
             contains: () => Promise.resolve(true),
             listBranchRuns,
             readRun: () => Promise.resolve(origin('cancelled')),
+            readFailedJobs: noFailedJobs,
             wait: noWait,
         });
         expect(result).toBe(true);

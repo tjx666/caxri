@@ -12,8 +12,6 @@ import { commandPolicy, ownerOnlyCommandPolicy } from '../transport/method-spec.
 import { agentChatCommandSchema } from './agent-chat-commands.js';
 import { agentChatContextReportSchema } from './agent-chat-context.js';
 import {
-    agentChatEffortSchema,
-    agentChatModelSchema,
     agentChatQueuedMessageSchema,
     agentChatSnapshotSchema,
     agentChatTaskSchema,
@@ -23,6 +21,7 @@ import {
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
 } from './agent-chat-limits.js';
+import { agentChatEffortSchema, agentChatModelSchema } from './agent-chat-models.js';
 import { agentChatHistoryPageSchema } from './agent-chat-patch-contract.js';
 import { agentChatDefaultSchema, agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';

@@ -19,6 +19,7 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from './agent-chat-limits.js';
 import { agentChatMcpServerSchema, MAX_AGENT_CHAT_MCP_SERVERS } from './agent-chat-mcp.js';
+import { agentChatEffortSchema, agentChatModelSchema } from './agent-chat-models.js';
 import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema, MAX_AGENT_CHAT_QUESTIONS } from './agent-chat-requests.js';
 import {
@@ -40,44 +41,6 @@ import { agentChatWorkflowSchema } from './workflow/agent-chat-workflow-contract
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
-
-/**
- * A reasoning effort level, as the provider names it (`low`, `high`, `xhigh`, ...). Kept open because each provider and
- * model offers its own set.
- */
-export const agentChatEffortSchema = z
-    .string()
-    .min(1)
-    .max(40)
-    .regex(/^[\w-]+$/u);
-
-/**
- * A model the provider lets this Chat switch to, with the reasoning efforts it accepts.
- */
-export const agentChatModelSchema = z.strictObject({
-    /**
-     * The identifier the provider takes when switching, and reports as the snapshot's `model` once it is in use.
-     */
-    id: z.string().min(1).max(200),
-    displayName: z.string().max(200),
-    description: z.string().max(500).optional(),
-    /**
-     * Another identifier the provider reports for this model, such as the full model a Claude Code alias resolves to,
-     * so the snapshot's `model` still matches the row it was chosen from.
-     */
-    resolvedId: z.string().max(200).optional(),
-    /**
-     * Efforts the model accepts, lowest first. Empty for a model without effort control.
-     */
-    efforts: z.array(agentChatEffortSchema).max(10),
-    defaultEffort: agentChatEffortSchema.optional(),
-    /**
-     * Present when the model offers Fast mode: faster output at a higher usage cost (Codex's `priority` service tier,
-     * Claude Code's `fastMode`). `description` is the provider's own wording, such as Codex's `1.5x speed, increased
-     * usage`.
-     */
-    fast: z.strictObject({ description: z.string().max(200).optional() }).optional(),
-});
 
 /**
  * Lifecycle of one structured tool-like item. `interrupted` is Caxri's own closure for an item the provider left open
@@ -598,5 +561,4 @@ export type AgentChatTurn = z.infer<typeof agentChatTurnSchema>;
 export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
 export type AgentChatFailureReason = z.infer<typeof agentChatFailureReasonSchema>;
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
-export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 /* eslint-enable unicorn/max-nested-calls */

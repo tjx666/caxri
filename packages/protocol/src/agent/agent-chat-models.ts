@@ -1,7 +1,49 @@
+import { z } from 'zod';
+
 import { CaxriError } from '../transport/errors.js';
-import type { AgentChatModel, AgentChatSnapshot } from './agent-chat-contract.js';
+import type { AgentChatSnapshot } from './agent-chat-contract.js';
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { isAgentChatLabelKey, translateAgentChatLabel } from './agent-chat-labels.js';
+
+/**
+ * A reasoning effort level, as the provider names it (`low`, `high`, `xhigh`, ...). Kept open because each provider and
+ * model offers its own set.
+ */
+export const agentChatEffortSchema = z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(/^[\w-]+$/u);
+
+/**
+ * A model the provider lets this Chat switch to, with the reasoning efforts it accepts.
+ */
+export const agentChatModelSchema = z.strictObject({
+    /**
+     * The identifier the provider takes when switching, and reports as the snapshot's `model` once it is in use.
+     */
+    id: z.string().min(1).max(200),
+    displayName: z.string().max(200),
+    description: z.string().max(500).optional(),
+    /**
+     * Another identifier the provider reports for this model, such as the full model a Claude Code alias resolves to,
+     * so the snapshot's `model` still matches the row it was chosen from.
+     */
+    resolvedId: z.string().max(200).optional(),
+    /**
+     * Efforts the model accepts, lowest first. Empty for a model without effort control.
+     */
+    efforts: z.array(agentChatEffortSchema).max(10),
+    defaultEffort: agentChatEffortSchema.optional(),
+    /**
+     * Present when the model offers Fast mode: faster output at a higher usage cost (Codex's `priority` service tier,
+     * Claude Code's `fastMode`). `description` is the provider's own wording, such as Codex's `1.5x speed, increased
+     * usage`.
+     */
+    fast: z.strictObject({ description: z.string().max(200).optional() }).optional(),
+});
+
+export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 
 /**
  * The listed model a provider-reported model identifier belongs to. Claude Code lists aliases (`opus`) but reports the
