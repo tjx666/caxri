@@ -3,11 +3,12 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
 import { reconcileWindowsAfterRemoval } from './project-visibility';
-import { firstActiveSession } from './session-policy';
+import { adjacentActiveSession } from './session-policy';
 
 /**
  * Archives a Session without touching its Terminal records or PTYs. Every window that showed it moves to its neighbor
- * in the strip, else to another non-archived Session in the same Project, else to none (the Project stays selected).
+ * in the strip, else to the sidebar row below it (above it when it was last; see {@link adjacentActiveSession}), else to
+ * none (the Project stays selected).
  */
 export function archiveOneSession(
     database: CaxriDatabaseConnection,
@@ -19,7 +20,7 @@ export function archiveOneSession(
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (session.archivedAt === undefined && !database.sessions.setArchived(sessionId, now))
             throw new CaxriError('NOT_FOUND', 'Session not found');
-        const fallback = firstActiveSession(database.sessions.list(session.projectId), sessionId);
+        const fallback = adjacentActiveSession(database.sessions.list(session.projectId), session);
         reconcileWindowsAfterRemoval(database, fallback, session.projectId);
         return database.sessions.get(sessionId)!;
     });

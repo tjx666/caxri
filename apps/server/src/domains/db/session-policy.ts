@@ -11,8 +11,10 @@ import type {
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
+    compareSessionPinnedOrder,
     compareSessionSidebarOrder,
     DEFAULT_SESSION_TITLE,
+    isPinnedSession,
     isTopLevelProject,
     normalizeTerminalTitle,
 } from '@caxri/protocol';
@@ -460,6 +462,32 @@ export function firstActiveSession(
         .filter((session) => session.archivedAt === undefined && session.id !== excludedSessionId)
         .toSorted(compareSessionSidebarOrder)
         .at(0);
+}
+
+/**
+ * Picks the Session a window lands on after `removed` leaves its Project's sidebar list: the row right below it, else
+ * the row right above it, else the first remaining Session. Only rows in the same sidebar group count as neighbors,
+ * because a pinned Session renders in the Pinned group rather than under its Project, so the next row the user sees
+ * after an unpinned Session is never a pinned one.
+ */
+export function adjacentActiveSession(
+    records: SessionRecord[],
+    removed: SessionRecord,
+): SessionRecord | undefined {
+    const pinned = isPinnedSession(removed);
+    const group = records
+        .filter(
+            (session) =>
+                session.id === removed.id ||
+                (session.archivedAt === undefined && isPinnedSession(session) === pinned),
+        )
+        .toSorted(pinned ? compareSessionPinnedOrder : compareSessionSidebarOrder);
+    const index = group.findIndex((session) => session.id === removed.id);
+    return (
+        group.at(index + 1) ??
+        (index > 0 ? group.at(index - 1) : undefined) ??
+        firstActiveSession(records, removed.id)
+    );
 }
 
 /**

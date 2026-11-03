@@ -147,11 +147,20 @@ describe('Session sidebar order', () => {
         expect(order()).toEqual([a.id, c.id, b.id]);
     });
 
-    it('uses manual sidebar order for fallback after archiving the selected Session', async () => {
-        const { database, a, b, c } = await fixture();
-        database.reorderSession(a.id, c.id, 'before');
+    it('selects the row below the archived Session in sidebar order', async () => {
+        const { database, a, b, c, order } = await fixture();
+        expect(order()).toEqual([c.id, b.id, a.id]);
         database.selectSession(b.id, 'main');
         database.archiveSession(b.id);
         expect(database.windowOpenSessions.get('main').activeSessionId).toBe(a.id);
+    });
+
+    it('selects the row above in manual sidebar order when the archived Session was last', async () => {
+        const { database, a, b, c, order } = await fixture();
+        database.reorderSession(a.id, c.id, 'before');
+        expect(order()).toEqual([a.id, c.id, b.id]);
+        database.selectSession(b.id, 'main');
+        database.archiveSession(b.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(c.id);
     });
 });
