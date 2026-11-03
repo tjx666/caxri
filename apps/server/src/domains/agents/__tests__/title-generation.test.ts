@@ -243,10 +243,16 @@ describe('Session title material', () => {
         for (const title of [
             'Chinese title: 默认请求模式讨论',
             '标题如下：默认请求模式讨论',
+            '会话标题：默认请求模式讨论',
+            '对话标题: 默认请求模式讨论',
+            'Session title: 默认请求模式讨论',
             '磁吧ぶ',
         ])
             expect(normalizeGeneratedAgentTitle(title, context)).toBeUndefined();
         expect(normalizeGeneratedAgentTitle('默认请求模式讨论', context)).toBe('默认请求模式讨论');
+        expect(normalizeGeneratedAgentTitle('修复会话标题：前缀残留', context)).toBe(
+            '修复会话标题：前缀残留',
+        );
         expect(normalizeGeneratedAgentTitle('Fix: Session title sync')).toBe(
             'Fix: Session title sync',
         );
