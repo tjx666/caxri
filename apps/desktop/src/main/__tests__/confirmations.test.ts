@@ -194,7 +194,9 @@ describe('SSH Host Server update prompt', () => {
             'Update Caxri Server on build-box while 2 Terminals and 1 Chat are running?',
         );
         expect(options.detail).toContain('stops every running Terminal and Agent process');
-        expect(options.detail).toContain('Not Now keeps them running and leaves build-box disconnected');
+        expect(options.detail).toContain(
+            'Not Now keeps them running and leaves build-box disconnected',
+        );
         expect(options.buttons).toEqual(['Update Server', 'Not Now']);
         expect(options.defaultId).toBe(1);
         expect(options.cancelId).toBe(1);
