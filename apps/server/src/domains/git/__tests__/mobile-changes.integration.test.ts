@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project/roots';
 import { GitService } from '..';
+import { mobilePullRequestDiff } from '../mobile-changes';
 
 const directories: string[] = [];
 const services: GitService[] = [];
@@ -153,6 +154,102 @@ describe('mobile changes Git projection', () => {
             git.mobileChangesDiff(session.id, 'unapproved-repo', 'tracked.txt'),
         ).rejects.toMatchObject({
             code: 'PATH_DENIED',
+        });
+    });
+
+    it('lists and diffs the HEAD commit in commit mode while counting uncommitted work', async () => {
+        const { git, root, session } = await fixture();
+        await writeFile(join(root, 'tracked.txt'), 'committed\nsecond\n');
+        await rename(join(root, 'rename.txt'), join(root, 'moved.txt'));
+        await execFileAsync('git', ['add', '-A'], { cwd: root });
+        await execFileAsync('git', ['commit', '-m', 'Update tracked file'], { cwd: root });
+        await writeFile(join(root, 'dense.txt'), 'uncommitted\n');
+
+        const list = await git.mobileChangesList(session.id, true, 'commit');
+        expect(list.uncommittedCount).toBe(1);
+        expect(list.contexts).toEqual([
+            expect.objectContaining({ kind: 'commit', subject: 'Update tracked file' }),
+        ]);
+        expect(list.files.map((file) => file.path).toSorted((a, b) => a.localeCompare(b))).toEqual([
+            'moved.txt',
+            'tracked.txt',
+        ]);
+        expect(list.files.find((file) => file.path === 'tracked.txt')).toMatchObject({
+            status: 'M',
+            additions: 2,
+            deletions: 1,
+        });
+        expect(list.files.find((file) => file.path === 'moved.txt')).toMatchObject({
+            status: 'R',
+            originalPath: 'rename.txt',
+        });
+        expect(list.total).toBe(2);
+
+        const repoId = list.files[0].repositoryId;
+        const diff = await git.mobileChangesDiff(session.id, repoId, 'tracked.txt', 'commit');
+        expect(diff.status).toBe('available');
+        if (diff.status === 'available') {
+            expect(diff.patch).toContain('-old');
+            expect(diff.patch).toContain('+committed');
+        }
+        // A file the HEAD commit does not touch is stale, never the working-tree diff.
+        await expect(
+            git.mobileChangesDiff(session.id, repoId, 'dense.txt', 'commit'),
+        ).resolves.toEqual({ status: 'stale' });
+    });
+
+    it('diffs the root commit and reports an unborn repository as empty in commit mode', async () => {
+        const unborn = await fixture({ shouldCommit: false });
+        const empty = await unborn.git.mobileChangesList(unborn.session.id, true, 'commit');
+        expect(empty).toMatchObject({ isRepository: true, files: [], contexts: [] });
+
+        const { git, session } = await fixture();
+        const list = await git.mobileChangesList(session.id, true, 'commit');
+        const tracked = list.files.find((file) => file.path === 'tracked.txt');
+        expect(tracked).toMatchObject({ status: 'A' });
+        const diff = await git.mobileChangesDiff(
+            session.id,
+            tracked!.repositoryId,
+            'tracked.txt',
+            'commit',
+        );
+        expect(diff.status).toBe('available');
+        if (diff.status === 'available') expect(diff.patch).toContain('+old');
+    });
+
+    it('diffs one pull request file over the base...head range', async () => {
+        const { root } = await fixture();
+        const run = async (arguments_: string[]) =>
+            (await execFileAsync('git', arguments_, { cwd: root })).stdout.trim();
+        const baseOid = await run(['rev-parse', 'HEAD']);
+        await run(['switch', '-c', 'topic']);
+        await writeFile(join(root, 'tracked.txt'), 'from pull request\n');
+        await run(['commit', '-am', 'Topic change']);
+        const headOid = await run(['rev-parse', 'HEAD']);
+        // Uncommitted work never leaks into the pull request diff.
+        await writeFile(join(root, 'tracked.txt'), 'uncommitted\n');
+        const repo = {
+            id: 'repo',
+            rootPath: root,
+        } as Parameters<typeof mobilePullRequestDiff>[0];
+        const pullRequest = {
+            baseOid,
+            headOid,
+            files: [{ path: 'tracked.txt', kind: 'modified' }],
+        } as Parameters<typeof mobilePullRequestDiff>[1];
+        const gitRun = async (cwd: string, arguments_: string[]) =>
+            (await execFileAsync('git', arguments_, { cwd })).stdout;
+        const diff = await mobilePullRequestDiff(repo, pullRequest, 'tracked.txt', gitRun);
+        expect(diff.status).toBe('available');
+        if (diff.status === 'available') {
+            expect(diff.patch).toContain('+from pull request');
+            expect(diff.patch).not.toContain('uncommitted');
+        }
+        await expect(
+            mobilePullRequestDiff(repo, pullRequest, 'dense.txt', gitRun),
+        ).resolves.toEqual({ status: 'stale' });
+        await expect(mobilePullRequestDiff(repo, null, 'tracked.txt', gitRun)).resolves.toEqual({
+            status: 'stale',
         });
     });
 });

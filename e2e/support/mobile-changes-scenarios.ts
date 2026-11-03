@@ -178,8 +178,60 @@ async function captureUnreviewableDiffs(
     return placeholders;
 }
 
+const hasCheck = (nodes: Awaited<ReturnType<typeof mobileSemantics>>, checkId: string) =>
+    nodes.some((node) => node.checkId === checkId);
+
 /**
- * Runs the four frozen synthetic mobile Changes scenarios.
+ * Walks the Working Tree, Last Commit, and Pull Request modes over the standard fixture: three uncommitted files on top
+ * of a seed commit of two files, in a repository with no GitHub remote and so no pull request.
+ */
+async function captureChangesModes(
+    environment: ChangesScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    expect(changedRowIds(await safeChangesSemantics(serial))).toHaveLength(3);
+    await capture(environment, 'working-tree', artifacts, 'changes-mode-working');
+
+    await tapMobileCheck(serial, 'changes-mode-commit');
+    const commit = await waitForMobile(
+        () => safeChangesSemantics(serial),
+        (nodes) =>
+            hasCheck(nodes, 'changes-context') &&
+            hasCheck(nodes, 'changes-uncommitted') &&
+            changedRowIds(nodes).length === 2,
+    );
+    // Only uncommitted work can be committed, so the commit shortcut leaves with the Working Tree mode.
+    expect(hasCheck(commit, 'changes-ask-agent-commit')).toBe(false);
+    await capture(environment, 'last-commit', artifacts, 'changes-context');
+
+    await tapMobileCheck(serial, 'changes-file-row-0');
+    await waitForMobile(
+        () => safeChangesSemantics(serial),
+        (nodes) => hasCheck(nodes, 'changes-diff-scroll'),
+    );
+    await capture(environment, 'last-commit-diff', artifacts, 'changes-diff-scroll');
+    await tapMobileCheck(serial, 'changes-diff-back');
+    await waitForChanges(serial);
+
+    await tapMobileCheck(serial, 'changes-mode-pull-request');
+    await waitForMobile(
+        () => safeChangesSemantics(serial),
+        (nodes) => hasCheck(nodes, 'changes-empty') && hasCheck(nodes, 'changes-uncommitted'),
+    );
+    await capture(environment, 'pull-request-empty', artifacts, 'changes-empty');
+
+    await tapMobileCheck(serial, 'changes-uncommitted-action');
+    const working = await waitForMobile(
+        () => safeChangesSemantics(serial),
+        (nodes) => changedRowIds(nodes).length === 3 && !hasCheck(nodes, 'changes-uncommitted'),
+    );
+    expect(hasCheck(working, 'changes-context')).toBe(false);
+    await capture(environment, 'back-to-working-tree', artifacts, 'changes-mode-working');
+}
+
+/**
+ * Runs the frozen synthetic mobile Changes scenarios.
  */
 export async function executeMobileChangesScenario(
     environment: ChangesScenarioEnvironment,
@@ -318,6 +370,16 @@ export async function executeMobileChangesScenario(
                     beforeSend: 'draft-only',
                     afterSend: 'delivered-once-to-synthetic-agent',
                     deliveryCount,
+                    status: 'passed',
+                });
+                break;
+            }
+            case 'MOB-CHANGES-MODES-01': {
+                await captureChangesModes(environment, artifacts);
+                await finish(environment, artifacts, {
+                    lastCommit: 'seed-commit-listed-and-diffed',
+                    pullRequest: 'no-pull-request-empty-state',
+                    uncommittedNotice: 'returns-to-working-tree',
                     status: 'passed',
                 });
                 break;

@@ -256,16 +256,16 @@ export function createMobileDomainHandlers(options: {
         'mobile.changes.list': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile changes require a paired device');
         },
-        'mobile.changes.listInternal': ({ sessionId, refresh, principal }) => {
+        'mobile.changes.listInternal': ({ sessionId, refresh, mode, principal }) => {
             authorizedSession(options.database, sessionId, principal);
-            return options.git.mobileChangesList(sessionId, refresh);
+            return options.git.mobileChangesList(sessionId, refresh, mode);
         },
         'mobile.changes.diff': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile diff requires a paired device');
         },
-        'mobile.changes.diffInternal': ({ sessionId, repositoryId, path, principal }) => {
+        'mobile.changes.diffInternal': ({ sessionId, repositoryId, path, mode, principal }) => {
             authorizedSession(options.database, sessionId, principal);
-            return options.git.mobileChangesDiff(sessionId, repositoryId, path);
+            return options.git.mobileChangesDiff(sessionId, repositoryId, path, mode);
         },
         'mobile.session.projectRootInternal': ({ sessionId, principal }) => ({
             rootPath: authorizedSession(options.database, sessionId, principal).rootPath,

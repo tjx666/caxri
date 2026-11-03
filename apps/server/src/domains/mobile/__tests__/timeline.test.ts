@@ -15,6 +15,8 @@ describe('mobile timeline authorization', () => {
         const mobileChangesList = vi.fn(() =>
             Promise.resolve({
                 isRepository: true,
+                uncommittedCount: 0,
+                contexts: [],
                 files: [],
                 total: 0,
                 additions: 0,
@@ -49,6 +51,7 @@ describe('mobile timeline authorization', () => {
             handlers['mobile.changes.listInternal']({
                 sessionId: 'session-granted',
                 refresh: true,
+                mode: 'working',
                 principal,
             }),
         ).resolves.toMatchObject({ isRepository: true });
@@ -57,14 +60,16 @@ describe('mobile timeline authorization', () => {
                 sessionId: 'session-granted',
                 repositoryId: 'repository-granted',
                 path: 'file.txt',
+                mode: 'working',
                 principal,
             }),
         ).resolves.toEqual({ status: 'stale' });
-        expect(mobileChangesList).toHaveBeenCalledWith('session-granted', true);
+        expect(mobileChangesList).toHaveBeenCalledWith('session-granted', true, 'working');
         expect(mobileChangesDiff).toHaveBeenCalledWith(
             'session-granted',
             'repository-granted',
             'file.txt',
+            'working',
         );
     });
 
@@ -118,6 +123,7 @@ describe('mobile timeline authorization', () => {
             handlers['mobile.changes.listInternal']({
                 sessionId: 'session-other',
                 refresh: false,
+                mode: 'working',
                 principal,
             }),
         ).toThrow('Session not found');
@@ -126,6 +132,7 @@ describe('mobile timeline authorization', () => {
                 sessionId: 'session-other',
                 repositoryId: 'repository-other',
                 path: 'file.txt',
+                mode: 'working',
                 principal,
             }),
         ).toThrow('Session not found');

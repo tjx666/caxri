@@ -5,6 +5,19 @@ import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../them
 
 export const changesStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
+    modes: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: mobileSpace.sm,
+        paddingHorizontal: mobileSpace.lg,
+        paddingTop: mobileSpace.sm,
+    },
+    context: {
+        ...mobileType.meta,
+        borderBottomWidth: 1,
+        paddingHorizontal: mobileSpace.lg,
+        paddingVertical: mobileSpace.sm,
+    },
     toolbar: {
         alignItems: 'center',
         borderBottomWidth: 1,

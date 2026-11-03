@@ -1,5 +1,5 @@
-import type { GitCommitDetails, GitCommitFile } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import type { GitCommitDetails, GitCommitFile, GitDiffDocument } from '@caxri/protocol';
+import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { parseGitNumstat, sumGitLineStats, withGitLineStat } from './numstat';
@@ -16,7 +16,7 @@ function commitFileStatus(code: string): GitCommitFile['status'] {
     return 'unknown';
 }
 
-export function parseCommitFiles(output: string): GitCommitFile[] {
+function parseCommitFiles(output: string): GitCommitFile[] {
     const fields = output.split('\0').filter(Boolean);
     const files: GitCommitFile[] = [];
     for (let index = 0; index < fields.length;) {
@@ -89,5 +89,66 @@ export async function readCommitDetails(
         files: files.slice(0, MAX_COMMIT_FILES).map((file) => withGitLineStat(file, lineStats)),
         filesTruncated: files.length > MAX_COMMIT_FILES,
         ...sumGitLineStats(lineStats.values()),
+    };
+}
+
+/**
+ * Both sides of one committed file resolved from the commit's own diff, so renames and root commits stay correct
+ * without the Renderer having to submit a `previousPath`.
+ */
+export async function readCommitDiffDocument(
+    sha: string,
+    path: string,
+    git: (arguments_: string[], options?: { maxBufferBytes?: number }) => Promise<string>,
+): Promise<GitDiffDocument> {
+    const files = parseCommitFiles(
+        await git([
+            'diff-tree',
+            '--root',
+            '--first-parent',
+            '-m',
+            '--no-commit-id',
+            '--name-status',
+            '-r',
+            '-z',
+            '-M',
+            sha,
+        ]),
+    );
+    const file = files.find((candidate) => candidate.path === path);
+    if (!file) throw new CaxriError('NOT_FOUND', 'File is not part of this commit');
+    // No `allowFailure` here: only a genuinely absent side (added/deleted file) is legitimately
+    // empty; an oversized blob or failing `git show` must surface as an error, not a blank diff.
+    const showOptions = { maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES };
+    const originalPath = file.previousPath ?? file.path;
+    const [original, modified] = await Promise.all([
+        file.status === 'added'
+            ? Promise.resolve('')
+            : git(['show', `${sha}^:${originalPath}`], showOptions),
+        file.status === 'deleted'
+            ? Promise.resolve('')
+            : git(['show', `${sha}:${file.path}`], showOptions),
+    ]);
+    // Binary blobs must never reach the text diff editor as mojibake; fall back to Git's own
+    // bounded patch output ("Binary files ... differ"), mirroring the working-tree patch path.
+    if (original.includes('\0') || modified.includes('\0')) {
+        const patch = await git(
+            ['show', '-M', '--format=', '--patch', sha, '--', file.path],
+            showOptions,
+        );
+        return {
+            format: 'patch',
+            path: file.path,
+            originalPath: file.previousPath,
+            original: '',
+            modified: patch,
+        };
+    }
+    return {
+        format: 'contents',
+        path: file.path,
+        originalPath: file.previousPath,
+        original,
+        modified,
     };
 }

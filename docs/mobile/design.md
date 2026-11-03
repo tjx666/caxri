@@ -498,6 +498,9 @@ waits 500 ms before it shows its spinner, so one that answers at once never flas
 
 ### Changes
 
+- Mode chips: `Working Tree`, `Last Commit`, `Pull Request`, as in Desktop's Source Control. Outside
+  Working Tree the commit or pull request is named under the header, and a muted notice counts the
+  uncommitted changes the mode hides with a `Show` action back to Working Tree.
 - Header: `3 files changed · +42 −8`, plus a refresh action. Outside a Git repository only the
   empty state shows.
 - File rows: status letter (`M`, `A`, `D`, `R`, colored like Desktop's Source Control) with a text
@@ -506,8 +509,8 @@ waits 500 ms before it shows its spinner, so one that answers at once never flas
   removed lines marked by both color and a `+`/`−` gutter. The Git preamble (`diff --git`, `index`,
   `---`/`+++`) is hidden when the patch has hunks. Binary and oversized files show
   `This file is too large or not text. Review it on your computer.`
-- An `Ask Agent to commit` chip fills the composer with `Commit the current changes with a clear
-message.` The user sends it; nothing is sent automatically.
+- In Working Tree mode, an `Ask Agent to commit` chip fills the composer with `Commit the current
+changes with a clear message.` The user sends it; nothing is sent automatically.
 
 ## New Session
 

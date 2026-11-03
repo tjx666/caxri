@@ -36,4 +36,16 @@ export const changes = {
     'changes.summaryLabel': '{{files}}, {{added}}, {{removed}}',
     'changes.title': 'Changes',
     'changes.truncated': 'Showing the first {{count}} changes.',
+    'changes.emptyCommitBody': 'This repository has no commits yet.',
+    'changes.emptyCommitTitle': 'No commit',
+    'changes.emptyPullRequestBody':
+        'Open a pull request for this branch to review its changes here.',
+    'changes.emptyPullRequestTitle': 'No pull request',
+    'changes.mode.commit': 'Last Commit',
+    'changes.mode.pullRequest': 'Pull Request',
+    'changes.mode.working': 'Working Tree',
+    'changes.modeGroup': 'Changes to show',
+    'changes.showUncommitted': 'Show',
+    'changes.uncommittedHiddenOne': '{{count}} uncommitted change',
+    'changes.uncommittedHiddenOther': '{{count}} uncommitted changes',
 } as const;

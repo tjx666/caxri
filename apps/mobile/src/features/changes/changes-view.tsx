@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { RotateCw } from 'lucide-react-native';
 
 import { Button } from '../../components/button';
+import { Chip } from '../../components/chip';
 import { IconButton } from '../../components/icon-button';
 import { NoticeBanner } from '../../components/notice-banner';
 import { Spinner } from '../../components/spinner';
@@ -10,8 +11,14 @@ import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from './changes-diff-stat';
 import { ChangesListContent } from './changes-list-content';
-import type { ChangedFile, ChangesViewState } from './changes-model';
-import { changedFilesSummary, changesSummaryLabel } from './changes-model';
+import type { ChangedFile, ChangesMode, ChangesViewState } from './changes-model';
+import {
+    changedFilesSummary,
+    CHANGES_MODES,
+    changesContextLine,
+    changesModeLabel,
+    changesSummaryLabel,
+} from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
 /**
@@ -22,24 +29,50 @@ export const COMMIT_DRAFT = 'Commit the current changes with a clear message.';
 
 export const ChangesView = ({
     canAskAgent,
+    mode,
     onAskAgentToCommit,
+    onModeChange,
     onOpenFile,
     onRefresh,
     state,
     theme,
 }: {
     canAskAgent: boolean;
+    mode: ChangesMode;
     onAskAgentToCommit: () => void;
+    onModeChange: (mode: ChangesMode) => void;
     onOpenFile: (file: ChangedFile) => void;
     onRefresh: () => void;
     state: ChangesViewState;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const isRepo = state.snapshot?.isRepository !== false;
+    const contextLine = state.snapshot ? changesContextLine(state.snapshot.contexts) : null;
+    const hiddenUncommitted = mode === 'working' ? 0 : (state.snapshot?.uncommittedCount ?? 0);
     return (
         <View style={styles.root} testID="changes-view">
+            {isRepo ? (
+                <View
+                    accessibilityLabel={t('changes.modeGroup')}
+                    accessibilityRole="tablist"
+                    style={styles.modes}
+                    testID="changes-modes"
+                >
+                    {CHANGES_MODES.map((candidate) => (
+                        <Chip
+                            key={candidate}
+                            label={changesModeLabel(candidate, t)}
+                            onPress={() => onModeChange(candidate)}
+                            selected={candidate === mode}
+                            testID={`changes-mode-${candidate}`}
+                            theme={theme}
+                        />
+                    ))}
+                </View>
+            ) : null}
             {/* Outside a Git repository a "0 files changed" summary contradicts the empty state below it. */}
-            {state.snapshot?.isRepository === false ? null : (
+            {!isRepo ? null : (
                 <View style={[styles.toolbar, { borderColor: theme.border }]}>
                     <Text
                         accessibilityRole="header"
@@ -86,6 +119,30 @@ export const ChangesView = ({
                     )}
                 </View>
             )}
+            {contextLine ? (
+                <Text
+                    numberOfLines={1}
+                    style={[styles.context, { borderColor: theme.border, color: theme.muted }]}
+                    testID="changes-context"
+                >
+                    {contextLine}
+                </Text>
+            ) : null}
+            {hiddenUncommitted > 0 && !state.isStale && !state.error ? (
+                <NoticeBanner
+                    actionLabel={t('changes.showUncommitted')}
+                    message={t(
+                        hiddenUncommitted === 1
+                            ? 'changes.uncommittedHiddenOne'
+                            : 'changes.uncommittedHiddenOther',
+                        { count: hiddenUncommitted },
+                    )}
+                    onAction={() => onModeChange('working')}
+                    testID="changes-uncommitted"
+                    theme={theme}
+                    tone="muted"
+                />
+            ) : null}
             {state.isStale ? (
                 <NoticeBanner
                     message={t('changes.staleNotice')}
@@ -106,12 +163,17 @@ export const ChangesView = ({
                 />
             ) : null}
             <ChangesListContent
+                mode={mode}
                 onOpenFile={onOpenFile}
                 onRefresh={onRefresh}
                 state={state}
                 theme={theme}
             />
-            {canAskAgent && state.snapshot && state.snapshot.files.length > 0 ? (
+            {/* Only uncommitted work can be committed; the other modes show work that already is. */}
+            {canAskAgent &&
+            mode === 'working' &&
+            state.snapshot &&
+            state.snapshot.files.length > 0 ? (
                 <View style={[styles.footer, { borderColor: theme.border }]}>
                     <Button
                         accessibilityHint={t('changes.askAgentToCommitHint')}

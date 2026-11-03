@@ -1,3 +1,5 @@
+import type { MobileChangesContext, MobileChangesMode } from '@caxri/protocol';
+
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 
@@ -50,13 +52,28 @@ export interface ChangedFile {
     status: 'M' | 'A' | 'D' | 'R';
 }
 
+export type ChangesMode = MobileChangesMode;
+
+/**
+ * The tab's three change sets in Desktop Source Control's order: Working Tree, Last Commit, Pull Request.
+ */
+export const CHANGES_MODES: readonly ChangesMode[] = ['working', 'commit', 'pull-request'];
+
 export interface ChangesSnapshot {
     additions: number;
     changedFileCount: number;
+    /**
+     * The commit or pull request each repository shows in a non-working mode; empty in Working Tree mode.
+     */
+    contexts: MobileChangesContext[];
     deletions: number;
     files: ChangedFile[];
     isRepository: boolean;
     truncated: boolean;
+    /**
+     * Uncommitted files across the Session's repositories, whatever the mode.
+     */
+    uncommittedCount: number;
 }
 
 export interface ChangesViewState {
@@ -200,4 +217,47 @@ export const changedFileLabel = (file: ChangedFile, t: Translate = translate): s
     return file.originalPath
         ? t('changes.fileRowRenamedLabel', { ...parameters, originalPath: file.originalPath })
         : t('changes.fileRowLabel', parameters);
+};
+
+const changesModeKey: Record<ChangesMode, TranslationKey> = {
+    'working': 'changes.mode.working',
+    'commit': 'changes.mode.commit',
+    'pull-request': 'changes.mode.pullRequest',
+};
+
+export const changesModeLabel = (mode: ChangesMode, t: Translate = translate): string =>
+    t(changesModeKey[mode]);
+
+/**
+ * The one line naming what a non-working mode shows, such as `abc1234 Fix login` or `#42 Add search`. Only a single
+ * repository gets one: with several, each file row already names its repository.
+ */
+export const changesContextLine = (contexts: readonly MobileChangesContext[]): string | null => {
+    if (contexts.length !== 1) return null;
+    const [context] = contexts;
+    return context.kind === 'commit'
+        ? `${context.shortSha} ${context.subject}`
+        : `#${context.number} ${context.title}`;
+};
+
+/**
+ * The empty state's title and body for each mode: a clean worktree, a repository with no commit yet, or a branch with
+ * no pull request.
+ */
+export const changesEmptyKeys = (
+    mode: ChangesMode,
+    isRepo: boolean,
+): { title: TranslationKey; body: TranslationKey } => {
+    if (!isRepo) return { title: 'changes.noRepositoryTitle', body: 'changes.noRepositoryBody' };
+    switch (mode) {
+        case 'commit':
+            return { title: 'changes.emptyCommitTitle', body: 'changes.emptyCommitBody' };
+        case 'pull-request':
+            return {
+                title: 'changes.emptyPullRequestTitle',
+                body: 'changes.emptyPullRequestBody',
+            };
+        default:
+            return { title: 'changes.emptyTitle', body: 'changes.emptyBody' };
+    }
 };

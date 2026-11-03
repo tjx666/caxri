@@ -10,6 +10,7 @@ import type {
     GitOverview,
     GitRepositorySummary as GitRepoSummary,
     GitSummary,
+    MobileChangesMode,
     ServerEvent,
     ServerOperationParameters,
     TerminalCommitLinkResolution,
@@ -30,13 +31,14 @@ import { GitChangeTracker } from './change-tracker';
 import type { GitCommandOptions } from './command';
 import { runGitCommand } from './command';
 import { serverGitCommands } from './command-budget';
-import { parseCommitFiles, readCommitDetails } from './commit-details';
+import { readCommitDetails, readCommitDiffDocument } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { readGitHubPullRequestView } from './github';
 import { IgnoredChangeFilter, readIgnoredEntries } from './ignored-changes';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
-import { mobileChangesDiff, mobileChangesListForSummary } from './mobile-changes';
+import type { MobileChangeReads } from './mobile-changes';
+import { readMobileChangesDiff, readMobileChangesList } from './mobile-changes';
 import { GitPullRequestService } from './pull-request';
 import { mergeGitHubPullRequest } from './pull-request-merge';
 import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './reference-links';
@@ -166,6 +168,17 @@ export class GitService {
 
     private resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {
         return this.repositoryService.resolveRepository(sessionId, repoIdValue);
+    }
+
+    private mobileChangeReads(sessionId: string): MobileChangeReads {
+        return {
+            commitDetails: (repoId, sha) =>
+                this.commitDetails({ sessionId, repositoryId: repoId, sha }),
+            git: (root, arguments_, maxBufferBytes) =>
+                this.git(root, arguments_, { maxBufferBytes }),
+            pullRequestChanges: (repoId, refresh) =>
+                this.pullRequestChanges({ sessionId, repositoryId: repoId, refresh }),
+        };
     }
 
     private originRemote(rootPath: string): Promise<string> {
@@ -352,18 +365,26 @@ export class GitService {
         };
     }
 
-    async mobileChangesList(sessionId: string, shouldRefresh = false) {
+    async mobileChangesList(sessionId: string, shouldRefresh = false, mode?: MobileChangesMode) {
         const summary = shouldRefresh
             ? await this.repositoryService.refreshSummary(sessionId, 'repository')
             : await this.summary(sessionId, 0, 'repository');
-        return mobileChangesListForSummary(summary);
+        return readMobileChangesList(
+            summary,
+            mode,
+            shouldRefresh,
+            this.mobileChangeReads(sessionId),
+        );
     }
 
-    async mobileChangesDiff(sessionId: string, repoId: string, path: string) {
+    async mobileChangesDiff(
+        sessionId: string,
+        repoId: string,
+        path: string,
+        mode?: MobileChangesMode,
+    ) {
         const repo = await this.resolveRepository(sessionId, repoId);
-        return mobileChangesDiff(repo, path, (root, arguments_, maxBufferBytes) =>
-            this.git(root, arguments_, { maxBufferBytes }),
-        );
+        return readMobileChangesDiff(repo, path, mode, this.mobileChangeReads(sessionId));
     }
 
     /**
@@ -571,61 +592,9 @@ export class GitService {
         parameters: ServerOperationParameters<'git.commitDiffDocument'>,
     ): Promise<GitDiffDocument> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
-        const files = parseCommitFiles(
-            await this.git(repo.rootPath, [
-                'diff-tree',
-                '--root',
-                '--first-parent',
-                '-m',
-                '--no-commit-id',
-                '--name-status',
-                '-r',
-                '-z',
-                '-M',
-                parameters.sha,
-            ]),
+        return readCommitDiffDocument(parameters.sha, parameters.path, (arguments_, options) =>
+            this.git(repo.rootPath, arguments_, options),
         );
-        const file = files.find((candidate) => candidate.path === parameters.path);
-        if (!file) throw new CaxriError('NOT_FOUND', 'File is not part of this commit');
-        // No `allowFailure` here: only a genuinely absent side (added/deleted file) is legitimately
-        // empty; an oversized blob or failing `git show` must surface as an error, not a blank diff.
-        const showOptions = { maxBufferBytes: MAX_CONFIGURABLE_FILE_BYTES };
-        const originalPath = file.previousPath ?? file.path;
-        const [original, modified] = await Promise.all([
-            file.status === 'added'
-                ? Promise.resolve('')
-                : this.git(
-                      repo.rootPath,
-                      ['show', `${parameters.sha}^:${originalPath}`],
-                      showOptions,
-                  ),
-            file.status === 'deleted'
-                ? Promise.resolve('')
-                : this.git(repo.rootPath, ['show', `${parameters.sha}:${file.path}`], showOptions),
-        ]);
-        // Binary blobs must never reach the text diff editor as mojibake; fall back to Git's own
-        // bounded patch output ("Binary files ... differ"), mirroring the working-tree patch path.
-        if (original.includes('\0') || modified.includes('\0')) {
-            const patch = await this.git(
-                repo.rootPath,
-                ['show', '-M', '--format=', '--patch', parameters.sha, '--', file.path],
-                showOptions,
-            );
-            return {
-                format: 'patch',
-                path: file.path,
-                originalPath: file.previousPath,
-                original: '',
-                modified: patch,
-            };
-        }
-        return {
-            format: 'contents',
-            path: file.path,
-            originalPath: file.previousPath,
-            original,
-            modified,
-        };
     }
 
     async diffDocument(

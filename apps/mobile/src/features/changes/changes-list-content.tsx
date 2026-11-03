@@ -7,8 +7,13 @@ import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from './changes-diff-stat';
-import type { ChangedFile, ChangesViewState } from './changes-model';
-import { changedFileLabel, changePathParts, hasMultipleRepositories } from './changes-model';
+import type { ChangedFile, ChangesMode, ChangesViewState } from './changes-model';
+import {
+    changedFileLabel,
+    changePathParts,
+    changesEmptyKeys,
+    hasMultipleRepositories,
+} from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
 /**
@@ -84,11 +89,13 @@ const ChangeFileRow = ({
 };
 
 export const ChangesListContent = ({
+    mode,
     onOpenFile,
     onRefresh,
     state,
     theme,
 }: {
+    mode: ChangesMode;
     onOpenFile: (file: ChangedFile) => void;
     onRefresh: () => void;
     state: ChangesViewState;
@@ -144,15 +151,14 @@ export const ChangesListContent = ({
         );
     }
     if (snapshot.files.length === 0) {
+        const empty = changesEmptyKeys(mode, snapshot.isRepository);
         return (
             <ScreenState
-                detail={t(snapshot.isRepository ? 'changes.emptyBody' : 'changes.noRepositoryBody')}
+                detail={t(empty.body)}
                 kind="empty"
                 testID="changes-empty"
                 theme={theme}
-                title={t(
-                    snapshot.isRepository ? 'changes.emptyTitle' : 'changes.noRepositoryTitle',
-                )}
+                title={t(empty.title)}
             />
         );
     }

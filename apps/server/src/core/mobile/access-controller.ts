@@ -309,12 +309,14 @@ export const openMobileAccessController = (options: {
                             ? domainService.request('mobile.changes.listInternal', {
                                   sessionId: request.params.sessionId,
                                   refresh: request.params.refresh,
+                                  mode: request.params.mode,
                                   principal,
                               })
                             : domainService.request('mobile.changes.diffInternal', {
                                   sessionId: request.params.sessionId,
                                   repositoryId: request.params.repositoryId,
                                   path: request.params.path,
+                                  mode: request.params.mode,
                                   principal,
                               });
                     });

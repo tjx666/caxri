@@ -28,4 +28,10 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'changes-ask-agent-draft-send',
     },
+    'MOB-CHANGES-MODES-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'changes-working-commit-pull-request-modes',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

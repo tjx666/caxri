@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
     changedFilesSummary,
     changePathParts,
+    changesContextLine,
+    changesEmptyKeys,
     changesSummaryLabel,
     diffLineNumber,
     diffLineNumberDigits,
@@ -108,5 +110,37 @@ describe('diff line numbers', () => {
                 { oldLine: null, newLine: null },
             ]),
         ).toBe(4);
+    });
+});
+
+describe('Changes modes', () => {
+    it('names the one commit or pull request a single repository shows', () => {
+        expect(
+            changesContextLine([
+                { kind: 'commit', repositoryId: 'r', shortSha: 'abc1234', subject: 'Fix login' },
+            ]),
+        ).toBe('abc1234 Fix login');
+        expect(
+            changesContextLine([
+                { kind: 'pull-request', repositoryId: 'r', number: 42, title: 'Add search' },
+            ]),
+        ).toBe('#42 Add search');
+    });
+
+    it('leaves the context line to the file rows when several repositories contribute', () => {
+        expect(changesContextLine([])).toBeNull();
+        expect(
+            changesContextLine([
+                { kind: 'commit', repositoryId: 'a', shortSha: 'abc1234', subject: 'One' },
+                { kind: 'commit', repositoryId: 'b', shortSha: 'def5678', subject: 'Two' },
+            ]),
+        ).toBeNull();
+    });
+
+    it('explains an empty list in the terms of its mode', () => {
+        expect(changesEmptyKeys('working', true).title).toBe('changes.emptyTitle');
+        expect(changesEmptyKeys('commit', true).title).toBe('changes.emptyCommitTitle');
+        expect(changesEmptyKeys('pull-request', true).title).toBe('changes.emptyPullRequestTitle');
+        expect(changesEmptyKeys('pull-request', false).title).toBe('changes.noRepositoryTitle');
     });
 });
