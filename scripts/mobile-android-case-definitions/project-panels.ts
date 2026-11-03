@@ -12,7 +12,7 @@ export const cases = {
     },
     'MOB-PROJECT-REORDER-01': {
         desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
         recordingOwner: 'scenario',
         scenario: 'reorder-project-filters',
     },
