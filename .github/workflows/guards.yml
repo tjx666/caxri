@@ -97,7 +97,13 @@ jobs:
       - name: Run docs-check
         run: bun run docs-check
 
+      # On a main push the origin/main merge-base is HEAD itself, which checks nothing. Compare
+      # against the push's `before` instead: two pull requests that each grew one file merged
+      # minutes apart and left it past the ratchet, and only this per-SHA job is never cancelled
+      # by the next merge (PRs 3604 and 3605).
       - name: Run source-size-ratchet
+        env:
+          CAXRI_REACT_DOCTOR_BASE: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: bun run source-size-ratchet
 
       - name: Run em-dash-check

@@ -308,6 +308,10 @@ export interface SupersedeDependencies {
     ) => Promise<Array<{ id: string; sha: string }>>;
     readRun?: (runId: string) => Promise<RunOrigin>;
     /**
+     * Names of the run's latest-attempt jobs that finished as `failure` or `timed_out` before the run was cancelled.
+     */
+    readFailedJobs?: (runId: string) => Promise<string[]>;
+    /**
      * Waits between successor listings.
      */
     wait?: (milliseconds: number) => Promise<unknown>;
@@ -348,6 +352,18 @@ async function listBranchRuns(
         });
 }
 
+/**
+ * A CI run has about twenty jobs, so one 100-job page holds every job of its latest attempt. A job GitHub cancelled
+ * reports `cancelled`, not `failure`, even when its step exited non-zero on the cancellation signal.
+ */
+async function readFailedRunJobs(runId: string): Promise<string[]> {
+    const output = await ghApi(
+        `actions/runs/${runId}/jobs?filter=latest&per_page=100`,
+        '.jobs[] | select(.status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out")) | .name',
+    );
+    return output.split('\n').filter(Boolean);
+}
+
 async function hasCommitAncestor(base: string, head: string): Promise<boolean> {
     const status = await ghApi(`compare/${base}...${head}`, '.status');
     return status === 'ahead' || status === 'identical';
@@ -359,7 +375,8 @@ async function hasCommitAncestor(base: string, head: string): Promise<boolean> {
  * merges while this commit's CI is running: the cancelled run proves nothing, and the newer run, whose commit contains
  * this one, is the evidence to wait for. Returns whether that newest run (chasing further supersessions) succeeded,
  * `undefined` when the run was not superseded, or `'unverified'` when every successor it followed was cancelled too: a
- * cancelled run proves nothing either way, so the commit needs the next `main` run that contains it.
+ * cancelled run proves nothing either way, so the commit needs the next `main` run that contains it. A cancelled run
+ * with a job that had already failed is a failure (`false`), whatever its successors report.
  */
 export async function followSupersedingRuns(
     run: CommitRun,
@@ -369,6 +386,7 @@ export async function followSupersedingRuns(
         contains = hasCommitAncestor,
         listBranchRuns: listRuns = listBranchRuns,
         readRun = readRunOrigin,
+        readFailedJobs = readFailedRunJobs,
         wait = sleep,
     }: SupersedeDependencies = {},
 ): Promise<boolean | 'unverified' | undefined> {
@@ -390,6 +408,16 @@ export async function followSupersedingRuns(
         const origin = await readRun(current.id);
         if (origin.conclusion !== 'cancelled' || !SUPERSEDABLE_EVENTS.has(origin.event))
             return hop === 0 ? undefined : false;
+        // A job that already failed stays a failure: a successor compares diff-relative gates (the source-size
+        // ratchet, changed-scope React Doctor) against its own push, so it cannot reproduce what this run caught.
+        // eslint-disable-next-line no-await-in-loop -- see above
+        const failedJobs = await readFailedJobs(current.id);
+        if (failedJobs.length > 0) {
+            console.log(
+                `${run.name} (run ${current.id}) was cancelled after ${failedJobs.join(', ')} failed; a newer run cannot clear that`,
+            );
+            return false;
+        }
         if (hop === MAX_SUPERSEDING_HOPS) break;
         // eslint-disable-next-line no-await-in-loop -- see above
         const newer = await findSuccessor(origin, current);
