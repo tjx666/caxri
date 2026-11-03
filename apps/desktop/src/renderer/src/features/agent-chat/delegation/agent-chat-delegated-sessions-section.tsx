@@ -30,7 +30,7 @@ function DelegatedPullRequestPoll() {
  */
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
-    const entries = useDelegatedSessions(terminalId);
+    const { attempts, entries } = useDelegatedSessions(terminalId);
     // A minute tick: it ages the elapsed labels and expires a reset time, and no row needs finer than that.
     const now = useClockTick('minute');
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
@@ -63,6 +63,11 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                 <ul className="m-0 flex max-h-48 list-none flex-col overflow-y-auto p-0">
                     {entries.map((entry) => (
                         <AgentChatDelegatedSessionRow
+                            attempt={
+                                entry.delegationId === undefined
+                                    ? undefined
+                                    : attempts.get(entry.delegationId)
+                            }
                             entry={entry}
                             key={entry.sessionId}
                             now={now}

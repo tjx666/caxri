@@ -33,6 +33,8 @@ describe('mobile role capabilities', () => {
             for (const method of [
                 'agent.delegation.sessions',
                 'agent.delegation.statuses',
+                'agent.delegation.retryOptions',
+                'agent.delegation.retry',
             ] as const)
                 expect(isMobileGatewayMethodAllowedForRole(role, method)).toBe(false);
     });

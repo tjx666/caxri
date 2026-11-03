@@ -168,6 +168,19 @@ export const agentDelegationLogEvents = {
      * `durationMs` from the task's creation to its completion. Never the summary or the answer.
      */
     resultRecorded: 'agent_delegation.result_recorded',
+    /**
+     * The owner asked to retry a failed task now (`agent.delegation.retry`). `fields.mode` is `resume` or `fresh`,
+     * `fields.failure` the failed task's failure, `fields.outcome` a closed enum (`started`: a new task was admitted,
+     * `shared`: the same request again returned the task it started, or one of `refused_*`, the refusal reason), and
+     * `fields.chainDepth` how many retries precede this one. IDs and enums only, never the prompt.
+     */
+    retryRequested: 'agent_delegation.retry_requested',
+    /**
+     * The delegating Agent was told its failed task was retried (once per retry). `fields.outcome` is `sent`,
+     * `caller_gone`, `agent_not_running`, `rejected`, or `failed`; a delivery the Host refused after admitting it is
+     * logged again as `rejected`. IDs and enums only, never the notice text.
+     */
+    retryNotice: 'agent_delegation.retry_notice',
 } as const;
 
 export const agentDispatchLogEvents = {

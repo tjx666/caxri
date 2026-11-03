@@ -5,6 +5,7 @@ import {
     agentDelegationReceiptSchema,
     agentLaunchSettingsSchema,
     CaxriError,
+    delegationRetryModeSchema,
     principalSchema,
 } from '@caxri/protocol';
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -53,6 +54,11 @@ const storedDelegationSchema = z.strictObject({
     collectedAt: z.number().int().nonnegative().optional(),
     rootDelegationId: z.string().optional(),
     nextDelegationId: z.string().optional(),
+    /**
+     * The mode a retry claim (`receipt.retriedAs`) was made in, kept with the claim so a second request in the same
+     * mode shares it and the other mode is refused. Set and cleared together with `retriedAs`.
+     */
+    retryMode: delegationRetryModeSchema.optional(),
     inputEpoch: z.number().int().nonnegative().optional(),
     hasHumanIntervention: z.boolean().optional(),
     /**
@@ -108,10 +114,20 @@ function pruneForAdmission(
     const referenced = new Set<string>(
         [admitted.rootDelegationId, followUpOf, resumeFrom].filter((value) => value !== undefined),
     );
+    if (admitted.receipt.retryOf) referenced.add(admitted.receipt.retryOf);
     for (const { receipt, rootDelegationId, nextDelegationId } of all) {
         if (nextDelegationId) referenced.add(nextDelegationId);
         if (rootDelegationId && rootDelegationId !== receipt.delegationId)
             referenced.add(rootDelegationId);
+        /**
+         * A retry chain is protected one way at a time, so chains cannot hold slots forever (a permanent mutual
+         * reference would). A failed task keeps its successor for as long as the failed task exists; the successor
+         * keeps the failed task only while it is unsettled. Once it settled, the failed task is releasable and the
+         * chain drains oldest first. A claim whose successor is not stored yet names nothing to protect.
+         */
+        if (receipt.retriedAs) referenced.add(receipt.retriedAs);
+        if (receipt.retryOf && isActiveDelegationStatus(receipt.status))
+            referenced.add(receipt.retryOf);
     }
     const removable = all
         .filter(

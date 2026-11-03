@@ -54,7 +54,7 @@ function createRuntime(
         coordinator: {} as never,
         database: {
             activeAgentDispatches: () => [],
-            agentDelegations: { active: () => [] },
+            agentDelegations: { active: () => [], all: () => [] },
             getTerminal: (id: string) =>
                 [CHAT_TERMINAL, PTY_TERMINAL].find((terminal) => terminal.id === id),
         } as never,

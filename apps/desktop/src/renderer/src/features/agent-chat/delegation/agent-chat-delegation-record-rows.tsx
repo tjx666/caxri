@@ -3,8 +3,9 @@ import type {
     AgentChatWorkItem,
     AgentDelegationStatusEntry,
 } from '@caxri/protocol';
-import { Forward } from 'lucide-react';
+import { Forward, RotateCcw } from 'lucide-react';
 
+import { Tooltip } from '@/components/ui/tooltip';
 import { useClockTick } from '@/hooks/use-clock-tick';
 
 import { useTranslation } from '../../../i18n';
@@ -60,6 +61,13 @@ function DelegationRecordRow({
                     </>
                 )}
             </span>
+            {status?.retriedAs !== undefined && (
+                <Tooltip content={t('delegation.retry.retried')}>
+                    <span className="flex shrink-0 items-center">
+                        <RotateCcw aria-hidden="true" className="size-3" />
+                    </span>
+                </Tooltip>
+            )}
             <AgentChatDelegationGlyph glyph={glyph} label={copy.headline} />
         </>
     );
@@ -71,7 +79,13 @@ function DelegationRecordRow({
         <button
             aria-label={
                 status
-                    ? t('delegation.record.openAria', { status: copy.headline, title })
+                    ? t('delegation.record.openAria', {
+                          status:
+                              status.retriedAs === undefined
+                                  ? copy.headline
+                                  : `${copy.headline}, ${t('delegation.retry.retried')}`,
+                          title,
+                      })
                     : t('delegation.record.openAriaUnknown', { title })
             }
             className={cn(

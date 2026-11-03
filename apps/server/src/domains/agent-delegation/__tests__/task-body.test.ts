@@ -1,7 +1,12 @@
 import type { SessionRelation } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { DELEGATION_SUMMARY_INSTRUCTION, delegationTaskBody } from '../task-body';
+import {
+    DELEGATION_SUMMARY_INSTRUCTION,
+    delegationTaskBody,
+    RETRY_PREFACE,
+    RETRY_RESUME_PREFACE,
+} from '../task-body';
 
 const database = (relation?: SessionRelation) =>
     ({
@@ -52,5 +57,23 @@ describe('delegationTaskBody', () => {
             'When you finish, end your final answer with one line: `Summary: <one sentence, at most 200 characters, on what you did or found>`.',
         );
         expect(DELEGATION_SUMMARY_INSTRUCTION).not.toContain('\n');
+    });
+
+    it('opens a retry started over with the fresh preface and a resumed retry with the resume preface', () => {
+        expect(
+            delegationTaskBody(database(), { ...record(), receipt: { retryOf: 'failed' } }),
+        ).toBe(`${RETRY_PREFACE}\n\nCheck the retry design.`);
+        expect(
+            delegationTaskBody(database(), {
+                ...record('Be brief.'),
+                receipt: { retryOf: 'failed', resumeFrom: 'failed' },
+            }),
+        ).toBe(`${RETRY_RESUME_PREFACE}\n\nBe brief.\n\nCheck the retry design.`);
+    });
+
+    it('adds no preface to a task that is not a retry', () => {
+        expect(
+            delegationTaskBody(database(), { ...record(), receipt: { resumeFrom: 'earlier' } }),
+        ).toBe('Check the retry design.');
     });
 });

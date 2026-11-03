@@ -22,6 +22,10 @@ export const CHILD_SUMMARY = 'The retry design is sound.';
  */
 export const DELEGATE_PROMPT = 'delegate the review';
 /**
+ * The parent's reply to the notice that its failed task was retried.
+ */
+export const RETRY_NOTICE_REPLY = 'Noted: waiting on the retried task.';
+/**
  * Present in the control directory while the delegated child's turn is held; removing it lets the child finish.
  */
 export const HOLD_CHILD_FILE = 'hold-child';
@@ -117,6 +121,12 @@ export async function launchDelegatingChat(prefix: string): Promise<DelegatingCh
                                     text: `Reviewed the retry design.\n\nSummary: ${CHILD_SUMMARY}`,
                                 },
                             ],
+                        },
+                        {
+                            // The notice a parent receives when the owner retries its failed task.
+                            prompt: 'Delegated task ',
+                            isPrefix: true,
+                            steps: [{ kind: 'message', text: RETRY_NOTICE_REPLY }],
                         },
                     ],
                 }),

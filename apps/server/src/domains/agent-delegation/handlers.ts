@@ -13,6 +13,8 @@ type DelegationMethod =
     | 'agent.delegation.stopInternal'
     | 'agent.delegation.sessions'
     | 'agent.delegation.statuses'
+    | 'agent.delegation.retryOptions'
+    | 'agent.delegation.retry'
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
@@ -55,6 +57,12 @@ export function createDelegationHandlers(
         'agent.delegation.statuses': ({ delegationIds }) => ({
             statuses: delegationStatuses({ database }, delegationIds),
         }),
+        /**
+         * Owner-only (enforced from the method spec before this runs). The retry runs as the failed task's own Agent
+         * identity, never the caller's; see `DelegationRetries`.
+         */
+        'agent.delegation.retryOptions': ({ delegationId }) => service.retryOptions(delegationId),
+        'agent.delegation.retry': ({ delegationId, mode }) => service.retry(delegationId, mode),
         'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({
             projectId,

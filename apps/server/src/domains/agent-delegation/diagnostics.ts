@@ -2,6 +2,8 @@ import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
     DelegationResultSource,
+    DelegationRetryMode,
+    DelegationRetryUnavailableReason,
     SessionRelation,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -96,4 +98,37 @@ export function logDelegationRequested(
             callerTerminalId: caller.terminalId ?? null,
         },
     });
+}
+
+/**
+ * Records one `agent.delegation.retry` request with closed enums only. `reason` is a refusal's
+ * `DelegationRetryUnavailableReason`, or `other` for an admission failure outside that list.
+ */
+export function logDelegationRetry(
+    logger: StructuredLogger | undefined,
+    fields: {
+        delegationId: string;
+        retryId?: string;
+        mode: DelegationRetryMode;
+        failure: AgentDelegationReceipt['failure'];
+        outcome: 'started' | 'shared' | 'refused';
+        reason?: DelegationRetryUnavailableReason | 'other';
+        chainDepth: number;
+    },
+): void {
+    logger?.write(
+        fields.outcome === 'refused' ? 'warn' : 'info',
+        logEventCatalog.agentDelegation.retryRequested,
+        {
+            fields: {
+                delegationId: fields.delegationId,
+                retryId: fields.retryId ?? null,
+                mode: fields.mode,
+                failure: fields.failure ?? null,
+                outcome: fields.outcome,
+                reason: fields.reason ?? null,
+                chainDepth: fields.chainDepth,
+            },
+        },
+    );
 }

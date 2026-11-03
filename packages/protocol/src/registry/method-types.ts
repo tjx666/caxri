@@ -102,6 +102,7 @@ export const effectfulCommandRecovery = {
     'agentChat.saveLongPaste': 'memory',
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
+    'agent.delegation.retry': 'durable',
     'agent.session.rename': 'durable',
     'agent.session.archive': 'durable',
     'agent.session.unarchive': 'durable',
