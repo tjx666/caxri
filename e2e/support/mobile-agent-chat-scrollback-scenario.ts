@@ -19,23 +19,24 @@ import { setEmulatorNetworkDelay } from './mobile-android-network';
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Round-trip latency while the reader scrolls back, so each history page lands well after the drag that asked for it
- * ended and any movement it causes is the list's own, not the finger's.
+ * Round-trip latency while the reader scrolls back, so each history page lands well after the fling that asked for it
+ * came to rest and any movement it causes is the list's own, not the finger's.
  */
-const PAGE_DELAY_MS = 800;
+const PAGE_DELAY_MS = 3_000;
 
 /**
- * Slow drags toward older rows. Each one is slow enough to leave no fling behind, and together they carry the reader
- * from the end of the opened window to its top, where the list reads older pages on its own.
+ * Quick flings toward older rows, as a reader skimming back does. A fling coasts to the very top of the loaded rows, so
+ * the row FlashList keeps in place is the topmost one: the work run the next page extends at its front. A slow drag
+ * asked for the page while a few rows still sat above, and the row kept in place was one the page never touched.
  */
-const DRAG_COUNT = 10;
-const DRAG_MS = 1_500;
+const DRAG_COUNT = 6;
+const DRAG_MS = 120;
 
 /**
- * How long after a drag the list may still move on its own: a page lands at {@link PAGE_DELAY_MS} and one scroll-back
+ * How long after a fling the list may still move on its own: a page lands at {@link PAGE_DELAY_MS} and one scroll-back
  * reads several pages in a row.
  */
-const WATCH_AFTER_DRAG_MS = 5_000;
+const WATCH_AFTER_DRAG_MS = 8_000;
 
 /**
  * Lets the lifted finger's last scroll events and the scroll bar's fade finish before the reference picture.
@@ -50,7 +51,7 @@ async function settledFingerprint(
     band: Parameters<typeof mobileRegionFingerprint>[1],
 ): Promise<string> {
     let last = await mobileRegionFingerprint(serial, band);
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- each read compares with the one before it
         await pause(200);
         // eslint-disable-next-line no-await-in-loop -- see above
@@ -101,7 +102,7 @@ export async function executeMobileChatScrollbackScenario(
             String(Math.floor((bounds.left + bounds.right) / 2)),
             String(Math.floor((bounds.top + bounds.bottom) / 2)),
         ]);
-        await pause(WATCH_AFTER_DRAG_MS);
+        await pause(5_000);
         await capture(environment, 'opened', artifacts);
         await setEmulatorNetworkDelay(serial, PAGE_DELAY_MS);
         isDelayed = true;
@@ -122,9 +123,9 @@ export async function executeMobileChatScrollbackScenario(
                 'input',
                 'swipe',
                 x,
-                String(Math.floor(height * 0.3)),
+                String(Math.floor(height * 0.25)),
                 x,
-                String(Math.floor(height * 0.6)),
+                String(Math.floor(height * 0.7)),
                 String(DRAG_MS),
             ]);
             // eslint-disable-next-line no-await-in-loop -- see above
