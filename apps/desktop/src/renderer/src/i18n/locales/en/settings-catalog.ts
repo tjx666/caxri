@@ -10,6 +10,7 @@ export const settingsCatalog = {
     'settings.category.chat': 'Chat',
     'settings.category.notifications': 'Notifications',
     'settings.category.mobile': 'Mobile',
+    'settings.category.hosts': 'Hosts',
     'settings.category.terminal': 'Terminal',
     'settings.category.editor': 'Editor',
     'settings.category.security': 'Security',

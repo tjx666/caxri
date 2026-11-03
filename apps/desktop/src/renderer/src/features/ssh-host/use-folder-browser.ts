@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 
-import { useCaxriQuery } from '../../queries/client';
+import { useCaxriQueryIn } from '../../queries/client';
 import { filterPathEntries, parsePathBrowserInput } from '../path-browser/path-browser';
 import {
     folderInputText,
@@ -20,7 +20,10 @@ import {
  * The field is a path whose last segment filters the listed folders, as in Open File by Path. Typing a slash lists the
  * folder before it; the key meanings come from Path browser's key table (`folderKeyAction`).
  */
-export function useFolderBrowser() {
+/**
+ * @param environmentId The SSH Host whose folders are listed.
+ */
+export function useFolderBrowser(environmentId: string) {
     /**
      * `undefined` asks the Server for its home folder, which is where the picker opens.
      */
@@ -31,10 +34,15 @@ export function useFolderBrowser() {
      * The row the arrow keys or the pointer chose, as an index into the filtered folders.
      */
     const [selectedIndex, setSelectedIndex] = useState<number>();
-    const listing = useCaxriQuery('project.browseFolders', path === undefined ? {} : { path }, {
-        placeholderData: (previous) => previous,
-        staleTime: 0,
-    });
+    const listing = useCaxriQueryIn(
+        environmentId,
+        'project.browseFolders',
+        path === undefined ? {} : { path },
+        {
+            placeholderData: (previous) => previous,
+            staleTime: 0,
+        },
+    );
     const current = listing.data;
     const home = current?.home;
     const inputValue = input ?? (current ? folderInputText(current.path, current.home) : '');

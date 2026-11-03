@@ -5,12 +5,12 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { parseProbe } from '../probe';
 import {
     compareVersions,
     fetchRuntimeScript,
     installAppScript,
     launchScript,
-    parseProbe,
     parseSshHostResult,
     probeScript,
     seedConfigScript,
@@ -113,6 +113,12 @@ describe('remote scripts', () => {
             expect(probe.runtimes.size).toBe(0);
             expect(probe.server).toBeUndefined();
             expect(probe.tools).toMatchObject({ base64: true, curl: true, gzip: true, tar: true });
+        });
+
+        it('reports a Linux distribution only as a plain lower-case identifier', () => {
+            expect(parseProbe(new Map([['distro', 'Ubuntu']])).distribution).toBe('ubuntu');
+            expect(parseProbe(new Map([['distro', 'ubuntu; rm -rf /']])).distribution).toBe('');
+            expect(parseProbe(new Map()).distribution).toBe('');
         });
 
         it('detects a musl host through ldd and maps aarch64', async () => {

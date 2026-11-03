@@ -28,6 +28,8 @@ export type SettingRowBinding =
     | { type: 'files-exclude'; key: 'files.exclude' | 'git.diffExclude' }
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
+    | { type: 'ssh-hosts' }
+    | { type: 'host-names' }
     | { type: 'claude-windows' }
     | { type: 'agent-secrets' }
     | { type: 'delegation-depth' }
@@ -273,6 +275,32 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('agentChat.workingIndicator', { advanced: true }),
     specRow('agentChat.animatedToolIcons', { advanced: true }),
     specRow('agentChat.statusShimmer', { advanced: true }),
+    {
+        id: 'hosts.machines',
+        category: 'hosts',
+        titleKey: 'settings.row.hosts.title',
+        descriptionKey: 'settings.row.hosts.description',
+        binding: { type: 'ssh-hosts' },
+        searchTerms: lower([
+            'hosts',
+            'ssh',
+            'remote',
+            'machine',
+            'display name',
+            'icon',
+            'reconnect on launch',
+            'connect',
+            'disconnect',
+        ]),
+    },
+    {
+        id: 'hosts.shouldShowHostNames',
+        category: 'hosts',
+        titleKey: 'settings.row.hostNames.title',
+        descriptionKey: 'settings.row.hostNames.description',
+        binding: { type: 'host-names' },
+        searchTerms: lower(['host names', 'side bar', 'sidebar', 'icon', 'label']),
+    },
     {
         id: 'sessions.archived',
         category: 'general',

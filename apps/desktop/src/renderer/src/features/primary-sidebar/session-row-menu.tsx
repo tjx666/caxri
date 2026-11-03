@@ -15,9 +15,9 @@ import { translate } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { environmentOfSession } from '../../lib/environment-routing';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
-import { isLocalOnlyAvailable } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { forkAgentChat } from '../agent-chat/agent-chat-commands';
 import { readAgentChatContinueMenuEntry } from '../agent-chat/usage-limit/agent-chat-continue-menu';
@@ -296,6 +296,7 @@ async function sessionRowMenu({
             readAgentChatContinueMenuEntry(primaryTerminal),
         ]);
     const forkBlocker = sessionForkBlocker(primaryTerminal);
+    const isLocal = environmentOfSession(session.id) === undefined;
     /**
      * Six groups: the Session itself (Rename, Rename with AI, Pin, and Hand Over to or Take Back from the Agent Caxri
      * Bot), Fork and Continue in Another Agent, its Agent, opening it elsewhere, a Copy submenu for its Agent's
@@ -402,7 +403,7 @@ async function sessionRowMenu({
             },
         },
         // The external editor runs on this Mac and cannot open a Project on an SSH Host.
-        isLocalOnlyAvailable() && {
+        isLocal && {
             label: translate('primarySidebar.sessionMenu.openProjectInEditor'),
             shortcut: readCommandShortcut('project.openInEditor'),
             onSelect: () => openProjectInExternalEditor(project, session.id),

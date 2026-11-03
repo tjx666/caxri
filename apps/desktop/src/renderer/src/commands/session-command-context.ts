@@ -21,10 +21,7 @@ import {
     compactWarmSessions,
     interruptAndCompactSessions,
 } from '../features/session/session-compaction-commands';
-import {
-    beginSessionCreation,
-    chooseProjectFolder,
-} from '../features/session/session-creation-commands';
+import { addProject, beginSessionCreation } from '../features/session/session-creation-commands';
 import { restoreQuitStoppedSessions } from '../features/session/session-quit-restore-commands';
 import {
     renameSelectedSession,
@@ -41,7 +38,7 @@ export const sessionCommandContext: CommandContext['session'] = {
     create: () => {
         const project = selectSelectedProject(getBootstrap());
         if (project) beginSessionCreation(project.id);
-        else void chooseProjectFolder();
+        else void addProject();
     },
     archiveSelected: archiveSelectedSession,
     compactWarm: compactWarmSessions,

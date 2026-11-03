@@ -47,15 +47,6 @@ export interface AppMenuOptions {
      * which then follows the usual routing.
      */
     openWindowCommandPalette?: (window: BaseWindow) => boolean;
-    /**
-     * Runs a command in an SSH Host window when that window is focused; returns false for any other window. An SSH Host
-     * window is a full Workbench of its own, so its commands act on it rather than on the local Workbench.
-     */
-    dispatchToSshHostWindow?: (
-        window: BaseWindow,
-        command: CommandId,
-        isViaAccelerator: boolean,
-    ) => boolean;
 }
 
 /**
@@ -162,16 +153,16 @@ function isRendererOwnedShortcut(commandId: string): boolean {
 }
 
 /**
- * Native menu items whose commands act on this Mac's disk or OS (`when: 'localMachine'` in the command catalog). An SSH
- * Host window's Renderer already hides these commands, because Main refuses them there.
+ * Native menu items whose commands act on this Mac's disk or OS (`when: 'localMachine'` in the command catalog). The
+ * Renderer already hides these commands while an SSH Host's Session is selected, because Main refuses them there.
  */
 const LOCAL_MACHINE_MENU_ITEM_IDS = commandDefinitions
     .filter((definition) => definition.nativeMenu && definition.when === 'localMachine')
     .map((definition) => `command.${definition.id}`);
 
 /**
- * Enables the local-machine-only items while a local window is focused and disables them while an SSH Host window is.
- * The menu bar is shared by every window, so this runs on every window focus change and after every menu rebuild.
+ * Enables the local-machine-only items while the selected Session is on this Mac and disables them while it is on an
+ * SSH Host. This runs on every selection change the Renderer reports and after every menu rebuild.
  */
 export function syncLocalMachineMenuItems(
     menu: Pick<Menu, 'getMenuItemById'> | null,
@@ -182,6 +173,27 @@ export function syncLocalMachineMenuItems(
         const item = menu.getMenuItemById(id);
         if (item) item.enabled = isLocalMachine;
     }
+}
+
+/**
+ * Tracks whether the Session the primary window shows lives on this Mac, so local-machine menu items (Reveal in Finder
+ * and the like) stay disabled while an SSH Host's Session is selected, across selection changes and menu rebuilds.
+ */
+export function createLocalMachineMenuState(currentMenu: () => Menu | null): {
+    apply(menu: Menu): Menu;
+    select(isLocalMachine: boolean): void;
+} {
+    let isLocal = true;
+    return {
+        apply(menu) {
+            syncLocalMachineMenuItems(menu, isLocal);
+            return menu;
+        },
+        select(isLocalMachine) {
+            isLocal = isLocalMachine;
+            syncLocalMachineMenuItems(currentMenu(), isLocal);
+        },
+    };
 }
 
 /**
@@ -200,7 +212,6 @@ export function buildAppMenuTemplate({
     focusWorkbench,
     isFollowingAppZoom,
     openWindowCommandPalette,
-    dispatchToSshHostWindow,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
@@ -249,8 +260,6 @@ export function buildAppMenuTemplate({
                 return;
             // A programmatic `MenuItem.click()` passes no event; it is a deliberate click, not an accelerator.
             const isViaAccelerator = event?.triggeredByAccelerator === true;
-            if (focused && dispatchToSshHostWindow?.(focused, definition.id, isViaAccelerator))
-                return;
             const workbench = workbenchWindow();
             switch (
                 commandTarget(

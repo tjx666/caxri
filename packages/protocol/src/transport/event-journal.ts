@@ -37,6 +37,8 @@ export type TransientServerEvent = Extract<
             | 'editor.unsavedRequest'
             | 'environment.changed'
             | 'environment.connectionReused'
+            | 'sshHost.environmentsChanged'
+            | 'sshHost.preferencesChanged'
             | 'externalDocument.changed'
             | 'files.watchLimitAlert'
             | 'host.connectionChanged'
@@ -133,6 +135,14 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * A notice about one connect attempt; a reloaded Renderer has no use for it.
      */
     'environment.connectionReused',
+    /**
+     * The whole list is resent on every change, and a reloaded Renderer reads it through `sshHost.environments.list`.
+     */
+    'sshHost.environmentsChanged',
+    /**
+     * The whole value is resent on every change, and a reloaded Renderer reads it through `sshHost.preferences.get`.
+     */
+    'sshHost.preferencesChanged',
     /**
      * One quit or close decision in flight: replaying it to a later Renderer generation would answer a prompt that
      * already timed out.

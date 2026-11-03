@@ -39,7 +39,7 @@ function selectableItems(entries: ContextMenuEntries) {
 describe('sourceControlResourcePathMenu', () => {
     afterEach(() => {
         selectProject(undefined);
-        useEnvironmentStore.setState({ state: undefined });
+        useEnvironmentStore.setState({ state: { kind: 'local' } as never });
         caxriRequest.mockReset();
         vi.unstubAllGlobals();
     });
@@ -55,7 +55,7 @@ describe('sourceControlResourcePathMenu', () => {
                 '/project/packages/sub',
                 true,
             ),
-        );
+        ).filter((item) => item.label !== 'Reveal in Finder');
         expect(items.map((item) => item.label)).toEqual([
             'Copy Path',
             'Copy Relative Path',

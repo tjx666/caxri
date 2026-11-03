@@ -129,6 +129,7 @@ export function DelegatedSessionRows({
                         selected={session.id === selectedSessionId}
                         session={session}
                         sessionOrder={sessionOrder}
+                        showHostMark
                         showProjectName
                         terminal={sessionAgentTerminal(session, terminals)}
                         visibleSessionIds={NO_VISIBLE_SESSION_IDS}

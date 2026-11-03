@@ -19,8 +19,10 @@ import { installSshHostBuild } from './install';
 import { parseLaunchOutput } from './launch-output';
 import type { RemoteLayer, RemoteTarget } from './layers';
 import { readRemoteLayer, REMOTE_TARGETS } from './layers';
-import type { SeedableConfigFile, SshHostProbe } from './scripts';
-import { launchScript, parseProbe, probeScript, seedConfigScript, stopWaitScript } from './scripts';
+import type { SshHostProbe } from './probe';
+import { parseProbe } from './probe';
+import type { SeedableConfigFile } from './scripts';
+import { launchScript, probeScript, seedConfigScript, stopWaitScript } from './scripts';
 import type {
     SshHostSeedConfig,
     SshHostServerSupervisorOptions,
@@ -358,6 +360,7 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
                 hostname: probe.hostname,
                 system: isMacos ? 'macos' : 'linux',
                 systemVersion,
+                ...(!isMacos && probe.distribution && { distribution: probe.distribution }),
             };
         const layer = target && layers.get(target);
         validateSshHostProbe(probe, layer?.descriptor.systemBaseline);

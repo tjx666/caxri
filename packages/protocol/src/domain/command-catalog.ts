@@ -15,9 +15,11 @@ import { editorCommandDefinitions } from './editor/command-definitions.js';
  * when their target state is real. Kept as a small enum rather than a general when-clause expression because the
  * current catalog has only a handful of gated commands; a full evaluator is not warranted yet.
  *
- * - `localMachine`: the window's Server runs on this Mac. An SSH Host window hides commands that act on this machine's
- *   disk or OS, because Main refuses them there (see docs/adr/0014-ssh-remote-server.md).
- * - `sshHost`: the window belongs to an SSH Host.
+ * - `localMachine`: the selected Session runs on this Mac. A Session on an SSH Host hides commands that act on its files
+ *   through this Mac's disk or OS, because that Host's route refuses them (see
+ *   docs/adr/0022-multi-environment-window.md). Commands about this Mac itself (Process Explorer, Caxri Bot,
+ *   diagnostics) stay available whichever Session is shown.
+ * - `sshHost`: the selected Session runs on an SSH Host.
  * - `pinnedSessions`: at least one Session is pinned, so switching to a Pinned position means something. Palette only:
  *   the numbered shortcuts stay bound and do nothing while the Pinned group is empty.
  * - `agentChatModels`, `agentChatPermissionModes`, `agentChatPlanMode`: the active tab is a Chat whose provider offers a
@@ -140,7 +142,6 @@ export const commandDefinitions: CommandDefinition[] = [
             'Save your Projects and unarchived Sessions to a file you can import into another Caxri',
         keywords: ['backup', 'migrate', 'transfer'],
         nativeMenu: { menu: 'project', group: 3, order: 0 },
-        when: 'localMachine',
     },
     {
         id: 'projectTransfer.import',
@@ -150,7 +151,6 @@ export const commandDefinitions: CommandDefinition[] = [
             'Add the Projects and Sessions from an export file, resuming their Agent conversations',
         keywords: ['restore', 'migrate', 'transfer'],
         nativeMenu: { menu: 'project', group: 3, order: 1 },
-        when: 'localMachine',
     },
     ...sessionCommandDefinitions,
     {
@@ -329,7 +329,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Show the current public exit, system time zone, and monitored Mihomo routes',
         keywords: ['environment', 'network', 'public IP', 'ASN', 'proxy', 'VPN', 'Mihomo'],
-        when: 'localMachine',
     },
     {
         id: 'benchmark.open',
@@ -339,7 +338,6 @@ export const commandDefinitions: CommandDefinition[] = [
             'Run one prompt across several Agents and models and compare quality, time, tokens, and cost',
         keywords: ['benchmark', 'compare', 'models', 'leaderboard', 'eval', 'arena', 'effort'],
         nativeMenu: { menu: 'view', group: 3, order: 1 },
-        when: 'localMachine',
     },
     {
         id: 'settings.open',
@@ -394,7 +392,6 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Link the bundled caxri CLI into /usr/local/bin so any terminal can run it',
         keywords: ['cli', 'terminal', 'symlink'],
         nativeMenu: { menu: 'application', group: 1, order: 0 },
-        when: 'localMachine',
     },
     {
         id: 'shellCommand.uninstall',
@@ -402,7 +399,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Shell Command',
         description: 'Remove the caxri link that points into a Caxri app bundle',
         keywords: ['cli', 'terminal', 'symlink'],
-        when: 'localMachine',
     },
     {
         id: 'pathBrowser.open',
@@ -424,7 +420,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Open the cross-Project Agent board beside Caxri Bot’s Agent',
         nativeMenu: { menu: 'view', group: 1, order: 2 },
-        when: 'localMachine',
     },
     {
         id: 'caxriBot.stop',
@@ -433,7 +428,6 @@ export const commandDefinitions: CommandDefinition[] = [
         description:
             'Stop Caxri Bot running in the background; opening it again resumes the same conversation',
         nativeMenu: { menu: 'view', group: 1, order: 3 },
-        when: 'localMachine',
     },
     {
         id: 'caxriBot.handOver',
@@ -469,7 +463,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Inspect Caxri process resource usage',
         nativeMenu: { menu: 'help', group: 1, order: 0 },
-        when: 'localMachine',
     },
     {
         id: 'developer.toggleScreencastMode',
@@ -484,7 +477,6 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Show or hide the draggable frame rate and resource monitor',
         keywords: ['fps', 'frame rate', 'performance', 'profiler', 'hud'],
         nativeMenu: { menu: 'help', group: 1, order: 1 },
-        when: 'localMachine',
     },
     {
         id: 'developer.openPerformanceMonitorWindow',
@@ -492,7 +484,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Developer',
         description: 'Open the performance monitor in its own window, which survives reloading',
         keywords: ['fps', 'reload', 'performance', 'profiler', 'startup'],
-        when: 'localMachine',
     },
     {
         id: 'developer.reportBug',
@@ -500,7 +491,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Preview and send a privacy-safe local bug report to a running Agent',
         nativeMenu: { menu: 'help', group: 2, order: 0 },
-        when: 'localMachine',
     },
     {
         id: 'diagnostics.export',
@@ -508,7 +498,6 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Export a privacy-safe diagnostics bundle',
         nativeMenu: { menu: 'help', group: 2, order: 1 },
-        when: 'localMachine',
     },
     {
         id: 'sshHost.connect',

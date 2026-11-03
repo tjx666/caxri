@@ -39,11 +39,11 @@ import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import type { MobileChangeReads } from './mobile-changes';
 import { readMobileChangesDiff, readMobileChangesList } from './mobile-changes';
+import { OriginRemoteFacts } from './origin-remote-facts';
 import { GitPullRequestService } from './pull-request';
 import { mergeGitHubPullRequest } from './pull-request-merge';
 import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './reference-links';
 import { loadTerminalReferencePreview } from './reference-preview';
-import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { sharedGitRequest } from './request-signal';
 import type { GitSummaryRequester } from './summary-trace';
@@ -89,13 +89,7 @@ export class GitService {
     private readonly changeTracker: GitChangeTracker;
     private readonly ignoredChanges: IgnoredChangeFilter;
     private readonly metadataWatcher: GitMetadataWatcher;
-    /**
-     * `origin` remote host per repository root, resolved once and kept for the Server's lifetime: the commit-avatar
-     * privacy gate (`git.remoteHost`) must never re-spawn Git on every commit row render, and a remote host changing
-     * mid-session is rare enough that a Server restart picking it up is an acceptable trade-off.
-     */
-    private readonly remoteHostByRoot = new Map<string, string | null>();
-    private readonly remoteHostRequests = new SingleFlight<string, string | null>();
+    private readonly originFacts = new OriginRemoteFacts((rootPath) => this.originRemote(rootPath));
     private readonly externalStatus: ExternalStatusHub;
 
     constructor(
@@ -489,26 +483,21 @@ export class GitService {
     }
 
     /**
-     * Best-effort `origin` remote host for the commit-avatar privacy gate. Reads local Git config only (`remote
-     * get-url`, never a network call) and caches the result per repository root so repeated Git panel renders cost zero
-     * extra Git spawns.
+     * Best-effort `origin` remote host for the commit-avatar privacy gate, cached per repository root.
      */
     async remoteHost(
         parameters: ServerOperationParameters<'git.remoteHost'>,
     ): Promise<string | null> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
-        const cached = this.remoteHostByRoot.get(repo.rootPath);
-        if (cached !== undefined) return cached;
-        return sharedGitRequest(() =>
-            this.remoteHostRequests.run(repo.rootPath, async () => {
-                const output = await this.git(repo.rootPath, ['remote', 'get-url', 'origin'], {
-                    allowFailure: true,
-                });
-                const host = parseGitRemoteHost(output);
-                this.remoteHostByRoot.set(repo.rootPath, host);
-                return host;
-            }),
-        );
+        return this.originFacts.host(repo.rootPath);
+    }
+
+    /**
+     * The repository key of `rootPath`'s `origin` remote, which lets Desktop merge one repository's checkouts on
+     * several machines.
+     */
+    repositoryKey(rootPath: string): Promise<string | null> {
+        return this.originFacts.repositoryKey(rootPath);
     }
 
     pullRequestDiffDocument(parameters: ServerOperationParameters<'git.pullRequestDiffDocument'>) {
@@ -530,7 +519,7 @@ export class GitService {
      */
     async close(): Promise<void> {
         this.pullRequestService.clear();
-        this.remoteHostByRoot.clear();
+        this.originFacts.clear();
         this.repositoryService.close();
         this.changeTracker.close();
         await this.metadataWatcher.close();

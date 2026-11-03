@@ -116,6 +116,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Antigravity turn hooks**: `PreInvocation` as the turn start and a `Stop` that is not `fullyIdle` ignored (Orca's `antigravity-events.ts` and `antigravity-event-rules.ts`); Caxri also starts only on `invocationNum` 0 and leaves `SessionStart` unbound so a subagent cannot rebind the Terminal. Evidence: `docs/antigravity.md`; `apps/server/src/domains/agents/providers/antigravity/hooks.ts`.
 - **Mobile Relay splice and route switching**: A host control socket plus a single-use ticketed dial-back socket per phone, spliced without parsing; 256 KiB / 64 KiB backpressure watermarks; a 2.5 second direct-route grace and a switch back to direct after three probes and 60 seconds. Borrowed: the topology and values only, no code. Evidence: `docs/mobile/relay.md`; `apps/relay/src/splice.ts`; `apps/mobile/src/features/connection/gateway-routes.ts`.
 - **Workflow member rows**: A member row keeps only its status and a number or two, with the current action or result on a second line (also Jean and the Codex app). Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/workflow/agent-chat-workflow.ts`; `docs/agent-chat.md` (Background work).
+- **Icon-only machine mark on Session rows**: A remote row carries the machine's icon without its name (with Superset). Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/active-session-row.tsx` (`showHostMark`).
 
 ## Wake (MIT)
 
@@ -162,6 +163,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Agent secret request card**: An Agent-raised request answered in a card with a masked value field that password managers ignore (`data-1p-ignore`), the Agent's reason, a privacy note, and Decline or Save; the value never enters the transcript. Evidence: `apps/desktop/src/renderer/src/features/agent-secrets/secret-request-cards.tsx`; `docs/agent-secrets.md`.
 - **Session relation kinds**: A Session records how its creator started it (`delegated`, `handoff`, `consult`) instead of a bare creator link, after T3 Code's thread relations (parent, fork, subagent, transfer). Evidence: `packages/protocol/src/domain/domain.ts`; `docs/agent-delegation.md`.
 - **Workflow progress merge**: Parse `workflow_progress` into phases and members and never let a settled member regress to running. Evidence: `apps/server/src/domains/agent-chat/providers/claude/workflow/record.ts`.
+- **One Project heading per repository across machines**: Projects whose `origin` names the same repository on different machines share one side bar heading, while two checkouts on one machine stay apart (with Paseo and Superset). Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/project-merge.ts`; `docs/adr/0022-multi-environment-window.md`.
 
 ## PandaCode (MIT with fork attribution)
 
@@ -362,6 +364,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Alma (alma-relay MIT; app closed product reference)
 
 - **Binary sealed Mobile frames**: Replacing text-encoded bytes inside JSON with a binary inner frame that carries raw payload bytes after a small header. Evidence: `docs/mobile/transport.md` (Application frames); `packages/mobile-transport/src/sealed-frame.ts`.
+
+## Termius (closed product reference)
+
+- **System logo as a Host's default icon**: A Host without a chosen icon shows the logo of the operating system and distribution it reported. Evidence: `apps/desktop/src/renderer/src/features/ssh-host/host-icon-registry.ts`; `docs/ssh-host.md`.
 
 ## WeChat (closed product reference)
 

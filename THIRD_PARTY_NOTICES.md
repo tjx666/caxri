@@ -136,6 +136,12 @@ Caxri bundles the `mark-github` icon path from Primer Octicons as its GitHub mar
 
 Copyright (c) GitHub Inc. Licensed under the MIT License. The vendored license text is in `licenses/PRIMER_OCTICONS_LICENSE.txt`; the upstream source is <https://github.com/primer/octicons>.
 
+## Material Design Icons
+
+Caxri bundles the `apple`, `microsoft-windows`, `linux`, `ubuntu`, `debian`, `fedora`, `arch`, and `redhat` icon paths from Material Design Icons (`@mdi/js` 7.4.47) as the system logos of Host marks, in `apps/desktop/src/renderer/src/features/ssh-host/host-icon-registry.ts`. The logos are trademarks of their respective owners and identify the operating system a machine runs.
+
+Copyright (c) Pictogrammers. The icons are licensed under the Apache License 2.0. The upstream license and the complete Apache License 2.0 text are in `licenses/MATERIAL_DESIGN_ICONS_LICENSE.txt`; the upstream source is <https://github.com/Templarian/MaterialDesign>.
+
 ## ripgrep / vscode-ripgrep
 
 Caxri bundles the platform-specific ripgrep executable distributed by `@vscode/ripgrep-universal` for fast Project file discovery.

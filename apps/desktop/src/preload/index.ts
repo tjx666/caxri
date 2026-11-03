@@ -20,6 +20,7 @@ import type {
     PerformanceMonitorHostBridge,
 } from '../shared/performance-monitor';
 import type { PERFORMANCE_MONITOR_CHANNELS } from '../shared/performance-monitor-channels';
+import { createEnvironmentBridge } from './environment-bridge';
 
 /**
  * Kept as an entry-local literal: importing the protocol constant at runtime from both preload entries makes Rolldown
@@ -169,6 +170,7 @@ const eventHandler = (
 ): void => eventClient.receive(message);
 
 const bridge: CaxriBridge = {
+    environments: createEnvironmentBridge(ipcRenderer, reportEventStreamError),
     negotiate: async () =>
         (await ipcRenderer.invoke('caxri:negotiate', {
             supportedVersions: [CAXRI_PROTOCOL_VERSION],

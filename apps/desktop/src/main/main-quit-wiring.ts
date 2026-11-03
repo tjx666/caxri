@@ -9,7 +9,7 @@ import { persistAllWindowState } from './auxiliary-window/lifecycle';
 import type { CaxriBotWindowController } from './caxri-bot-window';
 import type { DesktopServerConnection } from './connection/server-connection';
 import type { ProcessExplorerWindowController } from './process-explorer/window';
-import type { SshHostEnvironments } from './ssh/host-environments';
+import type { SshHostEnvironments } from './ssh/environments/host-environments';
 import type { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import { readWindowState } from './window-placement';
 

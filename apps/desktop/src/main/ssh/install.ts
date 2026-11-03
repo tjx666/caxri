@@ -4,7 +4,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { RemoteLayer } from './layers';
 import { ensureLocalRuntime, gzipProgressStream, progressStream } from './layers';
-import type { SshHostProbe } from './scripts';
+import type { SshHostProbe } from './probe';
 import { fetchRuntimeScript, gcScript, installAppScript, uploadRuntimeScript } from './scripts';
 import type { SshHostTransport } from './setup';
 import { bestEffort, lastLine, runSshHostScript, SshHostSetupError } from './setup';

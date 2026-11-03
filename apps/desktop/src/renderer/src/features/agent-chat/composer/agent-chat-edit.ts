@@ -30,7 +30,7 @@ export interface AgentChatEdit {
  * memory came back as that text with the held-back draft lost and Enter sending it as a new message.
  */
 export function readAgentChatEdit(terminalId: string): AgentChatEdit | undefined {
-    return agentChatComposerState.edits().get(terminalId);
+    return agentChatComposerState.edits(terminalId).get(terminalId);
 }
 
 /**
@@ -38,7 +38,7 @@ export function readAgentChatEdit(terminalId: string): AgentChatEdit | undefined
  * keystroke, so there is nothing to debounce.
  */
 export function writeAgentChatEdit(terminalId: string, edit: AgentChatEdit | undefined): void {
-    const edits = agentChatComposerState.edits();
+    const edits = agentChatComposerState.edits(terminalId);
     if (!edit && !edits.has(terminalId)) return;
     edits.delete(terminalId);
     if (edit) edits.set(terminalId, edit);

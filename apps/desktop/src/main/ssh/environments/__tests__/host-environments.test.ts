@@ -1,31 +1,15 @@
-import { EventEmitter } from 'node:events';
-
 import type { ServerEvent, SshEnvironmentState } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DesktopServerConnection } from '../../connection/server-connection';
+import type { DesktopServerConnection } from '../../../connection/server-connection';
 import type {
     SshHostEnvironmentHooks,
     SshHostEnvironmentsOptions,
     SshHostSupervisor,
 } from '../host-environments';
 import { createSshHostEnvironments } from '../host-environments';
-
-// eslint-disable-next-line unicorn/prefer-event-target -- stands in for Electron's BrowserWindow, an EventEmitter
-class FakeWindow extends EventEmitter {
-    readonly webContents = { id: Math.random() };
-    destroyed = false;
-    focus = vi.fn();
-    show = vi.fn();
-    isDestroyed = () => this.destroyed;
-    isMinimized = () => false;
-    restore = vi.fn();
-    destroy = () => {
-        this.destroyed = true;
-        this.emit('closed');
-    };
-}
+import type { HostPreferencesStore } from '../host-preferences';
 
 interface Harness {
     connection: {
@@ -41,7 +25,8 @@ interface Harness {
         isFailed: ReturnType<typeof vi.fn>;
         reconnect: ReturnType<typeof vi.fn>;
     };
-    window: FakeWindow;
+    focusWorkbench: ReturnType<typeof vi.fn>;
+    unbind: ReturnType<typeof vi.fn>;
 }
 
 function setup(
@@ -50,9 +35,12 @@ function setup(
 ) {
     const harnesses: Harness[] = [];
     const logger = { write: vi.fn() };
+    const onEnvironmentsChanged = vi.fn<SshHostEnvironmentsOptions['onEnvironmentsChanged']>();
+    const recordConnected = vi.fn<HostPreferencesStore['recordConnected']>(() => Promise.resolve());
     const options: SshHostEnvironmentsOptions = {
-        create: (_destination, hooks) => {
-            const window = new FakeWindow();
+        create: (_destination, _environmentId, hooks) => {
+            const focusWorkbench = vi.fn();
+            const unbind = vi.fn();
             const events: ServerEvent[] = [];
             const connection = {
                 start: vi.fn(() => start(harnesses.at(-1)!)),
@@ -69,30 +57,40 @@ function setup(
                 isFailed: vi.fn(() => false),
                 reconnect: vi.fn(),
             };
-            harnesses.push({ connection, events, hooks, supervisor, window });
+            harnesses.push({ connection, events, focusWorkbench, hooks, supervisor, unbind });
             return {
                 connection: connection as unknown as DesktopServerConnection,
+                focusWorkbench,
                 route: {
                     isRecovering: () => false,
                     onEventsReady: () => {},
                     windowKey: 'main',
                     transport: {} as never,
+                    window: () => {},
                 },
                 sendEvent: (event) => events.push(event),
                 supervisor: supervisor as unknown as SshHostSupervisor,
-                window: window as never,
+                unbind,
             };
         },
         keyOf,
         listHosts: () => Promise.resolve([{ alias: 'build-box' }]),
         logger: () => logger,
+        onEnvironmentsChanged,
         recent: {
             list: () => Promise.resolve(['dev@build-box']),
             remember: () => Promise.resolve(),
         },
         revealSshConfig: () => Promise.resolve(),
+        preferences: { recordConnected } as unknown as HostPreferencesStore,
     };
-    return { environments: createSshHostEnvironments(options), harnesses, logger };
+    return {
+        environments: createSshHostEnvironments(options),
+        harnesses,
+        logger,
+        onEnvironmentsChanged,
+        recordConnected,
+    };
 }
 
 function lastState(harness: Harness): SshEnvironmentState {
@@ -101,17 +99,38 @@ function lastState(harness: Harness): SshEnvironmentState {
 }
 
 describe('SSH Host environments', () => {
-    it('opens one window per SSH Host and focuses it on a second connect', async () => {
-        const { environments, harnesses } = setup();
-        await environments.connect('dev@build-box');
-        await environments.connect('dev@build-box:22');
+    it('keeps one connection per SSH Host and answers its id on a second connect', async () => {
+        const { environments, harnesses, onEnvironmentsChanged } = setup();
+        const first = await environments.connect('dev@build-box');
+        const second = await environments.connect('dev@build-box:22');
 
         expect(harnesses).toHaveLength(1);
-        expect(harnesses[0].window.focus).toHaveBeenCalled();
+        expect(second).toBe(first);
         await vi.waitFor(() => expect(lastState(harnesses[0]).phase).toBe('connected'));
+        expect(onEnvironmentsChanged.mock.lastCall?.[0]).toEqual([
+            expect.objectContaining({ hostIdentity: 'dev@build-box', phase: 'connected' }),
+        ]);
     });
 
-    it('focuses the window of an alias that resolves to the same SSH Host and says why', async () => {
+    it('remembers how a connected SSH Host was reached for Settings › Hosts', async () => {
+        const { environments, harnesses, recordConnected } = setup();
+        await environments.connect('dev@build-box');
+        await vi.waitFor(() => expect(lastState(harnesses[0]).phase).toBe('connected'));
+        expect(recordConnected).toHaveBeenCalledWith('dev@build-box', 'dev@build-box', undefined);
+    });
+
+    it('connects several SSH Hosts side by side and lists each', async () => {
+        const { environments, harnesses } = setup();
+        const build = await environments.connect('dev@build-box');
+        const lab = await environments.connect('dev@lab-box');
+
+        expect(harnesses).toHaveLength(2);
+        expect(build).not.toBe(lab);
+        expect(environments.methodsFor(undefined).list()).toHaveLength(2);
+        expect(environments.methodsFor(lab).get()).toMatchObject({ destination: 'dev@lab-box' });
+    });
+
+    it('reuses the connection of an alias that resolves to the same SSH Host and says why', async () => {
         // Both aliases name the same account, as `ssh -G` would resolve them.
         const { environments: aliased, harnesses } = setup(undefined, () =>
             Promise.resolve('dev@203.0.113.7:22'),
@@ -125,7 +144,6 @@ describe('SSH Host environments', () => {
         await aliased.connect('work-direct');
 
         expect(harnesses).toHaveLength(1);
-        expect(harnesses[0].window.focus).toHaveBeenCalledTimes(2);
         expect(
             harnesses[0].events.filter((event) => event.event === 'environment.connectionReused'),
         ).toEqual([
@@ -133,14 +151,14 @@ describe('SSH Host environments', () => {
         ]);
     });
 
-    it('tells the window the resolved SSH Host key, not only the alias that opened it', async () => {
+    it('names the environment by the resolved SSH Host key, not only the alias that connected it', async () => {
         const { environments, harnesses } = setup(undefined, () =>
             Promise.resolve('dev@203.0.113.7:22'),
         );
-        await environments.connect('work');
-        const { webContents } = harnesses[0].window;
+        const id = await environments.connect('work');
 
-        expect(environments.methodsFor(webContents as never).get()).toMatchObject({
+        expect(id).toBe('dev@203.0.113.7:22');
+        expect(environments.methodsFor(id).get()).toMatchObject({
             destination: 'work',
             hostIdentity: 'dev@203.0.113.7:22',
         });
@@ -148,7 +166,7 @@ describe('SSH Host environments', () => {
         expect(lastState(harnesses[0]).hostIdentity).toBe('dev@203.0.113.7:22');
     });
 
-    it('focuses the window opened for the same spelling without resolving the destination again', async () => {
+    it('reuses the connection of the same spelling without resolving the destination again', async () => {
         const keyOf = vi.fn((destination: string) => Promise.resolve(destination));
         const { environments, harnesses } = setup(undefined, keyOf);
         await environments.connect('work');
@@ -158,20 +176,22 @@ describe('SSH Host environments', () => {
 
         expect(keyOf).toHaveBeenCalledTimes(1);
         expect(harnesses).toHaveLength(1);
-        expect(harnesses[0].window.focus).toHaveBeenCalledTimes(1);
     });
 
-    it('routes a window to its own environment and answers local for any other sender', async () => {
-        const { environments, harnesses } = setup();
-        await environments.connect('dev@build-box');
-        const { webContents } = harnesses[0].window;
+    it('routes a named environment to its SSH Host and refuses an unknown one', async () => {
+        const { environments } = setup();
+        const id = await environments.connect('dev@build-box');
 
-        expect(environments.methodsFor(webContents as never).get()).toMatchObject({
+        expect(environments.methodsFor(id).get()).toMatchObject({
             kind: 'ssh',
             destination: 'dev@build-box',
         });
-        expect(environments.methodsFor({} as never).get()).toEqual({ kind: 'local' });
-        expect(environments.route(webContents as never)).toBeDefined();
+        expect(environments.methodsFor(undefined).get()).toEqual({ kind: 'local' });
+        expect(environments.route(id)).toBeDefined();
+        expect(environments.route('dev@elsewhere')).toBeUndefined();
+        expect(() => environments.methodsFor('dev@elsewhere').retryNow()).toThrow(
+            'The SSH Host is not connected',
+        );
     });
 
     it('shows an askpass prompt in the state and settles it with the reply', async () => {
@@ -184,7 +204,8 @@ describe('SSH Host environments', () => {
         );
 
         expect(lastState(harness).askpass).toMatchObject({ requestId: 'r1', kind: 'secret' });
-        environments.methodsFor(harness.window.webContents as never).replyAskpass('r1', 'hunter2');
+        expect(harness.focusWorkbench).toHaveBeenCalledOnce();
+        environments.methodsFor('dev@build-box').replyAskpass('r1', 'hunter2');
 
         await expect(answer).resolves.toBe('hunter2');
         expect(lastState(harness).askpass).toBeUndefined();
@@ -227,7 +248,7 @@ describe('SSH Host environments', () => {
             failure: { reason: 'authentication' },
         });
 
-        await environments.methodsFor(harness.window.webContents as never).reconnect();
+        await environments.methodsFor('dev@build-box').reconnect();
         expect(harness.supervisor.reconnect).toHaveBeenCalledOnce();
         expect(harness.connection.resume).toHaveBeenCalledOnce();
         expect(lastState(harness).phase).toBe('connected');
@@ -251,7 +272,7 @@ describe('SSH Host environments', () => {
         });
         expect(harness.connection.resume).not.toHaveBeenCalled();
 
-        await environments.methodsFor(harness.window.webContents as never).reconnect();
+        await environments.methodsFor('dev@build-box').reconnect();
         expect(harness.connection.resume).toHaveBeenCalledOnce();
         expect(lastState(harness)).toMatchObject({ phase: 'connected', needsUserAction: false });
         expect(lastState(harness).failure).toBeUndefined();
@@ -303,7 +324,7 @@ describe('SSH Host environments', () => {
         const { environments, harnesses } = setup(() => new Promise(() => {}));
         await environments.connect('dev@build-box');
         const harness = harnesses[0];
-        const methods = environments.methodsFor(harness.window.webContents as never);
+        const methods = environments.methodsFor('dev@build-box');
         const pending = harness.hooks.askpass(
             { requestId: 'r1', kind: 'secret', prompt: 'Password:' },
             new AbortController().signal,
@@ -325,14 +346,14 @@ describe('SSH Host environments', () => {
         // Nothing is running any more, so a second Cancel does nothing.
         methods.cancel();
         expect(harness.supervisor.cancel).toHaveBeenCalledOnce();
-        expect(() => environments.methodsFor({} as never).cancel()).toThrow();
+        expect(() => environments.methodsFor(undefined).cancel()).toThrow();
     });
 
-    it('skips the reconnect backoff only while the window is reconnecting', async () => {
+    it('skips the reconnect backoff only while the SSH Host is reconnecting', async () => {
         const { environments, harnesses } = setup();
         await environments.connect('dev@build-box');
         const harness = harnesses[0];
-        const methods = environments.methodsFor(harness.window.webContents as never);
+        const methods = environments.methodsFor('dev@build-box');
         await vi.waitFor(() => expect(lastState(harness).phase).toBe('connected'));
 
         expect(methods.retryNow()).toBe(false);
@@ -341,22 +362,25 @@ describe('SSH Host environments', () => {
         harness.hooks.update({ phase: 'reconnecting', attempt: 1 });
         expect(methods.retryNow()).toBe(true);
         expect(harness.connection.retryNow).toHaveBeenCalledOnce();
-        expect(() => environments.methodsFor({} as never).retryNow()).toThrow();
+        expect(() => environments.methodsFor(undefined).retryNow()).toThrow();
     });
 
-    it('detaches without stopping the remote Server when the window closes', async () => {
-        const { environments, harnesses } = setup();
-        await environments.connect('dev@build-box');
+    it('detaches without stopping the remote Server on Disconnect', async () => {
+        const { environments, harnesses, onEnvironmentsChanged } = setup();
+        const id = await environments.connect('dev@build-box');
         const harness = harnesses[0];
         const pending = harness.hooks.askpass(
             { requestId: 'r1', kind: 'secret', prompt: 'Password:' },
             new AbortController().signal,
         );
-        harness.window.destroy();
+        await environments.methodsFor(id).disconnect();
 
         await expect(pending).resolves.toBeNull();
-        await vi.waitFor(() => expect(harness.supervisor.dispose).toHaveBeenCalledOnce());
+        expect(harness.supervisor.dispose).toHaveBeenCalledOnce();
+        expect(harness.unbind).toHaveBeenCalledOnce();
         expect(environments.list()).toHaveLength(0);
+        expect(onEnvironmentsChanged.mock.lastCall?.[0]).toEqual([]);
+        expect(environments.route(id)).toBeUndefined();
     });
 
     it('logs each phase transition with its duration and closed reason', async () => {

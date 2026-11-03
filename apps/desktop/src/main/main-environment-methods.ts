@@ -1,27 +1,51 @@
-import type { EnvironmentState, MainRequest, SshHostEntry } from '@caxri/protocol';
+import type {
+    EnvironmentState,
+    HostPreferences,
+    MainRequest,
+    SshEnvironmentState,
+    SshHostEntry,
+} from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import type { HostPreferenceChange } from './ssh/environments/host-preferences';
+
 /**
- * The calling window's environment and the SSH Host registry behind the `environment.*` and `sshHost.*` methods. The
- * local Workbench answers `environment.get` with `{ kind: 'local' }`; `environmentMethodScopes` keeps the SSH-only
- * methods from reaching it at all.
+ * The request's environment and the SSH Host registry behind the `environment.*` and `sshHost.*` methods. The local
+ * Server answers `environment.get` with `{ kind: 'local' }`; `environmentMethodScopes` keeps the SSH-only methods from
+ * reaching it at all.
  */
 export interface MainEnvironmentMethods {
-    connect(destination: string): Promise<void>;
+    /**
+     * Answers the connected environment's id.
+     */
+    connect(destination: string): Promise<string>;
+    /**
+     * Detaches the request's SSH Host; see `sshHost.disconnect`.
+     */
+    disconnect(): Promise<void>;
     get(): EnvironmentState;
+    list(): SshEnvironmentState[];
     listHosts(): Promise<{ hosts: SshHostEntry[]; recent: string[] }>;
     reconnect(): Promise<void>;
     /**
-     * Ends the calling SSH Host window's reconnect backoff wait; see `sshHost.retryNow`.
+     * Ends the request's SSH Host's reconnect backoff wait; see `sshHost.retryNow`.
      */
     retryNow(): boolean;
     /**
-     * Stops the calling SSH Host window's in-flight connection attempt; see `sshHost.cancel`.
+     * Stops the request's SSH Host's in-flight connection attempt; see `sshHost.cancel`.
      */
     cancel(): void;
     revealSshConfig(): Promise<void>;
     replyAskpass(requestId: string, response: string | null): void;
     stopServer(): Promise<{ canceled: boolean }>;
+    /**
+     * This Mac's display preferences for every machine; see `sshHost.preferences.*`.
+     */
+    preferences: {
+        get(): Promise<HostPreferences>;
+        update(hostId: string, change: HostPreferenceChange): Promise<HostPreferences>;
+        setShowHostNames(shouldShowHostNames: boolean): Promise<HostPreferences>;
+    };
 }
 
 /**
@@ -29,21 +53,29 @@ export interface MainEnvironmentMethods {
  */
 export const unconfiguredEnvironment: MainEnvironmentMethods = {
     connect: () => Promise.reject(new CaxriError('UNAVAILABLE', 'SSH Hosts are not available')),
+    disconnect: () =>
+        Promise.reject(new CaxriError('UNAVAILABLE', 'The SSH Host is not connected')),
     get: () => ({ kind: 'local' }),
+    list: () => [],
     listHosts: () => Promise.resolve({ hosts: [], recent: [] }),
-    reconnect: () =>
-        Promise.reject(new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window')),
+    reconnect: () => Promise.reject(new CaxriError('UNAVAILABLE', 'The SSH Host is not connected')),
     retryNow: () => {
-        throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
+        throw new CaxriError('UNAVAILABLE', 'The SSH Host is not connected');
     },
     cancel: () => {
-        throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
+        throw new CaxriError('UNAVAILABLE', 'The SSH Host is not connected');
     },
     revealSshConfig: () =>
         Promise.reject(new CaxriError('UNAVAILABLE', 'SSH Hosts are not available')),
     replyAskpass: () => {},
+    preferences: {
+        get: () => Promise.resolve({ shouldShowHostNames: false, hosts: {} }),
+        update: () => Promise.reject(new CaxriError('UNAVAILABLE', 'SSH Hosts are not available')),
+        setShowHostNames: () =>
+            Promise.reject(new CaxriError('UNAVAILABLE', 'SSH Hosts are not available')),
+    },
     stopServer: () =>
-        Promise.reject(new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window')),
+        Promise.reject(new CaxriError('UNAVAILABLE', 'The SSH Host is not connected')),
 };
 
 type EnvironmentRequest = Extract<MainRequest, { method: 'environment.get' | `sshHost.${string}` }>;
@@ -53,7 +85,7 @@ export function isEnvironmentRequest(request: MainRequest): request is Environme
 }
 
 /**
- * Answers the `environment.*` and `sshHost.*` Main methods from the calling window's environment.
+ * Answers the `environment.*` and `sshHost.*` Main methods for the request's environment.
  */
 export async function handleEnvironmentRequest(
     request: EnvironmentRequest,
@@ -64,8 +96,12 @@ export async function handleEnvironmentRequest(
             return environment.get();
         case 'sshHost.hosts.list':
             return environment.listHosts();
+        case 'sshHost.environments.list':
+            return environment.list();
         case 'sshHost.connect':
-            await environment.connect(request.params.destination);
+            return { environmentId: await environment.connect(request.params.destination) };
+        case 'sshHost.disconnect':
+            await environment.disconnect();
             return null;
         case 'sshHost.reconnect':
             await environment.reconnect();
@@ -80,6 +116,14 @@ export async function handleEnvironmentRequest(
             return null;
         case 'sshHost.stopServer':
             return environment.stopServer();
+        case 'sshHost.preferences.get':
+            return environment.preferences.get();
+        case 'sshHost.preferences.update': {
+            const { hostId, ...change } = request.params;
+            return environment.preferences.update(hostId, change);
+        }
+        case 'sshHost.preferences.setShowHostNames':
+            return environment.preferences.setShowHostNames(request.params.shouldShowHostNames);
         case 'sshHost.askpass.reply':
             environment.replyAskpass(request.params.requestId, request.params.response);
             return null;

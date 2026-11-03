@@ -44,7 +44,7 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 25, directory: 'apps/server/src/domains/agent-chat/providers/claude' },
     { cap: 15, directory: 'apps/server/src/domains/agent-chat/providers/codex' },
     { cap: 9, directory: 'apps/desktop/src/renderer/src/features/agent-chat' },
-    { cap: 20, directory: 'apps/desktop/src/main/ssh' },
+    { cap: 18, directory: 'apps/desktop/src/main/ssh' },
     { cap: 12, directory: 'apps/desktop/src/main/updates' },
     { cap: 80, directory: 'packages/protocol/src/domain' },
     { cap: 56, directory: 'packages/protocol/src/agent' },

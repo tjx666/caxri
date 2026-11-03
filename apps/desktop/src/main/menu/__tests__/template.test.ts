@@ -2,7 +2,7 @@ import { commandDefinitions, defaultKeybindings } from '@caxri/protocol';
 import type { BaseWindow, MenuItem, MenuItemConstructorOptions } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildAppMenuTemplate } from '../template';
+import { buildAppMenuTemplate, syncLocalMachineMenuItems } from '../template';
 
 function submenu(
     template: MenuItemConstructorOptions[],
@@ -527,5 +527,38 @@ describe('application menu', () => {
 
         expect(template.find((item) => item.label === 'Window')?.role).toBe('windowMenu');
         expect(template.find((item) => item.label === 'Help')?.role).toBe('help');
+    });
+
+    it('disables local-machine-only items while an SSH Host Session is selected and restores them for this Mac', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [],
+            dispatchCommand: vi.fn(),
+            openCaxriBot: vi.fn(),
+            openBenchmark: vi.fn(),
+            openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
+        });
+        const items = new Map<string, { enabled: boolean }>();
+        for (const menu of template)
+            if (Array.isArray(menu.submenu))
+                for (const item of menu.submenu) if (item.id) items.set(item.id, { enabled: true });
+        const menu = {
+            getMenuItemById: (id: string) => (items.get(id) as MenuItem | undefined) ?? null,
+        };
+        const enabled = (id: string) => items.get(`command.${id}`)?.enabled;
+
+        syncLocalMachineMenuItems(menu, false);
+        expect(enabled('project.openInEditor')).toBe(false);
+        // Process Explorer and diagnostics are about this Mac itself, whichever Session is shown.
+        expect(enabled('diagnostics.export')).toBe(true);
+        expect(enabled('processExplorer.open')).toBe(true);
+        // Open File by Path browses the selected Project through its own Server, so it stays enabled.
+        expect(enabled('pathBrowser.open')).toBe(true);
+        expect(enabled('sshHost.connect')).toBe(true);
+
+        syncLocalMachineMenuItems(menu, true);
+        expect(enabled('project.openInEditor')).toBe(true);
     });
 });

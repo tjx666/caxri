@@ -126,6 +126,7 @@ rewritten, only superseded.
 | [0019](adr/0019-extension-view-request-scope.md)              | Extension view requests carry their own Session scope              |
 | [0020](adr/0020-agent-development-environment.md)             | Caxri is an ADE: product and development principles                |
 | [0021](adr/0021-blind-splice-relay.md)                        | Blind-splice Relay with host-key identity                          |
+| [0022](adr/0022-multi-environment-window.md)                  | One Workbench window reaches This Mac and every connected SSH Host |
 
 ## Historical
 

@@ -1,26 +1,23 @@
 import type { CaxriRequest, CommandAdapter, MainRequest, ServerEvent } from '@caxri/protocol';
 import { CaxriError, isMainRequest } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import type { BrowserWindowConstructorOptions } from 'electron';
-import { app, BrowserWindow, dialog } from 'electron';
+import type { BrowserWindow } from 'electron';
+import { app, dialog } from 'electron';
 
-import { sshHostServerUpdatePrompt } from '../confirmations';
-import { DesktopServerConnection } from '../connection/server-connection';
-import type { SharedServerConnectionOptions } from '../connection/server-connection-options';
-import { createDesktopActions } from '../desktop-actions';
-import { createDesktopOperationHandler } from '../desktop-operations';
-import { guardEnvironmentMethods } from '../environment-method-policy';
-import { createMainEventRelay } from '../event-relay';
-import { createElectronIpcCommandAdapter } from '../ipc-command-adapter';
-import { createWorkbenchUnsavedEditors } from '../unsaved-editors';
-import { defaultWindowState } from '../window-placement';
-import type { WindowPresenceRegistry } from '../window-presence-registry';
+import { sshHostServerUpdatePrompt } from '../../confirmations';
+import { DesktopServerConnection } from '../../connection/server-connection';
+import type { SharedServerConnectionOptions } from '../../connection/server-connection-options';
+import { createDesktopActions } from '../../desktop-actions';
+import { createDesktopOperationHandler } from '../../desktop-operations';
+import { guardEnvironmentMethods } from '../../environment-method-policy';
+import { createMainEventRelay } from '../../event-relay';
+import { createElectronIpcCommandAdapter } from '../../ipc-command-adapter';
+import type { WindowPresenceRegistry } from '../../window-presence-registry';
 import {
     createConnectionPresence,
     forwardAsRequestWindow,
     PRIMARY_WINDOW_KEY,
-} from '../window-presence-registry';
-import { installRendererGuards } from '../workbench-renderer-guards';
+} from '../../window-presence-registry';
 import type {
     SshHostEnvironmentHooks,
     SshHostEnvironmentParts,
@@ -29,18 +26,14 @@ import type {
 
 interface SshHostMainHandlerInput {
     connection: DesktopServerConnection;
+    environmentId: string;
     focusWindow: () => Promise<void>;
-    onUnsavedEditorsReply: ReturnType<typeof createWorkbenchUnsavedEditors>['reply'];
     sendEvent: (event: ServerEvent) => void;
     window: () => BrowserWindow | undefined;
     windowPresence: WindowPresenceRegistry;
 }
 
-export interface SshHostEnvironmentWindowOptions {
-    /**
-     * Window chrome and `webPreferences` shared with the local Workbench window.
-     */
-    chrome(): BrowserWindowConstructorOptions;
+export interface SshHostEnvironmentPartsOptions {
     /**
      * The local connection's options without its supervisor seams; an SSH Host connection reuses its build identity and
      * local artifact (for the build fingerprint) and replaces discovery and supervision.
@@ -48,38 +41,48 @@ export interface SshHostEnvironmentWindowOptions {
     connection: SharedServerConnectionOptions;
     createMainHandler(input: SshHostMainHandlerInput): (request: MainRequest) => Promise<unknown>;
     createSupervisor(destination: string, hooks: SshHostEnvironmentHooks): SshHostSupervisor;
-    isQuitting(): boolean;
-    loadRenderer(window: BrowserWindow): void;
+    /**
+     * Sends one event message of `environmentId` to the Workbench window's Renderer.
+     */
+    deliver(environmentId: string, message: unknown): void;
     logger: () => StructuredLogger;
+    /**
+     * Calls `listener` with the primary Workbench window now (when one exists) and each time a new one opens, until the
+     * returned function is called.
+     */
+    observeWorkbenchWindow: (listener: (window: BrowserWindow) => void) => () => void;
     /**
      * Resolves once this environment's Server is attached; Renderer Server requests wait on it.
      */
-    whenAttached(window: BrowserWindow): Promise<void>;
+    whenAttached(environmentId: string): Promise<void>;
+    /**
+     * The primary Workbench window, which shows every SSH Host's Projects beside this Mac's.
+     */
+    workbenchWindow: () => BrowserWindow | undefined;
 }
 
 /**
- * Builds the window, Server connection, event relay, and IPC transport for one SSH Host. Everything the local Workbench
- * window has is rebuilt per environment so no request, event, or native prompt can cross to the wrong Server.
+ * Builds the Server connection, event relay, and IPC transport for one SSH Host. The Host has no window of its own: the
+ * primary Workbench window reaches it by naming its `environmentId`, and everything request-scoped (presence, Main
+ * method handler, desktop operations) is still rebuilt per environment so no request, event, or native prompt can cross
+ * to the wrong Server.
  */
-export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowOptions) {
-    return (destination: string, hooks: SshHostEnvironmentHooks): SshHostEnvironmentParts => {
-        const window = new BrowserWindow({
-            ...defaultWindowState.bounds,
-            minWidth: 960,
-            minHeight: 640,
-            ...options.chrome(),
-            title: `SSH: ${destination}`,
-            show: false,
-        });
-        const liveWindow = (): BrowserWindow | undefined =>
-            window.isDestroyed() ? undefined : window;
-        const focusWindow = (): Promise<void> => {
-            if (!window.isDestroyed()) {
-                if (window.isMinimized()) window.restore();
-                window.show();
-                window.focus();
-            }
-            return Promise.resolve();
+export function createSshHostEnvironmentParts(options: SshHostEnvironmentPartsOptions) {
+    return (
+        destination: string,
+        environmentId: string,
+        hooks: SshHostEnvironmentHooks,
+    ): SshHostEnvironmentParts => {
+        const liveWindow = (): BrowserWindow | undefined => {
+            const window = options.workbenchWindow();
+            return window && !window.isDestroyed() ? window : undefined;
+        };
+        const focusWorkbench = (): void => {
+            const window = liveWindow();
+            if (!window) return;
+            if (window.isMinimized()) window.restore();
+            window.show();
+            window.focus();
         };
         /**
          * The relay and the connection reference each other: the relay reloads state through the connection and the
@@ -88,7 +91,7 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
          */
         const bootstrap: { connection?: DesktopServerConnection } = {};
         const relay = createMainEventRelay({
-            deliver: (message) => liveWindow()?.webContents.send('caxri:event', message),
+            deliver: (message) => options.deliver(environmentId, message),
             loadState: () => {
                 if (!bootstrap.connection)
                     throw new CaxriError('UNAVAILABLE', 'The SSH Host connection is not ready');
@@ -103,20 +106,36 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
         const desktopOperations = createDesktopOperationHandler(
             createDesktopActions({
                 environment: 'ssh',
-                focusMainWindow: async () => {
-                    await focusWindow();
-                    return window;
+                focusMainWindow: () => {
+                    focusWorkbench();
+                    const window = liveWindow();
+                    return window
+                        ? Promise.resolve(window)
+                        : Promise.reject(
+                              new CaxriError('UNAVAILABLE', 'The Workbench window is closed'),
+                          );
                 },
                 getMainWindow: liveWindow,
                 sendEvent,
             }),
         );
         /**
-         * This window's presence on its own Server. The connection exists after the registry, so the registry reaches
-         * it through `bootstrap`, the same indirection the relay uses.
+         * The Workbench window's presence on this SSH Host's Server. The connection exists after the registry, so the
+         * registry reaches it through `bootstrap`, the same indirection the relay uses. The window reports a viewed
+         * Session only to the Server that owns it, so this Server sees it as visible with nothing viewed otherwise and
+         * keeps its Terminals and watchers running.
          */
         const presence = createConnectionPresence(() => bootstrap.connection!, options.logger);
-        presence.register(PRIMARY_WINDOW_KEY, window.webContents, window);
+        const stopObservingWindow = options.observeWorkbenchWindow((window) => {
+            presence.register(PRIMARY_WINDOW_KEY, window.webContents, window);
+            relay.rendererPending(PRIMARY_WINDOW_KEY);
+            window.webContents.on(
+                'did-start-navigation',
+                (_event, _url, _isInPlace, isMainFrame) => {
+                    if (isMainFrame) relay.rendererPending(PRIMARY_WINDOW_KEY);
+                },
+            );
+        });
         const connection = new DesktopServerConnection({
             ...options.connection,
             seedAttachment: (send) => presence.seed(send),
@@ -128,11 +147,12 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
              * failure.
              */
             confirmStaleReplacement: async (running) => {
-                await focusWindow();
-                const prompt = sshHostServerUpdatePrompt(running);
-                const { response } = window.isDestroyed()
-                    ? { response: prompt.cancelId }
-                    : await dialog.showMessageBox(window, prompt);
+                focusWorkbench();
+                const prompt = sshHostServerUpdatePrompt(destination, running);
+                const window = liveWindow();
+                const { response } = window
+                    ? await dialog.showMessageBox(window, prompt)
+                    : { response: prompt.cancelId };
                 if (response === 0) return true;
                 supervisor.deferUpdate();
                 return false;
@@ -143,29 +163,23 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
         });
         bootstrap.connection = connection;
         /**
-         * The connection overlay explains a lease another Desktop replaced (`takenOver`) and offers to take it back, so
-         * the local window's "continue in the other window" notice, which the relay would also replay, is not sent.
+         * The connection card explains a lease another Desktop replaced (`takenOver`) and offers to take it back, so
+         * the local Server's "continue in the other window" notice, which the relay would also replay, is not sent.
          */
         connection.onEvent((event) => {
             if (event.event === 'host.connectionChanged' && event.payload.status === 'replaced')
                 return;
             sendEvent(event);
         });
-        const unsavedEditors = createWorkbenchUnsavedEditors({
-            dialog,
-            windows: () => {
-                const window = liveWindow();
-                return window ? [{ key: PRIMARY_WINDOW_KEY, window }] : [];
-            },
-            logger: options.logger,
-            sendEvent: (event) => sendEvent(event),
-        });
         const handleMainMethod = guardEnvironmentMethods(
             'ssh',
             options.createMainHandler({
                 connection,
-                focusWindow,
-                onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
+                environmentId,
+                focusWindow: () => {
+                    focusWorkbench();
+                    return Promise.resolve();
+                },
                 sendEvent,
                 window: liveWindow,
                 windowPresence: presence,
@@ -174,7 +188,7 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
         const transport = createElectronIpcCommandAdapter({
             server: {
                 invoke: async (request, _context, invocation) => {
-                    await options.whenAttached(window);
+                    await options.whenAttached(environmentId);
                     return request.method === 'events.recover'
                         ? relay.recover(request.params.afterCursor)
                         : forwardAsRequestWindow(
@@ -186,7 +200,7 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
                 },
             },
             desktop: {
-                isAvailable: () => !window.isDestroyed(),
+                isAvailable: () => liveWindow() !== undefined,
                 invoke: (async (request: CaxriRequest) => {
                     if (!isMainRequest(request))
                         throw new CaxriError(
@@ -198,48 +212,25 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
             },
         });
 
-        relay.rendererPending(PRIMARY_WINDOW_KEY);
-        window.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
-            if (isMainFrame) relay.rendererPending(PRIMARY_WINDOW_KEY);
-        });
-        window.once('ready-to-show', () => window.show());
-        installRendererGuards(window, { logger: options.logger, window: 'ssh-host' });
-        let isForceClose = false;
-        window.on('close', (event) => {
-            if (isForceClose || options.isQuitting()) return;
-            event.preventDefault();
-            /**
-             * Closing only detaches: the SSH Host keeps its Terminals and Agents. Unsaved Editor buffers are the one
-             * thing that would be lost, so they get the same decision as the local window.
-             */
-            void unsavedEditors
-                .decide('close')
-                .catch(() => 'continue' as const)
-                .then((decision) => {
-                    if (decision === 'cancel' || window.isDestroyed()) return;
-                    isForceClose = true;
-                    window.close();
-                });
-        });
-        options.loadRenderer(window);
-
         return {
             connection,
+            focusWorkbench,
             route: {
                 isRecovering: () => connection.isRecovering(),
                 onEventsReady: () => {
                     relay.rendererReady(PRIMARY_WINDOW_KEY);
                     void options
-                        .whenAttached(window)
+                        .whenAttached(environmentId)
                         .then(() => connection.markDesktopReady())
                         .catch(() => {});
                 },
                 transport,
                 windowKey: PRIMARY_WINDOW_KEY,
+                window: liveWindow,
             },
             sendEvent,
             supervisor,
-            window,
+            unbind: stopObservingWindow,
         };
     };
 }

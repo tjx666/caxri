@@ -3,8 +3,17 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ProjectRecord, SessionListWindow, SessionRecord } from '@caxri/protocol';
 import { nextRevealedSessionCount, sessionListWindow } from '@caxri/protocol';
 
+import type { MergedProject } from '../project-merge';
+
 export interface ProjectSessionWindow extends SessionListWindow<SessionRecord> {
+    /**
+     * The heading's Project: the lead of a repository merged across machines.
+     */
     project: ProjectRecord;
+    /**
+     * Every Project under the heading, `project` first; more than one when the repository lives on several machines.
+     */
+    members: readonly ProjectRecord[];
     /**
      * The Project's own Sessions with an ordinary row, in sidebar order. This is what its session count and its window
      * measure.
@@ -23,7 +32,10 @@ interface UseProjectSessionWindowsInput {
      * The nested and hidden Sessions each group holds through its hosts (`DelegatedPlacement.hostedByGroup`).
      */
     hostedByGroup?: ReadonlyMap<string, readonly SessionRecord[]>;
-    projects: readonly ProjectRecord[];
+    /**
+     * The side bar's Project headings, in order (`mergeProjectsByRepository`).
+     */
+    projects: readonly MergedProject[];
     /**
      * The host of the selected Session when that Session is nested. The host's row stays inside its Project's window
      * like a selected row, so the selection is never folded away behind `Show N more`.
@@ -51,17 +63,20 @@ export function useProjectSessionWindows({
 
     const windows = useMemo(
         () =>
-            projects.map((project) => {
+            projects.map(({ lead: project, members }) => {
+                const memberIds = new Set(members.map((member) => member.id));
                 // Single pass instead of `.filter().map()`: react-doctor's combine-iterations rule
                 // flags the chained form even though both walk the same small `sessions` array.
                 const projectSessions: SessionRecord[] = [];
                 for (const session of sidebarSessions)
-                    if (session.projectId === project.id) projectSessions.push(session);
-                const hosted = hostedByGroup?.get(project.id);
+                    if (memberIds.has(session.projectId)) projectSessions.push(session);
+                const hosted = members.flatMap((member) => hostedByGroup?.get(member.id) ?? []);
                 return {
                     project,
+                    members,
                     projectSessions,
-                    statusSessions: hosted ? [...projectSessions, ...hosted] : projectSessions,
+                    statusSessions:
+                        hosted.length > 0 ? [...projectSessions, ...hosted] : projectSessions,
                     ...sessionListWindow(
                         projectSessions,
                         revealedCounts[project.id],

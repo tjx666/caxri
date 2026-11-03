@@ -151,7 +151,35 @@ export type MethodReply<M extends CaxriMethod> =
  * reach the Renderer as a plain `Error` with no `code`. The Renderer rebuilds the typed error through
  * {@link createCaxriClient}.
  */
+/**
+ * Reaches the SSH Hosts the Workbench window is connected to, beside the local Server the rest of {@link CaxriBridge}
+ * reaches. Main refuses a request naming a Host that is not connected instead of sending it to the local Server; see
+ * docs/adr/0022-multi-environment-window.md.
+ */
+export interface CaxriEnvironmentBridge {
+    requestWithId<M extends CaxriMethod>(
+        environmentId: string,
+        requestId: string,
+        method: M,
+        ...arguments_: ParametersArgument<M>
+    ): Promise<MethodReply<M>>;
+    /**
+     * Starts one SSH Host's recovering event stream. Its events reach {@link CaxriEnvironmentBridge.onEvent} listeners
+     * tagged with the Host. Calling it again for a started Host does nothing.
+     */
+    attach(environmentId: string): void;
+    /**
+     * Stops one SSH Host's event stream once it is disconnected.
+     */
+    detach(environmentId: string): void;
+    onEvent(listener: (event: ServerEvent, environmentId: string) => void): () => void;
+}
+
 export interface CaxriBridge {
+    /**
+     * Main honors it only for the primary Workbench window, the one window that lists SSH Hosts' Projects.
+     */
+    environments?: CaxriEnvironmentBridge;
     negotiate(): Promise<ProtocolWelcome>;
     request<M extends CaxriMethod>(
         method: M,

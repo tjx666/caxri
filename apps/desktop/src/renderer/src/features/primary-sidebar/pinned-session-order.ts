@@ -1,6 +1,7 @@
 import type { SessionRecord } from '@caxri/protocol';
 import { compareSessionPinnedOrder, isPinnedSession } from '@caxri/protocol';
 
+import { environmentOfSession } from '../../lib/environment-routing';
 import type { SessionDropTarget } from './session-order';
 
 /**
@@ -30,7 +31,8 @@ export function unpinnedSessions(sessions: readonly SessionRecord[]): SessionRec
  * Where a drag inside the Pinned group would land, or `undefined` when the drop is a no-op. Unlike the Project groups'
  * `sessionDropTarget` this deliberately allows the two rows to belong to different Projects (collecting Sessions from
  * across Projects is the whole point of the group) but both still have to be pinned, so a drag that started in a
- * Project group cannot renumber the Pinned order.
+ * Project group cannot renumber the Pinned order, and on the same machine: each Server keeps its own Pinned order and
+ * cannot place a Session relative to another Server's.
  */
 export function pinnedSessionDropTarget(
     sessions: readonly SessionRecord[],
@@ -42,5 +44,6 @@ export function pinnedSessionDropTarget(
     const dragged = pinned.find((session) => session.id === draggedId);
     const anchor = pinned.find((session) => session.id === anchorSessionId);
     if (!dragged || !anchor || dragged.id === anchor.id) return;
+    if (environmentOfSession(dragged.id) !== environmentOfSession(anchor.id)) return;
     return { anchorSessionId, placement };
 }

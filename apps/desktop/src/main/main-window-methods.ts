@@ -40,6 +40,10 @@ export interface MainWindowMethodOptions {
      */
     windowPresence?: Pick<WindowPresenceRegistry, 'setViewing'>;
     /**
+     * Receives whether the primary window's selected Session lives on this Mac; see `window.reportSelectedMachine`.
+     */
+    onSelectedMachine?(isLocal: boolean): void;
+    /**
      * Opens a Session in a new window for the calling window; see `createTearOffController`. Absent in an SSH Host
      * window, which is a single window.
      */
@@ -56,6 +60,7 @@ const WINDOW_METHODS = [
     'performanceMonitor.window',
     'processExplorer.open',
     'window.reportViewing',
+    'window.reportSelectedMachine',
     'window.tearOffSession',
 ] as const;
 
@@ -111,6 +116,9 @@ export async function handleWindowRequest(
             options.windowPresence?.setViewing(windowKey, request.params.viewingSessionId);
             return null;
         }
+        case 'window.reportSelectedMachine':
+            options.onSelectedMachine?.(request.params.isLocal);
+            return null;
         case 'window.tearOffSession': {
             const sourceKey = currentRequestWindowKey();
             if (!sourceKey || !options.tearOffSession)

@@ -36,7 +36,9 @@ const mocks = vi.hoisted(() => {
     };
 });
 
-vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+vi.mock('../../../lib/caxri', () => ({
+    caxri: { in: () => ({ request: mocks.caxriRequest }), request: mocks.caxriRequest },
+}));
 vi.mock('../../../stores/dialogs', () => ({
     useDialogStore: { getState: vi.fn(() => ({ setArchivedSessionsOpen: vi.fn() })) },
 }));

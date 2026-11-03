@@ -57,7 +57,7 @@ describe('connection status', () => {
         expect(canRetryNow(state({ phase: 'connecting' }))).toBe(false);
     });
 
-    it('offers only Close Window when the SSH Host does not meet the Server requirements', () => {
+    it('offers only Disconnect when the SSH Host does not meet the Server requirements', () => {
         for (const reason of ['unsupportedPlatform', 'unsupportedGlibc', 'missingTool'] as const) {
             expect(canReconnect(state({ phase: 'failed', failure: { reason, message: '' } }))).toBe(
                 false,

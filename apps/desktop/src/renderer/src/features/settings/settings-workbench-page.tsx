@@ -15,7 +15,6 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import { closeSettings } from '../../stores/dialogs';
-import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { useImportedThemes, useIsFullScreen } from '../../stores/selectors';
 import { ConfigSourceView } from './config-source-view';
 import type { SettingsPageController } from './hooks/use-settings-page-controller';
@@ -84,7 +83,6 @@ function SettingsPageTitleBar({ children }: { children: ReactNode }) {
 function SettingsWorkbenchView(controller: SettingsPageController) {
     const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
     const { t } = useTranslation();
-    const canImportTheme = useIsLocalOnlyAvailable();
     const { categories } = useSettingsRegistry();
     const [navigationState, setNavigationState] = useState<SettingsNavigationState>();
     const systemScheme = useSystemColorScheme();
@@ -164,13 +162,9 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                 warnings={state.theme.warnings}
                 onColorChange={controller.updateThemeColor}
                 onDismissImportResult={controller.dismissThemeImportResult}
-                onImport={
-                    canImportTheme
-                        ? () => {
-                              void controller.importTheme();
-                          }
-                        : undefined
-                }
+                onImport={() => {
+                    void controller.importTheme();
+                }}
                 onSelectTheme={controller.selectTheme}
                 appearance={{
                     ...readThemeAppearance(settings),

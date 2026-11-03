@@ -337,6 +337,16 @@ export const methods = {
         params: z.object({ rootPath: pathSchema }),
         result: z.boolean(),
     },
+    /**
+     * Each visible Project's repository key: its `origin` remote normalized to `host/owner/repo` (no scheme, user,
+     * credentials, or `.git`), or `null` without a usable remote. Desktop merges Projects from several machines whose
+     * keys match into one side bar heading; the raw remote URL never leaves the Server.
+     */
+    'project.repositoryKeys': {
+        ...serverRead,
+        params: noParameters,
+        result: z.record(identifierSchema, z.string().min(1).max(500).nullable()),
+    },
     ...projectFolderBrowseMethods,
     'project.reorder': {
         ...serverWrite,

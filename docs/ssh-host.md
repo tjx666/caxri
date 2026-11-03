@@ -5,11 +5,12 @@ status: current
 
 # SSH Host
 
-Desktop can open a window whose Projects, Terminals, and Agents run on an **SSH Host**: a Linux
-machine or a Mac reached with the user's own OpenSSH configuration. The SSH Host runs the same standalone
+The Workbench window can list Projects, Terminals, and Agents that run on one or more **SSH Hosts**
+beside this Mac's: a Linux machine or a Mac reached with the user's own OpenSSH configuration. The SSH Host runs the same standalone
 Server artifact Desktop supervises locally, so Files, Git, Search, Diff, Attention, and Agent hooks
-behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) records why, and
-[ADR 0018](adr/0018-macos-ssh-hosts.md) why macOS hosts are included.
+behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) records why,
+[ADR 0018](adr/0018-macos-ssh-hosts.md) why macOS hosts are included, and
+[ADR 0022](adr/0022-multi-environment-window.md) why every machine shares one window.
 
 ## Using it
 
@@ -17,16 +18,32 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   aliases from `~/.ssh/config` (wildcard patterns are skipped), recently connected destinations, and
   accepts a typed `user@host[:port]`. A destination starting with `-` is refused. Its Open SSH
   Config action shows that file in Finder (its folder when the file does not exist yet).
-- **Window**: each SSH Host gets one window titled `SSH: <destination>`. Connecting to a destination
-  that already has a window focuses it. Destinations are compared by the `user@hostname:port` that
-  `ssh -G` resolves, so two `~/.ssh/config` aliases for the same account share one window, and the
-  focused window says so in a notification; when `ssh -G` fails, the typed spelling decides. The
-  status bar shows the SSH Host, and clicking it opens Stop Server on SSH Host…, Connect to SSH
-  Host…, and Close Window. While connecting, an overlay names the current phase (connecting,
-  checking the SSH Host, installing, starting, or reconnecting with its attempt number) and offers
-  Cancel, which stops the attempt and keeps the window open on a cancelled state.
+- **One window**: a connected SSH Host's Projects join the side bar of the Workbench window, after
+  this Mac's. Connecting to a destination that is already connected does nothing new. Destinations
+  are compared by the `user@hostname:port` that `ssh -G` resolves, so two `~/.ssh/config` aliases
+  for the same account share one connection; when `ssh -G` fails, the typed spelling decides.
+- **Host marks**: a Project heading on an SSH Host shows a mark: the Host's chosen icon, else the logo
+  of the system it reported (macOS, Ubuntu, Debian, and other distributions), and its name unless an
+  icon was chosen. A spinner or a red dot on the mark flags a connection that is restoring or failed,
+  and a row under the expanded heading names the problem with a Reconnect button. Pinned and
+  Activity rows carry the same mark beside their Project name.
+- **One repository, one heading**: Projects on different machines whose `origin` points at the same
+  repository share one heading. Its Session rows on an SSH Host carry an icon-only mark; New Session
+  starts with Run on, defaulting to the machine of the selected Session; Hide, Delete, and Change
+  Icon act on every machine's checkout. Projects without `origin`, or two checkouts of one
+  repository on the same machine, stay separate.
+- **Add Project**: while an SSH Host is connected, Add Project first asks which machine the folder is
+  on, then opens that machine's folder picker.
+- **Settings › Hosts** lists This Mac and every SSH Host connected before. Each row sets the
+  machine's display name and icon, toggles Reconnect on Launch, and connects, reconnects, stops the
+  Server, or disconnects it. Show Host Names Next to Icons puts the name back beside a chosen icon.
+  These preferences belong to this Mac (`userData/ssh/host-preferences.json`), so they show while the
+  Host is offline. The status bar shows the selected Session's SSH Host; its menu offers Reconnect
+  on Launch, Stop Server on SSH Host…, Disconnect, and Manage Hosts…. While connecting, an overlay
+  names the current phase (connecting, checking the SSH Host, installing, starting, or reconnecting
+  with its attempt number) and offers Cancel.
 - **Prompts**: passwords, key passphrases, 2FA codes, and new host-key confirmations appear as a
-  dialog inside that window. Answers go straight to OpenSSH and are never logged. When OpenSSH asks
+  dialog in the Workbench window. Answers go straight to OpenSSH and are never logged. When OpenSSH asks
   the same password or passphrase again within one attempt, it rejected the previous answer, so the
   dialog says so and numbers the attempt. Cancel or Escape ends the attempt at once (a click outside
   the dialog does not): OpenSSH would otherwise treat each refused prompt as one failed try and keep
@@ -35,23 +52,26 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   while it does. A failure only the user can resolve (authentication, a changed host key) or a
   cancel stops retrying and shows a Reconnect button; the same action is the `Reconnect to SSH Host`
   command. A host that fails Caxri Server's requirements (platform, glibc or macOS version, a missing tool) offers
-  only Close Window, because reconnecting would fail the same way. Copy Details copies OpenSSH's or
+  only Disconnect, because reconnecting would fail the same way. Copy Details copies OpenSSH's or
   the SSH Host's own message, and a changed host key adds Copy Command for the `ssh-keygen -R`
   command that removes the stale `known_hosts` entry.
-- **Close and quit only detach.** The SSH Host keeps its Terminals and Agents. The Server there
+- **Disconnect and quit only detach.** The SSH Host keeps its Terminals and Agents. The Server there
   exits through the normal idle exit ([ADR 0010](adr/0010-server-core-idle-exit.md)), which waits
   while any PTY is live, or when the user runs **Stop Server on SSH Host**, which ends every
-  Terminal and Agent on that machine and closes the window.
+  Terminal and Agent on that machine and disconnects it. Reconnect on Launch connects every SSH Host
+  that was connected before, one at a time, when Desktop starts.
 - **Settings**: on the first connect to an SSH Host, the local `settings.jsonc`, `keybindings.jsonc`,
   and `theme.json` are copied into the remote profile when it has none. After that the SSH Host's
   configuration is its own; Desktop never overwrites an existing remote file.
 
-### What an SSH Host window cannot do
+### What an SSH Host's Session cannot do
 
-Actions that would act on this computer's disk or OS are hidden or refused in an SSH Host window,
+Actions that would act on this computer's disk or OS are hidden or refused while the selected Session
+lives on an SSH Host,
 because a remote path that happens to exist locally is a different file. The Main side enforces this
-with one exhaustive per-method table (`apps/desktop/src/main/environment-method-policy.ts`); the
-Renderer hides the matching commands through the `localMachine` command condition.
+with one exhaustive per-method table (`apps/desktop/src/main/environment-method-policy.ts`), checked
+against the machine each request targets; the Renderer hides the matching commands through the
+`localMachine` command condition, and Main disables the matching native menu items.
 
 | Refused or hidden                                         | Remote replacement                      |
 | --------------------------------------------------------- | --------------------------------------- |
@@ -60,7 +80,7 @@ Renderer hides the matching commands through the `localMachine` command conditio
 | Open File by Path outside the Project, or `~`             | Paths inside the remote Project only    |
 | Reveal in Finder, open with default app                   | None yet                                |
 | Open in external editor                                   | None yet                                |
-| Theme import, diagnostics export, bug report, OS settings | Use the local window                    |
+| Theme import, diagnostics export, bug report, OS settings | Select a Session on this Mac            |
 | Cite a file dropped from Finder or picked with `+`        | Drop it from Files; images still attach |
 
 Move to Trash, including Agent Chat undo of a file the Agent created, keeps the same native
@@ -81,7 +101,7 @@ detaches from the Project are not offered, because they would list this Mac's di
 
 A file path a Terminal prints opens the same way when it resolves inside a Project. A path outside
 every Project is refused with a message asking the user to add its folder as a Project, because the
-local window's external-file snapshot would read this Mac's disk.
+Workbench's external-file snapshot would read this Mac's disk.
 
 ## Requirements on the SSH Host
 
@@ -98,19 +118,19 @@ local window's external-file snapshot would read this Mac's disk.
   manage remote credentials.
 - A home directory shared between hosts (NFS on cluster login nodes, for example) holds one
   profile, so only one of those hosts runs a Server at a time. The Server on the other host refuses
-  to start and the window fails with `profileInUse`, naming the host that holds it. The owner renews
+  to start and the connection fails with `profileInUse`, naming the host that holds it. The owner renews
   a lease in `profile/host/host-lease.json` every 15 s; once it stops renewing for 60 s (it exited
   or crashed), another host takes over. The hosts' clocks must agree to within that margin.
 - On a machine shared by several accounts, the Server's single-instance lock is an abstract Unix
   socket whose name derives from `profile/host/lock-secret` (mode 0600), so other accounts cannot
   predict it. A name another account binds (it can see names in `/proc/net/unix` once they were
   used) is skipped for the next one in a series of 64, logged as `server_core.profile_lock_squatted`.
-  If every name is taken, the window fails with that reason instead of a generic start failure.
+  If every name is taken, the connection fails with that reason instead of a generic start failure.
 - File watching uses inotify, which charges one watch per watched directory against
   `fs.inotify.max_user_watches`, shared by every program the account runs. A large Project, or
   another watcher such as an editor's language server, can exhaust it (Debian and Ubuntu default to
   8192 on older kernels). The affected watch then falls back to polling, so the file tree and Git
-  status lag by a few seconds, and the window shows a persistent warning with a Copy command button
+  status lag by a few seconds, and the Workbench shows a persistent warning with a Copy command button
   for the fix: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p`
   The Server retries native watching with backoff (up to every 5 minutes), switches back without a
   reconnect once the limit allows it, and removes the warning. `watch_hub.fallback` records the
@@ -160,22 +180,23 @@ question. Both answers are logged as `server_connection.stale_build_confirmed`.
 
 ## How Desktop reaches it
 
-Main starts one OpenSSH ControlMaster per SSH Host window, with its socket in a private
+Main starts one OpenSSH ControlMaster per connected SSH Host, with its socket in a private
 `/tmp/caxri-ssh-<uid>/` directory, and runs every probe, install, launch, and stop through it. The
 remote Server listens on loopback only; Main adds `ssh -O forward -L` to it and rewrites the Server
 manifest's endpoint to the local forward, so the WebSocket clients, Desktop credential handshake, and
-Desktop lease are the local code paths. Each SSH Host window has its own `DesktopServerConnection`,
-event relay, IPC transport, and Main method handler, and Main routes Renderer IPC by the sending
-`WebContents`, so no request or event crosses environments. The code lives in
-`apps/desktop/src/main/ssh/` (the SSH Host window registry is `host-environments.ts`, its window and
-connection builder is `host-environment-window.ts`).
+Desktop lease are the local code paths. Each SSH Host has its own `DesktopServerConnection`, event
+relay, and Main method handler. A Renderer request names its target machine beside the Server
+request, resolved from the Session, Terminal, or Project it is about, and Main tags every event with
+the machine it came from, so no request or event crosses environments by accident. The code lives in
+`apps/desktop/src/main/ssh/`; the SSH Host registry, its connection builder, and Host preferences are
+in `apps/desktop/src/main/ssh/environments/`.
 
 Periodic `/tmp` cleanup does not break a live connection: macOS's cleaner removes only regular files, and
 `systemd-tmpfiles` skips sockets in use, so the ControlMaster socket survives as long as its
 master runs.
 
 The askpass helper is Desktop's own executable run as Node (`ELECTRON_RUN_AS_NODE`). It forwards the
-prompt over a token-authenticated Unix socket to Main, which shows it in the window.
+prompt over a token-authenticated Unix socket to Main, which shows it in the Workbench window.
 
 Typical timings against a container on the same machine: a cold install 3 to 4 s (5 s when the
 runtime is streamed), attaching to an already running Server about 150 ms, a reconnect under 200 ms,
@@ -183,7 +204,7 @@ and upgrading to a new build under 1 s.
 
 ## Slow links
 
-Every Workbench request, file read, diff, and search result reaches an SSH Host window as JSON on
+Every Workbench request, file read, diff, and search result for an SSH Host's Session arrives as JSON on
 the forwarded WebSocket, which has no compression of its own. The ControlMaster therefore always
 negotiates OpenSSH compression (`Compression=yes` on its command line, which overrides the user's
 own `Compression` setting for that host). Source-code JSON compresses about 3x, and on a slow link the

@@ -15,6 +15,7 @@ const FOCUSED_ROW_IDS: Partial<Record<SettingsView, string>> = {
     'agent-suspension': 'terminal.idleSuspension.enabled',
     'claude-windows': 'agents.claude.windows',
     'environment-routes': 'environmentMonitor.mihomoRoutes',
+    'hosts': 'hosts.machines',
 };
 
 export function rowFocusRequest(request: {

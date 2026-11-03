@@ -156,7 +156,9 @@ interface AgentChatPaneProperties {
  */
 export function AgentChatPane(properties: AgentChatPaneProperties) {
     // Renders nothing for the moment a reloaded window reads its stored images (see the hook).
-    return useIsAgentChatComposerReady() ? <AgentChatPaneContent {...properties} /> : null;
+    return useIsAgentChatComposerReady(properties.terminalId) ? (
+        <AgentChatPaneContent {...properties} />
+    ) : null;
 }
 
 function AgentChatPaneContent({

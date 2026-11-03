@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { Input } from '../../components/ui/input';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { useSshEnvironment } from '../../stores/environment';
+import { environmentIdOf, useEnvironmentStore } from '../../stores/environment';
 import { folderBreadcrumbs } from './folder-picker';
 import { settleSshHostFolder, useSshHostDialogsStore } from './ssh-host-dialogs-store';
 import { useFolderBrowser } from './use-folder-browser';
@@ -22,11 +22,16 @@ const toolbarButtonClassName =
 
 /**
  * Chooses a Project folder on the SSH Host in place of the native folder picker, which can only see this Mac's disk.
- * The folders come from `project.browseFolders` on the window's own Server.
+ * The folders come from `project.browseFolders` on that Host's Server.
  */
 export function SshHostFolderPickerDialog() {
     const isOpen = useSshHostDialogsStore((state) => state.resolveFolder !== undefined);
-    const destination = useSshEnvironment()?.destination;
+    const environmentId = useSshHostDialogsStore((state) => state.folderEnvironmentId);
+    const destination = useEnvironmentStore((store) =>
+        environmentId === undefined
+            ? undefined
+            : store.hosts.find((host) => environmentIdOf(host) === environmentId)?.destination,
+    );
     return (
         <Dialog
             open={isOpen}
@@ -34,18 +39,24 @@ export function SshHostFolderPickerDialog() {
                 if (!nextOpen) settleSshHostFolder(undefined);
             }}
         >
-            {isOpen && destination !== undefined && (
+            {isOpen && environmentId !== undefined && destination !== undefined && (
                 <DialogContent className="w-[min(600px,calc(100vw-32px))]">
-                    <FolderPickerBody destination={destination} />
+                    <FolderPickerBody destination={destination} environmentId={environmentId} />
                 </DialogContent>
             )}
         </Dialog>
     );
 }
 
-function FolderPickerBody({ destination }: { destination: string }) {
+function FolderPickerBody({
+    destination,
+    environmentId,
+}: {
+    destination: string;
+    environmentId: string;
+}) {
     const { t } = useTranslation();
-    const browser = useFolderBrowser();
+    const browser = useFolderBrowser(environmentId);
     const { current } = browser;
     const listboxId = useId();
     const activeOptionId =

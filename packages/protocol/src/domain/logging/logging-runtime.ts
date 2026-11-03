@@ -127,6 +127,7 @@ export const gpuLogEvents = {
 } as const;
 
 export const ipcLogEvents = {
+    environmentRouteRefused: 'ipc.environment_route_refused',
     request: 'ipc.request',
     requestFailed: 'ipc.request_failed',
 } as const;

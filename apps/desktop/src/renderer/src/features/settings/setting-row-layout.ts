@@ -34,6 +34,7 @@ const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['typ
     'ignored-checks',
     'long-running-commands',
     'mobile-access',
+    'ssh-hosts',
     'provider-actions',
     'provider-launch',
     'provider-recovery',

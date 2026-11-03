@@ -443,12 +443,8 @@ export const commandDefinitions: CommandDefinition[] = [
         { allowInEditable: true },
     ),
     fromCatalog('updates.check', (context) => context.updates.check()),
-    fromCatalog('shellCommand.install', (context) => context.shellCommand.install(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
-    fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
+    fromCatalog('shellCommand.install', (context) => context.shellCommand.install()),
+    fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall()),
     fromCatalog('pathBrowser.open', (context) => context.dialogs.openPathBrowser(), {
         allowInEditable: true,
     }),
@@ -483,15 +479,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('help.revealLogs', (context) => context.help.revealLogs(), {
         allowInEditable: true,
     }),
-    fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
-    fromCatalog('caxriBot.open', (context) => context.windows.openCaxriBot(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
-    fromCatalog('caxriBot.stop', (context) => context.windows.stopCaxriBot(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
+    fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer()),
+    fromCatalog('caxriBot.open', (context) => context.windows.openCaxriBot()),
+    fromCatalog('caxriBot.stop', (context) => context.windows.stopCaxriBot()),
     fromCatalog('caxriBot.handOver', (context) => context.dialogs.openBotHandover(), {
         when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
@@ -510,7 +500,6 @@ export const commandDefinitions: CommandDefinition[] = [
         (context) => context.developer.togglePerformanceMonitor(),
         {
             allowInEditable: true,
-            when: (context) => context.sshHost.isLocalOnlyAvailable(),
         },
     ),
     fromCatalog(
@@ -518,22 +507,14 @@ export const commandDefinitions: CommandDefinition[] = [
         (context) => context.developer.openPerformanceMonitorWindow(),
         {
             allowInEditable: true,
-            when: (context) => context.sshHost.isLocalOnlyAvailable(),
         },
     ),
     fromCatalog('developer.reportBug', (context) => context.developer.reportBug(), {
         allowInEditable: true,
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
     }),
-    fromCatalog('diagnostics.export', (context) => context.diagnostics.export(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
-    fromCatalog('projectTransfer.export', (context) => context.projectTransfer.export(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
-    fromCatalog('projectTransfer.import', (context) => context.projectTransfer.import(), {
-        when: (context) => context.sshHost.isLocalOnlyAvailable(),
-    }),
+    fromCatalog('diagnostics.export', (context) => context.diagnostics.export()),
+    fromCatalog('projectTransfer.export', (context) => context.projectTransfer.export()),
+    fromCatalog('projectTransfer.import', (context) => context.projectTransfer.import()),
     fromCatalog('sshHost.connect', (context) => context.sshHost.connect(), {
         allowInEditable: true,
     }),

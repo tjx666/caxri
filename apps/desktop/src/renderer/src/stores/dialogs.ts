@@ -15,7 +15,8 @@ export type SettingsView =
     | 'git-exclusions'
     | 'agent-suspension'
     | 'claude-windows'
-    | 'environment-routes';
+    | 'environment-routes'
+    | 'hosts';
 
 /**
  * Which control the open Session-creation menu belongs under. The Project heading's New Session button and the
@@ -103,6 +104,10 @@ interface DialogState {
      */
     pendingRoot?: string;
     /**
+     * The SSH Host {@link DialogState.pendingRoot} is on, or `undefined` for this Mac.
+     */
+    pendingRootEnvironmentId?: string;
+    /**
      * Existing Project awaiting the default-Agent choice for a new Session.
      */
     pendingProjectId?: string;
@@ -184,7 +189,7 @@ interface DialogState {
     setBugReportOpen(isOpen: boolean): void;
     openProjectIcon(projectId: string): void;
     closeProjectIcon(): void;
-    askAgentForRoot(rootPath: string): void;
+    askAgentForRoot(rootPath: string, environmentId?: string): void;
     askAgentForProject(projectId: string): void;
     clearPending(): void;
     suspendPending(): void;
@@ -316,9 +321,10 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     setBugReportOpen: (bugReportOpen) => set({ bugReportOpen }),
     openProjectIcon: (projectIconProjectId) => set({ projectIconProjectId }),
     closeProjectIcon: () => set({ projectIconProjectId: undefined }),
-    askAgentForRoot: (rootPath) =>
+    askAgentForRoot: (rootPath, environmentId) =>
         set({
             pendingRoot: rootPath,
+            pendingRootEnvironmentId: environmentId,
             pendingRootGrantedAt: Date.now(),
             pendingProjectId: undefined,
             isPendingSuspended: false,
@@ -327,11 +333,13 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
         set({
             pendingProjectId: projectId,
             pendingRoot: undefined,
+            pendingRootEnvironmentId: undefined,
             pendingRootGrantedAt: undefined,
         }),
     clearPending: () =>
         set({
             pendingRoot: undefined,
+            pendingRootEnvironmentId: undefined,
             pendingProjectId: undefined,
             pendingRootGrantedAt: undefined,
             isPendingSuspended: false,

@@ -9,6 +9,31 @@ import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 
+/**
+ * Deletes every checkout under a merged side bar heading, one confirmation at a time, and stops at the first one the
+ * user cancels or that fails.
+ */
+export function deleteMergedProjects(projectIds: readonly string[]): void {
+    const bootstrap = getBootstrap();
+    if (!bootstrap) return;
+    // Fire-and-forget: `tryCommand` funnels each request's own failure into a toast internally.
+    void (async () => {
+        for (const projectId of projectIds) {
+            // eslint-disable-next-line no-await-in-loop -- one native confirmation at a time, and a cancel stops the rest
+            const deleted = await tryCommand(
+                translate('session.errors.deleteProjectFailed'),
+                async () => {
+                    const result = await caxri.request('project.delete', { projectId });
+                    if ('canceled' in result) return false;
+                    await dropProjectFromWorkbench(bootstrap, projectId);
+                    return true;
+                },
+            );
+            if (!deleted) return;
+        }
+    })();
+}
+
 export function deleteProject(projectId?: string): void {
     const bootstrap = getBootstrap();
     const project =

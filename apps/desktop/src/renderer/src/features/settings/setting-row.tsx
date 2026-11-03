@@ -30,6 +30,7 @@ import { ArchivedSessionsEntry } from './archived-sessions-entry';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
 import { EnvironmentMonitorSettingControl } from './environment-monitor-setting-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
+import { HostsSettingsForm, ShowHostNamesSwitch } from './hosts-settings-form';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { LaunchArgumentsField } from './launch-arguments-field';
@@ -496,6 +497,13 @@ function rowControl(
             return { control: <ArchivedSessionsEntry /> };
         case 'mobile-access':
             return { control: <MobileAccessForm /> };
+        case 'ssh-hosts':
+            return { control: <HostsSettingsForm /> };
+        case 'host-names':
+            return {
+                labelFor: controlId,
+                control: <ShowHostNamesSwitch id={controlId} label={row.accessibleTitle} />,
+            };
         case 'claude-windows':
             return { control: <ClaudeWindowsForm /> };
         case 'agent-secrets':

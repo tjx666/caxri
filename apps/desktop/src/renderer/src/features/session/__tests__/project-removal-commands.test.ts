@@ -27,7 +27,11 @@ vi.mock('../../../stores/session-view', () => ({
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbench }));
 
-import { deleteProject, hideSelectedProject } from '../project-removal-commands';
+import {
+    deleteMergedProjects,
+    deleteProject,
+    hideSelectedProject,
+} from '../project-removal-commands';
 
 function bootstrapWith(projectIds: string[]): BootstrapState {
     return {
@@ -115,6 +119,24 @@ describe('Project removal commands', () => {
 
             expect(mocks.caxriRequest).toHaveBeenCalledWith('project.delete', {
                 projectId: 'clicked-project',
+            });
+        });
+    });
+
+    describe('deleteMergedProjects', () => {
+        it("deletes each machine's checkout in turn and stops at the first one the user cancels", async () => {
+            mocks.getBootstrap.mockReturnValue(bootstrapWith(['local', 'remote', 'other']));
+            mocks.caxriRequest
+                .mockResolvedValueOnce({ deleted: true })
+                .mockResolvedValueOnce({ canceled: true });
+
+            deleteMergedProjects(['local', 'remote', 'other']);
+            await vi.waitFor(() => expect(mocks.tryCommand).toHaveBeenCalledTimes(2));
+            await mocks.tryCommand.mock.results[1]?.value;
+
+            expect(mocks.caxriRequest).toHaveBeenCalledTimes(2);
+            expect(mocks.caxriRequest).toHaveBeenLastCalledWith('project.delete', {
+                projectId: 'remote',
             });
         });
     });

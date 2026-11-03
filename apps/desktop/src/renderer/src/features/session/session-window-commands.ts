@@ -1,5 +1,6 @@
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { environmentOfSession } from '../../lib/environment-routing';
 import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
@@ -9,8 +10,8 @@ import { didSelectSession } from './session-commands';
 /**
  * Whether "Open in New Window" applies to `sessionId`. A window holds only the Session it shows, so that one cannot
  * leave (the window would be empty), and a Session another window already has open is reached by selecting it, which
- * brings that window forward. The row menu hides the entry on this answer; the Server's refusal stays the stale-state
- * fallback.
+ * brings that window forward. An SSH Host's Session never leaves: only the primary window reaches SSH Hosts. The row
+ * menu hides the entry on this answer; the Server's refusal stays the stale-state fallback.
  */
 export function canOpenSessionInNewWindow(
     input:
@@ -22,6 +23,7 @@ export function canOpenSessionInNewWindow(
     sessionId: string,
 ): boolean {
     return (
+        environmentOfSession(sessionId) === undefined &&
         input?.selectedSessionId !== sessionId &&
         !(input?.otherWindowOpenSessionIds ?? []).includes(sessionId)
     );

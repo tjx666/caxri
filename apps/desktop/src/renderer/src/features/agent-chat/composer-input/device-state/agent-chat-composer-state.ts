@@ -38,7 +38,10 @@ export interface AgentChatComposerStateOptions {
      * scope that changed while running).
      */
     onDraftsRestored: (terminalIds: readonly string[]) => void;
-    scope: () => string;
+    /**
+     * The scope of one Chat's composer state, or of this Mac's Chats for `undefined`.
+     */
+    scope: (terminalId: string | undefined) => string;
     now?: () => number;
 }
 
@@ -60,16 +63,16 @@ interface ScopeData {
 }
 
 /**
- * The composer state of the window's current scope: unsent text, "Edit from here", and images per Chat, in memory for
- * synchronous reads and mirrored into the device store (`createAgentChatComposerStorage`). Plain maps rather than a
- * store: nothing renders from them, and they hold the user's own message, which stays out of the `__caxriStores`
- * debugging snapshot.
+ * The composer state of every scope this window uses (one per machine running its Chats): unsent text, "Edit from
+ * here", and images per Chat, in memory for synchronous reads and mirrored into the device store
+ * (`createAgentChatComposerStorage`). Plain maps rather than a store: nothing renders from them, and they hold the
+ * user's own message, which stays out of the `__caxriStores` debugging snapshot.
  *
- * The scope is read at each use, so a Workbench that learns its environment after load keys its state by it; the
- * earlier scope keeps its own data and its own pending writes, which land under the scope they were typed in. Hydration
- * reads what an earlier run left, once per scope: text synchronously on the scope's first use, so a composer that
- * mounts reads its draft at once; images from IndexedDB later. A composer takes its images only when it mounts (their
- * placeholders in the draft bind to them then), so the Chat pane waits on `isReady` before it renders.
+ * A Chat's scope is read at each use; each scope keeps its own data and its own pending writes, which land under the
+ * scope they were typed in. Hydration reads what an earlier run left, once per scope: text synchronously on the scope's
+ * first use, so a composer that mounts reads its draft at once; images from IndexedDB later. A composer takes its
+ * images only when it mounts (their placeholders in the draft bind to them then), so the Chat pane waits on `isReady`
+ * before it renders.
  */
 export function createAgentChatComposerState(options: AgentChatComposerStateOptions) {
     const scopes = new Map<string, ScopeData>();
@@ -91,7 +94,7 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
                 if (!data.attachments.has(terminalId)) data.attachments.set(terminalId, list);
             }
         data.changedAttachments.clear();
-        if (options.scope() === data.scope) onAttachmentsRestored(attachments);
+        onAttachmentsRestored(attachments);
     };
 
     const hydrate = (data: ScopeData): void => {
@@ -125,8 +128,7 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
             });
     };
 
-    const current = (): ScopeData => {
-        const scope = options.scope();
+    const scopeData = (scope: string): ScopeData => {
         let data = scopes.get(scope);
         if (data) return data;
         data = {
@@ -146,11 +148,13 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
         queueMicrotask(notifyReady);
         return data;
     };
+    const current = (terminalId: string | undefined): ScopeData =>
+        scopeData(options.scope(terminalId));
 
     return {
-        attachments: () => current().attachments,
-        drafts: () => current().drafts,
-        edits: () => current().edits,
+        attachments: (terminalId: string) => current(terminalId).attachments,
+        drafts: (terminalId: string) => current(terminalId).drafts,
+        edits: (terminalId: string) => current(terminalId).edits,
         /**
          * Writes everything still waiting, for a window that is going away: text is on disk when this returns, images
          * are on their way. Every failure loses an unsent copy and never surfaces, so there is nothing to await.
@@ -159,16 +163,16 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
             for (const data of scopes.values()) data.storage?.flush();
         },
         /**
-         * Whether the current scope's stored images have been read, or given up on.
+         * Whether the stored images of a Chat's scope have been read, or given up on.
          */
-        isReady: (): boolean => current().isReady,
+        isReady: (terminalId: string): boolean => current(terminalId).isReady,
         /**
-         * Drops the images and "Edit from here" of every Chat outside `chatTerminalIds` in the current scope, in memory
-         * and stored, including those hydration has yet to read. Text drafts are kept: they are bounded by recency, and
+         * Drops the images and "Edit from here" of every Chat outside `chatTerminalIds` in `scope`, in memory and
+         * stored, including those hydration has yet to read. Text drafts are kept: they are bounded by recency, and
          * dropping one on a transient snapshot gap would lose typed text that should survive a restart.
          */
-        retain: (chatTerminalIds: ReadonlySet<string>): void => {
-            const data = current();
+        retain: (scope: string, chatTerminalIds: ReadonlySet<string>): void => {
+            const data = scopeData(scope);
             data.retained = chatTerminalIds;
             for (const terminalId of data.attachments.keys())
                 if (!chatTerminalIds.has(terminalId)) {
@@ -185,14 +189,14 @@ export function createAgentChatComposerState(options: AgentChatComposerStateOpti
             terminalId: string,
             attachments: readonly AgentChatAttachment[],
         ): void => {
-            const data = current();
+            const data = current(terminalId);
             data.changedAttachments.add(terminalId);
             data.storage?.saveAttachments(terminalId, attachments);
         },
         saveDraft: (terminalId: string, text: string): void =>
-            current().storage?.saveDraft(terminalId, text),
+            current(terminalId).storage?.saveDraft(terminalId, text),
         saveEdit: (terminalId: string, edit: AgentChatEdit | undefined): void =>
-            current().storage?.saveEdit(terminalId, edit),
+            current(terminalId).storage?.saveEdit(terminalId, edit),
         subscribeReady: (listener: () => void): (() => void) => {
             readyListeners.add(listener);
             return () => readyListeners.delete(listener);

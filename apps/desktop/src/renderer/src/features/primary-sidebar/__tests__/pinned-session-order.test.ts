@@ -1,6 +1,11 @@
 import type { SessionRecord } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import {
+    forgetEnvironment,
+    indexEnvironmentSnapshot,
+    routingGeneration,
+} from '../../../lib/environment-routing';
 import { pinnedSessionDropTarget, pinnedSessions, unpinnedSessions } from '../pinned-session-order';
 
 function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
@@ -96,5 +101,16 @@ describe('pinnedSessionDropTarget', () => {
 
     it('refuses a row dropped on itself', () => {
         expect(pinnedSessionDropTarget(sessions, 'a', 'a', 'after')).toBeUndefined();
+    });
+
+    afterEach(() => forgetEnvironment('host-a'));
+
+    it("refuses an anchor on another machine, whose Server cannot order this one's Session", () => {
+        indexEnvironmentSnapshot(
+            'host-a',
+            { projects: [], sessions: [sessions[1]], terminals: [], archivedTerminals: [] },
+            routingGeneration(),
+        );
+        expect(pinnedSessionDropTarget(sessions, 'a', 'b', 'after')).toBeUndefined();
     });
 });
