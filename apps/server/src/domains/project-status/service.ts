@@ -7,12 +7,12 @@ import type {
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusSummary,
+    SessionPullRequest,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, SingleFlight } from '@caxri/system';
-import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
-import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
+import { rememberBounded } from '@caxri/utils';
 
 import type { ExternalStatusRunner, ExternalStatusSource } from '../external-status';
 import {
@@ -24,8 +24,7 @@ import {
     runExternalStatusCommand,
 } from '../external-status';
 import type { GitService } from '../git';
-import type { SessionTranscriptContext } from '../session';
-import { loadOverviewAcceptances, loadPullRequestAcceptances } from './acceptance';
+import { loadPullRequestAcceptances } from './acceptance';
 import { ProjectStatusAlertTracker } from './alerts';
 import type { BranchPublicationContext } from './branch';
 import {
@@ -39,19 +38,16 @@ import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-o
 import { pendingSummaryEntry, preparedFingerprint } from './carry-over';
 import { EmptyCheckRollupTracker } from './empty-check-rollup';
 import { emptyGitHubLoad, failedGitHubLoad } from './github-load';
-import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
+import { loadPullRequestLinearIssues } from './linear';
 import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
 import { projectStatusClock } from './options';
+import { loadProjectStatusOverview } from './overview';
 import { parseGitHubPullRequest } from './parse';
 import { PullRequestExtras } from './pull-request-extras';
 import { refreshLogRecord } from './refresh-log';
 import { ResidentPoll } from './resident-poll';
 import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
-import {
-    loadOverviewPullRequest,
-    repoPullRequestNumber,
-    resolvePullRequestTarget,
-} from './session-pull-request';
+import { repoPullRequestNumber, resolvePullRequestTarget } from './session-pull-request';
 import { VercelDeploymentStore } from './vercel-store';
 import type { WatchOutcome, WatchRound } from './watch';
 import { deliveryKeys, DeliveryWatch, isWatchFresh } from './watch';
@@ -170,75 +166,6 @@ export class ProjectStatusService {
 
     private logExternalParseFailure(command: ExternalStatusSource, error: unknown): void {
         this.commandTelemetry.recordParseFailure(command, error);
-    }
-
-    /**
-     * What this Session's own Agent conversation named. Read once per overview and handed to both chips:
-     * `SessionContextService` scans incrementally and shares the in-flight read, but asking it twice still costs a
-     * second pass over everything the Agent appended.
-     */
-    private async readConversation(
-        sessionId: string,
-    ): Promise<SessionTranscriptContext | undefined> {
-        try {
-            return await this.options.sessionContext?.(sessionId);
-        } catch {
-            // The conversation is the weakest source either chip has, so an unreadable transcript degrades to "no extra
-            // context" rather than failing the overview the status bar draws from.
-            return undefined;
-        }
-    }
-
-    private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
-        const gitSummary = await this.git.summary(sessionId, 0, 'projectStatus');
-        if (!gitSummary.isRepository) {
-            return { refreshedAt: this.now(), error: gitSummary.error };
-        }
-        const repo = gitSummary.repositories.find((candidate) => candidate.kind === 'primary');
-        if (!repo) return { refreshedAt: this.now(), error: statusError.missingPrimaryRepository };
-        const { remote } = await this.remotes.read(repo.rootPath, this.readGit);
-        const github = parseGitHubRemote(remote);
-        const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
-        // Independent reads; both usually join the same in-flight transcript pass in `SessionContextService`.
-        const [{ pullRequest, pullRequestBody, pullRequestUnavailable }, conversation] =
-            await Promise.all([
-                loadOverviewPullRequest(this.github, this.logger, {
-                    github,
-                    ignoredChecks: this.ignoredChecks(),
-                    repo,
-                    resolver: this.resolveSessionPullRequest,
-                    sessionId,
-                }),
-                this.readConversation(sessionId),
-            ]);
-        const [linearIssues, acceptances] = await Promise.all([
-            loadOverviewLinearIssues(this.linear, repo.rootPath, {
-                branch: repo.branch,
-                conversation: conversation?.linearReferences ?? [],
-                pullRequestBody,
-            }),
-            loadOverviewAcceptances(this.acceptance, repo.rootPath, {
-                conversation: conversation?.acceptanceReferences ?? [],
-                pullRequestBody,
-            }),
-        ]);
-        return {
-            repository: {
-                id: repo.id,
-                branch: repo.branch,
-                branchUrl: githubUrl
-                    ? `${githubUrl}/tree/${encodeURIComponent(repo.branch)}`
-                    : undefined,
-                changedFileCount: repo.files.length,
-                additions: repo.additions,
-                deletions: repo.deletions,
-                pullRequest,
-                ...(pullRequestUnavailable && { pullRequestUnavailable }),
-                linearIssues,
-                acceptances,
-            },
-            refreshedAt: this.now(),
-        };
     }
 
     private async prepareSummary(
@@ -461,6 +388,17 @@ export class ProjectStatusService {
     }
 
     /**
+     * Best effort: `refreshSummary` logs its own failure and the change event converges the panel.
+     */
+    private async rereadSummary(sessionId: string): Promise<void> {
+        try {
+            await this.summary(sessionId);
+        } catch {
+            // Intentionally ignored, see above.
+        }
+    }
+
+    /**
      * Refreshes delivery metadata outside the request path. The fingerprint check prevents a slow result for an old
      * branch or workbench root from replacing a newer Session context.
      */
@@ -572,6 +510,31 @@ export class ProjectStatusService {
     }
 
     /**
+     * Re-reads a visible Session's status once the sidebar's pull request sweep saw its pull request change lifecycle
+     * (opened, merged, closed). Without it the Status panel kept the pull request open for up to a settled TTL after
+     * Caxri had already told the Agent about the merge. Only polled (visible) Sessions are re-read, so a sweep over
+     * every Session cannot fan out into `gh` queries for panels nobody renders, and a snapshot that already shows this
+     * lifecycle (a focus refresh fetched it first) is left alone. The re-read is a normal stale-while-revalidate load,
+     * so it reuses the shared pull request record the sweep just fetched.
+     */
+    pullRequestChanged(
+        sessionId: string,
+        pullRequest: Pick<SessionPullRequest, 'state' | 'url'>,
+    ): Promise<void> | undefined {
+        if (!this.residentPoll.polled.has(sessionId)) return;
+        const entry = this.summaries.get(sessionId);
+        if (!entry?.value) return;
+        const isCurrent = entry.value.repositories.some(
+            (repo) =>
+                repo.pullRequest?.url === pullRequest.url &&
+                repo.pullRequest.lifecycle === pullRequest.state,
+        );
+        if (isCurrent) return;
+        this.rememberSummary(sessionId, { ...entry, expiresAt: 0 });
+        return this.rereadSummary(sessionId);
+    }
+
+    /**
      * Hands this Service the Session pull request owner. Late-bound because `SessionPullRequestService` is assembled
      * after this Service; until it is set every reader keeps the per-branch lookup.
      */
@@ -622,7 +585,24 @@ export class ProjectStatusService {
     }
 
     overview(sessionId: string): Promise<ProjectStatusOverview> {
-        return this.overviewRequests.run(sessionId, () => this.loadOverview(sessionId));
+        return this.overviewRequests.run(sessionId, () =>
+            loadProjectStatusOverview(
+                {
+                    acceptance: this.acceptance,
+                    git: this.git,
+                    github: this.github,
+                    ignoredChecks: this.ignoredChecks(),
+                    linear: this.linear,
+                    logger: this.logger,
+                    now: () => this.now(),
+                    readGit: this.readGit,
+                    remotes: this.remotes,
+                    resolver: this.resolveSessionPullRequest,
+                    sessionContext: this.options.sessionContext,
+                },
+                sessionId,
+            ),
+        );
     }
 
     /**
