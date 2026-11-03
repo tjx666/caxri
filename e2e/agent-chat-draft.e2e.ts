@@ -12,6 +12,7 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 
 test('typing after a reload continues the restored Chat draft without opening the Sessions list', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-draft-caret-'));
@@ -25,7 +26,7 @@ test('typing after a reload continues the restored Chat draft without opening th
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });

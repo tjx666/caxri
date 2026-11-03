@@ -14,6 +14,7 @@ import {
     pageRequest,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test("a running Claude Chat reports its plan's 5-hour and weekly limits and warns when the week runs ahead of pace", async ({}, testInfo) => {
@@ -33,7 +34,7 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
@@ -119,7 +120,7 @@ test('a Claude Chat at 99% of its weekly usage with extra usage keeps sending an
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });

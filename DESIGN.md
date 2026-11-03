@@ -740,9 +740,11 @@ pane, that tab drops the accent top border: an "active" marker distinguishes not
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
 no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, and
 collapses its width at rest, so the tab's fill reaches the bar's edge instead of leaving a block of
-bar color beside it. Hovering + still opens the Agent list, where each Agent row carries one muted
-suffix (`Chat`, `Default`, or `Chat · Default`) and the foot toggle reads `Always Open Agents in
-Chat`, the same as in the New Session menu. Pressing it (pointer click or keyboard activation) instead creates a Terminal
+bar color beside it. Hovering + still opens the Agent list, the same as the New Session menu: its
+foot row reads `Open Agents In` with the saved surface (`Chat` or `Terminal`) and a chevron, and its
+submenu switches between the two. Agent rows do not repeat the surface; a row's muted suffix names
+only an exception or an annotation (`Terminal` for an Agent that cannot open in Chat while Agents
+open in Chat, `Default`, readiness), and `Chat` stays in the row's accessible name only. Pressing it (pointer click or keyboard activation) instead creates a Terminal
 running whichever Agent the Session's own primary Terminal is currently running, so the press clones
 the conversation already in front of the user instead of asking again; that icon's tooltip names the
 Agent and surface it will create ("New Codex Chat", "New Claude Terminal") and shows ⌘T only

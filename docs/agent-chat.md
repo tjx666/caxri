@@ -76,10 +76,11 @@ The service, reducer, and pane do not change.
   first Terminal. Server Core refuses a Chat for an Agent without `capabilities.chat` before writing
   anything (`canUseAgentChat`).
 - Users choose the surface through one setting, `session.openAgentsInChat` (Settings, or the
-  "Always Open Agents in Chat" toggle at the foot of the New Session and New Terminal menus and the
-  centered Agent-choice dialog). Each menu lists every Agent once and gives a row one muted suffix:
-  "Chat" when choosing it opens a Chat, "Default" for the configured default Agent, or "Chat ·
-  Default" for both. Direct creation with a default Agent and `Cmd+T` follow the setting too,
+  "Open Agents In" submenu (Chat or Terminal) at the foot of the New Session and New Terminal menus,
+  or the "Always Open Agents in Chat" switch in the centered Agent-choice dialog). Each menu lists
+  every Agent once; the foot row shows the saved surface, so a row's muted suffix names only
+  "Terminal" for an Agent that cannot open in Chat while the setting is on, "Default" for the
+  configured default Agent, and readiness. "Chat" stays in the row's accessible name. Direct creation with a default Agent and `Cmd+T` follow the setting too,
   while a click on the tab strip's `+` clones the primary Agent Terminal on its own surface.
 - A Chat keeps everything else a Terminal owns: its Session, Primary Agent election, naming, pane
   placement, and the `terminal` pane resource.

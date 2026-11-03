@@ -223,11 +223,12 @@ export function splitHeldChord(chord: string): { modifiers: string[]; key: strin
  * The add-Project dialog's row for an Agent opened in Chat (`Codex Chat`, `Codex 对话`). It matches either interface
  * language, because a fresh fixture profile follows the macOS language and an English-only name never appears there.
  * The markers are `terminal.new.chatMarker` in the en and zh-cn Renderer locales, which this script's TypeScript
- * project cannot import; a fixture that marks the fake Agent signed out also prefixes `terminal.new.signedOutMarker`.
+ * project cannot import. The Chat marker is screen-reader-only text that precedes the visible suffix, so a fixture that
+ * marks the fake Agent signed out appends `terminal.new.signedOutMarker`.
  */
 export function chatChoiceName(provider: AgentProvider): RegExp {
     const name = RegExp.escape(agentProviderCatalog[provider].displayName);
-    return new RegExp(String.raw`^${name}\s*(?:(?:Signed out|未登录) · )?(?:Chat|对话)$`);
+    return new RegExp(String.raw`^${name}\s*(?:Chat|对话)(?:\s*(?:Signed out|未登录))?$`);
 }
 
 /**

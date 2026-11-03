@@ -31,6 +31,9 @@ export const session = {
     'session.createDialog.makeDefaultFailed': 'Unable to change the default Agent',
     'session.openInChat.label': 'Always Open Agents in Chat',
     'session.openInChat.failed': 'Unable to change how Agents open',
+    'session.openAgentsIn.label': 'Open Agents In',
+    'session.openAgentsIn.chat': 'Chat',
+    'session.openAgentsIn.terminal': 'Terminal',
 
     // Recently used Sessions switcher
     'session.mru.title': 'Recently used Sessions',

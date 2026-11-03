@@ -11,6 +11,7 @@ import {
     launchCaxri,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 
 /**
  * Claude Code drives Chrome through `mcp__claude-in-chrome__*` tools. The Chat shows those calls the way it shows a
@@ -30,7 +31,7 @@ test('a Claude Code Chrome call reads as a titled browser step', async ({}, test
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
 
         const chat = page.locator(VISIBLE_SESSION);

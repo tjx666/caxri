@@ -213,13 +213,33 @@ describe('newSessionActionLabel', () => {
 });
 
 describe('agentChoiceMarker', () => {
-    it('merges the Chat and Default markers into one suffix', () => {
-        expect(agentChoiceMarker({ isDefault: true, surface: 'chat' }, translate)).toBe(
-            'Chat · Default',
-        );
-        expect(agentChoiceMarker({ isDefault: false, surface: 'chat' }, translate)).toBe('Chat');
-        expect(agentChoiceMarker({ isDefault: true, surface: 'pty' }, translate)).toBe('Default');
-        expect(agentChoiceMarker({ isDefault: false, surface: 'pty' }, translate)).toBeUndefined();
+    it('leaves where a row opens to the footer row unless the row is the exception', () => {
+        expect(
+            agentChoiceMarker(
+                { isDefault: false, kind: 'codex', surface: 'chat' },
+                true,
+                translate,
+            ),
+        ).toBeUndefined();
+        expect(
+            agentChoiceMarker({ isDefault: true, kind: 'codex', surface: 'chat' }, true, translate),
+        ).toBe('Default');
+        expect(
+            agentChoiceMarker(
+                { isDefault: false, kind: 'codex', surface: 'pty' },
+                false,
+                translate,
+            ),
+        ).toBeUndefined();
+    });
+
+    it('marks an Agent that opens a Terminal while Agents open in Chat, but never the Shell', () => {
+        expect(
+            agentChoiceMarker({ isDefault: true, kind: 'codex', surface: 'pty' }, true, translate),
+        ).toBe('Terminal · Default');
+        expect(
+            agentChoiceMarker({ isDefault: false, kind: 'shell', surface: 'pty' }, true, translate),
+        ).toBeUndefined();
     });
 });
 
@@ -263,25 +283,25 @@ describe('Agent readiness annotations', () => {
     it('puts the readiness suffix first and leaves ready rows unchanged', () => {
         expect(
             agentChoiceMarker(
-                { isDefault: false, issue: 'notInstalled', surface: 'pty' },
+                { isDefault: false, issue: 'notInstalled', kind: 'claude', surface: 'pty' },
+                false,
                 translate,
             ),
         ).toBe('Not installed');
         expect(
             agentChoiceMarker(
-                { isDefault: true, issue: 'notInstalled', surface: 'chat' },
+                { isDefault: true, issue: 'notInstalled', kind: 'claude', surface: 'pty' },
+                true,
                 translate,
             ),
-        ).toBe('Not installed · Chat · Default');
+        ).toBe('Not installed · Terminal · Default');
         expect(
             agentChoiceMarker(
-                { isDefault: false, issue: 'signInRequired', surface: 'chat' },
+                { isDefault: false, issue: 'signInRequired', kind: 'codex', surface: 'chat' },
+                true,
                 translate,
             ),
-        ).toBe('Signed out · Chat');
-        expect(agentChoiceMarker({ isDefault: true, surface: 'chat' }, translate)).toBe(
-            'Chat · Default',
-        );
+        ).toBe('Signed out');
     });
 
     it('offers an install hint for each Agent CLI, a sign-in hint where the CLI has a command, and none for Shell', () => {

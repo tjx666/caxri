@@ -14,6 +14,7 @@ import {
     sessionCard,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 
 /**
  * Coming back to a Session lands on the tab that was active when the user left, even when that tab is a Chat opened
@@ -35,10 +36,7 @@ test('switching back to a Session restores its active Chat tab', async ({}, test
         const firstSessionId = await selectedSessionId(page);
         const session = page.locator(VISIBLE_SESSION);
         await session.getByRole('button', { name: 'New Terminal' }).click();
-        await page
-            .getByRole('menu', { name: 'New Terminal' })
-            .getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' })
-            .click();
+        await setOpenAgentsIn(page.getByRole('menu', { name: 'New Terminal' }), 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
         const message = session.getByRole('textbox', { name: 'Message' });
         await expect(

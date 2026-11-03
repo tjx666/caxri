@@ -15,6 +15,7 @@ import {
     VISIBLE_SESSION,
     waitForCreatedSession,
 } from './support/helpers.ts';
+import { setOpenAgentsIn } from './support/open-agents-in.ts';
 import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 import { runningWork } from './support/running-work.ts';
 
@@ -39,12 +40,12 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         const { page } = running;
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
-        // One row per Agent. The footer toggle keeps the menu open and turns the Chat-capable rows into Chats.
+        /*
+        One row per Agent, then the footer "Open Agents In" row naming the saved surface. Its submenu keeps the menu
+        open and turns the Chat-capable rows into Chats; the rows carry no visible "Chat" (the footer says it once),
+        only a screen-reader twin, which `toHaveText` still reads.
+        */
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        const openInChat = terminalMenu.getByRole('menuitemcheckbox', {
-            name: 'Open Agents in Chat',
-        });
-        await expect(openInChat).not.toBeChecked();
         // Only the fake Codex is installed, so the other Agents carry the "Not installed" annotation.
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
             'ClaudeNot installed',
@@ -52,15 +53,16 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             'Grok BuildNot installed',
             'AntigravityNot installed',
             'Shell',
+            'Open Agents InTerminal',
         ]);
-        await openInChat.click();
-        await expect(openInChat).toBeChecked();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
-            'ClaudeNot installed · Chat',
+            'ClaudeChatNot installed',
             'CodexChat',
-            'Grok BuildNot installed · Chat',
-            'AntigravityNot installed · Chat',
+            'Grok BuildChatNot installed',
+            'AntigravityChatNot installed',
             'Shell',
+            'Open Agents InChat',
         ]);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-new-terminal-menu.png') });
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
@@ -275,9 +277,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
         await openProjectNewSessionMenu(page);
         const sessionMenu = page.getByRole('menu', { name: /^New Session in / });
-        await expect(
-            sessionMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }),
-        ).toBeChecked();
+        await expect(sessionMenu.getByRole('menuitem', { name: /^Open Agents In/u })).toHaveText(
+            'Open Agents InChat',
+        );
         await page.screenshot({ path: testInfo.outputPath('agent-chat-new-session-menu.png') });
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
         const sessionId = await waitForCreatedSession(page, previous.selectedSessionId);
@@ -399,7 +401,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
+        await setOpenAgentsIn(terminalMenu, 'Chat');
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
