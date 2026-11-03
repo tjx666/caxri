@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { usePathname } from 'expo-router';
 
+import { useSavedPanels } from '../../panels/use-panels';
 import { isDashboardRouteVisible } from '../dashboard-query';
 import { useSavedDrafts } from '../hooks/use-saved-drafts';
 import { useSessionPolling } from '../hooks/use-session-polling';
@@ -73,6 +74,7 @@ export const HostSessionsProvider = ({
         [],
     );
     useSavedDrafts(ui.draftBySession, setUi);
+    useSavedPanels();
     const [newSessionSelection, setNewSessionSelection] = useState(emptyNewSessionSelection);
     const [newSessionCreateState, setNewSessionCreateState] = useState<NewSessionCreateState>({
         kind: 'idle',

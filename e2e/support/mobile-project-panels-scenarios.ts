@@ -10,8 +10,10 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
     androidBounds,
+    coldStartMobileApp,
     mobileRegionFingerprint,
     mobileSemantics,
+    setMobileNetworkAvailable,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
@@ -322,6 +324,62 @@ async function refreshExpandedTree(environment: Environment, artifacts: string[]
 }
 
 /**
+ * `MOB-PANELS-TABS-SAVED-01`: the Project view tabs come from the list this phone saved, so a Session opened before the
+ * live read answers shows them at once instead of pushing them into the strip later. With the network off after a cold
+ * start no live read can answer at all, which makes the saved list the only possible source: before the fix the strip
+ * kept only its fixed tabs here, and connected it showed them first and added the view tabs a moment later.
+ */
+async function openSessionWithSavedTabs(
+    environment: Environment,
+    artifacts: string[],
+): Promise<void> {
+    const fixture = await createMobileAcceptanceFixture({
+        mode: 'launch-failure',
+        serial: environment.serial,
+    });
+    const viewTabs = ['session-segment-panel-caxri.files', 'session-segment-panel-caxri.fixture'];
+    try {
+        await fixture.pair();
+        const sessionId = fixture.allowedSessionId;
+        if (!sessionId) throw new Error('Panels Session is unavailable');
+        await tapMobileCheck(environment.serial, `session-row-${sessionId}`);
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => viewTabs.every((id) => hasCheck(nodes, id)),
+        );
+        await capture(environment, 'connected', artifacts);
+        // The read cache writes a second after the live read; leave it time before the process is killed.
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await setMobileNetworkAvailable(environment.serial, false);
+        await coldStartMobileApp(environment.serial);
+        // The saved-list notice proves the phone is offline: no live read answered after the restart.
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                hasCheck(nodes, `session-row-${sessionId}`) &&
+                hasCheck(nodes, 'session-list-saved'),
+        );
+        await tapMobileCheck(environment.serial, `session-row-${sessionId}`);
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'session-detail'),
+        );
+        const offline = await mobileSemantics(environment.serial);
+        const missing = viewTabs.filter((id) => !hasCheck(offline, id));
+        await capture(environment, 'offline-cold-start', artifacts);
+        if (missing.length > 0)
+            throw new Error(`Offline Session is missing saved view tabs: ${missing.join(', ')}`);
+        await finish(environment, artifacts, {
+            offlineViewTabs: viewTabs.length,
+            status: 'passed',
+        });
+    } finally {
+        await setMobileNetworkAvailable(environment.serial, true);
+        await fixture.stop();
+    }
+}
+
+/**
  * `MOB-PROJECT-CHIP-HOLD-01`: with more Projects than the strip can show, the strip is scrolled away from its start and
  * a chip in its middle is held still past the pick-up delay. The strip must stay where it is; only dragging the chip on
  * toward the right edge scrolls it.
@@ -475,6 +533,10 @@ export async function executeMobileProjectPanelsScenario(
         }
         case 'MOB-PANELS-TREE-REFRESH-01': {
             await refreshExpandedTree(environment, artifacts);
+            break;
+        }
+        case 'MOB-PANELS-TABS-SAVED-01': {
+            await openSessionWithSavedTabs(environment, artifacts);
             break;
         }
         default:
