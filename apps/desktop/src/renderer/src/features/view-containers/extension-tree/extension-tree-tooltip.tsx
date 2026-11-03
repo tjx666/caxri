@@ -13,6 +13,7 @@ import {
     resolveTooltipCursorAnchor,
     TOOLTIP_CURSOR_COLLISION_PADDING,
     TOOLTIP_CURSOR_SIDE_OFFSET,
+    TOOLTIP_OPEN_DELAY_MS,
 } from '../../../components/tooltip-positioning';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../../components/ui/hover-card';
 import { useTranslation } from '../../../i18n';
@@ -29,8 +30,6 @@ const badgeToneClassNames: Record<NonNullable<RichTooltip['badge']>['tone'], str
     success: 'text-success',
     warning: 'text-warning',
 };
-
-const HOVER_OPEN_DELAY_MS = 500;
 
 function isRowActionTarget(target: EventTarget): boolean {
     return target instanceof Element && target.closest('[data-tree-item-actions]') !== null;
@@ -113,7 +112,7 @@ export function ExtensionTreeTooltip({
                 resolveTooltipCursorAnchor(true, 'trigger-hover', latestPointer.current),
             );
             setOpen(true);
-        }, HOVER_OPEN_DELAY_MS);
+        }, TOOLTIP_OPEN_DELAY_MS);
     }, []);
     const handlePointerLeave = useCallback(() => {
         isPointerOnRowAction.current = false;
@@ -172,7 +171,7 @@ export function ExtensionTreeTooltip({
         >
             <HoverCardTrigger
                 closeDelay={120}
-                delay={HOVER_OPEN_DELAY_MS}
+                delay={TOOLTIP_OPEN_DELAY_MS}
                 ref={triggerReference}
                 render={keyboardTrigger}
                 onPointerEnter={capturePointer}

@@ -41,8 +41,11 @@ export function resolveTooltipCursorAnchor(
 
 /**
  * How long the pointer rests on a trigger before any shared Tooltip opens (Base UI `delay`).
+ *
+ * Matches VS Code's macOS default for `workbench.hover.delay` (1500 ms; 500 ms on Windows and Linux), which it chose to
+ * track native macOS hovers. 500 ms popped a tooltip over a file tree row the pointer was only passing through.
  */
-export const TOOLTIP_OPEN_DELAY_MS = 500;
+export const TOOLTIP_OPEN_DELAY_MS = 1500;
 
 /**
  * Absorbs timer jitter between the pointer-enter timestamp and Base UI's own rest timer, which starts on the
