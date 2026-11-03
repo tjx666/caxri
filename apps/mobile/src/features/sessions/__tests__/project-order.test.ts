@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    isPendingProjectOrderCurrent,
     orderedProjects,
     projectAutoScrollStep,
     projectChipRevealOffset,
@@ -8,6 +9,7 @@ import {
     projectDropIndex,
     projectMoveActions,
     projectMoveTarget,
+    projectOrderKey,
     projectReorder,
 } from '../project-order';
 
@@ -26,6 +28,27 @@ describe('orderedProjects', () => {
         expect(orderedProjects(projects, null)).toBe(projects);
         expect(orderedProjects(projects, ['c', 'a'])).toBe(projects);
         expect(orderedProjects(projects, ['c', 'a', 'd'])).toBe(projects);
+    });
+});
+
+describe('isPendingProjectOrderCurrent', () => {
+    const pending = { baseline: projectOrderKey(['a', 'b', 'c']), order: ['b', 'a', 'c'] };
+
+    it('keeps the move while the dashboard still shows the order it was made from', () => {
+        // A refresh cancelled by the move's own dashboard event settles with this unchanged order.
+        expect(isPendingProjectOrderCurrent(projectOrderKey(['a', 'b', 'c']), pending)).toBe(true);
+    });
+
+    it('yields to the dashboard once it carries the move or any other order', () => {
+        expect(isPendingProjectOrderCurrent(projectOrderKey(['b', 'a', 'c']), pending)).toBe(false);
+        expect(isPendingProjectOrderCurrent(projectOrderKey(['c', 'b', 'a']), pending)).toBe(false);
+        expect(isPendingProjectOrderCurrent(projectOrderKey(['a', 'b', 'c', 'd']), pending)).toBe(
+            false,
+        );
+    });
+
+    it('applies nothing without a pending move', () => {
+        expect(isPendingProjectOrderCurrent(projectOrderKey(['a', 'b', 'c']), null)).toBe(false);
     });
 });
 

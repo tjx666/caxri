@@ -64,6 +64,10 @@ interface ChipDrag {
     scrollStart: SharedValue<number>;
     scrollOffset: SharedValue<number>;
     slots: SharedValue<ProjectChipSlot[]>;
+    /**
+     * The chip order the held chip was picked up in. Offsets apply only to chips laid out in that order.
+     */
+    order: SharedValue<string>;
 }
 
 export interface ProjectFilterChoice {
@@ -104,6 +108,7 @@ export const ProjectFilterChips = ({
         scrollStart: useSharedValue(0),
         scrollOffset,
         slots: useSharedValue<ProjectChipSlot[]>([]),
+        order: useSharedValue(''),
     };
     const slotsReference = useRef<ProjectChipSlot[]>([]);
     const [isDragging, setDragging] = useState(false);
@@ -143,7 +148,9 @@ export const ProjectFilterChips = ({
     useEffect(() => setActive(isDragging), [isDragging, setActive]);
     const projectOrder = projects.map(({ id }) => id).join('\n');
     // A move re-renders the chips in their new places; only then may the held chip and its neighbors drop their offsets,
-    // or the strip would flash the old order for a frame.
+    // or the strip would flash the old order for a frame. Resetting them still reaches the UI thread a frame after the
+    // new layout, so each chip is also keyed by the order: a chip mounted in another order than the drag's draws no
+    // offset from its first frame, instead of carrying the old offset into its new place.
     useLayoutEffect(() => {
         slotsReference.current = slotsReference.current.slice(0, projects.length);
         drag.slots.set(slotsReference.current);
@@ -210,7 +217,7 @@ export const ProjectFilterChips = ({
             {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A Mac has a handful of Projects, and a virtualized cell would measure each chip in its own cell instead of along the strip, which the drag needs. */}
             {projects.map((project, index) => (
                 <ProjectChip
-                    key={project.id}
+                    key={`${project.id}\n${projectOrder}`}
                     drag={drag}
                     index={index}
                     onChoose={onChooseProject}
@@ -218,6 +225,7 @@ export const ProjectFilterChips = ({
                     onDrop={drop}
                     onLayout={measure}
                     onMove={onMoveProject}
+                    order={projectOrder}
                     projectCount={projects.length}
                     project={project}
                     reorderHint={onMoveProject ? t('sessions.home.projectReorderHint') : undefined}
@@ -237,6 +245,7 @@ const ProjectChip = ({
     onDrop,
     onLayout,
     onMove,
+    order,
     project,
     projectCount,
     reorderHint,
@@ -250,6 +259,10 @@ const ProjectChip = ({
     onDrop: (projectId: string, from: number, to: number) => void;
     onLayout: (index: number, event: LayoutChangeEvent) => void;
     onMove?: (projectId: string, toIndex: number) => void;
+    /**
+     * The chip order this chip was laid out in.
+     */
+    order: string;
     project: ProjectFilterChoice;
     projectCount: number;
     /**
@@ -260,7 +273,7 @@ const ProjectChip = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const { from, scrollOffset, scrollStart, slots, to, translation } = drag;
+    const { from, order: dragOrder, scrollOffset, scrollStart, slots, to, translation } = drag;
     // A drag needs a held touch and fine motor control, so a screen reader moves the chip one place at a time instead.
     const moveActions = projectMoveActions(index, projectCount, {
         earlier: t('sessions.home.projectMoveEarlier'),
@@ -273,6 +286,7 @@ const ProjectChip = ({
             from.set(index);
             to.set(index);
             translation.set(0);
+            dragOrder.set(order);
             scrollStart.set(scrollOffset.get());
             scheduleOnRN(onDragStart);
         },
@@ -316,7 +330,8 @@ const ProjectChip = ({
         },
     });
     const animatedStyle = useAnimatedStyle(() => {
-        if (from.get() < 0) return { transform: [{ translateX: 0 }, { scale: 1 }], zIndex: 0 };
+        if (from.get() < 0 || dragOrder.get() !== order)
+            return { transform: [{ translateX: 0 }, { scale: 1 }], zIndex: 0 };
         if (from.get() === index)
             return {
                 transform: [
