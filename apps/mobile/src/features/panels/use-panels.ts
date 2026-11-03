@@ -45,22 +45,33 @@ const usePanelsList = (sessionId: string) => {
     return usePanelRead(['list', sessionId], () => request('mobile.panels.list', { sessionId }));
 };
 
-export const useTreeChildren = (sessionId: string, viewId: string, parentHandle?: string) => {
+export const useTreeChildren = (
+    sessionId: string,
+    viewId: string,
+    parentHandle?: string,
+    ancestorHandles: readonly string[] = [],
+) => {
     const { connectionScopeKey, request } = useMobileClient();
     const queryClient = useQueryClient();
     return usePanelRead(['tree', sessionId, viewId, parentHandle ?? null], () =>
         readTreeChildren({
-            onRootSnapshot: (root) =>
+            ancestorHandles,
+            onLevelSnapshot: (levelHandle, level) =>
                 queryClient.setQueryData(
-                    panelQueryKey(connectionScopeKey, ['tree', sessionId, viewId, null]),
-                    root,
+                    panelQueryKey(connectionScopeKey, [
+                        'tree',
+                        sessionId,
+                        viewId,
+                        levelHandle ?? null,
+                    ]),
+                    level,
                 ),
             parentHandle,
-            read: () =>
+            read: (levelHandle) =>
                 request('mobile.tree.children', {
                     sessionId,
                     viewId,
-                    ...(parentHandle !== undefined && { parentHandle }),
+                    ...(levelHandle !== undefined && { parentHandle: levelHandle }),
                 }),
         }),
     );
