@@ -113,6 +113,56 @@ const ChangesToolbar = ({
     );
 };
 
+/**
+ * Outside Working Tree: the commit or pull request being shown, and the uncommitted work the mode hides.
+ */
+const ChangesModeNotices = ({
+    mode,
+    onModeChange,
+    state,
+    theme,
+}: {
+    mode: ChangesMode;
+    onModeChange: (mode: ChangesMode) => void;
+    state: ChangesViewState;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const contextLine = state.snapshot ? changesContextLine(state.snapshot.contexts) : null;
+    const hiddenUncommitted =
+        mode === 'working' || state.isStale || state.error
+            ? 0
+            : (state.snapshot?.uncommittedCount ?? 0);
+    return (
+        <>
+            {contextLine ? (
+                <Text
+                    numberOfLines={1}
+                    style={[styles.context, { borderColor: theme.border, color: theme.muted }]}
+                    testID="changes-context"
+                >
+                    {contextLine}
+                </Text>
+            ) : null}
+            {hiddenUncommitted > 0 ? (
+                <NoticeBanner
+                    actionLabel={t('changes.showUncommitted')}
+                    message={t(
+                        hiddenUncommitted === 1
+                            ? 'changes.uncommittedHiddenOne'
+                            : 'changes.uncommittedHiddenOther',
+                        { count: hiddenUncommitted },
+                    )}
+                    onAction={() => onModeChange('working')}
+                    testID="changes-uncommitted"
+                    theme={theme}
+                    tone="muted"
+                />
+            ) : null}
+        </>
+    );
+};
+
 export const ChangesView = ({
     canAskAgent,
     mode,
@@ -134,8 +184,6 @@ export const ChangesView = ({
 }) => {
     const { t } = useTranslation();
     const isRepo = state.snapshot?.isRepository !== false;
-    const contextLine = state.snapshot ? changesContextLine(state.snapshot.contexts) : null;
-    const hiddenUncommitted = mode === 'working' ? 0 : (state.snapshot?.uncommittedCount ?? 0);
     return (
         <View style={styles.root} testID="changes-view">
             {isRepo ? (
@@ -147,30 +195,12 @@ export const ChangesView = ({
                     theme={theme}
                 />
             ) : null}
-            {contextLine ? (
-                <Text
-                    numberOfLines={1}
-                    style={[styles.context, { borderColor: theme.border, color: theme.muted }]}
-                    testID="changes-context"
-                >
-                    {contextLine}
-                </Text>
-            ) : null}
-            {hiddenUncommitted > 0 && !state.isStale && !state.error ? (
-                <NoticeBanner
-                    actionLabel={t('changes.showUncommitted')}
-                    message={t(
-                        hiddenUncommitted === 1
-                            ? 'changes.uncommittedHiddenOne'
-                            : 'changes.uncommittedHiddenOther',
-                        { count: hiddenUncommitted },
-                    )}
-                    onAction={() => onModeChange('working')}
-                    testID="changes-uncommitted"
-                    theme={theme}
-                    tone="muted"
-                />
-            ) : null}
+            <ChangesModeNotices
+                mode={mode}
+                onModeChange={onModeChange}
+                state={state}
+                theme={theme}
+            />
             {state.isStale ? (
                 <NoticeBanner
                     message={t('changes.staleNotice')}
