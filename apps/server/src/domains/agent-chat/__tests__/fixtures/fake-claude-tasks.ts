@@ -9,6 +9,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { FakeClaudeIo } from './fake-claude-io.ts';
+import { recordSubagent } from './fake-claude-subagent-transcript.ts';
+import {
+    workflowMemberTranscripts,
+    workflowProgress,
+    workflowRunRecord,
+} from './fake-claude-workflow.ts';
 
 type Json = Record<string, unknown>;
 
@@ -96,64 +102,6 @@ function endBackground(io: FakeClaudeIo, taskId: string, status: 'completed' | '
         usage: { total_tokens: 0, tool_uses: 0, duration_ms: 300 },
     });
     io.system('background_tasks_changed', { tasks: liveBackground() });
-}
-
-/**
- * Writes a subagent transcript the way Claude Code does, beside the session transcript.
- */
-/**
- * The model a subagent transcript records. A priced model, unlike the `fake-haiku` alias the tool call asks for, so the
- * task tab shows a cost.
- */
-const SUBAGENT_MODEL = 'claude-haiku-4-5';
-const SUBAGENT_RESPONSE_USAGE = {
-    input_tokens: 4,
-    output_tokens: 300,
-    cache_read_input_tokens: 20_000,
-    cache_creation_input_tokens: 2_000,
-};
-
-function recordSubagent(io: FakeClaudeIo, agentId: string, meta: Json, messages: Json[]) {
-    fs.mkdirSync(io.subagentDirectory, { recursive: true });
-    const base = path.join(io.subagentDirectory, `agent-${agentId}`);
-    fs.writeFileSync(`${base}.meta.json`, JSON.stringify(meta));
-    let parentUuid: string | null = null;
-    const timestamp = new Date().toISOString();
-    const lines = messages.map((record) => {
-        const uuid = crypto.randomUUID();
-        const type = typeof record.type === 'string' ? record.type : record.role;
-        const line = JSON.stringify({
-            parentUuid,
-            isSidechain: true,
-            agentId,
-            uuid,
-            timestamp,
-            type,
-            ...('local_command_run' in record && {
-                local_command_run: record.local_command_run,
-            }),
-            ...('local_command_source' in record && {
-                local_command_source: record.local_command_source,
-            }),
-            ...(type === 'system'
-                ? record
-                : {
-                      // Billed like a real subagent response, so the task tab can price the subagent from this file. A
-                      // mod's output is recorded as an assistant entry but is no model response, so it bills nothing.
-                      message:
-                          type === 'assistant' && !('local_command_run' in record)
-                              ? {
-                                    ...record,
-                                    model: SUBAGENT_MODEL,
-                                    usage: SUBAGENT_RESPONSE_USAGE,
-                                }
-                              : record,
-                  }),
-        });
-        parentUuid = uuid;
-        return line;
-    });
-    fs.writeFileSync(`${base}.jsonl`, `${lines.join('\n')}\n`);
 }
 
 export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
@@ -446,13 +394,17 @@ function startBackgroundShell(
 
 /**
  * A `Workflow` tool call, which returns at once while its `local_workflow` task runs in the background. Claude Code
- * names the task by the script's `meta.name` (`workflow_name`) and sets no `is_backgrounded` on it. The task reports
- * progress, then finishes on its own after `finishAfterMs`, or otherwise runs until `stop_task`.
+ * names the task by the script's `meta.name` (`workflow_name`) and sets no `is_backgrounded` on it. The tool result
+ * names the run's transcript folder (`subagents/workflows/<run id>`), where each member writes its conversation, and
+ * the task's `task_progress` frames carry `workflow_progress`. The run finishes on its own after `finishAfterMs`
+ * (writing its run record `workflows/<run id>.json`), or otherwise runs until `stop_task`.
  */
 function startWorkflow(io: FakeClaudeIo, startedAt: number, finishAfterMs?: number) {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     const taskId = `w${tasks.nextTaskId++}`;
+    const runId = `wf_${crypto.randomUUID().slice(0, 8)}-${taskId}`;
     const description = 'Review the change from three angles';
+    const runDirectory = path.join(io.subagentDirectory, 'workflows', runId);
     io.assistant(`msg_${crypto.randomUUID()}`, {
         type: 'tool_use',
         id: toolUseId,
@@ -468,19 +420,37 @@ function startWorkflow(io: FakeClaudeIo, startedAt: number, finishAfterMs?: numb
         task_type: 'local_workflow',
         workflow_name: 'review',
     });
-    io.toolResult(toolUseId, `Workflow launched in the background with ID: ${taskId}`);
+    io.toolResult(
+        toolUseId,
+        `Workflow launched in background. Task ID: ${taskId}\nSummary: ${description}\nTranscript dir: ${runDirectory}\nRun ID: ${runId}`,
+    );
     io.result(startedAt, 'done');
-    setTimeout(() => {
-        if (!tasks.background.has(taskId)) return;
+    for (const member of workflowMemberTranscripts(runId))
+        recordSubagent(io, member.agentId, member.meta, member.messages, runDirectory);
+    const progress = (step: 'running' | 'settled') =>
         io.system('task_progress', {
             task_id: taskId,
             tool_use_id: toolUseId,
             description,
             usage: { total_tokens: 900, tool_uses: 3, duration_ms: 50 },
             last_tool_name: 'Agent',
+            workflow_progress: workflowProgress(runId, step, startedAt),
         });
+    setTimeout(() => {
+        if (tasks.background.has(taskId)) progress('running');
     }, 30);
-    if (finishAfterMs) setTimeout(() => endBackground(io, taskId, 'completed'), finishAfterMs);
+    if (finishAfterMs)
+        setTimeout(() => {
+            if (!tasks.background.has(taskId)) return;
+            progress('settled');
+            const records = path.join(path.dirname(io.subagentDirectory), 'workflows');
+            fs.mkdirSync(records, { recursive: true });
+            fs.writeFileSync(
+                path.join(records, `${runId}.json`),
+                JSON.stringify(workflowRunRecord(runId, taskId, startedAt, finishAfterMs)),
+            );
+            endBackground(io, taskId, 'completed');
+        }, finishAfterMs);
 }
 
 /**

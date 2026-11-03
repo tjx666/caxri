@@ -120,10 +120,32 @@ function claudeToolCallFields(
     return { name: clip(name, 200), ...fields };
 }
 
+/**
+ * The name a `Workflow` call runs under: its script's `meta.name`, the saved script it reruns (`<name>-<run id>.js`),
+ * or a named workflow. The script itself is far too long for a row title.
+ */
+function workflowSummary(input: Json): string | undefined {
+    const script = stringField(input.script);
+    const metaName = script && /\bname\s*:\s*['"`]([^'"`\n]{1,200})['"`]/u.exec(script)?.[1];
+    if (metaName) return metaName;
+    const scriptPath = stringField(input.scriptPath);
+    const file = scriptPath
+        ?.split(/[/\\]/u)
+        .at(-1)
+        ?.replace(/(?:-wf_[\w-]+)?\.[cm]?js$/u, '');
+    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty file name names nothing
+    return file || stringField(input.name);
+}
+
 function genericToolCallFields(name: string, input: Json): { summary?: string; input?: string } {
     if (name.startsWith('mcp__')) {
         const summary = mcpArgumentsSummary(input, 1_000);
         return summary ? { summary } : {};
+    }
+    if (name === 'Workflow') {
+        const workflow = workflowSummary(input);
+        const preview = jsonPreview(input);
+        return { ...(workflow && { summary: workflow }), ...(preview && { input: preview }) };
     }
     const sendMessage = name === 'SendMessage' ? sendMessageSummary(input) : undefined;
     const subject = sendMessage ? undefined : subjectField(input);

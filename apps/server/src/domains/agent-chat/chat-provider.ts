@@ -307,6 +307,11 @@ export interface ChatTaskHistory {
      */
     taskId: string;
     operations: AgentChatTaskPatchOperation[];
+    /**
+     * Set for a record the provider keeps writing while Caxri cannot stream it (a Claude workflow member's transcript):
+     * the read is answered from it every time instead of being kept as the task's projection.
+     */
+    isLive?: boolean;
 }
 
 /**

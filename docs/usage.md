@@ -123,7 +123,9 @@ from its own scan.
 
 A Claude subagent's task tab shows that subagent's own share the same way (`terminal.agentTaskUsage`): the scan keeps
 each side file's usage apart as it folds it in, and `subagents/agent-<id>.meta.json` names the spawning tool call, which
-is the Chat's task id. A unit the side file repeats from its parent stays with the parent, so the subagents never add
+is the Chat's task id. A Claude workflow member's file under `subagents/workflows/<runId>/` is priced under its
+member task id (`workflow:<runId>:<agentId>`), so the workflow tab can show each member's cost; the run journal beside
+them is not a transcript and is skipped. A unit the side file repeats from its parent stays with the parent, so the subagents never add
 up to more than the conversation. These tokens replace the `total_tokens` Claude Code reports for the task, which is
 only its latest request's context plus output. Codex and Grok Build keep no per-subagent transcript, so their task
 tabs show the provider's count and no cost.

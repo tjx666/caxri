@@ -36,6 +36,7 @@ import {
 import { agentChatDelegatedTaskSchema } from './delegation/agent-delegated-task.js';
 import { agentChatPathTargetSchema } from './path-targets/agent-chat-path-targets.js';
 import { agentChatWebSourcesSchema } from './web-sources/agent-chat-web-source-schema.js';
+import { agentChatWorkflowSchema } from './workflow/agent-chat-workflow-contract.js';
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
@@ -331,9 +332,9 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
 ]);
 
 /**
- * One piece of background work the Agent started: a subagent or a background shell. The Chat lists it so the user can
- * open its own tab (`agentChat.readTask`) and stop it (`agentChat.stopTask`). `id` is Caxri's stable key; `itemId`
- * links the timeline row that started it.
+ * One piece of background work the Agent started: a subagent, a workflow run of subagents, or a background shell. The
+ * Chat lists it so the user can open its own tab (`agentChat.readTask`) and stop it (`agentChat.stopTask`). `id` is
+ * Caxri's stable key; `itemId` links the timeline row that started it.
  */
 export const agentChatTaskSchema = z.strictObject({
     id: z.string().min(1).max(200),
@@ -373,6 +374,11 @@ export const agentChatTaskSchema = z.strictObject({
      * Whether the provider can stop this task on its own, without ending the turn or the Chat.
      */
     canStop: z.boolean(),
+    /**
+     * Set on an `agent` task that is a workflow run rather than one subagent: its phases and members as the provider
+     * last reported them.
+     */
+    workflow: agentChatWorkflowSchema.optional(),
 });
 
 /**

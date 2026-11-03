@@ -147,6 +147,13 @@ describe('documentTabPresentation', () => {
             icon: 'agent-task',
             label: 'Subagent',
         });
+        expect(
+            documentTabPresentation(
+                path,
+                { task: { kind: 'agent', title: 'review', isWorkflow: true } },
+                translate,
+            ),
+        ).toMatchObject({ icon: 'workflow-task', label: 'review' });
     });
 
     it('labels an Agent Chat turn review as the turn changes, with the changes glyph', () => {

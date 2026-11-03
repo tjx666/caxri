@@ -33,9 +33,9 @@ import { USAGE_RECORD_VERSION } from './record';
  */
 const MAX_DIRECTORY_ENTRIES = 8_192;
 /**
- * Upper bound on Claude subagent side files folded into one Agent Session.
+ * Upper bound on Claude subagent side files folded into one Agent Session, workflow members included.
  */
-const MAX_SIDE_FILES = 256;
+const MAX_SIDE_FILES = 1_024;
 /**
  * How long a Claude conversation that no project directory holds is not searched for again, unless the projects
  * directory itself changes. A pruned transcript never returns; a conversation resumed under a new working directory
@@ -56,7 +56,8 @@ export interface UsageTranscriptFiles {
      */
     earlier: AgentTranscriptLocation[];
     /**
-     * Claude subagent transcripts (`<conversation>/subagents/*.jsonl`): billed tokens without their own Agent Session.
+     * Claude subagent transcripts (`<conversation>/subagents/*.jsonl`, and a workflow run's members under
+     * `subagents/workflows/<run id>/`): billed tokens without their own Agent Session.
      */
     side: AgentTranscriptLocation[];
     /**
@@ -199,16 +200,38 @@ export class UsageTranscriptLocator {
     ): Promise<AgentTranscriptLocation[]> {
         const conversationRoot = join(main.root, basename(main.path, '.jsonl'));
         const root = join(conversationRoot, 'subagents');
+        /**
+         * A run folder also holds the run's `journal.jsonl`, which bills nothing.
+         */
+        const transcripts = (
+            baseRoot: string,
+            directory: string,
+            names: readonly string[],
+            prefix = '',
+        ) =>
+            names
+                .filter((name) => name.endsWith('.jsonl') && name.startsWith(prefix))
+                .map((name) => ({ baseRoot, root: directory, path: join(directory, name) }));
         const names = await listDirectory(root);
-        return names
-            .filter((name) => name.endsWith('.jsonl'))
-            .toSorted((a, b) => a.localeCompare(b))
+        // A workflow run's members write theirs one level down, `subagents/workflows/<run id>/agent-<id>.jsonl`.
+        const workflows = join(root, 'workflows');
+        const runs = names.includes('workflows')
+            ? (await listDirectory(workflows)).filter((name) => /^[\w-]{1,100}$/u.test(name))
+            : [];
+        const members = await Promise.all(
+            runs.map(async (run) => {
+                const directory = join(workflows, run);
+                return transcripts(workflows, directory, await listDirectory(directory), 'agent-');
+            }),
+        );
+        // `resolveSafeAgentTranscriptPath` keeps each file a direct child of its root and that root a direct child of
+        // its base, so a member's base is the `workflows` folder rather than the conversation folder.
+        return [...transcripts(conversationRoot, root, names), ...members.flat()]
+            .toSorted((a, b) => a.path.localeCompare(b.path))
             .slice(0, MAX_SIDE_FILES)
-            .map((name) => ({
+            .map((file) => ({
                 anchorRoot: dirname(main.root),
-                baseRoot: conversationRoot,
-                root,
-                path: join(root, name),
+                ...file,
             }));
     }
 

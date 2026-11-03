@@ -1,7 +1,7 @@
-import { CodeView } from '../../../components/markdown/code-view';
-import { useTranslation } from '../../../i18n';
-import { useAgentChatScroll } from '../hooks/use-agent-chat-scroll';
-import { AgentChatJumpToLatest } from '../transcript/agent-chat-jump-to-latest';
+import { CodeView } from '../../../../components/markdown/code-view';
+import { useTranslation } from '../../../../i18n';
+import { useAgentChatScroll } from '../../hooks/use-agent-chat-scroll';
+import { AgentChatJumpToLatest } from '../../transcript/agent-chat-jump-to-latest';
 
 /**
  * A background shell's output tail in the shared code block (soft-wrap toggle, Copy) that follows new output while the

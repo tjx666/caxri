@@ -26,6 +26,7 @@ const TOOL_LABEL_KEYS: Readonly<Record<string, AgentChatLabelKey>> = {
     'Fetched': 'agentChat.tool.label.fetched',
     'Searched the web': 'agentChat.tool.label.searchedWeb',
     'Ran agent': 'agentChat.tool.label.ranAgent',
+    'Ran workflow': 'agentChat.tool.label.ranWorkflow',
     'Started agent': 'agentChat.tool.label.startedAgent',
     'Messaged agent': 'agentChat.tool.label.messagedAgent',
     'Closed agent': 'agentChat.tool.label.closedAgent',

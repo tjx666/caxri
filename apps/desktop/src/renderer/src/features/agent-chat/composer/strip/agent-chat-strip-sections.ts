@@ -5,7 +5,7 @@ import type {
     AgentChatSnapshot,
     AgentChatTask,
 } from '@caxri/protocol';
-import { agentChatPlanProgress, agentChatTaskStrip } from '@caxri/protocol';
+import { agentChatPlanProgress, agentChatTaskStrip, hasAgentChatTaskFailed } from '@caxri/protocol';
 
 import type { Translate } from '../../../../i18n';
 
@@ -64,7 +64,7 @@ export function agentChatBackgroundWork({
 }): AgentChatBackgroundWork | undefined {
     const { running, ended: allEnded } = agentChatTaskStrip(tasks);
     const isUnseenFailure = (task: AgentChatTask): boolean =>
-        task.status === 'failed' &&
+        hasAgentChatTaskFailed(task) &&
         !seenFailureIds.has(task.id) &&
         (latestTurnStartedAt === undefined || (task.endedAt ?? 0) >= latestTurnStartedAt);
     const failed = allEnded.filter((task) => isUnseenFailure(task));

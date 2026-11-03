@@ -10,6 +10,17 @@ import {
 import { settleClaudeToolItem } from '../tool-results';
 
 describe('Claude item mapping', () => {
+    it('names a Workflow row by its script, not the script text', () => {
+        const row = (input: Record<string, unknown>) =>
+            mapClaudeToolUse({ id: 'w1', name: 'Workflow', input }, 'turn');
+        expect(
+            row({ script: "export const meta = {\n  name: 'delegation-repair',\n  phases: []\n}" }),
+        ).toMatchObject({ type: 'toolCall', name: 'Workflow', summary: 'delegation-repair' });
+        expect(
+            row({ scriptPath: '/c/p/s/workflows/scripts/sidebar-wf_d6c8ffdb-1cc.js' }),
+        ).toMatchObject({ summary: 'sidebar' });
+    });
+
     it('maps tools to command, file change, and generic tool rows, hiding the plan and question tools', () => {
         expect(
             mapClaudeToolUse({ id: 't1', name: 'Bash', input: { command: 'ls' } }, 'turn'),

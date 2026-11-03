@@ -512,7 +512,14 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`. A workflow
   (the `Workflow` tool's `local_workflow` task, which runs in the background) is listed as a
   stoppable background `agent` task keyed by its tool use id and titled by its script's
-  `workflow_name`, or `Workflow` without one; the agents inside it are not listed. Its frames follow
+  `workflow_name`, or `Workflow` without one. The task carries a `workflow` view
+  (`packages/protocol/src/agent/workflow/agent-chat-workflow-contract.ts`): phases, members with
+  their status, agent type, latest tool step, result or error, and the run's result or script error.
+  It is built from `workflow_progress` in `task_progress` frames while the run is live and from the
+  run record `<session>/workflows/<runId>.json` once it ends; a run whose record never appeared
+  (stopped early) reads as interrupted. A member opens under `workflow:<runId>:<agentId>`, read from
+  `<session>/subagents/workflows/<runId>/agent-<id>.jsonl`. Workflow reads are always rebuilt
+  (`isLive`), never cached, so a finished run's result shows without a restart. Its frames follow
   the SDK's types and have not yet been captured from a real CLI.
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
@@ -549,7 +556,14 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   360px, and a Chat pane too narrow for a 420px Chat plus that minimum opens it as an ordinary tab
   (`features/agent-chat/tasks/beside-chat-layout.ts`); an item already open as a tab is focused
   there instead of opening in the Portal. A subagent view is a read-only
-  timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
+  timeline with its title, type, model, status, and Stop; a workflow view heads with done/total
+  subagents, failed and interrupted counts, cost, and tokens (tokens drop when narrow), pins the
+  run's result or a copyable script error, and lists collapsible phases (running and failed ones
+  open, ended ones folded with their duration, unstarted ones `Not started`) whose member rows open
+  that member's conversation with back, previous/next, and Stop workflow; an interrupted run offers
+  `Ask the Agent to continue`, which only fills the draft. In the strip a running workflow shows its
+  current phase's progress, an ended one done/total, and a run that ended with a failed member stays
+  in the failure area. A shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
   in the composer strip's collapsible Background work section, headed `Background work N` and, folded, by the latest
   task to start (`agentChatBackgroundWorkFoldedTask`), where each opens or stops on its own, and an `Ended N` button in

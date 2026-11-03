@@ -4,6 +4,7 @@ import type {
     UsageLimit,
     UsageResetCredits,
 } from '@caxri/protocol';
+import { agentChatWorkflowMemberTaskId } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
@@ -17,6 +18,9 @@ import type { ModelPriceLookup } from './summary';
 import { summarizeUsage } from './summary';
 
 const MAX_LIVE_SCANS = 32;
+
+const WORKFLOW_MEMBER_FILE =
+    /[/\\]subagents[/\\]workflows[/\\]([\w-]+)[/\\]agent-([\w-]+)\.jsonl$/u;
 /**
  * Subagent side files whose spawning tool call is remembered; well above the side files of the conversations in view.
  */
@@ -127,6 +131,10 @@ export class LiveAgentUsage {
     private async sideFileOwner(path: string): Promise<string | undefined> {
         const known = this.sideFileOwners.get(path);
         if (known) return known;
+        // A workflow member is keyed by its run and agent ids, which its path carries.
+        const member = WORKFLOW_MEMBER_FILE.exec(path);
+        const memberTaskId = member && agentChatWorkflowMemberTaskId(member[1], member[2]);
+        if (memberTaskId) return memberTaskId;
         const owner = await readClaudeSubagentToolUseId(path.replace(/\.jsonl$/, '.meta.json'));
         if (owner) rememberBounded(this.sideFileOwners, path, owner, MAX_SIDE_FILE_OWNERS);
         return owner;
