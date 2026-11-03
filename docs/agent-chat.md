@@ -603,6 +603,10 @@ only; the PTY surface and Grok never get them.
   own: only a Session with a top-level row does, so a subagent of a delegated Session appears once
   the user opens that Session. The setting `primarySidebar.showSubagents` does not hide nested
   Sessions.
+- The same delegated work shows inside the Chat: a Delegated Sessions section in the composer strip,
+  `Delegated to` records in the timeline that stay in view when the turn folds, and in the child's
+  Chat an origin row and a `You took over` divider. See
+  [Chat surfaces](agent-delegation.md#chat-surfaces). Caxri Bot and Benchmark windows show none.
 
 ## Follow-up queue
 

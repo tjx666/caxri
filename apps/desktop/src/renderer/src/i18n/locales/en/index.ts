@@ -13,6 +13,7 @@ import { caxriBot } from './caxri-bot';
 import { common } from './common';
 import { confirmations } from './confirmations';
 import { core } from './core';
+import { delegation } from './delegation';
 import { editor } from './editor';
 import { environment } from './environment';
 import { gpu } from './gpu';
@@ -62,6 +63,7 @@ export const enResources = {
     ...common,
     ...confirmations,
     ...core,
+    ...delegation,
     ...editor,
     ...environment,
     ...gpu,

@@ -59,3 +59,19 @@ export function parseDelegatedTaskPointer(
         return undefined;
     }
 }
+
+/**
+ * Most delegations one command item records.
+ */
+export const MAX_COMMAND_DELEGATIONS = 8;
+
+/**
+ * The delegations a Chat command created: the task and the Session it runs in. IDs only, so the stamp is safe in
+ * projections, history, and fixtures.
+ */
+export const agentChatCommandDelegationsSchema = z
+    .array(z.strictObject({ delegationId: identifierSchema, sessionId: identifierSchema }))
+    .min(1)
+    .max(MAX_COMMAND_DELEGATIONS);
+
+export type AgentChatCommandDelegation = z.infer<typeof agentChatCommandDelegationsSchema>[number];

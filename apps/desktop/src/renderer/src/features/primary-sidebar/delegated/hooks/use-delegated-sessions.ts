@@ -2,14 +2,14 @@ import { useMemo } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
+import { delegationFeedCreatorIdChunks } from '../../../delegation/delegation-feed';
+import type { DelegationFeed } from '../../../delegation/hooks/use-delegation-feed';
+import { useDelegationFeed } from '../../../delegation/hooks/use-delegation-feed';
 import type { DelegatedPlacement } from '../delegated-placement';
 import { nestedHostId, nestedSessions, selectedHostFallbackRowIds } from '../delegated-placement';
-import { delegationFeedCreatorIdChunks } from '../delegation-feed';
 import type { DelegatedChildrenModel } from './use-delegated-children';
 import { useDelegatedChildren } from './use-delegated-children';
 import { useDelegatedPlacement } from './use-delegated-placement';
-import type { DelegationFeed } from './use-delegation-feed';
-import { useDelegationFeed } from './use-delegation-feed';
 
 export interface DelegatedSessionsModel {
     children: DelegatedChildrenModel;

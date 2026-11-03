@@ -19,6 +19,7 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
+import { isDelegationRecordItem } from '../delegation/agent-chat-delegation-records';
 import { agentChatMessageFullTime } from './agent-chat-time';
 
 /**
@@ -214,7 +215,8 @@ function foldTurn(
     finalReplyId: string | undefined,
 ): AgentChatTimelineEntry[] {
     const visible = items.filter((item) => isAgentChatItemVisible(item));
-    const parts = foldAgentChatTurn(visible, finalReplyId);
+    // A command that delegated work stays in view as its record; the phone does not pass this and folds it away.
+    const parts = foldAgentChatTurn(visible, finalReplyId, isDelegationRecordItem);
     const steerReplies = agentChatSteerReplyThoughtIds(visible);
     const entries: AgentChatTimelineEntry[] = parts.every((part) => part.kind === 'kept')
         ? groupWork(visible, finalReplyId, false, steerReplies)

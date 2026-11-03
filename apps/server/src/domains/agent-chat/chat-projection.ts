@@ -31,6 +31,9 @@ import {
 import { ChatHistoryArchive } from './history/archive';
 import { chatHistoryIdentity, isSameChatHistory } from './history/replay-identity';
 import { ChatPathTargets } from './path-targets/path-targets';
+import type { CommandDelegationSource } from './stamps/command-delegations';
+import { CommandDelegationStamper } from './stamps/command-delegations';
+import { stampNewItems, stampStoppedTurns } from './stamps/item-stamps';
 import { ChatTaskProjections } from './tasks/projections';
 
 /**
@@ -63,6 +66,11 @@ interface ChatProjectionOptions {
      */
     delegatedTask(delegationId: string): DelegatedTaskDetails;
     /**
+     * The tasks this Chat's Terminal created, for the command items that made them; see
+     * {@link CommandDelegationStamper}.
+     */
+    commandDelegations?: CommandDelegationSource;
+    /**
      * The title of the Caxri Session an Agent Session ID belongs to; see {@link ChatPathTargets}.
      */
     sessionTitle?(agentSessionId: string): string | undefined;
@@ -93,57 +101,6 @@ interface AnsweredNoticeStore {
     load(): readonly AnsweredNoticeEntry[];
     save(notice: AgentChatItem, after: string | undefined): void;
     remove(itemIds: readonly string[]): void;
-}
-
-/**
- * Stamps `createdAt` on each item that enters the projection live, so the transcript can say when a message was sent or
- * answered. Every provider rebuilds history as one batch led by `reset`, and an item after that `reset` is a replay
- * whose real time is long past: it keeps whatever time its provider recorded, or none, rather than the time of the
- * replay. Later upserts of a stamped item inherit the stamp in the shared reducer.
- */
-export function stampNewItems(
-    snapshot: AgentChatSnapshot,
-    operations: readonly AgentChatPatchOperation[],
-    now: number,
-): readonly AgentChatPatchOperation[] {
-    if (operations.some((operation) => operation.op === 'reset')) return operations;
-    const known = new Set(snapshot.items.map((item) => item.id));
-    let stamped: AgentChatPatchOperation[] | undefined;
-    for (const [index, operation] of operations.entries()) {
-        if (operation.op !== 'upsertItem') continue;
-        const { item } = operation;
-        if (item.createdAt === undefined && !known.has(item.id)) {
-            stamped ??= [...operations];
-            stamped[index] = { op: 'upsertItem', item: { ...item, createdAt: now } };
-        }
-        known.add(item.id);
-    }
-    return stamped ?? operations;
-}
-
-/**
- * Names who stopped each interrupted turn Caxri was asked to stop. No provider reports who interrupted a turn, so the
- * Server Core that relayed the Stop remembers it by turn id and stamps it whenever that turn arrives `interrupted`,
- * including in a later history replay of the same Chat.
- */
-export function stampStoppedTurns(
-    operations: readonly AgentChatPatchOperation[],
-    stops: ReadonlyMap<string, NonNullable<AgentChatTurn['stoppedBy']>>,
-): readonly AgentChatPatchOperation[] {
-    if (stops.size === 0) return operations;
-    return operations.map((operation) => {
-        if (operation.op !== 'state' || !operation.state.turns) return operation;
-        const original = operation.state.turns;
-        const turns = original.map((turn) => {
-            const stoppedBy = stops.get(turn.id);
-            if (!stoppedBy || turn.status !== 'interrupted' || turn.stoppedBy === stoppedBy)
-                return turn;
-            return { ...turn, stoppedBy };
-        });
-        return turns.some((turn, index) => turn !== original[index])
-            ? { ...operation, state: { ...operation.state, turns } }
-            : operation;
-    });
 }
 
 /**
@@ -242,6 +199,10 @@ export class ChatProjection {
      * Names background shell output files and Agent conversation records that rows read or search.
      */
     private readonly pathTargets: ChatPathTargets;
+    /**
+     * Marks the commands that created a delegation; absent when no delegation records are available.
+     */
+    private readonly commandDelegations: CommandDelegationStamper | undefined;
     snapshot: AgentChatSnapshot;
     /**
      * Subagent conversations and background shell output, each with its own revisions.
@@ -256,6 +217,9 @@ export class ChatProjection {
         this.pathTargets = new ChatPathTargets((agentSessionId) =>
             options.sessionTitle?.(agentSessionId),
         );
+        this.commandDelegations = options.commandDelegations
+            ? new CommandDelegationStamper(options.commandDelegations)
+            : undefined;
         this.snapshot = {
             ...emptyAgentChatSnapshot(options.terminalId),
             revision: options.revision,
@@ -444,6 +408,16 @@ export class ChatProjection {
         });
     }
 
+    /**
+     * Marks the path targets and the delegations of the command items in `operations`.
+     */
+    private stampTargets(
+        operations: readonly AgentChatPatchOperation[],
+    ): readonly AgentChatPatchOperation[] {
+        const targeted = this.pathTargets.stamp(operations);
+        return this.commandDelegations?.stamp(targeted) ?? targeted;
+    }
+
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
@@ -460,7 +434,7 @@ export class ChatProjection {
         );
         observeGuardStops(timed, isHistoryReplay, this.options.usageLimitWaits);
         const stamped = stampUsageContinuations(
-            stampDelegatedTasks(this.pathTargets.stamp(timed), (delegationId) =>
+            stampDelegatedTasks(this.stampTargets(timed), (delegationId) =>
                 this.options.delegatedTask(delegationId),
             ),
             (turnId) => this.options.usageContinuedIn?.(turnId),

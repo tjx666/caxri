@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import type { AgentProviderCatalogEntry } from '@caxri/protocol';
 
@@ -236,7 +236,6 @@ function AgentChatPaneContent({
         stopFollowing,
         mountAll,
     );
-    const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
@@ -294,7 +293,7 @@ function AgentChatPaneContent({
                     agentSessionId={terminal?.agentSessionId}
                     contentReference={contentReference}
                     focusComposer={focusComposer}
-                    hasUnsearchedHistory={history.hasMore || history.history.truncated}
+                    hasUnsearchedHistory={history.hasEarlier}
                     earlierStatus={history.history.status}
                     loadEarlier={history.hasMore ? history.loadOlder : undefined}
                     onOpen={mountAll}
@@ -349,10 +348,11 @@ function AgentChatPaneContent({
                                             pending.timeline.length === 0 &&
                                             isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
                                         }
+                                        isHistoryComplete={!history.hasEarlier}
                                         mcpServers={snapshot?.mcpServers}
                                         mountedFrom={mountedFrom}
                                         pending={pending}
-                                        readBackHistory={readBackHistory}
+                                        canFork={canFork}
                                         settledChunks={settledChunks}
                                         terminalId={terminalId}
                                         timeline={timeline}
@@ -393,7 +393,7 @@ function AgentChatPaneContent({
                     />
                     <AgentChatMessageRail
                         activeIndex={rail.activeIndex}
-                        hasEarlierHistory={history.hasMore || history.history.truncated}
+                        hasEarlierHistory={history.hasEarlier}
                         marks={railMarks}
                         onJump={rail.jumpTo}
                     />

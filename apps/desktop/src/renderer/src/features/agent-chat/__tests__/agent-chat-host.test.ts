@@ -10,6 +10,7 @@ describe('agentChatHostCapabilities', () => {
             canSaveProjectDefault: true,
             canOpenContext: true,
             canContinueInAgent: true,
+            canShowDelegatedSessions: true,
         });
     });
 
@@ -24,6 +25,13 @@ describe('agentChatHostCapabilities', () => {
             canSaveProjectDefault: false,
             canOpenContext: false,
         });
+    });
+
+    /**
+     * Main's Caxri Bot policy refuses the Delegated Sessions reads, so the window neither draws the strip nor asks.
+     */
+    it('shows no delegated Sessions in the Caxri Bot window', () => {
+        expect(agentChatHostCapabilities('bot').canShowDelegatedSessions).toBe(false);
     });
 
     /**

@@ -45,6 +45,7 @@ const githubPullRequestSchema = z.object({
     mergeStateStatus: z.string().optional(),
     mergeCommit: z.object({ oid: z.string() }).nullish(),
     mergedAt: z.string().nullish(),
+    changedFiles: z.number().int().nonnegative().optional(),
     state: z.string().optional(),
     number: z.number().int().positive().optional(),
     statusCheckRollup: z.array(githubCheckSchema).optional(),
@@ -249,6 +250,10 @@ export function parseGitHubPullRequest(
      * unparsable.
      */
     mergedAt?: number;
+    /**
+     * How many files the whole pull request changes; absent when GitHub did not report it.
+     */
+    changedFiles?: number;
 } {
     const raw = parseExternalJson(value, githubPullRequestSchema, 'GitHub pull request');
     if (!raw.number || !raw.title || !raw.url) return { body: raw.body ?? '' };
@@ -275,6 +280,7 @@ export function parseGitHubPullRequest(
                 ? raw.mergeCommit?.oid
                 : undefined,
         ...(mergedAt !== undefined && { mergedAt }),
+        ...(raw.changedFiles !== undefined && { changedFiles: raw.changedFiles }),
         pullRequest: {
             number: raw.number,
             title: raw.title,

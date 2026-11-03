@@ -89,6 +89,8 @@ export function createAgentCommandRuntime(
             chatOf(terminalId)?.delegation.turnAnswer(terminalId, turnId),
         chatStep: (terminalId) =>
             delegationChatStep(chatOf(terminalId)?.delegation.snapshot(terminalId)),
+        callerTurnId: (terminalId) =>
+            chatOf(terminalId)?.delegation.snapshot(terminalId)?.activeTurnId,
         /**
          * The provider's limit notice on the failed turn and the weekly usage guard of its account, combined by
          * {@link laterResetTime}.

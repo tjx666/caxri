@@ -272,6 +272,27 @@ describe('Codex Chat with scripted fake turns', () => {
 });
 
 describe('Scripted fake Codex validation', () => {
+    it('accepts a shell-run command step and a prefix turn, and rejects non-boolean flags', () => {
+        const parsed = parseFakeCodexScript({
+            turns: [
+                {
+                    prompt: 'Read the task from ',
+                    isPrefix: true,
+                    steps: [{ kind: 'command', command: 'true', output: '', shouldRun: true }],
+                },
+            ],
+        });
+        expect(parsed.turns[0]).toMatchObject({
+            isPrefix: true,
+            steps: [{ kind: 'command', shouldRun: true }],
+        });
+        expect(() =>
+            parseFakeCodexScript({
+                turns: [{ prompt: 'p', isPrefix: 'yes', steps: [] }],
+            }),
+        ).toThrow('isPrefix');
+    });
+
     it('names the field of a malformed script', () => {
         const turn = (steps: unknown) => ({ turns: [{ prompt: 'p', steps }] });
         expect(() => parseFakeCodexScript({ turns: [] })).toThrow(

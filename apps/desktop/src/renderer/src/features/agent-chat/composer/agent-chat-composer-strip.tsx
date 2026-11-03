@@ -5,6 +5,9 @@ import type { AgentChatActivity, AgentChatQueuedMessage, AgentChatSnapshot } fro
 import { useTranslation } from '../../../i18n';
 import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
 import type { AgentChatWorkingActivity } from '../activity/agent-chat-goal-row';
+import { AgentChatDelegatedSessionsSection } from '../delegation/agent-chat-delegated-sessions-section';
+import { AgentChatDelegationOriginRow } from '../delegation/agent-chat-delegation-origin-row';
+import { useCanShowDelegatedSessions } from '../delegation/hooks/use-can-show-delegated-sessions';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatBackgroundWorkSection } from './strip/agent-chat-background-work-section';
@@ -22,9 +25,10 @@ import {
  * from the draft. Everything that waits above the input stacks in it as hairline-divided rows rather than separate
  * cards, as LobeHub's input trays and T3 Code's composer drawer do: the goal, the Agent's plan and its background work
  * as collapsible lists (so both are visible without opening anything, the way Claude Code's TUI lists them above its
- * prompt), queued messages, then the composer's own rows (`children`: the status row nearest the input, since it
- * changes most often, the edit bar, and the context notices). Its last row's hairline overlaps the card's top border;
- * with no row it collapses to `contents`, keeping the live regions announced without drawing an empty tab.
+ * prompt), the Sessions it delegated work to, queued messages, then the composer's own rows (`children`: the status row
+ * nearest the input, since it changes most often, the edit bar, and the context notices). Its last row's hairline
+ * overlaps the card's top border; with no row it collapses to `contents`, keeping the live regions announced without
+ * drawing an empty tab.
  */
 export function AgentChatComposerStrip({
     activeTurnId,
@@ -32,6 +36,7 @@ export function AgentChatComposerStrip({
     children,
     goalActivity,
     isQueuePaused,
+    isShown,
     isTurnRunning,
     pendingQueue,
     queue,
@@ -49,6 +54,11 @@ export function AgentChatComposerStrip({
      */
     goalActivity: AgentChatWorkingActivity | undefined;
     isQueuePaused: boolean;
+    /**
+     * Whether this Chat is on screen. The Delegated Sessions section reads a live feed, so a kept-alive Chat in the
+     * background mounts none and the progress events cost only the Chat being looked at.
+     */
+    isShown: boolean;
     isTurnRunning: boolean;
     pendingQueue: readonly AgentChatPendingMessage[];
     queue: readonly AgentChatQueuedMessage[] | undefined;
@@ -67,6 +77,7 @@ export function AgentChatComposerStrip({
     onQueueEdit: (text: string) => void;
 }) {
     const { t } = useTranslation();
+    const canShowDelegated = useCanShowDelegatedSessions();
     const plan = agentChatPlanSection({ activity, plan: snapshot?.plan });
     const work = agentChatBackgroundWork({
         latestTurnStartedAt: agentChatLatestTurnStart(snapshot),
@@ -88,6 +99,7 @@ export function AgentChatComposerStrip({
                 {work && agentChatBackgroundWorkCounts(work, t).join(', ')}
             </span>
             <div className="max-h-64 overflow-y-auto">
+                <AgentChatDelegationOriginRow terminalId={terminalId} />
                 <AgentChatGoalBar
                     goal={snapshot?.goal}
                     goalUsage={snapshot?.goalUsage}
@@ -109,6 +121,9 @@ export function AgentChatComposerStrip({
                         work={work}
                         onOpenTask={onOpenTask}
                     />
+                )}
+                {isShown && canShowDelegated && (
+                    <AgentChatDelegatedSessionsSection terminalId={terminalId} />
                 )}
                 <AgentChatQueueList
                     isTurnRunning={isTurnRunning}

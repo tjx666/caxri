@@ -28,6 +28,15 @@ describe('mobile role capabilities', () => {
         expect(missing).toEqual([]);
     });
 
+    it("never allow the owner-only Delegated Sessions reads, which carry other Sessions' results", () => {
+        for (const role of ['view', 'reply', 'control'] as const)
+            for (const method of [
+                'agent.delegation.sessions',
+                'agent.delegation.statuses',
+            ] as const)
+                expect(isMobileGatewayMethodAllowedForRole(role, method)).toBe(false);
+    });
+
     it('match the per-role grants table in docs/mobile/authorization.md', async () => {
         const document = await readFile(
             join(import.meta.dirname, '../../../../../../docs/mobile/authorization.md'),

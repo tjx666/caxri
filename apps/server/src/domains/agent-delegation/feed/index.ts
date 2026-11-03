@@ -6,4 +6,4 @@ export {
     recordDelegationResult,
     shouldReportDelegationResult,
 } from './session-result';
-export { delegationSessions } from './sessions';
+export { delegationSessions, delegationStatuses } from './sessions';

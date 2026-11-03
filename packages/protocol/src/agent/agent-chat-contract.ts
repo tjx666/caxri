@@ -34,7 +34,10 @@ import {
     agentChatUsageGuardSchema,
     agentChatUsageLimitSchema,
 } from './agent-usage-continuation.js';
-import { agentChatDelegatedTaskSchema } from './delegation/agent-delegated-task.js';
+import {
+    agentChatCommandDelegationsSchema,
+    agentChatDelegatedTaskSchema,
+} from './delegation/agent-delegated-task.js';
 import { agentChatPathTargetSchema } from './path-targets/agent-chat-path-targets.js';
 import { agentChatWebSourcesSchema } from './web-sources/agent-chat-web-source-schema.js';
 import { agentChatWorkflowSchema } from './workflow/agent-chat-workflow-contract.js';
@@ -178,6 +181,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          */
         taskId: z.string().min(1).max(200).optional(),
         pathTarget: agentChatPathTargetSchema.optional(),
+        /**
+         * The delegations this command created, set by Server Core from the delegation records of this Chat's own
+         * Terminal; IDs only. A Client draws one record row per entry, reading each task's state by `delegationId`.
+         */
+        delegations: agentChatCommandDelegationsSchema.optional(),
         status: agentChatItemStatusSchema,
         /**
          * Bounded tail of the combined command output.

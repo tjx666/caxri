@@ -4,8 +4,8 @@ import type { AgentDelegationSession, MethodResult } from '@caxri/protocol';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { keepPreviousData, useQueries } from '@tanstack/react-query';
 
-import { caxri } from '../../../../lib/caxri';
-import { caxriQueryKey } from '../../../../queries/client';
+import { caxri } from '../../../lib/caxri';
+import { caxriQueryKey } from '../../../queries/client';
 import { failedDelegationSessionIds } from '../delegation-feed';
 
 /**
@@ -34,6 +34,10 @@ function combineDelegationFeeds(
 
 export interface DelegationFeed {
     /**
+     * Every entry the reads returned, in the order the Server listed them (newest Session first within one creator).
+     */
+    entries: readonly AgentDelegationSession[];
+    /**
      * Each nested Session's delegation state, keyed by Session id, for the detail the row shows beyond its status.
      */
     entriesBySessionId: ReadonlyMap<string, AgentDelegationSession>;
@@ -43,18 +47,31 @@ export interface DelegationFeed {
     failedSessionIds: ReadonlySet<string>;
 }
 
+export interface DelegationFeedOptions {
+    /**
+     * False asks nothing: a window that cannot show another Session (the Caxri Bot and Benchmark windows, whose
+     * policies refuse the read) never issues the query. Defaults to true.
+     */
+    isEnabled?: boolean;
+}
+
 /**
  * Reads the Delegated Sessions feed (`agent.delegation.sessions`) for the given creator-id chunks
  * (`delegationFeedCreatorIdChunks`), which is the only place a Session's delegation state reaches the Renderer: a
  * Session record cannot tell that its task failed. Returns the previous answer while the creator set changes, so a
  * failed row does not flash back to its settled state each time a new delegation starts.
+ *
+ * Shared by the Project tree's nested rows (chunks of every creator in view) and a Chat's Delegated Sessions strip (one
+ * chunk holding the Chat's own Session), which read the same cache entries when they ask the same question.
  */
 export function useDelegationFeed(
     creatorIdChunks: ReadonlyArray<readonly string[]>,
+    { isEnabled = true }: DelegationFeedOptions = {},
 ): DelegationFeed {
     const entries = useQueries({
         combine: combineDelegationFeeds,
         queries: creatorIdChunks.map((createdBySessionIds) => ({
+            enabled: isEnabled,
             placeholderData: keepPreviousData,
             queryFn: () =>
                 caxri.request('agent.delegation.sessions', {
@@ -68,6 +85,7 @@ export function useDelegationFeed(
     });
     return useMemo(
         () => ({
+            entries,
             entriesBySessionId: new Map(entries.map((entry) => [entry.sessionId, entry])),
             failedSessionIds: new Set(failedDelegationSessionIds(entries)),
         }),

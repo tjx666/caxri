@@ -242,6 +242,23 @@ export class ChatStates {
                 onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
                 delegatedTask: (delegationId) =>
                     delegatedTaskDetails(this.options.database, delegationId),
+                commandDelegations: {
+                    owned: (delegationId) => {
+                        const record = this.options.database.agentDelegations.get(delegationId);
+                        if (record?.receipt.callerTerminalId !== terminalId) return;
+                        return {
+                            sessionId: record.receipt.sessionId,
+                            ...(record.callerTurnId && { turnId: record.callerTurnId }),
+                        };
+                    },
+                    forTurn: (turnId) =>
+                        this.options.database.agentDelegations
+                            .forCallerTurn(terminalId, turnId)
+                            .map(({ receipt }) => ({
+                                delegationId: receipt.delegationId,
+                                sessionId: receipt.sessionId,
+                            })),
+                },
                 sessionTitle: (agentSessionId) => {
                     const { database } = this.options;
                     const sessionId = database.agentSessionUsage.sessionIdOf(agentSessionId);

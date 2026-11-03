@@ -16,7 +16,13 @@ import { isQueryMethod } from './client';
  */
 const DELEGATION_FEED_METHOD = 'agent.delegation.sessions' satisfies CaxriMethod;
 
+/**
+ * The per-task states behind the records of a Chat timeline. They change with the same record pushes as the feed.
+ */
+const DELEGATION_STATUSES_METHOD = 'agent.delegation.statuses' satisfies CaxriMethod;
+
 type DelegationFeed = MethodResult<'agent.delegation.sessions'>;
+type DelegationStatuses = MethodResult<'agent.delegation.statuses'>;
 
 function feedCreatorIds(queryKey: readonly unknown[]): readonly string[] {
     const parameters = queryKey[1] as { createdBySessionIds?: readonly string[] } | undefined;
@@ -24,13 +30,15 @@ function feedCreatorIds(queryKey: readonly unknown[]): readonly string[] {
 }
 
 /**
- * Refreshes the feed reads that cover the Sessions a `state.changed` push of kind `records` names.
+ * Refreshes the feed reads that cover the Sessions a `state.changed` push of kind `records` names, and the task-state
+ * reads that name a task running in one of them.
  *
  * A delegation's state change (it started, finished, failed) reaches the Renderer as a record change of the Session it
  * runs in, never of the Session that created it, so the push carries no creator. The creator comes from `sessions`, the
  * Workbench records the Renderer already holds. A Session that is not among them yet may be a brand-new delegated
  * Session whose creator is not in any cached read, so it refreshes every feed read; a known Session with no creator is
- * not delegated and refreshes nothing, which is nearly every record push.
+ * not delegated and refreshes nothing, which is nearly every record push. A task-state read is keyed by task IDs, so it
+ * is matched by the Sessions its cached answer names; one with no answer yet is refreshed.
  */
 function invalidateDelegationFeedForSessions(
     queryClient: QueryClient,
@@ -40,9 +48,17 @@ function invalidateDelegationFeedForSessions(
     if (sessionIds.length === 0) return;
     const isFeedQuery = (query: { queryKey: readonly unknown[] }): boolean =>
         isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD);
+    const isStatusesQuery = (query: { queryKey: readonly unknown[] }): boolean =>
+        isQueryMethod(query.queryKey, DELEGATION_STATUSES_METHOD);
     // Nearly every record push arrives while no nested row is mounted; skip the lookup then.
-    if (queryClient.getQueryCache().findAll({ predicate: isFeedQuery }).length === 0) return;
+    if (
+        queryClient.getQueryCache().findAll({
+            predicate: (query) => isFeedQuery(query) || isStatusesQuery(query),
+        }).length === 0
+    )
+        return;
     const creatorIds = new Set<string>();
+    const changedIds = new Set(sessionIds);
     let isAnyUnknown = false;
     const sessionById = new Map(sessions.map((session) => [session.id, session]));
     for (const sessionId of sessionIds) {
@@ -51,12 +67,21 @@ function invalidateDelegationFeedForSessions(
         else if (session.createdBySessionId !== undefined)
             creatorIds.add(session.createdBySessionId);
     }
-    if (!isAnyUnknown && creatorIds.size === 0) return;
     // Fire-and-forget: the refreshed reads surface any error through React Query state.
     void queryClient.invalidateQueries({
-        predicate: (query) =>
-            isFeedQuery(query) &&
-            (isAnyUnknown || feedCreatorIds(query.queryKey).some((id) => creatorIds.has(id))),
+        predicate: (query) => {
+            if (isFeedQuery(query))
+                return (
+                    isAnyUnknown || feedCreatorIds(query.queryKey).some((id) => creatorIds.has(id))
+                );
+            if (!isStatusesQuery(query)) return false;
+            const answer = query.state.data as DelegationStatuses | undefined;
+            return (
+                isAnyUnknown ||
+                answer === undefined ||
+                answer.statuses.some((status) => changedIds.has(status.sessionId))
+            );
+        },
     });
 }
 

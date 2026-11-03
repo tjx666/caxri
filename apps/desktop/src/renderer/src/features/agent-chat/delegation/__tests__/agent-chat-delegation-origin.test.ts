@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+
+import { delegationOrigin } from '../agent-chat-delegation-origin';
+
+const parent = { id: 'p1', title: 'Plan the release' };
+
+describe('delegationOrigin', () => {
+    it('describes a delegated or consult child whose parent is open', () => {
+        expect(delegationOrigin({ createdByRelation: 'delegated' }, parent, undefined)).toEqual({
+            isParentArchived: false,
+            isTakenOver: false,
+            parent,
+        });
+        expect(delegationOrigin({ createdByRelation: 'consult' }, parent, undefined)).toMatchObject(
+            { isTakenOver: false },
+        );
+    });
+
+    it('marks an archived parent so the row names it without a way back', () => {
+        expect(
+            delegationOrigin({ createdByRelation: 'delegated' }, { ...parent, archivedAt: 5 }, 1),
+        ).toMatchObject({ isParentArchived: true, isTakenOver: true });
+    });
+
+    it('says nothing for a hand-off, an unrelated Session, or a parent that is gone', () => {
+        expect(
+            delegationOrigin({ createdByRelation: 'handoff' }, parent, undefined),
+        ).toBeUndefined();
+        expect(delegationOrigin({}, parent, undefined)).toBeUndefined();
+        expect(
+            delegationOrigin({ createdByRelation: 'delegated' }, undefined, undefined),
+        ).toBeUndefined();
+    });
+
+    it('reads a takeover from the time the Server recorded', () => {
+        expect(delegationOrigin({ createdByRelation: 'delegated' }, parent, 1_700)).toMatchObject({
+            isTakenOver: true,
+        });
+    });
+});

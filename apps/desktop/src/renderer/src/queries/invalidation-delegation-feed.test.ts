@@ -156,6 +156,64 @@ describe('createDelegationFeedInvalidation', () => {
     });
 });
 
+describe('task-state reads', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const statusesKey = (delegationIds: string[]) =>
+        caxriQueryKey('agent.delegation.statuses', { delegationIds });
+    const status = (sessionId: string) => ({
+        delegationId: `task-${sessionId}`,
+        provider: 'claude' as const,
+        sessionId,
+        status: 'running' as const,
+    });
+
+    function setup() {
+        const client = new QueryClient();
+        const keyA = statusesKey(['task-child-a']);
+        const keyB = statusesKey(['task-child-b']);
+        client.setQueryData(keyA, { statuses: [status('child-a')] });
+        client.setQueryData(keyB, { statuses: [status('child-b')] });
+        return {
+            client,
+            isInvalidated: () =>
+                [keyA, keyB].map((key) => client.getQueryState(key)?.isInvalidated),
+        };
+    }
+
+    it('refreshes only the reads that name a task in the changed Session', () => {
+        const { client, isInvalidated } = setup();
+        const invalidation = createDelegationFeedInvalidation(client, () => sessions);
+        invalidation.invalidate(['child-b']);
+        vi.advanceTimersByTime(1600);
+        expect(isInvalidated()).toEqual([false, true]);
+        invalidation.dispose();
+    });
+
+    it('refreshes every read for a Session the records do not hold yet', () => {
+        const { client, isInvalidated } = setup();
+        const invalidation = createDelegationFeedInvalidation(client, () => sessions);
+        invalidation.invalidate(['brand-new']);
+        vi.advanceTimersByTime(1600);
+        expect(isInvalidated()).toEqual([true, true]);
+        invalidation.dispose();
+    });
+
+    it('leaves the reads alone for a push about a Session that has no task in them', () => {
+        const { client, isInvalidated } = setup();
+        const invalidation = createDelegationFeedInvalidation(client, () => sessions);
+        invalidation.invalidate(['host-a']);
+        vi.advanceTimersByTime(1600);
+        expect(isInvalidated()).toEqual([false, false]);
+        invalidation.dispose();
+    });
+});
+
 describe('applyDelegationProgress', () => {
     function setup(feed: Feed) {
         const client = new QueryClient();

@@ -47,6 +47,24 @@ describe('agentChatFinalReplyId', () => {
 });
 
 describe('foldAgentChatTurn', () => {
+    it('keeps the items a Client names in view and folds the rest at the first folded position', () => {
+        const delegating: AgentChatItem = {
+            ...command,
+            id: 'c2',
+            delegations: [{ delegationId: 'dispatch-1', sessionId: 's2' }],
+        };
+        const items = [user, command, delegating, { ...command, id: 'c3' }, reply];
+        const isDelegationKept = (item: AgentChatItem) =>
+            item.type === 'command' && item.delegations !== undefined;
+        expect(shape(foldAgentChatTurn(items, 'a2', isDelegationKept))).toEqual([
+            'u1',
+            'fold(c1,c3)',
+            'c2',
+            'a2',
+        ]);
+        expect(shape(foldAgentChatTurn(items, 'a2'))).toEqual(['u1', 'fold(c1,c2,c3)', 'a2']);
+    });
+
     it('keeps the thought that answered a steer in view when only tool calls followed it', () => {
         const steer: AgentChatItem = {
             id: 'u2',

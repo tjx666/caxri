@@ -17,6 +17,11 @@ export interface AgentChatHistory {
     history: AgentChatOlderHistory;
     hasMore: boolean;
     /**
+     * Whether a part of the Chat sits before what the pane holds: another page can load, or the history was cut short
+     * and cannot.
+     */
+    hasEarlier: boolean;
+    /**
      * Reads the page before the oldest item the pane holds. Calls while a page is on its way are ignored.
      */
     loadOlder: () => void;
@@ -80,5 +85,6 @@ export function useAgentChatHistory(
     const loadOlder = (): void => {
         void loadOlderAgentChatHistory({ terminalId, taskId }, holdViewTop);
     };
-    return { history, hasMore: hasOlderAgentChatHistory(history, snapshot), loadOlder };
+    const hasMore = hasOlderAgentChatHistory(history, snapshot);
+    return { history, hasMore, hasEarlier: hasMore || history.truncated, loadOlder };
 }

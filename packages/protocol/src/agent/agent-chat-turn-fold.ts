@@ -120,10 +120,14 @@ function turnSegments(
  *
  * A steer the Agent answered only in its thinking (`agentChatSteerReplyThoughtIds`) keeps that thought in view too:
  * folding it once the turn ended hid the only answer the steer got, which then read as ignored.
+ *
+ * `isAlsoKept` names further items a Client keeps in view; Desktop keeps the commands that created a delegation so the
+ * record of delegated work survives the fold. The phone passes nothing and folds exactly as before.
  */
 export function foldAgentChatTurn(
     visible: readonly AgentChatItem[],
     finalReplyId: string | undefined,
+    isAlsoKept: (item: AgentChatItem) => boolean = () => false,
 ): AgentChatTurnFoldPart[] {
     const segments = turnSegments(visible, finalReplyId);
     const steerReplies = agentChatSteerReplyThoughtIds(visible);
@@ -140,7 +144,8 @@ export function foldAgentChatTurn(
             steerReplies.has(item.id) ||
             (replyId !== undefined && item.id === replyId) ||
             (finalReplyId !== undefined && item.id === finalReplyId) ||
-            (item.type === 'notice' && item.kind !== 'retrying');
+            (item.type === 'notice' && item.kind !== 'retrying') ||
+            isAlsoKept(item);
         const folded = items.filter((item) => !isKept(item));
         const segment: AgentChatTurnFoldSegment = {
             index,

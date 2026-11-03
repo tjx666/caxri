@@ -11,12 +11,22 @@
  * thread state like any other and a resumed Chat reads them back. This file is loaded by Node's type stripping, so it
  * uses only erasable TypeScript syntax and `.ts` import specifiers.
  */
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
+import {
+    asArray,
+    asOneOf,
+    asOptionalBoolean,
+    asOptionalNumber,
+    asRecord,
+    asString,
+    reject,
+} from './fake-codex-script-validation.ts';
 
 /**
  * The model the fake reports instead of `Fake Codex` wherever it names its default model.
@@ -43,7 +53,19 @@ type FakeCodexScriptStep =
      * A finished command execution item, shaped like the `testrun` scenario's commands. `durationMs` is the time the
      * Chat shows for it (1200 when omitted); a non-zero exit code makes the item `failed`.
      */
-    | { kind: 'command'; command: string; output: string; exitCode?: number; durationMs?: number }
+    | {
+          kind: 'command';
+          command: string;
+          output: string;
+          exitCode?: number;
+          durationMs?: number;
+          /**
+           * Actually runs `command` in a shell with the fake's own environment (which carries the Chat's managed Agent
+           * endpoint, so the Caxri CLI acts as this Chat). The item then reports the real output and exit code instead
+           * of `output` and `exitCode`.
+           */
+          shouldRun?: boolean;
+      }
     /**
      * A finished file change item without approval, shaped like the `patch` and `artifacts` scenarios' file changes.
      * Nothing is written to disk, so a Project that should already hold the change is seeded that way.
@@ -75,6 +97,11 @@ export interface FakeCodexScriptTurn {
      * The user message that starts this turn, compared after trimming. The first turn with a matching prompt plays.
      */
     prompt: string;
+    /**
+     * With `true`, the turn plays for any message that starts with `prompt` (trimmed), for a message whose tail is not
+     * known when the script is written, such as a delegation pointer that ends in a generated ID.
+     */
+    isPrefix?: boolean;
     steps: FakeCodexScriptStep[];
     /**
      * What the turn reports as its duration (the `Worked for` caption), instead of the real playback time, which is a
@@ -92,55 +119,6 @@ export interface FakeCodexScript {
      */
     model?: FakeCodexScriptModel;
     turns: FakeCodexScriptTurn[];
-}
-
-type Json = Record<string, unknown>;
-
-function reject(where: string, problem: string): never {
-    throw new Error(`${where}: ${problem}`);
-}
-
-/**
- * An object whose keys are all in `allowed`, so a misspelled optional field fails instead of being ignored.
- */
-function asRecord(value: unknown, where: string, allowed: readonly string[]): Json {
-    if (typeof value !== 'object' || value === null || Array.isArray(value))
-        return reject(where, 'expected an object');
-    const record = value as Json;
-    for (const key of Object.keys(record))
-        if (!allowed.includes(key))
-            reject(where, `unknown field "${key}" (allowed: ${allowed.join(', ')})`);
-    return record;
-}
-
-function asArray(value: unknown, where: string): unknown[] {
-    if (!Array.isArray(value) || value.length === 0)
-        return reject(where, 'expected a non-empty array');
-    return value as unknown[];
-}
-
-function asString(value: unknown, where: string, isEmptyAllowed = false): string {
-    if (typeof value !== 'string' || (!isEmptyAllowed && value.trim() === ''))
-        return reject(where, isEmptyAllowed ? 'expected a string' : 'expected a non-empty string');
-    return value;
-}
-
-function asOneOf<Value extends string>(
-    value: unknown,
-    where: string,
-    options: readonly Value[],
-): Value {
-    if (typeof value === 'string' && (options as readonly string[]).includes(value))
-        return value as Value;
-    return reject(where, `expected one of ${options.join(', ')}`);
-}
-
-function asOptionalNumber(value: unknown, where: string, isInteger: boolean): number | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
-        return reject(where, 'expected a non-negative number');
-    if (isInteger && !Number.isSafeInteger(value)) return reject(where, 'expected an integer');
-    return value;
 }
 
 const STEP_KINDS = [
@@ -164,6 +142,7 @@ const STEP_FIELDS = [
     'output',
     'exitCode',
     'durationMs',
+    'shouldRun',
     'changes',
     'text',
     'file',
@@ -198,7 +177,8 @@ function parseStep(value: unknown, where: string, controlDirectory: string | und
             } satisfies FakeCodexScriptStep;
         }
         case 'command': {
-            const record = fields('command', 'output', 'exitCode', 'durationMs');
+            const record = fields('command', 'output', 'exitCode', 'durationMs', 'shouldRun');
+            const shouldRun = asOptionalBoolean(record.shouldRun, `${where}.shouldRun`);
             const exitCode = asOptionalNumber(record.exitCode, `${where}.exitCode`, true);
             const durationMs = asOptionalNumber(record.durationMs, `${where}.durationMs`, false);
             return {
@@ -207,6 +187,7 @@ function parseStep(value: unknown, where: string, controlDirectory: string | und
                 output: asString(record.output, `${where}.output`, true),
                 ...(exitCode !== undefined && { exitCode }),
                 ...(durationMs !== undefined && { durationMs }),
+                ...(shouldRun && { shouldRun }),
             } satisfies FakeCodexScriptStep;
         }
         case 'fileChange': {
@@ -271,10 +252,12 @@ export function parseFakeCodexScript(value: unknown, controlDirectory?: string):
     }
     const turns = asArray(script.turns, 'script.turns').map((entry, index) => {
         const where = `script.turns[${index}]`;
-        const record = asRecord(entry, where, ['prompt', 'steps', 'durationMs']);
+        const record = asRecord(entry, where, ['prompt', 'steps', 'durationMs', 'isPrefix']);
         const durationMs = asOptionalNumber(record.durationMs, `${where}.durationMs`, false);
+        const isPrefix = asOptionalBoolean(record.isPrefix, `${where}.isPrefix`);
         return {
             prompt: asString(record.prompt, `${where}.prompt`),
+            ...(isPrefix && { isPrefix }),
             steps: asArray(record.steps, `${where}.steps`).map((step, stepIndex) =>
                 parseStep(step, `${where}.steps[${stepIndex}]`, controlDirectory),
             ),
@@ -323,14 +306,16 @@ export function fakeCodexScript(): FakeCodexScript | undefined {
 }
 
 /**
- * The scripted turn whose prompt equals the message, both trimmed.
+ * The scripted turn whose prompt equals the message, both trimmed, or starts it for a prefix turn.
  */
 export function findScriptedTurn(
     script: FakeCodexScript | undefined,
     said: string,
 ): FakeCodexScriptTurn | undefined {
     const message = said.trim();
-    return script?.turns.find((turn) => turn.prompt.trim() === message);
+    return script?.turns.find((turn) =>
+        turn.isPrefix ? message.startsWith(turn.prompt.trim()) : turn.prompt.trim() === message,
+    );
 }
 
 /**
@@ -430,12 +415,20 @@ function playReasoning(playback: Playback, summary: readonly string[]) {
 function playCommand(playback: Playback, step: Extract<FakeCodexScriptStep, { kind: 'command' }>) {
     const { io, turn } = playback;
     const item = commandItem(playback, step.command);
-    const exitCode = step.exitCode ?? 0;
     io.startItem(turn, { ...item });
+    const ran = step.shouldRun
+        ? spawnSync('/bin/sh', ['-c', playback.fill(step.command)], {
+              cwd: playback.cwd,
+              encoding: 'utf8',
+              env: process.env,
+              timeout: 60_000,
+          })
+        : undefined;
+    const exitCode = ran ? (ran.status ?? 1) : (step.exitCode ?? 0);
     io.completeItem(turn, {
         ...item,
         status: exitCode === 0 ? 'completed' : 'failed',
-        aggregatedOutput: playback.fill(step.output),
+        aggregatedOutput: ran ? `${ran.stdout}${ran.stderr}` : playback.fill(step.output),
         exitCode,
         durationMs: step.durationMs ?? 1200,
     });

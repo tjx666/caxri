@@ -44,6 +44,7 @@ describe('Caxri Bot Renderer policy', () => {
             expect(() => policy.admit(request(method))).not.toThrow();
         for (const method of [
             'agent.delegation.sessions',
+            'agent.delegation.statuses',
             'caxriBot.openFileLink',
             'app.bootstrap',
             'app.records',

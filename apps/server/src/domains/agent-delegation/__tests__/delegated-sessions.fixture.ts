@@ -163,6 +163,16 @@ export async function delegatedFixture(overrides: Partial<AgentDelegationService
                 createdBySessionIds,
             }),
         ).sessions;
+    /**
+     * `agent.delegation.statuses` through the handler, then through the method's result schema.
+     */
+    const statuses = async (delegationIds: string[]) =>
+        parseServerOperationResult(
+            'agent.delegation.statuses',
+            await createDelegationHandlers(service, database)['agent.delegation.statuses']({
+                delegationIds,
+            }),
+        ).statuses;
     return {
         authority,
         callerSessionId: caller.session.id,
@@ -178,5 +188,6 @@ export async function delegatedFixture(overrides: Partial<AgentDelegationService
         service,
         start,
         state,
+        statuses,
     };
 }

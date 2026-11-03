@@ -38,6 +38,7 @@ import {
     canFailDelegation,
     isReceiptTransition,
     recoveredDelegation,
+    withHumanIntervention,
 } from './lifecycle';
 import { admitDelegationRequest } from './new-session';
 import { isDelegationOwner, listOwnedDelegations } from './ownership';
@@ -75,7 +76,6 @@ export class AgentDelegationService {
     private waiterCount = 0;
     private readonly deletingSessions = new Set<string>();
     private readonly pendingCreations = new Map<string, Set<Promise<AgentDelegationReceipt>>>();
-    private readonly humanIntervenedTerminals = new Set<string>();
 
     private readonly submissions: DelegationSubmissions;
     private readonly progress?: DelegationProgress;
@@ -635,7 +635,6 @@ export class AgentDelegationService {
         this.collectors.clear();
         this.activeTerminals.clear();
         this.nextCollections.clear();
-        this.humanIntervenedTerminals.clear();
     }
 
     async wait(
@@ -665,15 +664,13 @@ export class AgentDelegationService {
             this.save({ ...starting, inputEpoch: this.options.inputEpoch?.(terminalId) });
             return;
         }
-        /**
-         * A completed answer stays readable, but human takeover permanently revokes its continuation authority. Persist
-         * once per Terminal lifetime because the input epoch alone is lost on Server restart.
-         */
-        if (isHumanInput && !this.humanIntervenedTerminals.has(terminalId)) {
-            this.humanIntervenedTerminals.add(terminalId);
+        // A completed answer stays readable, but takeover revokes its continuation authority for good. Persisted on
+        // each task that still lacks the mark (the input epoch alone is lost on restart), dated for the feed's
+        // `takenOverAt`. Deliberately not guarded per Terminal: a task delegated into a Terminal the user already
+        // typed in must still be marked by the next input.
+        if (isHumanInput)
             for (const task of this.options.database.agentDelegations.forTerminal(terminalId))
-                if (!task.hasHumanIntervention) this.save({ ...task, hasHumanIntervention: true });
-        }
+                if (!task.hasHumanIntervention) this.save(withHumanIntervention(task, this.now()));
         // Re-read: the takeover mark above may have just rewritten the active task.
         const record = this.activeForTerminal(terminalId);
         const next = record && interruptedDelegation(record, isHumanInput, retiredLaunchId);

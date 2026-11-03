@@ -83,10 +83,10 @@ export interface ChatSwitchSample {
 }
 
 /**
- * Counts distinct `agentChat.read` requests in Server Core's log. A request from the Renderer is recorded twice, once
+ * Counts distinct requests of one method in Server Core's log. A request from the Renderer is recorded twice, once
  * where the control relay admits it and once where its domain answers it, and both records carry its `requestId`.
  */
-export async function countChatReads(userData: string): Promise<number> {
+export async function countRequests(userData: string, method: string): Promise<number> {
     let contents: string;
     try {
         contents = await readFile(join(userData, 'logs', 'server-core.jsonl'), 'utf8');
@@ -105,12 +105,16 @@ export async function countChatReads(userData: string): Promise<number> {
                     fields?: { method?: string };
                 },
         )
-        .filter(
-            (record) =>
-                record.event === 'ipc.request' && record.fields?.method === 'agentChat.read',
-        )
+        .filter((record) => record.event === 'ipc.request' && record.fields?.method === method)
         .map((record) => record.context?.requestId ?? record.correlationId);
     return new Set(requests).size;
+}
+
+/**
+ * Counts distinct `agentChat.read` requests in Server Core's log (see {@link countRequests}).
+ */
+export function countChatReads(userData: string): Promise<number> {
+    return countRequests(userData, 'agentChat.read');
 }
 
 /**

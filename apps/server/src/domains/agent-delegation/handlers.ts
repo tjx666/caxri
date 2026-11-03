@@ -3,6 +3,7 @@ import { isDelegationActive } from '@caxri/protocol';
 import { coreRouted } from '../core-routed';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
+import { delegationStatuses } from './feed';
 import type { AgentDelegationService } from './service';
 
 type DelegationMethod =
@@ -11,6 +12,7 @@ type DelegationMethod =
     | 'agent.delegation.stop'
     | 'agent.delegation.stopInternal'
     | 'agent.delegation.sessions'
+    | 'agent.delegation.statuses'
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
@@ -46,6 +48,12 @@ export function createDelegationHandlers(
          */
         'agent.delegation.sessions': ({ createdBySessionIds }) => ({
             sessions: service.sessions(createdBySessionIds),
+        }),
+        /**
+         * Owner-only and never `claimed`, like the feed: it reads states, not answers.
+         */
+        'agent.delegation.statuses': ({ delegationIds }) => ({
+            statuses: delegationStatuses({ database }, delegationIds),
         }),
         'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({

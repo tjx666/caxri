@@ -75,6 +75,12 @@ const agentDelegationSessionSchema = z.strictObject({
     createdAt: z.number().int().positive().optional(),
     settledAt: z.number().int().positive().optional(),
     /**
+     * When the user first acted in this Session (sent input, Stop, or Rewind), taking it over from the Session that
+     * created it; from then on its replies no longer go back. Set once, and it survives a completed task. Absent until
+     * a takeover.
+     */
+    takenOverAt: z.number().int().positive().optional(),
+    /**
      * What an active Agent Chat Session is doing now, as one short label. Absent for a Terminal Session, a settled
      * task, and a Chat that is between steps.
      */
@@ -101,6 +107,27 @@ export const agentDelegationProgressSchema = z.strictObject({
 
 export type AgentDelegationProgress = z.infer<typeof agentDelegationProgressSchema>;
 
+/**
+ * Most task IDs one `agent.delegation.statuses` read names.
+ */
+export const MAX_DELEGATION_STATUS_IDS = 64;
+
+/**
+ * One named task's state, with no answer text and no summary. `failureResetsAt` and `provider` let a Client word a
+ * limit failure; both are absent when unknown.
+ */
+const agentDelegationStatusEntrySchema = z.strictObject({
+    delegationId: identifierSchema,
+    sessionId: identifierSchema,
+    provider: delegationProviderSchema,
+    status: agentDelegationStatusSchema,
+    failure: agentDelegationFailureSchema.optional(),
+    failureResetsAt: z.number().int().positive().optional(),
+    settledAt: z.number().int().positive().optional(),
+});
+
+export type AgentDelegationStatusEntry = z.infer<typeof agentDelegationStatusEntrySchema>;
+
 export const agentDelegationSessionsMethods = {
     /**
      * The Sessions the named Sessions created, each with its newest delegation's state and stored result, for the
@@ -115,6 +142,21 @@ export const agentDelegationSessionsMethods = {
         }),
         result: z.strictObject({
             sessions: z.array(agentDelegationSessionSchema).max(MAX_DELEGATION_SESSIONS),
+        }),
+    },
+    /**
+     * The state of each named task, by task ID, for the records a Chat timeline draws where its Agent delegated work.
+     * Unlike `agent.delegation.sessions`, which reports the newest task of a Session, this names the exact task, so a
+     * record keeps showing the outcome of the task it stands for after a follow-up replaced the Session's newest.
+     * Owner-only and non-claiming like the feed; a pruned or unknown ID is absent from the result.
+     */
+    'agent.delegation.statuses': {
+        ...ownerOnlyCommandPolicy('server', 'read'),
+        params: z.strictObject({
+            delegationIds: z.array(identifierSchema).min(1).max(MAX_DELEGATION_STATUS_IDS),
+        }),
+        result: z.strictObject({
+            statuses: z.array(agentDelegationStatusEntrySchema).max(MAX_DELEGATION_STATUS_IDS),
         }),
     },
 } as const satisfies Record<string, MethodSpec>;

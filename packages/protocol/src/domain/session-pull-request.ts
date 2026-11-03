@@ -58,6 +58,11 @@ export const sessionPullRequestSchema = z.object({
     deployment: sessionDeploymentSchema.optional(),
     source: z.enum(['agent', 'branch']),
     /**
+     * How many files the whole pull request changes (not only what one delegation produced); absent when GitHub did not
+     * report a count, never zero.
+     */
+    changedFiles: z.number().int().positive().optional(),
+    /**
      * When GitHub merged the pull request, in epoch milliseconds; present only for a merged pull request whose
      * timestamp GitHub reported. Server Core compares it with the Session's Agent turns to tell an Agent's own merge
      * from one made elsewhere.
