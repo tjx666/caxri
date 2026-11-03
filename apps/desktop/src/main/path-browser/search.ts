@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { posix } from 'node:path';
 
+import { MAX_PATH_BROWSER_ENTRIES } from '@caxri/protocol';
 import { rankPathMatches } from '@caxri/utils';
 
 /**
@@ -82,4 +84,32 @@ export function rankProjectSearchMatches(
             relativePath: match.relativePath,
         };
     });
+}
+
+/**
+ * Ranks the search hits and drops the ones the directory listing already shows, so a file in the current directory
+ * appears once rather than in both groups. The two groups share one entry budget: the directory listing is what the
+ * user navigated to, so it is served first and the search fills whatever is left.
+ */
+export function projectSearchCandidates(
+    matches: readonly ProjectSearchMatch[],
+    filter: string,
+    listed: ReadonlyArray<{ path: string }>,
+) {
+    const budget = MAX_PATH_BROWSER_ENTRIES - listed.length;
+    if (budget <= 0) return { candidates: [], isComplete: matches.length === 0 };
+    const alreadyListed = new Set(listed.map((candidate) => candidate.path));
+    const elsewhere = matches.filter((match) => !alreadyListed.has(match.path));
+    const ranked = rankProjectSearchMatches(elsewhere, filter, budget);
+    return {
+        candidates: ranked.map((match) => ({
+            directoryLabel: match.directoryLabel,
+            id: randomUUID(),
+            kind: 'file' as const,
+            name: match.name,
+            path: match.path,
+            source: 'projectSearch' as const,
+        })),
+        isComplete: ranked.length === elsewhere.length,
+    };
 }

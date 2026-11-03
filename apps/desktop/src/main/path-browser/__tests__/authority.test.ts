@@ -554,7 +554,7 @@ describe('path browser authority', () => {
         );
     });
 
-    it('rejects symlinks, hard links, and files replaced after listing', async () => {
+    it('rejects hard links and files replaced after listing', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
         const externalRoot = await temporaryDirectory('caxri-path-unsafe-');
@@ -574,12 +574,6 @@ describe('path browser authority', () => {
         const byName = new Map(listed.entries.map((entry) => [entry.name, entry]));
         expect(byName.get('symbolic.ts')?.kind).toBe('symlink');
 
-        await expect(
-            authority.open({
-                browserId: initial.browserId,
-                entryId: byName.get('symbolic.ts')!.id,
-            }),
-        ).rejects.toMatchObject({ code: 'PATH_DENIED' });
         await expect(
             authority.open({ browserId: initial.browserId, entryId: byName.get('hard.ts')!.id }),
         ).rejects.toMatchObject({ code: 'PATH_DENIED' });

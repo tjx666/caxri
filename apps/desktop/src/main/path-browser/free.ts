@@ -1,5 +1,5 @@
 import type { Dirent } from 'node:fs';
-import { lstat, opendir } from 'node:fs/promises';
+import { lstat, opendir, readlink, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 
 import { CaxriError, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
@@ -7,7 +7,7 @@ import { CaxriError, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
 import { pathBrowserDenialDetails } from '../../shared/path-browser-denial';
 import { readExternalFile } from '../external-documents/snapshot';
 import type { RootIdentity } from './identity';
-import { pathFailure, validateDirectory } from './identity';
+import { directoryIdentity, pathFailure, validateDirectory } from './identity';
 
 /**
  * Free-mode reads: a bounded, read-only listing of this Mac's disk outside every Project authority. Only a local
@@ -16,6 +16,12 @@ import { pathFailure, validateDirectory } from './identity';
 
 export interface FreeEntry {
     kind: 'directory' | 'file' | 'symlink';
+    /**
+     * What a `symlink` row currently points at, for its icon and Enter affordance only. Opening re-resolves the link
+     * (see `resolveFreeLink` in `authority.ts`), so this display metadata never authorizes a later request.
+     */
+    linkKind?: 'broken' | 'directory' | 'file';
+    linkTarget?: string;
     name: string;
     path: string;
     snapshot: { device: string; inode: string };
@@ -134,6 +140,8 @@ export async function listFreeDirectory(
                     : stats.isDirectory()
                       ? 'directory'
                       : 'file',
+                // eslint-disable-next-line no-await-in-loop -- only the bounded displayed page probes link targets
+                ...(stats.isSymbolicLink() && (await probeLink(path))),
                 name: entry.name,
                 path,
                 snapshot: { device: stats.dev.toString(), inode: stats.ino.toString() },
@@ -150,11 +158,82 @@ export async function listFreeDirectory(
     return {
         entries: entries
             .toSorted((left, right) => {
-                if (left.kind === 'directory' && right.kind !== 'directory') return -1;
-                if (left.kind !== 'directory' && right.kind === 'directory') return 1;
+                const isLeftDirectory = isDirectoryLike(left);
+                if (isLeftDirectory !== isDirectoryLike(right)) return isLeftDirectory ? -1 : 1;
                 return left.name.localeCompare(right.name);
             })
             .slice(0, MAX_FILE_BROWSE_ENTRIES),
         isTruncated: !isReachedEnd || entries.length > MAX_FILE_BROWSE_ENTRIES,
     };
+}
+
+/**
+ * A linked folder sorts with folders, matching the Files tree, so `~/.agents/skills/` does not split its skills into
+ * two runs by whether each one is a link.
+ */
+function isDirectoryLike(entry: FreeEntry): boolean {
+    return (
+        entry.kind === 'directory' || (entry.kind === 'symlink' && entry.linkKind === 'directory')
+    );
+}
+
+/**
+ * Display-only target probe for a listed link. Any failure (a dangling or looping link, a target the user cannot read)
+ * reads as `broken`; the row stays openable and a real open reports the actual failure.
+ */
+async function probeLink(path: string): Promise<Pick<FreeEntry, 'linkKind' | 'linkTarget'>> {
+    let linkTarget: string | undefined;
+    try {
+        linkTarget = await readlink(path);
+        const target = await stat(path);
+        return {
+            linkKind: target.isDirectory() ? 'directory' : 'file',
+            linkTarget,
+        };
+    } catch {
+        return { linkKind: 'broken', ...(linkTarget !== undefined && { linkTarget }) };
+    }
+}
+
+/**
+ * Re-resolves a link listed outside the Project to its current target, described as the entry its own directory would
+ * list. Free browsing already reads any path the user types, so following a link there reaches nothing the user could
+ * not type; refusing it only blocked layouts such as `~/.agents/skills/`, where every skill is a link. The link itself
+ * must still be the entry that was listed.
+ */
+export async function followFreeLink(
+    parent: RootIdentity | undefined,
+    path: string,
+    snapshot: FreeEntry['snapshot'] | undefined,
+): Promise<
+    Pick<FreeEntry, 'name' | 'path' | 'snapshot'> & {
+        kind: 'directory' | 'file';
+        parent: RootIdentity;
+    }
+> {
+    if (!parent || !snapshot)
+        throw new CaxriError('PATH_DENIED', 'Browse entry is no longer available');
+    await validateDirectory(parent);
+    try {
+        const link = await lstat(path, { bigint: true });
+        if (
+            !link.isSymbolicLink() ||
+            link.dev.toString() !== snapshot.device ||
+            link.ino.toString() !== snapshot.inode
+        )
+            throw new CaxriError('CONFLICT', 'Path changed after it was listed');
+        const targetPath = await realpath(path);
+        const target = await lstat(targetPath, { bigint: true });
+        if (!target.isDirectory() && !target.isFile())
+            throw new CaxriError('VALIDATION', 'Path is not a regular file or directory');
+        return {
+            kind: target.isDirectory() ? 'directory' : 'file',
+            name: basename(targetPath),
+            parent: await directoryIdentity(dirname(targetPath)),
+            path: targetPath,
+            snapshot: { device: target.dev.toString(), inode: target.ino.toString() },
+        };
+    } catch (error) {
+        return pathFailure(error, 'Unable to follow browse link');
+    }
 }

@@ -304,6 +304,31 @@ export function usePathBrowser(
         setError(undefined);
     };
 
+    /**
+     * Ends the dialog after Main opened a file. Main already routed a Project file into its editor; an external file
+     * comes back as a document only the Renderer can mount. Both `open` and `navigate` can land here: navigating a link
+     * whose target is a file opens it.
+     */
+    const finishOpen = (
+        result: Exclude<PathBrowserNavigationResult, PathBrowserSnapshot>,
+    ): void => {
+        const isOpened =
+            result.kind !== 'external' ||
+            Boolean(
+                openExternalEditorDocument({
+                    document: result.document,
+                    focus: true,
+                    sessionId,
+                    workbenchRootProjectId,
+                }),
+            );
+        if (isOpened) closePathBrowser();
+        else
+            setError(
+                toBrowserError(externalOpenError(), translate('pathBrowser.errors.openFailed')),
+            );
+    };
+
     const applySnapshotOperation = async (
         operation: Promise<PathBrowserNavigationResult | PathBrowserSnapshot>,
     ): Promise<void> => {
@@ -313,13 +338,12 @@ export function usePathBrowser(
         setIsFetching(false);
         try {
             const result = await operation;
-            if (isSnapshot(result)) {
-                if (inputRevision.current === startingInputRevision) acceptSnapshot(result);
-                else {
-                    setSnapshot(result);
-                    setSelectedIndex(0);
-                    setError(undefined);
-                }
+            if (!isSnapshot(result)) finishOpen(result);
+            else if (inputRevision.current === startingInputRevision) acceptSnapshot(result);
+            else {
+                setSnapshot(result);
+                setSelectedIndex(0);
+                setError(undefined);
             }
         } catch (error_) {
             setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
@@ -353,31 +377,17 @@ export function usePathBrowser(
     };
 
     const openEntry = async (entry: PathBrowserEntry): Promise<void> => {
-        if (!snapshot || (entry.kind === 'symlink' && snapshot.mode === 'free')) return;
+        if (!snapshot) return;
         requestGeneration.current += 1;
         setIsNavigating(true);
         setIsFetching(false);
         try {
-            const result = await openPathBrowserEntry({
-                browserId: snapshot.browserId,
-                entryId: entry.id,
-            });
-            let isOpened = true;
-            if (result.kind === 'external')
-                isOpened = Boolean(
-                    openExternalEditorDocument({
-                        document: result.document,
-                        focus: true,
-                        sessionId,
-                        workbenchRootProjectId,
-                    }),
-                );
-            // No `throw` here: React Compiler cannot lower a throw inside a try/catch.
-            if (isOpened) closePathBrowser();
-            else
-                setError(
-                    toBrowserError(externalOpenError(), translate('pathBrowser.errors.openFailed')),
-                );
+            finishOpen(
+                await openPathBrowserEntry({
+                    browserId: snapshot.browserId,
+                    entryId: entry.id,
+                }),
+            );
         } catch (error_) {
             setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
         }
@@ -404,7 +414,7 @@ export function usePathBrowser(
     };
 
     const choose = (entry: PathBrowserEntry | undefined): void => {
-        if (!snapshot || !entry || (entry.kind === 'symlink' && snapshot.mode === 'free')) return;
+        if (!snapshot || !entry) return;
         if (entry.kind === 'symlink' || isDirectoryEntry(entry)) {
             runPathBrowserDetached(
                 applySnapshotOperation(

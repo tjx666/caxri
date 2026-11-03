@@ -70,7 +70,7 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
             name: 'zz-link-to-dir',
             exact: false,
         });
-        await expect(directoryLinkOption).toHaveAttribute('aria-disabled', 'false');
+        await expect(directoryLinkOption).toBeEnabled();
         await expect(directoryLinkOption).toHaveAccessibleDescription('Symlink to src.');
         const rootListboxId = await rootListbox.getAttribute('id');
         const rootOptionId = await rootDirectoryOption.getAttribute('id');
