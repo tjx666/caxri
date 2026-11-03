@@ -8,20 +8,20 @@ import type {
     SshHostEntry,
     SshHostFailureReason,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, detectedSystemOf } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import type { BrowserWindow, WebContents } from 'electron';
 
-import type { DesktopServerSupervisor } from '../connection/server-attachment';
-import type { DesktopServerConnection } from '../connection/server-connection';
-import type { MainEnvironmentMethods } from '../main-environment-methods';
-import type { SshHostRendererRoute } from '../workbench-ipc';
-import { knownHostsNameOf } from './destination';
+import type { DesktopServerSupervisor } from '../../connection/server-attachment';
+import type { DesktopServerConnection } from '../../connection/server-connection';
+import type { MainEnvironmentMethods } from '../../main-environment-methods';
+import type { SshHostRendererRoute } from '../../workbench-ipc';
+import { knownHostsNameOf } from '../destination';
+import type { HostPreferencesStore } from './host-preferences';
 
 /**
- * The SSH transport below one SSH Host window: it owns the ControlMaster, installs and launches the remote Server, and
- * forwards its endpoint. `DesktopServerConnection` drives it exactly like the local artifact supervisor.
+ * The SSH transport below one SSH Host environment: it owns the ControlMaster, installs and launches the remote Server,
+ * and forwards its endpoint. `DesktopServerConnection` drives it exactly like the local artifact supervisor.
  */
 export interface SshHostSupervisor extends DesktopServerSupervisor {
     /**
@@ -52,31 +52,39 @@ type SshHostStatePatch = Partial<
 >;
 
 /**
- * One SSH Host window and everything it is attached through.
+ * One connected SSH Host and everything the Workbench window reaches it through. Its `id` is the resolved host
+ * identity, which the Renderer names as the `environmentId` of a request meant for this Host.
  */
 export interface SshHostEnvironment {
+    readonly id: string;
     readonly destination: string;
     readonly connection: DesktopServerConnection;
-    readonly window: BrowserWindow;
     route: SshHostRendererRoute;
     state(): SshEnvironmentState;
     /**
-     * Sends a Server event or Main-originated event to this window only.
+     * Sends a Server event or Main-originated event to the Workbench, tagged with this environment.
      */
     sendEvent: (event: ServerEvent) => void;
 }
 
 export interface SshHostEnvironmentParts {
     connection: DesktopServerConnection;
-    route: Omit<SshHostRendererRoute, 'window'>;
+    /**
+     * Brings the Workbench window forward, for an OpenSSH prompt that needs the user's answer.
+     */
+    focusWorkbench(): void;
+    route: SshHostRendererRoute;
     sendEvent: (event: ServerEvent) => void;
     supervisor: SshHostSupervisor;
-    window: BrowserWindow;
+    /**
+     * Stops listening to the Workbench window; called once the environment is disconnected.
+     */
+    unbind(): void;
 }
 
 export interface SshHostEnvironmentHooks {
     /**
-     * Shows one OpenSSH prompt in the window and resolves with the user's answer, or `null` when it was cancelled or
+     * Shows one OpenSSH prompt in the Workbench and resolves with the user's answer, or `null` when it was cancelled or
      * the helper gave up (`signal`).
      */
     askpass(request: SshHostAskpassRequest, signal: AbortSignal): Promise<string | null>;
@@ -88,10 +96,14 @@ export interface SshHostEnvironmentHooks {
 
 export interface SshHostEnvironmentsOptions {
     /**
-     * Builds the window, supervisor, connection, and transport for one destination. Kept in the composition root
-     * because it reuses Main's window chrome, Renderer loading, and Main method wiring.
+     * Builds the supervisor, connection, and transport for one destination. Kept in the composition root because it
+     * reuses Main's Workbench window and Main method wiring.
      */
-    create(destination: string, hooks: SshHostEnvironmentHooks): SshHostEnvironmentParts;
+    create(
+        destination: string,
+        environmentId: string,
+        hooks: SshHostEnvironmentHooks,
+    ): SshHostEnvironmentParts;
     listHosts(): Promise<SshHostEntry[]>;
     logger(): Pick<StructuredLogger, 'write'> | undefined;
     recent: {
@@ -100,13 +112,18 @@ export interface SshHostEnvironmentsOptions {
     };
     /**
      * Identifies two spellings of one SSH Host (`dev@box` and `dev@box:22`, or two `~/.ssh/config` aliases for the same
-     * account) so a second connect focuses its window. Rejects an invalid destination.
+     * account) so a second connect reuses its connection. Rejects an invalid destination.
      */
     keyOf(destination: string): Promise<string> | string;
+    /**
+     * Called after any environment's state changes and after one is added or removed, with every current state.
+     */
+    onEnvironmentsChanged(states: SshEnvironmentState[]): void;
     /**
      * Shows this Mac's SSH config file in Finder, for the Connect to SSH Host picker's Open SSH Config action.
      */
     revealSshConfig(): Promise<void>;
+    preferences: HostPreferencesStore;
 }
 
 interface PendingPrompt {
@@ -139,46 +156,45 @@ class SshHostEnvironmentController implements SshHostEnvironment {
     private readonly attached = Promise.withResolvers<void>();
     private hasAttached = false;
     private isDisposed = false;
+    private readonly parts: SshHostEnvironmentParts;
     readonly connection: DesktopServerConnection;
-    readonly window: BrowserWindow;
     route: SshHostRendererRoute;
     readonly sendEvent: (event: ServerEvent) => void;
 
     /**
      * @param destination The destination as the user typed it.
-     * @param key The window identity `keyOf` resolved (`user@hostname:port`), which also names the SSH Host the way
-     *   `known_hosts` does. It is carried in the state as `hostIdentity` so the Renderer keys its device-local composer
-     *   state by the SSH Host rather than by whichever alias opened the window.
-     * @param options How this window's connection, supervisor, and window are created.
+     * @param id The identity `keyOf` resolved (`user@hostname:port`), which also names the SSH Host the way
+     *   `known_hosts` does. It is the environment's `id` and is carried in the state as `hostIdentity`, so the Renderer
+     *   keys its device-local state by the SSH Host rather than by whichever alias connected it.
+     * @param options How this environment's connection and supervisor are created.
+     * @param onChanged Reports a state change to the registry.
      */
     constructor(
         readonly destination: string,
-        private readonly key: string,
+        readonly id: string,
         private readonly options: SshHostEnvironmentsOptions,
+        private readonly onChanged: () => void,
     ) {
         this.current = {
             kind: 'ssh',
             destination,
-            hostIdentity: key,
+            hostIdentity: id,
             phase: 'connecting',
             needsUserAction: false,
         };
-        const parts = options.create(destination, {
+        const parts = options.create(destination, id, {
             askpass: (request, signal) => this.prompt(request, signal),
             update: (patch) => this.update(patch),
         });
+        this.parts = parts;
         this.connection = parts.connection;
-        this.window = parts.window;
         this.supervisor = parts.supervisor;
         this.sendEvent = parts.sendEvent;
-        this.route = {
-            ...parts.route,
-            window: () => (this.window.isDestroyed() ? undefined : this.window),
-        };
+        this.route = parts.route;
         /**
-         * Renderer requests issued while the first attachment is still connecting wait on it, like the local window's.
-         * The promise rejects when the window closes; marking it handled keeps a window closed before any request from
-         * reporting an unhandled rejection.
+         * Renderer requests issued while the first attachment is still connecting wait on it, like the local Server's.
+         * The promise rejects when the environment is disconnected; marking it handled keeps one disconnected before
+         * any request from reporting an unhandled rejection.
          */
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         this.attached.promise.catch(() => {});
@@ -187,7 +203,7 @@ class SshHostEnvironmentController implements SshHostEnvironment {
             if (event.payload.status === 'reconnected')
                 this.update({ phase: 'connected', failure: undefined, needsUserAction: false });
             /**
-             * `replaced`: the connection stops for good once another Desktop holds the lease; without this the window
+             * `replaced`: the connection stops for good once another Desktop holds the lease; without this the Host
              * would keep claiming to be connected while every request is cancelled. Nothing retries it, and there is no
              * OpenSSH question to answer, so `needsUserAction` stays false.
              */
@@ -246,11 +262,7 @@ class SshHostEnvironmentController implements SshHostEnvironment {
             signal.addEventListener('abort', onAbort, { once: true });
             this.prompts.push({ request, resolve: settle });
             this.update({ askpass: this.prompts[0]?.request });
-            if (!this.window.isDestroyed()) {
-                if (this.window.isMinimized()) this.window.restore();
-                this.window.show();
-                this.window.focus();
-            }
+            this.parts.focusWorkbench();
         });
     }
 
@@ -261,7 +273,7 @@ class SshHostEnvironmentController implements SshHostEnvironment {
         for (const key of Object.keys(patch) as Array<keyof SshHostStatePatch>)
             if (patch[key] === undefined) delete next[key];
         if (next.failure?.reason === 'hostKey' && next.failure.knownHostsName === undefined) {
-            const knownHostsName = knownHostsNameOf(this.key);
+            const knownHostsName = knownHostsNameOf(this.id);
             if (knownHostsName) next.failure = { ...next.failure, knownHostsName };
         }
         this.current = next;
@@ -285,6 +297,7 @@ class SshHostEnvironmentController implements SshHostEnvironment {
             this.phaseStartedAt = now;
         }
         this.sendEvent({ event: 'environment.changed', payload: next });
+        this.onChanged();
     }
 
     state(): SshEnvironmentState {
@@ -338,7 +351,7 @@ class SshHostEnvironmentController implements SshHostEnvironment {
     }
 
     /**
-     * Stops a connect, install, or reconnect the user no longer wants. The window stays open on a `cancelled` failure
+     * Stops a connect, install, or reconnect the user no longer wants. The environment stays on a `cancelled` failure
      * so Reconnect can start over.
      */
     cancel(): void {
@@ -356,16 +369,12 @@ class SshHostEnvironmentController implements SshHostEnvironment {
     }
 
     /**
-     * Ends the remote Server with its Terminals and Agents, then closes the window: the connection is disposed and a
-     * new `sshHost.connect` starts a fresh Server.
+     * Ends the remote Server with its Terminals and Agents. The caller then disconnects the environment, so a new
+     * `sshHost.connect` starts a fresh Server.
      */
     async stopServer(): Promise<void> {
         this.update({ phase: 'stopped', needsUserAction: false });
-        try {
-            await this.connection.stopServer();
-        } finally {
-            if (!this.window.isDestroyed()) this.window.destroy();
-        }
+        await this.connection.stopServer();
     }
 
     /**
@@ -377,7 +386,8 @@ class SshHostEnvironmentController implements SshHostEnvironment {
         const pending = this.prompts.slice();
         this.prompts.length = 0;
         for (const prompt of pending) prompt.resolve(null);
-        this.attached.reject(new CaxriError('CANCELLED', 'The SSH Host window was closed'));
+        this.attached.reject(new CaxriError('CANCELLED', 'The SSH Host was disconnected'));
+        this.parts.unbind();
         this.connection.close();
         try {
             await this.supervisor.dispose();
@@ -399,45 +409,53 @@ async function emptyOnFailure<T>(read: () => Promise<T[]>): Promise<T[]> {
 }
 
 /**
- * Owns every SSH Host window. Each destination has at most one window and one Server connection; IPC from a window is
- * routed to its own environment by the sending `WebContents`.
+ * Owns every connected SSH Host. Each host identity has at most one environment and one Server connection, because a
+ * second connection to one Server would take over its lease. The Workbench names the environment a request is for; see
+ * docs/adr/0022-multi-environment-window.md.
  */
 export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
     const environments = new Map<string, SshHostEnvironmentController>();
 
-    function byWebContents(sender: WebContents): SshHostEnvironmentController | undefined {
-        for (const environment of environments.values())
-            if (!environment.window.isDestroyed() && environment.window.webContents === sender)
-                return environment;
-        return undefined;
-    }
-
-    function focus(environment: SshHostEnvironmentController): void {
-        const { window } = environment;
-        if (window.isDestroyed()) return;
-        if (window.isMinimized()) window.restore();
-        window.show();
-        window.focus();
+    function notifyChanged(): void {
+        const states = environments
+            .values()
+            .map((environment) => environment.state())
+            .toArray();
+        options.onEnvironmentsChanged(states);
+        for (const state of states)
+            if (state.phase === 'connected')
+                void options.preferences
+                    .recordConnected(
+                        state.hostIdentity,
+                        state.destination,
+                        state.platform && detectedSystemOf(state.platform),
+                    )
+                    .catch(() => {
+                        // Preferences are a convenience: a failed write keeps the Host connected and is retried next change.
+                    });
     }
 
     async function reveal(
         existing: SshHostEnvironmentController,
         destination: string,
-    ): Promise<void> {
-        focus(existing);
-        // Another spelling or alias of the same SSH Host: say why this window came forward instead of a new one.
+    ): Promise<string> {
+        // Another spelling or alias of the same SSH Host: say why no second connection appeared.
         if (existing.destination !== destination)
             existing.sendEvent({
                 event: 'environment.connectionReused',
                 payload: { destination },
             });
         if (existing.state().phase === 'failed') await existing.reconnect();
+        return existing.id;
     }
 
-    async function connect(destination: string): Promise<void> {
+    /**
+     * Connects `destination`, or reuses the environment already connected to the same SSH Host, and answers its id.
+     */
+    async function connect(destination: string): Promise<string> {
         /**
-         * A window opened for this exact spelling is found without `keyOf`, whose `ssh -G` can take seconds behind a
-         * slow `Match exec`; only a spelling no window has used yet pays for resolving it.
+         * An environment connected with this exact spelling is found without `keyOf`, whose `ssh -G` can take seconds
+         * behind a slow `Match exec`; only a spelling no environment has used yet pays for resolving it.
          */
         const sameSpelling = environments
             .values()
@@ -447,30 +465,58 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
         // Nothing below awaits until the new environment is registered, so concurrent connects cannot both miss.
         const existing = environments.get(key);
         if (existing) return reveal(existing, destination);
-        const environment = new SshHostEnvironmentController(destination, key, options);
+        const environment = new SshHostEnvironmentController(
+            destination,
+            key,
+            options,
+            notifyChanged,
+        );
         environments.set(key, environment);
-        environment.window.once('closed', () => {
-            if (environments.get(key) === environment) environments.delete(key);
-            void environment.dispose();
-        });
+        notifyChanged();
         try {
             await options.recent.remember(destination);
         } catch {
             // A recents file that cannot be written must not block connecting.
         }
-        // The window shows the connection progress itself; `sshHost.connect` returns once the window exists.
+        // The Workbench shows the connection progress itself; `sshHost.connect` returns once the environment exists.
         void environment.start();
+        return key;
     }
 
     /**
-     * The Main methods one window answers for its own environment. The local Workbench passes `undefined`.
+     * Detaches one SSH Host without stopping its Server: its Terminals and Agents keep running there.
+     */
+    async function disconnect(id: string): Promise<void> {
+        const environment = environments.get(id);
+        if (!environment) return;
+        environments.delete(id);
+        notifyChanged();
+        await environment.dispose();
+    }
+
+    function requireEnvironment(environment: SshHostEnvironmentController | undefined) {
+        if (!environment) throw new CaxriError('UNAVAILABLE', 'The SSH Host is not connected');
+        return environment;
+    }
+
+    /**
+     * The Main methods answered for one environment: an SSH Host for a request that named it, or the local Server
+     * (`undefined`).
      */
     function methodsFor(
         environment: SshHostEnvironmentController | undefined,
     ): MainEnvironmentMethods {
         return {
             connect,
+            disconnect: async () => {
+                await disconnect(requireEnvironment(environment).id);
+            },
             get: (): EnvironmentState => environment?.state() ?? { kind: 'local' },
+            list: () =>
+                environments
+                    .values()
+                    .map((each) => each.state())
+                    .toArray(),
             listHosts: async () => {
                 const [hosts, recent] = await Promise.all([
                     emptyOnFailure(() => options.listHosts()),
@@ -479,26 +525,27 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
                 return { hosts, recent };
             },
             reconnect: async () => {
-                if (!environment)
-                    throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
-                await environment.reconnect();
+                await requireEnvironment(environment).reconnect();
             },
-            retryNow: () => {
-                if (!environment)
-                    throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
-                return environment.retryNow();
-            },
+            retryNow: () => requireEnvironment(environment).retryNow(),
             cancel: () => {
-                if (!environment)
-                    throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
-                environment.cancel();
+                requireEnvironment(environment).cancel();
             },
             revealSshConfig: () => options.revealSshConfig(),
             replyAskpass: (requestId, response) => environment?.reply(requestId, response),
+            preferences: {
+                get: () => options.preferences.read(),
+                update: (hostId, change) => options.preferences.update(hostId, change),
+                setShowHostNames: (shouldShowHostNames) =>
+                    options.preferences.setShowHostNames(shouldShowHostNames),
+            },
             stopServer: async () => {
-                if (!environment)
-                    throw new CaxriError('UNAVAILABLE', 'This window is not an SSH Host window');
-                await environment.stopServer();
+                const target = requireEnvironment(environment);
+                try {
+                    await target.stopServer();
+                } finally {
+                    await disconnect(target.id);
+                }
                 return { canceled: false };
             },
         };
@@ -506,27 +553,22 @@ export function createSshHostEnvironments(options: SshHostEnvironmentsOptions) {
 
     return {
         connect,
-        /**
-         * Main methods for a request from `sender`'s window, or for the local Workbench when `sender` is not an SSH
-         * Host window.
-         */
-        methodsFor: (sender: WebContents | undefined) =>
-            methodsFor(sender ? byWebContents(sender) : undefined),
+        disconnect,
+        methodsFor: (environmentId: string | undefined) =>
+            methodsFor(environmentId === undefined ? undefined : environments.get(environmentId)),
         methodsForEnvironment: (environment: SshHostEnvironment) =>
             methodsFor(
                 environment instanceof SshHostEnvironmentController ? environment : undefined,
             ),
-        route(sender: WebContents): SshHostRendererRoute | undefined {
-            return byWebContents(sender)?.route;
-        },
         /**
-         * The environment that owns `window`, for menu commands that must act on the focused window's Server.
+         * The request route of a connected environment, or `undefined` for an unknown or disconnected one, which the
+         * caller must refuse rather than send to the local Server.
          */
-        forWindow(window: BrowserWindow | undefined): SshHostEnvironment | undefined {
-            if (!window) return undefined;
-            for (const environment of environments.values())
-                if (environment.window === window) return environment;
-            return undefined;
+        route(environmentId: string): SshHostRendererRoute | undefined {
+            return environments.get(environmentId)?.route;
+        },
+        get(environmentId: string): SshHostEnvironment | undefined {
+            return environments.get(environmentId);
         },
         whenAttached(environment: SshHostEnvironment): Promise<void> {
             return environment instanceof SshHostEnvironmentController

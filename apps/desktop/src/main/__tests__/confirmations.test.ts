@@ -189,17 +189,17 @@ describe('trash prompt', () => {
 
 describe('SSH Host Server update prompt', () => {
     it('names the running work, keeps it on Escape and Return, and updates only on the explicit button', () => {
-        const options = sshHostServerUpdatePrompt({ terminals: 2, chats: 1 });
+        const options = sshHostServerUpdatePrompt('build-box', { terminals: 2, chats: 1 });
         expect(options.message).toBe(
-            'Update Caxri Server on this SSH Host while 2 Terminals and 1 Chat are running?',
+            'Update Caxri Server on build-box while 2 Terminals and 1 Chat are running?',
         );
         expect(options.detail).toContain('stops every running Terminal and Agent process');
-        expect(options.detail).toContain('Not Now keeps them running');
+        expect(options.detail).toContain('Not Now keeps them running and leaves build-box disconnected');
         expect(options.buttons).toEqual(['Update Server', 'Not Now']);
         expect(options.defaultId).toBe(1);
         expect(options.cancelId).toBe(1);
-        expect(sshHostServerUpdatePrompt({ terminals: 0, chats: 1 }).message).toBe(
-            'Update Caxri Server on this SSH Host while 1 Chat is running?',
+        expect(sshHostServerUpdatePrompt('build-box', { terminals: 0, chats: 1 }).message).toBe(
+            'Update Caxri Server on build-box while 1 Chat is running?',
         );
     });
 });

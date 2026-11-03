@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
     pushToast: vi.fn(),
 }));
 
-vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+vi.mock('../../../lib/caxri', () => ({
+    caxri: { in: () => ({ request: mocks.caxriRequest }), request: mocks.caxriRequest },
+}));
 vi.mock('../../../stores/toasts', () => ({
     pushToast: mocks.pushToast,
     tryCommand: vi.fn(),

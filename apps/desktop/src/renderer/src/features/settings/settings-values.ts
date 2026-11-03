@@ -95,6 +95,8 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return argvConfig !== undefined && !argvConfig.hardwareAcceleration;
         case 'archived-sessions':
         case 'mobile-access':
+        case 'ssh-hosts':
+        case 'host-names':
         case 'claude-windows':
         case 'agent-secrets':
         case 'provider-skill-health':
@@ -109,6 +111,8 @@ export function isRowResettable(binding: SettingRowBinding): boolean {
     return ![
         'archived-sessions',
         'mobile-access',
+        'ssh-hosts',
+        'host-names',
         'claude-windows',
         'agent-secrets',
         'provider-skill-health',
@@ -235,6 +239,8 @@ export function rowResetAction(
             return { kind: 'argv', changes: { hardwareAcceleration: true } };
         case 'archived-sessions':
         case 'mobile-access':
+        case 'ssh-hosts':
+        case 'host-names':
         case 'claude-windows':
         case 'agent-secrets':
         case 'provider-skill-health':

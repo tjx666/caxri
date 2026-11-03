@@ -11,7 +11,12 @@ import {
 import { agentProviderSchema } from '../agent/agents.js';
 import { agentDelegationProgressSchema } from '../agent/delegation/agent-delegation-sessions.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
-import { environmentStateSchema, sshDestinationSchema } from '../desktop/ssh-host-contract.js';
+import {
+    environmentStateSchema,
+    hostPreferencesSchema,
+    sshDestinationSchema,
+    sshEnvironmentStateSchema,
+} from '../desktop/ssh-host-contract.js';
 import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,
@@ -361,6 +366,16 @@ export const serverEventPayloads = {
      * resolves to the same account, instead of opening a second window.
      */
     'environment.connectionReused': z.object({ destination: sshDestinationSchema }),
+    /**
+     * Main-originated: the SSH Hosts this Desktop is connected or connecting to changed (one was added, removed, or
+     * changed phase). Carries the same list `sshHost.environments.list` answers.
+     */
+    'sshHost.environmentsChanged': z.array(sshEnvironmentStateSchema).max(64),
+    /**
+     * Host display preferences changed (Settings › Hosts, or a Host's first connection). Carries the same value
+     * `sshHost.preferences.get` answers.
+     */
+    'sshHost.preferencesChanged': hostPreferencesSchema,
     /**
      * Main-originated resync signal after the Desktop↔Host connection dropped and re-attached (observed in production
      * on macOS sleep/wake). Transient events sent during the outage, PTY output above all, were never delivered and are

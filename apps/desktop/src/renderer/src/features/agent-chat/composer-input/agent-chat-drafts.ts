@@ -11,7 +11,10 @@ import {
     didDeliverToMountedComposer,
     notifyDraftChange,
 } from './device-state/agent-chat-composer-listeners';
-import { configureAgentChatComposerWindowForBot } from './device-state/agent-chat-composer-scope';
+import {
+    configureAgentChatComposerWindowForBot,
+    currentAgentChatComposerScope,
+} from './device-state/agent-chat-composer-scope';
 import { agentChatComposerState } from './device-state/agent-chat-composer-state';
 
 /**
@@ -92,11 +95,11 @@ export function configureAgentChatAttachmentsForBot(): void {
 }
 
 export function readAgentChatDraft(terminalId: string): string {
-    return agentChatComposerState.drafts().get(terminalId) ?? '';
+    return agentChatComposerState.drafts(terminalId).get(terminalId) ?? '';
 }
 
 export function writeAgentChatDraft(terminalId: string, text: string): void {
-    const current = agentChatComposerState.drafts();
+    const current = agentChatComposerState.drafts(terminalId);
     if (current.get(terminalId) === text || (!text && !current.has(terminalId))) return;
     current.delete(terminalId);
     if (text) current.set(terminalId, text);
@@ -190,32 +193,42 @@ export function draftAfterEditCancel(
 }
 
 export function readAgentChatAttachments(terminalId: string): AgentChatAttachment[] {
-    return agentChatComposerState.attachments().get(terminalId) ?? [];
+    return agentChatComposerState.attachments(terminalId).get(terminalId) ?? [];
 }
 
 export function writeAgentChatAttachments(
     terminalId: string,
     next: readonly AgentChatAttachment[],
 ): void {
-    const attachments = agentChatComposerState.attachments();
+    const attachments = agentChatComposerState.attachments(terminalId);
     if (next.length > 0) attachments.set(terminalId, [...next]);
     else attachments.delete(terminalId);
     agentChatComposerState.saveAttachments(terminalId, next);
 }
 
 /**
- * Releases the composer state of every Chat outside `chatTerminalIds` within this window's composer scope
- * (`agentChatComposerScope`), never another window's: its unsent images (up to the attachment budget per Chat) and its
- * "Edit from here", in memory and stored. Nothing else frees them, so a Chat that was closed, deleted with its Session
- * or Project, or switched to the Terminal surface would hold them until the window reloads. The Workbench calls this
- * whenever the set of Chat Terminals it knows changes.
+ * Releases the composer state of every Chat outside `chatTerminalIds` within the composer scopes those Chats belong to
+ * (`agentChatComposerScope`), never another window's and never a disconnected SSH Host's, whose Chats the Workbench
+ * cannot list until it reconnects. This Mac's scope is always reconciled, even with no Chat left: its unsent images (up
+ * to the attachment budget per Chat) and its "Edit from here", in memory and stored. Nothing else frees them, so a Chat
+ * that was closed, deleted with its Session or Project, or switched to the Terminal surface would hold them until the
+ * window reloads. The Workbench calls this whenever the set of Chat Terminals it knows changes.
  *
  * The text draft is deliberately kept: it is bounded and trimmed by recency when persisted (see
  * `MAX_PERSISTED_AGENT_CHAT_DRAFTS`), and dropping it on a transient snapshot gap would lose typed text that should
  * survive a restart. Append listeners need nothing here; a composer removes its own when it unmounts.
  */
 export function retainAgentChatComposerState(chatTerminalIds: ReadonlySet<string>): void {
-    agentChatComposerState.retain(chatTerminalIds);
+    const byScope = new Map<string, Set<string>>([
+        [currentAgentChatComposerScope(undefined), new Set()],
+    ]);
+    for (const terminalId of chatTerminalIds) {
+        const scope = currentAgentChatComposerScope(terminalId);
+        const ids = byScope.get(scope) ?? new Set<string>();
+        ids.add(terminalId);
+        byScope.set(scope, ids);
+    }
+    for (const [scope, ids] of byScope) agentChatComposerState.retain(scope, ids);
 }
 
 /**

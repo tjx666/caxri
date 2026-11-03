@@ -1,0 +1,195 @@
+import type { BootstrapState } from '@caxri/protocol';
+
+import { caxri } from '../lib/caxri';
+import {
+    environmentOfSession,
+    forgetEnvironment,
+    indexEnvironmentSnapshot,
+    routingGeneration,
+} from '../lib/environment-routing';
+import { environmentIdOf, setSelectedEnvironment, useEnvironmentStore } from './environment';
+
+/**
+ * Remembers which machine the user last selected a Session on across reloads, so the Workbench reopens on it once that
+ * SSH Host reconnects instead of on this Mac's last selection.
+ */
+const ACTIVE_ENVIRONMENT_KEY = 'caxri.workbench.activeEnvironment';
+
+function readActiveEnvironment(): string | undefined {
+    try {
+        return localStorage.getItem(ACTIVE_ENVIRONMENT_KEY) ?? undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+const snapshots = {
+    /**
+     * The latest `app.bootstrap` of each connected SSH Host.
+     */
+    remote: new Map<string, BootstrapState>(),
+    /**
+     * SSH Hosts whose state changed since their snapshot was read.
+     */
+    dirty: new Set<string>(),
+    /**
+     * The machine whose selected Session the window shows: `undefined` is this Mac.
+     */
+    active: readActiveEnvironment(),
+    /**
+     * Each machine's selection as last read, keyed by environment id with `''` for this Mac, so a selection another
+     * path made (a new Session, a notification's reveal) can move the window to that machine.
+     */
+    selections: new Map<string, MachineSelection>(),
+};
+
+/**
+ * One machine's selected Session and the Sessions it listed alongside it.
+ */
+export interface MachineSelection {
+    selectedSessionId: string | undefined;
+    sessionIds: ReadonlySet<string>;
+}
+
+function selectionOf(state: BootstrapState): MachineSelection {
+    return {
+        selectedSessionId: state.selectedSessionId,
+        sessionIds: new Set(state.sessions.map((session) => session.id)),
+    };
+}
+
+/**
+ * The machine the window should show after a read. A machine whose Server moved its selection to another Session while
+ * the one it had selected still exists was asked to (a Session created there, a reveal): the window follows it. A
+ * selection that moved because its Session was deleted or archived is the Server's fallback, not a request, and does
+ * not pull the window away. The active machine wins a tie; `''` is this Mac.
+ */
+export function followSelection(
+    previous: ReadonlyMap<string, MachineSelection>,
+    next: ReadonlyMap<string, MachineSelection>,
+    active: string,
+): string {
+    const moved = [...next].flatMap(([machine, selection]) => {
+        const before = previous.get(machine);
+        if (before === undefined || selection.selectedSessionId === undefined) return [];
+        if (before.selectedSessionId === selection.selectedSessionId) return [];
+        const isFallback =
+            before.selectedSessionId !== undefined &&
+            !selection.sessionIds.has(before.selectedSessionId);
+        return isFallback ? [] : [machine];
+    });
+    if (moved.length === 0 || moved.includes(active)) return active;
+    return moved[0] ?? active;
+}
+
+/**
+ * Records that the user is selecting a Session, before `session.select` goes out, so the snapshot its `state.changed`
+ * triggers shows that Session's machine.
+ */
+export function noteSessionSelection(sessionId: string): void {
+    setActiveEnvironment(environmentOfSession(sessionId));
+}
+
+function setActiveEnvironment(environmentId: string | undefined): void {
+    snapshots.active = environmentId;
+    try {
+        if (environmentId === undefined) localStorage.removeItem(ACTIVE_ENVIRONMENT_KEY);
+        else localStorage.setItem(ACTIVE_ENVIRONMENT_KEY, environmentId);
+    } catch {
+        // Storage is a convenience; the selection itself is the Server's.
+    }
+}
+
+/**
+ * Marks an SSH Host's snapshot stale, so the next Workbench read fetches it again.
+ */
+export function markEnvironmentChanged(environmentId: string): void {
+    snapshots.dirty.add(environmentId);
+}
+
+function listedHosts(): { connected: string[]; listed: ReadonlySet<string> } {
+    const { hosts } = useEnvironmentStore.getState();
+    return {
+        connected: hosts.filter((host) => host.phase === 'connected').map(environmentIdOf),
+        listed: new Set(hosts.map(environmentIdOf)),
+    };
+}
+
+async function readRemote(environmentId: string): Promise<void> {
+    if (snapshots.remote.has(environmentId) && !snapshots.dirty.has(environmentId)) return;
+    snapshots.dirty.delete(environmentId);
+    try {
+        const readAt = routingGeneration();
+        const state = await caxri.in(environmentId).request('app.bootstrap');
+        snapshots.remote.set(environmentId, state);
+        indexEnvironmentSnapshot(environmentId, state, readAt);
+    } catch {
+        // A Host that dropped mid-read keeps its last snapshot until Main reports it disconnected; read it next time.
+        snapshots.dirty.add(environmentId);
+    }
+}
+
+/**
+ * Lists this Mac's records first, then each SSH Host's, in connection order. Device state (settings, keybindings,
+ * theme, Runtime status) is this Mac's. The selection is the active machine's when it has one, else this Mac's.
+ */
+export function composeSnapshots(
+    local: BootstrapState,
+    remotes: ReadonlyArray<readonly [string, BootstrapState]>,
+    activeEnvironmentId: string | undefined,
+): BootstrapState {
+    if (remotes.length === 0) return local;
+    const all = [local, ...remotes.map(([, state]) => state)];
+    const active = remotes.find(([id]) => id === activeEnvironmentId)?.[1];
+    const selection = active?.selectedSessionId === undefined ? local : active;
+    const optional = <T>(values: Array<T[] | undefined>): T[] | undefined => {
+        const flat = values.flatMap((value) => value ?? []);
+        return flat.length === 0 ? undefined : flat;
+    };
+    return {
+        ...local,
+        projects: all.flatMap((state) => state.projects),
+        sessions: all.flatMap((state) => state.sessions),
+        terminals: all.flatMap((state) => state.terminals),
+        archivedTerminals: all.flatMap((state) => state.archivedTerminals),
+        sessionStates: all.flatMap((state) => state.sessionStates),
+        openSessionIds: optional(all.map((state) => state.openSessionIds)),
+        otherWindowOpenSessionIds: optional(all.map((state) => state.otherWindowOpenSessionIds)),
+        automaticNamingUnavailable: optional(all.map((state) => state.automaticNamingUnavailable)),
+        selectedSessionId: selection.selectedSessionId,
+        selectedProjectId: selection.selectedProjectId,
+    };
+}
+
+/**
+ * The Workbench's full snapshot: this Mac's `app.bootstrap` plus every SSH Host's, read again only when that Host
+ * reported a change. A Host that is reconnecting, or whose read failed, keeps its last snapshot rather than dropping
+ * out of the side bar or failing the whole Workbench; only a disconnected Host's records go.
+ */
+export async function readComposedSnapshot(): Promise<BootstrapState> {
+    const { connected, listed } = listedHosts();
+    for (const id of snapshots.remote.keys())
+        if (!listed.has(id)) {
+            snapshots.remote.delete(id);
+            snapshots.dirty.delete(id);
+            forgetEnvironment(id);
+        }
+    const [local] = await Promise.all([
+        caxri.request('app.bootstrap'),
+        ...connected.map((id) => readRemote(id)),
+    ]);
+    const remotes = [...listed].flatMap((id) => {
+        const state = snapshots.remote.get(id);
+        return state ? [[id, state] as const] : [];
+    });
+    const selections = new Map<string, MachineSelection>([
+        ['', selectionOf(local)],
+        ...remotes.map(([id, state]) => [id, selectionOf(state)] as const),
+    ]);
+    const followed = followSelection(snapshots.selections, selections, snapshots.active ?? '');
+    snapshots.selections = selections;
+    if (followed !== (snapshots.active ?? '')) setActiveEnvironment(followed || undefined);
+    const composed = composeSnapshots(local, remotes, snapshots.active);
+    setSelectedEnvironment(environmentOfSession(composed.selectedSessionId));
+    return composed;
+}

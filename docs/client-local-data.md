@@ -7,7 +7,7 @@ status: current
 
 Caxri is server-first: Server Core owns Projects, Sessions, Terminals, Agents, and their SQLite
 state, and every client reads it over the protocol. That Server is not always on the client's
-machine. An SSH Host window talks to a Server on another computer
+machine. An SSH Host's Sessions come from a Server on another computer
 ([ADR 0014](adr/0014-ssh-remote-server.md)), and the phone always talks to a computer elsewhere. So a
 client keeps a small amount of data on its own device, for two reasons only:
 
@@ -48,6 +48,7 @@ database in the Renderer profile on Desktop.
 | Desktop | Unsaved Editor buffers (hot exit)        | 50 buffers per environment                  | Save, revert, close without saving, Session deletion, Don't Save |
 | Desktop | Recent files for `Cmd+P`                 | 200 paths per Workbench Root                | Never cleared; a file that no longer opens is dropped            |
 | Desktop | Agent Chat drafts and attachments        | Owned by `agent-chat-drafts.ts` and its IDB | Their own rules; not yet on the device store                     |
+| Desktop | Host names, icons, Reconnect on Launch   | 128 machines, in Main's `userData/ssh`      | Never cleared; a changed name or icon replaces the old one       |
 
 The phone's read cache and drafts are described in [mobile design](mobile/design.md#read-cache).
 
@@ -105,10 +106,12 @@ the directory and Project-wide results, which omit files already listed. A typed
 
 ### SSH Host disconnect
 
-While an attached SSH Host window reconnects, its Workbench stays on screen and readable, made
-`inert` so nothing is sent to a Server that cannot answer, and the connection card floats above it
-with Retry, Reconnect, and Close Window. Before the first attach the card still fills the window,
-since there is nothing to read yet.
+While an SSH Host reconnects, the Workbench keeps its last snapshot of that Host's Projects, so they
+stay in the side bar instead of flickering out, and this Mac's and every other Host's Sessions stay
+usable. Selecting one of the Host's Sessions shows a connection card above it with Retry, Reconnect,
+and Disconnect, and focus moves to the card so keystrokes never reach a Server that cannot answer.
+Host preferences are kept by Desktop Main rather than the device store, because a Host's name and
+icon must show exactly while it is offline.
 
 ## Measurements and decisions
 

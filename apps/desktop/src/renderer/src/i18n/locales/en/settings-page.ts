@@ -78,6 +78,12 @@ export const settingsPage = {
     'settings.row.archivedSessions.title': 'Archived Sessions',
     'settings.row.archivedSessions.description': 'Restore or permanently delete archived Sessions',
     'settings.row.archivedSessions.manage': 'Manage…',
+    'settings.row.hosts.title': 'Hosts',
+    'settings.row.hosts.description':
+        'Every machine this window reaches. Auto shows the detected system; a chosen icon replaces the name in the side bar.',
+    'settings.row.hostNames.title': 'Show Host Names Next to Icons',
+    'settings.row.hostNames.description':
+        'Off keeps the side bar narrow: Session rows, and a Host with a chosen icon, show the icon alone, with the name in the tooltip.',
     'settings.row.mobileAccess.title': 'Mobile access',
     'settings.row.mobileAccess.description':
         'Pair Android phones on this local network to review scoped Agent Sessions and send short replies',

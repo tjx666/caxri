@@ -3,25 +3,28 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 
+import type { ServerEvent } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { nativeTheme, shell } from 'electron';
+import { logEventCatalog } from '@caxri/system';
+import type { BrowserWindow } from 'electron';
+import { shell } from 'electron';
 
-import type { MainMethodHandlerOptions } from '../main-methods';
-import { createMainMethodHandler } from '../main-methods';
-import { loadRendererEntry } from '../renderer-entry';
-import { ProjectRootGrants } from '../root-grants';
-import { mainWindowChromeOptions, zoomFactorForLevel } from '../window-chrome';
-import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
-import { createWorkbenchRootAuthority } from '../workbench-root-authority';
-import type { SshHostEnvironmentWindowOptions } from './host-environment-window';
-import { createSshHostEnvironmentParts } from './host-environment-window';
+import type { MainMethodHandlerOptions } from '../../main-methods';
+import { createMainMethodHandler } from '../../main-methods';
+import { ProjectRootGrants } from '../../root-grants';
+import { PRIMARY_WINDOW_KEY } from '../../window-presence-registry';
+import { createWorkbenchRootAuthority } from '../../workbench-root-authority';
+import { createSshHostSupervisor, SSH_CONFIG_ENVIRONMENT_KEY } from '../host-supervisor';
+import { resolveSshHostWindowKey } from '../resolve-destination';
+import { readSeedConfig } from '../seed-config';
+import { listSshConfigHosts, RecentSshDestinations } from '../ssh-config';
+import type { SshHostEnvironmentPartsOptions } from './host-environment-parts';
+import { createSshHostEnvironmentParts } from './host-environment-parts';
 import type { SshHostEnvironments } from './host-environments';
 import { createSshHostEnvironments } from './host-environments';
-import { createSshHostSupervisor, SSH_CONFIG_ENVIRONMENT_KEY } from './host-supervisor';
-import { resolveSshHostWindowKey } from './resolve-destination';
-import { readSeedConfig } from './seed-config';
-import { listSshConfigHosts, RecentSshDestinations } from './ssh-config';
+import { HostPreferencesStore } from './host-preferences';
+import type { PrimaryWindowChannel } from './primary-window-channel';
 
 /**
  * Main method options that do not depend on which window asked: the local Workbench's process-wide controllers.
@@ -39,59 +42,48 @@ type SharedMainMethodOptions = Pick<
 >;
 
 export interface SshHostEnvironmentCompositionOptions {
-    connection: SshHostEnvironmentWindowOptions['connection'];
+    connection: SshHostEnvironmentPartsOptions['connection'];
     /**
-     * Main's own output directory, used to find the Renderer entry and, unpackaged, the built remote layers.
+     * Main's own output directory, used to find the built remote layers when unpackaged.
      */
     currentDirectory: string;
     isPackaged: boolean;
-    isQuitting: () => boolean;
     logger: () => StructuredLogger;
     nextTestRoot: Parameters<typeof createWorkbenchRootAuthority>[0]['nextTestRoot'];
+    primaryWindow: PrimaryWindowChannel;
+    /**
+     * Main's own event fan-out: the SSH Host list goes to the primary window, Host preferences to every window.
+     */
+    sendEvent: (event: ServerEvent, windowKey?: string) => void;
     shared: SharedMainMethodOptions;
     userDataPath: string;
-    /**
-     * The Workbench zoom level, shared by every window.
-     */
-    zoomLevel(): number;
+    workbenchWindow: () => BrowserWindow | undefined;
 }
 
 /**
- * Builds the SSH Host registry. Each SSH Host window gets its own Main method handler bound to its own Server
- * connection and window, guarded by `environmentMethodScopes`.
+ * Builds the SSH Host registry. Each SSH Host gets its own Main method handler bound to its own Server connection,
+ * guarded by `environmentMethodScopes`, and acting over the primary Workbench window.
  */
 export function composeSshHostEnvironments(
     options: SshHostEnvironmentCompositionOptions,
 ): SshHostEnvironments {
     const recentDestinations = new RecentSshDestinations(options.userDataPath);
+    const preferences = new HostPreferencesStore(join(options.userDataPath, 'ssh'), (payload) =>
+        options.sendEvent({ event: 'sshHost.preferencesChanged', payload }),
+    );
     const environments: SshHostEnvironments = createSshHostEnvironments({
         create: createSshHostEnvironmentParts({
-            chrome: () => {
-                const zoomFactor = zoomFactorForLevel(options.zoomLevel());
-                return {
-                    ...mainWindowChromeOptions(
-                        zoomFactor,
-                        process.platform,
-                        nativeTheme.shouldUseDarkColors,
-                    ),
-                    webPreferences: {
-                        preload: join(options.currentDirectory, '../preload/index.cjs'),
-                        contextIsolation: true,
-                        nodeIntegration: false,
-                        sandbox: true,
-                        zoomFactor,
-                    },
-                };
-            },
             connection: options.connection,
             createMainHandler: (input) => {
-                const methods = () => environments.methodsFor(input.window()?.webContents);
+                const methods = () => environments.methodsFor(input.environmentId);
                 return createMainMethodHandler({
                     ...options.shared,
                     environment: {
                         cancel: () => methods().cancel(),
                         connect: (destination) => environments.connect(destination),
+                        disconnect: () => methods().disconnect(),
                         get: () => methods().get(),
+                        list: () => methods().list(),
                         listHosts: () => methods().listHosts(),
                         reconnect: () => methods().reconnect(),
                         retryNow: () => methods().retryNow(),
@@ -99,9 +91,15 @@ export function composeSshHostEnvironments(
                             methods().replyAskpass(requestId, response),
                         revealSshConfig: () => methods().revealSshConfig(),
                         stopServer: () => methods().stopServer(),
+                        preferences: {
+                            get: () => methods().preferences.get(),
+                            update: (hostId, change) =>
+                                methods().preferences.update(hostId, change),
+                            setShowHostNames: (shouldShowHostNames) =>
+                                methods().preferences.setShowHostNames(shouldShowHostNames),
+                        },
                     },
                     logger: options.logger,
-                    onUnsavedEditorsReply: input.onUnsavedEditorsReply,
                     revealSessionInWorkbench: async (sessionId) => {
                         await input.connection.request('session.select', {
                             sessionId,
@@ -148,21 +146,17 @@ export function composeSshHostEnvironments(
                         : resolve(options.currentDirectory, '../../apps/server/dist/remote'),
                     seedConfig: () => readSeedConfig(join(options.userDataPath, 'config')),
                 }),
-            isQuitting: options.isQuitting,
-            loadRenderer: (window) =>
-                loadRendererEntry(window, {
-                    currentDirectory: options.currentDirectory,
-                    isPackaged: options.isPackaged,
-                    page: 'index.html',
-                    rendererUrl: process.env.ELECTRON_RENDERER_URL,
-                }),
+            deliver: (environmentId, message) =>
+                options.primaryWindow.deliver(environmentId, message),
             logger: options.logger,
-            whenAttached: (window) => {
-                const environment = environments.forWindow(window);
+            observeWorkbenchWindow: (listener) => options.primaryWindow.observe(listener),
+            whenAttached: (environmentId) => {
+                const environment = environments.get(environmentId);
                 return environment
                     ? environments.whenAttached(environment)
-                    : Promise.reject(new CaxriError('CANCELLED', 'The SSH Host window was closed'));
+                    : Promise.reject(new CaxriError('CANCELLED', 'The SSH Host was disconnected'));
             },
+            workbenchWindow: options.workbenchWindow,
         }),
         keyOf: (destination) => {
             const configFile = process.env[SSH_CONFIG_ENVIRONMENT_KEY];
@@ -174,7 +168,13 @@ export function composeSshHostEnvironments(
             return listSshConfigHosts(configPath ? { configPath } : {});
         },
         logger: options.logger,
+        onEnvironmentsChanged: (payload) =>
+            options.sendEvent(
+                { event: 'sshHost.environmentsChanged', payload },
+                PRIMARY_WINDOW_KEY,
+            ),
         revealSshConfig,
+        preferences,
         recent: {
             list: () => recentDestinations.list(),
             remember: async (destination) => {
@@ -182,7 +182,32 @@ export function composeSshHostEnvironments(
             },
         },
     });
+    void reconnectOnLaunch(environments, preferences, options.logger);
     return environments;
+}
+
+/**
+ * Connects every SSH Host whose Reconnect on Launch is on (the default) once Main starts, in the order they were first
+ * connected. A Host that fails shows its failure in the side bar like any other connection.
+ */
+async function reconnectOnLaunch(
+    environments: SshHostEnvironments,
+    preferences: HostPreferencesStore,
+    logger: () => StructuredLogger,
+): Promise<void> {
+    const { hosts } = await preferences.read();
+    for (const host of Object.values(hosts)) {
+        if (!host.destination || host.reconnectOnLaunch === false) continue;
+        try {
+            // One Host at a time, so two never ask for a passphrase together.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential on purpose; see above
+            await environments.connect(host.destination); // eslint-disable-line no-await-in-loop -- see above
+        } catch (error) {
+            logger().write('warn', logEventCatalog.sshHost.reconnectOnLaunchFailed, {
+                fields: { code: error instanceof CaxriError ? error.code : 'UNKNOWN' },
+            });
+        }
+    }
 }
 
 async function isExistingPath(path: string): Promise<boolean> {

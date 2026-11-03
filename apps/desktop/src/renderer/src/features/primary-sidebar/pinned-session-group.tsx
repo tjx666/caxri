@@ -230,6 +230,7 @@ export function PinnedSessionGroup({
                                         session={session}
                                         sessionOrder={sessionOrder}
                                         shortcutHint={shortcutHint}
+                                        showHostMark
                                         showProjectName
                                         showSubagents={showSubagents}
                                         subagentRovingRowId={rovingSubagentRowId(

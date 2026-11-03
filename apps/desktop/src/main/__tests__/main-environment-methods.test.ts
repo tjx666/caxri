@@ -3,21 +3,32 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLocalWorkbenchEnvironment } from '../local-workbench-environment';
 import type { MainEnvironmentMethods } from '../main-environment-methods';
 import { handleEnvironmentRequest, isEnvironmentRequest } from '../main-environment-methods';
-import type { SshHostEnvironments } from '../ssh/host-environments';
+import type { SshHostEnvironments } from '../ssh/environments/host-environments';
 
 function environmentMethods() {
-    const connect = vi.fn<MainEnvironmentMethods['connect']>(() => Promise.resolve());
+    const connect = vi.fn<MainEnvironmentMethods['connect']>(() =>
+        Promise.resolve('dev@build-box'),
+    );
     const replyAskpass = vi.fn<MainEnvironmentMethods['replyAskpass']>();
     const methods: MainEnvironmentMethods = {
         cancel: vi.fn(),
         connect,
+        disconnect: vi.fn(() => Promise.resolve()),
         get: vi.fn(() => ({ kind: 'local' as const })),
+        list: vi.fn(() => []),
         listHosts: vi.fn(() => Promise.resolve({ hosts: [], recent: ['dev@build-box'] })),
         reconnect: vi.fn(() => Promise.resolve()),
         retryNow: vi.fn(() => true),
         replyAskpass,
         revealSshConfig: vi.fn(() => Promise.resolve()),
         stopServer: vi.fn(() => Promise.resolve({ canceled: false })),
+        preferences: {
+            get: vi.fn(() => Promise.resolve({ shouldShowHostNames: false, hosts: {} })),
+            update: vi.fn(() => Promise.resolve({ shouldShowHostNames: false, hosts: {} })),
+            setShowHostNames: vi.fn(() =>
+                Promise.resolve({ shouldShowHostNames: true, hosts: {} }),
+            ),
+        },
     };
     return { connect, methods, replyAskpass };
 }
@@ -31,12 +42,24 @@ describe('Main environment methods', () => {
         expect(isEnvironmentRequest({ method: 'argv.get', params: {} } as never)).toBe(false);
     });
 
-    it('routes each request to the calling window environment', async () => {
+    it('routes each request to the environment it names', async () => {
         const { connect, methods: environment, replyAskpass } = environmentMethods();
 
         await expect(
             handleEnvironmentRequest(
                 { method: 'sshHost.connect', params: { destination: 'dev@build-box' } } as never,
+                environment,
+            ),
+        ).resolves.toEqual({ environmentId: 'dev@build-box' });
+        await expect(
+            handleEnvironmentRequest(
+                { method: 'sshHost.environments.list', params: {} } as never,
+                environment,
+            ),
+        ).resolves.toEqual([]);
+        await expect(
+            handleEnvironmentRequest(
+                { method: 'sshHost.disconnect', params: {} } as never,
                 environment,
             ),
         ).resolves.toBeNull();
@@ -77,12 +100,12 @@ describe('Main environment methods', () => {
     });
 
     it('hands the local Workbench connect to the SSH Host registry once it exists', async () => {
-        const connect = vi.fn(() => Promise.resolve());
+        const connect = vi.fn(() => Promise.resolve('dev@build-box'));
         const local = createLocalWorkbenchEnvironment(
             () => ({ connect }) as unknown as SshHostEnvironments,
         );
 
-        await local.connect('dev@build-box');
+        await expect(local.connect('dev@build-box')).resolves.toBe('dev@build-box');
 
         expect(connect).toHaveBeenCalledWith('dev@build-box');
     });

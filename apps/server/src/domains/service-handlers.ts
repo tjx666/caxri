@@ -356,6 +356,16 @@ export function createServiceHandlers(services: {
             const { id, title } = await addProjectFolder(database, emit, path);
             return { project: { id, title } };
         },
+        'project.repositoryKeys': async () => {
+            const projects = database.listProjects().filter((project) => !project.hiddenAt);
+            const keys = await Promise.all(
+                projects.map(
+                    async (project) =>
+                        [project.id, await git.repositoryKey(project.rootPath)] as const,
+                ),
+            );
+            return Object.fromEntries(keys);
+        },
         'project.setIcon': ({ projectId, icon }) => {
             const project = database.setProjectIcon(projectId, icon);
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });

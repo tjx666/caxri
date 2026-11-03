@@ -11,7 +11,7 @@ import { useTranslation } from '../../i18n';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { openHelpPage } from '../help/help-commands';
-import { beginSessionCreation, chooseProjectFolder } from '../session/session-creation-commands';
+import { addProject, beginSessionCreation } from '../session/session-creation-commands';
 import { selectWelcomeAction } from './welcome-action';
 
 /**
@@ -99,7 +99,7 @@ export function WelcomeView() {
                 <Button
                     variant={hasProject ? 'secondary' : 'default'}
                     onClick={() => {
-                        void chooseProjectFolder();
+                        void addProject();
                     }}
                 >
                     <Plus aria-hidden="true" size={14} />

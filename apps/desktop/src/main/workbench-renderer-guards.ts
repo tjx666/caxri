@@ -9,11 +9,11 @@ import { observeRendererHangs } from './renderer-hang-observer';
 
 /**
  * Locks a Workbench Renderer to its own page and mirrors its console errors, preload failures, and hangs into Main's
- * log. Shared by the local Workbench window and every SSH Host window; `window` tags the console errors of the latter.
+ * log.
  */
-export function installRendererGuards(
+function installRendererGuards(
     window: BrowserWindow,
-    options: { logger: () => StructuredLogger | undefined; window?: 'ssh-host' },
+    options: { logger: () => StructuredLogger | undefined },
 ): void {
     /**
      * Passive page content never inherits authority from an explicitly trusted Terminal link.
@@ -28,10 +28,7 @@ export function installRendererGuards(
     window.webContents.on('console-message', (details) => {
         if (details.level !== 'error' || isBenignRendererErrorMessage(details.message)) return;
         options.logger()?.write('error', logEventCatalog.renderer.consoleError, {
-            fields: {
-                ...consoleErrorLogFields(details),
-                ...(options.window && { window: options.window }),
-            },
+            fields: consoleErrorLogFields(details),
         });
     });
     window.webContents.on('preload-error', () => {
@@ -43,8 +40,8 @@ export function installRendererGuards(
 }
 
 /**
- * The local Workbench window's guards plus crash recovery, which may shut the local Server down through
- * `observeRendererCrashes`. SSH Host windows install only `installRendererGuards`: their Server is not this Desktop's.
+ * A Workbench window's guards plus crash recovery, which may shut the local Server down through
+ * `observeRendererCrashes`.
  */
 export function installWorkbenchRendererGuards(
     window: BrowserWindow,

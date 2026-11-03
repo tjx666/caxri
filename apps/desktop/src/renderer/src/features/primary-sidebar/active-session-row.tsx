@@ -9,6 +9,7 @@ import { useIsSessionOpenElsewhere } from '../../stores/open-sessions';
 import { BotSessionMarker } from '../caxri-bot/bot-session-marker';
 import { useSessionLabel } from '../session/hooks/use-session-label';
 import { sessionTitleForDisplay } from '../session/session-title';
+import { SessionHostMark } from '../ssh-host/session-host-mark';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
@@ -75,6 +76,12 @@ interface ActiveSessionRowProperties {
      * Project. The title alone no longer says which one this is.
      */
     showProjectName?: boolean;
+    /**
+     * Marks the SSH Host the Session runs on beside its title, for a row whose heading does not say it: a repository
+     * merged across machines, and every row that names its Project. This Mac's rows stay unmarked. The mark is
+     * icon-only, as Orca and Superset mark a remote workspace row, so it never costs the title its width.
+     */
+    showHostMark?: boolean;
     renameError?: string;
     renameSuggesting: boolean;
     renameValue: string;
@@ -151,6 +158,7 @@ export function ActiveSessionRow({
     projectId,
     projectRootPath,
     showProjectName,
+    showHostMark,
     renameError,
     renameSuggesting,
     renameValue,
@@ -259,6 +267,7 @@ export function ActiveSessionRow({
                             {detail.suffix}
                         </span>
                     )}
+                    <SessionHostMark isShown={showHostMark} sessionId={session.id} />
                     <SessionOpenLabel isOpenElsewhere={isOpenElsewhere} />
                     {/*
                      * `aria-hidden` because the row's accessible name is composed elsewhere and would otherwise read

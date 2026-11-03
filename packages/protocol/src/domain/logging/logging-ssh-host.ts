@@ -34,9 +34,9 @@ export const sshHostLogEvents = {
      */
     masterReady: 'ssh_host.master_ready',
     /**
-     * An SSH Host window's connection phase changed. `fields.phase` and `fields.previousPhase` are
-     * `SshHostConnectionPhase` values, `fields.reason` the failure's `SshHostFailureReason` (or null), and `durationMs`
-     * the time spent in the previous phase.
+     * An SSH Host's connection phase changed. `fields.phase` and `fields.previousPhase` are `SshHostConnectionPhase`
+     * values, `fields.reason` the failure's `SshHostFailureReason` (or null), and `durationMs` the time spent in the
+     * previous phase.
      */
     phaseChanged: 'ssh_host.phase_changed',
     /**
@@ -44,4 +44,9 @@ export const sshHostLogEvents = {
      * were already present.
      */
     probed: 'ssh_host.probed',
+    /**
+     * Connecting a saved SSH Host at launch (Reconnect on Launch) failed before its connection existed, such as an
+     * unresolvable destination. `fields.code` is the `CaxriError` code, or `UNKNOWN`.
+     */
+    reconnectOnLaunchFailed: 'ssh_host.reconnect_on_launch_failed',
 } as const;

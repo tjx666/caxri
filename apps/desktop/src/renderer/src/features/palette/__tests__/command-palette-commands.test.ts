@@ -97,12 +97,13 @@ describe('isCommandVisibleInPalette', () => {
         throw new Error('gated commands are missing from the catalog');
     }
 
-    it('shows local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
-        const processExplorer = commandDefinitions.find(({ id }) => id === 'processExplorer.open');
+    it("shows a Session's local-only commands only for this Mac's Session and SSH Host commands only for a Host's", () => {
+        const openInEditor = commandDefinitions.find(({ id }) => id === 'project.openInEditor');
         const stopServer = commandDefinitions.find(({ id }) => id === 'sshHost.stopServer');
         const connect = commandDefinitions.find(({ id }) => id === 'sshHost.connect');
-        if (!processExplorer || !stopServer || !connect)
+        if (!openInEditor || !stopServer || !connect)
             throw new Error('environment-gated commands are missing from the catalog');
+        const deviceCommand = commandDefinitions.find(({ id }) => id === 'processExplorer.open');
         const session = {
             sessionHasLiveAgent: false,
             sessionHasDetachedAgent: false,
@@ -118,8 +119,10 @@ describe('isCommandVisibleInPalette', () => {
         };
         const local = { ...session, ...localWindow };
 
-        expect(isCommandVisibleInPalette(processExplorer, local)).toBe(true);
-        expect(isCommandVisibleInPalette(processExplorer, sshHostWindow)).toBe(false);
+        expect(isCommandVisibleInPalette(openInEditor, local)).toBe(true);
+        expect(isCommandVisibleInPalette(openInEditor, sshHostWindow)).toBe(false);
+        // A command about this Mac itself stays whichever Session is shown.
+        expect(deviceCommand && isCommandVisibleInPalette(deviceCommand, sshHostWindow)).toBe(true);
         expect(isCommandVisibleInPalette(stopServer, local)).toBe(false);
         expect(isCommandVisibleInPalette(stopServer, sshHostWindow)).toBe(true);
         expect(isCommandVisibleInPalette(connect, local)).toBe(true);

@@ -18,7 +18,10 @@ import type { ServerEvent } from '@caxri/protocol';
  *   `useCaxriBot` opens its Inbox or its Command Palette.
  * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`, and `subscribeExternalDocumentSync` handles
  *   `externalDocument.changed`.
- * - `environment.changed` and `environment.connectionReused` go to `subscribeEnvironment` in `stores/environment.ts`.
+ * - `sshHost.preferencesChanged` goes to `subscribeHostPreferences` in `host-preferences.ts`.
+ * - `sshHost.environmentsChanged` and `environment.connectionReused` go to `subscribeEnvironment` in
+ *   `stores/environment.ts`, and `subscribeWorkbenchEnvironments` re-reads the Workbench from its store. An SSH Host's
+ *   own `environment.changed` is superseded by that list.
  * - `files.watchLimitAlert` goes to `subscribeFileWatchLimitAlerts` in `features/ssh-host/file-watch-limit-alert.ts`.
  * - `claudeWindow.changed` goes to `subscribeRuntimeQueryInvalidation`, which refreshes the Claude 5-hour windows card's
  *   `claudeWindow.status` read.
@@ -55,6 +58,8 @@ const WORKBENCH_IGNORED_EVENTS = [
     'editor.unsavedRequest',
     'environment.changed',
     'environment.connectionReused',
+    'sshHost.environmentsChanged',
+    'sshHost.preferencesChanged',
     'externalDocument.changed',
     'files.changed',
     'files.operationChanged',

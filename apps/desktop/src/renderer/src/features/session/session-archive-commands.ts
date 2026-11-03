@@ -6,6 +6,7 @@ import type {
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { sessionsByEnvironment } from '../../lib/environment-routing';
 import { useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -166,11 +167,17 @@ export function unarchiveSession(
 async function unarchiveSessionsWithNotice(sessionIds: readonly string[]): Promise<void> {
     const restored = await tryCommand(
         translate('session.errors.restoreFailed'),
-        () =>
-            caxri.request('session.unarchiveMany', {
-                placement: 'top',
-                sessionIds: [...sessionIds],
-            }),
+        async () =>
+            (
+                await Promise.all(
+                    sessionsByEnvironment(sessionIds).map(([environmentId, ids]) =>
+                        caxri.in(environmentId).request('session.unarchiveMany', {
+                            placement: 'top',
+                            sessionIds: ids,
+                        }),
+                    ),
+                )
+            ).flat(),
         { refresh: refreshWorkbench },
     );
     // Reports what the Server actually restored rather than what was requested: a stale selection can name a Session

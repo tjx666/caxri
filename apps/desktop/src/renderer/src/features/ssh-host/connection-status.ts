@@ -67,7 +67,7 @@ const BUSY_PHASES: ReadonlySet<SshHostConnectionPhase> = new Set([
 ]);
 
 /**
- * Failures that reconnecting cannot fix because the SSH Host itself has to change first, so Close Window is the only
+ * Failures that reconnecting cannot fix because the SSH Host itself has to change first, so Disconnect is the only
  * action left.
  */
 const HOST_REQUIREMENT_REASONS: ReadonlySet<SshHostFailureReason> = new Set([

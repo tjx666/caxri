@@ -1,4 +1,4 @@
-import type { DeviceStoreBackend, EnvironmentState } from '@caxri/protocol';
+import type { DeviceStoreBackend } from '@caxri/protocol';
 import {
     createDeviceStore,
     findResourceTabs,
@@ -9,7 +9,6 @@ import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-st
 import { z } from 'zod';
 
 import { indexedDatabaseDeviceStoreBackend } from '../../lib/indexed-database-device-store';
-import { environmentStorageScope, useEnvironmentStore } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -315,8 +314,9 @@ export async function discardEditorBackups(): Promise<void> {
 }
 
 /**
- * Starts hot exit for this Workbench window once it knows its environment, which names the database
- * (`environmentStorageScope`). Writes still waiting are flushed when the window is hidden or unloaded.
+ * Starts hot exit for this Workbench window. One database holds the backups of every machine's Sessions: Session ids
+ * are unique across Servers, and a backup is removed only when its buffer is saved, discarded, or its Session deleted,
+ * never because an SSH Host disconnected. Writes still waiting are flushed when the window is hidden or unloaded.
  */
 export function subscribeEditorBackups(): () => void {
     let stopFollowing: (() => void) | undefined;
@@ -327,35 +327,21 @@ export function subscribeEditorBackups(): () => void {
     const onVisibilityChange = (): void => {
         if (document.visibilityState === 'hidden') flush();
     };
-    const begin = (environment: EnvironmentState): void => {
-        const scope = environmentStorageScope(environment);
-        const backups = createEditorBackups({
-            backend: indexedDatabaseDeviceStoreBackend(
-                scope === 'local' ? DATABASE_NAME : `${DATABASE_NAME}:${scope}`,
-            ),
-            projectIdOf: (sessionId) =>
-                getBootstrap()?.sessions.find((session) => session.id === sessionId)?.projectId,
-            scope,
-        });
-        current.backups = backups;
-        void backups.start().then((stop) => {
-            if (isActive) stopFollowing = stop;
-            else stop();
-        });
-    };
-    const environment = useEnvironmentStore.getState().state;
-    const unsubscribeEnvironment = environment
-        ? undefined
-        : useEnvironmentStore.subscribe((state) => {
-              if (current.backups || !state.state) return;
-              begin(state.state);
-          });
-    if (environment) begin(environment);
+    const backups = createEditorBackups({
+        backend: indexedDatabaseDeviceStoreBackend(DATABASE_NAME),
+        projectIdOf: (sessionId) =>
+            getBootstrap()?.sessions.find((session) => session.id === sessionId)?.projectId,
+        scope: 'local',
+    });
+    current.backups = backups;
+    void backups.start().then((stop) => {
+        if (isActive) stopFollowing = stop;
+        else stop();
+    });
     window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
         isActive = false;
-        unsubscribeEnvironment?.();
         stopFollowing?.();
         flush();
         current.backups = undefined;

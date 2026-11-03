@@ -40,14 +40,11 @@ import { createMainEventRelay } from './event-relay';
 import { installExternalActivation } from './external-activation/activation';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
-import {
-    createLocalWorkbenchEnvironment,
-    createSshHostWindowMenu,
-} from './local-workbench-environment';
+import { createLocalWorkbenchEnvironment } from './local-workbench-environment';
 import { createMainMethodHandler } from './main-methods';
 import { createMainQuitHandler, createQuitIntent } from './main-quit-wiring';
 import { createMenuRefreshController, createMenuStateLoader } from './menu/refresh';
-import { buildAppMenuTemplate } from './menu/template';
+import { buildAppMenuTemplate, createLocalMachineMenuState } from './menu/template';
 import type { DesktopNotifications } from './notifications/desktop-notifications';
 import { createDesktopNotifications } from './notifications/desktop-notifications';
 import { companionWindowFor, createOnDemandWindows, isZoomingWithApp } from './on-demand-windows';
@@ -57,8 +54,9 @@ import type { ProcessExplorerWindowController } from './process-explorer/window'
 import { applyReadyAppearance, logAppReady } from './ready-setup';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
-import { composeSshHostEnvironments } from './ssh/host-environment-composition';
-import type { SshHostEnvironments } from './ssh/host-environments';
+import { composeSshHostEnvironments } from './ssh/environments/host-environment-composition';
+import type { SshHostEnvironments } from './ssh/environments/host-environments';
+import { createPrimaryWindowChannel } from './ssh/environments/primary-window-channel';
 import { createStartupFailureWiring } from './startup/startup-failure-wiring';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
@@ -146,6 +144,8 @@ if (ownsProfileInstance) {
      * exist; until then no window can request an SSH Host.
      */
     let sshHostEnvironments: SshHostEnvironments | undefined;
+    const primaryWindowChannel = createPrimaryWindowChannel(() => mainWindow);
+    const localMachineMenu = createLocalMachineMenuState(() => Menu.getApplicationMenu());
     let isQuitStarted = false;
     const quitIntent = createQuitIntent();
     const grantedRoots = new ProjectRootGrants();
@@ -201,7 +201,6 @@ if (ownsProfileInstance) {
             benchmarkWindow?.openWindow(),
             processExplorer.openWindow(),
             performanceMonitor?.openWindow(),
-            ...(sshHostEnvironments?.list().map((environment) => environment.window) ?? []),
         ],
     });
     /**
@@ -338,6 +337,7 @@ if (ownsProfileInstance) {
         });
         mainWindow = window;
         registerWorkbenchWindow(PRIMARY_WINDOW_KEY, window);
+        primaryWindowChannel.opened(window);
         // Startup and a dock reopen share this path, so torn-off windows come back in both.
         void tearOffWindows.restore(window);
     }
@@ -392,6 +392,7 @@ if (ownsProfileInstance) {
             getWindow: () => requestWorkbenchWindow(),
             sendEvent,
             tearOffSession: (input) => tearOffWindows.tearOff(input),
+            onSelectedMachine: (isLocal) => localMachineMenu.select(isLocal),
             windowPresence: localPresence,
             workbenchRootAuthority,
         }),
@@ -447,7 +448,7 @@ if (ownsProfileInstance) {
                 startupProfile.complete(frame);
                 performanceMonitor?.recordStartupFrame(frame, sender);
             },
-            sshHost: (sender) => sshHostEnvironments?.route(sender),
+            sshHost: (environmentId) => sshHostEnvironments?.route(environmentId),
             onEventsReady: (sender) => {
                 if (workbenchWindows.keyOf(sender) === PRIMARY_WINDOW_KEY)
                     startupProfile.mark('rendererReady');
@@ -460,7 +461,6 @@ if (ownsProfileInstance) {
         });
     }
 
-    const sshHostWindowMenu = createSshHostWindowMenu(() => sshHostEnvironments);
     function installMenu(keybindings: Keybinding[]): void {
         const template = buildAppMenuTemplate({
             keybindings,
@@ -470,12 +470,11 @@ if (ownsProfileInstance) {
             openBenchmark: () => benchmarkWindow?.open(),
             workbenchWindow: () => workbenchWindows.focusedOrPrimary(),
             isFollowingAppZoom: (window) => isZoomingWithApp(window, [caxriBot, benchmarkWindow]),
-            dispatchToSshHostWindow: sshHostWindowMenu.dispatch,
             focusWorkbench: () => {
                 void focusMainWindow().catch(() => {});
             },
         });
-        sshHostWindowMenu.setApplicationMenu(Menu.buildFromTemplate(template));
+        Menu.setApplicationMenu(localMachineMenu.apply(Menu.buildFromTemplate(template)));
     }
 
     // Top-level await is unavailable in this bundle target, so the bootstrap below is deliberately fire-and-forget;
@@ -526,8 +525,9 @@ if (ownsProfileInstance) {
                 connection: connectionOptions,
                 currentDirectory,
                 isPackaged: app.isPackaged,
-                isQuitting: () => isQuitStarted,
                 logger: () => logger,
+                primaryWindow: primaryWindowChannel,
+                sendEvent,
                 nextTestRoot: resolveNextTestRootPath,
                 shared: {
                     ...gpuRecovery.mainMethodOptions,
@@ -538,7 +538,7 @@ if (ownsProfileInstance) {
                     getUserDataPath: () => desktopProfile.userDataPath,
                 },
                 userDataPath,
-                zoomLevel: () => windowZoom.level(),
+                workbenchWindow: () => mainWindow,
             });
             ({ caxriBot, benchmarkWindow, performanceMonitor, processExplorer } =
                 createOnDemandWindows({

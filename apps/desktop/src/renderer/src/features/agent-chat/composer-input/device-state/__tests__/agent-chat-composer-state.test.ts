@@ -120,73 +120,73 @@ describe('Agent Chat composer state', () => {
     it('restores drafts, edits, and images after a restart, and forgets what a send cleared', async () => {
         const { openWindow } = profile();
         const first = openWindow();
-        first.state.drafts().set('chat-a', 'half written');
+        first.state.drafts('chat').set('chat-a', 'half written');
         first.state.saveDraft('chat-a', 'half written');
-        first.state.edits().set('chat-a', edit);
+        first.state.edits('chat').set('chat-a', edit);
         first.state.saveEdit('chat-a', edit);
-        first.state.attachments().set('chat-a', [image]);
+        first.state.attachments('chat').set('chat-a', [image]);
         first.state.saveAttachments('chat-a', [image]);
-        first.state.retain(new Set(['chat-a']));
+        first.state.retain(first.scope.current, new Set(['chat-a']));
         await vi.advanceTimersByTimeAsync(300);
 
         const restarted = openWindow();
-        expect(restarted.state.drafts().get('chat-a')).toBe('half written');
-        expect(restarted.state.edits().get('chat-a')).toEqual(edit);
+        expect(restarted.state.drafts('chat').get('chat-a')).toBe('half written');
+        expect(restarted.state.edits('chat').get('chat-a')).toEqual(edit);
         await settle();
-        expect(restarted.state.attachments().get('chat-a')).toEqual([image]);
+        expect(restarted.state.attachments('chat').get('chat-a')).toEqual([image]);
         expect(restarted.restoredAttachments).toEqual([new Map([['chat-a', [image]]])]);
 
-        restarted.state.drafts().delete('chat-a');
+        restarted.state.drafts('chat').delete('chat-a');
         restarted.state.saveDraft('chat-a', '');
-        restarted.state.attachments().delete('chat-a');
+        restarted.state.attachments('chat').delete('chat-a');
         restarted.state.saveAttachments('chat-a', []);
         await vi.advanceTimersByTimeAsync(300);
 
         const again = openWindow();
         await settle();
-        expect(again.state.drafts().size).toBe(0);
-        expect(again.state.attachments().size).toBe(0);
-        expect(again.state.edits().get('chat-a')).toEqual(edit);
+        expect(again.state.drafts('chat').size).toBe(0);
+        expect(again.state.attachments('chat').size).toBe(0);
+        expect(again.state.edits('chat').get('chat-a')).toEqual(edit);
     });
 
     it('stores the draft typed just before the window goes away, and reads it on the first paint after', () => {
         const { openWindow } = profile();
         const first = openWindow();
-        first.state.drafts().set('chat-a', 'typed right before the reload');
+        first.state.drafts('chat').set('chat-a', 'typed right before the reload');
         first.state.saveDraft('chat-a', 'typed right before the reload');
         // `pagehide`: no timer gets to fire, and nothing after the flush is awaited.
         first.state.flush();
 
         const reloaded = openWindow();
-        expect(reloaded.state.drafts().get('chat-a')).toBe('typed right before the reload');
+        expect(reloaded.state.drafts('chat').get('chat-a')).toBe('typed right before the reload');
     });
 
     it('is ready once the stored images are read, and again for each new scope', async () => {
         const { openWindow } = profile();
         const first = openWindow();
-        first.state.attachments().set('chat-a', [image]);
+        first.state.attachments('chat').set('chat-a', [image]);
         first.state.saveAttachments('chat-a', [image]);
         await settle();
 
         const reloaded = openWindow();
         const readiness: boolean[] = [];
-        reloaded.state.subscribeReady(() => readiness.push(reloaded.state.isReady()));
-        expect(reloaded.state.isReady()).toBe(false);
+        reloaded.state.subscribeReady(() => readiness.push(reloaded.state.isReady('chat')));
+        expect(reloaded.state.isReady('chat')).toBe(false);
         await settle();
-        expect(reloaded.state.isReady()).toBe(true);
-        expect(reloaded.state.attachments().get('chat-a')).toEqual([image]);
+        expect(reloaded.state.isReady('chat')).toBe(true);
+        expect(reloaded.state.attachments('chat').get('chat-a')).toEqual([image]);
         expect(readiness.at(-1)).toBe(true);
 
         reloaded.scope.current = 'ssh:host';
-        expect(reloaded.state.isReady()).toBe(false);
+        expect(reloaded.state.isReady('chat')).toBe(false);
         await settle();
-        expect(reloaded.state.isReady()).toBe(true);
+        expect(reloaded.state.isReady('chat')).toBe(true);
     });
 
     it('stores pasted images without waiting for typing to pause', async () => {
         const { openWindow, storedNames } = profile();
         const window = openWindow();
-        window.state.attachments().set('chat-a', [image]);
+        window.state.attachments('chat').set('chat-a', [image]);
         window.state.saveAttachments('chat-a', [image]);
         await vi.advanceTimersByTimeAsync(1);
         expect(storedNames('local')).toEqual(['attachments:chat-a']);
@@ -195,14 +195,14 @@ describe('Agent Chat composer state', () => {
     it('keeps each window scope to itself, and switches scope while running', async () => {
         const { openWindow } = profile();
         const local = openWindow('local');
-        local.state.drafts().set('chat-a', 'local draft');
+        local.state.drafts('chat').set('chat-a', 'local draft');
         local.state.saveDraft('chat-a', 'local draft');
         await vi.advanceTimersByTimeAsync(300);
 
         // The same window learns it belongs to an SSH Host: it reads and writes that scope from now on.
         local.scope.current = 'ssh:dev@203.0.113.7:22';
-        expect(local.state.drafts().size).toBe(0);
-        local.state.drafts().set('chat-b', 'ssh draft');
+        expect(local.state.drafts('chat').size).toBe(0);
+        local.state.drafts('chat').set('chat-b', 'ssh draft');
         local.state.saveDraft('chat-b', 'ssh draft');
         await vi.advanceTimersByTimeAsync(300);
 
@@ -212,21 +212,23 @@ describe('Agent Chat composer state', () => {
             ['bot', undefined],
         ] as const) {
             const reopened = openWindow(scope);
-            expect(reopened.state.drafts().keys().toArray()).toEqual(expected ? [expected] : []);
+            expect(reopened.state.drafts('chat').keys().toArray()).toEqual(
+                expected ? [expected] : [],
+            );
         }
     });
 
     it('tells the surfaces that render from a draft which drafts a scope restored', async () => {
         const { openWindow } = profile();
         const first = openWindow('ssh:host');
-        first.state.drafts().set('chat-a', 'ssh draft');
+        first.state.drafts('chat').set('chat-a', 'ssh draft');
         first.state.saveDraft('chat-a', 'ssh draft');
         first.state.flush();
 
         const window = openWindow('local');
-        window.state.drafts();
+        window.state.drafts('chat');
         window.scope.current = 'ssh:host';
-        window.state.drafts();
+        window.state.drafts('chat');
         expect(window.restoredDrafts).toEqual([]);
         await Promise.resolve();
         expect(window.restoredDrafts).toEqual([['chat-a']]);
@@ -235,10 +237,10 @@ describe('Agent Chat composer state', () => {
     it('writes a draft typed before the scope changed under the scope it was typed in', async () => {
         const { openWindow, storedNames } = profile();
         const window = openWindow('local');
-        window.state.drafts().set('chat-a', 'typed in local');
+        window.state.drafts('chat').set('chat-a', 'typed in local');
         window.state.saveDraft('chat-a', 'typed in local');
         window.scope.current = 'ssh:host';
-        window.state.drafts();
+        window.state.drafts('chat');
         await vi.advanceTimersByTimeAsync(300);
         expect(storedNames('local')).toEqual(['draft:chat-a']);
         expect(storedNames('ssh:host')).toEqual([]);
@@ -248,22 +250,22 @@ describe('Agent Chat composer state', () => {
         const { openWindow } = profile();
         const first = openWindow();
         const second = openWindow();
-        first.state.drafts().set('chat-a', 'typed in the first window');
+        first.state.drafts('chat').set('chat-a', 'typed in the first window');
         first.state.saveDraft('chat-a', 'typed in the first window');
-        second.state.drafts().set('chat-b', 'typed in the second window');
+        second.state.drafts('chat').set('chat-b', 'typed in the second window');
         second.state.saveDraft('chat-b', 'typed in the second window');
         await vi.advanceTimersByTimeAsync(300);
 
         const restarted = openWindow();
-        expect(restarted.state.drafts().get('chat-a')).toBe('typed in the first window');
-        expect(restarted.state.drafts().get('chat-b')).toBe('typed in the second window');
+        expect(restarted.state.drafts('chat').get('chat-a')).toBe('typed in the first window');
+        expect(restarted.state.drafts('chat').get('chat-b')).toBe('typed in the second window');
     });
 
     it('keeps only the newest drafts within the bound', async () => {
         const { openWindow, storedNames } = profile();
         const window = openWindow();
         for (let index = 0; index < MAX_PERSISTED_AGENT_CHAT_DRAFTS + 3; index += 1) {
-            window.state.drafts().set(`chat-${index}`, 'x');
+            window.state.drafts('chat').set(`chat-${index}`, 'x');
             window.state.saveDraft(`chat-${index}`, 'x');
             // eslint-disable-next-line no-await-in-loop -- each write must land before the next is scheduled
             await vi.advanceTimersByTimeAsync(300);
@@ -278,21 +280,21 @@ describe('Agent Chat composer state', () => {
         const { openWindow, storedNames } = profile();
         const window = openWindow();
         for (const terminalId of ['chat-open', 'chat-closed']) {
-            window.state.drafts().set(terminalId, `draft of ${terminalId}`);
+            window.state.drafts('chat').set(terminalId, `draft of ${terminalId}`);
             window.state.saveDraft(terminalId, `draft of ${terminalId}`);
-            window.state.attachments().set(terminalId, [image]);
+            window.state.attachments('chat').set(terminalId, [image]);
             window.state.saveAttachments(terminalId, [image]);
-            window.state.edits().set(terminalId, edit);
+            window.state.edits('chat').set(terminalId, edit);
             window.state.saveEdit(terminalId, edit);
         }
         await vi.advanceTimersByTimeAsync(300);
 
-        window.state.retain(new Set(['chat-open']));
+        window.state.retain(window.scope.current, new Set(['chat-open']));
         await vi.advanceTimersByTimeAsync(300);
 
-        expect(window.state.attachments().has('chat-closed')).toBe(false);
-        expect(window.state.edits().has('chat-closed')).toBe(false);
-        expect(window.state.drafts().get('chat-closed')).toBe('draft of chat-closed');
+        expect(window.state.attachments('chat').has('chat-closed')).toBe(false);
+        expect(window.state.edits('chat').has('chat-closed')).toBe(false);
+        expect(window.state.drafts('chat').get('chat-closed')).toBe('draft of chat-closed');
         expect(storedNames('local')).toEqual([
             'attachments:chat-open',
             'draft:chat-closed',
@@ -301,38 +303,52 @@ describe('Agent Chat composer state', () => {
         ]);
     });
 
+    it("leaves a machine's Chats alone while reconciling another machine's", async () => {
+        const { openWindow, storedNames } = profile();
+        const window = openWindow('ssh:me@build-box:22');
+        window.state.attachments('chat').set('chat-remote', [image]);
+        window.state.saveAttachments('chat-remote', [image]);
+        await vi.advanceTimersByTimeAsync(300);
+
+        // The SSH Host is disconnected, so the Workbench lists only this Mac's Chats.
+        window.state.retain('local', new Set(['chat-local']));
+        await vi.advanceTimersByTimeAsync(300);
+        expect(window.state.attachments('chat').has('chat-remote')).toBe(true);
+        expect(storedNames('ssh:me@build-box:22')).toEqual(['attachments:chat-remote']);
+    });
+
     it('deletes the stored images and edit of a Chat the Workbench already reported gone, before they are read', async () => {
         const { openWindow, storedNames } = profile();
         const first = openWindow();
         for (const terminalId of ['chat-gone', 'chat-open']) {
-            first.state.attachments().set(terminalId, [image]);
+            first.state.attachments('chat').set(terminalId, [image]);
             first.state.saveAttachments(terminalId, [image]);
-            first.state.edits().set(terminalId, edit);
+            first.state.edits('chat').set(terminalId, edit);
             first.state.saveEdit(terminalId, edit);
         }
         await vi.advanceTimersByTimeAsync(300);
 
         const restarted = openWindow();
         // The Workbench snapshot arrives before the images have been read.
-        restarted.state.retain(new Set(['chat-open']));
+        restarted.state.retain(restarted.scope.current, new Set(['chat-open']));
         await vi.advanceTimersByTimeAsync(300);
-        expect(restarted.state.attachments().keys().toArray()).toEqual(['chat-open']);
-        expect(restarted.state.edits().keys().toArray()).toEqual(['chat-open']);
+        expect(restarted.state.attachments('chat').keys().toArray()).toEqual(['chat-open']);
+        expect(restarted.state.edits('chat').keys().toArray()).toEqual(['chat-open']);
         expect(storedNames('local')).toEqual(['attachments:chat-open', 'edit:chat-open']);
     });
 
     it('keeps the images this run changed before the stored ones arrived', async () => {
         const { openWindow } = profile();
         const first = openWindow();
-        first.state.attachments().set('chat-a', [image]);
+        first.state.attachments('chat').set('chat-a', [image]);
         first.state.saveAttachments('chat-a', [image]);
         await vi.advanceTimersByTimeAsync(300);
 
         const restarted = openWindow();
-        restarted.state.attachments().set('chat-a', []);
+        restarted.state.attachments('chat').set('chat-a', []);
         restarted.state.saveAttachments('chat-a', []);
         await settle();
-        expect(restarted.state.attachments().get('chat-a')).toEqual([]);
+        expect(restarted.state.attachments('chat').get('chat-a')).toEqual([]);
         expect(restarted.restoredAttachments).toEqual([new Map()]);
     });
 });

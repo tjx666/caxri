@@ -1,14 +1,12 @@
 import { AskpassDialog } from './askpass-dialog';
 import { SshHostConnectionOverlay } from './ssh-host-connection-overlay';
-import { useSshHostWindowTitle } from './use-ssh-host-window-title';
 
 /**
- * The SSH Host surfaces that must work before the Server attaches as well as after: `App` renders this in both its
- * `LoadingScreen` branch and the Workbench branch, so neither the connection progress nor an OpenSSH prompt can be
- * hidden behind the loader. Renders nothing in a local window.
+ * The SSH Host surfaces that must work before this Mac's Server attaches as well as after: `App` renders this in both
+ * its `LoadingScreen` branch and the Workbench branch, so an OpenSSH prompt for a Host reconnecting on launch is never
+ * hidden behind the loader. Renders nothing while no Host needs attention.
  */
 export function SshHostLayer() {
-    useSshHostWindowTitle();
     return (
         <>
             <SshHostConnectionOverlay />

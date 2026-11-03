@@ -58,6 +58,7 @@ export function ProjectGroupList({
     return projectWindows.map((sessionWindow) => {
         const {
             hiddenCount,
+            members,
             nextRevealCount,
             project,
             projectSessions,
@@ -73,6 +74,7 @@ export function ProjectGroupList({
                 expanded={isProjectExpanded(project.id)}
                 focusRenameInput={sessionRename.focusRenameInput}
                 hiddenSessionCount={hiddenCount}
+                members={members}
                 nextRevealCount={nextRevealCount}
                 onBeginRename={sessionRename.beginRename}
                 onBlurRename={sessionRename.blurRename}

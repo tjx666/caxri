@@ -1,5 +1,5 @@
 import type { MouseEventHandler, ReactElement } from 'react';
-import { cloneElement, useEffect } from 'react';
+import { cloneElement, useEffect, useState } from 'react';
 
 import type { ProjectRecord, TerminalKind } from '@caxri/protocol';
 import { ChevronDown, History, SquareDashed, SquarePen } from 'lucide-react';
@@ -22,12 +22,13 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, openSessionSearch, useDialogStore } from '../../stores/dialogs';
-import { useSettings } from '../../stores/selectors';
+import { useSelectedProject, useSettings } from '../../stores/selectors';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { newAgentSurface, newSessionActionLabel } from '../terminal/new-terminal-agent';
 import { AgentChoiceMenuItems } from './agent-choice-menu-items';
 import { useLastAgentChoiceStore } from './last-agent-choice-store';
 import { OpenInChatMenuItem } from './open-in-chat-menu-item';
+import { RunOnMenuGroup } from './run-on-menu-group';
 import {
     beginSessionCreation,
     chooseActivitySessionProject,
@@ -106,6 +107,33 @@ function SessionCreationMenuItems({
 }
 
 /**
+ * The member of a merged Project a new Session goes to: the one picked under Run on, else the machine of the selected
+ * Session when it is one of them, else the heading's own Project. `reset` forgets the pick when the menu closes.
+ */
+function useRunOnMember(
+    heading: ProjectRecord,
+    memberList: readonly ProjectRecord[] | undefined,
+): {
+    members: readonly ProjectRecord[];
+    project: ProjectRecord;
+    choose: (projectId: string) => void;
+    reset: () => void;
+} {
+    const members = memberList ?? [heading];
+    const selectedProjectId = useSelectedProject()?.id;
+    const [chosenMemberId, setChosenMemberId] = useState<string>();
+    const wantedId = chosenMemberId ?? selectedProjectId;
+    return {
+        members,
+        project: members.find((member) => member.id === wantedId) ?? heading,
+        choose: setChosenMemberId,
+        reset: () => {
+            setChosenMemberId(undefined);
+        },
+    };
+}
+
+/**
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
  *
  * The menu replaces a centered modal so the choice lands where the pointer already is. Its open state lives in the
@@ -119,10 +147,16 @@ function SessionCreationMenuItems({
  */
 function SessionCreationMenu({
     anchor,
-    project,
+    members: memberList,
+    project: heading,
     trigger,
 }: {
     anchor: CreateSessionAnchor;
+    /**
+     * Every machine's checkout under a merged heading, `project` first. With more than one, the menu starts with Run on
+     * and every choice acts on the picked checkout.
+     */
+    members?: readonly ProjectRecord[];
     project: ProjectRecord;
     /**
      * Typed to accept an `onClick` override rather than the looser default `ReactElement` props: the default-Agent
@@ -133,9 +167,11 @@ function SessionCreationMenu({
         'onClick'?: MouseEventHandler<HTMLButtonElement>;
     }>;
 }) {
+    const runOn = useRunOnMember(heading, memberList);
+    const { members, project } = runOn;
     const open = useDialogStore(
         (state) =>
-            state.createSessionMenu?.projectId === project.id &&
+            state.createSessionMenu?.projectId === heading.id &&
             state.createSessionMenu.anchor === anchor,
     );
     const { t } = useTranslation();
@@ -152,10 +188,10 @@ function SessionCreationMenu({
     useEffect(
         () => () => {
             const claim = useDialogStore.getState().createSessionMenu;
-            if (claim?.projectId === project.id && claim.anchor === anchor)
+            if (claim?.projectId === heading.id && claim.anchor === anchor)
                 closeCreateSessionMenu();
         },
-        [anchor, project.id],
+        [anchor, heading.id],
     );
     /**
      * The empty-Project row is a tree row the user reaches by keyboard, not a hover target, so with a configured
@@ -272,6 +308,7 @@ function SessionCreationMenu({
                 }
                 if (!nextOpen) {
                     closeCreateSessionMenu();
+                    runOn.reset();
                     return;
                 }
                 if (splitTarget && details.reason === 'trigger-press') {
@@ -279,7 +316,7 @@ function SessionCreationMenu({
                     beginSessionCreation(project.id, anchor);
                     return;
                 }
-                openSessionCreationMenu(project.id, anchor);
+                openSessionCreationMenu(heading.id, anchor);
             }}
         >
             {triggerWithTooltip}
@@ -295,6 +332,13 @@ function SessionCreationMenu({
                 side={anchor === 'heading' ? 'right' : undefined}
                 sideOffset={anchor === 'heading' ? 12 : undefined}
             >
+                {members.length > 1 && (
+                    <RunOnMenuGroup
+                        members={members}
+                        value={project.id}
+                        onValueChange={runOn.choose}
+                    />
+                )}
                 <SessionCreationMenuItems
                     project={project}
                     repeatedKind={headingRepeatedKind(anchor, splitKind)}
@@ -307,7 +351,13 @@ function SessionCreationMenu({
 /**
  * The Project heading's New Session control: the pencil button plus the menu it anchors.
  */
-export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
+export function CreateSessionMenu({
+    members,
+    project,
+}: {
+    members?: readonly ProjectRecord[];
+    project: ProjectRecord;
+}) {
     const open = useDialogStore(
         (state) =>
             state.createSessionMenu?.projectId === project.id &&
@@ -317,6 +367,7 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
     return (
         <SessionCreationMenu
             anchor="heading"
+            members={members}
             project={project}
             trigger={
                 <button
@@ -355,10 +406,15 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
  * companion `aria-haspopup="menu"` says it is; the row has no children of its own.
  */
 export function EmptyProjectSessionMenu({
+    members,
     project,
     roving,
     rowId,
 }: {
+    /**
+     * Every machine's checkout under a merged heading, `project` first; see `SessionCreationMenu`.
+     */
+    members?: readonly ProjectRecord[];
     project: ProjectRecord;
     roving: boolean;
     rowId: string;
@@ -367,6 +423,7 @@ export function EmptyProjectSessionMenu({
     return (
         <SessionCreationMenu
             anchor="emptyProject"
+            members={members}
             project={project}
             trigger={
                 <button

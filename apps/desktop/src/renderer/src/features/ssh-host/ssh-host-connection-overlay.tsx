@@ -3,15 +3,12 @@ import { useEffect, useRef } from 'react';
 import type { SshEnvironmentState } from '@caxri/protocol';
 import { Server } from 'lucide-react';
 
-import { useModalRegistration } from '@/hooks/use-modal-registration';
-
 import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { useSshEnvironment } from '../../stores/environment';
-import { useWorkbenchStore } from '../../stores/workbench';
+import { environmentIdOf, useSshEnvironment } from '../../stores/environment';
 import {
     canCancelConnection,
     canReconnect,
@@ -28,7 +25,12 @@ import {
     isRetryAttemptRunning,
     reconnectLabelKey,
 } from './connection-status';
-import { cancelSshHostConnection, reconnectSshHost, retrySshHostNow } from './ssh-host-commands';
+import {
+    cancelSshHostConnection,
+    disconnectSshHost,
+    reconnectSshHost,
+    retrySshHostNow,
+} from './ssh-host-commands';
 import { SshHostCopyButton } from './ssh-host-copy-button';
 
 const failureToneClassNames = {
@@ -38,40 +40,22 @@ const failureToneClassNames = {
 } as const;
 
 /**
- * Shows an SSH Host window's connection whenever its Server is not usable. Before the first attach it fills the window
- * in place of the otherwise empty `LoadingScreen`. Over an attached Workbench it floats as a card: the Workbench stays
- * visible so the user can still read what was on screen, while `App` makes it `inert` so nothing is sent to a Server
- * that cannot answer.
+ * Shows the connection of the SSH Host the selected Session lives on whenever its Server is not usable. It floats as a
+ * card over the Workbench, which stays readable and usable: the side bar still reaches this Mac's and every other
+ * Host's Sessions, so nothing else waits on this one Host.
  */
 export function SshHostConnectionOverlay() {
     const environment = useSshEnvironment();
-    const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
-    const isVisible = isConnectionOverlayVisible(environment);
-    useModalRegistration(isVisible);
-    if (!environment || !isVisible) return null;
-    return <ConnectionPanel environment={environment} isOverWorkbench={isAttached} />;
+    if (!environment || !isConnectionOverlayVisible(environment)) return null;
+    return <ConnectionPanel key={environmentIdOf(environment)} environment={environment} />;
 }
 
-/**
- * Over an attached Workbench the card floats and lets the readable Workbench show around it; before the first attach
- * the panel fills the window and doubles as its drag region.
- */
-const FLOATING_PLACEMENT = {
+const placement = {
     card: 'pointer-events-auto rounded-lg border border-border bg-surface p-4 shadow-[0_16px_48px_var(--shadow)]',
     container: 'pointer-events-none inset-x-0 top-12',
 };
-const FULL_WINDOW_PLACEMENT = {
-    card: '',
-    container: 'inset-0 items-center bg-background [-webkit-app-region:drag]',
-};
 
-function ConnectionPanel({
-    environment,
-    isOverWorkbench,
-}: {
-    environment: SshEnvironmentState;
-    isOverWorkbench: boolean;
-}) {
+function ConnectionPanel({ environment }: { environment: SshEnvironmentState }) {
     const { t } = useTranslation();
     const panelReference = useRef<HTMLDivElement>(null);
     const isBusy = isConnectionBusy(environment.phase);
@@ -81,11 +65,11 @@ function ConnectionPanel({
     const { failure } = environment;
     const resetCommand = hostKeyResetCommand(failure);
     const detail = connectionFailureDetail(failure);
-    const placement = isOverWorkbench ? FLOATING_PLACEMENT : FULL_WINDOW_PLACEMENT;
+    const environmentId = environmentIdOf(environment);
     /**
-     * Pulls focus off the Workbench underneath, where a focused Terminal would otherwise keep taking keystrokes for a
+     * Pulls focus off the Session underneath, where a focused Terminal would otherwise keep taking keystrokes for a
      * Server that cannot receive them. Once the connection gives up, focus moves to the action that resolves it, so a
-     * keyboard user can press Enter on Reconnect (or Close Window when reconnecting cannot help).
+     * keyboard user can press Enter on Reconnect (or Disconnect when reconnecting cannot help).
      */
     useEffect(() => {
         const panel = panelReference.current;
@@ -99,14 +83,11 @@ function ConnectionPanel({
         <div
             ref={panelReference}
             aria-labelledby="ssh-host-connection-title"
-            aria-modal="true"
             className={cn(
                 'ssh-host-connection-overlay fixed z-40 flex justify-center outline-none',
                 placement.container,
             )}
-            // A native <dialog> would dismiss on Escape; this state cannot be dismissed until the Server attaches.
-            // react-doctor-disable-next-line react-doctor/prefer-html-dialog
-            role="dialog"
+            role="region"
             tabIndex={-1}
         >
             <div
@@ -133,9 +114,7 @@ function ConnectionPanel({
                     {t(phaseLabel.key, phaseLabel.values)}
                 </p>
                 <InstallProgress environment={environment} />
-                {isOverWorkbench && (
-                    <p className="m-0 text-[12px] text-muted">{t('sshHost.workbenchPaused')}</p>
-                )}
+                <p className="m-0 text-[12px] text-muted">{t('sshHost.workbenchPaused')}</p>
                 {failure && (
                     <ConnectionFailure
                         detail={detail}
@@ -155,16 +134,17 @@ function ConnectionPanel({
                     <Button
                         data-ssh-host-primary={isReconnectable ? undefined : true}
                         variant={isReconnectable || isBusy ? 'secondary' : 'default'}
-                        onClick={() => window.close()}
+                        // eslint-disable-next-line no-void -- disconnectSshHost reports its own failure through a toast
+                        onClick={() => void disconnectSshHost(environmentId)}
                     >
-                        {t('sshHost.closeWindow')}
+                        {t('sshHost.disconnect')}
                     </Button>
                     <RetryNowButton environment={environment} />
                     {canCancelConnection(environment) && (
                         <Button
                             variant="secondary"
                             // eslint-disable-next-line no-void -- cancelSshHostConnection reports its own failure through a toast
-                            onClick={() => void cancelSshHostConnection()}
+                            onClick={() => void cancelSshHostConnection(environmentId)}
                         >
                             {t('common.cancel')}
                         </Button>
@@ -173,7 +153,7 @@ function ConnectionPanel({
                         <Button
                             data-ssh-host-primary
                             // eslint-disable-next-line no-void -- reconnectSshHost reports its own failure through a toast
-                            onClick={() => void reconnectSshHost()}
+                            onClick={() => void reconnectSshHost(environmentId)}
                         >
                             {t(reconnectLabelKey(environment))}
                         </Button>
@@ -215,7 +195,7 @@ function RetryNowButton({ environment }: { environment: SshEnvironmentState }) {
             variant="secondary"
             disabled={isRunning}
             // eslint-disable-next-line no-void -- retrySshHostNow reports its own failure through a toast
-            onClick={() => void retrySshHostNow()}
+            onClick={() => void retrySshHostNow(environmentIdOf(environment))}
         >
             {isRunning && <Spinner />}
             {t('sshHost.retryNow')}

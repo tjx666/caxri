@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 import type { ErrorBoundary } from '../../components/error-boundary';
 import { caxri } from '../../lib/caxri';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { noteSessionSelection, readComposedSnapshot } from '../../stores/workbench-environments';
 import { createRecoveringSnapshotSource } from './recovering-snapshot-source';
 import { recordRenderCrash } from './render-crash-recovery';
 
@@ -11,13 +12,16 @@ function activeSessionId(): string | undefined {
 }
 
 /**
- * Snapshot source for the main Workbench window: the plain `app.bootstrap` read, except that the first load after a
- * render crash loop moves the window off the crashing Session first.
+ * Snapshot source for the main Workbench window: the composed read of every machine it reaches, except that the first
+ * load after a render crash loop moves the window off the crashing Session first.
  */
 export const recoveringSnapshotSource = createRecoveringSnapshotSource({
     now: Date.now,
-    readSnapshot: () => caxri.request('app.bootstrap'),
-    selectSession: (sessionId) => caxri.request('session.select', { sessionId }),
+    readSnapshot: readComposedSnapshot,
+    selectSession: (sessionId) => {
+        noteSessionSelection(sessionId);
+        return caxri.request('session.select', { sessionId });
+    },
     storage: sessionStorage,
 });
 

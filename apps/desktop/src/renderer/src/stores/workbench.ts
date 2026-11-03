@@ -16,11 +16,6 @@ import {
 import { gpuIncidentBudget } from '../features/gpu/gpu-incident-budget';
 import { gpuRecoveryNotificationCoordinator } from '../features/gpu/gpu-recovery-notifications';
 import { beginRendererPerformanceRequest } from '../features/renderer-performance/controller';
-import { reportTerminalNoticeEvent } from '../features/terminal/terminal-notice-events';
-import {
-    dismissWorkbenchRootCandidate,
-    showWorkbenchRootCandidate,
-} from '../features/workbench/workbench-root-prompt-store';
 import { translate } from '../i18n';
 import { caxri } from '../lib/caxri';
 import { createStore } from '../lib/store';
@@ -33,10 +28,15 @@ import {
 } from './session-command-convergence';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
+import {
+    createEnvironmentEventHandler,
+    isNoticeEvent,
+    reportNoticeEvent,
+    watchEnvironmentConnections,
+} from './workbench-environment-events';
+import { readComposedSnapshot } from './workbench-environments';
 import type { WorkbenchEventHandlers } from './workbench-event-handlers';
-import { recordNotificationEvent } from './workbench-event-notifications';
 import { isWorkbenchIgnoredEvent } from './workbench-ignored-events';
-import { reportWorkbenchRootChange } from './workbench-root-notice';
 import {
     applyPendingSessionPatches,
     isStaleSessionStateWrite,
@@ -108,13 +108,14 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
 /**
- * Where every full snapshot read comes from. The Workbench window reads `app.bootstrap`. The Caxri Bot window is not
- * admitted for that method, so its entry swaps in a Caxri Bot-scoped reader before the first render; shared code that
- * refreshes after a command (a Terminal pane's Restart, for instance) then converges on the scoped snapshot instead of
- * raising a denied request.
+ * Where every full snapshot read comes from. The Workbench window reads `app.bootstrap` from this Mac and every
+ * connected SSH Host and lists them together (`workbench-environments.ts`). The Caxri Bot window is not admitted for
+ * that method, so its entry swaps in a Caxri Bot-scoped reader before the first render; shared code that refreshes
+ * after a command (a Terminal pane's Restart, for instance) then converges on the scoped snapshot instead of raising a
+ * denied request.
  */
 const snapshotSource = {
-    read: (): Promise<BootstrapState> => caxri.request('app.bootstrap'),
+    read: (): Promise<BootstrapState> => readComposedSnapshot(),
 };
 
 export function configureWorkbenchSnapshotSource(read: () => Promise<BootstrapState>): void {
@@ -538,14 +539,35 @@ export function persistSessionState(
         );
 }
 
+const applyEnvironmentEvent = createEnvironmentEventHandler({
+    bootstrap: () => useWorkbenchStore.getState().bootstrap,
+    refresh: () => refreshWorkbench(),
+});
+
+export function subscribeWorkbenchEnvironments(): () => void {
+    return watchEnvironmentConnections({
+        bumpAttachEpoch: () =>
+            useWorkbenchStore.setState((current) => ({ attachEpoch: current.attachEpoch + 1 })),
+        refresh: () => refreshWorkbench(),
+    });
+}
+
 /**
  * The single `onEvent` subscription for Server-driven workbench state. Every listener that used to live inside App's
  * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Server
  * event fails compile instead of disappearing.
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
-    return caxri.onEvent((event) => {
+    return caxri.onEvent((event, environmentId) => {
         if (isWorkbenchIgnoredEvent(event)) return;
+        if (environmentId !== undefined) {
+            applyEnvironmentEvent(event, environmentId);
+            return;
+        }
+        if (isNoticeEvent(event)) {
+            reportNoticeEvent(event, useWorkbenchStore.getState().bootstrap);
+            return;
+        }
         switch (event.event) {
             case 'state.changed': {
                 const refresh = applyStateChange(event.payload);
@@ -614,13 +636,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'settings.openRequested':
                 handlers.onSettingsTarget(event.payload.target);
                 return;
-            case 'workbench.candidate':
-                showWorkbenchRootCandidate(event.payload);
-                return;
-            case 'workbench.changed':
-                dismissWorkbenchRootCandidate(event.payload.sessionId);
-                reportWorkbenchRootChange(event.payload);
-                return;
             case 'window.fullScreen':
                 if (event.payload.window === 'workbench')
                     useWorkbenchStore.setState({ isFullScreen: event.payload.isFullScreen });
@@ -630,24 +645,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 gpuRecoveryNotificationCoordinator.notifyGpuProcessRecovery(
                     event.payload.correlationId,
                 );
-                return;
-            case 'terminal.outputRecovery':
-            case 'terminal.ptyAlert':
-            case 'terminal.resourceAlert':
-                reportTerminalNoticeEvent(event);
-                return;
-            case 'agent.automaticNamingUnavailable': {
-                reportAutomaticNamingNotices(
-                    [event.payload],
-                    useWorkbenchStore.getState().bootstrap,
-                );
-                return;
-            }
-            case 'agent.notification':
-            case 'projectStatus.alert':
-            case 'notifications.helperUnavailable':
-            case 'session.autoArchived':
-                recordNotificationEvent(event, useWorkbenchStore.getState().bootstrap);
                 return;
             default:
                 return assertNever(event, 'Unhandled workbench Runtime event');

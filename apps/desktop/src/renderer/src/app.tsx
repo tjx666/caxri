@@ -58,8 +58,8 @@ import { SettingsPageHost } from './features/settings/settings-page-host';
 import { subscribeShareRequests } from './features/share/share-request-store';
 import { ShareToSessionDialog } from './features/share/share-to-session-dialog';
 import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
-import { isConnectionOverlayVisible } from './features/ssh-host/connection-status';
 import { subscribeFileWatchLimitAlerts } from './features/ssh-host/file-watch-limit-alert';
+import { ProjectMachineDialog } from './features/ssh-host/project-machine-dialog';
 import { SshHostFolderPickerDialog } from './features/ssh-host/ssh-host-folder-picker-dialog';
 import { SshHostLayer } from './features/ssh-host/ssh-host-layer';
 import { StatusBar } from './features/status-bar/status-bar';
@@ -97,11 +97,13 @@ import {
     useChromeViewportClamp,
 } from './stores/chrome-layout';
 import { useDialogStore } from './stores/dialogs';
-import { subscribeEnvironment, useSshEnvironment } from './stores/environment';
+import { subscribeEnvironment } from './stores/environment';
+import { subscribeHostPreferences } from './stores/host-preferences';
 import { useIsFullScreen } from './stores/selectors';
 import { syncWindowFullScreen } from './stores/window-full-screen';
 import {
     initializeWorkbench,
+    subscribeWorkbenchEnvironments,
     subscribeWorkbenchEvents,
     useWorkbenchStore,
 } from './stores/workbench';
@@ -229,10 +231,11 @@ export function App() {
     const isZenMode = useChromeLayoutStore((state) => state.zenMode);
     const isFullScreen = useIsFullScreen();
     const isSecondarySidebarVisible = useIsSecondarySidebarShown();
-    const isWorkbenchPaused = isConnectionOverlayVisible(useSshEnvironment());
     const isSettingsPageOpen = useDialogStore((state) => state.settingsPageOpen);
 
     useEffect(() => subscribeEnvironment(), []);
+    useEffect(() => subscribeHostPreferences(), []);
+    useEffect(() => subscribeWorkbenchEnvironments(), []);
     useEffect(() => subscribeFileWatchLimitAlerts(), []);
     useRuntimeAttachment();
     useStartupLoaderRemoval(isAttached);
@@ -300,8 +303,6 @@ export function App() {
             <TooltipProvider>
                 <HoverCardProvider>
                     <main
-                        // Readable but not operable while an SSH Host reconnects; see `SshHostConnectionOverlay`.
-                        inert={isWorkbenchPaused}
                         className={cn(
                             /*
                              * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
@@ -413,6 +414,7 @@ export function App() {
                         <WorkbenchRootPrompt />
                         <ConnectSshHostDialog />
                         <SshHostFolderPickerDialog />
+                        <ProjectMachineDialog />
                         <ConfirmationDialog />
                         <AirplaneModeDialog />
                         <AgentChatWaitingPopup />

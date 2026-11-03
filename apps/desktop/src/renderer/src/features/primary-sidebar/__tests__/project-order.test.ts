@@ -6,11 +6,25 @@ import {
     createLatestProjectOrderQueue,
     createProjectOrderIntentTracker,
     hasProjectDragType,
+    machineProjectIndex,
     PROJECT_DRAG_TYPE,
     projectOrderAfterDrop,
 } from '../project-order';
 
 describe('Project ordering', () => {
+    it("counts only the moved Project's own machine when telling that machine's Server where it went", () => {
+        const machines: Record<string, string | undefined> = {
+            a: undefined,
+            r1: 'host',
+            b: undefined,
+            r2: 'host',
+        };
+        const machineOf = (id: string) => machines[id];
+        expect(machineProjectIndex(['r1', 'a', 'r2', 'b'], 'b', machineOf)).toBe(1);
+        expect(machineProjectIndex(['r1', 'a', 'r2', 'b'], 'r2', machineOf)).toBe(1);
+        expect(machineProjectIndex(['a', 'b'], 'a', machineOf)).toBe(0);
+    });
+
     it('inserts a dragged Project before or after the target without dropping ids', () => {
         expect(projectOrderAfterDrop(['a', 'b', 'c'], 'c', 'a', 'before')).toEqual(['c', 'a', 'b']);
         expect(projectOrderAfterDrop(['a', 'b', 'c'], 'a', 'b', 'after')).toEqual(['b', 'a', 'c']);

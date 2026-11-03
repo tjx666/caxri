@@ -155,16 +155,19 @@ describe('executeCommand', () => {
         expect(calls).toHaveLength(2);
     });
 
-    it('offers local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
+    it("offers a Session's local-only commands only for this Mac's Session and SSH Host commands only for a Host's", () => {
         const localOnly = [
             'caxriBot.handOver',
+            'caxriBot.takeBack',
+            'project.openInEditor',
+        ] as const;
+        // About this Mac itself, so available whichever Session is shown.
+        const device = [
             'caxriBot.open',
             'caxriBot.stop',
-            'caxriBot.takeBack',
             'developer.reportBug',
             'diagnostics.export',
             'processExplorer.open',
-            'project.openInEditor',
             'shellCommand.install',
             'shellCommand.uninstall',
         ] as const;
@@ -183,15 +186,17 @@ describe('executeCommand', () => {
             executeCommand(id, undefined, local.context);
             executeCommand(id, undefined, remote.context);
         }
+        for (const id of device) executeCommand(id, undefined, remote.context);
 
         expect(local.calls).toHaveLength(localOnly.length + 2);
         expect(local.calls).not.toContain('sshHost.reconnect');
-        expect(remote.calls).toEqual([
+        expect(remote.calls.slice(0, 4)).toEqual([
             'sshHost.reconnect',
             'sshHost.stopServer',
             'sshHost.connect',
             'dialogs.openPathBrowser',
         ]);
+        expect(remote.calls).toHaveLength(4 + device.length);
         // Each of these palette predicates holds only in a local window; see `botPaletteWhenContext`.
         const localWindowPredicates = [
             'localMachine',

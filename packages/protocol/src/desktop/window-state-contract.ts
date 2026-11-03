@@ -96,6 +96,15 @@ export const windowDesktopMethods = {
         result: z.null(),
     },
     /**
+     * Tells Main whether the Session the primary window shows lives on this Mac, so native menu items that act on this
+     * Mac's disk are disabled while an SSH Host's Session is selected.
+     */
+    'window.reportSelectedMachine': {
+        ...desktopControl,
+        params: z.object({ isLocal: z.boolean() }),
+        result: z.null(),
+    },
+    /**
      * Opens a Session in a new window, the sidebar row menu's "Open in New Window". Main mints the new window's key and
      * cascades it from the sending window; a Renderer supplies neither. `opened` is false for a normal refusal (the
      * Session is the one the sender shows, or another window has it open), never an error.

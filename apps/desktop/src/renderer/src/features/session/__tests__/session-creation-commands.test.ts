@@ -60,7 +60,9 @@ const mocks = vi.hoisted(() => {
     };
 });
 
-vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+vi.mock('../../../lib/caxri', () => ({
+    caxri: { in: () => ({ request: mocks.caxriRequest }), request: mocks.caxriRequest },
+}));
 vi.mock('../../terminal/agent-sign-in', () => ({
     typeAgentSignInCommand: mocks.typeAgentSignInCommand,
 }));
@@ -119,9 +121,15 @@ vi.mock('../../../stores/workbench', () => ({
 
 import type { CreateSessionAnchor } from '../../../stores/dialogs';
 import { useEnvironmentStore } from '../../../stores/environment';
+import {
+    settleProjectMachine,
+    settleSshHostFolder,
+    useSshHostDialogsStore,
+} from '../../ssh-host/ssh-host-dialogs-store';
 import { useActivitySessionProjectStore } from '../activity-session-project-store';
 import { useLastAgentChoiceStore } from '../last-agent-choice-store';
 import {
+    addProject,
     beginSessionCreation,
     chooseActivitySessionProject,
     chooseProjectFolder,
@@ -173,15 +181,46 @@ describe('Session creation commands', () => {
         vi.unstubAllGlobals();
     });
 
-    it("opens this Mac's folder picker only once the window is known to be local", async () => {
-        useEnvironmentStore.setState({ state: undefined });
-        await chooseProjectFolder();
-        expect(mocks.caxriRequest).not.toHaveBeenCalledWith('dialog.selectDirectory');
-
-        useEnvironmentStore.setState({ state: { kind: 'local' } });
+    it('opens the folder picker of the machine running the selected Session', async () => {
         await chooseProjectFolder();
         expect(mocks.caxriRequest).toHaveBeenCalledWith('dialog.selectDirectory');
-        useEnvironmentStore.setState({ state: undefined });
+
+        mocks.caxriRequest.mockClear();
+        useEnvironmentStore.setState({ selectedEnvironmentId: 'dev@devbox:22' });
+        const choosing = chooseProjectFolder();
+        expect(useSshHostDialogsStore.getState().folderEnvironmentId).toBe('dev@devbox:22');
+        settleSshHostFolder(undefined);
+        await choosing;
+        expect(mocks.caxriRequest).not.toHaveBeenCalledWith('dialog.selectDirectory');
+        useEnvironmentStore.setState({ selectedEnvironmentId: undefined });
+    });
+
+    it('asks which machine before Add Project only while an SSH Host is connected', async () => {
+        await addProject();
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('dialog.selectDirectory');
+
+        mocks.caxriRequest.mockClear();
+        useEnvironmentStore.setState({
+            hosts: [
+                {
+                    kind: 'ssh',
+                    destination: 'devbox',
+                    hostIdentity: 'dev@devbox:22',
+                    phase: 'connected',
+                    needsUserAction: false,
+                },
+            ],
+        });
+        const adding = addProject();
+        expect(useSshHostDialogsStore.getState().resolveMachine).toBeDefined();
+        settleProjectMachine({ environmentId: 'dev@devbox:22' });
+        await vi.waitFor(() =>
+            expect(useSshHostDialogsStore.getState().folderEnvironmentId).toBe('dev@devbox:22'),
+        );
+        settleSshHostFolder(undefined);
+        await adding;
+        expect(mocks.caxriRequest).not.toHaveBeenCalledWith('dialog.selectDirectory');
+        useEnvironmentStore.setState({ hosts: [] });
     });
 
     it('skips the Terminal choice entirely when a default Agent is configured', async () => {

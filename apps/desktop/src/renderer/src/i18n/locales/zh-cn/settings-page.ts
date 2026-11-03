@@ -77,6 +77,12 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.archivedSessions.title': '已归档的会话',
     'settings.row.archivedSessions.description': '恢复或永久删除已归档的会话',
     'settings.row.archivedSessions.manage': '管理…',
+    'settings.row.hosts.title': '主机',
+    'settings.row.hosts.description':
+        '此窗口连接的每台机器。自动会显示检测到的系统；选定的图标会在侧边栏中代替名称。',
+    'settings.row.hostNames.title': '在图标旁显示主机名称',
+    'settings.row.hostNames.description':
+        '关闭时侧边栏更窄：会话行以及选了图标的主机只显示图标，名称在提示中显示。',
     'settings.row.mobileAccess.title': '移动设备访问',
     'settings.row.mobileAccess.description':
         '配对此局域网中的 Android 手机，以查看授权范围内的 Agent 会话并发送简短回复',

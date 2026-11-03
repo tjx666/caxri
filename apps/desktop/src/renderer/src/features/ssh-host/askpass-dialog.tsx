@@ -13,23 +13,27 @@ import {
 import { Input } from '../../components/ui/input';
 import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
-import { useSshEnvironment } from '../../stores/environment';
+import { environmentIdOf, useEnvironmentStore } from '../../stores/environment';
 import { askpassAttempt, askpassTitleKey } from './askpass-copy';
 import { didReplySshHostPrompt } from './ssh-host-commands';
 
 /**
  * Shows OpenSSH's pending prompt (a password, key passphrase, 2FA code, or host-key question) that Main forwarded from
- * `SSH_ASKPASS`. The prompt lives in the environment state rather than in an event, so a window that loads after it was
- * raised still shows it. Keyed by request so a new prompt never inherits the previous answer.
+ * `SSH_ASKPASS`, for whichever connected SSH Host asked first; the next Host's prompt follows once it is answered. The
+ * prompt lives in the environment state rather than in an event, so a window that loads after it was raised still shows
+ * it. Keyed by request so a new prompt never inherits the previous answer.
  */
 export function AskpassDialog() {
-    const environment = useSshEnvironment();
+    const environment = useEnvironmentStore((store) =>
+        store.hosts.find((host) => host.askpass !== undefined),
+    );
     const request = environment?.askpass;
     if (!environment || !request) return null;
     return (
         <AskpassPrompt
             key={request.requestId}
             destination={environment.destination}
+            environmentId={environmentIdOf(environment)}
             request={request}
         />
     );
@@ -37,9 +41,11 @@ export function AskpassDialog() {
 
 function AskpassPrompt({
     destination,
+    environmentId,
     request,
 }: {
     destination: string;
+    environmentId: string;
     request: SshHostAskpassRequest;
 }) {
     const { t } = useTranslation();
@@ -56,7 +62,7 @@ function AskpassPrompt({
         if (isAnswered) return;
         setIsAnswered(true);
         setResponse('');
-        void didReplySshHostPrompt(request.requestId, value).then((isDelivered) => {
+        void didReplySshHostPrompt(environmentId, request.requestId, value).then((isDelivered) => {
             // Main clears the prompt from the environment state once it has the answer; until then a failed
             // delivery hands the controls back so the user can answer again.
             if (!isDelivered) setIsAnswered(false);

@@ -13,12 +13,15 @@ import {
 } from '../../components/ui/dialog';
 import { useTranslation } from '../../i18n';
 import { awaitThenCleanup } from '../../lib/await-then-cleanup';
+import { environmentOfProject } from '../../lib/environment-routing';
 import { cn } from '../../lib/utilities';
 import { closeProjectIconDialog, useDialogStore } from '../../stores/dialogs';
+import { useProjectRepositoriesStore } from '../../stores/project-repositories';
 import { useProjects } from '../../stores/selectors';
 import { ProjectIcon } from './project-icon';
 import { didSaveProjectIcon } from './project-icon-commands';
 import { projectIconColorPresentation, projectIconRegistry } from './project-icon-registry';
+import { mergedPeerIds } from './project-merge';
 
 interface ProjectIconDraft {
     iconColor: ProjectIconColor;
@@ -50,13 +53,22 @@ function ProjectIconDialogForm({ close, project }: { close: () => void; project:
     );
     const [saving, setSaving] = useState(false);
     const { t } = useTranslation();
+    const projects = useProjects();
+    const repoKeys = useProjectRepositoriesStore((state) => state.keys);
+    // A merged side bar heading shows one icon for every machine's checkout, so the choice reaches all of them.
+    const peerIds = mergedPeerIds(
+        projects ?? [project],
+        project.id,
+        (projectId) => repoKeys[projectId],
+        environmentOfProject,
+    );
 
     const persist = async (shouldClear: boolean): Promise<void> => {
         if (!shouldClear && !iconName) return;
         setSaving(true);
         const didSave = await awaitThenCleanup(
             didSaveProjectIcon(
-                project.id,
+                peerIds,
                 shouldClear ? null : { name: iconName!, ...(iconColor && { color: iconColor }) },
             ),
             () => setSaving(false),

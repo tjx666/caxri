@@ -1,6 +1,10 @@
+import type { TerminalRecord } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { useEnvironmentStore } from '../../../../../stores/environment';
+import {
+    forgetEnvironment,
+    indexEnvironmentSnapshot,
+} from '../../../../../lib/environment-routing';
 import {
     agentChatComposerDatabaseName,
     agentChatComposerScope,
@@ -8,44 +12,26 @@ import {
 } from '../agent-chat-composer-scope';
 
 describe('agentChatComposerScope', () => {
-    const ssh = (destination: string, hostIdentity = destination) => ({
-        destination,
-        hostIdentity,
-        kind: 'ssh' as const,
-        needsUserAction: false,
-        phase: 'connected' as const,
-    });
     const database = (...parameters: Parameters<typeof agentChatComposerScope>) =>
         agentChatComposerDatabaseName(agentChatComposerScope(...parameters));
 
-    it('gives each SSH Host and Caxri Bot its own database so windows never prune each other', () => {
-        const local = database('workbench', { kind: 'local' });
-        const bot = database('bot', undefined);
-        const devbox = database('workbench', ssh('devbox'));
-        expect(database('workbench', undefined)).toBe(local);
+    it('gives each SSH Host and Caxri Bot its own database so machines never prune each other', () => {
+        const local = database('workbench', undefined);
+        const bot = database('bot', 'dev@203.0.113.7:22');
+        const devbox = database('workbench', 'dev@203.0.113.7:22');
         expect(devbox).not.toBe(local);
-        expect(devbox).not.toBe(database('workbench', ssh('buildbox')));
+        expect(devbox).not.toBe(database('workbench', 'dev@203.0.113.8:22'));
         expect(new Set([local, bot, devbox]).size).toBe(3);
-    });
-
-    it("keys an SSH Host by Main's resolved host key, so every alias finds the same unsent state", () => {
-        const resolved = 'dev@203.0.113.7:22';
-        expect(agentChatComposerScope('workbench', ssh('work', resolved))).toBe(
-            agentChatComposerScope('workbench', ssh('work-direct', resolved)),
-        );
-        expect(database('workbench', ssh('work', resolved))).toBe(
-            database('workbench', ssh('work-direct', resolved)),
-        );
     });
 });
 
 describe('currentAgentChatComposerScope', () => {
     afterEach(() => {
         vi.unstubAllGlobals();
-        useEnvironmentStore.setState({ state: undefined });
+        forgetEnvironment('dev@devbox.example:22');
     });
 
-    it('deletes the composer state stored before the device store held it, once', () => {
+    it('keys a Chat by the machine running it and deletes the superseded composer state once', () => {
         const storage: Record<string, unknown> = {
             'caxri.agent-chat.drafts': '[]',
             'caxri.agent-chat.drafts:local': '[]',
@@ -58,25 +44,27 @@ describe('currentAgentChatComposerScope', () => {
         const deleteDatabase = vi.fn();
         vi.stubGlobal('localStorage', storage);
         vi.stubGlobal('indexedDB', { deleteDatabase });
-        useEnvironmentStore.setState({
-            state: {
-                kind: 'ssh',
-                destination: 'devbox',
-                hostIdentity: 'dev@devbox.example:22',
-                phase: 'connected',
-                needsUserAction: false,
+        indexEnvironmentSnapshot(
+            'dev@devbox.example:22',
+            {
+                projects: [],
+                sessions: [],
+                terminals: [{ id: 'remote-chat' } as TerminalRecord],
+                archivedTerminals: [],
             },
-        });
+            0,
+        );
 
-        expect(currentAgentChatComposerScope()).toBe('ssh:dev@devbox.example:22');
-        currentAgentChatComposerScope();
+        expect(currentAgentChatComposerScope('remote-chat')).toBe('ssh:dev@devbox.example:22');
+        currentAgentChatComposerScope('remote-chat');
+        expect(currentAgentChatComposerScope('local-chat')).toBe('local');
 
         expect(Object.keys(storage).filter((key) => key.startsWith('caxri.'))).toEqual([
             'caxri.other',
         ]);
         expect(deleteDatabase.mock.calls).toEqual([
             ['caxri-agent-chat:ssh:dev@devbox.example:22'],
-            ['caxri-agent-chat:ssh:devbox'],
+            ['caxri-agent-chat'],
         ]);
     });
 });

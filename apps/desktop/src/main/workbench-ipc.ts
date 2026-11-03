@@ -27,7 +27,7 @@ import {
     rendererJankLogLevel,
 } from './renderer-diagnostics/renderer-jank-log';
 import { runInRequestWindow } from './request-window';
-import { runInRequestWindowKey } from './window-presence-registry';
+import { PRIMARY_WINDOW_KEY, runInRequestWindowKey } from './window-presence-registry';
 
 /**
  * Failure codes that typically originate from ordinary Renderer-side user input (e.g. an unresolved path while the user
@@ -79,11 +79,11 @@ export interface WorkbenchIpcOptions {
      */
     companion?(sender: WebContents): CompanionRendererPolicy | undefined;
     /**
-     * Finds the SSH Host window a sender belongs to. Each SSH Host window has its own Server connection, so its
-     * requests use that environment's transport and never reach the local Server; its diagnostics are tagged `window:
-     * 'ssh-host'`.
+     * Finds the connected SSH Host a primary Workbench request names with its `environmentId`. Each SSH Host has its
+     * own Server connection, so such a request uses that environment's transport and never reaches the local Server; an
+     * unknown or disconnected id is refused rather than sent to the local Server.
      */
-    sshHost?(sender: WebContents): SshHostRendererRoute | undefined;
+    sshHost?(environmentId: string): SshHostRendererRoute | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
     /**
      * The window key of a Workbench sender, which Main injects into the requests that act for a window. A Renderer
@@ -97,17 +97,31 @@ export interface SshHostRendererRoute {
     onEventsReady(): void;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
     /**
-     * The key this SSH Host window acts under on its own Server.
+     * The key the Workbench window acts under on this SSH Host's Server.
      */
     windowKey: string;
     window(): BrowserWindow | undefined;
 }
 
 /**
+ * Why a request naming an environment was refused, logged as a closed `reason` field.
+ */
+type EnvironmentRouteRefusal = 'invalid-id' | 'not-connected' | 'not-primary-window';
+
+/**
+ * Reads the optional `environmentId` the preload passes beside a request. Only a string of a sane length names an
+ * environment; anything else is a malformed request.
+ */
+function parseEnvironmentId(raw: unknown): string | undefined | null {
+    if (raw === undefined || raw === null) return undefined;
+    return typeof raw === 'string' && raw.length > 0 && raw.length <= 1024 ? raw : null;
+}
+
+/**
  * Which window a Renderer diagnostic came from, logged as the closed `window` field so a Terminal failure in the Agent
  * Caxri Bot's window is told apart from one in the Workbench.
  */
-export type RendererWindow = 'benchmark' | 'bot' | 'ssh-host' | 'workbench';
+export type RendererWindow = 'benchmark' | 'bot' | 'workbench';
 
 /**
  * The diagnostics the Terminal pane emits, which both windows mount. Every other kind describes the Workbench itself
@@ -146,17 +160,44 @@ export interface CompanionRendererPolicy {
  * Installs the authenticated Electron transport without leaking Electron into the protocol.
  */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
-    function senderRole(sender: WebContents): 'companion' | 'ssh-host' | 'workbench' | undefined {
+    function senderRole(sender: WebContents): 'companion' | 'workbench' | undefined {
         if (options.isWorkbenchSender(sender)) return 'workbench';
         if (options.companion?.(sender)) return 'companion';
-        if (options.sshHost?.(sender)) return 'ssh-host';
         return undefined;
     }
 
-    function assertSender(sender: WebContents): 'companion' | 'ssh-host' | 'workbench' {
+    function assertSender(sender: WebContents): 'companion' | 'workbench' {
         const role = senderRole(sender);
         if (!role) throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
         return role;
+    }
+
+    function refuseRoute(reason: EnvironmentRouteRefusal): never {
+        options.logger()?.write('warn', logEventCatalog.ipc.environmentRouteRefused, {
+            fields: { reason },
+        });
+        throw new CaxriError(
+            'UNAVAILABLE',
+            reason === 'not-connected' ? 'The SSH Host is not connected' : 'Invalid environment',
+        );
+    }
+
+    /**
+     * The SSH Host route a request names, or `undefined` for the local Server. Only the primary Workbench window shows
+     * SSH Hosts' Sessions, so a companion or tear-off window naming one is refused, as is an unknown id: it never falls
+     * back to the local Server, where a matching path would be acted on in the wrong place.
+     */
+    function environmentRoute(
+        sender: WebContents,
+        role: 'companion' | 'workbench',
+        rawEnvironmentId: unknown,
+    ): SshHostRendererRoute | undefined {
+        const environmentId = parseEnvironmentId(rawEnvironmentId);
+        if (environmentId === undefined) return undefined;
+        if (environmentId === null) return refuseRoute('invalid-id');
+        if (role !== 'workbench' || options.windowKey?.(sender) !== PRIMARY_WINDOW_KEY)
+            return refuseRoute('not-primary-window');
+        return options.sshHost?.(environmentId) ?? refuseRoute('not-connected');
     }
 
     ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
@@ -166,7 +207,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             companion.onRendererError(rawKind);
             return;
         }
-        if (!options.isWorkbenchSender(event.sender) && !options.sshHost?.(event.sender)) return;
+        if (!options.isWorkbenchSender(event.sender)) return;
         options
             .logger()
             ?.write(
@@ -189,11 +230,6 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         if (!parsed.success) return;
         const diagnostic = parsed.data;
         if (role === 'companion' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
-        /**
-         * Startup frames and performance scenarios measure the local Workbench's boot; an SSH Host window's would skew
-         * them with network latency.
-         */
-        if (role === 'ssh-host' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
         const rendererWindow: RendererWindow =
             role === 'companion'
                 ? (options.companion?.(event.sender)?.rendererWindow ?? 'bot')
@@ -436,102 +472,109 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             },
         });
     });
-    ipcMain.on('caxri:renderer-events-ready', (event) => {
+    ipcMain.on('caxri:renderer-events-ready', (event, environmentId: unknown) => {
         const role = assertSender(event.sender);
+        if (environmentId !== undefined && environmentId !== null) {
+            try {
+                environmentRoute(event.sender, role, environmentId)?.onEventsReady();
+            } catch {
+                // Logged by `refuseRoute`; a Host that disconnected meanwhile has no events to start.
+            }
+            return;
+        }
         if (role === 'companion') {
             options.companion?.(event.sender)?.onEventsReady();
             return;
         }
-        if (role === 'ssh-host') {
-            options.sshHost?.(event.sender)?.onEventsReady();
-            return;
-        }
         options.onEventsReady?.(event.sender);
     });
-    ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
-        let isTrustedRenderer = false;
-        let isRecovering = () => options.isRecovering();
-        try {
-            const role = assertSender(event.sender);
-            const companion = role === 'companion' ? options.companion?.(event.sender) : undefined;
-            companion?.admit(raw);
-            const remote = role === 'ssh-host' ? options.sshHost?.(event.sender) : undefined;
-            if (remote) isRecovering = () => remote.isRecovering();
-            isTrustedRenderer = true;
-            /**
-             * Refuse queued Renderer work; explicit quit owns final Server I/O and shutdown.
-             *
-             * Classified as a cancellation rather than an outage because nothing is unavailable and there is nothing to
-             * retry: the window that issued the request is being torn down. `UNAVAILABLE` made the Renderer's failure
-             * funnel raise a real error notification over a closing window: a read still in flight when the user quits
-             * surfaced as "Unable to read directory: Application is quitting".
-             */
-            if (options.isQuitting())
+    ipcMain.handle(
+        'caxri:request',
+        async (event, raw: unknown, environmentId: unknown): Promise<CaxriReply> => {
+            let isTrustedRenderer = false;
+            let isRecovering = () => options.isRecovering();
+            try {
+                const role = assertSender(event.sender);
+                const companion =
+                    role === 'companion' ? options.companion?.(event.sender) : undefined;
+                companion?.admit(raw);
+                const remote = environmentRoute(event.sender, role, environmentId);
+                if (remote) isRecovering = () => remote.isRecovering();
+                isTrustedRenderer = true;
+                /**
+                 * Refuse queued Renderer work; explicit quit owns final Server I/O and shutdown.
+                 *
+                 * Classified as a cancellation rather than an outage because nothing is unavailable and there is
+                 * nothing to retry: the window that issued the request is being torn down. `UNAVAILABLE` made the
+                 * Renderer's failure funnel raise a real error notification over a closing window: a read still in
+                 * flight when the user quits surfaced as "Unable to read directory: Application is quitting".
+                 */
+                if (options.isQuitting())
+                    return {
+                        protocolVersion: CAXRI_PROTOCOL_VERSION,
+                        id: requestIdFromEnvelope(raw),
+                        ok: false,
+                        error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
+                    };
+                const windowKey = remote ? remote.windowKey : options.windowKey?.(event.sender);
+                const reply = await runInRequestWindowKey(windowKey, () =>
+                    runInRequestWindow(companion ? companion.window() : remote?.window(), () =>
+                        (remote?.transport ?? options.transport).dispatch(raw),
+                    ),
+                );
+                if (companion && reply.ok) companion.observeReply?.(raw, reply);
+                /**
+                 * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.
+                 */
+                if (!reply.ok && reply.error.code !== 'CANCELLED' && !options.isQuitting())
+                    options
+                        .logger()
+                        ?.write(
+                            requestFailureLevel(reply.error.code, isRecovering()),
+                            logEventCatalog.ipc.requestFailed,
+                            {
+                                correlationId: requestIdFromEnvelope(raw) ?? undefined,
+                                fields: {
+                                    code: reply.error.code,
+                                    error: reply.error.message,
+                                    method: methodFromEnvelope(raw),
+                                },
+                            },
+                        );
+                return reply;
+            } catch (error) {
+                /**
+                 * Replying with a classified envelope keeps the code intact across the preload.
+                 */
+                const wire = toWireError(error);
+                if (wire.code !== 'CANCELLED' && (!isTrustedRenderer || !options.isQuitting()))
+                    options
+                        .logger()
+                        ?.write(
+                            requestFailureLevel(wire.code, isRecovering()),
+                            logEventCatalog.ipc.requestFailed,
+                            {
+                                correlationId: requestIdFromEnvelope(raw) ?? undefined,
+                                fields: {
+                                    code: wire.code,
+                                    error: wire.message,
+                                    method: methodFromEnvelope(raw),
+                                },
+                            },
+                        );
                 return {
                     protocolVersion: CAXRI_PROTOCOL_VERSION,
                     id: requestIdFromEnvelope(raw),
                     ok: false,
-                    error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
+                    error: wire,
                 };
-            const windowKey = remote ? remote.windowKey : options.windowKey?.(event.sender);
-            const reply = await runInRequestWindowKey(windowKey, () =>
-                runInRequestWindow(companion ? companion.window() : remote?.window(), () =>
-                    (remote?.transport ?? options.transport).dispatch(raw),
-                ),
-            );
-            if (companion && reply.ok) companion.observeReply?.(raw, reply);
-            /**
-             * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.
-             */
-            if (!reply.ok && reply.error.code !== 'CANCELLED' && !options.isQuitting())
-                options
-                    .logger()
-                    ?.write(
-                        requestFailureLevel(reply.error.code, isRecovering()),
-                        logEventCatalog.ipc.requestFailed,
-                        {
-                            correlationId: requestIdFromEnvelope(raw) ?? undefined,
-                            fields: {
-                                code: reply.error.code,
-                                error: reply.error.message,
-                                method: methodFromEnvelope(raw),
-                            },
-                        },
-                    );
-            return reply;
-        } catch (error) {
-            /**
-             * Replying with a classified envelope keeps the code intact across the preload.
-             */
-            const wire = toWireError(error);
-            if (wire.code !== 'CANCELLED' && (!isTrustedRenderer || !options.isQuitting()))
-                options
-                    .logger()
-                    ?.write(
-                        requestFailureLevel(wire.code, isRecovering()),
-                        logEventCatalog.ipc.requestFailed,
-                        {
-                            correlationId: requestIdFromEnvelope(raw) ?? undefined,
-                            fields: {
-                                code: wire.code,
-                                error: wire.message,
-                                method: methodFromEnvelope(raw),
-                            },
-                        },
-                    );
-            return {
-                protocolVersion: CAXRI_PROTOCOL_VERSION,
-                id: requestIdFromEnvelope(raw),
-                ok: false,
-                error: wire,
-            };
-        }
-    });
-    ipcMain.handle('caxri:negotiate', (event, hello: unknown) => {
+            }
+        },
+    );
+    ipcMain.handle('caxri:negotiate', (event, hello: unknown, environmentId: unknown) => {
         const role = assertSender(event.sender);
         const transport =
-            (role === 'ssh-host' ? options.sshHost?.(event.sender)?.transport : undefined) ??
-            options.transport;
+            environmentRoute(event.sender, role, environmentId)?.transport ?? options.transport;
         return transport.negotiate(hello);
     });
 }

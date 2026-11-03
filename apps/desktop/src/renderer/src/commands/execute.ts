@@ -71,7 +71,7 @@ import {
     moveTerminalToNewSession,
     openSelectedProjectInExternalEditor,
 } from '../features/session/session-commands';
-import { chooseProjectFolder } from '../features/session/session-creation-commands';
+import { addProject } from '../features/session/session-creation-commands';
 import {
     canCloseSettingsPage,
     didCloseSettingsForTabClose,
@@ -133,7 +133,7 @@ import { isEditableEventTarget } from '../lib/keybindings';
 import { isAgentProcessRunning } from '../lib/terminal-agent-runtime';
 import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useDialogStore } from '../stores/dialogs';
-import { isLocalOnlyAvailable, isSshHost } from '../stores/environment';
+import { isLocalOnlyAvailable, isSshHost, useEnvironmentStore } from '../stores/environment';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
@@ -220,7 +220,7 @@ const commandContext: CommandContext = {
     },
     project: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        create: () => void chooseProjectFolder(),
+        create: () => void addProject(),
         customizeIcon: (projectId) => {
             const target =
                 getBootstrap()?.projects.find((project) => project.id === projectId) ??
@@ -461,10 +461,19 @@ const commandContext: CommandContext = {
         isLocalOnlyAvailable: () => isLocalOnlyAvailable(),
         isSshHost: () => isSshHost(),
         connect: openConnectSshHostDialog,
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        reconnect: () => void reconnectSshHost(),
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        stopServer: () => void stopSshHostServer(),
+        /**
+         * Both act on the SSH Host of the selected Session, the one the status bar names.
+         */
+        reconnect: () => {
+            const id = useEnvironmentStore.getState().selectedEnvironmentId;
+
+            if (id !== undefined) void reconnectSshHost(id);
+        },
+        stopServer: () => {
+            const id = useEnvironmentStore.getState().selectedEnvironmentId;
+
+            if (id !== undefined) void stopSshHostServer(id);
+        },
     },
 };
 

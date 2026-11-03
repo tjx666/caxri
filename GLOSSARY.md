@@ -22,9 +22,14 @@ _Avoid_: Frontend, UI owner
 
 **SSH Host**:
 A Linux machine Desktop reaches with the user's OpenSSH configuration and runs its own Server on.
-Desktop shows it in a separate window titled `SSH: <destination>`; its Projects, Terminals, and
-Agents live on that machine.
+Desktop lists its Projects in the same window as this machine's, marked with the Host's icon; its
+Projects, Terminals, and Agents live on that machine.
 _Avoid_: Remote, remote machine, Remote Server, Remote SSH, Remote Environment
+
+**Host mark**:
+The icon, and when two machines would otherwise look alike the name, that shows which SSH Host a
+Project heading or Session row belongs to. Rows on this machine carry none.
+_Avoid_: Host badge, remote tag, machine label
 
 **Relay**:
 A separately deployed rendezvous service that lets a paired phone reach a Server from outside its
@@ -36,9 +41,9 @@ The network path one Mobile connection took to its Server: direct (LAN or Tailsc
 _Avoid_: Transport, channel, path
 
 **Environment**:
-The Server a Workbench window is attached to: the Server on this machine, or the Server of one SSH
-Host. A window has exactly one Environment, and features that cannot work across machines are
-offered only in the matching one.
+One Server a Workbench window reaches: the Server on this machine, or the Server of one SSH Host.
+A window reaches every connected Environment at once; each Project and Session belongs to exactly
+one, and features that cannot work across machines are offered only for the matching one.
 _Avoid_: Remote Environment, backend, Host
 
 **Session View**:

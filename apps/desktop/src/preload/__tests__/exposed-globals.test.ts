@@ -24,6 +24,7 @@ vi.mock('electron', () => ({
 }));
 
 const bridgeMethods = [
+    'environments',
     'negotiate',
     'onEvent',
     'pathForFile',

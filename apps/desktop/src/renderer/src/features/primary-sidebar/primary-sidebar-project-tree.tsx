@@ -7,7 +7,6 @@ import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useTranslation } from '../../i18n';
 import {
     useProjects,
-    useSelectedProject,
     useSelectedSession,
     useSessions,
     useSettings,
@@ -22,6 +21,7 @@ import { usePinnedSessionGroup } from './hooks/use-pinned-session-group';
 import { usePinnedSessionReveal } from './hooks/use-pinned-session-reveal';
 import { usePrimarySidebarTree } from './hooks/use-primary-sidebar-tree';
 import { useProjectCollapse } from './hooks/use-project-collapse';
+import { useProjectHeadings } from './hooks/use-project-headings';
 import { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
@@ -68,19 +68,20 @@ export function PrimarySidebarProjectTree() {
     const autoCollapseSetting =
         useSettings()?.['primarySidebar.autoCollapseProjects'] ??
         defaultAppSettings['primarySidebar.autoCollapseProjects'];
-    const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
-    const projectOrder = useProjectOrder(projects);
     /**
      * Where every Session goes: an ordinary row, nested under a host, or hidden. Computed first because the collapse
      * protection, the Session groups, the Pinned group, and the keyboard row order all read it.
      */
     const delegated = useDelegatedSessions({ projects, selectedSessionId, sessions, terminals });
     const { placement } = delegated;
+    const { headingIdBySessionId, headingOf, headingProjects, mergedProjects, selectedProjectId } =
+        useProjectHeadings({ placement, projects, sessions });
+    const projectOrder = useProjectOrder(headingProjects);
     const projectCollapse = useProjectCollapse({
         autoCollapseSetting,
-        groupIdBySessionId: placement.groupIdBySessionId,
-        projects: loadedProjects,
+        groupIdBySessionId: headingIdBySessionId,
+        projects: loadedProjects && headingProjects,
         selectedSessionId,
         sessions,
     });
@@ -122,10 +123,10 @@ export function PrimarySidebarProjectTree() {
             // A nested Session opens its host's group, which is not necessarily its own Project.
             const { groupId, rowId } = sessionRevealTarget(placement, session);
             if (groupId === PINNED_GROUP_ROW_ID) pinnedCollapse.expand();
-            else projectCollapse.expandProject(groupId);
+            else projectCollapse.expandProject(headingOf.get(groupId) ?? groupId);
             return rowId;
         },
-        [pinnedCollapse, placement, projectCollapse],
+        [headingOf, pinnedCollapse, placement, projectCollapse],
     );
     const sessionRename = useSessionRename(sessions, revealSessionRow);
     useSelectedSessionReveal({ revealSessionRow, selectedSessionId, sessions });
@@ -138,7 +139,7 @@ export function PrimarySidebarProjectTree() {
      */
     const sessionWindows = useProjectSessionWindows({
         hostedByGroup: placement.hostedByGroup,
-        projects,
+        projects: mergedProjects,
         selectedHostSessionId: delegated.selectedHostSessionId,
         selectedSessionId,
         sidebarSessions,

@@ -223,11 +223,11 @@ export const desktop = {
     'desktop.updateRestart.restart': 'Restart and Update',
     'desktop.sshServerUpdate.title': 'Update Server on SSH Host?',
     'desktop.sshServerUpdate.messageOne':
-        'Update Caxri Server on this SSH Host while {{running}} is running?',
+        'Update Caxri Server on {{host}} while {{running}} is running?',
     'desktop.sshServerUpdate.messageOther':
-        'Update Caxri Server on this SSH Host while {{running}} are running?',
+        'Update Caxri Server on {{host}} while {{running}} are running?',
     'desktop.sshServerUpdate.detail':
-        'The SSH Host is running Caxri Server from another version of Caxri. Updating it stops every running Terminal and Agent process there. Not Now keeps them running and leaves this window disconnected; choose Reconnect when you are ready to update.',
+        '{{host}} is running Caxri Server from another version of Caxri. Updating it stops every running Terminal and Agent process there. Not Now keeps them running and leaves {{host}} disconnected; choose Reconnect when you are ready to update.',
     'desktop.sshServerUpdate.update': 'Update Server',
     'desktop.sshServerUpdate.notNow': 'Not Now',
 

@@ -209,11 +209,11 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.updateRestart.restart': '重启并更新',
     'desktop.sshServerUpdate.title': '更新 SSH Host 上的 Server？',
     'desktop.sshServerUpdate.messageOne':
-        '有 {{running}}正在运行，要更新此 SSH Host 上的 Caxri Server 吗？',
+        '有 {{running}}正在运行，要更新 {{host}} 上的 Caxri Server 吗？',
     'desktop.sshServerUpdate.messageOther':
-        '有 {{running}}正在运行，要更新此 SSH Host 上的 Caxri Server 吗？',
+        '有 {{running}}正在运行，要更新 {{host}} 上的 Caxri Server 吗？',
     'desktop.sshServerUpdate.detail':
-        '此 SSH Host 上运行的是另一个版本 Caxri 的 Server。更新会结束那里所有正在运行的终端和 Agent 进程。选择“暂不更新”会让它们继续运行，此窗口保持断开；准备好更新时选择“重新连接”。',
+        '{{host}} 上运行的是另一个版本 Caxri 的 Server。更新会结束那里所有正在运行的终端和 Agent 进程。选择“暂不更新”会让它们继续运行，{{host}} 保持断开；准备好更新时选择“重新连接”。',
     'desktop.sshServerUpdate.update': '更新 Server',
     'desktop.sshServerUpdate.notNow': '暂不更新',
 

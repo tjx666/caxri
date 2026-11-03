@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ProjectRecord } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
+import { environmentOfProject } from '../../../lib/environment-routing';
 import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { didReorderProject } from '../../session/session-commands';
 import type { ProjectDropTarget } from '../project-order';
@@ -12,6 +13,7 @@ import {
     areProjectDropTargetsEqual,
     createLatestProjectOrderQueue,
     createProjectOrderIntentTracker,
+    machineProjectIndex,
     PROJECT_DRAG_TYPE,
     projectOrderAfterDrop,
 } from '../project-order';
@@ -46,7 +48,7 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
             if (intent?.projectIds !== projectIds) return;
             const isReordered = await didReorderProject(
                 intent.movedProjectId,
-                projectIds.indexOf(intent.movedProjectId),
+                machineProjectIndex(projectIds, intent.movedProjectId, environmentOfProject),
             );
             intentTrackerReference.current?.settle(isReordered);
         });

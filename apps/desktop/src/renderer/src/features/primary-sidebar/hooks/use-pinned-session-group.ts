@@ -7,6 +7,7 @@ import {
     sessionListWindow,
 } from '@caxri/protocol';
 
+import { environmentOfSession } from '../../../lib/environment-routing';
 import { didReorderPinnedSession } from '../../session/session-commands';
 import { pinnedSessionDropTarget, pinnedSessions } from '../pinned-session-order';
 import { PINNED_GROUP_ROW_ID } from '../primary-sidebar-tree';
@@ -20,8 +21,9 @@ import { useSessionOrder } from './use-session-order';
  * passed in fresh on every render would silently re-invalidate that memoization for every Pinned-group re-render (issue
  * #1108).
  */
-function pinnedGroupOf(): string {
-    return PINNED_GROUP_ROW_ID;
+function pinnedGroupOf(session: SessionRecord): string {
+    // Alt+Arrow moves past another machine's rows, which `pinnedSessionDropTarget` refuses as anchors.
+    return `${PINNED_GROUP_ROW_ID}:${environmentOfSession(session.id) ?? ''}`;
 }
 
 interface PinnedSessionGroupInput {

@@ -55,6 +55,11 @@ export const EVENT_AUDIENCE = {
     'theme.changed': 'all',
     'updates.state': 'all',
     'environment.changed': 'all',
+    /**
+     * Sent with the primary window's key: only that window lists SSH Hosts' Projects.
+     */
+    'sshHost.environmentsChanged': 'target',
+    'sshHost.preferencesChanged': 'all',
     'environment.connectionReused': 'focused',
     'host.connectionChanged': 'all',
     'window.fullScreen': 'target',

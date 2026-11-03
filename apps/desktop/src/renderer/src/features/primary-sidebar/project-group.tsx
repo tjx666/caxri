@@ -12,6 +12,8 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
+import { HostConnectionRows } from '../ssh-host/host-connection-rows';
+import { ProjectHeadingHostMarks } from '../ssh-host/project-heading-host-marks';
 import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
@@ -25,6 +27,7 @@ import { ProjectAgentSummary } from './project-agent-summary';
 import { ProjectDetailsCard } from './project-details-card';
 import { describeProjectSessionCount } from './project-heading';
 import { ProjectIcon } from './project-icon';
+import { sessionMemberLookup } from './project-merge';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
@@ -62,6 +65,11 @@ interface ProjectGroupProperties {
     onRevealMoreSessions: () => void;
     onToggle: () => void;
     project: ProjectRecord;
+    /**
+     * Every Project under this heading, `project` first: more than one for a repository checked out on several
+     * machines, whose Sessions all list here, each row acting on its own machine's Project.
+     */
+    members?: readonly ProjectRecord[];
     /**
      * Every active Session in this Project, including those outside the reveal window.
      */
@@ -143,6 +151,7 @@ export function ProjectGroup({
     onRevealMoreSessions,
     onToggle,
     project,
+    members = [project],
     projectSessions,
     projectDropTarget,
     renderDelegatedRows,
@@ -159,6 +168,8 @@ export function ProjectGroup({
     worktreeProjects,
 }: ProjectGroupProperties) {
     const projectDisclosureId = `project-sessions-${project.id}`;
+    const isMerged = members.length > 1;
+    const memberOf = sessionMemberLookup(project, members);
     const revealRowId = primarySidebarRevealRowId(project.id);
     const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -199,7 +210,7 @@ export function ProjectGroup({
                     <span className="absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full bg-accent" />
                 </div>
             )}
-            <ProjectRowMenu project={project} onOpenChange={setMenuOpen}>
+            <ProjectRowMenu members={members} project={project} onOpenChange={setMenuOpen}>
                 {/*
                  * The Project drag source and the row's layout. Its tree semantics live on the `.project-select`
                  * button below, which is the element that owns the roving Tab stop: `aria-level`, `aria-selected`, and
@@ -292,6 +303,7 @@ export function ProjectGroup({
                                 <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium [--overflow-fade-size:16px]">
                                     {project.title}
                                 </strong>
+                                <ProjectHeadingHostMarks isExpanded={expanded} members={members} />
                                 {agentSummary && <ProjectAgentSummary summary={agentSummary} />}
                             </button>
                         }
@@ -324,7 +336,7 @@ export function ProjectGroup({
                                 <Paintbrush size={12} />
                             </button>
                         </CommandTooltip>
-                        <CreateSessionMenu project={project} />
+                        <CreateSessionMenu members={members} project={project} />
                     </div>
                 </div>
             </ProjectRowMenu>
@@ -344,64 +356,69 @@ export function ProjectGroup({
                 kind="project"
             >
                 {() => (
-                    <div
-                        aria-label={t('primarySidebar.project.sessionsAriaLabel', {
-                            title: project.title,
-                        })}
-                        className="session-list pb-1 pl-4"
-                        role="group"
-                    >
-                        {visibleSessions.map((session) => (
-                            <Fragment key={session.id}>
-                                <MemoizedActiveSessionRow
-                                    sessionOrder={sessionOrder}
-                                    visibleSessionIds={visibleSessionIds}
-                                    focusRenameInput={focusRenameInput}
-                                    onBeginRename={onBeginRename}
-                                    onBlurRename={onBlurRename}
-                                    onCancelRename={onCancelRename}
-                                    onCommitRename={onCommitRename}
-                                    onSuggestRename={onSuggestRename}
-                                    onRenameValueChange={onRenameValueChange}
+                    <>
+                        <HostConnectionRows members={members} />
+                        <div
+                            aria-label={t('primarySidebar.project.sessionsAriaLabel', {
+                                title: project.title,
+                            })}
+                            className="session-list pb-1 pl-4"
+                            role="group"
+                        >
+                            {visibleSessions.map((session) => (
+                                <Fragment key={session.id}>
+                                    <MemoizedActiveSessionRow
+                                        sessionOrder={sessionOrder}
+                                        visibleSessionIds={visibleSessionIds}
+                                        focusRenameInput={focusRenameInput}
+                                        onBeginRename={onBeginRename}
+                                        onBlurRename={onBlurRename}
+                                        onCancelRename={onCancelRename}
+                                        onCommitRename={onCommitRename}
+                                        onSuggestRename={onSuggestRename}
+                                        onRenameValueChange={onRenameValueChange}
+                                        projectTitle={memberOf(session).title}
+                                        projectIcon={memberOf(session).icon}
+                                        projectId={memberOf(session).id}
+                                        projectRootPath={memberOf(session).rootPath}
+                                        showHostMark={isMerged}
+                                        renameError={renameError}
+                                        renameSuggesting={session.id === renameSuggestingSessionId}
+                                        renameValue={renameValue}
+                                        renaming={session.id === renamingRowId}
+                                        roving={session.id === rovingRowId}
+                                        selected={session.id === selectedSessionId}
+                                        session={session}
+                                        showSubagents={showSubagents}
+                                        subagentRovingRowId={rovingSubagentRowId(
+                                            rovingRowId,
+                                            session.id,
+                                        )}
+                                        terminal={sessionAgentTerminal(session, terminals)}
+                                        worktreeProject={worktreeProjects?.[session.id]}
+                                    />
+                                    {renderDelegatedRows?.(session, sessionOrder)}
+                                </Fragment>
+                            ))}
+                            {hiddenSessionCount > 0 && (
+                                <SessionRevealRow
+                                    count={nextRevealCount}
                                     projectTitle={project.title}
-                                    projectIcon={project.icon}
-                                    projectId={project.id}
-                                    projectRootPath={project.rootPath}
-                                    renameError={renameError}
-                                    renameSuggesting={session.id === renameSuggestingSessionId}
-                                    renameValue={renameValue}
-                                    renaming={session.id === renamingRowId}
-                                    roving={session.id === rovingRowId}
-                                    selected={session.id === selectedSessionId}
-                                    session={session}
-                                    showSubagents={showSubagents}
-                                    subagentRovingRowId={rovingSubagentRowId(
-                                        rovingRowId,
-                                        session.id,
-                                    )}
-                                    terminal={sessionAgentTerminal(session, terminals)}
-                                    worktreeProject={worktreeProjects?.[session.id]}
+                                    roving={revealRowId === rovingRowId}
+                                    rowId={revealRowId}
+                                    onReveal={onRevealMoreSessions}
                                 />
-                                {renderDelegatedRows?.(session, sessionOrder)}
-                            </Fragment>
-                        ))}
-                        {hiddenSessionCount > 0 && (
-                            <SessionRevealRow
-                                count={nextRevealCount}
-                                projectTitle={project.title}
-                                roving={revealRowId === rovingRowId}
-                                rowId={revealRowId}
-                                onReveal={onRevealMoreSessions}
-                            />
-                        )}
-                        {visibleSessions.length === 0 && (
-                            <EmptyProjectSessionMenu
-                                project={project}
-                                roving={createSessionRowId === rovingRowId}
-                                rowId={createSessionRowId}
-                            />
-                        )}
-                    </div>
+                            )}
+                            {visibleSessions.length === 0 && (
+                                <EmptyProjectSessionMenu
+                                    members={members}
+                                    project={project}
+                                    roving={createSessionRowId === rovingRowId}
+                                    rowId={createSessionRowId}
+                                />
+                            )}
+                        </div>
+                    </>
                 )}
             </DisclosureMotion>
         </section>

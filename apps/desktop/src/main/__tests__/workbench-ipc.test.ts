@@ -126,43 +126,64 @@ describe('workbench IPC sender boundary', () => {
      * The Renderer's failure funnel stays silent for a cancellation, which is what a refusal issued while the window is
      * being torn down has to be: an outage code raised a real error notification over a closing window.
      */
-    it('runs a request under the window key of its sender, and an SSH Host window under its own', async () => {
+    it('runs a request under the window key of its sender, and one naming an SSH Host on that Host', async () => {
         const seen: Array<string | undefined> = [];
-        const keyed = vi.fn(() => {
-            seen.push(currentRequestWindowKey());
-            return Promise.resolve({
-                protocolVersion: 2,
-                id: 'r1',
-                ok: true,
-                result: null,
-            } as const);
-        });
-        const sshHost = {};
+        const keyed = (target: string) =>
+            vi.fn(() => {
+                seen.push(`${target}:${currentRequestWindowKey()}`);
+                return Promise.resolve({
+                    protocolVersion: 2,
+                    id: 'r1',
+                    ok: true,
+                    result: null,
+                } as const);
+            });
+        const write = vi.fn();
+        const tearOff = {};
         installWorkbenchIpc({
             isQuitting: () => false,
             isRecovering: () => false,
-            logger: () => ({ write: vi.fn() }) as never,
-            sshHost: (sender) =>
-                sender === sshHost
+            logger: () => ({ write }) as never,
+            sshHost: (environmentId) =>
+                environmentId === 'dev@build-box:22'
                     ? ({
                           isRecovering: () => false,
                           onEventsReady: vi.fn(),
-                          transport: { dispatch: keyed, negotiate },
-                          windowKey: 'ssh-host-key',
+                          transport: { dispatch: keyed('ssh'), negotiate },
+                          windowKey: 'main',
                           window: () => {},
                       } as never)
                     : undefined,
-            isWorkbenchSender: (sender) => sender === (renderer as never),
-            transport: { dispatch: keyed, negotiate },
-            windowKey: (sender) => (sender === renderer ? 'main' : undefined),
+            isWorkbenchSender: (sender) => sender === renderer || sender === tearOff,
+            transport: { dispatch: keyed('local'), negotiate },
+            windowKey: (sender) =>
+                sender === renderer ? 'main' : sender === tearOff ? 'tear-off' : undefined,
         });
         const request = electronMock.handles.get('caxri:request')!;
         const envelope = { protocolVersion: 2, id: 'r1', method: 'app.health', params: {} };
 
         await request({ sender: renderer }, envelope);
-        await request({ sender: sshHost }, envelope);
+        await request({ sender: renderer }, envelope, 'dev@build-box:22');
+        await request({ sender: tearOff }, envelope);
+        expect(seen).toEqual(['local:main', 'ssh:main', 'local:tear-off']);
 
-        expect(seen).toEqual(['main', 'ssh-host-key']);
+        // An unknown Host, a malformed id, or a window other than the primary one never falls back to this Mac.
+        await expect(request({ sender: renderer }, envelope, 'dev@gone:22')).resolves.toMatchObject(
+            { ok: false, error: { code: 'UNAVAILABLE' } },
+        );
+        await expect(request({ sender: renderer }, envelope, 42)).resolves.toMatchObject({
+            ok: false,
+            error: { code: 'UNAVAILABLE' },
+        });
+        await expect(
+            request({ sender: tearOff }, envelope, 'dev@build-box:22'),
+        ).resolves.toMatchObject({ ok: false, error: { code: 'UNAVAILABLE' } });
+        expect(seen).toHaveLength(3);
+        expect(
+            write.mock.calls
+                .filter((call) => call[1] === 'ipc.environment_route_refused')
+                .map((call) => (call[2] as { fields: { reason: string } }).fields.reason),
+        ).toEqual(['not-connected', 'invalid-id', 'not-primary-window']);
     });
 
     it('refuses a request queued after shutdown begins as a cancellation', async () => {

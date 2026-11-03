@@ -1,17 +1,20 @@
-import type { EnvironmentState, ServerEvent } from '@caxri/protocol';
+import type { ServerEvent, SshEnvironmentState } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    listeners: [] as Array<(event: ServerEvent) => void>,
+    attach: vi.fn<(id: string) => void>(),
+    detach: vi.fn<(id: string) => void>(),
+    listeners: [] as Array<(event: ServerEvent, environmentId?: string) => void>,
     pushToast: vi.fn(),
-    request: vi.fn<() => Promise<unknown>>(),
+    request: vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>(),
 }));
 
 vi.mock('./toasts', () => ({ pushToast: mocks.pushToast }));
 
 vi.mock('../lib/caxri', () => ({
     caxri: {
-        onEvent: (listener: (event: ServerEvent) => void) => {
+        environments: { attach: mocks.attach, detach: mocks.detach },
+        onEvent: (listener: (event: ServerEvent, environmentId?: string) => void) => {
             mocks.listeners.push(listener);
             return () => {
                 mocks.listeners = mocks.listeners.filter((candidate) => candidate !== listener);
@@ -25,107 +28,154 @@ import {
     getSshEnvironment,
     isLocalOnlyAvailable,
     isSshHost,
+    setSelectedEnvironment,
+    storageScopeOf,
     subscribeEnvironment,
     useEnvironmentStore,
 } from './environment';
 
-const connecting: EnvironmentState = {
+const buildBox: SshEnvironmentState = {
     kind: 'ssh',
     destination: 'build-box',
-    hostIdentity: 'build-box',
-    phase: 'connecting',
+    hostIdentity: 'me@build-box:22',
+    phase: 'connected',
     needsUserAction: false,
 };
-const connected: EnvironmentState = { ...connecting, phase: 'connected' };
+const gpuBox: SshEnvironmentState = {
+    ...buildBox,
+    destination: 'gpu-box',
+    hostIdentity: 'me@gpu-box:22',
+    phase: 'connecting',
+};
 
-function emit(payload: EnvironmentState): void {
-    for (const listener of mocks.listeners) listener({ event: 'environment.changed', payload });
+function emitHosts(hosts: SshEnvironmentState[]): void {
+    for (const listener of mocks.listeners)
+        listener({ event: 'sshHost.environmentsChanged', payload: hosts });
 }
 
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
-    return Promise.withResolvers<T>();
+function listResolving(hosts: Promise<SshEnvironmentState[]> | SshEnvironmentState[]): void {
+    mocks.request.mockImplementation(async (method) => {
+        if (method === 'sshHost.environments.list') return hosts;
+        return null;
+    });
 }
 
 afterEach(() => {
-    useEnvironmentStore.setState({ state: undefined });
+    useEnvironmentStore.setState({
+        hosts: [],
+        selectedEnvironmentId: undefined,
+        state: { kind: 'local' },
+    });
     mocks.listeners = [];
     mocks.request.mockReset();
     mocks.pushToast.mockReset();
+    mocks.attach.mockReset();
+    mocks.detach.mockReset();
 });
 
 describe('environment predicates', () => {
-    it('treats an unread environment as neither local nor remote', () => {
-        expect(isSshHost(undefined)).toBe(false);
-        expect(isLocalOnlyAvailable(undefined)).toBe(false);
+    it('answers for this Mac until a Session on an SSH Host is selected', () => {
+        expect(isLocalOnlyAvailable()).toBe(true);
+        expect(isSshHost()).toBe(false);
+        expect(isLocalOnlyAvailable(buildBox)).toBe(false);
+        expect(isSshHost(buildBox)).toBe(true);
     });
 
-    it('offers local-only actions only in a local window', () => {
-        expect(isLocalOnlyAvailable({ kind: 'local' })).toBe(true);
-        expect(isSshHost({ kind: 'local' })).toBe(false);
-        expect(isLocalOnlyAvailable(connected)).toBe(false);
-        expect(isSshHost(connected)).toBe(true);
+    it('keys device storage by machine', () => {
+        expect(storageScopeOf(undefined)).toBe('local');
+        expect(storageScopeOf('me@build-box:22')).toBe('ssh:me@build-box:22');
     });
 });
 
 describe('subscribeEnvironment', () => {
-    it('stores the initial read', async () => {
-        mocks.request.mockResolvedValue({ kind: 'local' });
+    it('stores the initial host list and attaches each connected Host', async () => {
+        listResolving([buildBox, gpuBox]);
         const unsubscribe = subscribeEnvironment();
-        await vi.waitFor(() =>
-            expect(useEnvironmentStore.getState().state).toEqual({ kind: 'local' }),
-        );
+        await vi.waitFor(() => expect(useEnvironmentStore.getState().hosts).toHaveLength(2));
+        expect(mocks.attach).toHaveBeenCalledExactlyOnceWith('me@build-box:22');
         expect(getSshEnvironment()).toBeUndefined();
         unsubscribe();
     });
 
-    it('keeps an event that arrived while the initial read was in flight', async () => {
-        const read = deferred<EnvironmentState>();
-        mocks.request.mockReturnValue(read.promise);
+    it('keeps a change that arrived while the initial read was in flight', async () => {
+        const read = Promise.withResolvers<SshEnvironmentState[]>();
+        listResolving(read.promise);
         const unsubscribe = subscribeEnvironment();
-        emit(connected);
-        read.resolve(connecting);
+        emitHosts([buildBox]);
+        read.resolve([]);
         await read.promise;
         await Promise.resolve();
-        expect(getSshEnvironment()?.phase).toBe('connected');
+        expect(useEnvironmentStore.getState().hosts).toEqual([buildBox]);
         unsubscribe();
     });
 
-    it('follows later events and stops after unsubscribing', async () => {
-        mocks.request.mockResolvedValue(connecting);
+    it('ignores a Host list that an SSH Host itself sent', () => {
+        listResolving([]);
         const unsubscribe = subscribeEnvironment();
-        await vi.waitFor(() => expect(getSshEnvironment()?.phase).toBe('connecting'));
-        emit(connected);
-        expect(getSshEnvironment()?.phase).toBe('connected');
-        unsubscribe();
-        emit(connecting);
-        expect(getSshEnvironment()?.phase).toBe('connected');
-    });
-
-    it('explains a connect that Main answered by focusing this window', async () => {
-        mocks.request.mockResolvedValue(connected);
-        const unsubscribe = subscribeEnvironment();
-        await vi.waitFor(() => expect(getSshEnvironment()?.destination).toBe('build-box'));
         for (const listener of mocks.listeners)
-            listener({
-                event: 'environment.connectionReused',
-                payload: { destination: 'build-box-direct' },
-            });
+            listener(
+                { event: 'sshHost.environmentsChanged', payload: [gpuBox] },
+                'me@build-box:22',
+            );
+        expect(useEnvironmentStore.getState().hosts).toEqual([]);
+        unsubscribe();
+    });
 
-        expect(mocks.pushToast).toHaveBeenCalledWith(
-            'info',
-            'This window is already connected to build-box (same SSH Host as build-box-direct)',
-        );
+    it('detaches a disconnected Host and stops showing its Session', async () => {
+        listResolving([buildBox]);
+        const unsubscribe = subscribeEnvironment();
+        await vi.waitFor(() => expect(useEnvironmentStore.getState().hosts).toHaveLength(1));
+        setSelectedEnvironment('me@build-box:22');
+        expect(getSshEnvironment()?.destination).toBe('build-box');
+
+        emitHosts([]);
+        expect(mocks.detach).toHaveBeenCalledWith('me@build-box:22');
+        expect(useEnvironmentStore.getState().selectedEnvironmentId).toBeUndefined();
+        expect(isLocalOnlyAvailable()).toBe(true);
+        unsubscribe();
+        emitHosts([buildBox]);
+        expect(useEnvironmentStore.getState().hosts).toEqual([]);
+    });
+
+    it('explains a connect that Main answered with an existing connection', async () => {
+        listResolving([buildBox]);
+        const unsubscribe = subscribeEnvironment();
+        await vi.waitFor(() => expect(useEnvironmentStore.getState().hosts).toHaveLength(1));
+        for (const listener of mocks.listeners)
+            listener(
+                {
+                    event: 'environment.connectionReused',
+                    payload: { destination: 'build-box-direct' },
+                },
+                'me@build-box:22',
+            );
+        expect(mocks.pushToast).toHaveBeenCalledOnce();
+        expect(mocks.pushToast.mock.calls[0]?.[1]).toContain('build-box-direct');
         unsubscribe();
     });
 
     it('ignores a read that resolves after unsubscribing', async () => {
-        const read = deferred<EnvironmentState>();
-        mocks.request.mockReturnValue(read.promise);
+        const read = Promise.withResolvers<SshEnvironmentState[]>();
+        listResolving(read.promise);
         const unsubscribe = subscribeEnvironment();
         unsubscribe();
-        read.resolve(connecting);
+        read.resolve([buildBox]);
         await read.promise;
         await Promise.resolve();
-        expect(useEnvironmentStore.getState().state).toBeUndefined();
+        expect(useEnvironmentStore.getState().hosts).toEqual([]);
+    });
+});
+
+describe('setSelectedEnvironment', () => {
+    it('tells Main whether the shown Session is on this Mac, once per change', () => {
+        mocks.request.mockResolvedValue(null);
+        useEnvironmentStore.setState({ hosts: [buildBox] });
+        setSelectedEnvironment('me@build-box:22');
+        setSelectedEnvironment('me@build-box:22');
+        setSelectedEnvironment(undefined);
+        expect(mocks.request.mock.calls).toEqual([
+            ['window.reportSelectedMachine', { isLocal: false }],
+            ['window.reportSelectedMachine', { isLocal: true }],
+        ]);
     });
 });

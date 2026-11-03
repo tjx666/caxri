@@ -16,7 +16,6 @@ import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
-import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { NotificationCenter } from '../toasts/notification-center';
@@ -244,10 +243,6 @@ export function StatusBar() {
     const degraded = serverStatus ? DEGRADED_STATES[serverStatus] : undefined;
     const containerReference = useRef<HTMLElement>(null);
     const chipVisibility = useChipVisibility(containerReference);
-    /**
-     * Caxri Bot runs beside this Mac's own Server, so an SSH Host window has no Caxri Bot to report.
-     */
-    const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
     return (
         /**
          * `data-runtime-status` is the stable readiness signal: it is present in every visual state, including the
@@ -303,10 +298,10 @@ export function StatusBar() {
                 )}
                 <AgentChatWaitingChip />
                 <PeerApprovalChip />
-                {isLocalOnlyAvailable && <EnvironmentMonitorChip />}
+                <EnvironmentMonitorChip />
                 <UpdateStatusChip />
-                {isLocalOnlyAvailable && <BotStatusChip />}
-                {isLocalOnlyAvailable && <BotInboxChip />}
+                <BotStatusChip />
+                <BotInboxChip />
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />

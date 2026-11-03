@@ -17,6 +17,7 @@ import { themeSettingsSpec } from './theme-settings-spec.js';
 import { zenSettingsSpec } from './zen-settings-spec.js';
 
 export const settingCategories = [
+    { id: 'hosts', title: 'Hosts' },
     { id: 'general', title: 'General' },
     { id: 'chat', title: 'Chat' },
     { id: 'notifications', title: 'Notifications' },

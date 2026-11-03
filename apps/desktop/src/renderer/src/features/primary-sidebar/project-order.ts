@@ -142,3 +142,22 @@ export function adjacentProjectOrder(
     reordered[targetIndex] = movedProjectId;
     return reordered;
 }
+
+/**
+ * The index `project.reorder` expects for a moved Project. Each machine's Server orders only its own Projects, while
+ * the sidebar shows every machine's Projects in one list, so the index counts only the Projects before it on the same
+ * machine.
+ */
+export function machineProjectIndex(
+    projectIds: readonly string[],
+    movedProjectId: string,
+    machineOf: (projectId: string) => string | undefined,
+): number {
+    const machine = machineOf(movedProjectId);
+    let index = 0;
+    for (const projectId of projectIds) {
+        if (projectId === movedProjectId) return index;
+        if (machineOf(projectId) === machine) index += 1;
+    }
+    return index;
+}

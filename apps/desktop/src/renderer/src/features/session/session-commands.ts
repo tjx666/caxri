@@ -3,6 +3,7 @@ import type { MethodResult, ProjectRecord, SessionPullRequest } from '@caxri/pro
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { sessionsByEnvironment } from '../../lib/environment-routing';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/session-queries';
@@ -11,6 +12,7 @@ import { registerSessionCommandConvergence } from '../../stores/session-command-
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench, showSessionTitle } from '../../stores/workbench';
+import { noteSessionSelection } from '../../stores/workbench-environments';
 import {
     beginPendingSessionTitle,
     settlePendingSessionTitle,
@@ -92,6 +94,7 @@ async function didSendSelection(sessionId: string, releaseDispatch: () => void):
     const startedAtMs = performance.now();
     const finishPerformanceRequest = beginRendererPerformanceRequest('session.select');
     const switchTiming = beginSessionSwitchTiming();
+    noteSessionSelection(sessionId);
     const selected = await tryCommand(translate('session.errors.selectFailed'), async () => {
         try {
             return await caxri.request('session.select', { sessionId });
@@ -368,12 +371,25 @@ export function deleteSessions(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     void tryCommand(translate('session.errors.deleteFailed'), async () => {
-        const result = await caxri.request('session.deleteMany', { sessionIds: [...sessionIds] });
-        if ('canceled' in result) return;
-        useSessionViewStore.getState().dropSessions([...sessionIds]);
-        forgetDeletedSessions(sessionIds);
-        removeSessionQueries(queryClient, [...sessionIds]);
-        await refreshWorkbench();
+        const deleted: string[] = [];
+        try {
+            // One machine at a time, each with its own confirmation; canceling one stops the rest.
+            for (const [environmentId, ids] of sessionsByEnvironment(sessionIds)) {
+                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one confirmation at a time
+                const result = await caxri // eslint-disable-line no-await-in-loop -- see above
+                    .in(environmentId)
+                    .request('session.deleteMany', { sessionIds: ids });
+                if ('canceled' in result) break;
+                deleted.push(...ids);
+            }
+        } finally {
+            if (deleted.length > 0) {
+                useSessionViewStore.getState().dropSessions(deleted);
+                forgetDeletedSessions(deleted);
+                removeSessionQueries(queryClient, deleted);
+                await refreshWorkbench();
+            }
+        }
     });
 }
 

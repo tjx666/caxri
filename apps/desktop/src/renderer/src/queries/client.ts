@@ -126,6 +126,27 @@ export function useCaxriQuery<M extends CaxriMethod, TData = MethodResult<M>>(
 }
 
 /**
+ * `useCaxriQuery` against one machine, for a read that names no Session, Project, or Terminal and so cannot be routed
+ * from its parameters (browsing an SSH Host's folders). The machine is part of the key, after the method and
+ * parameters, so prefix invalidation of the method still reaches it.
+ *
+ * @param environmentId A connected SSH Host's id, or `undefined` for this Mac.
+ */
+export function useCaxriQueryIn<M extends CaxriMethod, TData = MethodResult<M>>(
+    environmentId: string | undefined,
+    method: M,
+    parameters: MethodParameters<M>,
+    options?: Omit<UseQueryOptions<MethodResult<M>, Error, TData>, 'queryKey' | 'queryFn'>,
+): UseQueryResult<TData, Error> {
+    return useQuery({
+        queryKey: [...caxriQueryKey(method, parameters), environmentId ?? 'local'],
+        queryFn: () =>
+            caxri.in(environmentId).request(method, ...([parameters] as ParametersArgument<M>)),
+        ...options,
+    });
+}
+
+/**
  * One-shot read through the shared cache, for a builder that runs at the moment it needs the data (a native context
  * menu opening) instead of subscribing on every render. Shares `useCaxriQuery`'s key, so a fresh cached answer is
  * reused and targeted invalidation reaches it. Pass `staleTime: 0` when the caller already knows the cached answer is

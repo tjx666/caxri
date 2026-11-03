@@ -1,5 +1,6 @@
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
+import { sessionsByEnvironment } from '../../../lib/environment-routing';
 import { tryCommand } from '../../../stores/toasts';
 
 /**
@@ -21,7 +22,11 @@ export async function skipAirplaneModeCompaction(): Promise<void> {
 
 export async function exitAirplaneMode(sessionIds: readonly string[]): Promise<void> {
     await tryCommand(translate('session.airplaneMode.exitFailed'), () =>
-        caxri.request('session.exitAirplaneMode', { sessionIds: [...sessionIds] }),
+        Promise.all(
+            sessionsByEnvironment(sessionIds).map(([environmentId, ids]) =>
+                caxri.in(environmentId).request('session.exitAirplaneMode', { sessionIds: ids }),
+            ),
+        ),
     );
 }
 

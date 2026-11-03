@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { projectIconColors } from '../domain/project-customization.js';
 import { commandPolicy } from '../transport/method-spec.js';
 
 const desktopRead = commandPolicy('desktop', 'read');
@@ -129,47 +130,56 @@ const sshHostPlatformSchema = z.object({
      * The glibc version on Linux, the macOS version on macOS.
      */
     systemVersion: z.string().max(32),
+    /**
+     * On Linux, the os-release `ID` (`ubuntu`, `debian`, ...), which picks the Host mark's system logo.
+     */
+    distribution: z
+        .string()
+        .regex(/^[a-z0-9._-]{1,64}$/)
+        .optional(),
+});
+
+export const sshEnvironmentStateSchema = z.object({
+    kind: z.literal('ssh'),
+    /**
+     * The destination this SSH Host was connected with, exactly as entered or chosen.
+     */
+    destination: sshDestinationSchema,
+    /**
+     * Main's identity for the SSH Host (`ssh -G`'s resolved `user@hostname:port`, or the spelling when that fails), the
+     * same key that makes two aliases of one account share one connection. It is also the environment id Renderer
+     * requests name. Device-local state that must follow the SSH Host across aliases and relaunches (unsent composer
+     * drafts and images) is keyed by it, not by `destination`.
+     */
+    hostIdentity: z.string().min(1).max(1024),
+    phase: sshHostConnectionPhaseSchema,
+    /**
+     * Bytes of the application layer (and, when the SSH Host cannot download it, the runtime) uploaded so far.
+     */
+    progress: sshHostProgressSchema.optional(),
+    /**
+     * While `reconnecting`: which automatic attempt is running since the connection dropped, starting at 1.
+     */
+    attempt: z.number().int().positive().optional(),
+    failure: sshHostFailureSchema.optional(),
+    /**
+     * True when automatic reconnection stopped because the user must act (a password, 2FA code, or host key).
+     */
+    needsUserAction: z.boolean(),
+    /**
+     * The OpenSSH prompt waiting for the user, if any. It is part of the state rather than a separate event so a window
+     * that loads after the prompt was raised still shows it.
+     */
+    askpass: sshHostAskpassRequestSchema.optional(),
+    /**
+     * The remote machine as reported by the probe, once known.
+     */
+    platform: sshHostPlatformSchema.optional(),
 });
 
 export const environmentStateSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('local') }),
-    z.object({
-        kind: z.literal('ssh'),
-        /**
-         * The destination this window was opened for, exactly as entered or chosen.
-         */
-        destination: sshDestinationSchema,
-        /**
-         * Main's identity for the SSH Host (`ssh -G`'s resolved `user@hostname:port`, or the spelling when that fails),
-         * the same key that makes two aliases of one account share this window. Device-local state that must follow the
-         * SSH Host across aliases and relaunches (unsent composer drafts and images) is keyed by it, not by
-         * `destination`.
-         */
-        hostIdentity: z.string().min(1).max(1024),
-        phase: sshHostConnectionPhaseSchema,
-        /**
-         * Bytes of the application layer (and, when the SSH Host cannot download it, the runtime) uploaded so far.
-         */
-        progress: sshHostProgressSchema.optional(),
-        /**
-         * While `reconnecting`: which automatic attempt is running since the connection dropped, starting at 1.
-         */
-        attempt: z.number().int().positive().optional(),
-        failure: sshHostFailureSchema.optional(),
-        /**
-         * True when automatic reconnection stopped because the user must act (a password, 2FA code, or host key).
-         */
-        needsUserAction: z.boolean(),
-        /**
-         * The OpenSSH prompt waiting for the user, if any. It is part of the state rather than a separate event so a
-         * window that loads after the prompt was raised still shows it.
-         */
-        askpass: sshHostAskpassRequestSchema.optional(),
-        /**
-         * The remote machine as reported by the probe, once known.
-         */
-        platform: sshHostPlatformSchema.optional(),
-    }),
+    sshEnvironmentStateSchema,
 ]);
 
 export type EnvironmentState = z.infer<typeof environmentStateSchema>;
@@ -188,8 +198,109 @@ export const sshHostEntrySchema = z.object({
 export type SshHostEntry = z.infer<typeof sshHostEntrySchema>;
 
 /**
- * Main-owned methods for SSH Host environments. Every Workbench window may call `environment.get`; the remaining
- * methods act on the calling window's own environment or open a new one.
+ * The system logos a Host mark can show: picked automatically from the platform an SSH Host reported, or chosen.
+ */
+const hostSystemIconNames = [
+    'macos',
+    'windows',
+    'linux',
+    'ubuntu',
+    'debian',
+    'fedora',
+    'arch',
+    'redhat',
+] as const;
+
+/**
+ * Every Host mark icon, in the picker's order: System (what it runs), Place (where it is), and Device (what it is).
+ */
+const hostIconNames = [
+    ...hostSystemIconNames,
+    'house',
+    'building',
+    'map-pin',
+    'cloud',
+    'laptop',
+    'monitor',
+    'server',
+    'gpu',
+] as const;
+
+const hostIconSchema = z.strictObject({
+    name: z.enum(hostIconNames),
+    color: z.enum(projectIconColors).optional(),
+});
+
+export type HostIcon = z.infer<typeof hostIconSchema>;
+export type HostIconName = HostIcon['name'];
+export type HostSystemIconName = (typeof hostSystemIconNames)[number];
+
+/**
+ * The system logo for a platform an SSH Host reported: a known Linux distribution's own, else the generic one.
+ */
+export function detectedSystemOf(platform: {
+    system: 'linux' | 'macos';
+    distribution?: string;
+}): HostSystemIconName {
+    if (platform.system === 'macos') return 'macos';
+    const distribution = platform.distribution === 'rhel' ? 'redhat' : platform.distribution;
+    return hostSystemIconNames.find((name) => name === distribution) ?? 'linux';
+}
+
+/**
+ * The id Host preferences use for this Mac; an SSH Host uses its `hostIdentity`.
+ */
+export const LOCAL_HOST_PREFERENCE_ID = 'local';
+
+const MAX_HOST_NAME_LENGTH = 80;
+
+export const hostPreferenceSchema = z.object({
+    /**
+     * The destination this SSH Host last connected with, so Settings › Hosts can connect it again while it is offline.
+     * Absent for this Mac.
+     */
+    destination: sshDestinationSchema.optional(),
+    /**
+     * The display name every Host mark shows; absent shows the destination (or "This Mac").
+     */
+    name: z.string().trim().min(1).max(MAX_HOST_NAME_LENGTH).optional(),
+    /**
+     * The chosen icon; absent is Auto, the detected system's logo.
+     */
+    icon: hostIconSchema.optional(),
+    /**
+     * The system logo Auto shows, remembered from the last connection so an offline SSH Host keeps it.
+     */
+    detectedSystem: z.enum(hostSystemIconNames).optional(),
+    /**
+     * Whether Caxri connects this SSH Host when it starts. Absent means on.
+     */
+    reconnectOnLaunch: z.boolean().optional(),
+});
+
+export type HostPreference = z.infer<typeof hostPreferenceSchema>;
+
+/**
+ * This Mac's display preferences for every machine it knows, kept by Desktop Main so they are readable exactly when a
+ * Host is offline (docs/adr/0022-multi-environment-window.md).
+ */
+export const hostPreferencesSchema = z.object({
+    /**
+     * Shows the name beside every Host mark that would otherwise show its icon alone.
+     */
+    shouldShowHostNames: z.boolean(),
+    /**
+     * Keyed by `LOCAL_HOST_PREFERENCE_ID` or an SSH Host's `hostIdentity`, in first-connection order.
+     */
+    hosts: z.record(z.string().min(1).max(1024), hostPreferenceSchema),
+});
+
+export type HostPreferences = z.infer<typeof hostPreferencesSchema>;
+
+/**
+ * Main-owned methods for SSH Host environments. `environment.get`, `sshHost.environments.list`, `sshHost.connect`, and
+ * the host list answer for the local Workbench; the remaining methods act on the SSH Host a request names with its
+ * `environmentId` (docs/adr/0022-multi-environment-window.md).
  */
 export const sshHostDesktopMethods = {
     'environment.get': {
@@ -205,9 +316,30 @@ export const sshHostDesktopMethods = {
             recent: z.array(sshDestinationSchema).max(20),
         }),
     },
+    /**
+     * Every SSH Host this Desktop is connected to or connecting to, in connection order. `sshHost.environmentsChanged`
+     * pushes the same list whenever it changes.
+     */
+    'sshHost.environments.list': {
+        ...desktopRead,
+        params: noParameters,
+        result: z.array(sshEnvironmentStateSchema).max(64),
+    },
+    /**
+     * Connects an SSH Host, or reuses the connection to the same account under another spelling, and answers its
+     * environment id (the resolved host identity) once the connection attempt has started.
+     */
     'sshHost.connect': {
         ...desktopControl,
         params: z.object({ destination: sshDestinationSchema }),
+        result: z.object({ environmentId: z.string().min(1).max(1024) }),
+    },
+    /**
+     * Detaches the named SSH Host. Its Server keeps its Terminals and Agents and exits on its own once idle.
+     */
+    'sshHost.disconnect': {
+        ...desktopControl,
+        params: noParameters,
         result: z.null(),
     },
     'sshHost.reconnect': {
@@ -246,6 +378,30 @@ export const sshHostDesktopMethods = {
         ...desktopWrite,
         params: noParameters,
         result: z.object({ canceled: z.boolean() }),
+    },
+    'sshHost.preferences.get': {
+        ...desktopRead,
+        params: noParameters,
+        result: hostPreferencesSchema,
+    },
+    /**
+     * Changes one machine's display name, icon, or Reconnect on Launch; `null` clears a name or icon. Answers the new
+     * preferences, which `sshHost.preferencesChanged` also pushes to every window.
+     */
+    'sshHost.preferences.update': {
+        ...desktopWrite,
+        params: z.object({
+            hostId: z.string().min(1).max(1024),
+            name: z.string().max(MAX_HOST_NAME_LENGTH).nullable().optional(),
+            icon: hostIconSchema.nullable().optional(),
+            reconnectOnLaunch: z.boolean().optional(),
+        }),
+        result: hostPreferencesSchema,
+    },
+    'sshHost.preferences.setShowHostNames': {
+        ...desktopWrite,
+        params: z.object({ shouldShowHostNames: z.boolean() }),
+        result: hostPreferencesSchema,
     },
     'sshHost.askpass.reply': {
         ...desktopControl,

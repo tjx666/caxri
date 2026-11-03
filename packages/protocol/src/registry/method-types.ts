@@ -299,9 +299,10 @@ export const effectfulCommandRecovery = {
     'updates.install': 'memory',
     'shellCommand.install': 'memory',
     /**
-     * Opening or reconnecting an SSH Host window is idempotent per destination; a replay only refocuses it.
+     * Connecting an SSH Host is idempotent per host identity; a replay reuses the existing connection.
      */
     'sshHost.connect': 'memory',
+    'sshHost.disconnect': 'memory',
     'sshHost.reconnect': 'none',
     'sshHost.retryNow': 'none',
     'sshHost.cancel': 'none',
@@ -311,6 +312,8 @@ export const effectfulCommandRecovery = {
      * Answers one live OpenSSH prompt whose helper process waits with its own timeout; a replay would answer nobody.
      */
     'sshHost.askpass.reply': 'none',
+    'sshHost.preferences.update': 'memory',
+    'sshHost.preferences.setShowHostNames': 'memory',
     'shellCommand.uninstall': 'memory',
     'logs.reveal': 'none',
     'app.relaunch': 'none',
@@ -329,6 +332,7 @@ export const effectfulCommandRecovery = {
     'session.select': 'durable',
     'window.tearOffSession': 'memory',
     'window.reportViewing': 'memory',
+    'window.reportSelectedMachine': 'memory',
     'window.fullScreen.set': 'memory',
     'session.markRead': 'durable',
     'usage.dismissNotice': 'durable',

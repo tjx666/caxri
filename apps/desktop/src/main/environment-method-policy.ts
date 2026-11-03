@@ -4,15 +4,17 @@ import { CaxriError } from '@caxri/protocol';
 type DesktopMethod = MainRequest['method'];
 
 /**
- * Which Workbench environments may call a Main-owned method.
+ * Which environments a request naming its target may reach with a Main-owned method. A Workbench request carries the
+ * environment of the Session or Project it acts for (docs/adr/0022-multi-environment-window.md), and this table is
+ * evaluated against that target for every request.
  *
- * - `any`: the method acts on this app (dialogs, menus, updates, URLs) or only on the calling window's own Server.
+ * - `any`: the method acts on this app (dialogs, menus, updates, URLs) or only on the request's own Server.
  * - `local-only`: the method reads or writes this machine's disk or OS on behalf of a path, or drives a window bound to
- *   the local Server. An SSH Host window must never reach it, because a remote path that happens to exist locally would
- *   be acted on in the wrong place.
- * - `remote-override`: both environments call it, and the SSH Host window's handler takes a remote-safe branch (for
- *   example creating a Project from a folder the remote Server listed, with no local folder grant).
- * - `ssh-only`: only an SSH Host window has the state these methods act on.
+ *   the local Server. A request for an SSH Host must never reach it, because a remote path that happens to exist
+ *   locally would be acted on in the wrong place.
+ * - `remote-override`: both environments answer it, and the SSH Host's handler takes a remote-safe branch (for example
+ *   creating a Project from a folder the remote Server listed, with no local folder grant).
+ * - `ssh-only`: only an SSH Host has the state these methods act on.
  */
 type EnvironmentMethodScope = 'any' | 'local-only' | 'remote-override' | 'ssh-only';
 
@@ -78,7 +80,9 @@ const environmentMethodScopes = {
     'diagnostics.revealExport': 'local-only',
     'environment.get': 'any',
     'sshHost.hosts.list': 'any',
-    'sshHost.connect': 'any',
+    'sshHost.connect': 'local-only',
+    'sshHost.environments.list': 'local-only',
+    'sshHost.disconnect': 'ssh-only',
     'sshHost.reconnect': 'ssh-only',
     'sshHost.retryNow': 'ssh-only',
     'sshHost.cancel': 'ssh-only',
@@ -88,6 +92,9 @@ const environmentMethodScopes = {
     'sshHost.sshConfig.reveal': 'any',
     'sshHost.stopServer': 'ssh-only',
     'sshHost.askpass.reply': 'ssh-only',
+    'sshHost.preferences.get': 'local-only',
+    'sshHost.preferences.update': 'local-only',
+    'sshHost.preferences.setShowHostNames': 'local-only',
     'contextMenu.show': 'any',
     'externalDocument.write': 'local-only',
     'externalDocument.read': 'local-only',
@@ -163,6 +170,7 @@ const environmentMethodScopes = {
      */
     'window.fullScreen.set': 'any',
     'window.reportViewing': 'any',
+    'window.reportSelectedMachine': 'local-only',
     /**
      * Tab tear-off exists only in the local Workbench; an SSH Host window is a single window.
      */
@@ -190,8 +198,8 @@ export function guardEnvironmentMethods(
                 new CaxriError(
                     'UNAVAILABLE',
                     environment === 'ssh'
-                        ? `${request.method} acts on this computer and is unavailable in an SSH Host window`
-                        : `${request.method} is only available in an SSH Host window`,
+                        ? `${request.method} acts on this computer and is unavailable for an SSH Host`
+                        : `${request.method} is only available for an SSH Host`,
                 ),
             );
         return handler(request);

@@ -1,13 +1,63 @@
 export const sshHost = {
-    // Window identity: the window title and the status-bar indicator
+    // Machine identity: the connection card title and the status-bar indicator
     'sshHost.windowTitle': 'SSH: {{destination}}',
-    'sshHost.status.ariaLabel': 'This window runs on the SSH Host {{destination}}',
+    'sshHost.status.ariaLabel': 'This Session runs on the SSH Host {{destination}}',
     'sshHost.status.tooltip':
-        "This window's Projects, Terminals, and Agents run on the SSH Host {{destination}}.",
+        "This Session's Project, Terminals, and Agents run on the SSH Host {{destination}}.",
+    'sshHost.hostMark': 'On {{destination}}',
+    'sshHost.hostMark.named': 'On {{name}} ({{destination}})',
+    'sshHost.icon.system': 'System',
+    'sshHost.icon.place': 'Place',
+    'sshHost.icon.device': 'Device',
+    'sshHost.icon.home': 'Home',
+    'sshHost.icon.office': 'Office',
+    'sshHost.icon.remote': 'Remote',
+    'sshHost.icon.cloud': 'Cloud',
+    'sshHost.icon.laptop': 'Laptop',
+    'sshHost.icon.desktop': 'Desktop',
+    'sshHost.icon.server': 'Server',
+    'sshHost.icon.gpu': 'GPU',
+    'sshHost.icon.auto': 'Auto',
+    'sshHost.icon.detected': 'Detected: {{system}}',
+    'sshHost.icon.detectedLater': 'Detected on first connection',
+    'sshHost.icon.notDetected': 'Not detected yet',
+    'sshHost.icon.color': 'Color',
+    'sshHost.icon.defaultColor': 'Default color',
+    'sshHost.icon.colorAriaLabel': '{{color}} color',
+    'sshHost.thisMac': 'This Mac',
+    'sshHost.preferences.failed': 'Unable to save the Host setting',
+
+    // Add Project machine chooser
+    'sshHost.addProject.title': 'Add Project on…',
+    'sshHost.addProject.description':
+        'This Mac opens the folder dialog; an SSH Host opens its folder browser.',
+
+    // Settings › Hosts
+    'sshHost.settings.connect': 'Connect to SSH Host…',
+    'sshHost.settings.column.host': 'Host',
+    'sshHost.settings.column.icon': 'Icon',
+    'sshHost.settings.column.name': 'Display Name',
+    'sshHost.settings.column.reconnectOnLaunch': 'Reconnect on Launch',
+    'sshHost.settings.localMachine': 'Local machine',
+    'sshHost.settings.connected': 'Connected',
+    'sshHost.settings.disconnected': 'Disconnected',
+    'sshHost.settings.reconnecting': 'Reconnecting',
+    'sshHost.settings.failed': 'Unable to connect',
+    'sshHost.settings.iconFor': 'Icon for {{name}}',
+    'sshHost.settings.nameFor': 'Display name for {{name}}',
+    'sshHost.settings.reconnectOnLaunchFor': 'Reconnect {{name}} on Launch',
+    'sshHost.settings.moreFor': 'More actions for {{name}}',
+    'sshHost.settings.connectHost': 'Connect',
+    'sshHost.settings.reconnectHost': 'Reconnect to SSH Host',
+    'sshHost.disconnect': 'Disconnect',
+    'sshHost.disconnect.failed': 'Unable to disconnect the SSH Host',
+    'sshHost.status.disconnect': 'Disconnect from {{destination}}',
     'sshHost.status.platformLinux':
         '{{hostname}} · Linux {{architecture}} · glibc {{systemVersion}}',
     'sshHost.status.platformMacos': '{{hostname}} · macOS {{systemVersion}} · {{architecture}}',
     'sshHost.status.stopServer': 'Stop Server on SSH Host…',
+    'sshHost.status.reconnectOnLaunch': 'Reconnect on Launch',
+    'sshHost.status.manageHosts': 'Manage Hosts…',
 
     // Connect to SSH Host dialog
     'sshHost.connect.title': 'Connect to SSH Host',
@@ -22,9 +72,8 @@ export const sshHost = {
     'sshHost.connect.openConfigFailed': 'Unable to show the SSH config',
     'sshHost.connect.noMatch': 'No matching SSH Host. Type a full user@host to connect to it.',
     'sshHost.connect.loadFailed': 'Unable to read ~/.ssh/config. You can still type a destination.',
-    'sshHost.connect.failed': 'Unable to open the SSH Host window',
-    'sshHost.connect.reused':
-        'This window is already connected to {{destination}} (same SSH Host as {{typed}})',
+    'sshHost.connect.failed': 'Unable to connect to the SSH Host',
+    'sshHost.connect.reused': 'Already connected to {{destination}} (same SSH Host as {{typed}})',
 
     // Connection overlay
     'sshHost.phase.connecting': 'Connecting…',
@@ -71,8 +120,7 @@ export const sshHost = {
     'sshHost.reconnect': 'Reconnect',
     'sshHost.useHere': 'Use Here',
     'sshHost.workbenchPaused':
-        'Showing this window as it was. Editing resumes when the SSH Host is back.',
-    'sshHost.closeWindow': 'Close Window',
+        "This Session's Terminals and Agents keep running on the SSH Host. Editing resumes when it is back.",
     'sshHost.copyDetails': 'Copy Details',
     'sshHost.copyCommand': 'Copy Command',
     'sshHost.retryNow': 'Retry Now',
@@ -95,7 +143,7 @@ export const sshHost = {
     // Stop Server on SSH Host
     'sshHost.stop.title': 'Stop the Server on {{destination}}?',
     'sshHost.stop.message':
-        'Every Terminal and Agent running on this SSH Host ends, and this window closes. Connecting again starts a new Server.',
+        'Every Terminal and Agent running on this SSH Host ends, and its Projects leave the side bar. Connecting again starts a new Server.',
     'sshHost.stop.confirm': 'Stop Server',
     'sshHost.stop.failed': 'Unable to stop the Server on the SSH Host',
 

@@ -1,5 +1,5 @@
 import type { RemoteTarget } from './layers';
-import type { SshHostProbe } from './scripts';
+import type { SshHostProbe } from './probe';
 import { compareVersions } from './scripts';
 import { SshHostSetupError } from './setup';
 

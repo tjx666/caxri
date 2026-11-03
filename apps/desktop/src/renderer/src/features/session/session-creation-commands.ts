@@ -5,11 +5,11 @@ import { caxri } from '../../lib/caxri';
 import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
-import { isLocalOnlyAvailable, isSshHost } from '../../stores/environment';
+import { useEnvironmentStore } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
-import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
+import { pickProjectMachine, pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
 import { typeAgentSignInCommand } from '../terminal/agent-sign-in';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
 import {
@@ -55,9 +55,10 @@ function createSession(
 function createProjectSession(
     rootPath: string,
     defaultAgent: TerminalKind | null,
+    environmentId: string | undefined,
 ): Promise<string | undefined> {
     return tryCommand(translate('session.errors.createProjectFailed'), async () => {
-        const project = await caxri.request('project.create', { rootPath });
+        const project = await caxri.in(environmentId).request('project.create', { rootPath });
         /**
          * Keeps the Agent-choice dialog open, now anchored to the created Project.
          */
@@ -179,35 +180,66 @@ async function signInInNewSession(
  * Adding a hidden Project's folder again brings its Sessions back, so the flow selects one of them instead of asking
  * for a Terminal and creating yet another Session next to the restored ones.
  */
-async function restoreHiddenProject(rootPath: string): Promise<void> {
-    const project = await caxri.request('project.create', { rootPath });
+async function restoreHiddenProject(
+    rootPath: string,
+    environmentId: string | undefined,
+): Promise<void> {
+    const project = await caxri.in(environmentId).request('project.create', { rootPath });
     await refreshWorkbench();
     selectProject(project.id);
 }
 
 /**
- * The native picker sees only this Mac's disk, so an SSH Host window chooses from the folders its own Server lists.
- * Either way the rest of the flow is the same: Main's `project.create` treats the SSH Host's folder as remote and
- * grants nothing locally. Before the window's environment is known neither picker is safe, so the command does
- * nothing.
+ * The native picker sees only this Mac's disk, so a Project on an SSH Host is chosen from the folders that Host's
+ * Server lists. Either way the rest of the flow is the same: Main's `project.create` treats the SSH Host's folder as
+ * remote and grants nothing locally.
  */
-function selectProjectFolder(): Promise<string | null | undefined> {
-    if (isLocalOnlyAvailable()) return caxri.request('dialog.selectDirectory');
-    return isSshHost() ? pickSshHostFolder() : Promise.resolve(undefined);
+function selectProjectFolder(
+    environmentId: string | undefined,
+): Promise<string | null | undefined> {
+    return environmentId === undefined
+        ? caxri.in(undefined).request('dialog.selectDirectory')
+        : pickSshHostFolder(environmentId);
 }
 
-export async function chooseProjectFolder(): Promise<void> {
+/**
+ * Adds a Project on one machine. Without an explicit machine it is the one running the selected Session, so a user
+ * working in an SSH Host's Session adds the next Project there, as in a window of that Host.
+ *
+ * @param environmentId The SSH Host to add the Project on, or `undefined` for this Mac.
+ */
+export async function chooseProjectFolder(
+    environmentId: string | undefined = useEnvironmentStore.getState().selectedEnvironmentId,
+): Promise<void> {
     await tryCommand(translate('session.errors.selectFolderFailed'), async () => {
-        const rootPath = await selectProjectFolder();
+        const rootPath = await selectProjectFolder(environmentId);
         if (!rootPath) return;
-        if (await caxri.request('project.restorable', { rootPath })) {
-            await restoreHiddenProject(rootPath);
+        const target = caxri.in(environmentId);
+        if (await target.request('project.restorable', { rootPath })) {
+            await restoreHiddenProject(rootPath, environmentId);
             return;
         }
         const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
-        if (defaultAgent) await createProjectSession(rootPath, defaultAgent);
-        else useDialogStore.getState().askAgentForRoot(rootPath);
+        if (defaultAgent) await createProjectSession(rootPath, defaultAgent, environmentId);
+        else useDialogStore.getState().askAgentForRoot(rootPath, environmentId);
     });
+}
+
+/**
+ * Add Project: asks which machine first while an SSH Host is connected, then opens that machine's folder picker (the
+ * native dialog for this Mac, the folder browser for an SSH Host). With no Host connected it goes straight to this
+ * Mac's folder dialog, as before multi-host.
+ */
+export async function addProject(): Promise<void> {
+    const isAnyHostConnected = useEnvironmentStore
+        .getState()
+        .hosts.some((host) => host.phase === 'connected');
+    if (!isAnyHostConnected) {
+        await chooseProjectFolder(undefined);
+        return;
+    }
+    const choice = await pickProjectMachine();
+    if (choice) await chooseProjectFolder(choice.environmentId);
 }
 
 /**
@@ -215,11 +247,13 @@ export async function chooseProjectFolder(): Promise<void> {
  * instead of leaving the root reachable.
  */
 export function cancelPendingSession(): void {
-    const pendingRoot = useDialogStore.getState().pendingRoot;
+    const { pendingRoot, pendingRootEnvironmentId } = useDialogStore.getState();
     if (pendingRoot) {
         // Fire-and-forget: revoking an abandoned folder-picker grant has no UI-visible outcome
         // to await, and a failure here has nothing left to affect besides the grant itself.
-        void caxri.request('project.cancelCreate', { rootPath: pendingRoot });
+        void caxri
+            .in(pendingRootEnvironmentId)
+            .request('project.cancelCreate', { rootPath: pendingRoot });
     }
     clearPendingSession();
 }
@@ -253,11 +287,12 @@ export function configurePendingAgent(provider: AgentProvider): void {
  * picker reopens with an explanation instead of failing later with `PATH_DENIED` on the Agent click.
  */
 export function resumePendingSession(): void {
-    const { pendingRoot, pendingRootGrantedAt } = useDialogStore.getState();
+    const { pendingRoot, pendingRootEnvironmentId, pendingRootGrantedAt } =
+        useDialogStore.getState();
     if (pendingRoot && isPendingRootGrantStale(pendingRootGrantedAt, Date.now())) {
         cancelPendingSession();
         pushToast('warning', translate('session.createDialog.grantExpired'), { history: false });
-        void chooseProjectFolder();
+        void chooseProjectFolder(pendingRootEnvironmentId);
         return;
     }
     useDialogStore.getState().resumePending();
@@ -297,10 +332,10 @@ export function confirmPendingSignIn(command: string): void {
 }
 
 function createPendingSession(kind: TerminalKind | null): Promise<string | undefined> | undefined {
-    const { pendingRoot, pendingProjectId } = useDialogStore.getState();
+    const { pendingRoot, pendingRootEnvironmentId, pendingProjectId } = useDialogStore.getState();
     // Both `createProjectSession` and `createSession` funnel their own failures into a toast via `tryCommand`.
     return pendingRoot
-        ? createProjectSession(pendingRoot, kind)
+        ? createProjectSession(pendingRoot, kind, pendingRootEnvironmentId)
         : pendingProjectId
           ? createSession(pendingProjectId, kind)
           : undefined;
