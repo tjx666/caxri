@@ -28,7 +28,7 @@ import {
     readRecordingBand,
 } from './mobile-motion-analysis';
 
-const RUNNING_PROMPT = 'Find why the plan usage drains so fast';
+export const RUNNING_PROMPT = 'Find why the plan usage drains so fast';
 const LAST_NARRATION = 'Rewriting the Desktop side to read the dismissal.';
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,7 +60,7 @@ const search = (index: number): FakeClaudeScriptStep => ({
  * A long Claude turn shaped like a real investigation: rounds of searches between short narrations, ending in a command
  * that keeps running, so the turn is still live when the phone opens it and its window starts deep inside the turn.
  */
-const script: FakeClaudeScript = {
+export const runningInvestigationScript: FakeClaudeScript = {
     turns: [
         {
             prompt: RUNNING_PROMPT,
@@ -91,7 +91,7 @@ const script: FakeClaudeScript = {
     ],
 };
 
-const isRunningLastCommand = (snapshot: AgentChatSnapshot): boolean =>
+export const isRunningLastCommand = (snapshot: AgentChatSnapshot): boolean =>
     Boolean(snapshot.activeTurnId) &&
     snapshot.items.some((item) => item.type === 'agentMessage' && item.text === LAST_NARRATION);
 
@@ -112,7 +112,7 @@ export async function executeMobileChatRunningTurnScenario(
         throw new Error('MOB-CHAT-RUNNING-OPEN-01 judges the opened Chat from its recording');
     const fixture = await createMobileAcceptanceFixture({
         chatProvider: 'claude',
-        claudeScript: script,
+        claudeScript: runningInvestigationScript,
         mode: 'agent-chat',
         serial,
     });
