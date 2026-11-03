@@ -10,6 +10,7 @@ type DelegationMethod =
     | 'agent.delegation.presetsInternal'
     | 'agent.delegation.stop'
     | 'agent.delegation.stopInternal'
+    | 'agent.delegation.sessions'
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
@@ -39,6 +40,13 @@ export function createDelegationHandlers(
     database: CaxriDatabase,
 ): Pick<DomainHandlers, DelegationMethod> {
     return {
+        /**
+         * Owner-only (enforced from the method spec before this runs) and never `claimed`: the feed reads summaries,
+         * and an answer still unread by the Agent that delegated the task must stay unread.
+         */
+        'agent.delegation.sessions': ({ createdBySessionIds }) => ({
+            sessions: service.sessions(createdBySessionIds),
+        }),
         'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({
             projectId,

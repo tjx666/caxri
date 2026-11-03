@@ -29,6 +29,27 @@
             "when": 1793614169588,
             "tag": "0003_mobile_device_all_projects",
             "breakpoints": true
+        },
+        {
+            "idx": 4,
+            "version": "6",
+            "when": 1793703660380,
+            "tag": "0004_session_created_by_relation",
+            "breakpoints": true
+        },
+        {
+            "idx": 5,
+            "version": "6",
+            "when": 1793703682887,
+            "tag": "0005_session_created_by_relation_check",
+            "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "6",
+            "when": 1793705506428,
+            "tag": "0006_session_results",
+            "breakpoints": true
         }
     ]
 }

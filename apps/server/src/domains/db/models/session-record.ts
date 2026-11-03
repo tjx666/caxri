@@ -3,6 +3,7 @@ import type {
     SessionActivityReason,
     SessionAttentionKind,
     SessionRecord,
+    SessionRelation,
     SessionTitleMode,
 } from '@caxri/protocol';
 import { sql } from 'drizzle-orm';
@@ -35,6 +36,7 @@ export const sessionSelection = {
     title: sessions.title,
     titleMode: sessions.titleMode,
     createdBySessionId: sessions.createdBySessionId,
+    createdByRelation: sessions.createdByRelation,
 };
 
 interface SessionJoinRow {
@@ -59,6 +61,7 @@ interface SessionJoinRow {
     title: string;
     titleMode: string;
     createdBySessionId: string | null;
+    createdByRelation: string | null;
 }
 
 export function mapSession(row: SessionJoinRow): SessionRecord {
@@ -86,5 +89,10 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         title: row.title,
         titleMode: row.titleMode as SessionTitleMode,
         ...(row.createdBySessionId && { createdBySessionId: row.createdBySessionId }),
+        // Deleting the creator nulls only `created_by_session_id`, so a relation without its creator is a leftover.
+        ...(row.createdBySessionId &&
+            row.createdByRelation && {
+                createdByRelation: row.createdByRelation as SessionRelation,
+            }),
     };
 }

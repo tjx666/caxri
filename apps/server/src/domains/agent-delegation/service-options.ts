@@ -1,15 +1,18 @@
 import type {
+    AgentDelegationProgress,
     AgentDelegationReceipt,
     AgentDelegationSettings,
     AgentLaunchSettings,
     AgentProvider,
     BotHandoverTarget,
+    SessionRelation,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentDispatchService } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
 import type { DelegationTranscriptReader } from './collection';
+import type { DelegationLimitFailure } from './receipt-timing';
 
 /**
  * Everything the delegation service borrows from the rest of the Server. Terminal reads and writes stay optional so a
@@ -80,6 +83,23 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      */
     onReceiptChanged?(receipt: AgentDelegationReceipt, previous?: AgentDelegationReceipt): void;
     /**
+     * When the provider's own usage limit that failed a task resets (epoch milliseconds), or `undefined` when no
+     * authoritative source knows: the failing Chat turn's limit notice, or the weekly usage guard of the provider.
+     * Asked once, as a task moves into a `quota_exhausted` or `rate_limited` failure; the answer becomes
+     * `failureResetsAt`. It must not estimate: an unknown reset time stays absent.
+     */
+    limitResetsAt?(failure: DelegationLimitFailure): number | undefined;
+    /**
+     * What an active Agent Chat Session is doing now, as one short label, or `undefined` for a Terminal Session and for
+     * a Chat between steps. Read by `agent.delegation.sessions` and by the progress events.
+     */
+    chatStep?(terminalId: string): string | undefined;
+    /**
+     * Called, at most once per second per task, when an active Chat Session's step changed. The step is private domain
+     * data: the callee must not log it.
+     */
+    onProgress?(progress: AgentDelegationProgress): void;
+    /**
      * The Sessions a `newSession` delegation creates. Optional so a unit test can omit them.
      */
     newSessions?: {
@@ -87,13 +107,15 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
          * Creates an empty Session in a visible top-level Project and returns its ID. A title names it manually, so
          * automatic naming never replaces it. Caxri Bot's Session is also recorded as its own, which is what admits its
          * later delegations there. `createdBySessionId` is an ordinary Agent caller's own Session, recorded as the new
-         * Session's creator.
+         * Session's creator, and `createdByRelation` how that caller started it. Caxri Bot's Sessions carry neither
+         * from this path.
          */
         create(
             projectId: string,
             title: string | undefined,
             isBot: boolean,
             createdBySessionId?: string,
+            createdByRelation?: SessionRelation,
             worktree?: DelegationWorktree,
         ): string;
         /**

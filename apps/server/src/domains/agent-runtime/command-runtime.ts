@@ -1,7 +1,13 @@
 import type { AgentDelegationReceipt, AppSettings, FullStateChangeReason } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
-import { AgentDelegationService, createDelegationHandlers } from '../agent-delegation';
+import {
+    AgentDelegationService,
+    createDelegationHandlers,
+    delegationChatStep,
+    delegationUsageLimitResetsAt,
+    laterResetTime,
+} from '../agent-delegation';
 import type { AgentDispatchServiceOptions } from '../agent-dispatch';
 /**
  * Server domain composition uses the public dispatch boundary required by the repository architecture.
@@ -47,7 +53,7 @@ export function createAgentCommandRuntime(
          * Refuses a dispatch or delegation launch while its provider's account is at the weekly usage guard (issue
          * #2580). Optional so a unit test can construct this runtime without one.
          */
-        usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted'>;
+        usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted' | 'current'>;
         /**
          * Feeds every announced delegation receipt change to Caxri Bot's completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
@@ -81,11 +87,29 @@ export function createAgentCommandRuntime(
         isChatLive: (terminalId) => chatOf(terminalId)?.isLive(terminalId) === true,
         readChatTurn: (terminalId, turnId) =>
             chatOf(terminalId)?.delegation.turnAnswer(terminalId, turnId),
+        chatStep: (terminalId) =>
+            delegationChatStep(chatOf(terminalId)?.delegation.snapshot(terminalId)),
+        /**
+         * The provider's limit notice on the failed turn and the weekly usage guard of its account, combined by
+         * {@link laterResetTime}.
+         */
+        limitResetsAt: ({ provider, terminalId, turnId }) =>
+            laterResetTime(
+                terminalId && turnId
+                    ? delegationUsageLimitResetsAt(
+                          chatOf(terminalId)?.delegation.snapshot(terminalId),
+                          turnId,
+                      )
+                    : undefined,
+                options.usageGuards?.current(provider)?.resetsAt,
+            ),
+        onProgress: (progress) =>
+            options.emit({ event: 'agent.delegation.progress', payload: progress }),
         dispatch: dispatchService,
         logger: options.logger,
         userDataPath: options.userDataPath,
         newSessions: {
-            create: (projectId, title, isBot, createdBySessionId, worktree) => {
+            create: (projectId, title, isBot, createdBySessionId, createdByRelation, worktree) => {
                 const sessionId = isBot
                     ? createBotSession(options.database, projectId, options.logger, title)
                     : createBackgroundSession(
@@ -93,6 +117,7 @@ export function createAgentCommandRuntime(
                           projectId,
                           title,
                           createdBySessionId,
+                          createdByRelation,
                       );
                 if (worktree)
                     options.database.selectWorkbenchProject(

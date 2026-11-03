@@ -20,6 +20,7 @@ export type TransientServerEvent = Extract<
             | 'agentChat.taskPatch'
             | 'caxriBot.commandPaletteRequested'
             | 'caxriBot.inboxRequested'
+            | 'agent.delegation.progress'
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
@@ -93,6 +94,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'terminal.ptyAlert',
     'terminal.sizeOwnership',
     'agent.messaging.changed',
+    /**
+     * A progress hint for the Delegated Sessions feed: a reconnecting client reads each Session's step again through
+     * `agent.delegation.sessions`, so a replay would only repeat a stale label.
+     */
+    'agent.delegation.progress',
     'agent.message.held',
     'agent.message.receipt',
     /**

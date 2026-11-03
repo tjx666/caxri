@@ -157,6 +157,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Mobile computer status CPU**: Whole-machine CPU from the delta between two `os.cpus()` reads. Evidence: `packages/system/src/process/system-resources.ts`.
 - **Claude process entrypoint label**: Overwriting `CLAUDE_CODE_ENTRYPOINT` with the client's own name on every Claude process it starts. Evidence: `apps/server/src/domains/agents/providers/claude/entrypoint.ts`.
 - **Agent secret request card**: An Agent-raised request answered in a card with a masked value field that password managers ignore (`data-1p-ignore`), the Agent's reason, a privacy note, and Decline or Save; the value never enters the transcript. Evidence: `apps/desktop/src/renderer/src/features/agent-secrets/secret-request-cards.tsx`; `docs/agent-secrets.md`.
+- **Session relation kinds**: A Session records how its creator started it (`delegated`, `handoff`, `consult`) instead of a bare creator link, after T3 Code's thread relations (parent, fork, subagent, transfer). Evidence: `packages/protocol/src/domain/domain.ts`; `docs/agent-delegation.md`.
 
 ## PandaCode (MIT with fork attribution)
 

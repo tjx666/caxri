@@ -28,6 +28,58 @@ describe('Session creator', () => {
         expect(parent).not.toHaveProperty('createdBySessionId');
     });
 
+    it('records how the creator started a Session, only together with the creator', async () => {
+        const { path, database } = await openDatabase();
+        onTestFinished(() => database.close());
+        const project = database.createProject(join(path, '..', 'project'));
+        const { session: creator } = database.createSession(project.id, null);
+        const created = (options: Parameters<typeof database.createSession>[3]) =>
+            database.createSession(project.id, null, undefined, options).session;
+
+        for (const relation of ['delegated', 'handoff', 'consult'] as const) {
+            const session = created({
+                createdBySessionId: creator.id,
+                createdByRelation: relation,
+            });
+            expect(session.createdByRelation).toBe(relation);
+            expect(database.getSession(session.id)?.createdByRelation).toBe(relation);
+        }
+        // Caxri Bot's Sessions name their creator without a relation.
+        expect(created({ createdBySessionId: creator.id })).not.toHaveProperty('createdByRelation');
+        // A relation without a creator is never stored.
+        const orphan = created({ createdByRelation: 'delegated' });
+        expect(orphan).not.toHaveProperty('createdByRelation');
+        expect(
+            database.database
+                .prepare('SELECT created_by_relation AS relation FROM sessions WHERE id = ?')
+                .get(orphan.id),
+        ).toEqual({ relation: null });
+        expect(creator).not.toHaveProperty('createdByRelation');
+    });
+
+    it('omits the relation once the creating Session is deleted', async () => {
+        const { path, database } = await openDatabase();
+        onTestFinished(() => database.close());
+        const project = database.createProject(join(path, '..', 'project'));
+        const { session: creator } = database.createSession(project.id, null);
+        const { session } = database.createSession(project.id, null, undefined, {
+            createdBySessionId: creator.id,
+            createdByRelation: 'consult',
+        });
+
+        database.deleteSession(creator.id);
+
+        const kept = database.getSession(session.id);
+        expect(kept).not.toHaveProperty('createdBySessionId');
+        expect(kept).not.toHaveProperty('createdByRelation');
+        // The column outlives its creator by design; only the read model hides it.
+        expect(
+            database.database
+                .prepare('SELECT created_by_relation AS relation FROM sessions WHERE id = ?')
+                .get(session.id),
+        ).toEqual({ relation: 'consult' });
+    });
+
     it('forgets the creator when the creating Session is deleted, keeping the created one', async () => {
         const { path, database } = await openDatabase();
         onTestFinished(() => database.close());

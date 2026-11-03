@@ -181,7 +181,25 @@ export function applyDelegationLifecycle(
             return patch('answer_unavailable', 'correlation_missing', 'turn_missing');
         return { ...patch('running'), turnId: signal.agentTurnId };
     }
-    if (!record.turnId || signal.agentTurnId !== record.turnId) return;
+    if (!record.turnId) return;
+    if (signal.phase === 'attentionResolved' || signal.phase === 'toolBatchFinished') {
+        /**
+         * The request that blocked the task was answered: the Agent continues its turn. Providers report the end of a
+         * permission prompt differently. A Chat provider and Codex's `request_user_input` send `attentionResolved`;
+         * Claude Code's hooks have no event for the approval itself, so its PostToolBatch (`toolBatchFinished`) is the
+         * first proof the tool ran. Codex reports nothing after a permission approval, so such a task stays blocked
+         * until its turn ends. `AgentAttentionTracker.allowsLifecycle` lets either phase through only when it resolves
+         * the final pending request of the Terminal, so a `toolBatchFinished` here always follows a request and a
+         * still-pending sibling request never reaches this branch. A Chat provider's resolution names no turn, and a
+         * hook names one only for some providers, so an absent turn counts; a resolution of another turn does not.
+         */
+        if (signal.agentTurnId !== undefined && signal.agentTurnId !== record.turnId) return;
+        return record.receipt.status === 'blocked' &&
+            record.receipt.failure === 'permission_required'
+            ? patch('running')
+            : undefined;
+    }
+    if (signal.agentTurnId !== record.turnId) return;
     if (signal.phase === 'attentionRequested') return patch('blocked', 'permission_required');
     if (signal.phase !== 'turnFinished' && signal.phase !== 'turnFailed') return;
     if (signal.agentFailure || signal.phase === 'turnFailed') {

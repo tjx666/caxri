@@ -81,6 +81,26 @@ describe('isTransientServerEvent / transient and durable schemas', () => {
         ).toBe(true);
     });
 
+    /**
+     * The step names a command or a file the Agent is working on, so this event must never reach durable storage or be
+     * replayed to a reconnecting client. The name sits in both the `TransientServerEvent` union and the name set, and
+     * dropping it from the set alone still compiles.
+     */
+    it('keeps the Delegated Sessions step hint out of durable storage', () => {
+        const progress = {
+            event: 'agent.delegation.progress' as const,
+            payload: {
+                sessionId: 'session-1',
+                delegationId: 'delegation-1',
+                step: 'Running pnpm lint',
+            },
+        };
+
+        expect(isTransientServerEvent(progress)).toBe(true);
+        expect(transientServerEventSchema.safeParse(progress).success).toBe(true);
+        expect(durableServerEventSchema.safeParse(progress).success).toBe(false);
+    });
+
     it('classifies a durable state event as non-transient', () => {
         expect(
             isTransientServerEvent({
@@ -271,6 +291,27 @@ describe('createDurableEventJournal', () => {
             barrier: { kind: 'live', cursor: 1 },
         });
         expect(live.cursor).toBe(2);
+    });
+
+    it('rejects a Delegated Sessions step hint before it reaches durable storage', () => {
+        const store = durableStore();
+        const journal = createDurableEventJournal({
+            identity: durableIdentity,
+            snapshot,
+            store,
+        });
+
+        expect(() =>
+            journal.publish({
+                event: 'agent.delegation.progress',
+                payload: {
+                    sessionId: 'session-1',
+                    delegationId: 'delegation-1',
+                    step: 'Running pnpm lint',
+                },
+            }),
+        ).toThrow(/Transient events/u);
+        expect(store.changefeedBounds(durableIdentity.stateEpoch).count).toBe(0);
     });
 
     it('rejects Terminal bytes before they reach durable storage', () => {

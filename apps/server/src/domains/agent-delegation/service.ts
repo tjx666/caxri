@@ -4,6 +4,7 @@ import type {
     AgentDelegationCreate,
     AgentDelegationCreateRequest,
     AgentDelegationReceipt,
+    AgentDelegationSession,
 } from '@caxri/protocol';
 import { agentDelegationSettingsSchema, CaxriError, isDelegationActive } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
@@ -23,7 +24,13 @@ import {
 import { assertTerminalChildHooks, childLaunchFailure, delegationChildLaunch } from './chat-child';
 import { readDelegationCompletion } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
-import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
+import {
+    DelegationProgress,
+    delegationSessions,
+    isNewlyCompleted,
+    recordDelegationResult,
+} from './feed';
+import { prepareDelegationLaunch } from './launch';
 import { fenceTerminalLaunch } from './launch-fence';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import {
@@ -34,15 +41,21 @@ import {
 } from './lifecycle';
 import { admitDelegationRequest } from './new-session';
 import { isDelegationOwner, listOwnedDelegations } from './ownership';
-import type { DelegationFollowUpRejection } from './rejection';
-import { followUpRejection, reportFollowUpRejection } from './rejection';
+import { stampedReceipt } from './receipt-timing';
 import { applyDelegationCompletion, collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
-import { continueHandover, handoverAdmission, handoverTarget, resumeTask } from './resume';
+import {
+    continueHandover,
+    followUpTask,
+    handoverAdmission,
+    handoverTarget,
+    resumeTask,
+} from './resume';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
+import { delegationTaskBody } from './task-body';
 import { pollDelegations } from './wait';
 
 /**
@@ -65,12 +78,18 @@ export class AgentDelegationService {
     private readonly humanIntervenedTerminals = new Set<string>();
 
     private readonly submissions: DelegationSubmissions;
+    private readonly progress?: DelegationProgress;
 
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
         this.submissions = new DelegationSubmissions(options, (id, failure) =>
             this.fail(id, failure),
         );
+        if (options.onProgress)
+            this.progress = new DelegationProgress(
+                (progress) => options.onProgress?.(progress),
+                this.now,
+            );
     }
 
     /**
@@ -85,20 +104,24 @@ export class AgentDelegationService {
         const before = this.options.database.agentDelegations.get(record.receipt.delegationId);
         const saved = this.options.database.agentDelegations.save({
             ...record,
-            receipt: {
-                ...record.receipt,
-                revision: record.receipt.revision + 1,
-                updatedAt: this.now(),
-            },
+            receipt: stampedReceipt(record, before?.receipt, this.now(), (failure) =>
+                this.options.limitResetsAt?.(failure),
+            ),
         });
-        const { delegationId, terminalId } = saved.receipt;
+        const { delegationId, sessionId, terminalId } = saved.receipt;
         if (terminalId) {
-            if (isDelegationActive(saved.receipt))
+            if (isDelegationActive(saved.receipt)) {
                 this.activeTerminals.set(terminalId, delegationId);
-            else if (this.activeTerminals.get(terminalId) === delegationId)
+                this.progress?.track(delegationId, sessionId);
+            } else if (this.activeTerminals.get(terminalId) === delegationId)
                 this.activeTerminals.delete(terminalId);
         }
-        if (!isDelegationActive(saved.receipt)) this.nextCollections.delete(delegationId);
+        if (!isDelegationActive(saved.receipt)) {
+            this.nextCollections.delete(delegationId);
+            this.progress?.settle(delegationId);
+        }
+        if (isNewlyCompleted(saved, before))
+            recordDelegationResult(this.options.database, saved, this.options.logger);
         if (isReceiptTransition(before?.receipt, saved.receipt)) {
             logDelegationTransition(
                 this.options.logger,
@@ -148,18 +171,6 @@ export class AgentDelegationService {
         const record = this.options.database.agentDelegations.get(id);
         if (record && canFailDelegation(record, failure))
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
-    }
-
-    /**
-     * Returns a parent's chain claim after the Host refused its follow-up before taking any input, so the task can
-     * still be continued. The refused child never joined the conversation and is fenced like a lost target. A refusal
-     * the Host reports later keeps the claim: that report also covers a lost acknowledgement, so a retry could submit
-     * twice.
-     */
-    private releaseRefusedFollowUp(id: string, parentId: string): void {
-        const { agentDelegations } = this.options.database;
-        this.save({ ...agentDelegations.get(id)!, hasLostTarget: true });
-        this.save({ ...agentDelegations.get(parentId)!, nextDelegationId: undefined });
     }
 
     /**
@@ -223,50 +234,6 @@ export class AgentDelegationService {
                 });
         }
         return { receipt: record.receipt, answer: record.answer };
-    }
-
-    private async followUp(
-        record: StoredAgentDelegation,
-        authority: DelegationAuthority,
-        previous: StoredAgentDelegation,
-    ): Promise<AgentDelegationReceipt> {
-        const id = record.receipt.delegationId;
-        const prepared = await prepareDelegationFollowUp(
-            this.options.userDataPath,
-            record.rootDelegationId!,
-            id,
-            [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
-        );
-        const current = this.owned(id, authority);
-        if (!isDelegationActive(current.receipt)) return current.receipt;
-        const parent = this.owned(previous.receipt.delegationId, authority);
-        const reject = (reason: DelegationFollowUpRejection) => {
-            this.fail(id, reportFollowUpRejection(this.options.logger, id, reason));
-            return this.owned(id, authority).receipt;
-        };
-        const rejection = followUpRejection(parent, this.options, (terminalId) =>
-            Boolean(this.activeForTerminal(terminalId)),
-        );
-        if (rejection) return reject(rejection);
-        const terminalId = parent.receipt.terminalId!;
-        const launchId = parent.launchId!;
-        /**
-         * No await may split admission, the durable chain claim and exact-generation write. Human input must either
-         * invalidate the preceding epoch or arrive after the new task owns the Terminal.
-         */
-        this.save({ ...parent, nextDelegationId: id });
-        this.save({
-            ...record,
-            launchId,
-            inputEpoch: parent.inputEpoch,
-            promptDigest: prepared.promptDigest,
-            receipt: { ...record.receipt, terminalId, status: 'submitting' },
-        });
-        if (!this.submissions.submit(id, terminalId, launchId, prepared.pointer)) {
-            this.releaseRefusedFollowUp(id, parent.receipt.delegationId);
-            return reject('write_refused');
-        }
-        return this.owned(id, authority).receipt;
     }
 
     private exactResumeHost(authority: DelegationAuthority): ExactResumeHost {
@@ -345,7 +312,7 @@ export class AgentDelegationService {
                 settings:
                     this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
             });
-            const { frozenLaunch, frozenInstructions } = config;
+            const { frozenLaunch } = config;
             if (!previous || input.resumeFrom)
                 await this.options.verifyLaunch(frozenLaunch, config.selection.provider);
             // After the last await before the record exists, so input during `verifyLaunch` is fenced.
@@ -369,6 +336,7 @@ export class AgentDelegationService {
                 isBot: isCaxriBotCaller(this.options.database, authority),
                 parentDelegationId: previousId,
                 terminalId: authority.callerTerminalId,
+                relation: this.options.database.getSession(input.sessionId)?.createdByRelation,
             });
             this.options.onReceiptChanged?.(record.receipt);
             try {
@@ -382,14 +350,14 @@ export class AgentDelegationService {
                 if (previous)
                     return await (input.resumeFrom
                         ? resumeTask(this.exactResumeHost(authority), record, authority, previous)
-                        : this.followUp(record, authority, previous));
+                        : followUpTask(this.exactResumeHost(authority), record, previous));
                 const pane = delegationPaneCaller(this.options.database, authority, input);
                 const prepared = await prepareDelegationLaunch(
                     this.options.userDataPath,
                     id,
                     config.selection.provider,
                     record.providerSessionId,
-                    [frozenInstructions, input.prompt].filter(Boolean).join('\n\n'),
+                    delegationTaskBody(this.options.database, record),
                     frozenLaunch,
                 );
                 record = this.owned(id, authority);
@@ -509,6 +477,14 @@ export class AgentDelegationService {
         return listOwnedDelegations(this.options.database, authority, options);
     }
 
+    /**
+     * The Sessions the named Sessions created, with each one's newest task and stored result; see `delegationSessions`.
+     * A read for the owner's Delegated Sessions feed: it claims no answer.
+     */
+    sessions(createdBySessionIds: readonly string[]): AgentDelegationSession[] {
+        return delegationSessions(this.options, createdBySessionIds);
+    }
+
     presets(
         authority: DelegationAuthority,
         input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId' | 'callerProvider'>,
@@ -606,6 +582,15 @@ export class AgentDelegationService {
         }
     }
 
+    /**
+     * Called after a Chat's projection changed: publishes the step of the active task running in `terminalId`, if the
+     * step changed; see {@link DelegationProgress}. A Terminal with no active task costs one map lookup.
+     */
+    observeChatProgress(terminalId: string): void {
+        const delegationId = this.activeTerminals.get(terminalId);
+        if (delegationId) this.progress?.observe(delegationId, this.options.chatStep?.(terminalId));
+    }
+
     status(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
         return this.owned(id, authority, 'existing').receipt;
     }
@@ -646,6 +631,7 @@ export class AgentDelegationService {
         this.isClosed = true;
         for (const timer of this.collectors.values()) clearTimeout(timer);
         this.submissions.close();
+        this.progress?.close();
         this.collectors.clear();
         this.activeTerminals.clear();
         this.nextCollections.clear();

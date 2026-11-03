@@ -1,3 +1,4 @@
+import type { SessionRelation } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
@@ -9,20 +10,25 @@ import type { CaxriDatabase } from '../db';
  *
  * A title names the Session manually: its Agent has not started, so there is no native session to rename, and automatic
  * naming would only replace the caller's subject with a name taken from the task-file pointer. `createdBySessionId`
- * records the Session whose Agent asked for it, which later lets that Agent manage it.
+ * records the Session whose Agent asked for it, which later lets that Agent manage it, and `createdByRelation` how it
+ * asked (see `sessionRelationSchema`); Caxri Bot's Sessions record a creator without a relation.
  */
 export function createBackgroundSession(
     database: Pick<CaxriDatabase, 'createSession' | 'listVisibleProjects' | 'renameSession'>,
     projectId: string,
     title?: string,
     createdBySessionId?: string,
+    createdByRelation?: SessionRelation,
 ): string {
     const project = database.listVisibleProjects().find((candidate) => candidate.id === projectId);
     if (!project || !isTopLevelProject(project))
         throw new CaxriError('NOT_FOUND', 'Project is unavailable for a new Session');
     const { session } = database.createSession(projectId, null, undefined, {
         selection: 'preserve',
-        ...(createdBySessionId && { createdBySessionId }),
+        ...(createdBySessionId && {
+            createdBySessionId,
+            ...(createdByRelation && { createdByRelation }),
+        }),
     });
     if (title) database.renameSession(session.id, title);
     return session.id;

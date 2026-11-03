@@ -108,7 +108,15 @@ export function createAgentChatService({
     const service = new AgentChatService({
         database,
         logger,
-        send,
+        /**
+         * A flushed patch is the moment a Chat's projection changed, so a Delegated Session's progress follows it; the
+         * delegation service ignores a Terminal with no active task after one map lookup.
+         */
+        send: (event) => {
+            send(event);
+            if (event.event === 'agentChat.patch')
+                delegationState.service?.observeChatProgress(event.payload.terminalId);
+        },
         agentEnvironment,
         launchSettings,
         usage,

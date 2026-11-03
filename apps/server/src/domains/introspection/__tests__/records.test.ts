@@ -1,4 +1,5 @@
 import type { Principal } from '@caxri/protocol';
+import { parseServerOperationResult } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { RecordQuerySource } from '../records';
@@ -296,6 +297,53 @@ describe('Runtime record queries', () => {
         expect(JSON.stringify(service.session({ mode: 'list' }, agent))).not.toContain(
             '/Users/test',
         );
+    });
+
+    it('reports who created a Session and how, only for a Session that has a creator', () => {
+        const [first, second] = source.sessions();
+        const service = new RecordQueryService(
+            {
+                ...source,
+                sessions: () => [
+                    first,
+                    { ...second, createdBySessionId: 'session-1', createdByRelation: 'consult' },
+                ],
+            },
+            '/Users/test',
+        );
+
+        expect(service.session({ mode: 'list' }, human).sessions).toMatchObject([
+            { id: 'session-1' },
+            { id: 'session-2', createdBySessionId: 'session-1', createdByRelation: 'consult' },
+        ]);
+        expect(
+            service.session({ mode: 'show', selector: 'session-1' }, human).sessions[0],
+        ).not.toHaveProperty('createdByRelation');
+    });
+
+    it('answers session.query with lineage fields its result schema carries', () => {
+        const [first, second] = source.sessions();
+        const service = new RecordQueryService(
+            {
+                ...source,
+                sessions: () => [
+                    first,
+                    { ...second, createdBySessionId: 'session-1', createdByRelation: 'handoff' },
+                ],
+            },
+            '/Users/test',
+        );
+
+        const parsed = parseServerOperationResult(
+            'session.query',
+            service.session({ mode: 'list' }, human),
+        );
+
+        expect(parsed.sessions).toMatchObject([
+            { id: 'session-1' },
+            { id: 'session-2', createdBySessionId: 'session-1', createdByRelation: 'handoff' },
+        ]);
+        expect(parsed.sessions[0]).not.toHaveProperty('createdBySessionId');
     });
 
     it('rejects Agent current selectors until an endpoint binds an exact context', () => {

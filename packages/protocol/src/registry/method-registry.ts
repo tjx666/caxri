@@ -26,6 +26,7 @@ import {
     agentDelegationInternalMethods,
     agentDelegationMethods,
 } from '../agent/delegation/agent-delegation-contract.js';
+import { agentDelegationSessionsMethods } from '../agent/delegation/agent-delegation-sessions.js';
 import {
     delegationAccessInternalMethods,
     delegationAccessMethods,
@@ -162,6 +163,7 @@ export const methods = {
     ...agentExcerptMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
+    ...agentDelegationSessionsMethods,
     ...agentSessionMethods,
     ...agentSecretMethods,
     ...botMethods,

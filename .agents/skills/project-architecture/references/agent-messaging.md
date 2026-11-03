@@ -92,7 +92,9 @@ Owner-only methods. A method spec may declare `principal: 'owner'` (`ownerOnlyCo
 refuses it for every principal except Desktop and the human CLI (`assertOwnerOnlyMethod`), because an
 `agent:control` grant gives an Agent Endpoint the same capabilities. Caxri Bot hand-over
 (`bot.session.handOver`, `bot.session.takeBack`, `bot.conversations`) and the Desktop-only
-reads `bot.managedSessions` and `session.permissionAutoAllowStatus` use it: they span every Project and the
-default Agent capabilities (`agents.read`, `sessions.read`) would otherwise expose them without Project scope.
+reads `bot.managedSessions`, `session.permissionAutoAllowStatus`, and `agent.delegation.sessions`
+([Delegated Session feed](../../../../docs/agent-delegation.md#delegated-session-feed)) use it: they span every
+Project and the default Agent capabilities (`agents.read`, `sessions.read`) would otherwise expose them without
+Project scope.
 `packages/protocol/src/agent/__tests__/owner-only-bot-methods.test.ts` requires every `bot.*` control or
 write method to be owner-only or listed in an explicit exemption.

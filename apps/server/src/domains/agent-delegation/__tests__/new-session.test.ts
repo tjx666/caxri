@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -46,13 +46,14 @@ async function fixture() {
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn().mockResolvedValue(null),
         newSessions: {
-            create: (projectId, title, isBot, createdBySessionId, worktree) => {
+            create: (projectId, title, isBot, createdBySessionId, createdByRelation, worktree) => {
                 if (isBot) return createBotSession(database, projectId, undefined, title);
                 const sessionId = createBackgroundSession(
                     database,
                     projectId,
                     title,
                     createdBySessionId,
+                    createdByRelation,
                 );
                 if (worktree)
                     database.selectWorkbenchProject(
@@ -137,12 +138,25 @@ describe('Delegation into a new Session for Caxri Bot', () => {
         expect(database.caxriBotRows()?.sessionIds).toEqual([receipt.sessionId]);
         expect(database.listTerminals(receipt.sessionId)).toHaveLength(1);
         expect(database.getSession(receipt.sessionId)?.createdBySessionId).toBe(botSessionId);
+        // Caxri Bot names its Session as the creator but starts no delegated, hand-off, or consult relation.
+        expect(database.getSession(receipt.sessionId)).not.toHaveProperty('createdByRelation');
         // The task file pointer is all automatic naming would see, so Caxri Bot's title is kept as a manual one.
         expect(database.getSession(receipt.sessionId)).toMatchObject({
             title: 'Fix login retry',
             titleMode: 'manual',
         });
         expect((await service.create(id, botAuthority, request)).sessionId).toBe(receipt.sessionId);
+    });
+
+    it('leaves the Summary instruction out of its task, whose result is never stored', async () => {
+        const { directory, service, botAuthority, request } = await fixture();
+        const id = randomUUID();
+
+        await service.create(id, botAuthority, request);
+
+        expect(await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8')).toBe(
+            'Synthetic private task',
+        );
     });
 
     it('removes the Session a concurrent retry created when both join one task', async () => {
@@ -271,6 +285,53 @@ describe('Delegation into a new Session from an ordinary Agent', () => {
         ).toEqual([]);
     });
 
+    it.each([
+        { name: 'a task the caller waits on', flags: {}, relation: 'delegated' },
+        { name: 'a hand-off', flags: { handoff: true as const }, relation: 'handoff' },
+        { name: 'a consult', flags: { consult: true as const }, relation: 'consult' },
+    ])(
+        'records $name as the $relation relation of the new Session',
+        async ({ flags, relation }) => {
+            const { database, service, agentAuthority, callerSessionId, request } = await fixture();
+
+            const receipt = await service.create(randomUUID(), agentAuthority, {
+                ...request,
+                ...flags,
+            });
+
+            expect(database.getSession(receipt.sessionId)).toMatchObject({
+                createdBySessionId: callerSessionId,
+                createdByRelation: relation,
+            });
+        },
+    );
+
+    it('records no relation for the owner, who has no creating Session', async () => {
+        const { database, service, request } = await fixture();
+        const owner = { principal: { kind: 'human-cli' as const, id: 'owner', generation: 1 } };
+
+        const receipt = await service.create(randomUUID(), owner, {
+            ...request,
+            consult: true as const,
+        });
+
+        const session = database.getSession(receipt.sessionId);
+        expect(session).not.toHaveProperty('createdBySessionId');
+        expect(session).not.toHaveProperty('createdByRelation');
+    });
+
+    it('keeps a retry on the relation its first attempt recorded', async () => {
+        const { database, service, agentAuthority, request } = await fixture();
+        const id = randomUUID();
+        const consult = { ...request, consult: true as const };
+
+        const receipt = await service.create(id, agentAuthority, consult);
+        const retried = await service.create(id, agentAuthority, consult);
+
+        expect(retried.sessionId).toBe(receipt.sessionId);
+        expect(database.getSession(receipt.sessionId)?.createdByRelation).toBe('consult');
+    });
+
     it('admits another Agent of the creating Session, which never delegated there itself', async () => {
         const { database, service, agentAuthority, callerSessionId, project, request } =
             await fixture();
@@ -344,6 +405,7 @@ describe('Delegation into a new Session from a Client continuation', () => {
         expect(database.getSession(receipt.sessionId)).toMatchObject({
             title: 'Continued: Fix login',
             createdBySessionId: callerSessionId,
+            createdByRelation: 'handoff',
         });
         expect(receipt.callerTerminalId).toBe(callerTerminalId);
         const retried = await service.create(id, authority, continuation);

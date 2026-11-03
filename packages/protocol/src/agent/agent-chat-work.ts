@@ -391,7 +391,7 @@ export function agentChatWorkGroupFailure(
  * keeps naming the current step (`Running pnpm lint`) until the run ends instead of falling back to a count. Reasoning
  * names it only when the group holds nothing else.
  */
-function agentChatCurrentWork(
+export function agentChatCurrentWork(
     items: readonly AgentChatWorkItem[],
 ): { item: AgentChatWorkItem; presentation: AgentToolPresentation } | undefined {
     const active = agentChatActiveWork(items);

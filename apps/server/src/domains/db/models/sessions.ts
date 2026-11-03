@@ -5,6 +5,7 @@ import type {
     SessionActivityReason,
     SessionAttentionKind,
     SessionRecord,
+    SessionRelation,
     SessionState,
 } from '@caxri/protocol';
 import {
@@ -20,11 +21,11 @@ import {
     CURRENT_SESSION_STATE_VERSION,
     sessions,
     sessionViews as sessionViewsTable,
-    terminals,
 } from '../schema';
 import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
 import { sessionActivityUpdate, sidebarTopOrder } from './session-activity';
 import { didWriteAutomaticNaming, readAutomaticNaming } from './session-naming';
+import { orderedTerminalIds, orderedTerminalIdsBySession } from './session-owned-terminals';
 import {
     effectiveWorkbenchRootProjectId,
     mapSession,
@@ -54,6 +55,10 @@ export interface NewSessionInput {
     projectId: string;
     title: string;
     createdBySessionId?: string;
+    /**
+     * How `createdBySessionId` started the Session; stored only together with it.
+     */
+    createdByRelation?: SessionRelation;
 }
 
 export interface SessionWorkbenchBinding {
@@ -85,36 +90,6 @@ export class SessionsModel {
         this.revisions = new SessionStateRevisions(database, revisionObservers);
     }
 
-    /**
-     * Places every durable Terminal of the Session into a single pane, in creation order. This is what a Workbench Root
-     * that has never been arranged shows, and what a Session falls back to after an unreadable state row: no Terminal
-     * may be missing from a Root's snapshot, or its PTY would keep running with nothing showing it.
-     */
-    private orderedTerminalIds(sessionId: string): string[] {
-        return this.database
-            .select({ id: terminals.id })
-            .from(terminals)
-            .where(eq(terminals.sessionId, sessionId))
-            .orderBy(asc(terminals.orderIndex))
-            .all()
-            .map((terminal) => terminal.id);
-    }
-
-    private orderedTerminalIdsBySession(): ReadonlyMap<string, readonly string[]> {
-        const terminalIdsBySession = new Map<string, string[]>();
-        const rows = this.database
-            .select({ id: terminals.id, sessionId: terminals.sessionId })
-            .from(terminals)
-            .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex))
-            .all();
-        for (const terminal of rows) {
-            const terminalIds = terminalIdsBySession.get(terminal.sessionId);
-            if (terminalIds) terminalIds.push(terminal.id);
-            else terminalIdsBySession.set(terminal.sessionId, [terminal.id]);
-        }
-        return terminalIdsBySession;
-    }
-
     private defaultState(sessionId: string, terminalIds: readonly string[]): SessionState {
         const session = this.database
             .select({
@@ -135,7 +110,7 @@ export class SessionsModel {
     }
 
     private readState(row: SessionStateRow, terminalIds?: readonly string[]): SessionState {
-        const ownedTerminalIds = terminalIds ?? this.orderedTerminalIds(row.sessionId);
+        const ownedTerminalIds = terminalIds ?? orderedTerminalIds(this.database, row.sessionId);
         const parsed = parseSessionState(row, () => defaultSessionPaneLayout(ownedTerminalIds));
         if ('state' in parsed) {
             const paneLayout = reconcileOwnedTerminalTabs(
@@ -318,6 +293,9 @@ export class SessionsModel {
                 title: input.title,
                 titleMode: 'automatic',
                 createdBySessionId: input.createdBySessionId ?? null,
+                createdByRelation: input.createdBySessionId
+                    ? (input.createdByRelation ?? null)
+                    : null,
             })
             .run();
         return this.get(id)!;
@@ -543,7 +521,7 @@ export class SessionsModel {
             .innerJoin(sessions, eq(sessions.id, sessionViewsTable.sessionId))
             .where(eq(sessionViewsTable.sessionId, sessionId))
             .get();
-        if (!row) return this.defaultState(sessionId, this.orderedTerminalIds(sessionId));
+        if (!row) return this.defaultState(sessionId, orderedTerminalIds(this.database, sessionId));
         return this.readState(row);
     }
 
@@ -552,7 +530,7 @@ export class SessionsModel {
      * Sessions out in SQL, neither parsed nor repaired, so the cost follows the Workbench.
      */
     listStates(
-        terminalIdsBySession = this.orderedTerminalIdsBySession(),
+        terminalIdsBySession = orderedTerminalIdsBySession(this.database),
         isActiveOnly = false,
     ): SessionState[] {
         const rows = this.database
@@ -624,7 +602,7 @@ export class SessionsModel {
         const paneLayout = resolveSessionPaneLayout(
             state.paneLayout,
             storedStates?.[state.workbenchRootProjectId]?.paneLayout,
-            terminalIds ?? this.orderedTerminalIds(state.sessionId),
+            terminalIds ?? orderedTerminalIds(this.database, state.sessionId),
         );
         // Only the selected Root's snapshot is rewritten; every other Root keeps the arrangement it was left in.
         const workbenchStates: WorkbenchEditorStates = {

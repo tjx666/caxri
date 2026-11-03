@@ -56,6 +56,23 @@ export type SessionAttentionKind = z.infer<typeof sessionAttentionKindSchema>;
 export type SessionActivityReason = z.infer<typeof sessionActivityReasonSchema>;
 export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
 
+/**
+ * How a creating Session started another one, the closed set `sessionRecordSchema.createdByRelation` holds.
+ *
+ * - `delegated`: a task the creator waits on and reads the result of.
+ * - `handoff`: the creator's work continues there (the Chat `/new-session` command, "continue in another Agent"; both
+ *   start it in the creator's Project).
+ * - `consult`: a question or review the creator asks, which changes no files.
+ *
+ * The Session records the relation and `session.query` returns it; no Renderer surface reads it yet. The Delegated
+ * Sessions feed (issue #3572) is meant to list `delegated` Sessions under their creator and give a `consult` Session no
+ * row of its own.
+ *
+ * The relation kinds follow the thread relations of T3 Code (see `competitors/references/feature-references.md`).
+ */
+export const sessionRelationSchema = z.enum(['delegated', 'handoff', 'consult']);
+export type SessionRelation = z.infer<typeof sessionRelationSchema>;
+
 export const projectRecordSchema = z.object({
     id: identifierSchema,
     rootPath: pathSchema,
@@ -159,6 +176,12 @@ export const sessionRecordSchema = z.object({
      * cleared when the creating Session is deleted.
      */
     createdBySessionId: identifierSchema.optional(),
+    /**
+     * How the creating Session started this one (see {@link sessionRelationSchema}). Present only together with
+     * `createdBySessionId`: the read model drops it when the creating Session is deleted. Absent for a Session Caxri
+     * Bot created, whose creator is its own hidden Session rather than a working Agent.
+     */
+    createdByRelation: sessionRelationSchema.optional(),
     /**
      * The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
      */

@@ -72,6 +72,7 @@ const sessionSummarySchema = sessionRecordSchema.pick({
      */
     createdAt: true,
     createdBySessionId: true,
+    createdByRelation: true,
     lastVisitedAt: true,
     sessionActivityAt: true,
     pinnedAt: true,

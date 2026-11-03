@@ -480,4 +480,66 @@ describe('BotCompletionNotifier', () => {
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.notifier.launchPrompt('other-terminal')).toBeUndefined();
     });
+
+    describe('a blocked task that runs again before Caxri Bot heard about it', () => {
+        /**
+         * A started turn also leaves its interrupted-turn marker in the queue.
+         */
+        const delegations = () => f.notices.list().filter((notice) => notice.kind === 'delegation');
+
+        it('withdraws the queued needs-input notice, so nothing is delivered later', () => {
+            f.startTurn('launch-1');
+            f.notifier.notifyReceiptChanged(
+                receipt({ status: 'blocked', failure: 'permission_required', revision: 2 }),
+            );
+            expect(delegations()).toMatchObject([{ status: 'needsInput', revision: 2 }]);
+
+            f.notifier.notifyReceiptChanged(receipt({ status: 'running', revision: 3 }));
+            expect(delegations()).toHaveLength(0);
+
+            f.finishTurn('launch-1', 'turn-1');
+            expect(f.writeCalls).toHaveLength(0);
+        });
+
+        it('queues the next block of the same task again', () => {
+            f.startTurn('launch-1');
+            f.notifier.notifyReceiptChanged(
+                receipt({ status: 'blocked', failure: 'permission_required', revision: 2 }),
+            );
+            f.notifier.notifyReceiptChanged(receipt({ status: 'running', revision: 3 }));
+            f.notifier.notifyReceiptChanged(
+                receipt({ status: 'blocked', failure: 'permission_required', revision: 4 }),
+            );
+
+            expect(delegations()).toMatchObject([{ status: 'needsInput', revision: 4 }]);
+            f.finishTurn('launch-1', 'turn-1');
+            expect(f.writeCalls).toHaveLength(1);
+        });
+
+        it('keeps the notice of another delegation and a queued completion', () => {
+            f.notifier.notifyReceiptChanged(
+                receipt({
+                    delegationId: 'd1',
+                    status: 'blocked',
+                    failure: 'startup_waiting',
+                    revision: 2,
+                }),
+            );
+            f.notifier.notifyReceiptChanged(
+                receipt({ delegationId: 'd2', status: 'completed', revision: 5 }),
+            );
+
+            f.notifier.notifyReceiptChanged(
+                receipt({ delegationId: 'd2', status: 'running', revision: 6 }),
+            );
+            f.notifier.notifyReceiptChanged(
+                receipt({ delegationId: 'd3', status: 'running', revision: 2 }),
+            );
+
+            expect(delegations()).toMatchObject([
+                { delegationId: 'd1', status: 'needsInput' },
+                { delegationId: 'd2', status: 'completed' },
+            ]);
+        });
+    });
 });

@@ -685,7 +685,7 @@ user's repositories are never touched.
 
 | Option       | What it clears                                                                                                                                                                                            |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tasks        | Ledger rows: the finished ones (the default), all of them, or ones chosen from the list. Delegated Sessions stay; a hand-over Caxri Bot has not continued goes with its task, since its note lived there. |
+| Tasks        | Ledger rows: the finished ones (the default), all of them, or ones chosen from the list. Their Sessions all stay; a hand-over Caxri Bot has not continued goes with its task, since its note lived there. |
 | Task files   | The briefs in `tasks/` and the pull request reports in `reports/`. A link there is removed, never followed.                                                                                               |
 | Needs you    | Every Bot Inbox item, open or closed, with its replies.                                                                                                                                                   |
 | Memory       | `memory/*.md` back to their templates. Offered only once a file differs from its template; implies Instructions.                                                                                          |
@@ -714,8 +714,9 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `caxri_bot.ensured`                           | `bot.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.                                      |
 | `caxri_bot.stopped`                           | `bot.stop` parked Caxri Bot (`stopped`) or found nothing running (`not_running`).                                                                      |
 | `caxri_bot.session_created`/`_discarded`      | A Caxri Bot Session was created, or removed because its delegation was refused before launch.                                                          |
-| `agent_delegation.requested`                  | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether Caxri Bot sent it, its Session, and its parent task.                               |
-| `agent_delegation.transitioned`               | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.                          |
+| `agent_delegation.requested`                  | A task was admitted: `mode`, the Session's `relation` (`delegated`, `handoff`, `consult`, `none`), whether Caxri Bot sent it, its parent task.         |
+| `agent_delegation.transitioned`               | Every receipt `status`/`failure` change: previous status, the task's age, restart recovery, and `hasFailureResetsAt` for a usage limit.                |
+| `agent_delegation.result_recorded`            | A completed task stored (`stored` with `summarySource`) or dropped (`no_summary`) its Session's one-line result, with the duration since creation.     |
 | `agent_delegation.admission_rejected`         | Why a follow-up or resume was refused, as a closed reason.                                                                                             |
 | `caxri_bot.completion_notice_queued`          | A settled task, Inbox or hand-over event, or managed Session state (`sessionState`) was queued for Caxri Bot, with the batch size (debug).             |
 | `caxri_bot.completion_notice_deferred`        | Which gate holds the batch back (`bot_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                                      |

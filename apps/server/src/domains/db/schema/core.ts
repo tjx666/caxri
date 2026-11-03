@@ -7,6 +7,7 @@ import type {
     ProcessState,
     SessionActivityReason,
     SessionAttentionKind,
+    SessionRelation,
     SessionTitleMode,
     TerminalFailureReason,
     TerminalSurface,
@@ -75,6 +76,7 @@ const sessionActivityReasons = closedValues<SessionActivityReason>()([
     'agent_failed',
 ]);
 const sessionTitleModes = closedValues<SessionTitleMode>()(['automatic', 'manual']);
+const sessionRelations = closedValues<SessionRelation>()(['delegated', 'handoff', 'consult']);
 const agentDispatchOperations = closedValues<AgentDispatchOperation>()(['start', 'resume', 'wake']);
 const agentDispatchStatuses = closedValues<AgentDispatchStatus>()([
     'requested',
@@ -217,6 +219,13 @@ export const sessions = sqliteTable(
             (): AnySQLiteColumn => sessions.id,
             { onDelete: 'set null' },
         ),
+        /**
+         * How `createdBySessionId` started this Session (`delegated`, `handoff`, or `consult`), written in the same
+         * transaction. Null for a Session Caxri Bot created. Deleting the creating Session nulls only the foreign key,
+         * so this value outlives it; `mapSession` reads it only while the creator is set, and no `CHECK` ties the two
+         * together because that would break the creating Session's deletion.
+         */
+        createdByRelation: text('created_by_relation'),
         automaticNaming: text('automatic_naming_json', { mode: 'json' }).$type<{
             agentSessionId: string;
             terminalId: string;
@@ -249,6 +258,7 @@ export const sessions = sqliteTable(
             isOneOf(table.sessionActivityReason, sessionActivityReasons),
         ),
         check('sessions_title_mode', isOneOf(table.titleMode, sessionTitleModes)),
+        check('sessions_created_by_relation', isOneOf(table.createdByRelation, sessionRelations)),
     ],
 );
 

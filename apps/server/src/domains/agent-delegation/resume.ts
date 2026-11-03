@@ -10,9 +10,15 @@ import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 import { canChatCorrelateTask } from './chat-child';
 import { delegationResumeLaunch, prepareDelegationFollowUp } from './launch';
-import type { DelegationResumeRejection } from './rejection';
-import { reportResumeRejection, resumeRejection } from './rejection';
+import type { DelegationFollowUpRejection, DelegationResumeRejection } from './rejection';
+import {
+    followUpRejection,
+    reportFollowUpRejection,
+    reportResumeRejection,
+    resumeRejection,
+} from './rejection';
 import type { AgentDelegationServiceOptions } from './service-options';
+import { delegationTaskBody } from './task-body';
 
 /**
  * What an exact resume borrows from the delegation service, already bound to the caller's authority.
@@ -90,6 +96,66 @@ async function launchExactResume(
 }
 
 /**
+ * Returns a parent's chain claim after the Host refused its follow-up before taking any input, so the task can still be
+ * continued. The refused child never joined the conversation and is fenced like a lost target. A refusal the Host
+ * reports later keeps the claim: that report also covers a lost acknowledgement, so a retry could submit twice.
+ */
+function releaseRefusedFollowUp(host: ExactResumeHost, id: string, parentId: string): void {
+    const { agentDelegations } = host.options.database;
+    host.save({ ...agentDelegations.get(id)!, hasLostTarget: true });
+    host.save({ ...agentDelegations.get(parentId)!, nextDelegationId: undefined });
+}
+
+/**
+ * A follow-up: continues a settled or idle task's live conversation in its own Terminal by submitting a new task
+ * pointer to the exact launch, behind the chain claim that lets only one follow-up through.
+ */
+export async function followUpTask(
+    host: ExactResumeHost,
+    record: StoredAgentDelegation,
+    previous: StoredAgentDelegation,
+): Promise<AgentDelegationReceipt> {
+    const { options } = host;
+    const id = record.receipt.delegationId;
+    const prepared = await prepareDelegationFollowUp(
+        options.userDataPath,
+        record.rootDelegationId!,
+        id,
+        delegationTaskBody(options.database, record),
+    );
+    const current = host.owned(id);
+    if (!isDelegationActive(current.receipt)) return current.receipt;
+    const parent = host.owned(previous.receipt.delegationId);
+    const reject = (reason: DelegationFollowUpRejection) => {
+        host.fail(id, reportFollowUpRejection(options.logger, id, reason));
+        return host.owned(id).receipt;
+    };
+    const rejection = followUpRejection(parent, options, (terminalId) =>
+        host.hasActiveTask(terminalId),
+    );
+    if (rejection) return reject(rejection);
+    const terminalId = parent.receipt.terminalId!;
+    const launchId = parent.launchId!;
+    /**
+     * No await may split admission, the durable chain claim and exact-generation write. Human input must either
+     * invalidate the preceding epoch or arrive after the new task owns the Terminal.
+     */
+    host.save({ ...parent, nextDelegationId: id });
+    host.save({
+        ...record,
+        launchId,
+        inputEpoch: parent.inputEpoch,
+        promptDigest: prepared.promptDigest,
+        receipt: { ...record.receipt, terminalId, status: 'submitting' },
+    });
+    if (!host.submit(id, terminalId, launchId, prepared.pointer)) {
+        releaseRefusedFollowUp(host, id, parent.receipt.delegationId);
+        return reject('write_refused');
+    }
+    return host.owned(id).receipt;
+}
+
+/**
  * `--resume-from`: continues a settled task's native conversation in its own Terminal.
  */
 export async function resumeTask(
@@ -104,7 +170,7 @@ export async function resumeTask(
         options.userDataPath,
         record.rootDelegationId!,
         id,
-        [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
+        delegationTaskBody(options.database, record),
     );
     const parent = host.owned(previous.receipt.delegationId);
     const reject = (reason: DelegationResumeRejection) => {
@@ -273,7 +339,7 @@ export async function continueHandover(
         options.userDataPath,
         id,
         id,
-        [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
+        delegationTaskBody(options.database, record),
     );
     const current = host.owned(id);
     if (!isDelegationActive(current.receipt)) return current.receipt;

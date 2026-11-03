@@ -89,6 +89,19 @@ export const agentDelegationReceiptSchema = z.strictObject({
             'completion_ambiguous',
         ])
         .optional(),
+    /**
+     * When the task last left an active status for a settled one (see {@link isDelegationActive}), in the same unit as
+     * `createdAt`. `updatedAt` cannot say this: bookkeeping saves (transcript offsets, a claimed answer) move it after
+     * the task settled. Absent while the task is active. A follow-up or resume is a new task with its own receipt, so
+     * it neither re-activates this receipt nor changes this value.
+     */
+    settledAt: z.number().int().positive().optional(),
+    /**
+     * When the failing provider's usage limit resets, in the same unit as `createdAt`. Set only on a task that failed
+     * as `quota_exhausted` or `rate_limited` while an authoritative reset time was known (the account usage guard or
+     * the failing Chat's own wait); absent when it was not, because a reset time is never guessed.
+     */
+    failureResetsAt: z.number().int().positive().optional(),
     revision: z.number().int().positive(),
     createdAt: z.number().int().positive(),
     updatedAt: z.number().int().positive(),
@@ -132,6 +145,12 @@ const agentDelegationCreateFields = {
      * an ordinary delegated task. Only with `newSession`.
      */
     handoff: z.literal(true).optional(),
+    /**
+     * The caller asks a question or review of another Agent in a new Session and changes no files there, so that
+     * Session is recorded as a consult (`sessionRelationSchema`). Only with `newSession`, and not together with
+     * `handoff`.
+     */
+    consult: z.literal(true).optional(),
 };
 
 type DelegationCreateShape = Partial<
@@ -214,6 +233,11 @@ export const agentDelegationCreateRequestSchema = z
         (value) => !value.handoff || Boolean(value.newSession),
         'A hand-off continues in a new Session',
     )
+    .refine(
+        (value) => !value.consult || Boolean(value.newSession),
+        'A consult asks in a new Session',
+    )
+    .refine((value) => !value.consult || !value.handoff, 'A consult is not a hand-off; choose one')
     .refine(
         (value) => !value.worktreeBranch || Boolean(value.newSession),
         'A worktree is created for a new Session',

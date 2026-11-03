@@ -43,6 +43,7 @@ describe('Caxri Bot Renderer policy', () => {
         ])
             expect(() => policy.admit(request(method))).not.toThrow();
         for (const method of [
+            'agent.delegation.sessions',
             'caxriBot.openFileLink',
             'app.bootstrap',
             'app.records',
@@ -242,6 +243,13 @@ describe('Caxri Bot Renderer policy', () => {
             bot: false,
             workbench: true,
         });
+        // A Delegated Session's step is the Workbench's Delegated Sessions feed, not the board's.
+        expect(
+            policy.route({
+                event: 'agent.delegation.progress',
+                payload: { sessionId: 's', delegationId: 'd', step: 'Running tests' },
+            }),
+        ).toEqual({ bot: false, workbench: true });
     });
 
     /**

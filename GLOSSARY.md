@@ -143,6 +143,24 @@ Agent conversation begun outside Caxri. Caxri Bot manages it like a Session it c
 continues the existing conversation; typing into it takes it back.
 _Avoid_: transferred Session, adopted Session, imported Session
 
+**Delegated Session**:
+A Session an Agent creates for a task it then waits on and reads the result of. The Session records
+the Session that created it. A Hand-off or a Consult is not one, and neither is a Session Caxri Bot
+dispatches a task to.
+_Avoid_: Child Session, sub-Session, subagent
+
+**Hand-off**:
+A Session's work carried on in a new Session instead of waiting on a task there; the new Session
+reads as continued from the first. It starts from the Chat `/new-session` command or from continuing
+a Chat in another Agent, and both use the first Session's Project; an Agent that hands off on its
+own may name another Project. It is not a Handed-over Session, which the user gives to Caxri Bot.
+_Avoid_: Transfer, fork, hand-over
+
+**Consult**:
+A question or review an Agent asks another Agent in a new Session, not meant to change any files.
+The Session records the Session that asked. It is neither a Delegated Session nor a Hand-off.
+_Avoid_: Side Session, review Session, Delegated Session
+
 **Peer Inbox**:
 The Server-mediated, text-only channel through which managed Agents send, wait for, and reply to
 short Peer Messages (`caxri agent message`). A message the user must approve is held, and the user

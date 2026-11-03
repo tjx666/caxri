@@ -9,6 +9,7 @@ import {
     agentMessageReceiptSchema,
 } from '../agent/agent-inbox-contract.js';
 import { agentProviderSchema } from '../agent/agents.js';
+import { agentDelegationProgressSchema } from '../agent/delegation/agent-delegation-sessions.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
 import { environmentStateSchema, sshDestinationSchema } from '../desktop/ssh-host-contract.js';
 import { commandIdSchema } from '../domain/commands.js';
@@ -341,6 +342,12 @@ export const serverEventPayloads = {
      * Durable, body-free lifecycle evidence for an explicit Agent dispatch.
      */
     'agent.dispatch.changed': agentDispatchReceiptSchema,
+    /**
+     * The step an active Agent Chat Session of a delegated task is on, at most once a second per task. It is a
+     * Delegated Sessions feed hint, never durable: a reconnecting client reads the step again through
+     * `agent.delegation.sessions`.
+     */
+    'agent.delegation.progress': agentDelegationProgressSchema,
     'keybindings.changed': configChangedSchema,
     'theme.changed': configChangedSchema,
     'updates.state': updateStateSchema,

@@ -1,4 +1,9 @@
-import type { AgentDelegationCreate, AgentDelegationReceipt } from '@caxri/protocol';
+import type {
+    AgentDelegationCreate,
+    AgentDelegationReceipt,
+    DelegationResultSource,
+    SessionRelation,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -23,6 +28,33 @@ export function logDelegationTransition(
             failure: receipt.failure ?? null,
             isRecovery,
             ageMs: receipt.updatedAt - receipt.createdAt,
+            ...(isUsageLimitFailure(receipt.failure) && {
+                hasFailureResetsAt: receipt.failureResetsAt !== undefined,
+            }),
+        },
+    });
+}
+
+function isUsageLimitFailure(failure: AgentDelegationReceipt['failure']): boolean {
+    return failure === 'quota_exhausted' || failure === 'rate_limited';
+}
+
+/**
+ * Records that a completed task changed its Session's stored result: a summary written (with where it came from) or the
+ * earlier one removed because this answer had none. Content-free; `durationMs` runs from the task's creation.
+ */
+export function logDelegationResult(
+    logger: StructuredLogger | undefined,
+    receipt: AgentDelegationReceipt,
+    result: { outcome: 'no_summary' } | { outcome: 'stored'; source: DelegationResultSource },
+): void {
+    logger?.write('info', logEventCatalog.agentDelegation.resultRecorded, {
+        fields: {
+            delegationId: receipt.delegationId,
+            sessionId: receipt.sessionId,
+            outcome: result.outcome,
+            summarySource: result.outcome === 'stored' ? result.source : null,
+            durationMs: (receipt.settledAt ?? receipt.updatedAt) - receipt.createdAt,
         },
     });
 }
@@ -38,6 +70,11 @@ export function logDelegationRequested(
         isBot: boolean;
         parentDelegationId: string | undefined;
         terminalId: string | undefined;
+        /**
+         * How the target Session was started; `undefined` for a Session with no creator relation (the owner's, or one
+         * Caxri Bot dispatched to).
+         */
+        relation: SessionRelation | undefined;
     },
 ): void {
     logger?.write('info', logEventCatalog.agentDelegation.requested, {
@@ -54,6 +91,7 @@ export function logDelegationRequested(
                     ? 'follow_up'
                     : 'new',
             parentDelegationId: caller.parentDelegationId ?? null,
+            relation: caller.relation ?? 'none',
             isBotCaller: caller.isBot,
             callerTerminalId: caller.terminalId ?? null,
         },

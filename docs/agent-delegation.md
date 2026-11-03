@@ -80,6 +80,20 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   Caxri Bot's hidden Session offers no entry, because navigating there must not silently
   restore it. The column references `sessions.id` with `ON DELETE SET NULL`, so deleting the creating
   Session or its Project clears it.
+- Beside the creator, the Session records how it was started (`createdByRelation`, closed values
+  `delegated`, `handoff`, `consult`; `CHECK`-constrained). The kinds follow T3 Code's thread
+  relations. `delegated` is a task the creating Session waits on. `handoff` is the creator's work
+  continuing in a new Session (`--handoff`, below; the Chat `/new-session` command and continuing
+  in another Agent both start it in the creator's Project, though the flag itself does not require
+  that). `consult` is a question or review that is not meant to change files (`--consult`, below).
+  Server Core computes the relation from the request flags and writes it with the creator, only for
+  an Agent or Client caller that has a Session: a Caxri Bot Session records its creator without a
+  relation, and an owner CLI call records neither. The column outlives the creator's deletion
+  (`ON DELETE SET NULL` clears only the creator), so the read model reports the relation only while
+  `createdBySessionId` is present. `session.query` and `agent.delegation.sessions` (see
+  [Delegated Session feed](#delegated-session-feed)) return both. Planned, not shipped: the sidebar
+  will list a `delegated` Session under its creator and give a `consult` Session no row of its own
+  while its creator is listed ([issue #3572](https://github.com/tjx666/caxri/issues/3572)).
 - The creating Agent can keep the sidebar tidy without Caxri Bot's board:
   `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
   and `agent session unarchive <session-id>`. Any Agent in the creating Session may manage it,
@@ -101,6 +115,10 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   change), and the new Session's first message then reads "Continued from" the caller's Session
   instead of "Delegated by". The Agent Chat composer's `/new-session [next task]` asks the Chat's
   Agent for exactly this; see [Hand off with /new-session](#hand-off-with-new-session).
+- `--consult` (only with `--new-session`, never together with `--handoff`) marks the task as a
+  question or review the caller asks another Agent, which is not meant to change files; nothing
+  enforces that. It is stored in the delegation record's input like `--handoff`, and the new
+  Session's relation is `consult`. Without either flag the relation is `delegated`.
 
 ### Hand off with /new-session
 
@@ -511,6 +529,80 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   Chat's projection does not survive a Server restart, so an active task of a Chat child settles
   `interrupted`/`host_reset` instead of being collected; `--resume` continues it on the bound
   conversation through the Chat restart path.
+
+## Delegated Session feed
+
+A `newSession` task that an Agent or Client makes from its own Session starts a Session of one of
+three kinds, told apart by `createdByRelation`: a [Delegated Session](../GLOSSARY.md) (`delegated`),
+a Hand-off (`handoff`), or a Consult (`consult`); the glossary keeps the three apart. A Session
+Caxri Bot dispatches a task to and a Session the owner creates from the CLI record no relation, so
+none of what follows applies to them: no Summary instruction, no stored result, no feed row. The
+planned Delegated Sessions feed in the sidebar needs each Session's state, step and result without
+opening it, so Server Core exposes the following. Only
+this data layer ships: no Renderer surface reads it yet and the sidebar lists Sessions as before.
+Planned, not shipped: the feed lists a Delegated Session under the Session that created it and
+gives a Consult no row of its own
+([issue #3572](https://github.com/tjx666/caxri/issues/3572)).
+
+- **Closing summary line.** The task file of a Session whose relation is `delegated` or `consult`
+  ends with this fixed instruction, appended to the body after the caller's task, on its first task
+  and on every follow-up and resume alike (the pointer and its prompt digest are unchanged, because
+  the digest covers the pointer, not the file): "When you finish, end your final answer with one
+  line: `Summary: <one sentence, at most 200 characters, on what you did or found>`." A Hand-off, a
+  Session Caxri Bot dispatched to, and a Session the owner created get neither the instruction nor a
+  result row (`delegationTaskBody` in `task-body.ts` follows `shouldReportDelegationResult` in
+  `feed/session-result.ts`, the one condition the stored result uses too).
+  `delegationResultSummary` (`feed/result-summary.ts`) reads the answer: an authored `Summary:` line
+  among the final five non-empty lines wins (`source: "authored"`); otherwise the first non-empty
+  paragraph that is no heading or code fence stands in (`source: "excerpt"`). Whitespace is
+  collapsed and the text is clipped to 280 characters with an ellipsis. Only emphasis that closes
+  the label or wraps the whole text is dropped (`**Summary:** x`, `**Summary: x**`, `_x_`); the
+  summary's own `__init__`, `*args`, `src/**` and trailing colon are kept.
+- **`settledAt`.** The receipt records when a task last moved from active to settled. It is set on
+  that transition and kept across later bookkeeping saves (a claimed answer, a transcript offset,
+  which all move `updatedAt`). A follow-up or resume is a new task with its own receipt and its own
+  `settledAt`; it never re-activates the receipt it continues. Only `AgentDelegationService.save`
+  computes it (`stampedReceipt` in `receipt-timing.ts`).
+- **`failureResetsAt`.** A task that failed as `quota_exhausted` or `rate_limited` carries the epoch
+  milliseconds at which the provider's own limit resets, only when an authoritative source knows one
+  in the future: the failing Chat turn's limit notice (`usageLimit.resetsAt`) or the provider's
+  weekly usage guard, whichever is later. Otherwise the field is absent. It is looked up once, as
+  the failure begins, through the narrow `limitResetsAt` service option, and never estimated.
+- **Attention recovery.** A task blocked as `permission_required` returns to `running`, with the
+  failure cleared, when the Agent's final attention request for the task's current turn is
+  answered. The resolution arrives as `attentionResolved` (a Chat provider) or, for a Terminal Session, as
+  `toolBatchFinished` (Claude Code's `PostToolBatch`, which follows a tool the user approved). Both
+  are reported without a turn ID, which counts; a resolution naming another turn does not. Codex
+  has no permission-resolution hook, so a Codex Terminal Session stays `blocked` until its turn ends.
+  Before this, the receipt stayed `blocked` until the turn ended.
+- **Stored result.** When a task in a Session whose creator relation is `delegated` or `consult`
+  completes with an answer, its summary is written to `session_results`, one row per
+  Session, replaced by each later task of that Session; a later completed task whose answer yields
+  no summary deletes the row, so the feed never shows an earlier task's conclusion as the newest
+  one. A `handoff` Session stores none. The row
+  outlives the 1024-record pruning of `agent_delegations` and the Session's archival, so the feed
+  can still show what the Session concluded; deleting the Session deletes it. It is private domain
+  data: it is never part of bootstrap, journal payloads, or logs.
+- **`agent.delegation.sessions`.** An owner-only read: `{ createdBySessionIds }` (1 to 64 IDs)
+  returns `{ sessions }`, the Sessions those Sessions created with a relation, newest first (at most
+  1000). Each entry carries `sessionId`, `createdBySessionId`, the relation, the newest task's
+  `delegationId`, `provider`, `status`, `failure`, `failureResetsAt`, `createdAt`, `settledAt`, the
+  live `step` while the task is active in a Chat, and the stored `result` (`summary`, `source`, the
+  `delegationId` of the task that wrote it, and its `completedAt`). A follow-up or resume the Server
+  refused as `target_busy` never ran and does not stand for the Session: a task still in flight
+  wins over it, and so does the newest task that ran, so a Session whose task is running never
+  reads `failed` because a second follow-up was turned away. It never claims an unread answer
+  (`markCollected`), so looking at
+  the feed cannot make a caller's answer evictable before the caller reads it. An Agent Endpoint
+  principal is refused even though it can read its own delegations: other Sessions' results are not
+  its to read. Caxri Bot and Benchmark windows deny it.
+- **`agent.delegation.progress`.** A transient event `{ sessionId, delegationId, step? }` tells
+  Workbench windows that an active Chat Session's step changed. The step is the Chat's current work
+  as one label (the verb and subject the Chat shows, such as "Running pnpm lint"), clipped to 120
+  characters; a Terminal Session has none. At most one event per second per task is emitted, the
+  newest step wins, and an unchanged step emits nothing (`DelegationProgress` in `feed/progress.ts`). The
+  event is not forwarded to mobile or the Caxri Bot window, is not journaled, and its step text is
+  never logged. A settled task emits no closing event: the receipt change already says so.
 
 ## Provider-reported usage
 
