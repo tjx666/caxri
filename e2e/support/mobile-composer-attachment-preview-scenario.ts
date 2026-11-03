@@ -71,6 +71,20 @@ const closePreview = async (serial: string, id: string) => {
 };
 
 /**
+ * Taps a file card on its kind glyph, the card's start edge, which only previews; Retry sits beside the name instead.
+ */
+const tapFileGlyph = async (serial: string, id: string) => {
+    const card = checkBounds(await mobileSemantics(serial), `session-file-${id}`);
+    if (!card) throw new Error('The file card is missing');
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.round(card.left + (card.right - card.left) * 0.12)),
+        String(Math.round((card.top + card.bottom) / 2)),
+    ]);
+};
+
+/**
  * Waits for the player to open, then captures two frames apart and requires the picture to change between them, so the
  * evidence shows playback rather than a player that only opened. The player keeps the screen moving, so it is followed
  * by time and pixels, not by UIAutomator.
@@ -176,7 +190,7 @@ export async function executeMobileComposerAttachmentPreviewScenario(
             ?.checkId.slice('session-file-retry-'.length);
         if (!fileId) throw new Error('The video card did not fail');
         await capture(environment, 'video-failed', artifacts);
-        await tapMobileCheckByBounds(serial, `session-file-${fileId}`);
+        await tapFileGlyph(serial, fileId);
         await capturePlayback(environment, 'video-failed-playing', artifacts);
         await closePreview(serial, 'agent-chat-video-player');
         await tapMobileCheckByBounds(serial, `session-file-retry-${fileId}`);
@@ -201,7 +215,7 @@ export async function executeMobileComposerAttachmentPreviewScenario(
         if (!readyId || !hasCheck(ready, `session-file-${readyId}`))
             throw new Error('The uploaded video card is missing');
         await capture(environment, 'video-ready', artifacts);
-        await tapMobileCheckByBounds(serial, `session-file-${readyId}`);
+        await tapFileGlyph(serial, readyId);
         await capturePlayback(environment, 'video-ready-playing', artifacts);
         await closePreview(serial, 'agent-chat-video-player');
 
