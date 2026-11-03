@@ -61,10 +61,23 @@ per prototype (no build): single HTML  =  <script runtime + theme> + @tailwindcs
    The two vendored files cache under `assets/` keyed by exact version, so only the first build on
    a machine needs network access.
 
-2. **Copy [`references/template.html`](references/template.html)** into the same dir, rename, and
+2. **Capture the surface you change as it ships today**, from the installed app (or a
+   `switch-worktree dev` instance with `--port <its CDP port>`):
+
+   ```bash
+   bun run .agents/skills/design-prototype/scripts/capture-surface.ts /tmp/my-proto
+   ```
+
+   `surface.html` holds the window's current markup and classes with text masked; copy its
+   structure instead of rebuilding the workbench from memory. A from-memory delegation prototype
+   came out in English, missing the right file panel and status bar, with invented Session names,
+   and did not read as the app the user runs every day. Take labels from the Renderer's `zh-cn` and
+   `en` locales, and match the app's current language.
+
+3. **Copy [`references/template.html`](references/template.html)** into the same dir, rename, and
    replace the sample `App` with the real surface. Keep the runtime shim block untouched.
 
-3. **Open it** (`open /tmp/my-proto/xxx.html`), no server, no build.
+4. **Open it** (`open /tmp/my-proto/xxx.html`), no server, no build.
 
 ## Verify before delivering
 
