@@ -43,6 +43,11 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
    missed frames more than the change did. Swap every `OUTPUT_ROOTS` tree (`scripts/build-receipt.ts`)
    with `cp -Rp` together with `.cache/build-receipt.json` and the matching sources; a plain copy
    changes mtimes, and the launch then fails as a stale build.
+   For what the app costs while left alone (CPU share and Activity Monitor footprint per process,
+   Terminal and Chat in front), run
+   `CAXRI_BENCHMARK_PROJECT_ROOT=/path/to/repository bun run benchmark:idle` and compare
+   `test-results/receipts/idle-resources.json` with the baseline in
+   [Idle CPU and memory baseline](../../../docs/idle-resources.md), from the same machine only.
    For Claude Agent-state probe latency, run `bun run benchmark:agent-probe` and record
    `CAXRI_AGENT_PROBE_BENCHMARK`. It runs below Electron against a synthetic 512-file
    `sessions/` directory and rewrites one file every ten probes; the production `agent.probe` log
