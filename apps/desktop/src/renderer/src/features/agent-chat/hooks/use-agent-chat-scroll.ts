@@ -84,6 +84,12 @@ export function agentChatAnchoredScrollTop(
 const AGENT_CHAT_TURN_TOP_GAP_PX = 112;
 
 /**
+ * How far the measured space below a finished turn may fall short of its laid-out height before it shrinks; see
+ * {@link agentChatSettledSpacerHeight}.
+ */
+const AGENT_CHAT_SPACER_SUBPIXEL_SLACK_PX = 1;
+
+/**
  * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
  * sent message: `turnHeight` runs from that turn's user message to the end of the content. A reply then grows into the
  * space instead of pushing the message up from the bottom, and once it outgrows the view the space is gone and
@@ -104,17 +110,56 @@ export function agentChatTurnSpacerHeight(
  * through history consumes the space by as much as the view moved, and it never grows back. A Chat opened idle starts
  * at its end, below which nothing is kept. Measuring against the turn's height rather than the previous space keeps the
  * view still when the finished turn folds its work rows: the turn shrinks, and the space grows by the same amount.
+ *
+ * A shrink smaller than {@link AGENT_CHAT_SPACER_SUBPIXEL_SLACK_PX} keeps `currentHeight`. At a non-integer zoom the
+ * measured space reads a fraction short of the space actually laid out, and each such shrink snaps the content one
+ * device pixel shorter; the browser then clamps the view up by that pixel and fires a scroll event that measures the
+ * same fraction short again. Unchecked, that loop slid an idle view resting at its end down through the whole space one
+ * device pixel per frame. A real scroll back still consumes the space once it moved the view a whole pixel.
  */
 export function agentChatSettledSpacerHeight({
     contentEnd,
+    currentHeight,
     turnSpaceHeight,
     viewBottom,
 }: {
     contentEnd: number;
+    /**
+     * The space's height before this measurement.
+     */
+    currentHeight?: number;
     turnSpaceHeight: number;
     viewBottom: number;
 }): number {
-    return Math.max(Math.min(turnSpaceHeight, viewBottom - contentEnd), 0);
+    const height = Math.max(Math.min(turnSpaceHeight, viewBottom - contentEnd), 0);
+    const isSubpixelShrink =
+        currentHeight !== undefined &&
+        height < currentHeight &&
+        currentHeight - height < AGENT_CHAT_SPACER_SUBPIXEL_SLACK_PX &&
+        currentHeight <= turnSpaceHeight;
+    return isSubpixelShrink ? currentHeight : height;
+}
+
+/**
+ * How much of what follows the space below the turn (from `trailingTop` to `trailingBottom`, the return hint's slot)
+ * lies at or above `viewBottom`, all in the scroll content's coordinates. The settled space measures what is left
+ * between the content's end and the view's bottom, so this part must come off it: otherwise each scroll at the end
+ * reads the slot as more space, the space grows by the slot's height, and the view can be scrolled on into blank space
+ * until the latest turn reaches the top.
+ */
+export function agentChatTrailingInView({
+    trailingBottom,
+    trailingTop,
+    viewBottom,
+}: {
+    trailingBottom: number;
+    trailingTop: number;
+    viewBottom: number;
+}): number {
+    return Math.min(
+        Math.max(viewBottom - trailingTop, 0),
+        Math.max(trailingBottom - trailingTop, 0),
+    );
 }
 
 /**
@@ -269,16 +314,31 @@ export function useAgentChatScroll(
                       contentRect.bottom - turn.getBoundingClientRect().top,
                   )
                 : 0;
-            const height = isTurnLive
-                ? turnSpaceHeight
-                : agentChatSettledSpacerHeight({
-                      contentEnd:
-                          contentRect.bottom -
-                          element.getBoundingClientRect().top +
-                          element.scrollTop,
-                      turnSpaceHeight,
-                      viewBottom: scrollTop + element.clientHeight,
-                  });
+            let height = turnSpaceHeight;
+            if (!isTurnLive) {
+                const viewRect = element.getBoundingClientRect();
+                const spacerRect = spacer.getBoundingClientRect();
+                const toContent = (y: number) => y - viewRect.top + element.scrollTop;
+                // The fractional height, not `clientHeight`: the rounded one misplaces the view's bottom by a fraction
+                // of a pixel at a non-integer zoom.
+                const viewBottom = scrollTop + viewRect.height;
+                // Anything after the space (the return hint's slot) that reaches above the view's bottom is not space
+                // left below the turn; counting it would grow the space by its height on every scroll at the end.
+                const trailingInView = agentChatTrailingInView({
+                    trailingBottom: toContent(
+                        element.lastElementChild?.getBoundingClientRect().bottom ??
+                            spacerRect.bottom,
+                    ),
+                    trailingTop: toContent(spacerRect.bottom),
+                    viewBottom,
+                });
+                height = agentChatSettledSpacerHeight({
+                    contentEnd: toContent(contentRect.bottom),
+                    currentHeight: spacerRect.height,
+                    turnSpaceHeight,
+                    viewBottom: viewBottom - trailingInView,
+                });
+            }
             // Runs on every scroll event, so an unchanged height is not written back to invalidate layout.
             const next = `${height}px`;
             if (spacer.style.height !== next) spacer.style.height = next;

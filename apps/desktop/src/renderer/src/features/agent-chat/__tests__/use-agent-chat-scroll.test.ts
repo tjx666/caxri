@@ -5,6 +5,7 @@ import {
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
     agentChatSettledSpacerHeight,
+    agentChatTrailingInView,
     agentChatTurnSpacerHeight,
     isAgentChatCatchUpScroll,
     isFollowingAfterScroll,
@@ -198,6 +199,70 @@ describe('agentChatSettledSpacerHeight', () => {
                 viewBottom: 2568,
             }),
         ).toBe(768);
+    });
+
+    it('keeps the space through a measurement a fraction short at a non-integer zoom', () => {
+        // At 83% zoom the view's bottom read 0.4px short of the space laid out; shrinking by it snapped the content a
+        // device pixel shorter, the browser clamped the view, and the next scroll event repeated it frame after frame.
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                currentHeight: 568,
+                turnSpaceHeight: 568,
+                viewBottom: 2567.6,
+            }),
+        ).toBe(568);
+    });
+
+    it('still consumes the space once the view scrolled back a whole pixel', () => {
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                currentHeight: 568,
+                turnSpaceHeight: 568,
+                viewBottom: 2566.8,
+            }),
+        ).toBeCloseTo(566.8);
+    });
+
+    it('shrinks to a smaller turn space even by less than a pixel', () => {
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                currentHeight: 568,
+                turnSpaceHeight: 567.5,
+                viewBottom: 2568,
+            }),
+        ).toBe(567.5);
+    });
+});
+
+describe('agentChatTrailingInView', () => {
+    it('counts a trailing slot the view reaches, so it never reads as space below the turn', () => {
+        // The space ends at 2568 and the return hint slot runs to 2608, where the view rests.
+        expect(
+            agentChatTrailingInView({ trailingBottom: 2608, trailingTop: 2568, viewBottom: 2608 }),
+        ).toBe(40);
+        expect(
+            agentChatSettledSpacerHeight({
+                contentEnd: 2000,
+                currentHeight: 568,
+                turnSpaceHeight: 768,
+                viewBottom: 2608 - 40,
+            }),
+        ).toBe(568);
+    });
+
+    it('counts only the part above the view, and nothing once the view ends above it', () => {
+        expect(
+            agentChatTrailingInView({ trailingBottom: 2608, trailingTop: 2568, viewBottom: 2580 }),
+        ).toBe(12);
+        expect(
+            agentChatTrailingInView({ trailingBottom: 2608, trailingTop: 2568, viewBottom: 2400 }),
+        ).toBe(0);
+        expect(
+            agentChatTrailingInView({ trailingBottom: 2568, trailingTop: 2568, viewBottom: 2700 }),
+        ).toBe(0);
     });
 });
 
