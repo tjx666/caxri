@@ -172,6 +172,9 @@ export const session = {
     'session.notice.autoArchivedClosed': 'Archived {{session}} because its pull request was closed',
 
     // Agent detach, resume, and identifiers
+    'session.archive.confirm': 'Stop and Archive',
+    'session.archive.outcome':
+        'Archiving stops the current turn and its background work. Restoring the Session resumes the conversation, not the stopped turn.',
     'session.detach.confirm': 'Stop and Detach',
     'session.detach.outcome':
         'Detaching stops the current turn so another client can resume this conversation.',

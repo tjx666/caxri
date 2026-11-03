@@ -167,6 +167,9 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.notice.autoArchivedClosed': '因拉取请求已关闭，已归档{{session}}',
 
     // Agent detach, resume, and identifiers
+    'session.archive.confirm': '停止并归档',
+    'session.archive.outcome':
+        '归档会停止当前轮次及其后台任务。恢复会话后可继续对话，但不会续跑被停止的轮次。',
     'session.detach.confirm': '停止并分离',
     'session.detach.outcome': '分离会停止当前轮次，以便其他客户端恢复此对话。',
     'session.agent.conversationIdCopied': '已复制对话 ID',

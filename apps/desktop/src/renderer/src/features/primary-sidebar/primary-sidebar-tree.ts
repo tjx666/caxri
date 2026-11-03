@@ -328,8 +328,8 @@ export type PrimarySidebarRowKeyIntent = 'archive';
 /**
  * Resolves Delete/Backspace on a focused tree row to the archive intent. Only a Session row has an archive action, so a
  * Project, reveal, or "New Session" row (or any other key) resolves to no intent; the caller is responsible for the
- * actual `archiveSession` side effect (archiving is reversible via the Archived Sessions dialog, so this intentionally
- * skips a confirmation step).
+ * actual `archiveSession` side effect (archiving is reversible via the Archived Sessions dialog, so it asks only when
+ * the Agent is still working; see `archiveSession`).
  */
 export function primarySidebarArchiveIntent(
     row: PrimarySidebarTreeRow,

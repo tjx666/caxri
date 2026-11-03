@@ -11,6 +11,8 @@ import { getBootstrap, getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import { recordClosedSession } from '../closed-items/recording';
+import { confirmBeforeEndingTurn } from '../terminal/agent-turn-guard';
+import { detachTurnTerminalId } from './session-agent-commands';
 import { describeRestoredSession, describeRestoredSessions } from './session-notice-copy';
 import { sessionTitleForDisplay } from './session-title';
 
@@ -48,8 +50,9 @@ async function chooseArchivedWorktree(
 }
 
 /**
- * Archiving skips both a confirmation and a notice: it is reversible, and the row leaving the PrimarySidebar is the
- * feedback. Reopen Closed Item brings the Session back, and the Archived Sessions dialog lists it.
+ * Archiving raises no notice, and an idle Session no confirmation: it is reversible, and the row leaving the
+ * PrimarySidebar is the feedback. Reopen Closed Item brings the Session back, and the Archived Sessions dialog lists
+ * it.
  */
 async function archiveSessionQuietly(sessionId: string): Promise<void> {
     // Read from the bootstrap snapshot so an archive with the setting off never waits on the plan's pull request lookup.
@@ -71,9 +74,34 @@ async function archiveSessionQuietly(sessionId: string): Promise<void> {
     recordClosedSession(sessionId);
 }
 
+/**
+ * Archiving parks the Session, which stops its live Chats and suspends its PTY Agents, so a turn still running (or a
+ * Session kept running by background work such as a subagent or monitor) asks first through the same
+ * {@link confirmBeforeEndingTurn} question as Detach Agent. An idle Session archives at once, with no dialog: the
+ * reversible, quiet archive stays the common path. Every archive entry point (row button, row menu, keyboard, command)
+ * comes through here.
+ */
 export function archiveSession(sessionId: string): void {
-    // Fire-and-forget: `archiveSessionQuietly` funnels its own failures into a toast via `tryCommand`.
-    void archiveSessionQuietly(sessionId);
+    const archive = (): void => {
+        // Fire-and-forget: `archiveSessionQuietly` funnels its own failures into a toast via `tryCommand`.
+        void archiveSessionQuietly(sessionId);
+    };
+    const latest = getBootstrap();
+    const session = latest?.sessions.find((entry) => entry.id === sessionId);
+    const terminalId = session ? detachTurnTerminalId(session, latest?.terminals ?? []) : undefined;
+    if (!terminalId) {
+        archive();
+        return;
+    }
+    void confirmBeforeEndingTurn(
+        terminalId,
+        {
+            confirmLabel: translate('session.archive.confirm'),
+            failureTitle: translate('session.errors.archiveFailed'),
+            outcome: translate('session.archive.outcome'),
+        },
+        archive,
+    );
 }
 
 export function archiveSelectedSession(): void {
