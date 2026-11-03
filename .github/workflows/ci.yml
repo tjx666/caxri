@@ -1324,6 +1324,10 @@ jobs:
         with:
           setup-toolchain: 'true'
           install-dependencies: 'true'
+      # Dependencies install without lifecycle scripts, and node-pty ships no Linux prebuild, so Server artifact staging
+      # finds no loadable `pty.node` until it is compiled here. Only the staged JavaScript bundles are measured.
+      - name: Build native Server dependencies
+        run: pnpm rebuild node-pty better-sqlite3
       - name: Build
         run: bun run scripts/ci-metrics.ts --label "Size report build" -- bun run build
       - name: Measure desktop build size
