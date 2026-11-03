@@ -11,6 +11,7 @@ import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../../t
 import type { MobileTheme } from '../../../theme/tokens';
 import { LocalImageViewer } from '../../agent-chat/agent-chat-image-viewer';
 import { insertComposerSuggestion } from '../composer-suggestions';
+import { fileAttachmentPreview } from '../file-attachment-store';
 import type { useComposerSuggestions } from '../hooks/use-composer-suggestions';
 import type { FileAttachments } from '../hooks/use-file-attachments';
 import type { useImageAttachments } from '../hooks/use-image-attachments';
@@ -24,9 +25,15 @@ import {
     IMAGE_STRIP_THUMBNAIL,
 } from '../image-strip-layout';
 import { ComposerFileCard } from './composer-file-card';
+import { LocalVideoPlayer } from './local-video-player';
 import { UploadFailureSheet } from './upload-failure-sheet';
 
 type Images = ReturnType<typeof useImageAttachments>;
+
+/**
+ * A failed thumbnail's Retry band along its bottom edge, leaving the picture above it free to open the viewer.
+ */
+const IMAGE_STRIP_RETRY_BAND = 24;
 type Suggestions = ReturnType<typeof useComposerSuggestions>;
 
 const styles = StyleSheet.create({
@@ -57,6 +64,17 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFill,
     },
     scrimText: { ...mobileType.caption, fontVariant: ['tabular-nums'], fontWeight: '600' },
+    retryBand: {
+        alignItems: 'center',
+        bottom: 0,
+        flexDirection: 'row',
+        gap: 2,
+        height: IMAGE_STRIP_RETRY_BAND,
+        justifyContent: 'center',
+        left: 0,
+        position: 'absolute',
+        right: 0,
+    },
     remove: {
         alignItems: 'center',
         height: IMAGE_STRIP_REMOVE_TARGET,
@@ -78,11 +96,12 @@ const styles = StyleSheet.create({
 
 /**
  * Pending images as thumbnails above the composer. A ready image needs no caption; preparation (with a spinner), upload
- * progress, and failure sit on a scrim over the picture. The failed scrim opens the failure reason with Retry and
- * Remove. A Chat message carries up to `MAX_AGENT_CHAT_IMAGES`, more than a phone's width holds, so the strip scrolls
- * sideways and brings each newly attached image into view. A tap on a picture opens the pending images at full size, as
- * a sent message's images open, so the user can check one before sending. Pending files follow the images as cards with
- * their name, size, and upload progress.
+ * progress, and failure sit on a scrim over the picture. A failed image's Retry band opens the failure reason with
+ * Retry and Remove. A Chat message carries up to `MAX_AGENT_CHAT_IMAGES`, more than a phone's width holds, so the strip
+ * scrolls sideways and brings each newly attached image into view. A tap on a picture opens the pending images at full
+ * size, as a sent message's images open, so the user can check one before sending. Pending files follow the images as
+ * cards with their name, size, and upload progress; a tap shows an image file in the same viewer and plays a video or
+ * recording. Every preview reads the phone's own copy, so it never waits on, or is blocked by, the upload.
  */
 export const SessionComposerAttachments = ({
     files,
@@ -97,7 +116,18 @@ export const SessionComposerAttachments = ({
     const strip = useRef<ScrollViewInstance>(null);
     const shownCount = useRef(images.attachments.length + files.attachments.length);
     const [openIndex, setOpenIndex] = useState<number | null>(null);
+    const [playingUri, setPlayingUri] = useState<string | null>(null);
     if (images.attachments.length === 0 && files.attachments.length === 0) return null;
+    // Image files follow the strip's images in one viewer, so a swipe moves across every pending picture.
+    const imageFiles = files.attachments.filter((file) => fileAttachmentPreview(file) === 'image');
+    const viewerUris = [
+        ...images.attachments.map((attachment) => attachment.uri),
+        ...imageFiles.map((file) => file.uri),
+    ];
+    const openFile = (file: (typeof files.attachments)[number]) => {
+        if (fileAttachmentPreview(file) === 'player') setPlayingUri(file.uri);
+        else setOpenIndex(images.attachments.length + imageFiles.indexOf(file));
+    };
     return (
         <>
             <ScrollView
@@ -145,6 +175,7 @@ export const SessionComposerAttachments = ({
                                 {attachment.state === 'preparing' ||
                                 attachment.state === 'uploading' ? (
                                     <View
+                                        pointerEvents="none"
                                         style={[styles.scrim, { backgroundColor: theme.overlay }]}
                                     >
                                         {attachment.state === 'preparing' ? (
@@ -163,14 +194,18 @@ export const SessionComposerAttachments = ({
                                 {attachment.state === 'failed' ? (
                                     <Pressable
                                         accessibilityHint={t('sessions.image.failedHint')}
-                                        accessibilityLabel={label}
+                                        accessibilityLabel={t('common.retry')}
                                         accessibilityRole="button"
                                         onPress={() => images.explainFailure(attachment.id)}
-                                        style={[styles.scrim, { backgroundColor: theme.overlay }]}
+                                        style={[
+                                            styles.retryBand,
+                                            { backgroundColor: theme.overlay },
+                                        ]}
+                                        testID={`session-image-retry-${index}`}
                                     >
                                         <RotateCw
                                             color={theme.onScrim}
-                                            size={18}
+                                            size={12}
                                             strokeWidth={2.5}
                                         />
                                         <Text
@@ -217,6 +252,7 @@ export const SessionComposerAttachments = ({
                         <ComposerFileCard
                             file={file}
                             onExplainFailure={() => files.explainFailure(file.id)}
+                            onOpen={() => openFile(file)}
                             onRemove={() => files.remove(file.id)}
                             theme={theme}
                         />
@@ -255,8 +291,9 @@ export const SessionComposerAttachments = ({
                 onClose={() => setOpenIndex(null)}
                 startIndex={openIndex}
                 theme={theme}
-                uris={images.attachments.map((attachment) => attachment.uri)}
+                uris={viewerUris}
             />
+            <LocalVideoPlayer onClose={() => setPlayingUri(null)} theme={theme} uri={playingUri} />
         </>
     );
 };

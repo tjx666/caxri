@@ -16,7 +16,11 @@ import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { FileAttachment, FileAttachmentKind } from '../file-attachment-store';
-import { fileAttachmentKind, formatFileSize } from '../file-attachment-store';
+import {
+    fileAttachmentKind,
+    fileAttachmentPreview,
+    formatFileSize,
+} from '../file-attachment-store';
 import {
     IMAGE_STRIP_REMOVE_CIRCLE,
     IMAGE_STRIP_REMOVE_OVERHANG,
@@ -25,6 +29,10 @@ import {
 } from '../image-strip-layout';
 
 const CARD_WIDTH = 176;
+/**
+ * Grows the small Retry label toward a comfortable touch target without reaching the remove button above it.
+ */
+const RETRY_HIT_SLOP = { bottom: 12, left: 8, right: 8, top: 4 };
 
 const GLYPHS: Record<FileAttachmentKind, typeof File> = {
     archive: FileArchive,
@@ -38,15 +46,23 @@ const GLYPHS: Record<FileAttachmentKind, typeof File> = {
 /**
  * A pending file in the composer's strip, beside the image thumbnails and as tall as one: its kind's glyph, its name,
  * and its size, upload progress, or Retry. The remove target overhangs its top end corner like a thumbnail's.
+ *
+ * A tap previews an image, video, or recording from the phone's own copy in any upload state; a failed file keeps Retry
+ * as its own target, which explains the failure. A file the phone cannot preview opens that explanation instead.
  */
 export const ComposerFileCard = ({
     file,
     onExplainFailure,
+    onOpen,
     onRemove,
     theme,
 }: {
     file: FileAttachment;
     onExplainFailure: () => void;
+    /**
+     * Previews the phone's copy; called only for a file `fileAttachmentPreview` can show.
+     */
+    onOpen: () => void;
     onRemove: () => void;
     theme: MobileTheme;
 }) => {
@@ -61,14 +77,21 @@ export const ComposerFileCard = ({
               ? t('sessions.file.labelFailed', { label })
               : label;
     const isFailed = file.state === 'failed';
+    const canPreview = fileAttachmentPreview(file) !== undefined;
     return (
         <View style={styles.cell}>
             <Pressable
-                accessibilityHint={isFailed ? t('sessions.image.failedHint') : undefined}
+                accessibilityHint={
+                    canPreview
+                        ? t('sessions.file.previewHint')
+                        : isFailed
+                          ? t('sessions.image.failedHint')
+                          : undefined
+                }
                 accessibilityLabel={accessibilityLabel}
-                accessibilityRole={isFailed ? 'button' : undefined}
-                disabled={!isFailed}
-                onPress={onExplainFailure}
+                accessibilityRole={canPreview || isFailed ? 'button' : undefined}
+                disabled={!canPreview && !isFailed}
+                onPress={canPreview ? onOpen : onExplainFailure}
                 style={[
                     styles.card,
                     {
@@ -88,12 +111,20 @@ export const ComposerFileCard = ({
                         {file.name}
                     </Text>
                     {isFailed ? (
-                        <View style={styles.retry}>
+                        <Pressable
+                            accessibilityHint={t('sessions.image.failedHint')}
+                            accessibilityLabel={t('common.retry')}
+                            accessibilityRole="button"
+                            hitSlop={RETRY_HIT_SLOP}
+                            onPress={onExplainFailure}
+                            style={styles.retry}
+                            testID={`session-file-retry-${file.id}`}
+                        >
                             <RotateCw color={theme.danger} size={12} strokeWidth={2.5} />
                             <Text style={[mobileType.caption, { color: theme.danger }]}>
                                 {t('common.retry')}
                             </Text>
-                        </View>
+                        </Pressable>
                     ) : (
                         <Text style={[mobileType.caption, styles.detail, { color: theme.muted }]}>
                             {file.state === 'uploading'
@@ -155,7 +186,7 @@ const styles = StyleSheet.create({
     text: { flex: 1, gap: 2 },
     name: { fontWeight: '600' },
     detail: { fontVariant: ['tabular-nums'] },
-    retry: { alignItems: 'center', flexDirection: 'row', gap: 4 },
+    retry: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4 },
     track: { bottom: 0, height: 2, left: 0, position: 'absolute', right: 0 },
     bar: { height: 2 },
     remove: {

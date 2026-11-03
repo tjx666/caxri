@@ -7,6 +7,7 @@ import {
     expireFileAttachments,
     FILE_ATTACHMENT_REUSE_MS,
     fileAttachmentKind,
+    fileAttachmentPreview,
     fileAttachmentRefusal,
     fileAttachmentWaitReason,
     fileUploadFailureMessage,
@@ -64,6 +65,16 @@ describe('composer file attachments', () => {
         expect(fileAttachmentKind({ name: 'a.bin', mimeType: 'application/octet-stream' })).toBe(
             'other',
         );
+    });
+
+    it('previews images, videos, and recordings from the phone whatever the upload state', () => {
+        expect(fileAttachmentPreview({ name: 'a', mimeType: 'image/heic' })).toBe('image');
+        expect(fileAttachmentPreview({ name: 'a', mimeType: 'video/mp4' })).toBe('player');
+        expect(fileAttachmentPreview({ name: 'a', mimeType: 'audio/x-m4a' })).toBe('player');
+        expect(fileAttachmentPreview({ name: 'a.pdf', mimeType: 'application/pdf' })).toBe(
+            undefined,
+        );
+        expect(fileAttachmentPreview({ name: 'a.ZIP' })).toBe(undefined);
     });
 
     it('expires a ready file the Server has likely deleted, keeping what Retry needs', () => {

@@ -216,3 +216,16 @@ export const fileAttachmentKind = (
         : '';
     return EXTENSION_KINDS[extension] ?? 'other';
 };
+
+/**
+ * How the composer previews a pending file from the phone's own copy: images in the image viewer, videos and recordings
+ * in the player, and nothing for a document or archive the phone cannot show in place. The preview never depends on the
+ * upload, since the file is already on the phone.
+ */
+export const fileAttachmentPreview = (
+    file: Pick<FileAttachment, 'mimeType' | 'name'>,
+): 'image' | 'player' | undefined => {
+    const kind = fileAttachmentKind(file);
+    if (kind === 'image') return 'image';
+    return kind === 'video' || kind === 'audio' ? 'player' : undefined;
+};
