@@ -55,6 +55,7 @@ import {
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
+import { agentChatFormerEntryIds } from './agent-chat-timeline-work';
 import {
     agentChatUsageActionBlockedReason,
     AgentChatUsageActionScope,
@@ -166,7 +167,9 @@ const AgentChatBody = ({
      * Every streamed patch rebuilds the timeline; the stabilizer hands back last render's object for each unchanged row
      * so only the rows a patch touched redraw.
      */
-    const [stabilizeEntries] = useState(() => createAgentChatEntryStabilizer<TimelineEntry>());
+    const [stabilizeEntries] = useState(() =>
+        createAgentChatEntryStabilizer<TimelineEntry>(agentChatFormerEntryIds),
+    );
     const terminalId = snapshot?.terminalId;
     const dismissedRecapAt = useDismissedAgentChatAwayRecap(terminalId);
     const entries = useMemo(() => {
