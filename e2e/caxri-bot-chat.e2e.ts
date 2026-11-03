@@ -92,9 +92,11 @@ if (process.argv.includes('app-server')) {
         await bot.screenshot({ path: testInfo.outputPath('bot-chat-task-strip.png') });
 
         // The parent turn ended and folded at once; its row still names the subagent it started without being
-        // expanded, and reveals that subagent's row in place instead of opening a tab (issue caxri#1952).
+        // expanded, and reveals that subagent's row in place instead of opening a tab (issue caxri#1952). Like the
+        // row's other figures, the count shows only while the row is pointed at, even while the subagent runs.
         const fold = bot.getByRole('button', { name: /^Worked(?: for |$)/u }).first();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await fold.hover();
         const reveal = bot.getByRole('button', {
             name: 'Show subagent Inspect the fixtures in this turn',
         });
