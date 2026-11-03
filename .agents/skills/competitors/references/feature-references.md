@@ -104,6 +104,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Session search**: FTS5 index with byte offsets and file identity; title, custom-title, ai-title order. Evidence: `docs/session-search.md`.
 - **Session search speaker prefix**: Role label before a quoted message match. Evidence: `docs/session-search.md`.
 - **Session creator ("Created by")**: A created workspace remembers its parent (worktree lineage). Evidence: `docs/agent-delegation.md`.
+- **Delegation lineage in the sidebar**: Orca shows lineage by nesting a child worktree under its parent in the sidebar (`WorktreeLineage`); Caxri nests a Delegated Session under the Session that created it, flattened to one level, and hides a Consult while its creator is listed. Ideas only, no code. Evidence: `docs/agent-delegation.md`; `DESIGN.md`; `apps/desktop/src/renderer/src/features/primary-sidebar/delegated/delegated-placement.ts`.
 - **Background wait status**: A quiet monitoring sub-mode of running instead of a separate idle or done state. Evidence: `docs/activity-view.md`.
 - **Chat image numbers**: `#N` badge on each attached thumbnail, matching the image's place in the message. Evidence: `docs/agent-chat.md`.
 - **Usage chip weekly window name**: Compact `wk` (Chinese `本周`) instead of `7d`, which reads as days until reset. Evidence: `apps/desktop/src/renderer/src/lib/usage-format.ts`.

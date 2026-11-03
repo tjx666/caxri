@@ -31,6 +31,9 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.project.sessionsAriaLabel': '{{title}} 的会话',
     'primarySidebar.project.revealAriaLabelOne': '在 {{title}} 中再显示 {{count}} 个会话',
     'primarySidebar.project.revealAriaLabelOther': '在 {{title}} 中再显示 {{count}} 个会话',
+    'primarySidebar.delegated.ariaLabel': '{{title}} 下的委派会话',
+    'primarySidebar.delegated.revealAriaLabelOne': '在 {{title}} 下再显示 {{count}} 个会话',
+    'primarySidebar.delegated.revealAriaLabelOther': '在 {{title}} 下再显示 {{count}} 个会话',
     'primarySidebar.projectHeading.nameOne': '{{title}}（{{count}} 个会话）',
     'primarySidebar.projectHeading.nameOther': '{{title}}（{{count}} 个会话）',
     'primarySidebar.projectHeading.withStatus': '{{name}}，{{status}}',
@@ -131,6 +134,8 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     // Session activity card
     'primarySidebar.card.unreadAttention': '未读的待处理：{{label}}',
     'primarySidebar.card.inPinnedGroup': '位于置顶分组。',
+    'primarySidebar.card.delegatedBy': '由 {{title}} 委派。',
+    'primarySidebar.card.delegatedByLine': '由 {{title}} 委派',
     'primarySidebar.card.projectSentence': '项目 {{title}}。',
     'primarySidebar.card.agentSentence': 'Agent {{agent}}。',
     'primarySidebar.card.pullRequestUnknown': 'Pull Request 状态未知。{{hint}}',
@@ -182,6 +187,9 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.status.currentStatus': '当前状态：{{status}}。',
     'primarySidebar.status.detached.label': '已分离',
     'primarySidebar.status.detached.description': 'Agent 已停止，以便其他客户端恢复。',
+
+    'primarySidebar.status.failed.label': '委派失败',
+    'primarySidebar.status.failed.description': '委派的任务失败了。',
 
     'primarySidebar.status.usageWait.label': '等待额度重置',
     'primarySidebar.status.usageWait.description': '将在 {{time}} 自动继续',

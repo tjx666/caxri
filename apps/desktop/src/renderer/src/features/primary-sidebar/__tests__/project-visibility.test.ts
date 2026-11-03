@@ -1,7 +1,11 @@
 import type { ProjectRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { sessionWorktreeProject, topLevelProjects } from '../project-visibility';
+import {
+    sessionWorktreeProject,
+    topLevelProjects,
+    worktreeProjectsBySession,
+} from '../project-visibility';
 
 function project(overrides: Partial<ProjectRecord> = {}): ProjectRecord {
     return {
@@ -82,5 +86,30 @@ describe('sessionWorktreeProject', () => {
                 [project()],
             ),
         ).toBeUndefined();
+    });
+});
+
+describe('worktreeProjectsBySession', () => {
+    const worktree = project({ id: 'project-worktree', title: 'repo-feature' });
+
+    it('keys the bound Project by Session id for the Sessions working outside their own root', () => {
+        const inWorktree = {
+            id: 'session-a',
+            projectId: 'project-owner',
+            workbenchRootProjectId: 'project-worktree',
+        };
+        const inOwnRoot = {
+            id: 'session-b',
+            projectId: 'project-owner',
+            workbenchRootProjectId: 'project-owner',
+        };
+        const dangling = {
+            id: 'session-c',
+            projectId: 'project-owner',
+            workbenchRootProjectId: 'project-removed',
+        };
+        expect(
+            worktreeProjectsBySession([inWorktree, inOwnRoot, dangling], [project(), worktree]),
+        ).toEqual({ 'session-a': worktree });
     });
 });

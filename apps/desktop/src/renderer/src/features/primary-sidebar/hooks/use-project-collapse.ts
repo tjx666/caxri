@@ -45,13 +45,19 @@ function writePersistedState(serialized: string): void {
 
 interface UseProjectCollapseInput {
     autoCollapseSetting: AppSettings['primarySidebar.autoCollapseProjects'];
+    /**
+     * The group that holds each nested or hidden delegated Session (`DelegatedPlacement.groupIdBySessionId`), so a
+     * running or unread child keeps its host's group open instead of its own Project.
+     */
+    groupIdBySessionId?: ReadonlyMap<string, string>;
     projects: readonly ProjectRecord[] | undefined;
     selectedSessionId: string | undefined;
     sessions: readonly SessionRecord[];
 }
 
 export function useProjectCollapse(input: UseProjectCollapseInput) {
-    const { autoCollapseSetting, projects, selectedSessionId, sessions } = input;
+    const { autoCollapseSetting, groupIdBySessionId, projects, selectedSessionId, sessions } =
+        input;
     const [storedDisclosure, setStoredDisclosure] =
         useState<ProjectCollapseState>(readPersistedState);
     const [hasFocus, setHasFocus] = useState(false);
@@ -66,11 +72,12 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
         () =>
             reconcileProjectCollapse({
                 collapsedProjects: storedDisclosure,
+                groupIdBySessionId,
                 projects,
                 selectedSessionId,
                 sessions,
             }),
-        [storedDisclosure, projects, selectedSessionId, sessions],
+        [storedDisclosure, groupIdBySessionId, projects, selectedSessionId, sessions],
     );
 
     /**
@@ -85,6 +92,7 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
             const next = projectCollapseAfterAutoPass({
                 autoCollapseThresholdMs: autoCollapseThresholdMs(autoCollapseSetting),
                 collapsedProjects: current,
+                groupIdBySessionId,
                 now: Date.now(),
                 projects,
                 selectedSessionId,
@@ -92,7 +100,7 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
             });
             return isEqual(current, next) ? current : next;
         });
-    }, [autoCollapseSetting, projects, selectedSessionId, sessions]);
+    }, [autoCollapseSetting, groupIdBySessionId, projects, selectedSessionId, sessions]);
 
     useEffect(() => {
         if (hasFocus || isHovered || autoCollapseThresholdMs(autoCollapseSetting) === undefined)

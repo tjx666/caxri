@@ -60,9 +60,16 @@ export function parseProjectCollapseState(source: string | null): ProjectCollaps
     }
 }
 
+/**
+ * The groups that must stay open because something in them is selected, running, or unread. A nested or hidden
+ * delegated Session counts for the group that holds its host (`groupIdBySessionId`), not its own Project: its row lives
+ * under the host, so protecting the child's own Project would leave a running or unread child inside a host group that
+ * auto-collapses over it.
+ */
 function protectedProjectIds(
     sessions: readonly SessionRecord[],
     selectedSessionId: string | undefined,
+    groupIdBySessionId: ReadonlyMap<string, string> | undefined,
 ): Set<string> {
     const protectedIds = new Set<string>();
     for (const session of sessions) {
@@ -71,7 +78,7 @@ function protectedProjectIds(
             session.agentActivityState === 'running' ||
             session.hasUnread
         )
-            protectedIds.add(session.projectId);
+            protectedIds.add(groupIdBySessionId?.get(session.id) ?? session.projectId);
     }
     return protectedIds;
 }
@@ -120,6 +127,11 @@ export function projectCollapseAfterReveal(
 
 interface ProjectCollapseReconciliation {
     collapsedProjects: Readonly<ProjectCollapseState>;
+    /**
+     * The group that holds each nested or hidden delegated Session, by Session id (`DelegatedPlacement`). A Session
+     * absent from it counts for its own Project.
+     */
+    groupIdBySessionId?: ReadonlyMap<string, string>;
     projects: readonly ProjectRecord[] | undefined;
     selectedSessionId: string | undefined;
     sessions: readonly SessionRecord[];
@@ -139,7 +151,11 @@ export function reconcileProjectCollapse(
      */
     if (!input.projects) return { ...input.collapsedProjects };
     const projectIds = new Set(input.projects.map((project) => project.id));
-    const protectedIds = protectedProjectIds(input.sessions, input.selectedSessionId);
+    const protectedIds = protectedProjectIds(
+        input.sessions,
+        input.selectedSessionId,
+        input.groupIdBySessionId,
+    );
     const next: ProjectCollapseState = {};
     for (const [projectId, disclosure] of Object.entries(input.collapsedProjects)) {
         if (!projectIds.has(projectId)) continue;
@@ -165,7 +181,11 @@ export function projectCollapseAfterAutoPass(
     const next = reconcileProjectCollapse(input);
     if (!input.projects || input.autoCollapseThresholdMs === undefined) return next;
     const cutoff = input.now - input.autoCollapseThresholdMs;
-    const protectedIds = protectedProjectIds(input.sessions, input.selectedSessionId);
+    const protectedIds = protectedProjectIds(
+        input.sessions,
+        input.selectedSessionId,
+        input.groupIdBySessionId,
+    );
     for (const project of input.projects) {
         if (
             project.lastVisitedAt <= cutoff &&

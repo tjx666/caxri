@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react';
-import { memo, useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
@@ -12,9 +12,10 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
-import { ActiveSessionRow } from './active-session-row';
+import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
+import { MemoizedActiveSessionRow } from './memoized-active-session-row';
 import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     primarySidebarCreateSessionRowId,
@@ -31,12 +32,6 @@ import { SessionRevealRow } from './session-reveal-row';
 import { sessionRowActionButton } from './session-row-actions';
 import { summarizeSessionStatuses } from './session-status';
 import { rovingSubagentRowId } from './session-subagents';
-
-/**
- * Rows render through a memo boundary so a Session switch renders only the rows whose selection moved; the props this
- * list passes are shaped for it, as `ActiveSessionRow` explains (issue #1356).
- */
-const MemoizedActiveSessionRow = memo(ActiveSessionRow);
 
 interface ProjectGroupProperties {
     sessionOrder: SessionOrderController;
@@ -72,6 +67,10 @@ interface ProjectGroupProperties {
      */
     projectSessions: readonly SessionRecord[];
     projectDropTarget?: ProjectDropTarget;
+    /**
+     * Renders the Sessions nested under a host Session, right after the host's row.
+     */
+    renderDelegatedRows?: RenderDelegatedRows;
     renameError?: string;
     renameSuggestingSessionId?: string;
     renameValue: string;
@@ -85,6 +84,11 @@ interface ProjectGroupProperties {
      * Whether Chat Sessions list their subagents under them (`primarySidebar.showSubagents`).
      */
     showSubagents: boolean;
+    /**
+     * The Sessions the collapsed heading summarizes: this Project's own plus the nested ones its hosts hold, which fold
+     * out of sight with the group even though their own Project is another.
+     */
+    statusSessions: readonly SessionRecord[];
     terminals: TerminalRecord[];
     /**
      * Sessions the window renders, in durable sidebar order (frozen while dragging).
@@ -95,6 +99,25 @@ interface ProjectGroupProperties {
      * marker. Resolved against the full Project list, which still contains the hidden worktree rows.
      */
     worktreeProjects?: Record<string, ProjectRecord>;
+}
+
+/**
+ * Opens the Project row menu from the keyboard. MacOS Chromium never turns Shift+F10 into a `contextmenu` event, and
+ * the native menu opens at that event's coordinates, so the keyboard path synthesizes one anchored under the heading
+ * instead of at the pointer.
+ */
+function openHeadingContextMenu(heading: HTMLElement | null): void {
+    if (!heading) return;
+    const bounds = heading.getBoundingClientRect();
+    heading.dispatchEvent(
+        new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            button: 2,
+            clientX: bounds.left + 16,
+            clientY: bounds.bottom,
+        }),
+    );
 }
 
 export function ProjectGroup({
@@ -122,6 +145,7 @@ export function ProjectGroup({
     project,
     projectSessions,
     projectDropTarget,
+    renderDelegatedRows,
     renameError,
     renameSuggestingSessionId,
     renameValue,
@@ -129,6 +153,7 @@ export function ProjectGroup({
     rovingRowId,
     selectedSessionId,
     showSubagents,
+    statusSessions,
     terminals,
     visibleSessions,
     worktreeProjects,
@@ -148,12 +173,12 @@ export function ProjectGroup({
     );
     /**
      * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
-     * heading so an Agent waiting on the user is never folded out of sight; an expanded Project shows the rows
-     * instead.
+     * heading so an Agent waiting on the user is never folded out of sight; an expanded Project shows the rows instead.
+     * The Sessions nested under this Project's hosts count here, in the group that actually hides them.
      */
     const agentSummary = expanded
         ? undefined
-        : summarizeSessionStatuses(projectSessions, (s) => sessionAgentTerminal(s, terminals), t);
+        : summarizeSessionStatuses(statusSessions, (s) => sessionAgentTerminal(s, terminals), t);
     return (
         <section
             data-project-id={project.id}
@@ -249,24 +274,7 @@ export function ProjectGroup({
                                         (event.key === 'F10' && event.shiftKey)
                                     ) {
                                         event.preventDefault();
-                                        /**
-                                         * MacOS Chromium never turns Shift+F10 into a `contextmenu` event, and the
-                                         * native menu opens at that event's coordinates, so the keyboard path
-                                         * synthesizes one anchored under the heading instead of at the pointer.
-                                         */
-                                        const heading = headingReference.current;
-                                        if (heading) {
-                                            const bounds = heading.getBoundingClientRect();
-                                            heading.dispatchEvent(
-                                                new MouseEvent('contextmenu', {
-                                                    bubbles: true,
-                                                    cancelable: true,
-                                                    button: 2,
-                                                    clientX: bounds.left + 16,
-                                                    clientY: bounds.bottom,
-                                                }),
-                                            );
-                                        }
+                                        openHeadingContextMenu(headingReference.current);
                                         return;
                                     }
                                     if (!event.altKey) return;
@@ -344,33 +352,38 @@ export function ProjectGroup({
                         role="group"
                     >
                         {visibleSessions.map((session) => (
-                            <MemoizedActiveSessionRow
-                                sessionOrder={sessionOrder}
-                                visibleSessionIds={visibleSessionIds}
-                                key={session.id}
-                                focusRenameInput={focusRenameInput}
-                                onBeginRename={onBeginRename}
-                                onBlurRename={onBlurRename}
-                                onCancelRename={onCancelRename}
-                                onCommitRename={onCommitRename}
-                                onSuggestRename={onSuggestRename}
-                                onRenameValueChange={onRenameValueChange}
-                                projectTitle={project.title}
-                                projectIcon={project.icon}
-                                projectId={project.id}
-                                projectRootPath={project.rootPath}
-                                renameError={renameError}
-                                renameSuggesting={session.id === renameSuggestingSessionId}
-                                renameValue={renameValue}
-                                renaming={session.id === renamingRowId}
-                                roving={session.id === rovingRowId}
-                                selected={session.id === selectedSessionId}
-                                session={session}
-                                showSubagents={showSubagents}
-                                subagentRovingRowId={rovingSubagentRowId(rovingRowId, session.id)}
-                                terminal={sessionAgentTerminal(session, terminals)}
-                                worktreeProject={worktreeProjects?.[session.id]}
-                            />
+                            <Fragment key={session.id}>
+                                <MemoizedActiveSessionRow
+                                    sessionOrder={sessionOrder}
+                                    visibleSessionIds={visibleSessionIds}
+                                    focusRenameInput={focusRenameInput}
+                                    onBeginRename={onBeginRename}
+                                    onBlurRename={onBlurRename}
+                                    onCancelRename={onCancelRename}
+                                    onCommitRename={onCommitRename}
+                                    onSuggestRename={onSuggestRename}
+                                    onRenameValueChange={onRenameValueChange}
+                                    projectTitle={project.title}
+                                    projectIcon={project.icon}
+                                    projectId={project.id}
+                                    projectRootPath={project.rootPath}
+                                    renameError={renameError}
+                                    renameSuggesting={session.id === renameSuggestingSessionId}
+                                    renameValue={renameValue}
+                                    renaming={session.id === renamingRowId}
+                                    roving={session.id === rovingRowId}
+                                    selected={session.id === selectedSessionId}
+                                    session={session}
+                                    showSubagents={showSubagents}
+                                    subagentRovingRowId={rovingSubagentRowId(
+                                        rovingRowId,
+                                        session.id,
+                                    )}
+                                    terminal={sessionAgentTerminal(session, terminals)}
+                                    worktreeProject={worktreeProjects?.[session.id]}
+                                />
+                                {renderDelegatedRows?.(session, sessionOrder)}
+                            </Fragment>
                         ))}
                         {hiddenSessionCount > 0 && (
                             <SessionRevealRow

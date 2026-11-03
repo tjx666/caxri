@@ -145,8 +145,8 @@ _Avoid_: transferred Session, adopted Session, imported Session
 
 **Delegated Session**:
 A Session an Agent creates for a task it then waits on and reads the result of. The Session records
-the Session that created it. A Hand-off or a Consult is not one, and neither is a Session Caxri Bot
-dispatches a task to.
+the Session that created it, and the sidebar lists it under that Session. A Hand-off or a Consult is
+not one, and neither is a Session Caxri Bot dispatches a task to.
 _Avoid_: Child Session, sub-Session, subagent
 
 **Hand-off**:
@@ -158,7 +158,8 @@ _Avoid_: Transfer, fork, hand-over
 
 **Consult**:
 A question or review an Agent asks another Agent in a new Session, not meant to change any files.
-The Session records the Session that asked. It is neither a Delegated Session nor a Hand-off.
+The Session records the Session that asked, and the sidebar gives it no row while the Session that
+asked is listed. It is neither a Delegated Session nor a Hand-off.
 _Avoid_: Side Session, review Session, Delegated Session
 
 **Peer Inbox**:

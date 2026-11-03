@@ -1,5 +1,6 @@
 import type { ProjectRecord, TerminalRecord } from '@caxri/protocol';
 
+import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import type { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import type { SessionOrderController } from './hooks/use-session-order';
@@ -16,6 +17,10 @@ interface ProjectGroupListProperties {
      * One windowed Session list per Project, already in sidebar order.
      */
     projectWindows: readonly ProjectSessionWindow[];
+    /**
+     * Renders the Sessions nested under a host Session, right after the host's row.
+     */
+    renderDelegatedRows: RenderDelegatedRows;
     rovingRowId?: string;
     selectedProjectId?: string;
     selectedSessionId?: string;
@@ -40,6 +45,7 @@ export function ProjectGroupList({
     onToggleProject,
     projectOrder,
     projectWindows,
+    renderDelegatedRows,
     rovingRowId,
     selectedProjectId,
     selectedSessionId,
@@ -50,8 +56,14 @@ export function ProjectGroupList({
     worktreeProjects,
 }: ProjectGroupListProperties) {
     return projectWindows.map((sessionWindow) => {
-        const { hiddenCount, nextRevealCount, project, projectSessions, visibleSessions } =
-            sessionWindow;
+        const {
+            hiddenCount,
+            nextRevealCount,
+            project,
+            projectSessions,
+            statusSessions,
+            visibleSessions,
+        } = sessionWindow;
         return (
             <ProjectGroup
                 key={project.id}
@@ -82,6 +94,7 @@ export function ProjectGroupList({
                         ? projectOrder.projectDropTarget
                         : undefined
                 }
+                renderDelegatedRows={renderDelegatedRows}
                 renameError={sessionRename.renameError}
                 renameSuggestingSessionId={sessionRename.renameSuggestingSessionId}
                 renameValue={sessionRename.renameValue}
@@ -90,6 +103,7 @@ export function ProjectGroupList({
                 selectedSessionId={selectedSessionId}
                 sessionOrder={sessionOrder}
                 showSubagents={showSubagents}
+                statusSessions={statusSessions}
                 terminals={terminals}
                 visibleSessions={visibleSessions}
                 worktreeProjects={worktreeProjects}

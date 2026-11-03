@@ -91,9 +91,10 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   relation, and an owner CLI call records neither. The column outlives the creator's deletion
   (`ON DELETE SET NULL` clears only the creator), so the read model reports the relation only while
   `createdBySessionId` is present. `session.query` and `agent.delegation.sessions` (see
-  [Delegated Session feed](#delegated-session-feed)) return both. Planned, not shipped: the sidebar
-  will list a `delegated` Session under its creator and give a `consult` Session no row of its own
-  while its creator is listed ([issue #3572](https://github.com/tjx666/caxri/issues/3572)).
+  [Delegated Session feed](#delegated-session-feed)) return both. The sidebar lists a `delegated`
+  Session under its creator and gives a `consult` Session no row of its own while a Session above it
+  is listed ([issue #3572](https://github.com/tjx666/caxri/issues/3572); see
+  [Sidebar rows](#sidebar-rows)).
 - The creating Agent can keep the sidebar tidy without Caxri Bot's board:
   `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
   and `agent session unarchive <session-id>`. Any Agent in the creating Session may manage it,
@@ -537,11 +538,9 @@ three kinds, told apart by `createdByRelation`: a [Delegated Session](../GLOSSAR
 a Hand-off (`handoff`), or a Consult (`consult`); the glossary keeps the three apart. A Session
 Caxri Bot dispatches a task to and a Session the owner creates from the CLI record no relation, so
 none of what follows applies to them: no Summary instruction, no stored result, no feed row. The
-planned Delegated Sessions feed in the sidebar needs each Session's state, step and result without
-opening it, so Server Core exposes the following. Only
-this data layer ships: no Renderer surface reads it yet and the sidebar lists Sessions as before.
-Planned, not shipped: the feed lists a Delegated Session under the Session that created it and
-gives a Consult no row of its own
+sidebar's delegated rows need each Session's state, step and result without opening it, so Server
+Core exposes the following. The Renderer reads `agent.delegation.sessions` for the Sessions nested
+in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
 ([issue #3572](https://github.com/tjx666/caxri/issues/3572)).
 
 - **Closing summary line.** The task file of a Session whose relation is `delegated` or `consult`
@@ -603,6 +602,32 @@ gives a Consult no row of its own
   newest step wins, and an unchanged step emits nothing (`DelegationProgress` in `feed/progress.ts`). The
   event is not forwarded to mobile or the Caxri Bot window, is not journaled, and its step text is
   never logged. A settled task emits no closing event: the receipt change already says so.
+
+## Sidebar rows
+
+The primary sidebar places Sessions by `createdBySessionId` and `createdByRelation`
+(`features/primary-sidebar/delegated/delegated-placement.ts`). The visual contract (indent, guide
+line, glyph priority, child window) is in [DESIGN.md](../DESIGN.md); this section keeps the rules
+that decide which Sessions take which place.
+
+- **Host.** A `delegated` Session nests under the nearest Session up its creator chain that has a
+  top-level row, so a chain of delegations flattens to one level. Archiving or deleting a creator
+  ends the chain, and the Sessions it created return to their own Project groups. A pinned
+  `delegated` Session keeps a flat Pinned row, and a `handoff` or an ownerless Session keeps an
+  ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
+- **Consult.** A `consult` Session takes no row while a Session above it is listed. It shows
+  nested only while it is the selected Session, and the command palette still finds it.
+- **Grouping.** The Session keeps its own `projectId`. Only the sidebar's grouping moves: a nested
+  Session counts toward its host's group for collapsed-heading rollups and auto-collapse
+  protection, and its row names its own Project.
+- **Feed.** The Renderer reads `agent.delegation.sessions` for the direct creators of the nested
+  Sessions, with no poll. A `state.changed` push of the delegated Session and `agent.delegation.progress`
+  refresh it (`queries/invalidation-delegation-feed.ts`). Today the sidebar uses one field of the
+  feed: a newest task with `status: "failed"` gives the nested row its failure glyph. An interrupted,
+  human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
+- **Not shown.** A nested row lists no subagent rows of its own, and it is not reorderable, so its
+  position follows its host. The result summary and the live step are in the feed but have no
+  sidebar surface yet.
 
 ## Provider-reported usage
 

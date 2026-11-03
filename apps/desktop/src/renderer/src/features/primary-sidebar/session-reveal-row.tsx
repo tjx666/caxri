@@ -14,6 +14,7 @@ import { useTranslation } from '../../i18n';
 export function SessionRevealRow({
     ariaLabel: ariaLabelOverride,
     count,
+    level = 2,
     projectTitle,
     roving,
     rowId,
@@ -21,7 +22,7 @@ export function SessionRevealRow({
 }: {
     /**
      * Replaces the Project/Pinned accessible name, for a list whose group is neither (the Activity view's status
-     * groups).
+     * groups, a host's nested Sessions).
      */
     ariaLabel?: string;
     /**
@@ -29,6 +30,10 @@ export function SessionRevealRow({
      * it.
      */
     count: number;
+    /**
+     * The row's `aria-level`: 2 under a group heading, 3 under a Session row (a host's nested Sessions).
+     */
+    level?: 2 | 3;
     /**
      * The Project group's title, named in the accessible name; omitted for the Pinned group.
      */
@@ -58,7 +63,7 @@ export function SessionRevealRow({
             className="session-reveal mt-0.5 ml-5.5 flex h-6 w-fit max-w-[calc(100%-22px)] cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent px-2 text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
             role="treeitem"
             aria-label={ariaLabel}
-            aria-level={2}
+            aria-level={level}
             aria-selected={false}
             data-row-id={rowId}
             tabIndex={roving ? 0 : -1}

@@ -1,14 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    bootstrap: { selectedSessionId: 'a', sessions: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] },
+    bootstrap: {
+        projects: [],
+        selectedSessionId: 'a',
+        sessions: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+    },
     didSelectSession: vi.fn<(sessionId: string) => Promise<boolean>>(),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 vi.mock('../../../stores/selectors', () => ({ getBootstrap: () => mocks.bootstrap }));
-vi.mock('../../primary-sidebar/pinned-session-order', () => ({
-    pinnedSessions: (sessions: unknown[]) => sessions,
+vi.mock('../../primary-sidebar/delegated/delegated-order', () => ({
+    placedPinnedSessions: (_projects: unknown, sessions: unknown[]) => sessions,
 }));
 vi.mock('../session-commands', () => ({ didSelectSession: mocks.didSelectSession }));
 

@@ -33,6 +33,20 @@ export interface SessionListWindow<TSession> {
     windowCount: number;
 }
 
+export interface SessionListWindowOptions {
+    /**
+     * Rows shown before the first reveal. Defaults to {@link DEFAULT_VISIBLE_SESSION_COUNT}; a list that sits inside a
+     * Session row (the Sessions delegated by one host) asks for a shorter one.
+     */
+    initialCount?: number;
+    /**
+     * The row that carries the selected Session when the selected Session has no row in this list of its own, because
+     * it renders nested under that row. It is held on screen exactly like a selected row, so selecting a nested Session
+     * never leaves its host behind `Show N more`.
+     */
+    selectedHostSessionId?: string;
+}
+
 /**
  * Resolves the Sessions a Project renders. `revealedCount` is the count the user has revealed so far (`undefined` until
  * they ask for more).
@@ -49,15 +63,19 @@ export function sessionListWindow<TSession extends { id: string }>(
     sessions: readonly TSession[],
     revealedCount: number | undefined,
     selectedSessionId: string | undefined,
+    options: SessionListWindowOptions = {},
 ): SessionListWindow<TSession> {
     const windowCount = Math.min(
-        Math.max(revealedCount ?? 0, DEFAULT_VISIBLE_SESSION_COUNT),
+        Math.max(revealedCount ?? 0, options.initialCount ?? DEFAULT_VISIBLE_SESSION_COUNT),
         sessions.length,
     );
     const visibleSessions = sessions.slice(0, windowCount);
-    const selectedIndex = selectedSessionId
-        ? sessions.findIndex((session) => session.id === selectedSessionId)
-        : -1;
+    const { selectedHostSessionId } = options;
+    const selectedIndex = sessions.findIndex(
+        (session) =>
+            (selectedSessionId !== undefined && session.id === selectedSessionId) ||
+            (selectedHostSessionId !== undefined && session.id === selectedHostSessionId),
+    );
     const pinnedSelected = selectedIndex >= windowCount ? sessions[selectedIndex] : undefined;
     if (pinnedSelected) visibleSessions.push(pinnedSelected);
     /**

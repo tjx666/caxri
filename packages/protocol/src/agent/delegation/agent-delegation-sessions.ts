@@ -13,7 +13,7 @@ import { delegationProviderSchema } from './agent-delegation-settings.js';
 /**
  * Most creating Sessions one `agent.delegation.sessions` read names; the sidebar asks for the Sessions it lists.
  */
-const MAX_DELEGATION_CREATORS = 64;
+export const MAX_DELEGATION_CREATORS = 64;
 
 /**
  * Most Sessions one `agent.delegation.sessions` read returns, newest first. A creating Session with more has older

@@ -25,3 +25,20 @@ export function sessionWorktreeProject(
     if (session.workbenchRootProjectId === session.projectId) return undefined;
     return projects.find((project) => project.id === session.workbenchRootProjectId);
 }
+
+/**
+ * {@link sessionWorktreeProject} for a list of Sessions, keyed by Session id and holding only the Sessions that work
+ * outside their own Project. This is what replaces the hidden top-level worktree entry on a row, so `projects` must be
+ * the full list, hidden worktree Projects included.
+ */
+export function worktreeProjectsBySession(
+    sessions: ReadonlyArray<{ id: string; projectId: string; workbenchRootProjectId: string }>,
+    projects: readonly ProjectRecord[],
+): Record<string, ProjectRecord> {
+    const resolved: Record<string, ProjectRecord> = {};
+    for (const session of sessions) {
+        const worktree = sessionWorktreeProject(session, projects);
+        if (worktree) resolved[session.id] = worktree;
+    }
+    return resolved;
+}

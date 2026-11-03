@@ -1,25 +1,29 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
-import { compareSessionSidebarOrder } from '@caxri/protocol';
+
+import { sidebarSessionOrder } from '../primary-sidebar/delegated/delegated-order';
+
+interface SidebarSessionOrderOptions {
+    /**
+     * Drops the `consult` Sessions the Project tree hides under a listed ancestor, for stepping through what the
+     * sidebar shows (previous and next Session). The selected Session is never hidden, so pass it too.
+     */
+    navigableOnly?: boolean;
+    selectedSessionId?: string;
+}
 
 /**
  * Produces the exact visible Session sequence: Project order remains explicit and stable, while only Sessions inside
- * each Project follow their durable sidebar positions. Activity promotes one row; dragging does not change recency.
+ * each Project follow their durable sidebar positions, and a delegated Session follows the host it nests under.
+ * Activity promotes one row; dragging does not change recency.
+ *
+ * Without options this is every Session the sidebar can reach, hidden consults included, for the command palette and
+ * the share dialog. The Project tree and previous/next Session read `sidebarSessionOrder` through the options below.
  */
 export function activeSessionsInSidebarOrder(
-    projects: readonly ProjectRecord[],
+    projects: ReadonlyArray<Pick<ProjectRecord, 'id'>>,
     sessions: readonly SessionRecord[],
+    { navigableOnly = false, selectedSessionId }: SidebarSessionOrderOptions = {},
 ): SessionRecord[] {
-    const activeByProject = new Map<string, SessionRecord[]>();
-    for (const session of sessions) {
-        if (session.archivedAt !== undefined) continue;
-        const projectSessions = activeByProject.get(session.projectId);
-        if (projectSessions) projectSessions.push(session);
-        else activeByProject.set(session.projectId, [session]);
-    }
-    const ordered: SessionRecord[] = [];
-    for (const project of projects)
-        ordered.push(
-            ...(activeByProject.get(project.id) ?? []).toSorted(compareSessionSidebarOrder),
-        );
-    return ordered;
+    const order = sidebarSessionOrder(projects, sessions, selectedSessionId);
+    return navigableOnly ? order.navigable : order.all;
 }

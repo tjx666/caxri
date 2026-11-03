@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
-import { defaultAppSettings, isPinnedSession, SESSION_REVEAL_STEP } from '@caxri/protocol';
+import type { SessionRecord } from '@caxri/protocol';
+import { defaultAppSettings, SESSION_REVEAL_STEP } from '@caxri/protocol';
 
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useTranslation } from '../../i18n';
@@ -13,7 +13,10 @@ import {
     useSettings,
     useTerminals,
 } from '../../stores/selectors';
-import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
+import { rowSessionsByProject } from './delegated/delegated-order';
+import { sessionRevealTarget } from './delegated/delegated-placement';
+import { useDelegatedSessions } from './delegated/hooks/use-delegated-sessions';
+import { useRenderDelegatedRows } from './delegated/hooks/use-render-delegated-rows';
 import { usePinnedCollapse } from './hooks/use-pinned-collapse';
 import { usePinnedSessionGroup } from './hooks/use-pinned-session-group';
 import { usePinnedSessionReveal } from './hooks/use-pinned-session-reveal';
@@ -29,11 +32,12 @@ import { useSessionRename } from './hooks/use-session-rename';
 import { useSessionSubagentNodes } from './hooks/use-session-subagent-nodes';
 import { PinnedSessionGroup } from './pinned-session-group';
 import { unpinnedSessions } from './pinned-session-order';
+import { PrimarySidebarLiveRegions } from './primary-sidebar-live-regions';
 import { PINNED_GROUP_ROW_ID, primarySidebarPinnedRowId } from './primary-sidebar-tree';
 import { handlePrimarySidebarTreeKey } from './primary-sidebar-tree-keys';
 import { ProjectGroupList } from './project-group-list';
 import { hasProjectDragType } from './project-order';
-import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
+import { topLevelProjects, worktreeProjectsBySession } from './project-visibility';
 import { SessionSelectionGlideFill } from './session-selection-glide-fill';
 
 const NO_RECORDS: never[] = [];
@@ -67,8 +71,15 @@ export function PrimarySidebarProjectTree() {
     const selectedProjectId = useSelectedProject()?.id;
     const selectedSessionId = useSelectedSession()?.id;
     const projectOrder = useProjectOrder(projects);
+    /**
+     * Where every Session goes: an ordinary row, nested under a host, or hidden. Computed first because the collapse
+     * protection, the Session groups, the Pinned group, and the keyboard row order all read it.
+     */
+    const delegated = useDelegatedSessions({ projects, selectedSessionId, sessions, terminals });
+    const { placement } = delegated;
     const projectCollapse = useProjectCollapse({
         autoCollapseSetting,
+        groupIdBySessionId: placement.groupIdBySessionId,
         projects: loadedProjects,
         selectedSessionId,
         sessions,
@@ -77,29 +88,23 @@ export function PrimarySidebarProjectTree() {
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
     const orderedSessions = useMemo(
-        () => unpinnedSessions(activeSessionsInSidebarOrder(projects, sessions)),
-        [projects, sessions],
+        () => unpinnedSessions(rowSessionsByProject(projects, placement)),
+        [projects, placement],
     );
     const { controller: sessionOrder, sessions: sidebarSessions } =
         useSessionOrder(orderedSessions);
-    /**
-     * Workbench Root Projects keyed by Session id, for the Sessions currently working outside their own Project. This
-     * is what replaces the hidden top-level worktree entry, so it must resolve against the full Project list.
-     */
-    const worktreeProjects = useMemo(() => {
-        const resolved: Record<string, ProjectRecord> = {};
-        for (const session of sidebarSessions) {
-            const worktree = sessionWorktreeProject(session, allProjects ?? NO_RECORDS);
-            if (worktree) resolved[session.id] = worktree;
-        }
-        return resolved;
-    }, [allProjects, sidebarSessions]);
+    const worktreeProjects = useMemo(
+        () => worktreeProjectsBySession(sidebarSessions, allProjects ?? NO_RECORDS),
+        [allProjects, sidebarSessions],
+    );
 
     const pinnedCollapse = usePinnedCollapse();
     const pinnedGroup = usePinnedSessionGroup({
         projects: allProjects ?? NO_RECORDS,
+        selectedHostSessionId: delegated.selectedHostSessionId,
         selectedSessionId,
-        sessions,
+        // The Sessions with an ordinary row: a pinned Session that nests (a pinned consult under its creator) is not here.
+        sessions: placement.rows,
     });
     const pinAnnouncement = usePinnedSessionReveal({
         expandPinned: pinnedCollapse.expand,
@@ -114,14 +119,13 @@ export function PrimarySidebarProjectTree() {
      */
     const revealSessionRow = useCallback(
         (session: SessionRecord): string => {
-            if (isPinnedSession(session)) {
-                pinnedCollapse.expand();
-                return primarySidebarPinnedRowId(session.id);
-            }
-            projectCollapse.expandProject(session.projectId);
-            return session.id;
+            // A nested Session opens its host's group, which is not necessarily its own Project.
+            const { groupId, rowId } = sessionRevealTarget(placement, session);
+            if (groupId === PINNED_GROUP_ROW_ID) pinnedCollapse.expand();
+            else projectCollapse.expandProject(groupId);
+            return rowId;
         },
-        [pinnedCollapse, projectCollapse],
+        [pinnedCollapse, placement, projectCollapse],
     );
     const sessionRename = useSessionRename(sessions, revealSessionRow);
     useSelectedSessionReveal({ revealSessionRow, selectedSessionId, sessions });
@@ -133,7 +137,9 @@ export function PrimarySidebarProjectTree() {
      * groups so arrow-key navigation can never reach a Session the window hides.
      */
     const sessionWindows = useProjectSessionWindows({
+        hostedByGroup: placement.hostedByGroup,
         projects,
+        selectedHostSessionId: delegated.selectedHostSessionId,
         selectedSessionId,
         sidebarSessions,
     });
@@ -160,11 +166,13 @@ export function PrimarySidebarProjectTree() {
         rovingRowId,
         rows: treeRows,
     } = usePrimarySidebarTree({
+        delegatedNodes: delegated.children.rowNodes,
         hasHiddenPinnedSessions: pinnedGroup.hiddenCount > 0,
         isPinnedExpanded: pinnedCollapse.expanded,
         isProjectExpanded,
         pinnedSessionIds,
         projectWindows,
+        selectedFallbackRowIds: delegated.selectedFallbackRowIds,
         selectedProjectId,
         selectedSessionId,
         subagentNodes,
@@ -208,6 +216,17 @@ export function PrimarySidebarProjectTree() {
             focusRow(lastVisibleSessionId);
     };
 
+    const renderDelegatedRows = useRenderDelegatedRows({
+        allProjects: allProjects ?? NO_RECORDS,
+        delegated,
+        focusRow,
+        rovingRowId,
+        selectedSessionId,
+        sessionRename,
+        sessions,
+        terminals,
+    });
+
     return (
         <div className="scroll-edge-shell relative min-h-0 flex-1">
             <div
@@ -217,7 +236,7 @@ export function PrimarySidebarProjectTree() {
                 onDragOver={(event) => {
                     if (
                         !(event.target instanceof Element) ||
-                        !event.target.closest('.session-card')
+                        !event.target.closest('.session-card:not([data-nested-session])')
                     ) {
                         // Both lists, or the group the drag did not start in keeps its marker on screen until dragend.
                         sessionOrder.leaveList();
@@ -239,7 +258,7 @@ export function PrimarySidebarProjectTree() {
                     selectedSessionId={selectedSessionId}
                 />
                 {/*
-                 * The tree element holds Project and Session rows and nothing else. The empty-state action and the two
+                 * The tree element holds Project and Session rows and nothing else. The empty-state action and the
                  * live regions below sit outside it on purpose: inside a `role="tree"`, every focusable element has to
                  * be a real `treeitem` holding the tree's single roving Tab stop (DESIGN.md), and a static region is
                  * not a tree row at all. The scroll container, the Project drop target, and the hover/focus tracking
@@ -281,6 +300,7 @@ export function PrimarySidebarProjectTree() {
                         onRevealMoreSessions={revealMorePinnedSessions}
                         onToggle={() => togglePinnedGroup()}
                         projects={pinnedGroup.projects}
+                        renderDelegatedRows={renderDelegatedRows}
                         renameError={sessionRename.renameError}
                         renameSuggestingSessionId={sessionRename.renameSuggestingSessionId}
                         renameValue={sessionRename.renameValue}
@@ -301,6 +321,7 @@ export function PrimarySidebarProjectTree() {
                         onToggleProject={toggleProject}
                         projectOrder={projectOrder}
                         projectWindows={projectWindows}
+                        renderDelegatedRows={renderDelegatedRows}
                         rovingRowId={rovingRowId}
                         selectedProjectId={selectedProjectId}
                         selectedSessionId={selectedSessionId}
@@ -317,24 +338,12 @@ export function PrimarySidebarProjectTree() {
                         {t('primarySidebar.tree.noProjects')}
                     </p>
                 )}
-                <div className="project-order-announcement sr-only" aria-live="polite">
-                    {projectOrder.projectOrderAnnouncement}
-                </div>
-                <div className="session-order-announcement sr-only" aria-live="polite">
-                    {sessionOrder.announcement}
-                </div>
-                {/*
-                 * The Pinned group reorders through its own controller, so it needs its own live region: one shared
-                 * region would have to pick a winner whenever both held text, and an `aria-live` node that keeps
-                 * swapping owners re-announces the losing message.
-                 */}
-                <div className="pinned-order-announcement sr-only" aria-live="polite">
-                    {pinnedGroup.sessionOrder.announcement}
-                </div>
-                {/* A pin is a separate event from a reorder, so it gets its own region for the same reason. */}
-                <div className="pinned-session-announcement sr-only" aria-live="polite">
-                    {pinAnnouncement}
-                </div>
+                <PrimarySidebarLiveRegions
+                    pinnedOrderAnnouncement={pinnedGroup.sessionOrder.announcement}
+                    pinnedSessionAnnouncement={pinAnnouncement}
+                    projectOrderAnnouncement={projectOrder.projectOrderAnnouncement}
+                    sessionOrderAnnouncement={sessionOrder.announcement}
+                />
             </div>
         </div>
     );

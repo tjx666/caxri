@@ -51,6 +51,7 @@ function sessionCardDescription(
     parts: {
         activityLabel: string | undefined;
         agentLabel: string;
+        delegatedBy: string | undefined;
         inPinnedGroup: boolean | undefined;
         project: Pick<ProjectRecord, 'title'>;
         pullRequestLabel: string | undefined;
@@ -62,6 +63,9 @@ function sessionCardDescription(
         // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
         parts.inPinnedGroup && t('primarySidebar.card.inPinnedGroup'),
+        // A nested Session sits under its host, not under its own Project, so the sentence that names who it came from
+        // is what its position says to a sighted user.
+        parts.delegatedBy && t('primarySidebar.card.delegatedBy', { title: parts.delegatedBy }),
         t('primarySidebar.card.projectSentence', { title: parts.project.title }),
         t('primarySidebar.card.agentSentence', { agent: parts.agentLabel }),
         parts.activityLabel,
@@ -80,6 +84,8 @@ function sessionCardDescription(
 }
 
 export function SessionActivityCard({
+    delegatedBy,
+    delegationFailed = false,
     inPinnedGroup,
     project,
     pullRequest,
@@ -91,9 +97,18 @@ export function SessionActivityCard({
     worktreeProject,
 }: {
     /**
-     * True on the Pinned group's copy of a doubly listed Session. Both copies otherwise announce word for word the same
-     * thing (the row's accessible name is the title, and the visible Project name is `aria-hidden`) so a keyboard user
-     * walking the tree could not tell which one they had reached.
+     * The title of the Session that created this one, set on a nested Session row only. Its row sits under the host,
+     * with its own Project name trailing the title, so the description says who delegated it.
+     */
+    delegatedBy?: string;
+    /**
+     * True for a nested Session whose delegation failed: the status line restates `Delegation failed`.
+     */
+    delegationFailed?: boolean;
+    /**
+     * True on a row in the Pinned group. The row's accessible name is the title and the visible Project name is
+     * `aria-hidden`, so without this sentence a keyboard user in a group that spans Projects could not tell that the
+     * Session is pinned: the pin has no mark of its own.
      */
     inPinnedGroup?: boolean;
     /**
@@ -133,6 +148,7 @@ export function SessionActivityCard({
     const accessibleDescription = sessionCardDescription(t, {
         agentLabel,
         activityLabel: activity.ariaLabel,
+        delegatedBy,
         inPinnedGroup,
         project,
         pullRequestLabel: pullRequest
@@ -141,7 +157,7 @@ export function SessionActivityCard({
         pullRequestUnavailable,
         worktreeProject,
     });
-    const statusLine = sessionCardStatusLine(session, terminal, t);
+    const statusLine = sessionCardStatusLine(session, terminal, t, { delegationFailed });
     // The list's status slot collapses every attention kind into one signal; the description names the exact one.
     const unreadSentence = session.hasUnread
         ? t('primarySidebar.card.sentence', {
@@ -213,6 +229,11 @@ export function SessionActivityCard({
                     <ProjectIcon className="flex-none" icon={project.icon} size={13} />
                     <span className="min-w-0 truncate">{project.title}</span>
                 </p>
+                {delegatedBy && (
+                    <p className="mt-1 mb-0 min-w-0 truncate text-[12px] text-muted">
+                        {t('primarySidebar.card.delegatedByLine', { title: delegatedBy })}
+                    </p>
+                )}
                 {pullRequest && <SessionCardPullRequest pullRequest={pullRequest} />}
                 <SessionCardMetrics reserveSpace={agent !== 'shell'} sessionId={session.id} />
                 {statusLine && (

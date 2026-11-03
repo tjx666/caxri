@@ -7,6 +7,7 @@ import { cn } from '../../lib/utilities';
 import { didSelectSession } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { canSuggestSessionTitle } from './session-rename-draft';
+import { sessionRowKeyShortcuts } from './session-row-key-shortcuts';
 
 interface SessionRowTriggerProperties extends ComponentProps<'div'> {
     session: SessionRecord;
@@ -15,6 +16,11 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
      * Session and the copy under that Session's own Project stay separately addressable.
      */
     rowId?: string;
+    /**
+     * True for a Session nested under its host (level 3). It is a fixed child of that host, so it is not a drag source,
+     * not a drop target, and has no `Alt+Arrow` reorder: its place follows from the Session that created it.
+     */
+    nested?: boolean;
     selected: boolean;
     renaming: boolean;
     roving: boolean;
@@ -49,6 +55,7 @@ export function SessionRowTrigger({
     children,
     session,
     rowId: explicitRowId,
+    nested = false,
     selected,
     renaming,
     roving,
@@ -66,16 +73,18 @@ export function SessionRowTrigger({
      */
     const rowId = explicitRowId ?? session.id;
     const canSuggest = canSuggestSessionTitle(session);
+    const canReorder = !nested && !renaming;
     const trigger = (
         <div
             ref={sessionOrder.draggedId === session.id ? sessionOrder.sourceReference : undefined}
+            data-nested-session={nested ? '' : undefined}
             data-row-id={rowId}
             data-session-id={session.id}
-            draggable={!renaming}
-            onDragStart={(event) => sessionOrder.startDrag(event, session.id)}
-            onDragEnd={() => sessionOrder.endDrag()}
-            onDragOver={(event) => sessionOrder.dragOver(event, session.id)}
-            onDrop={(event) => sessionOrder.drop(event, session.id)}
+            draggable={canReorder}
+            onDragStart={nested ? undefined : (event) => sessionOrder.startDrag(event, session.id)}
+            onDragEnd={nested ? undefined : () => sessionOrder.endDrag()}
+            onDragOver={nested ? undefined : (event) => sessionOrder.dragOver(event, session.id)}
+            onDrop={nested ? undefined : (event) => sessionOrder.drop(event, session.id)}
             className={cn(
                 'session-card flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground hover:bg-state-hover',
                 // Room for the hover actions, which a renaming row does not show.
@@ -86,15 +95,9 @@ export function SessionRowTrigger({
                 sessionOrder.draggedId === session.id && 'opacity-50',
             )}
             role="treeitem"
-            aria-level={2}
+            aria-level={nested ? 3 : 2}
             aria-selected={selected}
-            aria-keyshortcuts={
-                renaming
-                    ? undefined
-                    : canSuggest
-                      ? 'Shift+Enter Alt+ArrowUp Alt+ArrowDown'
-                      : 'Alt+ArrowUp Alt+ArrowDown'
-            }
+            aria-keyshortcuts={sessionRowKeyShortcuts({ canReorder, canSuggest, renaming })}
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
@@ -110,7 +113,7 @@ export function SessionRowTrigger({
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
-                if (!renaming) sessionOrder.keyDown(event, session.id, visibleSessionIds);
+                if (canReorder) sessionOrder.keyDown(event, session.id, visibleSessionIds);
                 if (event.defaultPrevented) return;
                 if (!renaming && event.key === 'Enter' && event.shiftKey) {
                     event.preventDefault();

@@ -26,9 +26,9 @@ import type { ServerEvent } from '@caxri/protocol';
  *   secret request cards.
  * - `benchmark.changed` goes to `useBenchmarkEvents` in `features/benchmark/benchmark-queries.ts`, which refreshes the
  *   Benchmark tab's run list and the changed run.
- * - `agent.delegation.progress` is the step hint of the Delegated Sessions feed (issue #3572). No Renderer module
- *   subscribes to it yet; it is listed here only to keep this subscription exhaustive until the feed lands, which will
- *   subscribe itself and read the rest of the feed through `agent.delegation.sessions`.
+ * - `agent.delegation.progress` goes to `subscribeRuntimeQueryInvalidation`, which writes the step hint into the cached
+ *   Delegated Sessions feed (issue #3572); the rest of the feed refreshes on the `state.changed` push of the delegated
+ *   Session (`queries/invalidation-delegation-feed.ts`).
  * - `desktop.shareReceived` goes to `subscribeShareRequests` in `features/share/share-request-store.ts`, which opens the
  *   Send to Session picker.
  */

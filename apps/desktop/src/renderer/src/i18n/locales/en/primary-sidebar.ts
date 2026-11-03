@@ -27,6 +27,9 @@ export const primarySidebar = {
     'primarySidebar.project.sessionsAriaLabel': '{{title}} Sessions',
     'primarySidebar.project.revealAriaLabelOne': 'Show {{count}} more Session in {{title}}',
     'primarySidebar.project.revealAriaLabelOther': 'Show {{count}} more Sessions in {{title}}',
+    'primarySidebar.delegated.ariaLabel': 'Delegated Sessions under {{title}}',
+    'primarySidebar.delegated.revealAriaLabelOne': 'Show {{count}} more Session under {{title}}',
+    'primarySidebar.delegated.revealAriaLabelOther': 'Show {{count}} more Sessions under {{title}}',
     'primarySidebar.projectHeading.nameOne': '{{title}} ({{count}} Session)',
     'primarySidebar.projectHeading.nameOther': '{{title}} ({{count}} Sessions)',
     'primarySidebar.projectHeading.withStatus': '{{name}}, {{status}}',
@@ -128,6 +131,8 @@ export const primarySidebar = {
     // Session activity card
     'primarySidebar.card.unreadAttention': 'Unread attention: {{label}}',
     'primarySidebar.card.inPinnedGroup': 'In Pinned group.',
+    'primarySidebar.card.delegatedBy': 'Delegated by {{title}}.',
+    'primarySidebar.card.delegatedByLine': 'Delegated by {{title}}',
     'primarySidebar.card.projectSentence': 'Project {{title}}.',
     'primarySidebar.card.agentSentence': 'Agent {{agent}}.',
     'primarySidebar.card.pullRequestUnknown': 'Pull request unknown. {{hint}}',
@@ -184,6 +189,9 @@ export const primarySidebar = {
     'primarySidebar.status.detached.label': 'Detached',
     'primarySidebar.status.detached.description':
         'The Agent was stopped so another client can resume it.',
+
+    'primarySidebar.status.failed.label': 'Delegation failed',
+    'primarySidebar.status.failed.description': 'The delegated task failed.',
 
     'primarySidebar.status.usageWait.label': 'Waiting for limit reset',
     'primarySidebar.status.usageWait.description': 'Continues automatically at {{time}}',

@@ -7,13 +7,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ControlledViewQueryOperation } from '../features/view-containers/view-operation-client';
 import { caxri } from '../lib/caxri';
 import { parentDirectoryPath } from '../lib/file-path';
-import { getWorkbenchProjectSessionIds } from '../stores/selectors';
+import { getBootstrap, getWorkbenchProjectSessionIds } from '../stores/selectors';
 import {
     caxriQueryKey,
     CONTROLLED_VIEW_QUERY_METHOD,
     EXTENSION_TREE_CHILDREN_QUERY_METHOD,
     isQueryMethod,
 } from './client';
+import {
+    applyDelegationProgress,
+    createDelegationFeedInvalidation,
+} from './invalidation-delegation-feed';
 import {
     invalidateDeliveryStatusQueries,
     invalidateProjectStatusQuery,
@@ -385,6 +389,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         git: (sessionIds) => invalidateGitChangedQueries(queryClient, sessionIds, 'active'),
         view: (change) => invalidateViewChange(queryClient, change, 'active'),
     });
+    const delegationFeed = createDelegationFeedInvalidation(
+        queryClient,
+        () => getBootstrap()?.sessions ?? [],
+    );
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'viewContainers.catalogChanged') {
             void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
@@ -417,6 +425,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             void queryClient.invalidateQueries({ queryKey: BOT_STATUS_QUERY_KEY });
             if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
             else {
+                delegationFeed.invalidate(event.payload.sessionIds);
                 for (const terminalId of event.payload.terminalIds)
                     invalidateAgentTranscriptQuery(queryClient, terminalId);
             }
@@ -527,6 +536,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             invalidateBotInboxQuery(queryClient);
             return;
         }
+        if (event.event === 'agent.delegation.progress') {
+            applyDelegationProgress(queryClient, event.payload);
+            return;
+        }
         if (event.event !== 'files.changed') return;
         const { sessionId, workbenchRootProjectId } = event.payload;
         const batch =
@@ -559,6 +572,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     });
     return () => {
         unsubscribe();
+        delegationFeed.dispose();
         hiddenWindow.dispose();
         for (const timer of pendingTimers.values()) clearTimeout(timer);
         pendingBatches.clear();
