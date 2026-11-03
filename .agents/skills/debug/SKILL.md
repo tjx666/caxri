@@ -162,12 +162,17 @@ only that test's generated feedback. Never use private hooks or existing busines
 
 For ordinary Agent UI verification in a dev instance, run fake providers. Outside the controlled
 exception above, never discover or invoke a host CLI. Prepare a task-owned fixture folder and start
-the dev instance with its exports; `--provider` takes `claude` (default), `codex`, `grok`, or `antigravity`:
+the dev instance in it with one command (run it in the background; it blocks like `dev`);
+`--provider` takes `claude` (default), `codex`, `grok`, or `antigravity`:
 
 ```bash
-eval "$(bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude)"
-bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev --user-data-dir /tmp/<task>/profile
+bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude --dev
 ```
+
+`--dev` launches `switch-worktree dev --user-data-dir /tmp/<task>/profile` with the fixture
+environment. Do not hand-apply the printed exports in an agent session: a worktree-isolated harness
+refuses `eval "$(...)"`, `source`, and an inline `HOME=` assignment. Without `--dev` the script
+prints `export` lines for `eval` in an interactive shell.
 
 The exports also point `HOME`, `ZDOTDIR`, and the XDG directories into the fixture folder, so the
 provider state a dev instance reads (Usage, Session search, skill health) is the fixture's, never the

@@ -1,9 +1,19 @@
 /**
- * Prepares a task-owned fixture folder for a dev instance that runs a fake Agent Chat provider, and prints the shell
- * exports `switch-worktree dev` needs. Built on the same fixtures as the Electron E2E specs, so a scenario that works
- * there (such as fake Claude's `ask multi`) works in the dev window too.
+ * Prepares a task-owned fixture folder for a dev instance that runs a fake Agent Chat provider, and either launches
+ * `switch-worktree dev` with that environment (`--dev`) or prints the shell exports it needs. Built on the same
+ * fixtures as the Electron E2E specs, so a scenario that works there (such as fake Claude's `ask multi`) works in the
+ * dev window too.
  *
  * Usage:
+ *
+ * ```sh
+ * bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude --dev
+ * ```
+ *
+ * `--dev` runs `switch-worktree dev --user-data-dir <task>/profile` as a child with the environment applied, so an
+ * agent needs one plain command. A worktree-isolated agent harness refuses `eval "$(...)"`, `source`, and an inline
+ * `HOME=` assignment, because it cannot prove the resulting command keeps Git inside the worktree. Without `--dev` the
+ * script prints `export` lines for an interactive shell:
  *
  * ```sh
  * eval "$(bun run .agents/skills/debug/scripts/fake-agent-development-environment.ts /tmp/<task> --provider claude)"
@@ -27,7 +37,7 @@
  * window would otherwise show the host's real conversations. An isolated HOME hides the mise shims, so the pinned Node
  * the Server build needs is resolved first and exported as `CAXRI_SERVER_RUNTIME_EXECUTABLE`.
  */
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -63,14 +73,14 @@ function shellQuote(value: string): string {
 }
 
 /**
- * The `export` lines for every isolation key the fake environment sets, plus the switches that make Caxri honor the
- * fake executables (`CAXRI_E2E`), show the window, and grant the fixture Project root without a folder picker.
+ * Every isolation key the fake environment sets, plus the switches that make Caxri honor the fake executables
+ * (`CAXRI_E2E`), show the window, and grant the fixture Project root without a folder picker.
  */
-export function fakeAgentDevelopmentExports(
+export function fakeAgentDevelopmentEnvironment(
     environment: NodeJS.ProcessEnv,
     keys: readonly string[],
     projectRoot: string,
-): string {
+): Array<[string, string]> {
     const entries: Array<[string, string]> = [
         ['CAXRI_E2E', '1'],
         ['CAXRI_E2E_WINDOW_MODE', 'visible'],
@@ -80,23 +90,35 @@ export function fakeAgentDevelopmentExports(
         const value = environment[key];
         if (value !== undefined) entries.push([key, value]);
     }
+    return entries;
+}
+
+/**
+ * The `export` lines of {@link fakeAgentDevelopmentEnvironment} for an interactive shell's `eval`.
+ */
+export function fakeAgentDevelopmentExports(entries: ReadonlyArray<[string, string]>): string {
     return entries.map(([key, value]) => `export ${key}=${shellQuote(value)}`).join('\n');
 }
 
 export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]): {
     directory: string;
+    launchDev: boolean;
     provider: FakeChatProvider;
     scriptPath?: string;
 } {
     const { positionals, values } = parseArgs({
         args: [...arguments_],
         allowPositionals: true,
-        options: { provider: { type: 'string' }, script: { type: 'string' } },
+        options: {
+            dev: { type: 'boolean' },
+            provider: { type: 'string' },
+            script: { type: 'string' },
+        },
     });
     const [directory] = positionals;
     if (!directory || positionals.length !== 1 || !isAbsolute(directory))
         throw new Error(
-            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok|antigravity] [--script <absolute path>]',
+            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok|antigravity] [--script <absolute path>] [--dev]',
         );
     const provider = values.provider ?? 'claude';
     if (!PROVIDERS.includes(provider as FakeChatProvider))
@@ -106,7 +128,12 @@ export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]
         throw new Error('--script must be an absolute path');
     if (scriptPath !== undefined && (provider === 'grok' || provider === 'antigravity'))
         throw new Error('--script supports only fake claude and codex');
-    return { directory, provider: provider as FakeChatProvider, ...(scriptPath && { scriptPath }) };
+    return {
+        directory,
+        launchDev: values.dev ?? false,
+        provider: provider as FakeChatProvider,
+        ...(scriptPath && { scriptPath }),
+    };
 }
 
 const execFileAsync = promisify(execFile);
@@ -146,7 +173,7 @@ async function pinnedNodeExecutable(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-    const { directory, provider, scriptPath } = parseFakeAgentDevelopmentArguments(
+    const { directory, launchDev, provider, scriptPath } = parseFakeAgentDevelopmentArguments(
         process.argv.slice(2),
     );
     const userData = join(directory, 'user-data');
@@ -175,7 +202,43 @@ async function main(): Promise<void> {
         ...HOME_ISOLATION_KEYS,
         'CAXRI_SERVER_RUNTIME_EXECUTABLE',
     ];
-    process.stdout.write(`${fakeAgentDevelopmentExports(environment, keys, projectRoot)}\n`);
+    const entries = fakeAgentDevelopmentEnvironment(environment, keys, projectRoot);
+    if (!launchDev) {
+        process.stdout.write(`${fakeAgentDevelopmentExports(entries)}\n`);
+        return;
+    }
+    process.exitCode = await launchDevelopmentInstance(entries, join(directory, 'profile'));
+}
+
+/**
+ * Runs `switch-worktree dev` for this checkout with the fake environment applied, forwarding SIGINT and SIGTERM so the
+ * launcher still stops its own process tree, and resolves with its exit code.
+ */
+async function launchDevelopmentInstance(
+    entries: ReadonlyArray<[string, string]>,
+    profile: string,
+): Promise<number> {
+    const child = spawn(
+        process.execPath,
+        [
+            'run',
+            join(REPOSITORY_ROOT, '.agents/skills/switch-worktree/scripts/switch-worktree.ts'),
+            'dev',
+            '--user-data-dir',
+            profile,
+        ],
+        {
+            cwd: REPOSITORY_ROOT,
+            env: { ...process.env, ...Object.fromEntries(entries) },
+            stdio: 'inherit',
+        },
+    );
+    for (const signal of ['SIGINT', 'SIGTERM'] as const)
+        process.on(signal, () => child.kill(signal));
+    return new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
+    });
 }
 
 if (import.meta.main) await main();
