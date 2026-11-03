@@ -92,7 +92,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.fold.durationMinutes': '{{minutes}}分',
     'agentChat.fold.durationMinutesSeconds': '{{minutes}}分 {{seconds}}秒',
     'agentChat.fold.durationHoursMinutesSeconds': '{{hours}}小时 {{minutes}}分 {{seconds}}秒',
-    'agentChat.fold.durationUnderOneSecond': '<1秒',
+    'agentChat.fold.durationUnderOneSecond': '<1 秒',
     'agentChat.fold.stoppedAfter': '{{duration}} 后停止',
     'agentChat.fold.failedAfter': '{{duration}} 后失败',
     'agentChat.fold.worked': '已完成工作',
