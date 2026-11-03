@@ -25,6 +25,7 @@ import {
 } from '../new-session-model';
 import { waitForCreatedConversation } from '../new-session-readiness';
 import { activeProjectFilter } from '../project-filter';
+import { NEW_SESSION_ENTRY, SESSION_ENTRY_PARAM } from '../session-route-entry';
 
 export const useNewSession = () => {
     const router = useRouter();
@@ -114,7 +115,9 @@ export const useNewSession = () => {
             setNewSessionCreateState({ kind: 'idle' });
             if (shouldFocusComposer) requestComposerFocus(sessionId);
             sessions.selectSession(sessionId);
-            router.replace(`/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}`);
+            router.replace(
+                `/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}?${SESSION_ENTRY_PARAM}=${NEW_SESSION_ENTRY}`,
+            );
             void sessions.refresh().catch(() => {});
         },
         [hostId, requestComposerFocus, router, sessions, setNewSessionCreateState],

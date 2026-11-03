@@ -6,6 +6,7 @@ import { LoadingScreen } from '../../../src/components/loading-screen';
 import { useMobileClient } from '../../../src/features/connection/mobile-client-provider';
 import { mobileLayoutMode } from '../../../src/features/layout/layout-mode';
 import { HostSessionsProvider } from '../../../src/features/sessions/components/host-sessions-provider';
+import { sessionScreenAnimation } from '../../../src/features/sessions/session-route-entry';
 import { useTranslation } from '../../../src/i18n';
 
 export default function HostLayout() {
@@ -31,7 +32,15 @@ export default function HostLayout() {
                     name="index"
                     options={{ animation: sessionAnimation, animationTypeForReplace: 'pop' }}
                 />
-                <Stack.Screen name="s/[session-id]" options={{ animation: sessionAnimation }} />
+                <Stack.Screen
+                    name="s/[session-id]"
+                    options={({ route }) => ({
+                        animation: sessionScreenAnimation(
+                            route.params as Readonly<Record<string, unknown>> | undefined,
+                            sessionAnimation,
+                        ),
+                    })}
+                />
                 <Stack.Screen name="new" options={{ animation: 'slide_from_bottom' }} />
             </Stack>
         </HostSessionsProvider>
