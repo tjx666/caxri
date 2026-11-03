@@ -123,6 +123,39 @@ describe('staleLocaleCopyWarnings', () => {
         }
     });
 
+    it('warns for a Mobile unit test that asserts reworded Mobile copy', async () => {
+        const mobileLocale = 'apps/mobile/src/i18n/locales/en/sessions.ts';
+        const unitTest = 'apps/mobile/src/features/sessions/__tests__/example-store.test.ts';
+        const { root, git } = await fixture();
+        try {
+            await write(
+                root,
+                mobileLocale,
+                "export const x = { 'a': \"An image didn't upload. Tap it to retry or remove it.\" };\n",
+            );
+            await write(
+                root,
+                unitTest,
+                'expect(message).toBe("An image didn\'t upload. Tap it to retry or remove it.");\n',
+            );
+            git('add', '.');
+            git('commit', '-m', 'base');
+            await write(
+                root,
+                mobileLocale,
+                "export const x = { 'a': \"An image didn't upload. Tap Retry to try again or remove it.\" };\n",
+            );
+            expect(await staleLocaleCopyWarnings(root, [mobileLocale], 'HEAD')).toEqual([
+                {
+                    location: `${unitTest}:1`,
+                    fragment: "An image didn't upload. Tap it to retry or remove it",
+                },
+            ]);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
     it('stays silent for unchanged locales, non-locale files, and new locale files', async () => {
         const { root, git } = await fixture();
         try {
