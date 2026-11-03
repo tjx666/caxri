@@ -29,6 +29,7 @@ export const workbench: TranslatedNamespace<typeof source> = {
 
     'workbench.tab.closeEditor': '关闭编辑器',
     'workbench.tab.closeTerminal': '关闭终端',
+    'workbench.tab.compactingBadge': '压缩中',
     'workbench.tab.compacting': '正在压缩上下文',
     'workbench.tab.compactingTooltip': 'Agent 正在总结之前的上下文，完成后继续。',
 

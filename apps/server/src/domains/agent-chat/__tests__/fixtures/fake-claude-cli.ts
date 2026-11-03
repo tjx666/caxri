@@ -52,7 +52,8 @@
  * Under `FAKE_CLAUDE_CONTROL_DIR`, a file the test creates there turns on a failure the real CLI can produce: with
  * `drop-images`, the transcript keeps no image blocks, as when the record no longer has the original; with
  * `reject-model-change`, `set_model` answers with an error; with `plan-behind-pace`, `get_usage` reports a weekly limit
- * spent faster than an even pace; with `hold-reply`, a `think quietly` turn shows nothing until the file is removed.
+ * spent faster than an even pace; with `hold-reply`, a `think quietly` turn shows nothing until the file is removed;
+ * with `hold-compaction`, a `compact first` turn stays compacting until the file is removed.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -63,7 +64,7 @@ import readline from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
-import { didRunCompactingTurn, runCompactCommand } from './fake-claude-compaction.ts';
+import { didRunCompactionTurn, runCompactCommand } from './fake-claude-compaction.ts';
 import { didRunGoalCommand } from './fake-claude-goal.ts';
 import type { FakeClaudeIo, FakeClaudeUsage, QueuedTurn } from './fake-claude-io.ts';
 import { queuedTurn } from './fake-claude-io.ts';
@@ -468,7 +469,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
     if (await didRunApprovalScenario(scenarioIo, startedAt, text)) return;
     if (await didRunWorktreeScenario(scenarioIo, startedAt, text)) return;
     if (await didStreamTable(scenarioIo, startedAt, text)) return;
-    if (await didRunCompactingTurn(scenarioIo, startedAt, text)) return;
+    if (await didRunCompactionTurn(scenarioIo, startedAt, text, isControlled)) return;
     if (text.includes('use chrome')) {
         await streamBrowserSteps(scenarioIo);
         result(startedAt, 'done');

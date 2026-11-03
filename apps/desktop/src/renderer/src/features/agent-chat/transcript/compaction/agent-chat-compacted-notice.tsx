@@ -2,9 +2,9 @@ import type { AgentChatItem } from '@caxri/protocol';
 import { formatTokens } from '@caxri/protocol';
 import { ArrowRight, FoldVertical } from 'lucide-react';
 
-import { Tooltip } from '../../../components/ui/tooltip';
-import { useTranslation } from '../../../i18n';
-import { formatCount } from '../../../lib/locale-format';
+import { Tooltip } from '../../../../components/ui/tooltip';
+import { useTranslation } from '../../../../i18n';
+import { formatCount } from '../../../../lib/locale-format';
 
 /**
  * A compaction is a boundary in the conversation: everything above it now reaches the model only as a summary. It reads

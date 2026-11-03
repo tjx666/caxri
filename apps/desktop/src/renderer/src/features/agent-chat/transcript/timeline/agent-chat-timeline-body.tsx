@@ -26,9 +26,11 @@ import { AgentChatSettledTimeline } from '../agent-chat-settled-timeline';
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
     AGENT_CHAT_TURN_START_ATTRIBUTE,
+    agentChatCompactionInTimeline,
     agentChatTimelineEntryKey,
     agentChatTurnStartId,
 } from '../agent-chat-timeline';
+import { AgentChatCompactingNotice } from '../compaction/agent-chat-compacting-notice';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 
 /**
@@ -110,6 +112,8 @@ export function AgentChatTimelineBody({
     const servers = useAgentChatMcpServers(mcpServers);
     const skills = useAgentChatSkillHost(terminalId);
     const references = useAgentChatReferenceIndex(settledChunks, timeline);
+    // The compaction running now holds the reply's place until it ends.
+    const compaction = agentChatCompactionInTimeline(snapshot, timeline);
     return (
         <AgentChatMcpServersContext value={servers}>
             <AgentChatTerminalContext value={terminalId}>
@@ -137,6 +141,12 @@ export function AgentChatTimelineBody({
                             </AgentChatVersionsContext>
                             {isAwaitingReply && !isViewingEarlier && (
                                 <AgentChatReplyPlaceholder turnId={snapshot?.activeTurnId} />
+                            )}
+                            {compaction && !isViewingEarlier && (
+                                <AgentChatCompactingNotice
+                                    isAfterUserMessage={compaction.isAfterUserMessage}
+                                    startedAt={compaction.startedAt}
+                                />
                             )}
                             <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
                         </AgentChatEditContext>

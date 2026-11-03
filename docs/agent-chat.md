@@ -664,8 +664,14 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
   one waits; a slash command at the head during a turn still waits. A phone steers and queues the
   same way; see [Mobile](#mobile).
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
-  `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
-  `/compact` user bubble is hidden because the compaction notice already represents it.
+  `operation` to `compacting`, stamps `operationStartedAt`, and raises `compactionStarted`; input
+  sent meanwhile is queued, and a Desktop message on its way says it sends once the compaction
+  ends. Clearing `operation` clears its start. The `/compact` user bubble is hidden because the
+  compaction notice already represents it. While it runs, Desktop holds the reply's place at the
+  end of the timeline with a compacting divider (`agentChatCompactionInTimeline`) showing how long
+  it has run and, when the last message is still unanswered (and is not the `/compact` itself),
+  that the Agent reads it once the compaction ends; the `Context compacted` divider then takes
+  its place. The composer's status line shows the same elapsed time.
 
 ## Edit from here
 

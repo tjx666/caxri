@@ -23,7 +23,7 @@ describe('agentChatLiveGoalActivity', () => {
         expect(
             agentChatLiveGoalActivity(
                 { status: 'active' },
-                { kind: 'compacting', text: 'Compacting', isStoppable: true },
+                { kind: 'compacting', text: 'Compacting', isStoppable: true, startedAt: undefined },
                 false,
             ),
         ).toBeUndefined();

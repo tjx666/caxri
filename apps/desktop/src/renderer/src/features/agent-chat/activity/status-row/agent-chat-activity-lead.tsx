@@ -2,13 +2,10 @@ import type { AgentChatActivity } from '@caxri/protocol';
 import { AnimatePresence } from 'motion/react';
 import * as m from 'motion/react-m';
 
-import { useClockTick } from '@/hooks/use-clock-tick';
-
 import { Spinner } from '../../../../components/ui/spinner';
 import { useTranslation } from '../../../../i18n';
 import { stripIndicator, ToolGlyph, useLoadingStyle, WorkingBuddy } from '../../loading';
-import { elapsedTimeFigures } from '../agent-chat-elapsed-time';
-import { AgentChatRollingTime } from '../agent-chat-rolling-time';
+import { AgentChatElapsedTime } from '../agent-chat-rolling-time';
 import { STATUS_ROW_SWAP } from './agent-chat-status-row-motion';
 
 /**
@@ -34,16 +31,6 @@ function WorkingIndicatorGlyph({
         );
     }
     return <Spinner className="size-3.5 shrink-0" role="presentation" />;
-}
-
-/**
- * How long the turn has run, its digits rolling forward like a clock's every second (`elapsedTimeFigures`).
- */
-function ElapsedTime({ startedAt }: { startedAt: number }) {
-    const { t } = useTranslation();
-    const figures = elapsedTimeFigures(useClockTick('second') - startedAt, t);
-    if (!figures) return null;
-    return <AgentChatRollingTime data-agent-chat-elapsed-time="" figures={figures} />;
 }
 
 /**
@@ -80,8 +67,8 @@ export function AgentChatActivityLead({
                     </m.span>
                 </AnimatePresence>
             </span>
-            {activity.kind === 'working' && activity.startedAt !== undefined && (
-                <ElapsedTime startedAt={activity.startedAt} />
+            {activity.kind !== 'starting' && activity.startedAt !== undefined && (
+                <AgentChatElapsedTime startedAt={activity.startedAt} />
             )}
         </span>
     );

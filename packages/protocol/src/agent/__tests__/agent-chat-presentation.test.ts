@@ -293,6 +293,7 @@ describe('agentChatActivity while compacting', () => {
             kind: 'compacting',
             text: 'Compacting context…',
             isStoppable: false,
+            startedAt: undefined,
         });
         expect(
             agentChatActivity(
@@ -300,6 +301,15 @@ describe('agentChatActivity while compacting', () => {
                 'Claude',
             ),
         ).toMatchObject({ kind: 'compacting', isStoppable: true });
+    });
+
+    it('carries when the compaction started, so the status line can show how long it has run', () => {
+        expect(
+            agentChatActivity(
+                { ...snapshot('ready'), operation: 'compacting', operationStartedAt: 1000 },
+                'Claude',
+            ),
+        ).toMatchObject({ kind: 'compacting', startedAt: 1000 });
     });
 });
 

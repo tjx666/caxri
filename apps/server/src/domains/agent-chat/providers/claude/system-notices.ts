@@ -64,7 +64,9 @@ function didClearCompacting(host: NoticeHost): boolean {
 export function onClaudeStatus(host: NoticeHost, message: Json): void {
     if (message.status === 'compacting') {
         if (host.read().operation === 'compacting') return;
-        host.apply([{ op: 'state', state: { operation: 'compacting' } }]);
+        host.apply([
+            { op: 'state', state: { operation: 'compacting', operationStartedAt: Date.now() } },
+        ]);
         host.lifecycle({ phase: 'compactionStarted' });
         return;
     }
