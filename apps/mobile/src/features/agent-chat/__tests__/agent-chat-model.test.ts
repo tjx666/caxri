@@ -26,7 +26,32 @@ import {
     isAgentChatStopping,
     isAgentChatTerminal,
     shouldShowAgentChatStaleNotice,
+    shouldWithholdSavedAgentChat,
 } from '../agent-chat-model';
+
+describe('shouldWithholdSavedAgentChat', () => {
+    it('waits briefly for the live read instead of drawing the saved copy while connected', () => {
+        expect(
+            shouldWithholdSavedAgentChat({ isGraceOver: false, isObservable: true, savedAt: 1 }),
+        ).toBe(true);
+    });
+
+    it('draws the saved copy offline, after the grace, or when there is none', () => {
+        expect(
+            shouldWithholdSavedAgentChat({ isGraceOver: false, isObservable: false, savedAt: 1 }),
+        ).toBe(false);
+        expect(
+            shouldWithholdSavedAgentChat({ isGraceOver: true, isObservable: true, savedAt: 1 }),
+        ).toBe(false);
+        expect(
+            shouldWithholdSavedAgentChat({
+                isGraceOver: false,
+                isObservable: true,
+                savedAt: undefined,
+            }),
+        ).toBe(false);
+    });
+});
 
 describe('shouldShowAgentChatStaleNotice', () => {
     it('reports only a failed read, not a Chat another screen covers', () => {

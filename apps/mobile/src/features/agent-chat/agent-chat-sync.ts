@@ -54,6 +54,16 @@ export const startAgentChatReader = ({
     let handle: AgentChatSubscription | null = null;
     let poll: ReturnType<typeof setInterval> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * A failed read retried while the subscription is the only source. An idle Chat sends no patch or change hint, so a
+     * read that failed as the connection came back (the request raced the reconnect) left the saved copy and its "could
+     * not be updated" notice up until the reader tapped Retry.
+     */
+    let readRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * Whether the latest read in this drain failed, so `readLatest` schedules the retry.
+     */
+    let hasReadFailed = false;
     const convergence = createRevisionConvergence<AgentChatPatch, AgentChatSnapshot>({
         apply: applyAgentChatPatch,
     });
@@ -75,6 +85,7 @@ export const startAgentChatReader = ({
      */
     const isCurrent = (): boolean => isActive;
     const hasQueuedRead = (): boolean => isReadAgain;
+    const didReadFail = (): boolean => hasReadFailed;
 
     /**
      * Reads are serialized so held patches replay onto one base; a read requested meanwhile runs after this one.
@@ -85,6 +96,7 @@ export const startAgentChatReader = ({
         try {
             const result = await read();
             if (!isCurrent()) return;
+            hasReadFailed = false;
             if (shouldAdoptRead(snapshot, result)) {
                 snapshot = result;
                 onSnapshot(result);
@@ -92,7 +104,10 @@ export const startAgentChatReader = ({
             if (requiresRead(convergence.settleRead(snapshot))) isReadAgain = true;
         } catch {
             convergence.abandonRead();
-            if (isCurrent()) onError();
+            if (isCurrent()) {
+                hasReadFailed = true;
+                onError();
+            }
         }
         if (isCurrent() && hasQueuedRead()) await drainReads();
     };
@@ -104,11 +119,18 @@ export const startAgentChatReader = ({
             return;
         }
         isReading = true;
+        hasReadFailed = false;
         try {
             await drainReads();
         } finally {
             isReading = false;
         }
+        // Polling already reads again on its own interval; otherwise one timer reads again after a failure.
+        if (poll !== null || readRetryTimer !== null || !isCurrent() || !didReadFail()) return;
+        readRetryTimer = setTimeout(() => {
+            readRetryTimer = null;
+            void readLatest();
+        }, POLL_INTERVAL_MS);
     };
 
     const onPatch = (payload: unknown): void => {
@@ -175,5 +197,6 @@ export const startAgentChatReader = ({
         if (handle) release(handle);
         if (poll !== null) clearInterval(poll);
         if (retryTimer !== null) clearTimeout(retryTimer);
+        if (readRetryTimer !== null) clearTimeout(readRetryTimer);
     };
 };

@@ -29,6 +29,7 @@ import {
     stampUsageContinuations,
 } from './continuation/usage-continuation-stamp';
 import { ChatHistoryArchive } from './history/archive';
+import { chatHistoryIdentity, isSameChatHistory } from './history/replay-identity';
 import { ChatPathTargets } from './path-targets/path-targets';
 import { ChatTaskProjections } from './tasks/projections';
 
@@ -474,6 +475,10 @@ export class ChatProjection {
          * only the part the projection keeps, and the rest waits in the archive for `agentChat.readHistory`.
          */
         const evictedInBatch = new Set<string>();
+        const replaced = isReplacement
+            ? chatHistoryIdentity(this.snapshot, this.history.ids())
+            : undefined;
+        let replacementState: { op: 'state'; state: { historyId: string } } | undefined;
         for (const original of stamped) {
             const operation = this.withoutArchivedTurns(original);
             const before = this.snapshot;
@@ -481,12 +486,9 @@ export class ChatProjection {
             applied.push(operation);
             if (operation.op === 'reset') {
                 this.history.clear();
-                const historyId = randomUUID();
-                this.snapshot = applyAgentChatOperation(this.snapshot, {
-                    op: 'state',
-                    state: { historyId },
-                });
-                applied.push({ op: 'state', state: { historyId } });
+                replacementState = { op: 'state', state: { historyId: randomUUID() } };
+                this.snapshot = applyAgentChatOperation(this.snapshot, replacementState);
+                applied.push(replacementState);
                 continue;
             }
             for (const item of this.history.recordEviction(before, this.snapshot))
@@ -494,6 +496,16 @@ export class ChatProjection {
             // The provider loaded only part of its history; the rest is in its own record.
             if (original.op === 'state' && original.state.truncated === true)
                 this.history.isIncomplete = true;
+        }
+        const keptHistoryId = replaced?.historyId;
+        if (
+            replaced &&
+            keptHistoryId !== undefined &&
+            replacementState &&
+            isSameChatHistory(replaced, chatHistoryIdentity(this.snapshot, this.history.ids()))
+        ) {
+            replacementState.state.historyId = keptHistoryId;
+            this.snapshot = { ...this.snapshot, historyId: keptHistoryId };
         }
         if (this.snapshot.tasks !== previousTasks) {
             this.logFinishedTasks(previousTasks ?? []);
