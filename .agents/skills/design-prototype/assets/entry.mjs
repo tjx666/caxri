@@ -18,6 +18,8 @@ import * as motionReact from 'motion/react';
 import * as tailwindMerge from 'tailwind-merge';
 import * as zustand from 'zustand';
 
+import { draculaTheme } from '@caxri/protocol';
+
 import * as AnimatedNumber from '@/components/animated-number';
 import * as ShortcutBadge from '@/components/shortcut-badge';
 import * as Alert from '@/components/ui/alert';
@@ -72,7 +74,16 @@ import * as useStartupLoaderRemoval from '@/hooks/use-startup-loader-removal';
 import * as useSystemColorScheme from '@/hooks/use-system-color-scheme';
 import * as useWorkbenchAppearance from '@/hooks/use-workbench-appearance';
 import * as motionLib from '@/lib/motion';
+import { applyCssTheme } from '@/lib/theme-css';
 import * as utilities from '@/lib/utilities';
+
+/**
+ * `theme.css` holds only the static Dracula palette. Production derives the rest at runtime in `applyCssTheme`
+ * (`--switch-thumb`, `--switch-thumb-off`, `--diff-stat-*`, readable foregrounds), so without this call every Switch
+ * thumb renders transparent and the control reads as a blank pill. Apply the default dark theme the same way
+ * `useWorkbenchAppearance` does.
+ */
+applyCssTheme(draculaTheme);
 
 export default {
     'react': React,
