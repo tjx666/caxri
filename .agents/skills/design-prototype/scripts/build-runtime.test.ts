@@ -35,6 +35,15 @@ describe('design-prototype runtime manifest', () => {
             );
         }
     });
+
+    /**
+     * `theme.css` carries only the static palette; production derives `--switch-thumb` and friends in `applyCssTheme`.
+     * Without this call every Switch in a prototype renders as a thumbless pill.
+     */
+    it('applies the default theme the way production does', async () => {
+        const entry = await readFile(path.join(skillDirectory, 'assets/entry.mjs'), 'utf8');
+        expect(entry).toContain('applyCssTheme(draculaTheme);');
+    });
 });
 
 describe('design-prototype runtime bundling', () => {

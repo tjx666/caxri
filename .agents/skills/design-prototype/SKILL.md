@@ -45,6 +45,9 @@ per prototype (no build): single HTML  =  <script runtime + theme> + @tailwindcs
   compiles the prototype's utility classes at runtime, including the `@theme inline` token
   bridge, so `bg-surface` resolves to the live Dracula tokens and `bg-blue-500` fails to compile,
   exactly like production.
+- At load the runtime calls `applyCssTheme(draculaTheme)`, as production's `useWorkbenchAppearance`
+  does, so the tokens production derives at runtime (`--switch-thumb`, `--switch-thumb-off`,
+  `--diff-stat-*`, readable foregrounds) exist; `theme.css` alone leaves every Switch thumbless.
 - A small `window.require` shim + babel's `transform-modules-commonjs` lets the prototype keep
   real `import` statements, and a registered TSX preset keeps TypeScript syntax working in the
   inline script.
@@ -89,7 +92,8 @@ bun run .agents/skills/design-prototype/scripts/verify-prototype.ts /tmp/my-prot
 ```
 
 The script exits 1 on any page/console error and waits for a `bg-surface` probe to resolve
-(Tailwind finished compiling) instead of sleeping.
+(Tailwind finished compiling) instead of sleeping. It also fails when `--switch-thumb` is unset,
+which means the runtime in the prototype's directory is stale: rebuild it.
 
 Then **Read the screenshot**: a prototype is a visual deliverable; don't ship it sight-unseen.
 Click through every interactive state (the toggle strip, dialogs, menus) and screenshot the key
@@ -109,6 +113,9 @@ build script (~2s). That error is the "extend and rebuild" signal, not a templat
 
 ## Pitfalls
 
+- The runtime writes the theme as inline styles on `<html>`, so a `<style>:root { --accent: … }`
+  override silently loses. Override a token with
+  `document.documentElement.style.setProperty('--accent', …)` instead.
 - **Keep `import React from 'react'` in the prototype** even when unused: babel-standalone's
   react preset uses the classic JSX runtime. (The bundled runtime itself compiles with
   `--jsx=automatic`; that flag is already in the build script.)

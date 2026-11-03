@@ -49,6 +49,16 @@ await page.waitForFunction(
     undefined,
     { timeout: 15_000 },
 );
+// `theme.css` lacks the tokens production derives in `applyCssTheme`; an empty `--switch-thumb` means the runtime
+// skipped that step and every Switch renders as a thumbless pill.
+const switchThumb = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--switch-thumb').trim(),
+);
+if (!switchThumb) {
+    errors.push(
+        'runtime-derived theme tokens are missing (--switch-thumb is unset): rebuild the runtime with `bun run .agents/skills/design-prototype/scripts/build-runtime.ts <prototype-dir>`',
+    );
+}
 await page.screenshot({ path: screenshotPath });
 await browser.close();
 
