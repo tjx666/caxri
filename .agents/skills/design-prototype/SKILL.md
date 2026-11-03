@@ -124,6 +124,12 @@ build script (~2s). That error is the "extend and rebuild" signal, not a templat
 - **Keep the `TooltipProvider` wrapper** from the template (production wraps the whole tree in it,
   `app.tsx`). `CommandTooltip`'s shortcut hint resolves to nothing in a prototype: there is no
   keybinding bootstrap; use plain `Tooltip` content instead.
+- A Tooltip opens only after `TOOLTIP_OPEN_DELAY_MS` (1500 ms), as in production. To screenshot
+  one, hover and wait for `.tooltip-popup` to be visible with a timeout above that delay; a 700 ms
+  sleep captured no tooltip.
+- A `file://` prototype cannot load a local CSS `mask` URL (Chrome blocks it as cross-origin),
+  even though `<img src="./icons/x.svg">` works. Mask assets such as the Grok Agent icon
+  (`agent-icon-registry.ts`, `kind: 'mask-asset'`) need a `data:image/svg+xml,...` URL instead.
 - **Only semantic color utilities compile** (`bg-surface`, `text-muted`, `bg-accent`,
   `border-border`, `text-danger`, `bg-[var(--selection)]`), the default palette is unregistered,
   so `bg-zinc-800` silently produces no CSS. An unstyled-looking element usually means a non-token
