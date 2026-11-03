@@ -48,7 +48,8 @@ function* turnItems(entry: TurnEntry) {
 
 /**
  * The fold's `Worked for 2m 1s` toggle. Pointing at the row reveals, at its end, how many subagents the turn started
- * and what it spent: steps, tokens, estimated cost, and output rate. A subagent still running keeps its count in view.
+ * and what it spent: steps, tokens, estimated cost, and output rate. A subagent still running stays hover-only too: the
+ * Background work strip already keeps live work in view, so the settled transcript stays quiet.
  */
 function TurnFoldHeader({
     detailId,
@@ -82,7 +83,6 @@ function TurnFoldHeader({
     const { t } = useTranslation();
     const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
     const rate = agentChatTurnRate(metrics, t);
-    const isSubagentRunning = subagents.some((subagent) => subagent.isRunning);
     const toggleButton = (
         <button
             aria-controls={detailId}
@@ -128,7 +128,7 @@ function TurnFoldHeader({
                 toggleButton
             )}
             {subagents.length > 0 && (
-                <span className={cn('flex', !isSubagentRunning && REVEAL_CLASS_NAME)}>
+                <span className={cn('flex', REVEAL_CLASS_NAME)}>
                     <AgentChatTurnSubagents
                         subagents={subagents}
                         onOpen={onOpenSubagent}
