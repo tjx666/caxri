@@ -43,3 +43,17 @@ flicker or one-frame flash; otherwise declare a sampling rate and retain the ori
 contact sheet is a review index, not temporal evidence, and a video alone does not prove which touch
 was delivered. Pair it with the sanitized semantic command and observed postcondition from
 [the Android surface](../surfaces/android.md).
+
+Treat a `screenrecord` file as variable frame rate: it writes a frame only when the screen changes,
+so a static second has no frames. Take every `check` or `flag` time and any transient-duration claim
+from real frame timestamps, not an `fps=N` contact sheet (which duplicates frames into the gaps) or
+a seeked still. A button label change in one round was charted about a second early this way. List
+the timestamps, then tile exactly those frames:
+
+```bash
+ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 "$VIDEO"
+ffmpeg -i "$VIDEO" -vf "select='between(t,14.1,15.6)',scale=200:-1,tile=12x1" \
+  -fps_mode passthrough -frames:v 1 frames.png
+```
+
+A `step` time may still come from the driver's logged marks.
