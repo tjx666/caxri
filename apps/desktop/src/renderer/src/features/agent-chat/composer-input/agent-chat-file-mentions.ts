@@ -5,13 +5,14 @@ import type { SessionReferenceCandidate } from '../../session/session-reference'
 import { agentChatSessionSuggestion } from './agent-chat-suggestions';
 
 /**
- * Most Project files the `@` list shows at once; the Sessions group below it keeps its own cap.
+ * Most Project files the `@` list shows at once; the Sessions group above it keeps its own cap.
  */
 export const MAX_AGENT_CHAT_FILE_MENTIONS = 8;
 
 /**
- * Which group a row of the `@` list belongs to. Files come first, then Sessions. Completing workspace files from `@`
- * inside the Chat composer follows T3 Code's composer, which offers workspace paths on the same trigger.
+ * Which group a row of the `@` list belongs to. Sessions come first, then files: a Session title the query matches is a
+ * deliberate pick, while a file-name substring match is often incidental. Completing workspace files from `@` inside
+ * the Chat composer follows T3 Code's composer, which offers workspace paths on the same trigger.
  */
 export type AgentChatMentionGroup = 'files' | 'sessions';
 
@@ -69,14 +70,14 @@ export function agentChatFileSuggestion(relativePath: string): SuggestionOption 
 
 /**
  * The group heading a row of the merged `@` list starts, or `undefined` when it continues the group above it. Rows are
- * the `fileCount` files first, then the Sessions.
+ * the `sessionCount` Sessions first, then the files.
  */
 export function agentChatMentionHeadingAt(
-    fileCount: number,
+    sessionCount: number,
     index: number,
 ): AgentChatMentionGroup | undefined {
-    if (index === 0) return fileCount > 0 ? 'files' : 'sessions';
-    return index === fileCount ? 'sessions' : undefined;
+    if (index === 0) return sessionCount > 0 ? 'sessions' : 'files';
+    return index === sessionCount ? 'files' : undefined;
 }
 
 /**
@@ -86,15 +87,15 @@ export type AgentChatMentionRow =
     { kind: 'file'; path: string } | { kind: 'session'; candidate: SessionReferenceCandidate };
 
 /**
- * The merged list's rows in order: the files, then the Sessions.
+ * The merged list's rows in order: the Sessions, then the files.
  */
 export function agentChatMentionRows(
-    files: readonly string[],
     candidates: readonly SessionReferenceCandidate[],
+    files: readonly string[],
 ): AgentChatMentionRow[] {
     return [
-        ...files.map((path) => ({ kind: 'file' as const, path })),
         ...candidates.map((candidate) => ({ kind: 'session' as const, candidate })),
+        ...files.map((path) => ({ kind: 'file' as const, path })),
     ];
 }
 

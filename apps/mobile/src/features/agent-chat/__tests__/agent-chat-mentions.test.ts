@@ -21,7 +21,7 @@ describe('agentChatMentionToken', () => {
 });
 
 describe('agentChatMentionRows', () => {
-    it('lists capped files with their folder, then Sessions with their Project', () => {
+    it('lists Sessions with their Project, then capped files with their folder', () => {
         const paths = Array.from({ length: 10 }, (_, index) => `src/f${index}.ts`);
         const rows = agentChatMentionRows(
             ['README.md', ...paths],
@@ -29,25 +29,25 @@ describe('agentChatMentionRows', () => {
         );
         expect(rows).toHaveLength(MAX_AGENT_CHAT_FILE_MENTIONS + 1);
         expect(rows[0]).toEqual({
-            kind: 'file',
-            directory: '',
-            name: 'README.md',
-            path: 'README.md',
-        });
-        expect(rows[1]).toEqual({
-            kind: 'file',
-            directory: 'src',
-            name: 'f0.ts',
-            path: 'src/f0.ts',
-        });
-        expect(rows.at(-1)).toEqual({
             kind: 'session',
             projectTitle: 'Demo',
             sessionId: 's1',
             title: 'Fix login',
         });
+        expect(rows[1]).toEqual({
+            kind: 'file',
+            directory: '',
+            name: 'README.md',
+            path: 'README.md',
+        });
+        expect(rows[2]).toEqual({
+            kind: 'file',
+            directory: 'src',
+            name: 'f0.ts',
+            path: 'src/f0.ts',
+        });
         expect(
             rows.map((_, index) => agentChatMentionHeading(rows, index)).filter(Boolean),
-        ).toEqual(['file', 'session']);
+        ).toEqual(['session', 'file']);
     });
 });

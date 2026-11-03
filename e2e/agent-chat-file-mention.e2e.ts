@@ -16,7 +16,7 @@ import {
 } from './support/helpers.ts';
 
 /**
- * The Chat composer's `@` list offers a `Files` group of Project files beside the `Sessions` group
+ * The Chat composer's `@` list offers a `Files` group of Project files below the `Sessions` group
  * (`use-agent-chat-session-menu.ts`); the file search is the Server's name-mode `files.search`.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
@@ -53,18 +53,20 @@ test('typing @ in Agent Chat completes Project files and inserts a Project-relat
         await expect(message).toBeVisible();
 
         await message.fill('read @invoice');
-        const list = chat.getByRole('listbox', { name: 'Files and Sessions' });
+        const list = chat.getByRole('listbox', { name: 'Sessions and Files' });
         await expect(list.getByText('Files', { exact: true })).toBeVisible();
         await expect(list.getByText('Sessions', { exact: true })).toBeVisible();
-        // Files come first in quick open's ranking (the shallower path leads an equal name match), then the Session.
+        // The Session comes first, then the files in quick open's ranking (the shallower path leads an equal name
+        // match).
         await expect(list.getByRole('option')).toHaveCount(3);
-        await expect(list.getByRole('option').first()).toContainText('invoice notes.md');
-        await expect(list.getByRole('option').nth(1)).toContainText('invoice-totals.ts');
-        await expect(list.getByRole('option').nth(1)).toContainText('src/billing');
-        await expect(list.getByRole('option').nth(2)).toContainText('Invoice review plan');
+        await expect(list.getByRole('option').first()).toContainText('Invoice review plan');
+        await expect(list.getByRole('option').nth(1)).toContainText('invoice notes.md');
+        await expect(list.getByRole('option').nth(2)).toContainText('invoice-totals.ts');
+        await expect(list.getByRole('option').nth(2)).toContainText('src/billing');
         await page.screenshot({ path: testInfo.outputPath('chat-file-mention.png') });
 
         // A path with whitespace is quoted so the mention does not end at the space.
+        await message.press('ArrowDown');
         await message.press('Enter');
         await expect(list).toHaveCount(0);
         await expectComposerValue(message, 'read @"docs/invoice notes.md" ');

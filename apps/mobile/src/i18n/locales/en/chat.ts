@@ -82,7 +82,7 @@ export const chat = {
     'chat.dock.expand': 'Show the goal, activity, and queue rows',
     'chat.mentions.fileHint': 'Adds the file to your message.',
     'chat.mentions.files': 'Files',
-    'chat.mentions.label': 'Files and Sessions',
+    'chat.mentions.label': 'Sessions and Files',
     'chat.mentions.noMatch': 'No matching file or Session',
     'chat.mentions.searchFailed': 'File search is unavailable right now.',
     'chat.mentions.sessionFailed': 'Could not cite {{title}}.',

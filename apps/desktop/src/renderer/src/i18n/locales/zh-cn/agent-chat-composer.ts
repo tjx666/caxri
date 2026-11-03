@@ -139,7 +139,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.slash.skillsNeedAgent': 'Agent 运行后才会显示 Skill',
     'agentChat.slash.loadingSkills': '正在加载 Skill…',
     'agentChat.slash.files': '文件',
-    'agentChat.slash.mentions': '文件和会话',
+    'agentChat.slash.mentions': '会话和文件',
     'agentChat.slash.sessions': '会话',
     'agentChat.slash.keyHintCite': '引用',
     'agentChat.slash.keyHintComplete': '补全',
