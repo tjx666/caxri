@@ -25,6 +25,7 @@ describe('Benchmark window policy', () => {
             'agent.delegation.statuses',
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
+            'agent.delegation.cancelScheduledRetry',
         ])
             expect(() => admitBenchmarkWindowRequest(request(method), onDenied)).toThrow(
                 expect.objectContaining({ code: 'FORBIDDEN' }),
@@ -38,6 +39,7 @@ describe('Benchmark window policy', () => {
             ['agent.delegation.statuses'],
             ['agent.delegation.retryOptions'],
             ['agent.delegation.retry'],
+            ['agent.delegation.cancelScheduledRetry'],
         ]);
     });
 

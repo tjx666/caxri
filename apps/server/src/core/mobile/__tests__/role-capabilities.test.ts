@@ -35,6 +35,7 @@ describe('mobile role capabilities', () => {
                 'agent.delegation.statuses',
                 'agent.delegation.retryOptions',
                 'agent.delegation.retry',
+                'agent.delegation.cancelScheduledRetry',
             ] as const)
                 expect(isMobileGatewayMethodAllowedForRole(role, method)).toBe(false);
     });

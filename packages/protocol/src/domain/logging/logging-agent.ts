@@ -172,15 +172,26 @@ export const agentDelegationLogEvents = {
      * The owner asked to retry a failed task now (`agent.delegation.retry`). `fields.mode` is `resume` or `fresh`,
      * `fields.failure` the failed task's failure, `fields.outcome` a closed enum (`started`: a new task was admitted,
      * `shared`: the same request again returned the task it started, or one of `refused_*`, the refusal reason), and
-     * `fields.chainDepth` how many retries precede this one. IDs and enums only, never the prompt.
+     * `fields.toProvider` the Agent a switched retry runs on (null otherwise), and `fields.chainDepth` how many retries
+     * precede this one. IDs and enums only, never the prompt.
      */
     retryRequested: 'agent_delegation.retry_requested',
     /**
      * The delegating Agent was told its failed task was retried (once per retry). `fields.outcome` is `sent`,
      * `caller_gone`, `agent_not_running`, `rejected`, or `failed`; a delivery the Host refused after admitting it is
-     * logged again as `rejected`. IDs and enums only, never the notice text.
+     * logged again as `rejected`. `fields.kind` is `retried` or `schedule_refused` (a scheduled retry that did not
+     * run). IDs and enums only, never the notice text.
      */
     retryNotice: 'agent_delegation.retry_notice',
+    /**
+     * A scheduled retry changed state. `fields.outcome` is a closed enum: `scheduled`, `cancelled`, `fired` (the retry
+     * started), `refused_at_fire` (with `fields.reason`, a `DelegationRetryScheduleOutcome`), `missed_window`,
+     * `restored` (logged once per start with `fields.pending` and `fields.overdue` counts), `session_gone`,
+     * `human_input_cancelled`, or `successor_found` (crash recovery found the successor already stored). `lateMs` is
+     * how long after its time the fire ran, `waitMs` how long the schedule waits when it is made. IDs, enums, and
+     * numbers only, never the task.
+     */
+    retrySchedule: 'agent_delegation.retry_schedule',
 } as const;
 
 export const agentDispatchLogEvents = {

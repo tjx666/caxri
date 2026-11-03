@@ -2,11 +2,14 @@ import type {
     AgentDelegationReceipt,
     AgentDelegationSession,
     AgentProvider,
+    DelegationRetryScheduleOutcome,
 } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { localizedLimitReset } from '../../lib/usage-format';
+import { isDelegationRetryPending } from './delegation-feed';
+import { formatRetryTime } from './delegation-retry-time';
 
 type AgentDelegationFailure = NonNullable<AgentDelegationReceipt['failure']>;
 type AgentDelegationStatus = AgentDelegationReceipt['status'];
@@ -23,15 +26,25 @@ export interface DelegationCopyInput {
      */
     failureResetsAt?: number;
     provider?: AgentProvider;
+    /**
+     * The reserved successor of a retry claim and, while a scheduled retry is pending, the time it runs. Together they
+     * mean "retry scheduled"; `retriedAs` alone is a retry that started.
+     */
+    retriedAs?: string;
+    retryScheduledFor?: number;
+    /**
+     * Why the last scheduled retry did not run, folded into the failure's detail line.
+     */
+    retryScheduleOutcome?: DelegationRetryScheduleOutcome;
     status?: AgentDelegationStatus;
 }
 
 /**
  * Which status glyph a task wears, in the sidebar's shapes: an amber question mark for a task that needs the user, the
- * running arc while it works, a red cross for a failure, and the ordinary Agent glyph for everything else (completed,
- * stopped, taken over, finished without a readable result).
+ * running arc while it works, a red cross for a failure, a muted clock for a failure whose retry is scheduled, and the
+ * ordinary Agent glyph for everything else (completed, stopped, taken over, finished without a readable result).
  */
-export type DelegationGlyph = 'failed' | 'needsInput' | 'ordinary' | 'running';
+export type DelegationGlyph = 'failed' | 'needsInput' | 'ordinary' | 'running' | 'waiting';
 
 /**
  * What the row offers beyond its own click target. The only action is opening the child Session, and only where the
@@ -248,8 +261,31 @@ export function delegationCopy(
             headline: t('delegation.copy.completed'),
             primaryAction: 'none',
         };
-    const copy = (failure && failureCopy(failure, input, now, t)) ?? statusCopy(status, t);
+    if (status === 'failed' && isDelegationRetryPending(input))
+        return {
+            glyph: 'waiting',
+            headline: t('delegation.copy.retryPending', {
+                time: formatRetryTime(input.retryScheduledFor!, now, t),
+            }),
+            primaryAction: 'none',
+        };
+    const base = (failure && failureCopy(failure, input, now, t)) ?? statusCopy(status, t);
+    const copy = withScheduleOutcome(base, input.retryScheduleOutcome, t);
     return { ...copy, primaryAction: isOpenSessionAsked(copy, status) ? 'openSession' : 'none' };
+}
+
+/**
+ * Folds a refused scheduled retry into the failure's own detail line, so the refusal stays with the failure until the
+ * user acts on it and no separate notice row exists.
+ */
+function withScheduleOutcome(
+    copy: Omit<DelegationCopy, 'primaryAction'>,
+    outcome: DelegationRetryScheduleOutcome | undefined,
+    t: Translate,
+): Omit<DelegationCopy, 'primaryAction'> {
+    if (outcome === undefined) return copy;
+    const refusal = t(`delegation.retry.outcome.${outcome}`);
+    return { ...copy, detail: copy.detail ? `${copy.detail} · ${refusal}` : refusal };
 }
 
 /**
@@ -286,9 +322,17 @@ function statusCopy(
  * The input a feed entry gives {@link delegationCopy}.
  */
 export function delegationCopyInput(
-    entry: Pick<AgentDelegationSession, 'failure' | 'failureResetsAt' | 'provider' | 'status'>,
+    entry: Pick<AgentDelegationSession, 'failure' | 'failureResetsAt' | 'provider' | 'status'> &
+        Partial<
+            Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor' | 'retryScheduleOutcome'>
+        >,
 ): DelegationCopyInput {
     return {
+        ...(entry.retriedAs && { retriedAs: entry.retriedAs }),
+        ...(entry.retryScheduledFor !== undefined && {
+            retryScheduledFor: entry.retryScheduledFor,
+        }),
+        ...(entry.retryScheduleOutcome && { retryScheduleOutcome: entry.retryScheduleOutcome }),
         ...(entry.failure && { failure: entry.failure }),
         ...(entry.failureResetsAt !== undefined && { failureResetsAt: entry.failureResetsAt }),
         ...(entry.provider && { provider: entry.provider }),

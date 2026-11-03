@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentDelegationReceipt } from '@caxri/protocol';
+import type { AgentDelegationReceipt, DelegationRetryReply } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { onTestFinished, vi } from 'vitest';
 
@@ -158,3 +158,12 @@ export const reasonOf = async (promise: Promise<unknown>) => {
     }
     return;
 };
+
+/**
+ * Narrows a retry reply to the task it started; a scheduled reply fails the test.
+ */
+export function started(reply: DelegationRetryReply) {
+    if (reply.status !== 'started')
+        throw new Error(`Expected a started retry, got ${reply.status}`);
+    return reply;
+}

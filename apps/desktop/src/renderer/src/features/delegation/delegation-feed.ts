@@ -58,17 +58,31 @@ const NON_FAILURE_FAILURES: ReadonlySet<AgentDelegationFailure> = new Set([
 ]);
 
 /**
+ * Whether a failed task has a scheduled retry waiting for its time (`retryScheduledFor`). The task itself stays failed
+ * and nothing runs, but the user has handled it: it reads as waiting, not as a failure. `retriedAs` is then the
+ * reserved successor, so a reader of `retriedAs` alone would mistake the wait for a started retry.
+ */
+export function isDelegationRetryPending(
+    entry: Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor'>,
+): boolean {
+    return entry.retryScheduledFor !== undefined && entry.retriedAs !== undefined;
+}
+
+/**
  * Whether the newest delegation that runs in a Session ended in a real failure: status `failed` with a failure that is
  * not in {@link NON_FAILURE_FAILURES}. `interrupted` is a task someone stopped or a restart cut short,
  * `human_intervened` means the user took over, and `answer_unavailable` is a finished turn whose answer could not be
- * collected; none of those is the Agent failing at the task.
+ * collected; none of those is the Agent failing at the task. A failure with a pending scheduled retry is waiting, not
+ * failed ({@link isDelegationRetryPending}).
  */
 export function isDelegationFailed(
-    entry: Pick<AgentDelegationSession, 'failure' | 'status'>,
+    entry: Pick<AgentDelegationSession, 'failure' | 'status'> &
+        Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor'>>,
 ): boolean {
     return (
         entry.status === 'failed' &&
-        (entry.failure === undefined || !NON_FAILURE_FAILURES.has(entry.failure))
+        (entry.failure === undefined || !NON_FAILURE_FAILURES.has(entry.failure)) &&
+        !isDelegationRetryPending(entry)
     );
 }
 
@@ -180,7 +194,8 @@ function attemptNumber(
  */
 export function failedDelegationSessionIds(
     entries: ReadonlyArray<
-        Pick<AgentDelegationSession, 'failure' | 'retriedAs' | 'sessionId' | 'status'>
+        Pick<AgentDelegationSession, 'failure' | 'retriedAs' | 'sessionId' | 'status'> &
+            Partial<Pick<AgentDelegationSession, 'retryScheduledFor'>>
     >,
 ): string[] {
     return entries
@@ -190,21 +205,28 @@ export function failedDelegationSessionIds(
 }
 
 /**
- * How many delegated Sessions a header counts as needing the user and as failed. A task waiting on a question or a
- * permission (`isDelegationNeedsInput`) and a task that failed (`isDelegationFailed`) are separate counts; an
- * `answer_unavailable` task is neither, because its work may be done. Pass the collapsed list (`collapseRetryChains`)
- * so a retried failure no longer counts.
+ * How many delegated Sessions a header counts as needing the user, as failed, and as waiting for a scheduled retry. A
+ * task waiting on a question or a permission (`isDelegationNeedsInput`), a task that failed (`isDelegationFailed`), and
+ * a failure whose retry is scheduled (`isDelegationRetryPending`) are separate counts; an `answer_unavailable` task is
+ * none of them, because its work may be done. Pass the collapsed list (`collapseRetryChains`) so a retried failure no
+ * longer counts. A pending retry survives the collapse (its successor does not exist yet), so it is counted here as
+ * waiting, never as failed.
  */
 export function delegationAttentionCounts(
-    entries: ReadonlyArray<Pick<AgentDelegationSession, 'failure' | 'status'>>,
-): { failed: number; needsInput: number } {
+    entries: ReadonlyArray<
+        Pick<AgentDelegationSession, 'failure' | 'status'> &
+            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor'>>
+    >,
+): { failed: number; needsInput: number; waiting: number } {
     let failed = 0;
     let needsInput = 0;
+    let waiting = 0;
     for (const entry of entries) {
-        if (isDelegationFailed(entry)) failed += 1;
+        if (entry.status === 'failed' && isDelegationRetryPending(entry)) waiting += 1;
+        else if (isDelegationFailed(entry)) failed += 1;
         else if (isDelegationNeedsInput(entry)) needsInput += 1;
     }
-    return { failed, needsInput };
+    return { failed, needsInput, waiting };
 }
 
 /**

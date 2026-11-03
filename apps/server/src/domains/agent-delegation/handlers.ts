@@ -15,6 +15,7 @@ type DelegationMethod =
     | 'agent.delegation.statuses'
     | 'agent.delegation.retryOptions'
     | 'agent.delegation.retry'
+    | 'agent.delegation.cancelScheduledRetry'
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
@@ -61,8 +62,12 @@ export function createDelegationHandlers(
          * Owner-only (enforced from the method spec before this runs). The retry runs as the failed task's own Agent
          * identity, never the caller's; see `DelegationRetries`.
          */
-        'agent.delegation.retryOptions': ({ delegationId }) => service.retryOptions(delegationId),
-        'agent.delegation.retry': ({ delegationId, mode }) => service.retry(delegationId, mode),
+        'agent.delegation.retryOptions': ({ delegationId }) =>
+            service.retries.options(delegationId),
+        'agent.delegation.retry': ({ delegationId, mode, scheduleAt, provider }) =>
+            service.retries.retry(delegationId, mode, scheduleAt, provider),
+        'agent.delegation.cancelScheduledRetry': ({ delegationId }) =>
+            service.retries.cancelScheduled(delegationId),
         'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({
             projectId,

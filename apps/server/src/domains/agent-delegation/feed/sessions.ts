@@ -93,6 +93,12 @@ export function delegationSessions(
                 ...(receipt.settledAt !== undefined && { settledAt: receipt.settledAt }),
                 ...(receipt.retryOf && { retryOf: receipt.retryOf }),
                 ...(receipt.retriedAs && { retriedAs: receipt.retriedAs }),
+                ...(receipt.retryScheduledFor !== undefined && {
+                    retryScheduledFor: receipt.retryScheduledFor,
+                }),
+                ...(receipt.retryScheduleOutcome && {
+                    retryScheduleOutcome: receipt.retryScheduleOutcome,
+                }),
             }),
             ...(takenOverAt !== undefined && { takenOverAt }),
             ...(step && { step }),
@@ -137,6 +143,12 @@ export function delegationStatuses(
                 ...(receipt.settledAt !== undefined && { settledAt: receipt.settledAt }),
                 ...(receipt.retryOf && { retryOf: receipt.retryOf }),
                 ...(receipt.retriedAs && { retriedAs: receipt.retriedAs }),
+                ...(receipt.retryScheduledFor !== undefined && {
+                    retryScheduledFor: receipt.retryScheduledFor,
+                }),
+                ...(receipt.retryScheduleOutcome && {
+                    retryScheduleOutcome: receipt.retryScheduleOutcome,
+                }),
             },
         ];
     });

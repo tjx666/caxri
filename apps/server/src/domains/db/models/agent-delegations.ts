@@ -5,6 +5,7 @@ import {
     agentDelegationReceiptSchema,
     agentLaunchSettingsSchema,
     CaxriError,
+    delegationProviderSchema,
     delegationRetryModeSchema,
     principalSchema,
 } from '@caxri/protocol';
@@ -31,53 +32,88 @@ export function isActiveDelegationStatus(status: string): boolean {
     return activeStatuses.includes(status);
 }
 
-const storedDelegationSchema = z.strictObject({
-    receipt: agentDelegationReceiptSchema,
-    principal: principalSchema,
-    input: agentDelegationCreateSchema,
-    fingerprint: z.string(),
-    promptDigest: z.string(),
-    frozenLaunch: agentLaunchSettingsSchema,
-    frozenInstructions: z.string().max(8192).optional(),
-    launchId: z.string().optional(),
-    providerSessionId: z.string().optional(),
-    turnId: z.string().optional(),
-    responseDigest: z.string().optional(),
-    responseByteLength: z.number().int().nonnegative().optional(),
-    responseStopCount: z.number().int().nonnegative().optional(),
-    responseOverflow: z.boolean().optional(),
-    transcriptOffset: z.number().int().nonnegative().optional(),
-    answer: agentDelegationAnswerSchema.optional(),
-    /**
-     * When a caller first read the answer through wait or result; makes the record evictable under capacity pressure.
-     */
-    collectedAt: z.number().int().nonnegative().optional(),
-    rootDelegationId: z.string().optional(),
-    nextDelegationId: z.string().optional(),
-    /**
-     * The mode a retry claim (`receipt.retriedAs`) was made in, kept with the claim so a second request in the same
-     * mode shares it and the other mode is refused. Set and cleared together with `retriedAs`.
-     */
-    retryMode: delegationRetryModeSchema.optional(),
-    inputEpoch: z.number().int().nonnegative().optional(),
-    hasHumanIntervention: z.boolean().optional(),
-    /**
-     * When a human first acted in the child Session (input, Stop, or Rewind), in epoch milliseconds, set where
-     * `hasHumanIntervention` is. Set once, so a completed task's takeover is still dated.
-     */
-    humanInterventionAt: z.number().int().positive().optional(),
-    /**
-     * The turn of the caller's Agent Chat that was running when this task was created, so the caller's timeline can
-     * place the delegation in the turn that made it. Absent for a caller that is not a Chat. Context only: an ID, never
-     * text.
-     */
-    callerTurnId: z.string().min(1).max(256).optional(),
-    hasLostTarget: z.boolean().optional(),
-    continuationPromptDigests: z
-        .array(z.string().regex(/^[\da-f]{64}$/u))
-        .max(64)
-        .optional(),
-});
+/**
+ * The pairing rules of a scheduled retry, enforced on every save so no writer can store a half state. A pending
+ * schedule is a held claim: it needs the reserved successor (`retriedAs`) and the mode it will run in. A refused or
+ * missed schedule released its claim, so its outcome never stands beside a claim, pending or started.
+ */
+function isRetryScheduleConsistent(record: {
+    receipt: Pick<
+        AgentDelegationReceipt,
+        'retriedAs' | 'retryScheduledFor' | 'retryScheduleOutcome'
+    >;
+    retryMode?: string;
+    retryProvider?: string;
+}): boolean {
+    const { retriedAs, retryScheduledFor, retryScheduleOutcome } = record.receipt;
+    if (retryScheduledFor !== undefined && (!retriedAs || !record.retryMode)) return false;
+    // A switched Agent belongs only to an immediate fresh claim.
+    if (
+        record.retryProvider !== undefined &&
+        (retryScheduledFor !== undefined || !retriedAs || record.retryMode !== 'fresh')
+    )
+        return false;
+    return retryScheduleOutcome === undefined || retriedAs === undefined;
+}
+
+const storedDelegationSchema = z
+    .strictObject({
+        receipt: agentDelegationReceiptSchema,
+        principal: principalSchema,
+        input: agentDelegationCreateSchema,
+        fingerprint: z.string(),
+        promptDigest: z.string(),
+        frozenLaunch: agentLaunchSettingsSchema,
+        frozenInstructions: z.string().max(8192).optional(),
+        launchId: z.string().optional(),
+        providerSessionId: z.string().optional(),
+        turnId: z.string().optional(),
+        responseDigest: z.string().optional(),
+        responseByteLength: z.number().int().nonnegative().optional(),
+        responseStopCount: z.number().int().nonnegative().optional(),
+        responseOverflow: z.boolean().optional(),
+        transcriptOffset: z.number().int().nonnegative().optional(),
+        answer: agentDelegationAnswerSchema.optional(),
+        /**
+         * When a caller first read the answer through wait or result; makes the record evictable under capacity
+         * pressure.
+         */
+        collectedAt: z.number().int().nonnegative().optional(),
+        rootDelegationId: z.string().optional(),
+        nextDelegationId: z.string().optional(),
+        /**
+         * The mode a retry claim (`receipt.retriedAs`) was made in, kept with the claim so a second request in the same
+         * mode shares it and the other mode is refused. Set and cleared together with `retriedAs`.
+         */
+        retryMode: delegationRetryModeSchema.optional(),
+        /**
+         * The Agent a switched retry claim (`receipt.retriedAs`) runs on, set only for a fresh retry to a provider
+         * other than the failed task's own. Absent means the failed task's provider. Set and cleared together with
+         * `retriedAs`.
+         */
+        retryProvider: delegationProviderSchema.optional(),
+        inputEpoch: z.number().int().nonnegative().optional(),
+        hasHumanIntervention: z.boolean().optional(),
+        /**
+         * When a human first acted in the child Session (input, Stop, or Rewind), in epoch milliseconds, set where
+         * `hasHumanIntervention` is. Set once, so a completed task's takeover is still dated.
+         */
+        humanInterventionAt: z.number().int().positive().optional(),
+        /**
+         * The turn of the caller's Agent Chat that was running when this task was created, so the caller's timeline can
+         * place the delegation in the turn that made it. Absent for a caller that is not a Chat. Context only: an ID,
+         * never text.
+         */
+        callerTurnId: z.string().min(1).max(256).optional(),
+        hasLostTarget: z.boolean().optional(),
+        continuationPromptDigests: z
+            .array(z.string().regex(/^[\da-f]{64}$/u))
+            .max(64)
+            .optional(),
+    })
+    .refine(isRetryScheduleConsistent, {
+        message: 'A scheduled retry needs its claim, and a retry outcome excludes one',
+    });
 
 export type StoredAgentDelegation = z.infer<typeof storedDelegationSchema>;
 
@@ -126,6 +162,8 @@ function pruneForAdmission(
          * chain drains oldest first. A claim whose successor is not stored yet names nothing to protect.
          */
         if (receipt.retriedAs) referenced.add(receipt.retriedAs);
+        // The failed task itself carries a pending schedule: pruning it would drop the retry silently.
+        if (receipt.retryScheduledFor !== undefined) referenced.add(receipt.delegationId);
         if (receipt.retryOf && isActiveDelegationStatus(receipt.status))
             referenced.add(receipt.retryOf);
     }
@@ -333,6 +371,22 @@ export class AgentDelegationsModel {
             .from(agentDelegations)
             .all()
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
+    }
+
+    /**
+     * The failed tasks with a pending scheduled retry, oldest schedule first. Reads the JSON blob in SQL, so a poll
+     * every few seconds parses only the rows that wait.
+     */
+    scheduledRetries(): StoredAgentDelegation[] {
+        return this.database
+            .select()
+            .from(agentDelegations)
+            .where(
+                sql`json_extract(${agentDelegations.recordJson}, '$.receipt.retryScheduledFor') is not null`,
+            )
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)))
+            .toSorted((a, b) => a.receipt.retryScheduledFor! - b.receipt.retryScheduledFor!);
     }
 
     active(): StoredAgentDelegation[] {

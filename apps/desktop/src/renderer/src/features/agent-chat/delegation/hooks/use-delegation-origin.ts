@@ -22,7 +22,13 @@ const TAKEOVER_STALE_TIME_MS = 60_000;
  */
 type DelegationOriginTask = Pick<
     AgentDelegationSession,
-    'delegationId' | 'failure' | 'provider' | 'retriedAs' | 'status' | 'takenOverAt'
+    | 'delegationId'
+    | 'failure'
+    | 'provider'
+    | 'retriedAs'
+    | 'retryScheduledFor'
+    | 'status'
+    | 'takenOverAt'
 >;
 
 export interface DelegationOriginState {
@@ -79,6 +85,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                         failure: entry.failure,
                         provider: entry.provider,
                         retriedAs: entry.retriedAs,
+                        retryScheduledFor: entry.retryScheduledFor,
                         status: entry.status,
                         takenOverAt: entry.takenOverAt,
                     }

@@ -50,8 +50,9 @@ import {
     handoverTarget,
     resumeTask,
 } from './resume';
-import type { RetryAdmission } from './retry';
-import { assertRetryProvider, DelegationRetries } from './retry';
+import { DelegationRetries } from './retry';
+import type { RetryAdmission } from './retry-support';
+import { assertRetryProvider } from './retry-support';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
@@ -78,7 +79,10 @@ export class AgentDelegationService {
 
     private readonly submissions: DelegationSubmissions;
     private readonly progress?: DelegationProgress;
-    private readonly retries: DelegationRetries;
+    /**
+     * Owner-only retries of failed tasks, now and scheduled; handlers call it directly. See {@link DelegationRetries}.
+     */
+    readonly retries: DelegationRetries;
 
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
@@ -87,6 +91,7 @@ export class AgentDelegationService {
         );
         this.retries = new DelegationRetries({
             options,
+            now: this.now,
             save: (record, isAnnounced) => this.save(record, isAnnounced),
             hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
             admit: (id, authority, input, isNewSession, retry) =>
@@ -573,17 +578,6 @@ export class AgentDelegationService {
         }).receipt;
     }
 
-    /**
-     * Owner-only retry of a failed task; see {@link DelegationRetries}.
-     */
-    retry(...request: Parameters<DelegationRetries['retry']>) {
-        return this.retries.retry(...request);
-    }
-
-    retryOptions(failedId: string) {
-        return this.retries.options(failedId);
-    }
-
     initialize(): void {
         this.retries.recoverClaims();
         for (const record of this.options.database.agentDelegations.active()) {
@@ -598,6 +592,7 @@ export class AgentDelegationService {
 
     close(): void {
         this.isClosed = true;
+        void this.retries.closeSchedules();
         for (const timer of this.collectors.values()) clearTimeout(timer);
         this.submissions.close();
         this.progress?.close();

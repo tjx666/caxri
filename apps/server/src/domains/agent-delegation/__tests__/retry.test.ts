@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { agentDelegationSettingsSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { retryDelegationId } from '../retry';
+import { retryDelegationId } from '../retry-support';
 import { RETRY_PREFACE } from '../task-body';
-import { fixture, reasonOf } from './retry.fixture';
+import { fixture, reasonOf, started } from './retry.fixture';
 
 describe('retry now: fresh', () => {
     it('starts over in a new Session as the delegating Agent, who can read the result', async () => {
@@ -15,7 +15,7 @@ describe('retry now: fresh', () => {
             await fixture();
         const failed = await failedTask();
 
-        const result = await service.retry(failed.id, 'fresh');
+        const result = started(await service.retries.retry(failed.id, 'fresh'));
 
         expect(result.delegationId).toBe(retryDelegationId(failed.id));
         expect(result.delegationId).toMatch(/^[\da-f-]{36}$/u);
@@ -51,7 +51,7 @@ describe('retry now: fresh', () => {
         const { database, failedTask, service, callerTerminalId } = await fixture();
         const failed = await failedTask();
 
-        const { sessionId } = await service.retry(failed.id, 'fresh');
+        const { sessionId } = started(await service.retries.retry(failed.id, 'fresh'));
 
         const created = database.getSession(sessionId)!;
         expect(created.title).toBe('Child work');
@@ -63,12 +63,12 @@ describe('retry now: fresh', () => {
         const { failedTask, service, start } = await fixture();
         const failed = await failedTask();
 
-        const first = await service.retry(failed.id, 'fresh');
-        const second = await service.retry(failed.id, 'fresh');
+        const first = await service.retries.retry(failed.id, 'fresh');
+        const second = await service.retries.retry(failed.id, 'fresh');
 
         expect(second).toEqual(first);
         expect(start).toHaveBeenCalledTimes(2);
-        expect(await reasonOf(service.retry(failed.id, 'resume'))).toBe('already_retried');
+        expect(await reasonOf(service.retries.retry(failed.id, 'resume'))).toBe('already_retried');
     });
 
     it('shares one run between concurrent requests in the same mode', async () => {
@@ -77,8 +77,8 @@ describe('retry now: fresh', () => {
         const sessionsBefore = database.listSessions().length;
 
         const [one, two] = await Promise.all([
-            service.retry(failed.id, 'fresh'),
-            service.retry(failed.id, 'fresh'),
+            service.retries.retry(failed.id, 'fresh'),
+            service.retries.retry(failed.id, 'fresh'),
         ]);
 
         expect(two).toEqual(one);
@@ -92,8 +92,8 @@ describe('retry now: fresh', () => {
         const sessionsBefore = database.listSessions().length;
 
         const settled = await Promise.allSettled([
-            service.retry(failed.id, 'fresh'),
-            service.retry(failed.id, 'resume'),
+            service.retries.retry(failed.id, 'fresh'),
+            service.retries.retry(failed.id, 'resume'),
         ]);
 
         expect(settled.filter((entry) => entry.status === 'fulfilled')).toHaveLength(1);
@@ -108,12 +108,14 @@ describe('retry now: fresh', () => {
         const sessionsBefore = database.listSessions().length;
         verifyLaunch.mockRejectedValueOnce(new Error('provider version refused'));
 
-        await expect(service.retry(failed.id, 'fresh')).rejects.toThrow('provider version refused');
+        await expect(service.retries.retry(failed.id, 'fresh')).rejects.toThrow(
+            'provider version refused',
+        );
 
         expect(stored(failed.id).receipt.retriedAs).toBeUndefined();
         expect(stored(failed.id).retryMode).toBeUndefined();
         expect(database.listSessions()).toHaveLength(sessionsBefore);
-        expect((await service.retry(failed.id, 'fresh')).delegationId).toBe(
+        expect((await service.retries.retry(failed.id, 'fresh')).delegationId).toBe(
             retryDelegationId(failed.id),
         );
     });
@@ -123,7 +125,7 @@ describe('retry now: fresh', () => {
         const failed = await failedTask();
         start.mockRejectedValueOnce(new Error('spawn failed'));
 
-        const result = await service.retry(failed.id, 'fresh');
+        const result = await service.retries.retry(failed.id, 'fresh');
 
         expect(stored(failed.id).receipt.retriedAs).toBe(result.delegationId);
         expect(stored(result.delegationId).receipt.status).toBe('failed');
@@ -142,7 +144,7 @@ describe('retry now: fresh', () => {
             receipt: { ...record.receipt, depth: 3, parentDelegationId: parentId },
         });
 
-        const result = await service.retry(failed.id, 'fresh');
+        const result = await service.retries.retry(failed.id, 'fresh');
 
         expect(stored(result.delegationId).receipt).toMatchObject({
             depth: 3,
@@ -164,7 +166,7 @@ describe('retry now: fresh', () => {
             inode: stats.ino.toString(),
         });
 
-        const { sessionId } = await service.retry(failed.id, 'fresh');
+        const { sessionId } = started(await service.retries.retry(failed.id, 'fresh'));
 
         expect(prepareWorktree).not.toHaveBeenCalled();
         expect(database.getSessionWorkbenchBinding(sessionId)).toMatchObject({
@@ -185,9 +187,9 @@ describe('retry now: fresh', () => {
             inode: '999999999',
         });
 
-        expect(await reasonOf(service.retry(failed.id, 'fresh'))).toBe('worktree_gone');
+        expect(await reasonOf(service.retries.retry(failed.id, 'fresh'))).toBe('worktree_gone');
         await rm(worktreePath, { recursive: true });
-        expect(await reasonOf(service.retry(failed.id, 'fresh'))).toBe('worktree_gone');
+        expect(await reasonOf(service.retries.retry(failed.id, 'fresh'))).toBe('worktree_gone');
         expect(stored(failed.id).receipt.retriedAs).toBeUndefined();
     });
 
@@ -201,7 +203,7 @@ describe('retry now: fresh', () => {
             sessionIds: [failed.sessionId],
         });
 
-        expect(await reasonOf(service.retry(failed.id, 'fresh'))).toBe('not_retryable');
+        expect(await reasonOf(service.retries.retry(failed.id, 'fresh'))).toBe('not_retryable');
     });
 
     it('refuses when the current settings resolve the preset to another provider', async () => {
@@ -228,7 +230,7 @@ describe('retry now: fresh', () => {
         expect(receipt.provider).toBe('claude');
         provider = 'codex';
 
-        expect(await reasonOf(service.retry(id, 'fresh'))).toBe('not_retryable');
+        expect(await reasonOf(service.retries.retry(id, 'fresh'))).toBe('not_retryable');
         expect(stored(id).receipt.retriedAs).toBeUndefined();
     });
 });
@@ -238,9 +240,10 @@ describe('retry now: resume', () => {
         const { authority, failedTask, resume, service, start, stored } = await fixture();
         const failed = await failedTask();
 
-        const result = await service.retry(failed.id, 'resume');
+        const result = await service.retries.retry(failed.id, 'resume');
 
         expect(result).toEqual({
+            status: 'started',
             delegationId: retryDelegationId(failed.id),
             sessionId: failed.sessionId,
         });
@@ -311,7 +314,7 @@ describe('retry now: resume', () => {
         const failed = await context.failedTask();
         setup(context, failed);
 
-        expect(await reasonOf(context.service.retry(failed.id, 'resume'))).toBe(reason);
+        expect(await reasonOf(context.service.retries.retry(failed.id, 'resume'))).toBe(reason);
         expect(context.stored(failed.id).receipt.retriedAs).toBeUndefined();
     });
 
@@ -319,13 +322,15 @@ describe('retry now: resume', () => {
         const { failedTask, service } = await fixture({ hasResume: false });
         const failed = await failedTask();
 
-        expect(await reasonOf(service.retry(failed.id, 'resume'))).toBe('resume_unsupported');
+        expect(await reasonOf(service.retries.retry(failed.id, 'resume'))).toBe(
+            'resume_unsupported',
+        );
     });
 
     it('does not let an ordinary resume or follow-up take a retried task', async () => {
         const { authority, failedTask, service, stored } = await fixture();
         const failed = await failedTask();
-        const retried = await service.retry(failed.id, 'resume');
+        const retried = await service.retries.retry(failed.id, 'resume');
         const record = stored(retried.delegationId);
         const another = randomUUID();
 

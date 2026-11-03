@@ -3,6 +3,7 @@ import type {
     AgentDelegationReceipt,
     DelegationResultSource,
     DelegationRetryMode,
+    DelegationRetryScheduleOutcome,
     DelegationRetryUnavailableReason,
     SessionRelation,
 } from '@caxri/protocol';
@@ -113,6 +114,10 @@ export function logDelegationRetry(
         failure: AgentDelegationReceipt['failure'];
         outcome: 'started' | 'shared' | 'refused';
         reason?: DelegationRetryUnavailableReason | 'other';
+        /**
+         * The Agent a switched retry runs on; absent for a retry on the failed task's own Agent.
+         */
+        toProvider?: AgentDelegationReceipt['provider'];
         chainDepth: number;
     },
 ): void {
@@ -127,8 +132,65 @@ export function logDelegationRetry(
                 failure: fields.failure ?? null,
                 outcome: fields.outcome,
                 reason: fields.reason ?? null,
+                toProvider: fields.toProvider ?? null,
                 chainDepth: fields.chainDepth,
             },
         },
     );
+}
+
+/**
+ * The closed transitions of a scheduled retry; see `agentDelegationLogEvents.retrySchedule`.
+ */
+export type RetryScheduleLogOutcome =
+    | 'scheduled'
+    | 'cancelled'
+    | 'fired'
+    | 'refused_at_fire'
+    | 'missed_window'
+    | 'restored'
+    | 'session_gone'
+    | 'human_input_cancelled'
+    | 'successor_found'
+    | 'record_gone';
+
+/**
+ * Records one state transition of a scheduled retry with closed enums and numbers only, never the task. `lateMs` is how
+ * long after its time a fire ran, `waitMs` how long a new schedule waits, and `pending` and `overdue` count the
+ * schedules found at Server start (logged once per start, not per record).
+ */
+export function logDelegationRetrySchedule(
+    logger: StructuredLogger | undefined,
+    fields: {
+        outcome: RetryScheduleLogOutcome;
+        delegationId?: string;
+        successorId?: string;
+        mode?: DelegationRetryMode;
+        provider?: AgentDelegationReceipt['provider'];
+        reason?: DelegationRetryScheduleOutcome;
+        scheduledFor?: number;
+        lateMs?: number;
+        waitMs?: number;
+        chainDepth?: number;
+        pending?: number;
+        overdue?: number;
+    },
+): void {
+    const isProblem = ['refused_at_fire', 'missed_window', 'record_gone'].includes(fields.outcome);
+    logger?.write(isProblem ? 'warn' : 'info', logEventCatalog.agentDelegation.retrySchedule, {
+        fields: {
+            outcome: fields.outcome,
+            delegationId: fields.delegationId ?? null,
+            successorId: fields.successorId ?? null,
+            mode: fields.mode ?? null,
+            provider: fields.provider ?? null,
+            reason: fields.reason ?? null,
+            scheduledFor: fields.scheduledFor ?? null,
+            lateMs: fields.lateMs ?? null,
+            waitMs: fields.waitMs ?? null,
+            chainDepth: fields.chainDepth ?? null,
+            pending: fields.pending ?? null,
+            overdue: fields.overdue ?? null,
+        },
+    });
 }

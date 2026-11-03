@@ -8,8 +8,8 @@ import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
 import { delegationCopy, delegationCopyInput } from '../../delegation/delegation-copy';
-import { delegationElapsedMs, isRetryCandidate } from '../../delegation/delegation-feed';
-import { DelegationRetryAction } from '../../delegation/delegation-retry-action';
+import { delegationElapsedMs } from '../../delegation/delegation-feed';
+import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
 import { SessionPullRequestIndicator } from '../../primary-sidebar/session-pull-request-indicator';
 import { openSession } from '../../session/session-commands';
@@ -157,15 +157,13 @@ export function AgentChatDelegatedSessionRow({
             {entry.status === 'completed' && session && (
                 <DelegatedResultMeta sessionId={entry.sessionId} />
             )}
-            {session && entry.delegationId !== undefined && isRetryCandidate(entry) && (
-                <span className="flex min-w-0 pl-8 leading-5">
-                    <DelegationRetryAction
-                        delegationId={entry.delegationId}
-                        projectTitle={project?.title ?? ''}
-                        provider={entry.provider}
-                        sessionTitle={title}
-                    />
-                </span>
+            {session && (
+                <DelegationRetryControls
+                    className="pl-8 leading-5"
+                    entry={entry}
+                    projectTitle={project?.title ?? ''}
+                    sessionTitle={title}
+                />
             )}
         </li>
     );

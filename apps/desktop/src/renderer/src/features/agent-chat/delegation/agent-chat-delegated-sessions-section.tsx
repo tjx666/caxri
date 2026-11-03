@@ -36,8 +36,8 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
     if (entries.length === 0) return null;
     const summary = delegatedSessionsSummary(entries);
-    const { count, failed, needsInput } = delegatedSessionsHeaderParts(summary, t);
-    const attention = [needsInput, failed].filter((part) => part !== undefined);
+    const { count, failed, needsInput, waiting } = delegatedSessionsHeaderParts(summary, t);
+    const attention = [needsInput, failed, waiting].filter((part) => part !== undefined);
     const hasCompleted = entries.some((entry) => entry.status === 'completed');
     const announcement = [count, ...attention].join(', ');
     return (
@@ -55,6 +55,7 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                         {count}
                         {needsInput && <span className="text-warning">{` · ${needsInput}`}</span>}
                         {failed && <span className="text-danger">{` · ${failed}`}</span>}
+                        {waiting && <span>{` · ${waiting}`}</span>}
                     </>
                 }
                 section="delegated"

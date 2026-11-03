@@ -33,23 +33,49 @@ describe('delegatedSessionsSummary', () => {
                 entry({ status: 'running' }),
                 entry({ status: 'blocked' }),
             ]),
-        ).toEqual({ failed: 1, needsInput: 2, total: 6 });
+        ).toEqual({ failed: 1, needsInput: 2, total: 6, waiting: 0 });
+    });
+});
+
+describe('delegatedSessionsSummary with a pending retry', () => {
+    it('counts a failure whose retry is scheduled as waiting, not failed', () => {
+        const pending = entry({
+            failure: 'quota_exhausted',
+            retriedAs: 'next',
+            retryScheduledFor: 1_700_000_000_000,
+            status: 'failed',
+        });
+        const summary = delegatedSessionsSummary([pending]);
+        expect(summary).toEqual({ failed: 0, needsInput: 0, total: 1, waiting: 1 });
+        expect(delegatedSessionsHeaderParts(summary, t)).toEqual({
+            count: 'delegation.strip.count:{"count":1}',
+            waiting: 'delegation.strip.retryWaitingOne:{"count":1}',
+        });
     });
 });
 
 describe('delegatedSessionsHeaderParts', () => {
     it('states only the attention parts that have a count, with singular and plural needs-input', () => {
-        expect(delegatedSessionsHeaderParts({ failed: 0, needsInput: 0, total: 3 }, t)).toEqual({
+        expect(
+            delegatedSessionsHeaderParts({ failed: 0, needsInput: 0, total: 3, waiting: 0 }, t),
+        ).toEqual({
             count: 'delegation.strip.count:{"count":3}',
         });
-        expect(delegatedSessionsHeaderParts({ failed: 2, needsInput: 1, total: 3 }, t)).toEqual({
+        expect(
+            delegatedSessionsHeaderParts({ failed: 2, needsInput: 1, total: 3, waiting: 0 }, t),
+        ).toEqual({
             count: 'delegation.strip.count:{"count":3}',
             failed: 'delegation.strip.failed:{"count":2}',
             needsInput: 'delegation.strip.needsInputOne:{"count":1}',
         });
         expect(
-            delegatedSessionsHeaderParts({ failed: 0, needsInput: 2, total: 3 }, t).needsInput,
+            delegatedSessionsHeaderParts({ failed: 0, needsInput: 2, total: 3, waiting: 0 }, t)
+                .needsInput,
         ).toBe('delegation.strip.needsInputOther:{"count":2}');
+        expect(
+            delegatedSessionsHeaderParts({ failed: 0, needsInput: 0, total: 3, waiting: 2 }, t)
+                .waiting,
+        ).toBe('delegation.strip.retryWaitingOther:{"count":2}');
     });
 });
 

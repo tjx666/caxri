@@ -281,6 +281,11 @@ Then write the task to a file and run
   The owner may retry a failed task from Caxri, and the receipt then carries `retriedAs`: the task
   was restarted as that ID under your authority and you are told once. Stop waiting on the failed
   ID, `agent delegate wait <retriedAs>` instead, and do not create or retry the task yourself.
+  If the receipt carries `retryScheduledFor` (a time in epoch milliseconds) and the failed task has
+  `retriedAs`, the owner scheduled a retry for after the usage limit resets: no new task exists yet,
+  so wait for the notice or poll `agent delegate status` until `retriedAs` names a stored task. If it
+  carries `retryScheduleOutcome` instead, the scheduled retry did not run and nothing will; report
+  the failure to the owner.
   Human input or another launch prevents automatic continuation. A restarted caller generation
   does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
   Caxri Bot is the one exception: its tasks stay its own across its restarts.

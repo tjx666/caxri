@@ -12,6 +12,7 @@ import {
     failedDelegationSessionIds,
     isDelegationFailed,
     isDelegationNeedsInput,
+    isDelegationRetryPending,
     isRetryCandidate,
 } from '../delegation-feed';
 
@@ -112,7 +113,7 @@ describe('delegationAttentionCounts', () => {
                 { status: 'interrupted', failure: 'caller_stopped' },
                 {},
             ]),
-        ).toEqual({ failed: 1, needsInput: 2 });
+        ).toEqual({ failed: 1, needsInput: 2, waiting: 0 });
     });
 });
 
@@ -193,10 +194,15 @@ describe('collapseRetryChains', () => {
             { delegationId: 'f1', failure: 'quota_exhausted', retriedAs: 'n1', status: 'failed' },
             { delegationId: 'n1', retryOf: 'f1', status: 'running' },
         ] as const;
-        expect(delegationAttentionCounts(entries)).toEqual({ failed: 1, needsInput: 0 });
+        expect(delegationAttentionCounts(entries)).toEqual({
+            failed: 1,
+            needsInput: 0,
+            waiting: 0,
+        });
         expect(delegationAttentionCounts(collapseRetryChains(entries))).toEqual({
             failed: 0,
             needsInput: 0,
+            waiting: 0,
         });
     });
 });
@@ -226,5 +232,51 @@ describe('failedDelegationSessionIds with retries', () => {
                 { failure: 'quota_exhausted', sessionId: 's2', status: 'failed' },
             ]),
         ).toEqual(['s2']);
+    });
+});
+
+describe('a pending scheduled retry', () => {
+    const pending = {
+        delegationId: 'f1',
+        failure: 'quota_exhausted',
+        retriedAs: 'n1',
+        retryScheduledFor: 1_700_000_000_000,
+        sessionId: 's1',
+        status: 'failed',
+    } as const;
+
+    it('is pending only with both the reserved successor and a time', () => {
+        expect(isDelegationRetryPending(pending)).toBe(true);
+        expect(isDelegationRetryPending({ retriedAs: 'n1' })).toBe(false);
+        expect(isDelegationRetryPending({ retryScheduledFor: 5 })).toBe(false);
+    });
+
+    it('is waiting rather than failed, in the counts, the failed Session ids, and the failure check', () => {
+        expect(isDelegationFailed(pending)).toBe(false);
+        expect(failedDelegationSessionIds([pending])).toEqual([]);
+        expect(delegationAttentionCounts([pending])).toEqual({
+            failed: 0,
+            needsInput: 0,
+            waiting: 1,
+        });
+    });
+
+    it('stays in the list because its successor does not exist yet, and offers no second retry', () => {
+        expect(collapseRetryChains([pending])).toEqual([pending]);
+        expect(isRetryCandidate(pending)).toBe(false);
+    });
+
+    it('counts as failed again once the refusal released the claim', () => {
+        const refused = {
+            delegationId: 'f1',
+            failure: 'quota_exhausted',
+            retryScheduleOutcome: 'missed_window',
+            sessionId: 's1',
+            status: 'failed',
+        } as const;
+        expect(isDelegationFailed(refused)).toBe(true);
+        expect(failedDelegationSessionIds([refused])).toEqual(['s1']);
+        expect(delegationAttentionCounts([refused]).failed).toBe(1);
+        expect(isRetryCandidate(refused)).toBe(true);
     });
 });

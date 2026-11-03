@@ -66,6 +66,7 @@ const shortLivedDurableMethods = new Set<string>([
     'agent.control.stop',
     'agent.delegation.create',
     'agent.delegation.retry',
+    'agent.delegation.cancelScheduledRetry',
     'agent.delegation.stop',
     'agent.dispatch.resume',
     'agent.dispatch.start',
