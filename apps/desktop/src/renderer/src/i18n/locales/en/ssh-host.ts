@@ -38,6 +38,7 @@ export const sshHost = {
     'sshHost.phase.stopped': 'Stopping Server…',
     'sshHost.phase.failed': 'Unable to connect',
     'sshHost.phase.cancelled': 'Connection cancelled',
+    'sshHost.phase.updateDeferred': 'Server update deferred',
     'sshHost.progress.label': 'Installing Caxri Server',
     'sshHost.progress.percent': '{{percent}}%',
     'sshHost.failure.authentication':
@@ -62,6 +63,8 @@ export const sshHost = {
     'sshHost.failure.takenOver':
         "Caxri in another window or on another computer took over this SSH Host's Server. Terminals and Agents keep running there.",
     'sshHost.failure.cancelled': 'Choose Reconnect when you want to connect again.',
+    'sshHost.failure.updateDeferred':
+        'Caxri Server on the SSH Host is from another version, and its Terminals and Agents keep running. Choose Reconnect when you are ready to update it.',
     'sshHost.failure.connectionLost':
         'The connection to the SSH Host dropped. Terminals and Agents keep running there and reappear when you reconnect.',
     'sshHost.failure.unknown': 'Something went wrong while connecting to the SSH Host.',

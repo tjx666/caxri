@@ -33,12 +33,21 @@ export const TERMINAL_REASONS: ReadonlySet<SshHostFailureReason> = new Set([
     'installFailed',
     'profileInUse',
     'cancelled',
+    'updateDeferred',
 ]);
 export const USER_ACTION_REASONS: ReadonlySet<SshHostFailureReason> = new Set([
     'authentication',
     'hostKey',
 ]);
 export const CANCELLED_FAILURE = { reason: 'cancelled', message: 'Connection cancelled' } as const;
+/**
+ * The user chose to keep the SSH Host's Server from another build running, with its Terminals and Chats, instead of
+ * replacing it now. Terminal like a cancel: Reconnect asks again.
+ */
+export const UPDATE_DEFERRED_FAILURE = {
+    reason: 'updateDeferred',
+    message: 'Server update deferred',
+} as const;
 
 /**
  * A failure classified into the protocol's closed reason. Thrown to `DesktopServerConnection` as a `CaxriError` so its

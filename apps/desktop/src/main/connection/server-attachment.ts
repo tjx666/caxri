@@ -9,6 +9,7 @@ import { connectDesktopToServer, connectDesktopWithCredential } from '@caxri/cli
 import type {
     DesktopOperation,
     DesktopTargetPayload,
+    MethodResult,
     ServerDesktopCredential,
     ServerDesktopLaunch,
     ServerManifest,
@@ -55,6 +56,13 @@ export interface DesktopServerConnectionOptions {
      * baked into the window bundle diverges from the Server artifact during development.
      */
     buildIdentity: ServerBuildIdentity;
+    /**
+     * Asked before a Server from another build is stopped while it still runs Terminals or Chats; resolving `false`
+     * keeps that Server and its work running and fails the attach with `CANCELLED`. Without it the Server is replaced
+     * silently, which the local window accepts because Restart to Update already asked. An SSH Host window sets it,
+     * since nothing else warns before its Server is replaced.
+     */
+    confirmStaleReplacement?: (running: MethodResult<'terminal.runningCount'>) => Promise<boolean>;
     /**
      * Test seam for the on-disk bundle fingerprint; production uses `computeBuildFingerprint`.
      */

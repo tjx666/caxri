@@ -554,3 +554,26 @@ export function revertAgentChatFilesPrompt({
         cancelId: 1,
     };
 }
+
+/**
+ * Asked in an SSH Host window before Desktop stops that host's Server from another build, which ends its running work.
+ * Not Now is both default and Escape target, as in `updateRestartPrompt`: a mistaken Enter must not end running work.
+ */
+export function sshHostServerUpdatePrompt(running: RunningWork): MessageBoxOptions & {
+    buttons: [string, string];
+} {
+    return {
+        type: 'warning',
+        title: t('desktop.sshServerUpdate.title'),
+        message: t(
+            runningWorkTotal(running) === 1
+                ? 'desktop.sshServerUpdate.messageOne'
+                : 'desktop.sshServerUpdate.messageOther',
+            { running: runningWorkPhrase(running) },
+        ),
+        detail: t('desktop.sshServerUpdate.detail'),
+        buttons: [t('desktop.sshServerUpdate.update'), t('desktop.sshServerUpdate.notNow')],
+        defaultId: 1,
+        cancelId: 1,
+    };
+}

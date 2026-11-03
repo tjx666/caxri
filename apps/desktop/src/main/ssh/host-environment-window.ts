@@ -4,6 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindowConstructorOptions } from 'electron';
 import { app, BrowserWindow, dialog } from 'electron';
 
+import { sshHostServerUpdatePrompt } from '../confirmations';
 import { DesktopServerConnection } from '../connection/server-connection';
 import type { SharedServerConnectionOptions } from '../connection/server-connection-options';
 import { createDesktopActions } from '../desktop-actions';
@@ -121,6 +122,21 @@ export function createSshHostEnvironmentParts(options: SshHostEnvironmentWindowO
             seedAttachment: (send) => presence.seed(send),
             systemLanguages: () => [app.getLocale()],
             createServerSupervisor: () => supervisor,
+            /**
+             * Nothing else warns before this SSH Host's Server is replaced by this Desktop's build, so ask while it
+             * still runs work. Not Now keeps that work running and ends the attach on a terminal `updateDeferred`
+             * failure.
+             */
+            confirmStaleReplacement: async (running) => {
+                await focusWindow();
+                const prompt = sshHostServerUpdatePrompt(running);
+                const { response } = window.isDestroyed()
+                    ? { response: prompt.cancelId }
+                    : await dialog.showMessageBox(window, prompt);
+                if (response === 0) return true;
+                supervisor.deferUpdate();
+                return false;
+            },
             discoverDesktop: () => supervisor.discoverDesktop(),
             handleCommand: desktopOperations,
             logger: options.logger(),

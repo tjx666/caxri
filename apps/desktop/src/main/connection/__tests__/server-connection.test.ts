@@ -232,6 +232,73 @@ describe('Desktop Server attachment and build identity', () => {
         expect(connection.serverProcessId()).toBe(100);
     });
 
+    it('keeps a stale Server and its running work when the user declines the replacement', async () => {
+        const staleOperator = createFakeOperator({
+            serverBuildId: 'build-old',
+            running: { terminals: 2, chats: 1 },
+        });
+        vi.mocked(ensureServer).mockResolvedValue(staleOperator as never);
+        const confirm = vi.fn(() => Promise.resolve(false));
+        const { connection, logger } = createConnection(
+            { buildId: 'build-new' },
+            undefined,
+            confirm,
+        );
+
+        await expect(connection.start()).rejects.toMatchObject({ code: 'CANCELLED' });
+
+        expect(confirm).toHaveBeenCalledWith({ terminals: 2, chats: 1 });
+        expect(staleOperator.request).not.toHaveBeenCalledWith('host.stop', expect.anything());
+        expect(connectDesktopToServer).not.toHaveBeenCalled();
+        expect(logger.write).toHaveBeenCalledWith(
+            'info',
+            'server_connection.stale_build_confirmed',
+            {
+                fields: { outcome: 'keep', runningTerminalCount: 2, runningChatCount: 1 },
+            },
+        );
+    });
+
+    it('replaces a stale Server with running work once the user confirms', async () => {
+        const staleOperator = createFakeOperator({
+            serverBuildId: 'build-old',
+            running: { terminals: 0, chats: 1 },
+        });
+        const freshOperator = createFakeOperator({ serverBuildId: 'build-new', pid: 100 });
+        vi.mocked(ensureServer)
+            .mockResolvedValueOnce(staleOperator as never)
+            .mockResolvedValueOnce(freshOperator as never);
+        vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeServerClient() as never);
+        const confirm = vi.fn(() => Promise.resolve(true));
+        const { connection } = createConnection({ buildId: 'build-new' }, undefined, confirm);
+
+        await connection.start();
+
+        expect(confirm).toHaveBeenCalledOnce();
+        expect(staleOperator.request).toHaveBeenCalledWith('host.stop', {
+            confirmLivePtys: true,
+        });
+        expect(connection.serverProcessId()).toBe(100);
+    });
+
+    it('replaces an idle stale Server without asking', async () => {
+        const staleOperator = createFakeOperator({ serverBuildId: 'build-old' });
+        const freshOperator = createFakeOperator({ serverBuildId: 'build-new', pid: 100 });
+        vi.mocked(ensureServer)
+            .mockResolvedValueOnce(staleOperator as never)
+            .mockResolvedValueOnce(freshOperator as never);
+        vi.mocked(connectDesktopToServer).mockResolvedValue(createFakeServerClient() as never);
+        const confirm = vi.fn(() => Promise.resolve(false));
+        const { connection } = createConnection({ buildId: 'build-new' }, undefined, confirm);
+
+        await connection.start();
+
+        expect(confirm).not.toHaveBeenCalled();
+        expect(staleOperator.request).toHaveBeenCalledWith('host.stop', {
+            confirmLivePtys: true,
+        });
+    });
+
     it('replaces an adopted Server on version skew when it predates the buildId stamp', async () => {
         const staleOperator = createFakeOperator({ serverVersion: '0.0.6' });
         const freshOperator = createFakeOperator({ serverVersion: '0.0.9', pid: 100 });

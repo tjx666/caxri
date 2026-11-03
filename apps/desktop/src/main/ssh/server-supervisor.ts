@@ -35,6 +35,7 @@ import {
     SshHostSetupError,
     TERMINAL_REASONS,
     toFailure,
+    UPDATE_DEFERRED_FAILURE,
     USER_ACTION_REASONS,
 } from './setup';
 import type { SshConnectionCloseInfo, SshConnectionOptions } from './ssh-connection';
@@ -78,6 +79,10 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
      * user's cancellation rather than as whatever stopping the master made that step see.
      */
     private isCancelled = false;
+    /**
+     * What the user's stop is reported as: a plain cancel, or a deferred update of a Server from another build.
+     */
+    private stopFailure: SshHostFailure = CANCELLED_FAILURE;
     private connectionOpenedAt = 0;
     private current?: AttachTarget;
     private forward?: { localPort: number; remotePort: number };
@@ -164,7 +169,7 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
     }
 
     private fail(error: unknown, phase: SshHostConnectionPhase): SshHostSetupError {
-        const failure: SshHostFailure = this.isCancelled ? CANCELLED_FAILURE : toFailure(error);
+        const failure: SshHostFailure = this.isCancelled ? this.stopFailure : toFailure(error);
         this.options.logger.write('warn', logEventCatalog.sshHost.attachFailed, {
             fields: { phase, reason: failure.reason },
         });
@@ -193,6 +198,25 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
         return setupError;
     }
 
+    private stopError(): SshHostSetupError {
+        return new SshHostSetupError(this.stopFailure.reason, this.stopFailure.message);
+    }
+
+    private stopAtUserRequest(failure: SshHostFailure): void {
+        if (this.isDisposed) return;
+        this.isCancelled = true;
+        this.stopFailure = failure;
+        this.terminalFailure = this.stopError();
+        const connections = [this.connection, this.pendingConnection];
+        this.connection = undefined;
+        this.pendingConnection = undefined;
+        this.forgetRemoteState();
+        for (const connection of connections)
+            if (connection) void bestEffort(() => connection.stop());
+        // The window logs the phase change with this reason; a step this interrupted logs `attachFailed`.
+        this.emit('failed', { failure });
+    }
+
     private forgetRemoteState(): void {
         this.probe = undefined;
         this.forward = undefined;
@@ -205,7 +229,7 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
      */
     private stoppedDuringHandshake(): Error | undefined {
         if (this.isDisposed) return new CaxriError('CANCELLED', 'SSH Host connection was closed');
-        if (this.isCancelled) return new SshHostSetupError('cancelled', CANCELLED_FAILURE.message);
+        if (this.isCancelled) return this.stopError();
         return undefined;
     }
 
@@ -461,6 +485,7 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
     reconnect(): void {
         this.terminalFailure = undefined;
         this.isCancelled = false;
+        this.stopFailure = CANCELLED_FAILURE;
         this.reconnectAttempt = 0;
     }
 
@@ -470,17 +495,15 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
      * terminal until `reconnect()`, which also ends `DesktopServerConnection`'s reconnect loop at its next check.
      */
     cancel(): void {
-        if (this.isDisposed) return;
-        this.isCancelled = true;
-        this.terminalFailure = new SshHostSetupError('cancelled', CANCELLED_FAILURE.message);
-        const connections = [this.connection, this.pendingConnection];
-        this.connection = undefined;
-        this.pendingConnection = undefined;
-        this.forgetRemoteState();
-        for (const connection of connections)
-            if (connection) void bestEffort(() => connection.stop());
-        // The window logs the phase change with its `cancelled` reason; a step this interrupted logs `attachFailed`.
-        this.emit('failed', { failure: CANCELLED_FAILURE });
+        this.stopAtUserRequest(CANCELLED_FAILURE);
+    }
+
+    /**
+     * Keeps the SSH Host's Server from another build running because the user declined to stop its running work. The
+     * window ends on a terminal `updateDeferred` failure, exactly like a cancel, and Reconnect asks again.
+     */
+    deferUpdate(): void {
+        this.stopAtUserRequest(UPDATE_DEFERRED_FAILURE);
     }
 
     async ensure(timeoutMs = 15_000): Promise<ServerClient> {
@@ -489,7 +512,7 @@ export class SshHostServerSupervisor implements DesktopServerSupervisor {
         this.setup ??= this.sharedSetup();
         const target = await this.setup;
         // A cancel that lands after setup finished but before the handshake still wins over attaching.
-        if (this.isCancelled) throw new SshHostSetupError('cancelled', CANCELLED_FAILURE.message);
+        if (this.isCancelled) throw this.stopError();
         const connect =
             this.options.connectOperator ??
             ((manifest: ServerManifest, timeout: number) =>

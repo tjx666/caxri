@@ -14,6 +14,7 @@ import {
     revokeMobileDevicePrompt,
     runningWorkPhrase,
     shellCommandElevationPrompt,
+    sshHostServerUpdatePrompt,
     sumRunningWork,
     trashPrompt,
     unsavedChangesChoice,
@@ -183,6 +184,23 @@ describe('trash prompt', () => {
         const options = trashPrompt({ items: [notes] });
         expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
+    });
+});
+
+describe('SSH Host Server update prompt', () => {
+    it('names the running work, keeps it on Escape and Return, and updates only on the explicit button', () => {
+        const options = sshHostServerUpdatePrompt({ terminals: 2, chats: 1 });
+        expect(options.message).toBe(
+            'Update Caxri Server on this SSH Host while 2 Terminals and 1 Chat are running?',
+        );
+        expect(options.detail).toContain('stops every running Terminal and Agent process');
+        expect(options.detail).toContain('Not Now keeps them running');
+        expect(options.buttons).toEqual(['Update Server', 'Not Now']);
+        expect(options.defaultId).toBe(1);
+        expect(options.cancelId).toBe(1);
+        expect(sshHostServerUpdatePrompt({ terminals: 0, chats: 1 }).message).toBe(
+            'Update Caxri Server on this SSH Host while 1 Chat is running?',
+        );
     });
 });
 

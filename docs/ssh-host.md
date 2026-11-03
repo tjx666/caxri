@@ -149,6 +149,15 @@ An install uploads only the application layer (about 5 MB gzip), checks its `SHA
 it into place, so a partial upload never becomes a build. The two most recent builds are kept; a build
 a running Server uses is never removed.
 
+### Updating the Server
+
+The SSH Host always runs the Server build of the Desktop attached to it. When a connect finds a Server
+from another build (Desktop was updated since), Desktop replaces it. If that Server still runs
+Terminals or Chats, the window first asks **Update Server on SSH Host?**, naming them: updating stops
+them; **Not Now** (also Return and Escape) keeps the old Server and its work running and leaves the
+window on an `updateDeferred` failure whose Reconnect asks again. An idle Server is replaced without a
+question. Both answers are logged as `server_connection.stale_build_confirmed`.
+
 ## How Desktop reaches it
 
 Main starts one OpenSSH ControlMaster per SSH Host window, with its socket in a private
