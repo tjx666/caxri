@@ -60,7 +60,7 @@ export const search = (index: number): FakeClaudeScriptStep => ({
  * A long Claude turn shaped like a real investigation: rounds of searches between short narrations, ending in a command
  * that keeps running, so the turn is still live when the phone opens it and its window starts deep inside the turn.
  */
-export const runningInvestigationScript: FakeClaudeScript = {
+const runningInvestigationScript: FakeClaudeScript = {
     turns: [
         {
             prompt: RUNNING_PROMPT,
