@@ -48,6 +48,18 @@ describe('settings spec and schema agreement', () => {
         ).toBe(false);
     });
 
+    it('keeps same-repository work in subagents and sends another repository to its own Project', () => {
+        expect(DEFAULT_AGENT_SESSION_INSTRUCTIONS).toContain(
+            'Work in this repository stays in this Session',
+        );
+        expect(DEFAULT_AGENT_SESSION_INSTRUCTIONS).toContain(
+            "Changes to another repository belong to a Session in that repository's Project",
+        );
+        expect(DEFAULT_AGENT_SESSION_INSTRUCTIONS.length).toBeLessThan(
+            MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
+        );
+    });
+
     it('shows every Git diff by default and keeps opted-in exclusions independent of the file tree', () => {
         expect(appSettingsFileSchema.parse({})['git.diffExclude']).toEqual({});
         /**
