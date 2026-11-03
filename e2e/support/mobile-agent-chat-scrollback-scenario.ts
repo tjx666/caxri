@@ -28,7 +28,7 @@ const PAGE_DELAY_MS = 800;
  * Slow drags toward older rows. Each one is slow enough to leave no fling behind, and together they carry the reader
  * from the end of the opened window to its top, where the list reads older pages on its own.
  */
-const DRAG_COUNT = 6;
+const DRAG_COUNT = 10;
 const DRAG_MS = 1_500;
 
 /**
@@ -41,6 +41,25 @@ const WATCH_AFTER_DRAG_MS = 5_000;
  * Lets the lifted finger's last scroll events and the scroll bar's fade finish before the reference picture.
  */
 const LIFT_SETTLE_MS = 700;
+
+/**
+ * The picture a band settles on: two reads in a row that match, so a row still measuring is not taken as the reference.
+ */
+async function settledFingerprint(
+    serial: string,
+    band: Parameters<typeof mobileRegionFingerprint>[1],
+): Promise<string> {
+    let last = await mobileRegionFingerprint(serial, band);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each read compares with the one before it
+        await pause(200);
+        // eslint-disable-next-line no-await-in-loop -- see above
+        const next = await mobileRegionFingerprint(serial, band);
+        if (next === last) return next;
+        last = next;
+    }
+    throw new Error('The timeline band never settled after the drag');
+}
 
 /**
  * `MOB-CHAT-SCROLLBACK-01`: a reader who scrolls back through a long running turn keeps their place while older pages
@@ -94,7 +113,10 @@ export async function executeMobileChatScrollbackScenario(
         };
         const x = String(Math.floor(width / 2));
         const moves: Array<{ drag: number; changedSamples: number }> = [];
+        const stuck: number[] = [];
         for (let drag = 1; drag <= DRAG_COUNT; drag += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each drag starts where the previous one left the list
+            const before = await mobileRegionFingerprint(serial, band);
             // eslint-disable-next-line no-await-in-loop -- each drag starts where the previous one left the list
             await adbShell(serial, [
                 'input',
@@ -108,7 +130,9 @@ export async function executeMobileChatScrollbackScenario(
             // eslint-disable-next-line no-await-in-loop -- see above
             await pause(LIFT_SETTLE_MS);
             // eslint-disable-next-line no-await-in-loop -- see above
-            const lifted = await mobileRegionFingerprint(serial, band);
+            const lifted = await settledFingerprint(serial, band);
+            // A drag that cannot move the rows found no older rows above them: the pages it should have read never came.
+            if (lifted === before) stuck.push(drag);
             let changedSamples = 0;
             const deadline = Date.now() + WATCH_AFTER_DRAG_MS;
             while (Date.now() < deadline) {
@@ -127,6 +151,10 @@ export async function executeMobileChatScrollbackScenario(
         if (moves.length > 0)
             throw new Error(
                 `The timeline moved without a touch after ${moves.length} of ${DRAG_COUNT} drags: ${JSON.stringify(moves)}`,
+            );
+        if (stuck.length > 0)
+            throw new Error(
+                `Drags ${stuck.join(', ')} could not move the timeline, so no older page reached it`,
             );
         await finish(environment, artifacts, {
             drags: DRAG_COUNT,
