@@ -23,9 +23,10 @@ import type { AgentChatVersionView } from '../../versions/use-agent-chat-version
 import { AgentChatVersionsContext } from '../../versions/use-agent-chat-versions';
 import { AgentChatPendingTimeline } from '../agent-chat-pending-timeline';
 import { AgentChatSettledTimeline } from '../agent-chat-settled-timeline';
-import type { agentChatCompactionInTimeline, AgentChatTimelineEntry } from '../agent-chat-timeline';
+import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
     AGENT_CHAT_TURN_START_ATTRIBUTE,
+    agentChatCompactionInTimeline,
     agentChatTimelineEntryKey,
     agentChatTurnStartId,
 } from '../agent-chat-timeline';
@@ -76,7 +77,6 @@ function LiveTimelineEntries({
  * The Chat's settled, live, and pending timelines under the contexts their rows read.
  */
 export function AgentChatTimelineBody({
-    compaction,
     dayBreaks,
     isAwaitingReply,
     mcpServers,
@@ -89,10 +89,6 @@ export function AgentChatTimelineBody({
     timeline,
     versionView,
 }: {
-    /**
-     * The compaction running now (`agentChatCompactionInTimeline`), whose row holds the reply's place until it ends.
-     */
-    compaction: ReturnType<typeof agentChatCompactionInTimeline>;
     dayBreaks: ReadonlyMap<string, number>;
     isAwaitingReply: boolean;
     mcpServers: AgentChatSnapshot['mcpServers'];
@@ -116,6 +112,8 @@ export function AgentChatTimelineBody({
     const servers = useAgentChatMcpServers(mcpServers);
     const skills = useAgentChatSkillHost(terminalId);
     const references = useAgentChatReferenceIndex(settledChunks, timeline);
+    // The compaction running now holds the reply's place until it ends.
+    const compaction = agentChatCompactionInTimeline(snapshot, timeline);
     return (
         <AgentChatMcpServersContext value={servers}>
             <AgentChatTerminalContext value={terminalId}>
