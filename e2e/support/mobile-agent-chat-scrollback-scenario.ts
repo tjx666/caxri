@@ -12,6 +12,7 @@ import {
     mobileDisplayState,
     mobileRegionFingerprint,
     mobileSemantics,
+    startMobileFramebufferRecording,
     waitForMobile,
 } from './mobile-android';
 import { setEmulatorNetworkDelay } from './mobile-android-network';
@@ -74,10 +75,12 @@ async function settledFingerprint(
  * showed when the finger lifted once the pages that drag asked for have landed.
  */
 export async function executeMobileChatScrollbackScenario(
-    environment: MobileAgentScenarioEnvironment,
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
     artifacts: string[],
 ): Promise<void> {
-    const { serial } = environment;
+    const { remoteVideoPath, serial } = environment;
+    if (!remoteVideoPath)
+        throw new Error('MOB-CHAT-SCROLLBACK-01 films the scroll-back for its reviewer');
     const fixture = await createMobileAcceptanceFixture({
         chatProvider: 'claude',
         claudeScript: runningInvestigationScript,
@@ -85,6 +88,7 @@ export async function executeMobileChatScrollbackScenario(
         serial,
     });
     let isDelayed = false;
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
@@ -106,6 +110,7 @@ export async function executeMobileChatScrollbackScenario(
         ]);
         await pause(5_000);
         await capture(environment, 'opened', artifacts);
+        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await setEmulatorNetworkDelay(serial, PAGE_DELAY_MS);
         isDelayed = true;
         const band = {
@@ -151,6 +156,8 @@ export async function executeMobileChatScrollbackScenario(
         await setEmulatorNetworkDelay(serial, 0);
         isDelayed = false;
         await capture(environment, 'scrolled-back', artifacts);
+        await recording.stop();
+        recording = undefined;
         if (moves.length > 0)
             throw new Error(
                 `The timeline moved without a touch after ${moves.length} of ${DRAG_COUNT} drags: ${JSON.stringify(moves)}`,
@@ -166,6 +173,7 @@ export async function executeMobileChatScrollbackScenario(
         });
     } finally {
         if (isDelayed) await setEmulatorNetworkDelay(serial, 0);
+        await recording?.stop();
         await fixture.stop();
     }
 }

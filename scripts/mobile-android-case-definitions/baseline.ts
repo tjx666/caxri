@@ -304,7 +304,7 @@ export const cases = {
     },
     'MOB-CHAT-SCROLLBACK-01': {
         desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
         recordingOwner: 'scenario',
         scenario: 'agent-chat-scrollback',
     },
