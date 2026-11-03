@@ -88,6 +88,19 @@ describe('agent.session management', () => {
         expect(database.getSession(sessionId)?.archivedAt).toBeUndefined();
     });
 
+    it("refuses a rename outside the language of the caller's own Session title", async () => {
+        const { database, manage, rename, agent, caller, project } = await fixture();
+        database.renameSession(caller.session.id, '排查积分消耗');
+        const sessionId = createBackgroundSession(database, project.id, '复查', caller.session.id);
+
+        await expect(
+            manage({ ...agent, sessionId, operation: { action: 'rename', title: 'Review done' } }),
+        ).rejects.toThrow('Write the Session title in Chinese');
+        expect(rename).not.toHaveBeenCalled();
+        await manage({ ...agent, sessionId, operation: { action: 'rename', title: '复查完成' } });
+        expect(rename).toHaveBeenCalledWith(sessionId, '复查完成', undefined, undefined);
+    });
+
     it('admits another Agent of the creating Session', async () => {
         const { database, manage, agent, caller, project } = await fixture();
         const sessionId = createBackgroundSession(

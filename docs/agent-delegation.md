@@ -67,7 +67,9 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
 - `--new-session --title` creates a plain Session, named manually, without moving the Workbench
   selection, right before its Agent Terminal, so the Session never sits empty. A retry with the same
   request ID reuses it; a request refused before its task was recorded removes it again (metadata
-  only).
+  only). When an Agent's own Session title is Chinese, Japanese, or Korean, the title it passes
+  here or to `agent session rename` must use that script, or the request fails with `VALIDATION`;
+  Agents otherwise copied their English task file's wording into the sidebar.
 - Admission for new work outside the caller's own Session requires a visible top-level Project, an
   unarchived Session, and either this request's new Session or an earlier delegation by the same
   caller Terminal in it. A user's other Sessions are refused, because a task there would fill its
