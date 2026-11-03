@@ -10,33 +10,45 @@ import {
 
 /**
  * The counts the Delegated Sessions strip's header states: every child Session the Chat delegated to, and how many of
- * them need the user or failed.
+ * them need the user, failed, or wait for a scheduled retry.
  */
 export interface DelegatedSessionsSummary {
     failed: number;
     needsInput: number;
     total: number;
+    waiting: number;
 }
 
 export function delegatedSessionsSummary(
-    entries: ReadonlyArray<Pick<AgentDelegationSession, 'failure' | 'status'>>,
+    entries: ReadonlyArray<
+        Pick<AgentDelegationSession, 'failure' | 'status'> &
+            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor'>>
+    >,
 ): DelegatedSessionsSummary {
     return { ...delegationAttentionCounts(entries), total: entries.length };
 }
 
 /**
- * The header's parts, `3 delegated`, then `1 needs input` and `1 failed` only when there are some. A task waiting on a
- * question or permission is "needs input", never "approval", because it can be a question; an `answer_unavailable` task
- * is neither needs-input nor failed.
+ * The header's parts, `3 delegated`, then `1 needs input`, `1 failed`, and `1 retry waiting` only when there are some.
+ * A task waiting on a question or permission is "needs input", never "approval", because it can be a question; an
+ * `answer_unavailable` task is neither needs-input nor failed.
  */
 export function delegatedSessionsHeaderParts(
     summary: DelegatedSessionsSummary,
     t: Translate,
-): { count: string; failed?: string; needsInput?: string } {
+): { count: string; failed?: string; needsInput?: string; waiting?: string } {
     return {
         count: t('delegation.strip.count', { count: summary.total }),
         ...(summary.failed > 0 && {
             failed: t('delegation.strip.failed', { count: summary.failed }),
+        }),
+        ...(summary.waiting > 0 && {
+            waiting: t(
+                summary.waiting === 1
+                    ? 'delegation.strip.retryWaitingOne'
+                    : 'delegation.strip.retryWaitingOther',
+                { count: summary.waiting },
+            ),
         }),
         ...(summary.needsInput > 0 && {
             needsInput: t(

@@ -1,53 +1,42 @@
-import { createHash } from 'node:crypto';
-import { lstat } from 'node:fs/promises';
-
 import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
     AgentProvider,
     DelegationRetryMode,
     DelegationRetryOption,
-    DelegationRetryUnavailableReason,
+    DelegationRetryReply,
+    DelegationRetrySchedule,
 } from '@caxri/protocol';
 import { CaxriError, isDelegationActive, isRetryableDelegationFailure } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 
 import type { StoredAgentDelegation } from '../db';
+import type { WatchHub } from '../watch';
 import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 import { logDelegationRetry } from './diagnostics';
-import type { DelegationResumeRejection } from './rejection';
 import { resumeRejection } from './rejection';
-import { createRetryNotice } from './retry-notice';
+import { RetryClaims } from './retry-claims';
+import { startFreshRetry } from './retry-fresh';
+import { createRetryNotice, createRetryRefusedNotice } from './retry-notice';
+import { DelegationRetrySchedules } from './retry-schedule';
+import { scheduledRetryTime, scheduleOutcomeOf } from './retry-schedule-time';
+import type { Reason, RetryAdmission, VerifiedWorktree } from './retry-support';
+import {
+    RESUME_REASONS,
+    retryDelegationId,
+    RetryRefused,
+    verifyRetryWorktree,
+} from './retry-support';
+import { retrySwitchTargets } from './retry-switch';
 import type { AgentDelegationServiceOptions, DelegationWorktree } from './service-options';
-
-type Reason = DelegationRetryUnavailableReason;
-
-/**
- * What a retry adds to ordinary admission (`createInSession`): the link back, the failed task's provider to hold to,
- * the tree position to keep, and the recheck of its caller.
- */
-export interface RetryAdmission {
-    retryOf: string;
-    /**
-     * A retry never switches provider; a current setting that now resolves elsewhere is refused.
-     */
-    provider: AgentProvider;
-    inherited: Pick<AgentDelegationReceipt, 'depth' | 'parentDelegationId'> & {
-        callerTurnId?: string;
-    };
-    /**
-     * Throws unless the delegating Agent is still the live generation that can read the new task. Called after every
-     * await that precedes an irreversible step.
-     */
-    guard(): void;
-}
 
 /**
  * What a retry borrows from the delegation service.
  */
 export interface DelegationRetryHost {
     options: AgentDelegationServiceOptions;
+    now(): number;
     save(record: StoredAgentDelegation, isAnnounced?: boolean): StoredAgentDelegation;
     hasActiveTask(terminalId: string): boolean;
     /**
@@ -63,96 +52,55 @@ export interface DelegationRetryHost {
 }
 
 /**
- * A retry refused for a reason a Client words itself; see `delegationRetryUnavailableReasonSchema`.
+ * A claim just made: the failed task as saved, the new task's ID, and the worktree a fresh retry binds.
  */
-export class RetryRefused extends CaxriError {
-    constructor(readonly reason: Reason) {
-        super('CONFLICT', `Delegated task cannot be retried: ${reason}`, { reason });
-    }
-}
-
-/**
- * Resume refusals as the reason a Client shows. The wording differs from the failure a refused follow-up records, so
- * this is its own table; a task with no conversation to resume reads as `no_provider_session`.
- */
-const RESUME_REASONS = {
-    no_terminal: 'no_provider_session',
-    no_provider_session: 'no_provider_session',
-    provider_session_replaced: 'session_changed',
-    parent_chained: 'target_busy',
-    terminal_busy: 'target_busy',
-    target_lost: 'target_changed',
-    launch_replaced: 'target_changed',
-    human_intervened: 'human_input',
-    no_input_epoch: 'human_input',
-    input_epoch_moved: 'human_input',
-    parent_human_intervened: 'human_input',
-    resume_unsupported: 'resume_unsupported',
-} as const satisfies Record<DelegationResumeRejection, Reason>;
-
-/**
- * The new task's ID, derived from the failed task's alone. It must not depend on the mode, so two buttons racing for
- * one failed task name the same ID. UUID-shaped because task IDs name private directories (`prepareDelegationLaunch`).
- */
-export function retryDelegationId(failedId: string): string {
-    const hex = createHash('sha256').update(`retry\0${failedId}`).digest('hex');
-    return [
-        hex.slice(0, 8),
-        hex.slice(8, 12),
-        hex.slice(12, 16),
-        hex.slice(16, 20),
-        hex.slice(20, 32),
-    ].join('-');
-}
-
-/**
- * A retry never switches provider. A fresh retry resolves its launch from the current settings, which can now name
- * another provider for the same preset.
- */
-export function assertRetryProvider(
-    retry: RetryAdmission | undefined,
-    selection: { provider: AgentProvider },
-): void {
-    if (retry && retry.provider !== selection.provider) throw new RetryRefused('not_retryable');
-}
-
-interface VerifiedWorktree {
-    /**
-     * The linked worktree to bind, absent when the failed Session ran in its Project's own root.
-     */
+interface ClaimedRetry {
+    failed: StoredAgentDelegation;
+    retryId: string;
     worktree?: DelegationWorktree;
-    /**
-     * The Session's binding as read before the filesystem check, to compare with the binding afterwards.
-     */
-    binding: string;
 }
 
 /**
- * Owner-only "retry now" of a failed delegated task (`agent.delegation.retry`). The retry runs as the Agent that
- * delegated the failed task, with that task's stored principal and caller Terminal, so the Agent can still `wait` on
- * and read the new task; the owner's own identity would orphan it.
+ * Owner-only retry of a failed delegated task (`agent.delegation.retry`), now or at the provider's reset. The retry
+ * runs as the Agent that delegated the failed task, with that task's stored principal and caller Terminal, so the Agent
+ * can still `wait` on and read the new task; the owner's own identity would orphan it.
  *
  * Everything up to and including the claim is synchronous (read, checks, save, with no await between), like the
  * follow-up chain claim. The claim is `retriedAs` on the failed task's receipt plus the persisted `retryMode`, and it
- * is what lets only one retry through whichever button was clicked. It is released when admission refuses the retry
- * before the new record exists, and at Server startup when it names a task that was never stored.
+ * is what lets only one retry through whichever button was clicked. A scheduled retry holds the same claim from the
+ * moment it is scheduled and marks it pending with `retryScheduledFor` ({@link DelegationRetrySchedules}). The claim is
+ * released when admission refuses the retry before the new record exists, and at Server startup when it names a task
+ * that was never stored and is not a pending schedule.
  */
 export class DelegationRetries {
-    private readonly flights = new SingleFlight<string, AgentDelegationReceipt>();
+    private readonly claims: RetryClaims;
+    private readonly flights = new SingleFlight<string, DelegationRetryReply>();
     private readonly notify;
+    private readonly notifyRefusedCaller;
+    private readonly schedules: DelegationRetrySchedules;
 
     constructor(private readonly host: DelegationRetryHost) {
+        this.claims = new RetryClaims(host);
         this.notify = createRetryNotice(host.options, (failed) => this.isCallerLive(failed));
+        this.notifyRefusedCaller = createRetryRefusedNotice(host.options, (failed) =>
+            this.isCallerLive(failed),
+        );
+        this.schedules = new DelegationRetrySchedules({
+            options: host.options,
+            now: () => host.now(),
+            chainDepth: (failed) => this.claims.chainDepth(failed),
+            runClaimed: (failedId, mode) => this.runClaimed(failedId, mode),
+            release: (failedId, outcome) => this.claims.releaseUnstored(failedId, outcome),
+            settle: (failedId) => this.claims.settlePending(failedId),
+            claimChatWait: (failed) => this.claimChatWait(failed),
+            notifyRefused: (failed, outcome) => {
+                this.notifyRefusedCaller(failed, outcome);
+            },
+        });
     }
 
     private get database() {
         return this.host.options.database;
-    }
-
-    private load(id: string): StoredAgentDelegation {
-        const record = this.database.agentDelegations.get(id);
-        if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
-        return record;
     }
 
     /**
@@ -179,10 +127,11 @@ export class DelegationRetries {
     }
 
     /**
-     * The mode-independent reasons a failed task cannot be retried.
+     * The mode-independent reasons a failed task cannot be retried. `isOwnClaim` is the scheduled retry's own claim at
+     * fire time, which is the only claim that does not count as already retried.
      */
-    private commonRefusal(failed: StoredAgentDelegation): Reason | undefined {
-        if (failed.receipt.retriedAs) return 'already_retried';
+    private commonRefusal(failed: StoredAgentDelegation, isOwnClaim: boolean): Reason | undefined {
+        if (!isOwnClaim && failed.receipt.retriedAs) return 'already_retried';
         if (isDelegationActive(failed.receipt) || !isRetryableDelegationFailure(failed.receipt))
             return 'not_retryable';
         if (failed.hasHumanIntervention) return 'human_input';
@@ -207,46 +156,21 @@ export class DelegationRetries {
             : undefined;
     }
 
-    private refusal(failed: StoredAgentDelegation, mode: DelegationRetryMode): Reason | undefined {
-        const common = this.commonRefusal(failed);
+    private refusal(
+        failed: StoredAgentDelegation,
+        mode: DelegationRetryMode,
+        isOwnClaim = false,
+    ): Reason | undefined {
+        const common = this.commonRefusal(failed, isOwnClaim);
         if (common) return common;
         if (mode === 'fresh') return this.freshRefusal(failed);
-        const rejection = resumeRejection(failed, this.host.options, (terminalId) =>
-            this.host.hasActiveTask(terminalId),
+        const rejection = resumeRejection(
+            failed,
+            this.host.options,
+            (terminalId) => this.host.hasActiveTask(terminalId),
+            isOwnClaim ? retryDelegationId(failed.receipt.delegationId) : undefined,
         );
         return rejection && RESUME_REASONS[rejection];
-    }
-
-    /**
-     * The linked worktree a fresh retry must reuse, proven to still be the directory it was bound to. Never falls back
-     * to the Project root, which would be the wrong working directory. Asynchronous: the caller rechecks everything
-     * synchronously afterwards.
-     */
-    private async verifyWorktree(failed: StoredAgentDelegation): Promise<VerifiedWorktree> {
-        const binding = this.database.getSessionWorkbenchBinding(failed.receipt.sessionId);
-        const key = JSON.stringify(binding);
-        if (!binding || binding.workbenchRootProjectId === binding.projectId)
-            return { binding: key };
-        const project = this.database.getProject(binding.workbenchRootProjectId);
-        if (!project || !binding.rootInode) throw new RetryRefused('worktree_gone');
-        try {
-            const stats = await lstat(project.rootPath, { bigint: true });
-            if (
-                stats.isSymbolicLink() ||
-                !stats.isDirectory() ||
-                stats.ino.toString() !== binding.rootInode
-            )
-                throw new RetryRefused('worktree_gone');
-            return {
-                binding: key,
-                worktree: {
-                    projectId: binding.workbenchRootProjectId,
-                    identity: { device: stats.dev.toString(), inode: stats.ino.toString() },
-                },
-            };
-        } catch {
-            throw new RetryRefused('worktree_gone');
-        }
     }
 
     private async optionFor(
@@ -256,7 +180,7 @@ export class DelegationRetries {
         let reason = this.refusal(failed, mode);
         if (!reason && mode === 'fresh') {
             try {
-                await this.verifyWorktree(failed);
+                await verifyRetryWorktree(this.database, failed);
             } catch {
                 reason = 'worktree_gone';
             }
@@ -275,6 +199,7 @@ export class DelegationRetries {
         outcome: 'refused' | 'shared' | 'started',
         retryId?: string,
         reason?: Reason | 'other',
+        toProvider?: AgentProvider,
     ): void {
         logDelegationRetry(this.host.options.logger, {
             delegationId: failed.receipt.delegationId,
@@ -283,7 +208,9 @@ export class DelegationRetries {
             failure: failed.receipt.failure,
             outcome,
             reason,
-            chainDepth: this.chainDepth(failed),
+            // A refusal names the requested target; only a shared or started retry falls back to the claimed one.
+            toProvider: outcome === 'refused' ? toProvider : (toProvider ?? failed.retryProvider),
+            chainDepth: this.claims.chainDepth(failed),
         });
     }
 
@@ -291,78 +218,161 @@ export class DelegationRetries {
         failed: StoredAgentDelegation,
         mode: DelegationRetryMode,
         reason: Reason,
+        toProvider?: AgentProvider,
     ): RetryRefused {
-        this.log(failed, mode, 'refused', undefined, reason);
+        this.log(failed, mode, 'refused', undefined, reason, toProvider);
         return new RetryRefused(reason);
     }
 
-    private chainDepth(failed: StoredAgentDelegation): number {
-        let depth = 0;
-        let current: StoredAgentDelegation | undefined = failed;
-        while (current?.receipt.retryOf && depth < 32) {
-            depth++;
-            current = this.database.agentDelegations.get(current.receipt.retryOf);
-        }
-        return depth;
+    /**
+     * Makes this retry the only continuation of the failed turn. The failed task's Chat may be waiting to continue on
+     * its own after a usage limit (`agentChat.autoContinueAtUsageLimit`), which would run the same work a second time:
+     * a wait that has not started is cancelled, one that is already continuing wins.
+     */
+    private claimChatWait(failed: StoredAgentDelegation): 'cancelled' | 'none' | 'running' {
+        const { terminalId } = failed.receipt;
+        if (!terminalId) return 'none';
+        return this.host.options.claimChatUsageLimitWait?.(terminalId) ?? 'none';
     }
 
     /**
-     * Clears a claim whose task was never stored. Reads the stored record, which other saves may have moved on.
+     * Everything that must hold before a claim, now or at a scheduled fire: the checks, the proof that a fresh retry's
+     * worktree is still the directory it was bound to, and the checks again after that await, because everything may
+     * have changed during the filesystem check, including another mode's claim.
      */
-    private releaseClaim(failedId: string, isAnnounced = true): StoredAgentDelegation {
-        const current = this.load(failedId);
-        return this.host.save(
-            {
-                ...current,
-                retryMode: undefined,
-                receipt: { ...current.receipt, retriedAs: undefined },
-            },
-            isAnnounced,
+    private async checked(
+        failedId: string,
+        mode: DelegationRetryMode,
+        isOwnClaim: boolean,
+        switchTo?: AgentProvider,
+    ): Promise<{ failed: StoredAgentDelegation; verified?: VerifiedWorktree }> {
+        const assertRetryable = (record: StoredAgentDelegation) => {
+            const reason = this.refusal(record, mode, isOwnClaim);
+            if (reason) throw this.refused(record, mode, reason, switchTo);
+        };
+        let failed = this.claims.load(failedId);
+        assertRetryable(failed);
+        if (mode !== 'fresh') return { failed };
+        let verified: VerifiedWorktree;
+        try {
+            verified = await verifyRetryWorktree(this.database, failed);
+        } catch {
+            throw this.refused(failed, mode, 'worktree_gone', switchTo);
+        }
+        // Awaited before the reload below, like the worktree proof, so the checks after it see the settled state.
+        if (
+            switchTo &&
+            !(await retrySwitchTargets(this.host.options, failed.receipt.provider)).includes(
+                switchTo,
+            )
+        )
+            throw this.refused(failed, mode, 'not_retryable', switchTo);
+        failed = this.claims.load(failedId);
+        assertRetryable(failed);
+        if (
+            verified.binding !==
+            JSON.stringify(this.database.getSessionWorkbenchBinding(failed.receipt.sessionId))
+        )
+            throw this.refused(failed, mode, 'worktree_gone', switchTo);
+        return { failed, verified };
+    }
+
+    /**
+     * Claims the failed task for a retry: now, or pending until the provider's reset (`isScheduled`).
+     */
+    private async claim(
+        failedId: string,
+        mode: DelegationRetryMode,
+        isScheduled: boolean,
+        switchTo?: AgentProvider,
+    ): Promise<ClaimedRetry> {
+        const { failed: checkedTask, verified } = await this.checked(
+            failedId,
+            mode,
+            false,
+            switchTo,
         );
+        let failed = checkedTask;
+        const scheduledFor = isScheduled
+            ? scheduledRetryTime(failed.receipt, this.host.now())
+            : undefined;
+        if (isScheduled && scheduledFor === undefined)
+            throw this.refused(failed, mode, 'no_reset_time');
+        if (this.claimChatWait(failed) === 'running')
+            throw this.refused(failed, mode, 'target_busy', switchTo);
+        const retryId = retryDelegationId(failedId);
+        failed = this.host.save({
+            ...failed,
+            receipt: {
+                ...failed.receipt,
+                retriedAs: retryId,
+                retryScheduledFor: scheduledFor,
+                retryScheduleOutcome: undefined,
+            },
+            retryMode: mode,
+            retryProvider: switchTo,
+        });
+        return { failed, retryId, worktree: verified?.worktree };
     }
 
     private async run(
         failedId: string,
         mode: DelegationRetryMode,
+        switchTo?: AgentProvider,
     ): Promise<AgentDelegationReceipt> {
-        let failed = this.load(failedId);
+        const failed = this.claims.load(failedId);
         const existing = failed.receipt.retriedAs
             ? this.database.agentDelegations.get(failed.receipt.retriedAs)
             : undefined;
         if (existing) {
-            if (failed.retryMode !== mode) throw this.refused(failed, mode, 'already_retried');
+            if (failed.retryMode !== mode || failed.retryProvider !== switchTo)
+                throw this.refused(failed, mode, 'already_retried', switchTo);
             this.log(failed, mode, 'shared', existing.receipt.delegationId);
             return existing.receipt;
         }
         // A claim with no stored task and no run in flight was cut off before the insert.
-        if (failed.receipt.retriedAs) failed = this.releaseClaim(failedId);
-        const assertRetryable = (record: StoredAgentDelegation) => {
-            const reason = this.refusal(record, mode);
-            if (reason) throw this.refused(record, mode, reason);
+        if (failed.receipt.retriedAs) this.claims.release(failedId);
+        const claimed = await this.claim(failedId, mode, false, switchTo);
+        return this.admit(claimed.failed, mode, claimed.retryId, claimed.worktree);
+    }
+
+    private async schedule(
+        failedId: string,
+        mode: DelegationRetryMode,
+    ): Promise<DelegationRetryReply> {
+        const failed = this.claims.load(failedId);
+        // Startup already released every claim a crash cut off, so a claim held now is a started retry or one still
+        // being admitted: releasing it here would schedule a retry that is already running.
+        if (failed.receipt.retriedAs) throw this.refused(failed, mode, 'already_retried');
+        const { failed: pending } = await this.claim(failedId, mode, true);
+        this.schedules.scheduled(pending);
+        return {
+            status: 'scheduled',
+            delegationId: failedId,
+            scheduledFor: pending.receipt.retryScheduledFor!,
         };
-        let verified: VerifiedWorktree | undefined;
-        assertRetryable(failed);
-        if (mode === 'fresh') {
-            try {
-                verified = await this.verifyWorktree(failed);
-            } catch {
-                throw this.refused(failed, mode, 'worktree_gone');
-            }
-            // Everything may have changed during the filesystem check, including another mode's claim.
-            failed = this.load(failedId);
-            assertRetryable(failed);
-            if (
-                verified.binding !==
-                JSON.stringify(this.database.getSessionWorkbenchBinding(failed.receipt.sessionId))
-            )
-                throw this.refused(failed, mode, 'worktree_gone');
-        }
+    }
+
+    /**
+     * Starts the retry a schedule holds the claim for, once its time has come. The claim stays held throughout and the
+     * pending time is dropped only after the new task is stored (`admit`), so a crash in between leaves a schedule the
+     * next start finds again, with the deterministic task ID telling whether the task was stored.
+     */
+    private async runClaimed(
+        failedId: string,
+        mode: DelegationRetryMode,
+    ): Promise<AgentDelegationReceipt> {
         const retryId = retryDelegationId(failedId);
-        failed = this.host.save({
-            ...failed,
-            receipt: { ...failed.receipt, retriedAs: retryId },
-            retryMode: mode,
-        });
+        const isPending = (record: StoredAgentDelegation) =>
+            record.receipt.retriedAs === retryId &&
+            record.receipt.retryScheduledFor !== undefined &&
+            record.retryMode === mode;
+        if (!isPending(this.claims.load(failedId)))
+            throw new CaxriError('CONFLICT', 'No scheduled retry is pending');
+        const { failed, verified } = await this.checked(failedId, mode, true);
+        if (!isPending(failed)) throw new CaxriError('CONFLICT', 'No scheduled retry is pending');
+        if (this.claimChatWait(failed) === 'running')
+            throw this.refused(failed, mode, 'target_busy');
         return this.admit(failed, mode, retryId, verified?.worktree);
     }
 
@@ -379,21 +389,16 @@ export class DelegationRetries {
         };
         const retry: RetryAdmission = {
             retryOf: failedId,
-            provider: failed.receipt.provider,
+            provider: failed.retryProvider ?? failed.receipt.provider,
             inherited: {
                 depth: failed.receipt.depth,
                 parentDelegationId: failed.receipt.parentDelegationId,
                 callerTurnId: failed.callerTurnId,
             },
             guard: () => {
-                if (!this.isCallerLive(this.load(failedId))) throw new RetryRefused('caller_gone');
+                if (!this.isCallerLive(this.claims.load(failedId)))
+                    throw new RetryRefused('caller_gone');
             },
-        };
-        const { selection } = failed.receipt;
-        const base = {
-            projectId: failed.input.projectId,
-            prompt: failed.input.prompt,
-            callerProvider: failed.input.callerProvider,
         };
         try {
             const receipt =
@@ -401,37 +406,36 @@ export class DelegationRetries {
                     ? await this.host.admit(
                           retryId,
                           authority,
-                          { ...base, sessionId: failed.receipt.sessionId, resumeFrom: failedId },
+                          {
+                              projectId: failed.input.projectId,
+                              prompt: failed.input.prompt,
+                              callerProvider: failed.input.callerProvider,
+                              sessionId: failed.receipt.sessionId,
+                              resumeFrom: failedId,
+                          },
                           false,
                           retry,
                       )
-                    : await this.startFresh(
-                          retryId,
-                          authority,
-                          retry,
-                          {
-                              ...base,
-                              ...(selection?.preset
-                                  ? { preset: selection.preset }
-                                  : {
-                                        provider: failed.receipt.provider,
-                                        model: selection?.model,
-                                        effort: selection?.effort,
-                                    }),
-                              ...(failed.input.handoff && { handoff: true as const }),
-                              ...(failed.input.consult && { consult: true as const }),
-                          },
-                          worktree,
-                      );
+                    : await startFreshRetry(this.host, failed, retryId, authority, retry, worktree);
+            this.claims.settlePending(failedId);
             this.log(failed, mode, 'started', retryId);
             this.notify(failed, retryId);
             return receipt;
         } catch (error) {
             if (this.database.agentDelegations.get(retryId)) {
                 // Kept once the task exists, even if it then failed: it is the next link of the chain.
+                this.claims.settlePending(failedId);
                 this.notify(failed, retryId);
             } else {
-                if (this.database.agentDelegations.get(failedId)) this.releaseClaim(failedId);
+                // A scheduled retry records why in the same save that releases its claim.
+                if (this.database.agentDelegations.get(failedId))
+                    this.claims.release(
+                        failedId,
+                        true,
+                        failed.receipt.retryScheduledFor === undefined
+                            ? undefined
+                            : scheduleOutcomeOf(error),
+                    );
                 this.log(
                     failed,
                     mode,
@@ -445,78 +449,138 @@ export class DelegationRetries {
     }
 
     /**
-     * A new Session on the failed task's workbench root: it carries the failed Session's title and creator, and binds
-     * the linked worktree the failed Session used instead of making a second branch. The failed Session stays as it
-     * is.
+     * `agent.delegation.retryOptions`: which modes could run now, whether a retry could be scheduled for the provider's
+     * reset, and the other Agents a fresh retry could switch to. A read; it claims nothing.
      */
-    private async startFresh(
-        retryId: string,
-        authority: DelegationAuthority,
-        retry: RetryAdmission,
-        input: Omit<AgentDelegationCreate, 'sessionId'>,
-        worktree: DelegationWorktree | undefined,
-    ): Promise<AgentDelegationReceipt> {
-        const { newSessions, database } = this.host.options;
-        const failed = this.load(retry.retryOf);
-        const session = database.getSession(failed.receipt.sessionId);
-        if (!newSessions || !session) throw new RetryRefused('not_retryable');
-        const sessionId = newSessions.create(
-            failed.input.projectId,
-            session.title,
-            false,
-            session.createdBySessionId,
-            session.createdBySessionId ? session.createdByRelation : undefined,
-            worktree,
-        );
-        try {
-            return await this.host.admit(retryId, authority, { ...input, sessionId }, true, retry);
-        } catch (error) {
-            if (database.agentDelegations.get(retryId)?.input.sessionId !== sessionId)
-                newSessions.discard(sessionId);
-            throw error;
+    async options(failedId: string): Promise<{
+        options: DelegationRetryOption[];
+        schedule: DelegationRetrySchedule;
+        switchTargets: AgentProvider[];
+    }> {
+        const failed = this.claims.load(failedId);
+        const scheduledFor = failed.receipt.retryScheduledFor;
+        if (scheduledFor !== undefined) {
+            /**
+             * The pending schedule holds the claim: no other retry runs until it is cancelled.
+             */
+            const blocked = (mode: DelegationRetryMode): DelegationRetryOption => ({
+                mode,
+                provider: failed.receipt.provider,
+                available: false,
+                unavailableReason: 'schedule_pending',
+            });
+            return {
+                options: [blocked('resume'), blocked('fresh')],
+                schedule: { available: false, scheduledFor, unavailableReason: 'schedule_pending' },
+                switchTargets: [],
+            };
         }
-    }
-
-    /**
-     * `agent.delegation.retryOptions`: which modes could run now. A read; it claims nothing.
-     */
-    async options(failedId: string): Promise<{ options: DelegationRetryOption[] }> {
-        const failed = this.load(failedId);
+        const options = [
+            await this.optionFor(failed, 'resume'),
+            await this.optionFor(failed, 'fresh'),
+        ];
+        const time = scheduledRetryTime(failed.receipt, this.host.now());
+        const isOpen = options.some((option) => option.available);
         return {
-            options: [
-                await this.optionFor(failed, 'resume'),
-                await this.optionFor(failed, 'fresh'),
-            ],
+            options,
+            switchTargets: options[1].available
+                ? await retrySwitchTargets(this.host.options, failed.receipt.provider)
+                : [],
+            schedule:
+                time !== undefined && isOpen
+                    ? { available: true, scheduledFor: time }
+                    : {
+                          available: false,
+                          unavailableReason:
+                              time === undefined ? 'no_reset_time' : options[0].unavailableReason,
+                      },
         };
     }
 
     /**
-     * `agent.delegation.retry`. The same mode again returns the task it started (also after it finished); the other
-     * mode is refused as `already_retried`. Concurrent same-mode requests share one run.
+     * `agent.delegation.retry`. The same request again returns the task it started or the schedule it holds (also after
+     * the task finished); any other request for the failed task is refused, a pending schedule included: cancel it
+     * first. Concurrent identical requests share one run.
      */
     async retry(
         failedId: string,
         mode: DelegationRetryMode,
-    ): Promise<{ delegationId: string; sessionId: string }> {
-        const failed = this.load(failedId);
-        if (failed.receipt.retriedAs && failed.retryMode !== mode)
-            throw this.refused(failed, mode, 'already_retried');
-        const receipt = await this.flights.run(`${failedId}\0${mode}`, () =>
-            this.run(failedId, mode),
+        scheduleAt?: 'reset',
+        provider?: AgentProvider,
+    ): Promise<DelegationRetryReply> {
+        const failed = this.claims.load(failedId);
+        // A switch only exists for an immediate fresh retry; the protocol schema enforces it, this guards other callers.
+        if (provider && (mode !== 'fresh' || scheduleAt))
+            throw this.refused(failed, mode, 'not_retryable', provider);
+        // Naming the failed task's own Agent is no switch: it would silently drop the model it ran with.
+        if (provider === failed.receipt.provider)
+            throw this.refused(failed, mode, 'not_retryable', provider);
+        const pendingFor = failed.receipt.retryScheduledFor;
+        // Before any dangling-claim cleanup: a pending schedule is a claim that is meant to have no task yet.
+        if (pendingFor !== undefined) {
+            if (scheduleAt && failed.retryMode === mode)
+                return { status: 'scheduled', delegationId: failedId, scheduledFor: pendingFor };
+            throw this.refused(failed, mode, 'schedule_pending');
+        }
+        // Before the fingerprint check inside admission: another mode or target Agent is a conflict, never a shared run.
+        if (
+            failed.receipt.retriedAs &&
+            (failed.retryMode !== mode || failed.retryProvider !== provider)
+        )
+            throw this.refused(failed, mode, 'already_retried', provider);
+        return this.flights.run(
+            `${failedId}\0${mode}\0${scheduleAt ?? 'now'}\0${provider ?? ''}`,
+            async () => {
+                if (scheduleAt) return this.schedule(failedId, mode);
+                const receipt = await this.run(failedId, mode, provider);
+                return {
+                    status: 'started' as const,
+                    delegationId: receipt.delegationId,
+                    sessionId: receipt.sessionId,
+                };
+            },
         );
-        return { delegationId: receipt.delegationId, sessionId: receipt.sessionId };
     }
 
     /**
-     * A claim without a stored task is a crash between the claim and the insert; nothing was started, so the failed
-     * task becomes retryable again. Silent, like the rest of startup recovery.
+     * `agent.delegation.cancelScheduledRetry`.
+     */
+    cancelScheduled(failedId: string): { cancelled: boolean } {
+        this.claims.load(failedId);
+        return { cancelled: this.schedules.cancel(failedId) };
+    }
+
+    /**
+     * Starts the scheduled-retry poll once the Server is fully composed.
+     */
+    startSchedules(watchHub: Pick<WatchHub, 'registerPoller'>, intervalMs?: number): void {
+        this.schedules.start(watchHub, intervalMs);
+    }
+
+    /**
+     * Runs one pass over the pending schedules now; the poll does this on its own.
+     */
+    drainSchedules(): Promise<void> {
+        return this.schedules.drain();
+    }
+
+    closeSchedules(): Promise<void> {
+        return this.schedules.close();
+    }
+
+    /**
+     * Startup recovery of the claims a restart cut off. A claim without a stored task is a crash between the claim and
+     * the insert; nothing was started, so the failed task becomes retryable again, silently like the rest of startup
+     * recovery. A pending schedule is kept, because its task is not meant to exist yet; if its task is stored, the
+     * crash came after the insert and only the pending time is dropped, so it is never started twice.
      */
     recoverClaims(): void {
-        for (const record of this.database.agentDelegations.all())
-            if (
-                record.receipt.retriedAs &&
-                !this.database.agentDelegations.get(record.receipt.retriedAs)
-            )
-                this.releaseClaim(record.receipt.delegationId, false);
+        for (const record of this.database.agentDelegations.all()) {
+            const { retriedAs, retryScheduledFor, delegationId } = record.receipt;
+            if (!retriedAs) continue;
+            if (this.database.agentDelegations.get(retriedAs))
+                this.claims.settlePending(delegationId, false);
+            else if (retryScheduledFor === undefined) this.claims.release(delegationId, false);
+        }
     }
 }

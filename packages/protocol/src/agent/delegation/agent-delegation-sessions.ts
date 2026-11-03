@@ -4,9 +4,11 @@ import { sessionRelationSchema } from '../../domain/domain.js';
 import { identifierSchema } from '../../domain/identifiers.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { ownerOnlyCommandPolicy } from '../../transport/method-spec.js';
+import { agentProviderIds } from '../agents.js';
 import {
     agentDelegationFailureSchema,
     agentDelegationStatusSchema,
+    delegationRetryScheduleOutcomeSchema,
 } from './agent-delegation-contract.js';
 import { delegationProviderSchema } from './agent-delegation-settings.js';
 
@@ -78,6 +80,12 @@ const agentDelegationSessionSchema = z.strictObject({
      */
     retryOf: identifierSchema.optional(),
     retriedAs: identifierSchema.optional(),
+    /**
+     * Present while a scheduled retry of this failed task is pending; `retriedAs` is then the reserved successor, not a
+     * started task. See `agentDelegationReceiptSchema`.
+     */
+    retryScheduledFor: z.number().int().positive().optional(),
+    retryScheduleOutcome: delegationRetryScheduleOutcomeSchema.optional(),
     createdAt: z.number().int().positive().optional(),
     settledAt: z.number().int().positive().optional(),
     /**
@@ -132,6 +140,11 @@ const agentDelegationStatusEntrySchema = z.strictObject({
     settledAt: z.number().int().positive().optional(),
     retryOf: identifierSchema.optional(),
     retriedAs: identifierSchema.optional(),
+    /**
+     * Pending scheduled retry and last refusal; see `agentDelegationReceiptSchema`.
+     */
+    retryScheduledFor: z.number().int().positive().optional(),
+    retryScheduleOutcome: delegationRetryScheduleOutcomeSchema.optional(),
 });
 
 export type AgentDelegationStatusEntry = z.infer<typeof agentDelegationStatusEntrySchema>;
@@ -143,10 +156,7 @@ export type AgentDelegationStatusEntry = z.infer<typeof agentDelegationStatusEnt
 export const delegationRetryModeSchema = z.enum(['resume', 'fresh']);
 export type DelegationRetryMode = z.infer<typeof delegationRetryModeSchema>;
 
-/**
- * Why a retry mode cannot run now, as a closed enum a Client words itself.
- */
-const delegationRetryUnavailableReasonSchema = z.enum([
+const RETRY_UNAVAILABLE_REASONS = [
     'human_input',
     'target_changed',
     'session_changed',
@@ -157,15 +167,22 @@ const delegationRetryUnavailableReasonSchema = z.enum([
     'worktree_gone',
     'already_retried',
     'not_retryable',
-]);
-export type DelegationRetryUnavailableReason = z.infer<
-    typeof delegationRetryUnavailableReasonSchema
->;
+    'no_reset_time',
+    'schedule_pending',
+] as const;
+export type DelegationRetryUnavailableReason = (typeof RETRY_UNAVAILABLE_REASONS)[number];
+
+/**
+ * Why a retry mode cannot run now, as a closed enum a Client words itself. Annotated rather than inferred: the method
+ * registry's inferred type is at the compiler's serialization limit, and a long inline enum is what it spends it on.
+ */
+const delegationRetryUnavailableReasonSchema: z.ZodType<DelegationRetryUnavailableReason> =
+    z.enum(RETRY_UNAVAILABLE_REASONS);
 
 const delegationRetryOptionSchema = z.strictObject({
     mode: delegationRetryModeSchema,
     /**
-     * Always the failed task's provider: a retry never switches provider.
+     * Always the failed task's provider; a switch to another Agent is listed in `switchTargets`.
      */
     provider: delegationProviderSchema,
     available: z.boolean(),
@@ -173,6 +190,71 @@ const delegationRetryOptionSchema = z.strictObject({
 });
 
 export type DelegationRetryOption = z.infer<typeof delegationRetryOptionSchema>;
+
+/**
+ * Whether a retry can be scheduled for the provider's reset, apart from the two immediate modes. `scheduledFor` is the
+ * time it would run (reset plus margin), or the time it runs while one is pending (`schedule_pending`).
+ */
+export interface DelegationRetrySchedule {
+    available: boolean;
+    scheduledFor?: number;
+    unavailableReason?: DelegationRetryUnavailableReason;
+}
+
+/**
+ * Annotated rather than inferred, like the reply below: the method registry's inferred type is at the compiler's
+ * serialization limit.
+ */
+const delegationRetryScheduleSchema: z.ZodType<DelegationRetrySchedule> = z.strictObject({
+    available: z.boolean(),
+    scheduledFor: z.number().int().positive().optional(),
+    unavailableReason: delegationRetryUnavailableReasonSchema.optional(),
+});
+
+/**
+ * The reply of `agent.delegation.retry`: `started` names the new task, `scheduled` the time a pending retry will run. A
+ * scheduled reply carries no `sessionId`: no successor Session exists yet.
+ */
+export type DelegationRetryReply =
+    | { status: 'started'; delegationId: string; sessionId: string }
+    | { status: 'scheduled'; delegationId: string; scheduledFor: number };
+
+/**
+ * Annotated rather than inferred: the method registry's inferred type is at the compiler's serialization limit.
+ */
+const delegationRetryReplySchema: z.ZodType<DelegationRetryReply> = z.discriminatedUnion('status', [
+    z.strictObject({
+        status: z.literal('started'),
+        delegationId: identifierSchema,
+        sessionId: identifierSchema,
+    }),
+    z.strictObject({
+        status: z.literal('scheduled'),
+        delegationId: identifierSchema,
+        scheduledFor: z.number().int().positive(),
+    }),
+]);
+
+/**
+ * `agent.delegation.cancelScheduledRetry` as a named type. Annotated rather than inferred: the method registry's
+ * inferred type is at the compiler's serialization limit, and one more inferred method pushes it over. The literal
+ * `owner`, `effect`, and `principal` stay, because the method-type helpers read them. Exported only so the registry's
+ * declaration can name it.
+ *
+ * @public
+ */
+export interface CancelScheduledRetrySpec extends ReturnType<
+    typeof ownerOnlyCommandPolicy<'server', 'control'>
+> {
+    params: z.ZodType<{ delegationId: string }>;
+    result: z.ZodType<{ cancelled: boolean }>;
+}
+
+const cancelScheduledRetry: CancelScheduledRetrySpec = {
+    ...ownerOnlyCommandPolicy('server', 'control'),
+    params: z.strictObject({ delegationId: identifierSchema }),
+    result: z.strictObject({ cancelled: z.boolean() }),
+};
 
 export const agentDelegationSessionsMethods = {
     /**
@@ -212,20 +294,47 @@ export const agentDelegationSessionsMethods = {
     'agent.delegation.retryOptions': {
         ...ownerOnlyCommandPolicy('server', 'read'),
         params: z.strictObject({ delegationId: identifierSchema }),
-        result: z.strictObject({ options: z.array(delegationRetryOptionSchema).max(2) }),
+        result: z.strictObject({
+            options: z.array(delegationRetryOptionSchema).max(2),
+            schedule: delegationRetryScheduleSchema,
+            /**
+             * The Agents a fresh retry could switch to instead of the failed task's own: installed, not at their weekly
+             * usage guard, in the static order Claude Code, Codex, then the others. Empty whenever a fresh retry is not
+             * available now.
+             */
+            switchTargets: z.array(delegationProviderSchema).max(agentProviderIds.length),
+        }),
     },
     /**
-     * Retries one failed task now, as the Agent that delegated it: the new task keeps that Agent's ownership, so it can
-     * still `wait` on and read the result. Owner-only (an Agent cannot retry for itself) and idempotent per failed task
-     * and mode: the same mode again returns the same new task, the other mode is a conflict. It takes no provider; the
-     * failed task's provider is always used.
+     * Retries one failed task, now or at the provider's reset, as the Agent that delegated it: the new task keeps that
+     * Agent's ownership, so it can still `wait` on and read the result. Owner-only (an Agent cannot retry for itself)
+     * and idempotent per failed task and operation: the same request again returns the same task or schedule, a
+     * different one is a conflict. Without `provider` the failed task's provider is used. `provider` switches a `fresh`
+     * retry to another Agent, which launches with that Agent's current delegation settings (no model, effort, or preset
+     * carries over); it is allowed only with mode `fresh` and without `scheduleAt`.
+     *
+     * `scheduleAt: "reset"` holds the claim and runs the retry when the receipt's `failureResetsAt` plus a margin has
+     * passed; the Server reads that time itself, so a Client never names one. The reply is then `scheduled`.
      */
     'agent.delegation.retry': {
         ...ownerOnlyCommandPolicy('server', 'control'),
-        params: z.strictObject({
-            delegationId: identifierSchema,
-            mode: delegationRetryModeSchema,
-        }),
-        result: z.strictObject({ delegationId: identifierSchema, sessionId: identifierSchema }),
+        params: z
+            .strictObject({
+                delegationId: identifierSchema,
+                mode: delegationRetryModeSchema,
+                scheduleAt: z.literal('reset').optional(),
+                provider: delegationProviderSchema.optional(),
+            })
+            .refine(
+                ({ provider, mode, scheduleAt }) =>
+                    provider === undefined || (mode === 'fresh' && scheduleAt === undefined),
+                { message: 'provider requires mode fresh and no scheduleAt', path: ['provider'] },
+            ),
+        result: delegationRetryReplySchema,
     },
+    /**
+     * Cancels a pending scheduled retry and releases its claim. Idempotent: `cancelled` is false when nothing is
+     * pending, including a retry that already started.
+     */
+    'agent.delegation.cancelScheduledRetry': cancelScheduledRetry,
 } as const satisfies Record<string, MethodSpec>;

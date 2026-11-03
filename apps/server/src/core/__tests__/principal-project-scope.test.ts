@@ -19,6 +19,7 @@ describe('assertOwnerOnlyMethod', () => {
             'agent.delegation.statuses',
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
+            'agent.delegation.cancelScheduledRetry',
         ])
             for (const kind of ['agent', 'delegation-client'])
                 expect(() => assertOwnerOnlyMethod(contextFor(kind), method)).toThrow(/owner/);

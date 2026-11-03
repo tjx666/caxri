@@ -88,4 +88,45 @@ export const delegation = {
     'delegation.retry.reason.worktree_gone': 'The worktree no longer exists',
     'delegation.retry.reason.already_retried': 'Already retried',
     'delegation.retry.reason.not_retryable': 'This failure cannot be retried',
+    'delegation.retry.reason.no_reset_time': 'No reset time is known for this limit',
+    'delegation.retry.reason.schedule_pending': 'A scheduled retry is waiting; cancel it first',
+    'delegation.copy.retryPending': 'Retries at {{time}}',
+    'delegation.strip.retryWaitingOne': '{{count}} retry waiting',
+    'delegation.strip.retryWaitingOther': '{{count}} retries waiting',
+    'delegation.retry.alreadyStarting': 'The retry is already starting',
+    'delegation.retry.switchAction': 'Retry with {{provider}}',
+    'delegation.retry.switchAria': 'Retry the failed task in {{title}} with {{provider}}',
+    'delegation.retry.scheduleAction': 'Retry after {{time}}',
+    'delegation.retry.scheduleAria': 'Retry the failed task in {{title}} after {{time}}',
+    'delegation.retry.cancelAction': 'Cancel',
+    'delegation.retry.cancelAria': 'Cancel the scheduled retry in {{title}}',
+    'delegation.retry.cancelFailedLabel': 'cancel the scheduled retry',
+    'delegation.retry.confirm.switchTitle': 'Retry with {{provider}}?',
+    'delegation.retry.confirm.switchMessage':
+        'Starts the task over with {{provider}} in a new Session in {{project}}, using its current delegation settings. The failed Session stays as it is. Changes it already made to files are not rolled back, and the new Session may repeat side effects the first attempt already had.',
+    'delegation.retry.confirm.scheduleTitle': 'Retry after {{time}}?',
+    'delegation.retry.confirm.scheduleResumeMessage':
+        'At {{time}}, {{provider}} continues this Session where it stopped. The retry does not run if you take over this Session or its target changes before then; you can cancel it from the row until then.',
+    'delegation.retry.confirm.scheduleFreshMessage':
+        'At {{time}}, the task starts over in a new Session in {{project}}. The retry does not run if you take over this Session or its target changes before then; you can cancel it from the row until then.',
+    'delegation.retry.confirm.scheduleConfirm': 'Schedule retry',
+    'delegation.retry.outcome.caller_gone':
+        'The scheduled retry did not run: the Agent that delegated this is no longer running',
+    'delegation.retry.outcome.target_busy': 'The scheduled retry did not run: the Session is busy',
+    'delegation.retry.outcome.target_changed':
+        'The scheduled retry did not run: the Session changed',
+    'delegation.retry.outcome.human_input':
+        'The scheduled retry did not run: you took over this Session',
+    'delegation.retry.outcome.worktree_gone':
+        'The scheduled retry did not run: the worktree no longer exists',
+    'delegation.retry.outcome.not_retryable':
+        'The scheduled retry did not run: this failure cannot be retried',
+    'delegation.retry.outcome.provider_guarded':
+        'The scheduled retry did not run: the usage limit is still in effect',
+    'delegation.retry.outcome.launch_failed':
+        'The scheduled retry did not run: the Agent could not start',
+    'delegation.retry.outcome.missed_window':
+        'The scheduled retry did not run: it came due too long ago to start now',
+    'delegation.retry.outcome.internal_error':
+        'The scheduled retry did not run because of an internal error',
 } as const;

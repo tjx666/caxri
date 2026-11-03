@@ -47,6 +47,7 @@ describe('Caxri Bot Renderer policy', () => {
             'agent.delegation.statuses',
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
+            'agent.delegation.cancelScheduledRetry',
             'caxriBot.openFileLink',
             'app.bootstrap',
             'app.records',

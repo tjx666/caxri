@@ -14,6 +14,14 @@ export interface DelegationChats extends DispatchChats {
         turnAnswer(terminalId: string, turnId: string): DelegationChatTurn;
         snapshot(terminalId: string): DelegationChatSnapshot | undefined;
     };
+    /**
+     * The Chat states, for the usage-limit wait a delegated retry takes over; see `claimChatUsageLimitWait`.
+     */
+    states?: {
+        usageLimitWaits?: {
+            claimForDelegationRetry(terminalId: string): 'cancelled' | 'none' | 'running';
+        };
+    };
 }
 
 /**

@@ -63,6 +63,42 @@ export const agentDelegationFailureSchema = z.enum([
     'target_busy',
 ]);
 
+/**
+ * Why a scheduled retry did not run at its time, as a closed enum a Client words itself. The refusals mirror
+ * `delegationRetryUnavailableReasonSchema`; `missed_window` is a schedule that came due too late, `provider_guarded` a
+ * provider still at its weekly usage guard, `launch_failed` a launch the provider refused to start, and
+ * `internal_error` an unexpected failure.
+ */
+export type DelegationRetryScheduleOutcome =
+    | 'caller_gone'
+    | 'target_busy'
+    | 'target_changed'
+    | 'human_input'
+    | 'worktree_gone'
+    | 'not_retryable'
+    | 'provider_guarded'
+    | 'launch_failed'
+    | 'missed_window'
+    | 'internal_error';
+
+/**
+ * Annotated rather than inferred: the receipt is embedded in many methods, and the method registry's inferred type is
+ * at the compiler's serialization limit.
+ */
+export const delegationRetryScheduleOutcomeSchema: z.ZodType<DelegationRetryScheduleOutcome> =
+    z.enum([
+        'caller_gone',
+        'target_busy',
+        'target_changed',
+        'human_input',
+        'worktree_gone',
+        'not_retryable',
+        'provider_guarded',
+        'launch_failed',
+        'missed_window',
+        'internal_error',
+    ]);
+
 export const agentDelegationReceiptSchema = z.strictObject({
     delegationId: identifierSchema,
     projectId: identifierSchema,
@@ -87,6 +123,18 @@ export const agentDelegationReceiptSchema = z.strictObject({
      * that follows it must tolerate a task pruned since.
      */
     retriedAs: identifierSchema.optional(),
+    /**
+     * When a scheduled retry of this failed task runs (`agent.delegation.retry` with `scheduleAt`), in epoch
+     * milliseconds: the provider's reset time plus a safety margin. Present only while the retry is pending; the claim
+     * (`retriedAs`) is held for the whole wait, so a reader must treat `retriedAs` with this field as "retry pending",
+     * not as a started task. The task itself stays failed and is not running.
+     */
+    retryScheduledFor: z.number().int().positive().optional(),
+    /**
+     * Why the last scheduled retry did not run. Set together with the release of its claim, cleared by the next claim,
+     * and never present together with `retriedAs`.
+     */
+    retryScheduleOutcome: delegationRetryScheduleOutcomeSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
     correlationFailure: z
@@ -117,6 +165,13 @@ export const agentDelegationReceiptSchema = z.strictObject({
     createdAt: z.number().int().positive(),
     updatedAt: z.number().int().positive(),
 });
+
+/**
+ * The receipt as every method returns it. Annotated rather than inferred: the receipt is embedded in many method
+ * results, and the method registry's inferred type is at the compiler's serialization limit.
+ */
+const agentDelegationReceiptResultSchema: z.ZodType<AgentDelegationReceipt> =
+    agentDelegationReceiptSchema;
 
 const promptSchema = z
     .string()
@@ -304,14 +359,14 @@ const listParameters = z.strictObject({
     limit: z.number().int().min(1).max(MAX_DELEGATION_LIST_TASKS).default(20),
 });
 const listResultSchema = z.strictObject({
-    delegations: z.array(agentDelegationReceiptSchema).max(MAX_DELEGATION_LIST_TASKS),
+    delegations: z.array(agentDelegationReceiptResultSchema).max(MAX_DELEGATION_LIST_TASKS),
     /**
      * More tasks matched than `limit` returned.
      */
     truncated: z.boolean(),
 });
 const resultSchema = z.strictObject({
-    receipt: agentDelegationReceiptSchema,
+    receipt: agentDelegationReceiptResultSchema,
     answer: agentDelegationAnswerSchema.optional(),
 });
 
@@ -324,17 +379,17 @@ export const agentDelegationMethods = {
     'agent.delegation.stop': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
         params: identitySchema,
-        result: agentDelegationReceiptSchema,
+        result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.create': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
         params: agentDelegationCreateRequestSchema,
-        result: agentDelegationReceiptSchema,
+        result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.status': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
         params: identitySchema,
-        result: agentDelegationReceiptSchema,
+        result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.result': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
@@ -370,7 +425,7 @@ export const agentDelegationInternalMethods = {
     'agent.delegation.stopInternal': {
         ...commandPolicy('server', 'control'),
         params: authoritySchema.extend(identitySchema.shape),
-        result: agentDelegationReceiptSchema,
+        result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.waitInternal': {
         ...commandPolicy('server', 'read'),
@@ -383,12 +438,12 @@ export const agentDelegationInternalMethods = {
             delegationId: identifierSchema,
             input: agentDelegationCreateRequestSchema,
         }),
-        result: agentDelegationReceiptSchema,
+        result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.statusInternal': {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend({ delegationId: identifierSchema }),
-        result: agentDelegationReceiptSchema,
+        result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.resultInternal': {
         ...commandPolicy('server', 'read'),
@@ -402,7 +457,13 @@ export const agentDelegationInternalMethods = {
     },
 } as const satisfies Record<string, MethodSpec>;
 
-export type AgentDelegationReceipt = z.infer<typeof agentDelegationReceiptSchema>;
+/**
+ * An interface rather than a type alias, so declaration emit prints the receipt by name instead of expanding its fields
+ * into every method result that carries one (the method registry's inferred type is at the compiler's serialization
+ * limit).
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- the name is the point.
+export interface AgentDelegationReceipt extends z.infer<typeof agentDelegationReceiptSchema> {}
 
 /**
  * The failures an owner may retry: the provider or launch failed for a reason a second attempt can plausibly change. An
@@ -458,4 +519,15 @@ export type AgentDelegationCreateRequest = z.infer<typeof agentDelegationCreateR
  */
 export function formatDelegationRetryNotice(failedId: string, retryId: string): string {
     return `Delegated task ${failedId} was retried as ${retryId}. Wait on ${retryId} for the result.`;
+}
+
+/**
+ * The notice a delegating Agent receives when a scheduled retry of its failed task did not run. Fixed text: the two
+ * values are a task ID and a closed outcome, nothing from the task.
+ */
+export function formatDelegationRetryRefusedNotice(
+    failedId: string,
+    outcome: DelegationRetryScheduleOutcome,
+): string {
+    return `The scheduled retry of delegated task ${failedId} did not run (${outcome}). The task stays failed; do not wait for a retry of it.`;
 }

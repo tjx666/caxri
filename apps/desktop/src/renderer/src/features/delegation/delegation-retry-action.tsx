@@ -36,12 +36,18 @@ export function DelegationRetryAction({
     projectTitle,
     provider,
     sessionTitle,
+    showSwitchTargets = false,
 }: {
     className?: string;
     delegationId: string;
     projectTitle: string;
     provider: AgentProvider | undefined;
     sessionTitle: string;
+    /**
+     * Also list "Retry with <Agent>" for each Agent the Server offers. Off where the row already shows those as direct
+     * actions (a usage-limit failure), so one action never has two homes.
+     */
+    showSwitchTargets?: boolean;
 }) {
     const { t } = useTranslation();
     const [isInterested, setInterested] = useState(false);
@@ -76,25 +82,47 @@ export function DelegationRetryAction({
                         )}
                     </MenuItem>
                 ) : (
-                    data.options.map((option) => (
-                        <MenuItem
-                            className="h-auto min-h-7 flex-col items-start justify-center gap-0 py-1"
-                            data-delegation-retry-mode={option.mode}
-                            disabled={!option.available}
-                            key={option.mode}
-                            onClick={() => {
-                                void retry({
-                                    delegationId,
-                                    mode: option.mode,
-                                    projectTitle,
-                                    providerName,
-                                });
-                            }}
-                        >
-                            <span>{t(`delegation.retry.mode.${option.mode}`)}</span>
-                            {!option.available && <UnavailableReason option={option} />}
-                        </MenuItem>
-                    ))
+                    [
+                        ...data.options.map((option) => (
+                            <MenuItem
+                                className="h-auto min-h-7 flex-col items-start justify-center gap-0 py-1"
+                                data-delegation-retry-mode={option.mode}
+                                disabled={!option.available}
+                                key={option.mode}
+                                onClick={() => {
+                                    void retry({
+                                        delegationId,
+                                        mode: option.mode,
+                                        projectTitle,
+                                        providerName,
+                                    });
+                                }}
+                            >
+                                <span>{t(`delegation.retry.mode.${option.mode}`)}</span>
+                                {!option.available && <UnavailableReason option={option} />}
+                            </MenuItem>
+                        )),
+                        ...(showSwitchTargets ? data.switchTargets : []).map((target) => (
+                            <MenuItem
+                                className="h-auto min-h-7 py-1"
+                                data-delegation-retry-switch={target}
+                                key={target}
+                                onClick={() => {
+                                    void retry({
+                                        delegationId,
+                                        mode: 'fresh',
+                                        projectTitle,
+                                        providerName,
+                                        switchTo: target,
+                                    });
+                                }}
+                            >
+                                {t('delegation.retry.switchAction', {
+                                    provider: agentProviderCatalog[target].displayName,
+                                })}
+                            </MenuItem>
+                        )),
+                    ]
                 )}
             </MenuContent>
         </Menu>

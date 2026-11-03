@@ -72,6 +72,23 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      */
     callerEndpoint?(terminalId: string): { endpointId: string; generation: number } | undefined;
     /**
+     * Makes a retry of a failed task the only continuation of its Chat's failed turn. The Chat may be waiting to
+     * continue on its own after a usage limit; that wait is cancelled (`cancelled`), or reported as already continuing
+     * (`running`), in which case the retry is refused. `none` when the Terminal has no wait. Synchronous, so it can sit
+     * inside the retry's claim. Absent when no Chat service exists.
+     */
+    claimChatUsageLimitWait?(terminalId: string): 'cancelled' | 'none' | 'running';
+    /**
+     * Whether the Agent CLI of `provider` can be found, for the Agents a fresh retry may switch to. Absent means no
+     * Agent can be proven installed, so no switch is offered.
+     */
+    isProviderInstalled?(provider: AgentProvider): Promise<boolean>;
+    /**
+     * Whether `provider`'s account is at its weekly usage guard, so a launch on it would be refused. Absent means no
+     * guard exists.
+     */
+    isProviderGuarded?(provider: AgentProvider): boolean;
+    /**
      * Writes to one exact Agent launch. The return value is the synchronous admission; for a Terminal with no Renderer
      * attachment that answer is provisional, and `onDelivered` reports what the Terminal Host actually did.
      */

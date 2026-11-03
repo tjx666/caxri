@@ -21,6 +21,7 @@ import {
 import type { AgentEnvironment } from '../agents';
 import {
     delegationAdapter,
+    discoverExecutable,
     readAgentTranscript,
     readDelegationTranscript,
     readVersion,
@@ -85,6 +86,9 @@ export function createAgentCommandRuntime(
             options.settings()['agents.providers'][provider].hooks.enabled,
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
         isChatLive: (terminalId) => chatOf(terminalId)?.isLive(terminalId) === true,
+        claimChatUsageLimitWait: (terminalId) =>
+            options.agentChat?.states?.usageLimitWaits?.claimForDelegationRetry(terminalId) ??
+            'none',
         readChatTurn: (terminalId, turnId) =>
             chatOf(terminalId)?.delegation.turnAnswer(terminalId, turnId),
         chatStep: (terminalId) =>
@@ -187,6 +191,10 @@ export function createAgentCommandRuntime(
             return accepted;
         },
         launchSettings: (provider) => options.launchSettings(provider),
+        isProviderInstalled: async (provider) =>
+            (await discoverExecutable(provider, options.launchSettings(provider).executable)) !==
+            undefined,
+        isProviderGuarded: (provider) => options.usageGuards?.current(provider) !== undefined,
         verifyLaunch: async (launch, provider) => {
             options.usageGuards?.assertAdmitted(provider, 'delegation');
             return delegationAdapter(provider).verifyVersion(

@@ -1,3 +1,4 @@
+import type { DelegationRetryScheduleOutcome } from '@caxri/protocol';
 import { agentDelegationFailureSchema, agentDelegationStatusSchema } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -191,5 +192,76 @@ describe('delegationCopyInput', () => {
             status: 'failed',
         });
         expect(delegationCopyInput({})).toEqual({});
+    });
+});
+
+/**
+ * A `Record` over the enum, so a new outcome fails to compile here until it is listed, and then fails the test below
+ * until both locales word it.
+ */
+const OUTCOMES: Record<DelegationRetryScheduleOutcome, true> = {
+    caller_gone: true,
+    target_busy: true,
+    target_changed: true,
+    human_input: true,
+    worktree_gone: true,
+    not_retryable: true,
+    provider_guarded: true,
+    launch_failed: true,
+    missed_window: true,
+    internal_error: true,
+};
+
+describe('delegationCopy with a scheduled retry', () => {
+    afterEach(() => useLocaleStore.setState({ locale: 'en' }));
+
+    const failed = { status: 'failed', failure: 'quota_exhausted', provider: 'codex' } as const;
+
+    it('words a pending retry as waiting at its absolute time, with no failure headline', () => {
+        const at = new Date(2026, 10, 4, 15, 5).getTime();
+        const copy = copyOf({ ...failed, retriedAs: 'n1', retryScheduledFor: at }, at - HOUR);
+        expect(copy.glyph).toBe('waiting');
+        expect(copy.primaryAction).toBe('none');
+        expect(copy.headline).toMatch(/^Retries at 3:05\sPM$/u);
+        expect(copy.headline).not.toMatch(/Nov/u);
+    });
+
+    it('adds the date when the time is not today', () => {
+        const at = new Date(2026, 10, 5, 3, 7).getTime();
+        const now = new Date(2026, 10, 4, 22, 0).getTime();
+        const copy = copyOf({ ...failed, retriedAs: 'n1', retryScheduledFor: at }, now);
+        expect(copy.headline).toMatch(/^Retries at Nov 5, 3:07\sAM$/u);
+    });
+
+    it('is not waiting for a started retry or a bare claim without a time', () => {
+        expect(copyOf({ ...failed, retriedAs: 'n1' }).glyph).toBe('failed');
+        expect(copyOf({ ...failed, retryScheduledFor: NOW }).glyph).toBe('failed');
+    });
+
+    it('folds a refusal into the failure detail line and keeps the red failure', () => {
+        const copy = copyOf({
+            ...failed,
+            failureResetsAt: NOW + HOUR,
+            retryScheduleOutcome: 'human_input',
+        });
+        expect(copy.glyph).toBe('failed');
+        expect(copy.detail).toBe(
+            'resets in 1h · The scheduled retry did not run: you took over this Session',
+        );
+        expect(copyOf({ ...failed, retryScheduleOutcome: 'missed_window' }).detail).toBe(
+            'The scheduled retry did not run: it came due too long ago to start now',
+        );
+    });
+
+    it('words every outcome in both locales', () => {
+        for (const locale of ['en', 'zh-CN'] as const) {
+            useLocaleStore.setState({ locale });
+            for (const outcome of Object.keys(OUTCOMES) as DelegationRetryScheduleOutcome[]) {
+                const detail = copyOf({ ...failed, retryScheduleOutcome: outcome }).detail ?? '';
+                expect(detail, `${locale}/${outcome}`).not.toContain('delegation.');
+                expect(detail).not.toContain('{{');
+                expect(detail.length).toBeGreaterThan(0);
+            }
+        }
     });
 });

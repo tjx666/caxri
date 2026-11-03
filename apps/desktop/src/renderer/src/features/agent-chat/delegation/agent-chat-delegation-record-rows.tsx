@@ -12,6 +12,7 @@ import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById } from '../../../stores/selectors';
 import { delegationCopy, delegationCopyInput } from '../../delegation/delegation-copy';
+import { isDelegationRetryPending } from '../../delegation/delegation-feed';
 import { useDelegationStatuses } from '../../delegation/hooks/use-delegation-statuses';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
@@ -46,6 +47,8 @@ function DelegationRecordRow({
     // A task whose state the Server no longer has shows no state rather than the "No task details" headline.
     const glyph = status ? copy.glyph : 'ordinary';
     const title = session ? sessionTitleForDisplay(session.title, t) : undefined;
+    // A pending scheduled retry holds `retriedAs` too, but nothing was retried yet: its clock glyph says so instead.
+    const isRetried = status?.retriedAs !== undefined && !isDelegationRetryPending(status);
     const content = (
         <>
             <span className="flex h-5 w-4 shrink-0 items-center justify-center">
@@ -61,7 +64,7 @@ function DelegationRecordRow({
                     </>
                 )}
             </span>
-            {status?.retriedAs !== undefined && (
+            {isRetried && (
                 <Tooltip content={t('delegation.retry.retried')}>
                     <span className="flex shrink-0 items-center">
                         <RotateCcw aria-hidden="true" className="size-3" />
@@ -80,10 +83,9 @@ function DelegationRecordRow({
             aria-label={
                 status
                     ? t('delegation.record.openAria', {
-                          status:
-                              status.retriedAs === undefined
-                                  ? copy.headline
-                                  : `${copy.headline}, ${t('delegation.retry.retried')}`,
+                          status: isRetried
+                              ? `${copy.headline}, ${t('delegation.retry.retried')}`
+                              : copy.headline,
                           title,
                       })
                     : t('delegation.record.openAriaUnknown', { title })

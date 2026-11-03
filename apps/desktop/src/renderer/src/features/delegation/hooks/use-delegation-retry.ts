@@ -1,12 +1,14 @@
 import { useCallback } from 'react';
 
-import type { DelegationRetryMode } from '@caxri/protocol';
+import type { AgentProvider, DelegationRetryMode } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { useMutation } from '@tanstack/react-query';
 
 import { translate } from '../../../i18n';
 import { caxri } from '../../../lib/caxri';
 import { isQueryMethod, queryClient, useCaxriQuery } from '../../../queries/client';
 import { describeFailure, isCancelledRequest, pushToast } from '../../../stores/toasts';
+import { formatRetryTime } from '../delegation-retry-time';
 
 /**
  * The options are cheap to read but go stale the moment anything else touches the Session, so a short window covers
@@ -38,6 +40,15 @@ export interface DelegationRetryRequest {
      * The Project the failed Session lives in, for the fresh-mode confirmation text.
      */
     projectTitle: string;
+    /**
+     * Retry on this Agent instead of the failed task's own. Always a fresh, immediate retry.
+     */
+    switchTo?: AgentProvider;
+    /**
+     * Run the retry when the limit resets instead of now: the time the Server would run it (`schedule.scheduledFor` of
+     * the options), shown in the confirmation. The Server picks the actual time itself.
+     */
+    scheduledFor?: number;
 }
 
 /**
@@ -58,6 +69,59 @@ function refreshAfterRetry(): void {
 }
 
 /**
+ * The confirmation dialog of one retry. A scheduled retry says which mode it will run in (the choice is fixed when it
+ * is scheduled and never changes silently) and that a takeover or a changed target stops it; a switch names the Agent
+ * and that it starts over with that Agent's current delegation settings.
+ */
+function retryConfirmation({
+    mode,
+    projectTitle,
+    providerName,
+    scheduledFor,
+    switchTo,
+}: Omit<DelegationRetryRequest, 'delegationId'>) {
+    const isFresh = mode === 'fresh';
+    if (scheduledFor !== undefined) {
+        const time = formatRetryTime(scheduledFor, Date.now(), translate);
+        return {
+            confirmLabel: translate('delegation.retry.confirm.scheduleConfirm'),
+            message: isFresh
+                ? translate('delegation.retry.confirm.scheduleFreshMessage', {
+                      project: projectTitle,
+                      time,
+                  })
+                : translate('delegation.retry.confirm.scheduleResumeMessage', {
+                      provider: providerName,
+                      time,
+                  }),
+            title: translate('delegation.retry.confirm.scheduleTitle', { time }),
+        };
+    }
+    if (switchTo) {
+        const provider = agentProviderCatalog[switchTo].displayName;
+        return {
+            confirmLabel: translate('delegation.retry.confirm.confirm'),
+            message: translate('delegation.retry.confirm.switchMessage', {
+                project: projectTitle,
+                provider,
+            }),
+            title: translate('delegation.retry.confirm.switchTitle', { provider }),
+        };
+    }
+    return {
+        confirmLabel: translate('delegation.retry.confirm.confirm'),
+        message: isFresh
+            ? translate('delegation.retry.confirm.freshMessage', { project: projectTitle })
+            : translate('delegation.retry.confirm.resumeMessage', { provider: providerName }),
+        title: translate(
+            isFresh
+                ? 'delegation.retry.confirm.freshTitle'
+                : 'delegation.retry.confirm.resumeTitle',
+        ),
+    };
+}
+
+/**
  * Retries a failed delegated task after the user confirms. Both modes ask first: a resume continues work whose earlier
  * file changes stay, and a fresh start spends quota and may repeat side effects. A refusal or failure reaches the user
  * as one error toast; cancelling starts nothing. `isPending` blocks a second click while the request runs, and the
@@ -68,8 +132,12 @@ export function useDelegationRetry(): {
     retry: (request: DelegationRetryRequest) => Promise<void>;
 } {
     const { isPending, mutate } = useMutation({
-        mutationFn: (variables: { delegationId: string; mode: DelegationRetryMode }) =>
-            caxri.request('agent.delegation.retry', variables),
+        mutationFn: (variables: {
+            delegationId: string;
+            mode: DelegationRetryMode;
+            provider?: AgentProvider;
+            scheduleAt?: 'reset';
+        }) => caxri.request('agent.delegation.retry', variables),
         onError: (error) => {
             if (!isCancelledRequest(error))
                 pushToast(
@@ -80,27 +148,56 @@ export function useDelegationRetry(): {
         onSettled: refreshAfterRetry,
     });
     const retry = useCallback(
-        async ({ delegationId, mode, projectTitle, providerName }: DelegationRetryRequest) => {
-            const isFresh = mode === 'fresh';
-            const isConfirmed = await caxri.window.showConfirm({
-                confirmLabel: translate('delegation.retry.confirm.confirm'),
-                message: isFresh
-                    ? translate('delegation.retry.confirm.freshMessage', {
-                          project: projectTitle,
-                      })
-                    : translate('delegation.retry.confirm.resumeMessage', {
-                          provider: providerName,
-                      }),
-                title: translate(
-                    isFresh
-                        ? 'delegation.retry.confirm.freshTitle'
-                        : 'delegation.retry.confirm.resumeTitle',
-                ),
-            });
+        async ({
+            delegationId,
+            mode,
+            projectTitle,
+            providerName,
+            scheduledFor,
+            switchTo,
+        }: DelegationRetryRequest) => {
+            const isConfirmed = await caxri.window.showConfirm(
+                retryConfirmation({ mode, projectTitle, providerName, scheduledFor, switchTo }),
+            );
             if (!isConfirmed) return;
-            mutate({ delegationId, mode });
+            mutate({
+                delegationId,
+                mode,
+                ...(switchTo && { provider: switchTo }),
+                ...(scheduledFor !== undefined && { scheduleAt: 'reset' as const }),
+            });
         },
         [mutate],
     );
     return { isPending, retry };
+}
+
+/**
+ * Cancels a pending scheduled retry (`agent.delegation.cancelScheduledRetry`). No confirmation: it only undoes the
+ * user's own schedule. A retry that already started answers `cancelled: false`, which the refreshed feed then shows.
+ */
+export function useCancelScheduledRetry(): {
+    cancel: (delegationId: string) => void;
+    isPending: boolean;
+} {
+    const { isPending, mutate } = useMutation({
+        mutationFn: (delegationId: string) =>
+            caxri.request('agent.delegation.cancelScheduledRetry', { delegationId }),
+        onSuccess: (result) => {
+            if (!result.cancelled) pushToast('info', translate('delegation.retry.alreadyStarting'));
+        },
+        onError: (error) => {
+            if (!isCancelledRequest(error))
+                pushToast(
+                    'error',
+                    describeFailure(
+                        error,
+                        translate('delegation.retry.cancelFailedLabel'),
+                        translate,
+                    ),
+                );
+        },
+        onSettled: refreshAfterRetry,
+    });
+    return { cancel: mutate, isPending };
 }

@@ -2,8 +2,7 @@ import { Forward } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
-import { isRetryCandidate } from '../../delegation/delegation-feed';
-import { DelegationRetryAction } from '../../delegation/delegation-retry-action';
+import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { useDelegationOrigin } from './hooks/use-delegation-origin';
@@ -67,15 +66,13 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
             {!origin.isTakenOver && !origin.isParentArchived && (
                 <span className="min-w-0 pl-5">{t('delegation.origin.hint', { title })}</span>
             )}
-            {task?.delegationId !== undefined && isRetryCandidate(task) && (
-                <span className="flex min-w-0 pl-5">
-                    <DelegationRetryAction
-                        delegationId={task.delegationId}
-                        projectTitle={project?.title ?? ''}
-                        provider={task.provider}
-                        sessionTitle={sessionTitleForDisplay(session?.title ?? '', t)}
-                    />
-                </span>
+            {task && (
+                <DelegationRetryControls
+                    className="pl-5"
+                    entry={task}
+                    projectTitle={project?.title ?? ''}
+                    sessionTitle={sessionTitleForDisplay(session?.title ?? '', t)}
+                />
             )}
         </div>
     );

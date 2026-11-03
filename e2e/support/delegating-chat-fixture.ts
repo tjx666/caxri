@@ -5,7 +5,10 @@ import process from 'node:process';
 
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
 
-import { fakeCodexChatExecutableSource } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
+import {
+    fakeClaudeChatExecutableSource,
+    fakeCodexChatExecutableSource,
+} from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { createFakeAgentMode } from './agent-fixture.ts';
 import type { RunningCaxri } from './helpers.ts';
 import { closeAppQuietly, createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
@@ -49,9 +52,13 @@ export interface DelegatingChat {
 
 /**
  * Launches the app with a fake Codex whose Chat can run real shell commands (so the Caxri CLI acts as that Chat) and
- * enables Open Agents In Chat so a delegated child opens as a Chat too. The Project is created by the caller.
+ * enables Open Agents In Chat so a delegated child opens as a Chat too. `withClaude` also installs a fake Claude Code.
+ * The Project is created by the caller.
  */
-export async function launchDelegatingChat(prefix: string): Promise<DelegatingChat> {
+export async function launchDelegatingChat(
+    prefix: string,
+    options: { withClaude?: boolean } = {},
+): Promise<DelegatingChat> {
     const temporary = await mkdtemp(join(tmpdir(), `${prefix}-`));
     const directory = await realpath(temporary);
     const userData = join(directory, 'profile');
@@ -65,6 +72,10 @@ export async function launchDelegatingChat(prefix: string): Promise<DelegatingCh
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
         providers: {
+            // A second installed Agent is what a usage-limit failure can switch to; its replies stay canned.
+            ...(options.withClaude && {
+                claude: { executableSource: fakeClaudeChatExecutableSource({}) },
+            }),
             codex: {
                 executableSource: fakeCodexChatExecutableSource({
                     stateDirectory: join(directory, 'codex-threads'),

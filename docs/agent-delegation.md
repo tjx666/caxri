@@ -515,7 +515,40 @@ and Benchmark are refused, and mobile role methods do not list either method. Co
 - **Pruning.** A failed task's `retriedAs` always protects its successor from pruning,
   and the successor protects the failed task (`retryOf`) only while it is active. Once the
   successor settles, the failed task is releasable and the chain drains oldest first.
-- **Not here.** There is no attempt cap, and no scheduled retry (a later phase of the issue).
+- **Not here.** There is no attempt cap.
+
+### Retry after the limit resets
+
+A failed task whose receipt carries `failureResetsAt` can be retried later instead of now.
+`agent.delegation.retryOptions` returns `schedule: { available, scheduledFor?, unavailableReason? }`
+beside the two modes; `agent.delegation.retry` accepts `scheduleAt: 'reset'` and replies with a
+discriminated `{ status: 'started', delegationId, sessionId }` or
+`{ status: 'scheduled', delegationId, scheduledFor }`.
+`agent.delegation.cancelScheduledRetry` (`{ delegationId }`, returns `{ cancelled }`) releases a
+pending schedule. Code: `retry-schedule.ts`, `retry-schedule-time.ts`, `retry-claims.ts`.
+
+- **A pending schedule is the retry claim plus a time.** The failed task holds `retriedAs` (the
+  deterministic successor ID) and its stored `retryMode`, and its receipt adds `retryScheduledFor`
+  (`failureResetsAt` plus a 60 second margin). The task itself stays `failed`. Until the successor
+  is stored, any other retry request is refused as `schedule_pending`; repeating the same schedule
+  returns it again. The pending failed task is protected from pruning, and the stored record rejects
+  a time without a claim or an outcome beside a claim.
+- **One poll, no timers.** A Watch Hub poller (15 seconds) starts after domain wiring, runs one pass
+  at once, and handles each pending schedule in turn. A schedule due at startup therefore fires on
+  the first pass, and a crash is repaired by the deterministic successor ID: a stored successor means
+  the retry already started, so only the pending time is dropped.
+- **Checks.** Firing runs the Retry now checks again with the schedule's own claim exempt. Before it
+  is due, the poll also ends the schedule when the user takes the task over (`human_input`) or a Chat
+  usage-limit wait is already continuing (`target_busy`). A Chat usage-limit wait that has not started
+  is cancelled so only one continuation runs. A schedule more than 30 minutes late is refused as
+  `missed_window`.
+- **Cancel versus fire.** A fire registers itself before its first await; after that,
+  `cancelScheduledRetry` returns `cancelled: false`.
+- **Refusal.** The claim is released and `receipt.retryScheduleOutcome` is set in one save (closed
+  enum: `caller_gone`, `target_busy`, `target_changed`, `human_input`, `worktree_gone`,
+  `not_retryable`, `provider_guarded`, `launch_failed`, `missed_window`, `internal_error`), pushed as
+  a receipt transition. The caller gets one best-effort fixed-text notice. Creating or cancelling a
+  schedule sends no notice; a started retry sends the usual "retried" notice.
 
 ## Agent Chat children
 
@@ -632,7 +665,8 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   returns `{ sessions }`, the Sessions those Sessions created with a relation, newest first (at most
   1000). Each entry carries `sessionId`, `createdBySessionId`, the relation, the newest task's
   `delegationId`, `provider`, `status`, `failure`, `failureResetsAt`, `retryOf`, `retriedAs` (see
-  [Retry now](#retry-now); either may name a task pruned since), `createdAt`, `settledAt`, the
+  [Retry now](#retry-now); either may name a task pruned since), `retryScheduledFor` and
+  `retryScheduleOutcome` (see [Retry after the limit resets](#retry-after-the-limit-resets)), `createdAt`, `settledAt`, the
   live `step` while the task is active in a Chat, and the stored `result` (`summary`, `source`, the
   `delegationId` of the task that wrote it, and its `completedAt`), and `takenOverAt` once the user
   took the Session over by first acting in it (input, Stop, or Rewind; set once; see
@@ -651,7 +685,7 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   its to read. Caxri Bot and Benchmark windows deny it.
 - **`agent.delegation.statuses`.** An owner-only, non-claiming read like the feed:
   `{ delegationIds }` (1 to 64 IDs) returns `{ statuses }`, one `{ delegationId, sessionId,
-provider, status, failure?, failureResetsAt?, retryOf?, retriedAs?, settledAt? }` per task the Server still has. It
+provider, status, failure?, failureResetsAt?, retryOf?, retriedAs?, retryScheduledFor?, retryScheduleOutcome?, settledAt? }` per task the Server still has. It
   names the exact task rather than a Session's newest, carries no summary, step, or answer text,
   and omits a pruned or unknown ID. Caxri Bot and Benchmark windows deny it, an Agent Endpoint
   principal is refused, and mobile role methods do not list it. The same invalidation as the
@@ -694,7 +728,8 @@ that decide which Sessions take which place.
   refusal, or a stop (`human_input`, `target_changed`, `session_changed`, `caller_stopped`,
   `host_reset`, `target_busy`, `target_not_ready`, and the unreadable-result and waiting values)
   is not counted as failed anywhere, matching the row's glyph. A failed task that has a
-  `retriedAs` is not failed either: the retry stands for it. An interrupted,
+  `retriedAs` is not failed either: the retry stands for it, and a pending scheduled retry reads
+  as waiting. An interrupted,
   human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
 - **Not shown.** A nested row lists no subagent rows of its own, and it is not reorderable, so its
   position follows its host. The result summary and the live step have no sidebar surface; the
@@ -728,6 +763,21 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
   collapsed list. Where the successor is missing from the feed the failed row stays. Several
   resume retries in a row hide the middle tasks, because the feed shows only the newest task per
   Session. A timeline record of a retried task shows a `Retried` mark.
+  A usage-limit failure (`quota_exhausted`, `rate_limited`) reads its options as soon as the row
+  shows and adds two direct actions next to `Retry`: `Retry with <Agent>` for each Agent in
+  `switchTargets` (a fresh, immediate retry; the confirmation says the task starts over with that
+  Agent's current delegation settings) and `Retry after <time>` when `schedule.available` (a trusted
+  reset time exists; the confirmation names the mode it will run in, resume when available, otherwise
+  fresh, and that a takeover or a changed target stops it). Any other retryable failure lists the
+  switch targets in the `Retry` menu instead. The time is absolute in the interface language and
+  carries the date when it is not today (`apps/desktop/src/renderer/src/features/delegation/delegation-retry-time.ts`).
+  A pending schedule (`retriedAs` with `retryScheduledFor`) is waiting, not failed: the row reads
+  `Retries at <time>` with a muted clock glyph and a `Cancel` action in place of the retry actions,
+  the header counts it as `<n> retry waiting` and not as failed, and the timeline record shows the
+  clock glyph instead of the `Retried` mark. The row stays in the collapsed list because the
+  successor does not exist yet. A refusal (`retryScheduleOutcome`) is folded into the failure's
+  detail line (`The scheduled retry did not run: ...`), keeps the red failure, and offers the retry
+  actions again; there is no separate notice row and no dismiss action.
 - **Timeline records.** A command in the Chat's own Terminal that created delegations carries
   `delegations: [{ delegationId, sessionId }]` (at most 8), stamped by Server Core from the
   delegation records of that Terminal (`CommandDelegationStamper`). The Desktop timeline draws such

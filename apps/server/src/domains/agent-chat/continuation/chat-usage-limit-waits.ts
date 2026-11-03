@@ -524,6 +524,19 @@ export class ChatUsageLimitWaits {
     }
 
     /**
+     * A delegated retry of the task this Chat ran takes over its failed turn (`agent.delegation.retry`), so the Chat
+     * must not also continue it. A wait that has not started is cancelled; one that is already continuing wins and the
+     * retry is refused. Anything else (no wait, a missed or settled one) leaves nothing that could run on its own.
+     */
+    claimForDelegationRetry(terminalId: string): 'cancelled' | 'none' | 'running' {
+        const record = this.records.get(terminalId);
+        if (record?.autoContinue.status !== 'waiting') return 'none';
+        if (this.firing.has(terminalId)) return 'running';
+        this.cancel(terminalId, 'continuedElsewhere');
+        return 'cancelled';
+    }
+
+    /**
      * "Continue now" on a waiting or missed notice: ends the wait and continues at once, without checking the limit.
      * `onHumanInput` runs once the wait is gone, so recording the click as human input cannot cancel it first.
      */

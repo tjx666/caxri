@@ -17,7 +17,8 @@ async function fixture() {
         id: string,
         status: 'failed' | 'running',
         updatedAt: number,
-        links: { retryOf?: string; retriedAs?: string } = {},
+        links: { retryOf?: string; retriedAs?: string; retryScheduledFor?: number } = {},
+        mode?: 'resume',
     ): StoredAgentDelegation => ({
         receipt: {
             delegationId: id,
@@ -40,6 +41,7 @@ async function fixture() {
         fingerprint: 'synthetic-fingerprint',
         promptDigest: 'a'.repeat(64),
         frozenLaunch: { executable: 'claude', args: [] },
+        ...(mode && { retryMode: mode }),
     });
     /**
      * Fills the table with live tasks until `stored` records exist in total.
@@ -104,5 +106,69 @@ describe('Agent delegation pruning of retry chains', () => {
         ).not.toThrow();
         expect(database.agentDelegations.get('link-0')).toBeUndefined();
         expect(database.agentDelegations.get('link-1')).toBeDefined();
+    });
+});
+
+describe('Agent delegation scheduled retries', () => {
+    it('keeps the failed task a pending schedule waits on, even at capacity', async () => {
+        const { database, fillTo, make } = await fixture();
+        database.agentDelegations.insert(
+            make(
+                'failed',
+                'failed',
+                1,
+                { retriedAs: 'successor', retryScheduledFor: 9_000 },
+                'resume',
+            ),
+        );
+        database.agentDelegations.insert(make('other', 'failed', 2));
+        fillTo(1024, 2);
+
+        database.agentDelegations.insert(make('admitted', 'running', 500));
+
+        expect(database.agentDelegations.get('other')).toBeUndefined();
+        expect(database.agentDelegations.get('failed')).toBeDefined();
+    });
+
+    it('lists the pending schedules oldest first', async () => {
+        const { database, make } = await fixture();
+        database.agentDelegations.insert(
+            make('late', 'failed', 1, { retriedAs: 'a', retryScheduledFor: 9_000 }, 'resume'),
+        );
+        database.agentDelegations.insert(
+            make('early', 'failed', 2, { retriedAs: 'b', retryScheduledFor: 5_000 }, 'resume'),
+        );
+        database.agentDelegations.insert(make('plain', 'failed', 3, { retriedAs: 'c' }, 'resume'));
+
+        expect(
+            database.agentDelegations.scheduledRetries().map((r) => r.receipt.delegationId),
+        ).toEqual(['early', 'late']);
+    });
+
+    it('rejects a pending time without its claim', async () => {
+        const { database, make } = await fixture();
+
+        expect(() =>
+            database.agentDelegations.insert(
+                make('no-claim', 'failed', 1, { retryScheduledFor: 9_000 }),
+            ),
+        ).toThrow();
+        expect(() =>
+            database.agentDelegations.insert(
+                make('no-mode', 'failed', 1, { retriedAs: 'x', retryScheduledFor: 9_000 }),
+            ),
+        ).toThrow();
+    });
+
+    it('rejects a refusal outcome on a task that holds a claim', async () => {
+        const { database, make } = await fixture();
+        const record = make('failed', 'failed', 1, { retriedAs: 'x' }, 'resume');
+
+        expect(() =>
+            database.agentDelegations.insert({
+                ...record,
+                receipt: { ...record.receipt, retryScheduleOutcome: 'missed_window' },
+            }),
+        ).toThrow();
     });
 });

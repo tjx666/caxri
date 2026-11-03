@@ -81,13 +81,30 @@ describe('delegated task retry', () => {
         );
     });
 
-    it('takes a mode and a task ID only, with no provider', () => {
+    it('takes a provider only with mode fresh and without a schedule', () => {
         const { params } = agentDelegationSessionsMethods['agent.delegation.retry'];
 
         expect(params.safeParse({ delegationId: 'task-1', mode: 'resume' }).success).toBe(true);
         expect(params.safeParse({ delegationId: 'task-1', mode: 'fresh' }).success).toBe(true);
         expect(
             params.safeParse({ delegationId: 'task-1', mode: 'fresh', provider: 'codex' }).success,
+        ).toBe(true);
+        expect(
+            params.safeParse({ delegationId: 'task-1', mode: 'resume', provider: 'codex' }).success,
+        ).toBe(false);
+        expect(
+            params.safeParse({
+                delegationId: 'task-1',
+                mode: 'fresh',
+                scheduleAt: 'reset',
+                provider: 'codex',
+            }).success,
+        ).toBe(false);
+        expect(
+            params.safeParse({ delegationId: 'task-1', mode: 'fresh', provider: 'other' }).success,
+        ).toBe(false);
+        expect(
+            params.safeParse({ delegationId: 'task-1', mode: 'fresh', model: 'x' }).success,
         ).toBe(false);
         expect(params.safeParse({ delegationId: 'task-1', mode: 'other' }).success).toBe(false);
     });

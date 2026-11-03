@@ -42,6 +42,7 @@ import {
     createSessionRuntimeForgetter,
     createSessionSelectionHandlers,
 } from './session';
+import { startDomainBackgroundWork } from './start-domain-background-work';
 import { createStatusServices } from './status-service-creation';
 import { createTerminalSupervision } from './supervision-services-creation';
 import type { TerminalSuspensionService } from './terminal';
@@ -582,8 +583,7 @@ export async function createDomainServices(
             terminals,
         }),
     };
-    terminalSupervision.start();
-    sessionMaintenance.start();
+    startDomainBackgroundWork(agentCommands, watchHub, terminalSupervision, sessionMaintenance);
     // No presence exists until Desktop Main reports its windows, so nothing is watched, polled, or restored here:
     // `observeVisibleSessions` does that for the Sessions the first reports show.
     return {
