@@ -41,6 +41,7 @@ const failureExplanationKeys = {
     profileInUse: 'sshHost.failure.profileInUse',
     takenOver: 'sshHost.failure.takenOver',
     cancelled: 'sshHost.failure.cancelled',
+    updateDeferred: 'sshHost.failure.updateDeferred',
     connectionLost: 'sshHost.failure.connectionLost',
     unknown: 'sshHost.failure.unknown',
 } as const satisfies Record<SshHostFailureReason, TranslationKey>;
@@ -82,6 +83,8 @@ const HOST_REQUIREMENT_REASONS: ReadonlySet<SshHostFailureReason> = new Set([
 export function connectionPhaseLabel(state: SshEnvironmentState): ConnectionCopy {
     if (state.phase === 'failed' && state.failure?.reason === 'cancelled')
         return { key: 'sshHost.phase.cancelled' };
+    if (state.phase === 'failed' && state.failure?.reason === 'updateDeferred')
+        return { key: 'sshHost.phase.updateDeferred' };
     if (state.phase === 'reconnecting' && state.attempt !== undefined)
         return { key: 'sshHost.phase.reconnectingAttempt', values: { attempt: state.attempt } };
     return { key: phaseLabelKeys[state.phase] };
@@ -95,20 +98,22 @@ export function connectionFailureCopy(failure: SshFailure): ConnectionCopy {
 
 /**
  * OpenSSH's or the SSH Host's own words for a failure, shown under the explanation and copied by Copy Details. A cancel
- * has none worth showing: the user just did it.
+ * or a deferred update has none worth showing: the user just chose it.
  */
 export function connectionFailureDetail(failure: SshFailure | undefined): string | undefined {
-    if (!failure || failure.reason === 'cancelled') return undefined;
+    if (!failure || failure.reason === 'cancelled' || failure.reason === 'updateDeferred')
+        return undefined;
     return failure.message || undefined;
 }
 
 /**
- * The semantic tone of the failure explanation. A cancel is the user's own choice and a takeover is another window
- * doing its job, so neither reads as an error; a cause shown while automatic reconnection keeps trying is a warning.
+ * The semantic tone of the failure explanation. A cancel or a deferred Server update is the user's own choice and a
+ * takeover is another window doing its job, so none reads as an error; a cause shown while automatic reconnection keeps
+ * trying is a warning.
  */
 export function connectionFailureTone(state: SshEnvironmentState): 'danger' | 'muted' | 'warning' {
     const reason = state.failure?.reason;
-    if (reason === 'cancelled') return 'muted';
+    if (reason === 'cancelled' || reason === 'updateDeferred') return 'muted';
     if (reason === 'takenOver' || state.phase === 'reconnecting') return 'warning';
     return 'danger';
 }

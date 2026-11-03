@@ -28,7 +28,7 @@ import type { DesktopServerConnectionOptions, DesktopServerSupervisor } from './
 import { connectDesktopAttachment, waitForServerExit } from './server-attachment';
 import { buildServerLaunchEnvironment } from './server-launch-environment';
 import type { ServerBuildIdentity } from './server-staleness';
-import { isServerBuildStale } from './server-staleness';
+import { vetServerBuild } from './server-staleness';
 import { stopAttachedServer } from './server-stop';
 
 interface UntypedServerClient {
@@ -210,42 +210,21 @@ export class DesktopServerConnection extends EventTarget {
         const operator = await this.serverSupervisor.ensure();
         try {
             const status = await operator.request('host.status');
-            const skewFields = {
-                desktopBuildId: buildIdentity.buildId ?? 'unknown',
-                desktopCommit: buildIdentity.commit ?? 'unknown',
-                desktopVersion: buildIdentity.version ?? 'unknown',
-                hostBuildId: status.buildId ?? 'unknown',
-                hostCommit: status.commit ?? 'unknown',
-                serverPid: status.pid,
-                hostVersion: status.version,
-            };
-            if (isServerBuildStale(buildIdentity, status)) {
-                if (isFinalAttempt || this.staleReplacement) {
-                    this.options.logger.write(
-                        'warn',
-                        logEventCatalog.serverConnection.versionMismatch,
-                        {
-                            fields: skewFields,
-                        },
-                    );
-                } else {
-                    /**
-                     * Live PTYs die with the stale Server, which is the intended trade: silently serving Terminals from
-                     * an older build is the failure mode this replaces. The count is kept so Main can tell the user.
-                     */
-                    this.options.logger.write(
-                        'warn',
-                        logEventCatalog.serverConnection.staleBuildReplaced,
-                        {
-                            fields: { ...skewFields, stoppedTerminalCount: status.activePtyCount },
-                        },
-                    );
-                    this.staleReplacement = { stoppedTerminals: status.activePtyCount };
-                    await operator.request('host.stop', { confirmLivePtys: true });
-                    this.serverSupervisor.releaseProcess(status.pid);
-                    await waitForServerExit(this.serverSupervisor, status.pid);
-                    return undefined;
-                }
+            const verdict = await vetServerBuild({
+                confirm: this.options.confirmStaleReplacement,
+                desktop: buildIdentity,
+                hasReplaced: this.staleReplacement !== undefined,
+                isFinalAttempt,
+                logger: this.options.logger,
+                operator,
+                status,
+            });
+            if (verdict === 'replace') {
+                this.staleReplacement = { stoppedTerminals: status.activePtyCount };
+                await operator.request('host.stop', { confirmLivePtys: true });
+                this.serverSupervisor.releaseProcess(status.pid);
+                await waitForServerExit(this.serverSupervisor, status.pid);
+                return undefined;
             }
             this.serverPid = status.pid;
             return `${status.pid}:${status.startedAt}`;

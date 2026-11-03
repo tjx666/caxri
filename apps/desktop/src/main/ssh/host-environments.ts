@@ -37,6 +37,11 @@ export interface SshHostSupervisor extends DesktopServerSupervisor {
      */
     cancel(): void;
     /**
+     * Ends the attempt on a terminal `updateDeferred` failure until `reconnect()`, after the user chose to keep the SSH
+     * Host's Server from another build and its running work.
+     */
+    deferUpdate(): void;
+    /**
      * Closes the ControlMaster and the forward. The remote Server keeps running.
      */
     dispose(): Promise<void>;

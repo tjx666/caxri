@@ -192,6 +192,11 @@ export const serverConnectionLogEvents = {
     eventRecoveryFailed: 'server_connection.event_recovery_failed',
     reconnectFailed: 'server_connection.reconnect_failed',
     reconnected: 'server_connection.reconnected',
+    /**
+     * The user answered whether a Server from another build that still runs work may be stopped. `fields.outcome` is
+     * `replace` or `keep`, with the running Terminal and Chat counts the question named.
+     */
+    staleBuildConfirmed: 'server_connection.stale_build_confirmed',
     staleBuildReplaced: 'server_connection.stale_build_replaced',
     versionMismatch: 'server_connection.version_mismatch',
 } as const;

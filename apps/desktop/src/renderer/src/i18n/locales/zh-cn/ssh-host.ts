@@ -40,6 +40,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.phase.stopped': '正在停止 Server…',
     'sshHost.phase.failed': '无法连接',
     'sshHost.phase.cancelled': '连接已取消',
+    'sshHost.phase.updateDeferred': '已暂缓更新 Server',
     'sshHost.progress.label': '正在安装 Caxri Server',
     'sshHost.progress.percent': '{{percent}}%',
     'sshHost.failure.authentication':
@@ -64,6 +65,8 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.failure.takenOver':
         '另一个窗口或另一台电脑上的 Caxri 接管了这个 SSH Host 的 Server。终端和 Agent 仍在那里运行。',
     'sshHost.failure.cancelled': '需要时选择“重新连接”即可再次连接。',
+    'sshHost.failure.updateDeferred':
+        'SSH Host 上的 Caxri Server 来自另一个版本，其中的终端和 Agent 仍在运行。准备好更新时选择“重新连接”。',
     'sshHost.failure.connectionLost':
         '与 SSH Host 的连接已断开。其中的终端和 Agent 会继续运行，重新连接后即可恢复显示。',
     'sshHost.failure.unknown': '连接 SSH Host 时出现问题。',

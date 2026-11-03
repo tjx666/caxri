@@ -271,6 +271,24 @@ describe('remote server supervisor', () => {
             expect(states.at(-1)?.phase).toBe('connected');
         });
 
+        it('stops on a deferred Server update until reconnect, then forgets the reason', async () => {
+            const supervisor = createSupervisor();
+            await supervisor.ensure();
+            supervisor.deferUpdate();
+            expect(supervisor.isFailed()).toBe(true);
+            expect(states.at(-1)).toMatchObject({
+                failure: { reason: 'updateDeferred' },
+                needsUserAction: false,
+                phase: 'failed',
+            });
+            await expect(supervisor.ensure()).rejects.toMatchObject({ reason: 'updateDeferred' });
+
+            supervisor.reconnect();
+            const ensured = supervisor.ensure();
+            supervisor.cancel();
+            await expect(ensured).rejects.toMatchObject({ reason: 'cancelled' });
+        });
+
         it('does not report connected when the user cancels during the operator handshake', async () => {
             const handshake = Promise.withResolvers<ServerClient>();
             const close = vi.fn();

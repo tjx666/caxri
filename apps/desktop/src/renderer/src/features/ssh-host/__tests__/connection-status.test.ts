@@ -83,6 +83,11 @@ describe('connection status', () => {
                 state({ phase: 'failed', failure: { reason: 'cancelled', message: 'x' } }),
             ),
         ).toEqual({ key: 'sshHost.phase.cancelled' });
+        expect(
+            connectionPhaseLabel(
+                state({ phase: 'failed', failure: { reason: 'updateDeferred', message: 'x' } }),
+            ),
+        ).toEqual({ key: 'sshHost.phase.updateDeferred' });
         expect(connectionPhaseLabel(state({ phase: 'reconnecting', attempt: 3 }))).toEqual({
             key: 'sshHost.phase.reconnectingAttempt',
             values: { attempt: 3 },
@@ -102,18 +107,25 @@ describe('connection status', () => {
         expect(
             connectionFailureDetail({ reason: 'cancelled', message: 'Connection cancelled' }),
         ).toBe(undefined);
+        expect(
+            connectionFailureDetail({
+                reason: 'updateDeferred',
+                message: 'Server update deferred',
+            }),
+        ).toBeUndefined();
         expect(connectionFailureDetail({ reason: 'unreachable', message: 'timed out' })).toBe(
             'timed out',
         );
         expect(connectionFailureDetail({ reason: 'unreachable', message: '' })).toBeUndefined();
     });
 
-    it('tones a cancel as muted, a takeover or retry as a warning, and the rest as danger', () => {
+    it('tones a cancel or deferred update as muted, a takeover or retry as a warning, and the rest as danger', () => {
         const tone = (
             phase: SshEnvironmentState['phase'],
-            reason: 'cancelled' | 'takenOver' | 'unreachable',
+            reason: 'cancelled' | 'takenOver' | 'unreachable' | 'updateDeferred',
         ) => connectionFailureTone(state({ phase, failure: { reason, message: '' } }));
         expect(tone('failed', 'cancelled')).toBe('muted');
+        expect(tone('failed', 'updateDeferred')).toBe('muted');
         expect(tone('disconnected', 'takenOver')).toBe('warning');
         expect(tone('reconnecting', 'unreachable')).toBe('warning');
         expect(tone('failed', 'unreachable')).toBe('danger');

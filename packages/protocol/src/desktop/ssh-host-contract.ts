@@ -64,6 +64,7 @@ const sshHostFailureReasons = [
     'profileInUse',
     'takenOver',
     'cancelled',
+    'updateDeferred',
     'connectionLost',
     'unknown',
 ] as const;

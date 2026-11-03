@@ -114,6 +114,7 @@ export interface FakeConnection {
 export function createConnection(
     identity: ServerBuildIdentity = {},
     handleCommand: DesktopServerConnectionOptions['handleCommand'] = () => Promise.resolve(null),
+    confirmStaleReplacement?: DesktopServerConnectionOptions['confirmStaleReplacement'],
 ): FakeConnection {
     const logger = { write: vi.fn() };
     let serverSupervisor!: FakeDesktopServerSupervisor;
@@ -147,6 +148,7 @@ export function createConnection(
             };
             return serverSupervisor;
         },
+        ...(confirmStaleReplacement && { confirmStaleReplacement }),
         currentDirectory: '/app/out/main',
         cliPath: '/app/cli/caxri.cjs',
         desktopId: 'desktop-1',
@@ -161,6 +163,10 @@ export function createConnection(
 
 export interface ServerRoundOptions {
     bootId?: string;
+    /**
+     * What `terminal.runningCount` answers; every other read answers `host.status`.
+     */
+    running?: { terminals: number; chats: number };
     serverBuildId?: string;
     serverCommit?: string;
     serverVersion?: string;
@@ -181,17 +187,19 @@ export function createFakeOperator(options: ServerRoundOptions = {}): FakeServer
         request: vi.fn((method: string) =>
             method === 'host.stop'
                 ? Promise.resolve({ stopping: true, activePtyCount: 0 })
-                : Promise.resolve({
-                      /**
-                       * An impossible pid so the replacement path's liveness poll returns immediately instead of
-                       * probing a real process.
-                       */
-                      pid: options.pid ?? 999_999,
-                      startedAt: options.startedAt ?? 1000,
-                      version: options.serverVersion ?? '0.0.9',
-                      ...(options.serverCommit && { commit: options.serverCommit }),
-                      ...(options.serverBuildId && { buildId: options.serverBuildId }),
-                  }),
+                : method === 'terminal.runningCount'
+                  ? Promise.resolve(options.running ?? { terminals: 0, chats: 0 })
+                  : Promise.resolve({
+                        /**
+                         * An impossible pid so the replacement path's liveness poll returns immediately instead of
+                         * probing a real process.
+                         */
+                        pid: options.pid ?? 999_999,
+                        startedAt: options.startedAt ?? 1000,
+                        version: options.serverVersion ?? '0.0.9',
+                        ...(options.serverCommit && { commit: options.serverCommit }),
+                        ...(options.serverBuildId && { buildId: options.serverBuildId }),
+                    }),
         ),
     };
 }
