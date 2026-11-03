@@ -59,7 +59,9 @@ describe('ci-size-comment', () => {
         expect(body).toContain('| out/main | 2.00 MiB | 0 | 2.50 MiB |');
         expect(body).toContain('only full-scope CI runs package the app');
         expect(body).toContain('the mobile export did not upload a report');
-        expect(body).toContain('_No performance run on this head.');
+        expect(body).toContain(
+            '_Not measured: the Agent Chat Session switch benchmark uploaded no receipt',
+        );
     });
 
     it('shows absolute sizes when no baseline exists', () => {
@@ -99,12 +101,37 @@ describe('ci-size-comment', () => {
         const body = renderComment({
             baselines: {},
             headSha: HEAD,
-            performance: { rows, runUrl: 'https://github.com/owner/project/actions/runs/2' },
+            performance: {
+                rows,
+                runUrl: 'https://github.com/owner/project/actions/runs/2',
+                source: 'hosted-full',
+            },
             reports: { desktop: desktop(HEAD, MiB) },
             runUrl: 'https://github.com/owner/project/actions/runs/1',
         });
+        expect(body).toContain(
+            '[hosted-full run](https://github.com/owner/project/actions/runs/2)',
+        );
         expect(body).toContain('| cached | 71.3 ms | 80.0 ms | 4 | 177.9 ms |');
         expect(body).toContain('| cold | — | — | — | — |');
         expect(body).not.toContain('<script>');
+    });
+
+    it('links the pull request CI run when that run measured the switch', () => {
+        const body = renderComment({
+            baselines: {},
+            headSha: HEAD,
+            performance: {
+                rows: summarizeChatSwitch({}, {}),
+                runUrl: 'https://github.com/owner/project/actions/runs/1',
+                source: 'pull-request',
+            },
+            reports: { desktop: desktop(HEAD, MiB) },
+            runUrl: 'https://github.com/owner/project/actions/runs/1',
+        });
+        expect(body).toContain(
+            '**Performance** (Agent Chat Session switch, [CI run](https://github.com/owner/project/actions/runs/1);',
+        );
+        expect(body).not.toContain('hosted-full run');
     });
 });

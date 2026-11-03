@@ -160,7 +160,7 @@ Renderer, or the mobile bundle?" without opening a job summary.
 | Desktop build      | `size-report` job: `out/main`, `out/preload`, `out/renderer` (with its Monaco workers and fonts), and the Server bundles | `full`, `affected`, and `focused-source` scopes           |
 | Mobile (Android)   | `size-report` job: `expo export --platform android` Hermes bytecode and bundled assets                                   | Same as Desktop build                                     |
 | Packaged macOS app | `bundle-budget` job: `Caxri.app`, the Electron runtime, `app.asar`, and the embedded Server                              | `full` scope only; other pull requests say "Not measured" |
-| Performance        | Agent Chat Session switch receipt from a `hosted-full` dispatch on the same head                                         | Only after such a dispatch; never started for the comment |
+| Performance        | `chat-switch-performance` job: one Agent Chat Session switch benchmark run; else a `hosted-full` dispatch on the head    | Same as Desktop build; never gates the merge              |
 
 How it works:
 
@@ -182,6 +182,13 @@ How it works:
    64 KiB, accepts only integer byte counts, and keeps only the labels in
    `SIZE_REPORT_COMPONENTS`, so no artifact text reaches the Markdown. Renaming a label drops its
    delta until `main` records the new name.
+5. The `chat-switch-performance` job runs `bun run benchmark:chat-switch` on `macos-15` beside the
+   `unit` shards (about 8 minutes, shorter than that leg). It builds its own React profiling
+   bundles, which the spec requires and no other pull request job builds, and runs with the
+   GitHub-hosted fixed budgets plus the armed baseline comparison. Both steps use
+   `continue-on-error`, and the `CI gate` does not need the job: one sample on a shared runner is
+   noisy, so a failure is a signal to read the step and the comment, not a merge block.
+   `summarizeChatSwitch` keeps only finite p50 numbers from the untrusted receipt.
 
 The comment is informational: `size-report` is not part of the `CI gate`, and the byte budgets
 above remain the only size gate. Preview a comment without posting it with
