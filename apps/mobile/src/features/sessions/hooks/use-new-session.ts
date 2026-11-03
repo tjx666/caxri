@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 
 import type { MethodResult } from '@caxri/protocol';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
 import { useTranslation } from '../../../i18n';
@@ -12,6 +12,7 @@ import {
     acknowledgeCheckedUncertainCreate,
     availableNewSessionAgent,
     canCreateNewSession,
+    confirmNewSessionLaunch,
     isNewSessionAvailabilityLoading,
     markUncertainSessionsChecked,
     newSessionAvailabilityPlaceholder,
@@ -43,6 +44,7 @@ export const useNewSession = () => {
         setSegment,
         ui,
     } = useHostSessions();
+    const queryClient = useQueryClient();
     const creatingReference = useRef(false);
     const projects = useMemo(() => sortNewSessionProjects(sessions.projects), [sessions.projects]);
     const filterProjectId = activeProjectFilter(ui.projectId, projects);
@@ -56,7 +58,20 @@ export const useNewSession = () => {
         connectionScopeKey !== null &&
         isForeground &&
         status === 'connected';
+    const availabilityQuery = useMemo(
+        () => ({
+            queryFn: () => request('mobile.agent.availability', { projectId: selectedProjectId! }),
+            queryKey: [
+                'mobile',
+                'agent-availability',
+                connectionScopeKey ?? 'unpaired',
+                selectedProjectId,
+            ],
+        }),
+        [connectionScopeKey, request, selectedProjectId],
+    );
     const availability = useQuery({
+        ...availabilityQuery,
         enabled: isAvailabilityReadEnabled,
         gcTime: 0,
         networkMode: 'always',
@@ -67,13 +82,6 @@ export const useNewSession = () => {
                 previous,
                 previousScopeKey: previousQuery?.queryKey[2],
             }),
-        queryFn: () => request('mobile.agent.availability', { projectId: selectedProjectId! }),
-        queryKey: [
-            'mobile',
-            'agent-availability',
-            connectionScopeKey ?? 'unpaired',
-            selectedProjectId,
-        ],
         refetchOnReconnect: false,
         refetchOnWindowFocus: false,
         retry: false,
@@ -87,13 +95,14 @@ export const useNewSession = () => {
         selectedAgent,
         defaultSurface === 'chat',
     );
+    const isAvailabilityLoading = isNewSessionAvailabilityLoading(availability);
     const canCreate = canCreateNewSession({
         agent: selectedAgent,
         createState: newSessionCreateState,
         dashboardError: sessions.error,
         hasDashboard: sessions.hasLoaded,
         isAvailabilityError: availability.isError,
-        isAvailabilityLoading: availability.isFetching,
+        isAvailabilityLoading,
         isForeground,
         projectId: selectedProjectId,
         role: sessions.deviceRole,
@@ -120,16 +129,40 @@ export const useNewSession = () => {
     const create = useCallback(async (): Promise<void> => {
         if (!selectedProjectId || !selectedAgent || !canCreate || creatingReference.current) return;
         creatingReference.current = true;
-        setNewSessionProjectId(selectedProjectId);
-        setNewSessionAgent(selectedAgent);
         setNewSessionCreateState({ kind: 'creating' });
         try {
+            let launch = { agent: selectedAgent, surface: selectedSurface };
+            if (availability.isPlaceholderData) {
+                // The cards still show the previous Project's answer; wait for this Project's own read (query
+                // joins the one in flight) so a stale answer never launches an Agent this Project cannot run.
+                let fresh: MethodResult<'mobile.agent.availability'>;
+                try {
+                    fresh = await queryClient.query(availabilityQuery);
+                } catch {
+                    // The query's own error state now explains the failure on the Agent cards.
+                    setNewSessionCreateState({ kind: 'idle' });
+                    return;
+                }
+                const confirmed = confirmNewSessionLaunch({
+                    agent: selectedAgent,
+                    agents: fresh.agents,
+                    openAgentsInChat: fresh.openAgentsInChat,
+                    surfacePreference: newSessionSelection.surface,
+                });
+                if (!confirmed) {
+                    setNewSessionCreateState({ kind: 'idle' });
+                    return;
+                }
+                launch = confirmed;
+            }
+            setNewSessionProjectId(selectedProjectId);
+            setNewSessionAgent(launch.agent);
             let result: MethodResult<'mobile.session.create'>;
             try {
                 result = await request('mobile.session.create', {
                     projectId: selectedProjectId,
-                    defaultAgent: selectedAgent,
-                    ...(selectedSurface && { surface: selectedSurface }),
+                    defaultAgent: launch.agent,
+                    ...(launch.surface && { surface: launch.surface }),
                 });
             } catch (error) {
                 setNewSessionCreateState(
@@ -152,8 +185,8 @@ export const useNewSession = () => {
                 return;
             }
             // A Chat renders its own streamed view with its own composer, so it waits for no transcript.
-            const isChat = selectedSurface === 'chat';
-            if (!isChat && (selectedAgent === 'claude' || selectedAgent === 'codex')) {
+            const isChat = launch.surface === 'chat';
+            if (!isChat && (launch.agent === 'claude' || launch.agent === 'codex')) {
                 setSegment(result.sessionId, 'conversation');
                 await waitForCreatedConversation(() =>
                     request('mobile.timeline.read', { sessionId: result.sessionId }),
@@ -164,9 +197,13 @@ export const useNewSession = () => {
             creatingReference.current = false;
         }
     }, [
+        availability.isPlaceholderData,
+        availabilityQuery,
         canCreate,
         filterProjectId,
+        newSessionSelection.surface,
         openCreatedSession,
+        queryClient,
         request,
         selectedAgent,
         selectedProjectId,
@@ -188,7 +225,7 @@ export const useNewSession = () => {
         defaultSurface,
         deviceRole: sessions.deviceRole,
         hostId,
-        isAvailabilityLoading: isNewSessionAvailabilityLoading(availability),
+        isAvailabilityLoading,
         isDashboardLoaded: sessions.hasLoaded,
         isAvailabilityError: availability.isError,
         dashboardError: sessions.error,
