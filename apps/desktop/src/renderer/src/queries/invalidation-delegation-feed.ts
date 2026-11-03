@@ -44,8 +44,9 @@ function invalidateDelegationFeedForSessions(
     if (queryClient.getQueryCache().findAll({ predicate: isFeedQuery }).length === 0) return;
     const creatorIds = new Set<string>();
     let isAnyUnknown = false;
+    const sessionById = new Map(sessions.map((session) => [session.id, session]));
     for (const sessionId of sessionIds) {
-        const session = sessions.find((candidate) => candidate.id === sessionId);
+        const session = sessionById.get(sessionId);
         if (session === undefined) isAnyUnknown = true;
         else if (session.createdBySessionId !== undefined)
             creatorIds.add(session.createdBySessionId);
