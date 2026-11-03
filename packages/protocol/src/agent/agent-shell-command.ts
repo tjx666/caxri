@@ -1,3 +1,6 @@
+import type { AgentShellCliAction } from './tool-rows/agent-shell-cli.js';
+import { describeCliStep, optionValue } from './tool-rows/agent-shell-cli.js';
+
 /**
  * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project,
  * or a test run, commit, push, or pull request step. The Codex app reads `sed -n '1,40p' src/app.ts` as `Read app.ts`,
@@ -5,6 +8,7 @@
  * reading as a test run.
  */
 export type AgentShellCommandAction =
+    | AgentShellCliAction
     | { kind: 'read'; paths: string[] }
     /**
      * `isFileNames` when the pattern filters a file listing (`rg --files src | rg '\.test\.ts$'`) rather than file
@@ -17,11 +21,7 @@ export type AgentShellCommandAction =
      */
     | { kind: 'test'; targets: string[]; command: string }
     | { kind: 'commit'; message?: string; isPushed: boolean }
-    | { kind: 'push'; branch?: string }
-    | { kind: 'pullRequest'; action: AgentShellPullRequestAction; subject?: string };
-
-export type AgentShellPullRequestAction =
-    'check' | 'close' | 'comment' | 'create' | 'edit' | 'merge';
+    | { kind: 'push'; branch?: string };
 
 const READ_COMMANDS = new Set(['cat', 'head', 'tail', 'nl', 'bat', 'less', 'more']);
 const SEARCH_COMMANDS = new Set(['rg', 'grep', 'egrep', 'ag', 'ack']);
@@ -30,7 +30,18 @@ const LIST_COMMANDS = new Set(['ls', 'find', 'fd', 'tree', 'eza']);
 /**
  * Commands that only reshape what an earlier pipeline stage printed, so `cat app.ts | head -40` is still a read.
  */
-const FILTER_COMMANDS = new Set(['head', 'tail', 'nl', 'wc', 'sort', 'uniq', 'cut', 'tr', 'sed']);
+const FILTER_COMMANDS = new Set([
+    'head',
+    'tail',
+    'nl',
+    'wc',
+    'sort',
+    'uniq',
+    'cut',
+    'tr',
+    'sed',
+    'jq',
+]);
 
 /**
  * Options whose value is the next word, per command, so `head -n 40 app.ts` names `app.ts`, not `40`.
@@ -403,34 +414,6 @@ function testTargets(arguments_: readonly string[]): string[] {
 }
 
 /**
- * The value of the first of `options` in `words`, as `-m "message"` or `--message=message`.
- */
-function optionValue(words: readonly string[], options: readonly string[]): string | undefined {
-    const exact = new Set(options);
-    for (let index = 0; index < words.length; index += 1) {
-        const word = words[index] ?? '';
-        if (exact.has(word)) return words[index + 1];
-        const option = options.find((candidate) => word.startsWith(`${candidate}=`));
-        if (option) return word.slice(option.length + 1);
-    }
-    return undefined;
-}
-
-const PULL_REQUEST_ACTIONS: Readonly<Record<string, AgentShellPullRequestAction | undefined>> = {
-    create: 'create',
-    merge: 'merge',
-    edit: 'edit',
-    ready: 'edit',
-    comment: 'comment',
-    review: 'comment',
-    close: 'close',
-    view: 'check',
-    checks: 'check',
-    diff: 'check',
-    status: 'check',
-};
-
-/**
  * Git subcommands that only look at or stage the work, so `git add -A && git commit -m x` still reads as a commit.
  */
 const GIT_SETUP_COMMANDS = new Set(['add', 'status', 'diff', 'log', 'fetch', 'show', 'stash']);
@@ -464,17 +447,8 @@ function describeStep(words: readonly string[], text: string): StepAction | 'set
         }
         return null;
     }
-    if (name === 'gh' && words[1] === 'pr') {
-        const action = PULL_REQUEST_ACTIONS[words[2] ?? ''];
-        if (!action) return null;
-        const arguments_ = words.slice(3);
-        const title = action === 'create' ? optionValue(arguments_, ['--title', '-t']) : undefined;
-        const reference = arguments_.find((word) => !word.startsWith('-'));
-        const number = /^#?(\d+)$|\/pull\/(\d+)/u.exec(reference ?? '');
-        const digits = number?.slice(1).find(Boolean);
-        const subject = title?.trim() ? title.trim() : digits && `#${digits}`;
-        return subject ? { kind: 'pullRequest', action, subject } : { kind: 'pullRequest', action };
-    }
+    const cliStep = describeCliStep(words, text);
+    if (cliStep) return cliStep;
     const runnerWords = withoutRunner(words);
     const arguments_ = testArguments(runnerWords);
     if (arguments_ === undefined) return null;

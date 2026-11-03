@@ -19,12 +19,13 @@ import {
     agentToolActiveLabel,
     agentToolGroupPhrases,
     agentToolKindCounts,
-    agentToolLabel,
     agentToolOutcomeLabel,
     describeAgentTool,
     parseAgentMcpToolName,
 } from './agent-tool-presentation.js';
 import { withAgentChatPathTarget } from './path-targets/agent-chat-path-targets.js';
+import { agentChatMcpSubject } from './tool-rows/agent-chat-mcp-subjects.js';
+import { agentToolLabel } from './tool-rows/agent-tool-labels.js';
 
 /**
  * What the Agent did between replies: reasoning, commands, file changes, and other tool calls. Every Agent Chat client
@@ -162,6 +163,11 @@ export function describeAgentChatWork(
 }
 
 /**
+ * Command labels whose subject the Agent's own description of the command replaces.
+ */
+const DESCRIBED_COMMAND_LABELS: ReadonlySet<string> = new Set(['Ran', 'Called GitHub API']);
+
+/**
  * The work row's presentation before its outcome is applied, with the English label the tool table names it by.
  */
 function describeAgentChatWorkAction(
@@ -181,8 +187,12 @@ function describeAgentChatWorkAction(
         case 'command': {
             const presentation = describeAgentTool({ name: 'shell', summary: item.command });
             // The Agent's own words for the command read better than the command line, which the row still shows
-            // expanded. A read, search, or listing already names what it looked at, so it keeps that.
-            return item.description && presentation.kind === 'command'
+            // expanded. A read, search, or listing already names what it looked at, so it keeps that, as does a
+            // recognized CLI step (`Viewed issue #12`). A GitHub API call names only its endpoint, which the Agent's
+            // words (`Fetch the review comments`) explain better.
+            return item.description &&
+                presentation.kind === 'command' &&
+                DESCRIBED_COMMAND_LABELS.has(presentation.label)
                 ? { ...presentation, subject: item.description, isCodeSubject: false }
                 : withAgentChatPathTarget(presentation, item, t);
         }
@@ -502,8 +512,9 @@ function agentChatWorkSummaryTools(
 /**
  * A work row's kind, verb, and subject on a Client that shows the MCP server's own icon: the shared
  * `describeAgentChatWork`, except that an MCP tool call reads as its tool (`Web search exa`), the way the Codex app
- * names it beside the server's icon; the icon, not an `exa` prefix, says which server answered. A Client without the
- * icon (the CLI, or a phone whose server has none) keeps `describeAgentChatWork`, whose label names the server.
+ * names it beside the server's icon; the icon, not an `exa` prefix, says which server answered. Its subject names what
+ * the call touched (`Get issue LOBE-123 · Fix the login loop`; see `agentChatMcpSubject`). A Client without the icon
+ * (the CLI, or a phone whose server has none) keeps `describeAgentChatWork`, whose label names the server.
  */
 export function describeAgentChatWorkRow(
     item: AgentChatWorkItem,
@@ -511,10 +522,16 @@ export function describeAgentChatWorkRow(
 ): AgentToolPresentation {
     const mcp = item.type === 'toolCall' ? parseAgentMcpToolName(item.name) : null;
     if (!mcp || item.type !== 'toolCall') return describeAgentChatWork(item, t);
+    const subject = agentChatMcpSubject({
+        ...mcp,
+        summary: item.summary,
+        ...(item.status === 'completed' && { output: item.output }),
+    });
     const action: AgentToolPresentation = {
         kind: 'mcp',
         label: agentChatMcpToolTitle(mcp.tool),
         isCodeSubject: false,
+        ...subject,
     };
     if (item.status === 'running') return action;
     return { ...action, label: agentToolOutcomeLabel(action, item.status, t) };

@@ -5,7 +5,7 @@ import type { AgentChatItem } from '../../agent-chat-contract';
 import type { AgentChatLabelTranslate } from '../../agent-chat-labels';
 import { agentChatLabelsZhCN } from '../../agent-chat-labels-zh-cn';
 import { describeAgentChatWork } from '../../agent-chat-work';
-import { agentToolLabel } from '../../agent-tool-presentation';
+import { agentToolLabel } from '../../tool-rows/agent-tool-labels';
 
 const zh: AgentChatLabelTranslate = (key, parameters) =>
     interpolate(agentChatLabelsZhCN[key], parameters);

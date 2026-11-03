@@ -24,8 +24,8 @@ import {
     describeAgentChatWork,
     summarizeAgentChatWork,
 } from '../agent-chat-work';
-import { agentToolLabel } from '../agent-tool-presentation';
 import { botInboxKindLabel, botInboxReplyState } from '../bot/caxri-bot-inbox-presentation';
+import { agentToolLabel } from '../tool-rows/agent-tool-labels';
 
 const zh: AgentChatLabelTranslate = (key, parameters) =>
     interpolate(agentChatLabelsZhCN[key], parameters);

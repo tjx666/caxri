@@ -213,6 +213,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Readable Chat beside a side pane**: `fitsBesidePortal`: a 420px floor for the conversation beside a Portal, and the working sidebar steps aside while the Portal is open. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`; `docs/agent-chat.md`.
 - **Chat turn spend in the composer strip**: `OpStatusTray`: steps, tokens, and price-list cost of the running turn behind icons, split by hairlines; zero hidden, steps above one; four decimals below a cent; only tokens when narrow; no stop hint. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metric-list.tsx`; `docs/agent-chat.md`.
 - **Chat reply speed and cost footer**: A finished reply's footer reads its generation speed and cost after the time (`62 tok/s`, then the cost behind a dollar glyph, as LobeHub puts its usage behind a coin glyph), with the totals on hover. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metrics.ts` (`agentChatReplyMetrics`); `docs/agent-chat.md`.
+- **MCP tool row subjects**: A tool row names its primary argument beside the tool (`Get issue LOBE-123`), as LobeHub's Linear and GitHub inspectors show one primary-argument chip; Caxri adds the issue title from the result. Evidence: `packages/protocol/src/agent/tool-rows/agent-chat-mcp-subjects.ts`.
 
 ## NumberFlow (MIT)
 

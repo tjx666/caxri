@@ -125,6 +125,27 @@ describe('describeAgentChatWork', () => {
         });
     });
 
+    it("keeps a recognized CLI step's own subject, but lets the description explain a GitHub API call", () => {
+        const command = (line: string) =>
+            describeAgentChatWork({
+                id: 'c',
+                type: 'command',
+                command: line,
+                description: 'Look it up',
+                status: 'completed',
+                output: '',
+            });
+        expect(command('cd ~/code/app && gh issue view 12')).toMatchObject({
+            label: 'Viewed issue',
+            subject: '#12',
+        });
+        expect(command('gh api repos/owner/app/pulls/12/comments')).toMatchObject({
+            label: 'Called GitHub API',
+            subject: 'Look it up',
+            isCodeSubject: false,
+        });
+    });
+
     it('names the first changed file and how many more', () => {
         expect(
             describeAgentChatWork({

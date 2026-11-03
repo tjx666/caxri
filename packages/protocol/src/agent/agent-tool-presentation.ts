@@ -1,7 +1,11 @@
-import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
+import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
-import type { AgentShellPullRequestAction } from './agent-shell-command.js';
 import { describeShellCommand } from './agent-shell-command.js';
+import type {
+    AgentShellCliLabel,
+    AgentShellPullRequestAction,
+} from './tool-rows/agent-shell-cli.js';
+import { agentToolLabel, CLI_ACTIVE_LABEL_KEYS } from './tool-rows/agent-tool-labels.js';
 
 /**
  * The two fields every surface knows about a tool call: Agent Chat `toolCall` items and the mobile timeline both carry
@@ -294,6 +298,7 @@ const PULL_REQUEST_LABELS: Readonly<Record<AgentShellPullRequestAction, string>>
     comment: 'Commented on PR',
     create: 'Opened PR',
     edit: 'Updated PR',
+    list: 'Listed PRs',
     merge: 'Merged PR',
 };
 
@@ -369,6 +374,14 @@ function describeShellAction(command: string): AgentToolPresentation | null {
                 isCodeSubject: false,
             };
         }
+        case 'cli': {
+            return {
+                kind: 'command',
+                label: action.label,
+                ...(action.subject !== undefined && { subject: action.subject }),
+                isCodeSubject: action.isCodeSubject,
+            };
+        }
         case undefined: {
             return null;
         }
@@ -388,70 +401,6 @@ function describeSkillRead(path: string): AgentToolPresentation | undefined {
 }
 
 /**
- * The catalog key of each English label in the tool table above, so a surface can show the label in the reader's
- * language while the presentation itself (stored in snapshots and sent to every client) stays English source data. A
- * label outside this table (an MCP server, an unknown tool's own name, or a Computer Use step's title) is an identifier
- * and stays as is.
- */
-const TOOL_LABEL_KEYS: Readonly<Record<string, AgentChatLabelKey>> = {
-    'Ran': 'agentChat.tool.label.ran',
-    'Checked output': 'agentChat.tool.label.checkedOutput',
-    'Sent input': 'agentChat.tool.label.sentInput',
-    'Stopped': 'agentChat.tool.label.stopped',
-    'Read': 'agentChat.tool.label.read',
-    'Listed': 'agentChat.tool.label.listed',
-    'Listed files': 'agentChat.tool.label.listedFiles',
-    'Edited': 'agentChat.tool.label.edited',
-    'Created': 'agentChat.tool.label.created',
-    'Patched': 'agentChat.tool.label.patched',
-    'Wrote': 'agentChat.tool.label.wrote',
-    'Searched': 'agentChat.tool.label.searched',
-    'Found files': 'agentChat.tool.label.foundFiles',
-    'Looked up tools': 'agentChat.tool.label.lookedUpTools',
-    'Fetched': 'agentChat.tool.label.fetched',
-    'Searched the web': 'agentChat.tool.label.searchedWeb',
-    'Ran agent': 'agentChat.tool.label.ranAgent',
-    'Started agent': 'agentChat.tool.label.startedAgent',
-    'Messaged agent': 'agentChat.tool.label.messagedAgent',
-    'Closed agent': 'agentChat.tool.label.closedAgent',
-    'Stopped agent': 'agentChat.tool.label.stoppedAgent',
-    'Waited for agents': 'agentChat.tool.label.waitedForAgents',
-    'Waited for': 'agentChat.tool.label.waitedFor',
-    'Agent finished': 'agentChat.tool.label.agentFinished',
-    'Updated plan': 'agentChat.tool.label.updatedPlan',
-    'Proposed plan': 'agentChat.tool.label.proposedPlan',
-    'Used skill': 'agentChat.tool.label.usedSkill',
-    'Ran tests': 'agentChat.tool.label.ranTests',
-    'Committed': 'agentChat.tool.label.committed',
-    'Committed and pushed': 'agentChat.tool.label.committedAndPushed',
-    'Pushed': 'agentChat.tool.label.pushed',
-    'Checked PR': 'agentChat.tool.label.checkedPullRequest',
-    'Closed PR': 'agentChat.tool.label.closedPullRequest',
-    'Commented on PR': 'agentChat.tool.label.commentedPullRequest',
-    'Opened PR': 'agentChat.tool.label.openedPullRequest',
-    'Updated PR': 'agentChat.tool.label.updatedPullRequest',
-    'Merged PR': 'agentChat.tool.label.mergedPullRequest',
-    'Asked': 'agentChat.tool.label.asked',
-    'Viewed image': 'agentChat.tool.label.viewedImage',
-    'Thought': 'agentChat.tool.label.thought',
-    'Thinking': 'agentChat.tool.label.thinking',
-    'Used the browser': 'agentChat.tool.label.usedBrowser',
-    'Used Computer Use': 'agentChat.tool.label.usedComputerUse',
-};
-
-/**
- * A tool presentation's past-tense label (`Edited`) in the reader's language. A label the table does not know, or one
- * already translated, is returned unchanged, so applying this twice is harmless.
- */
-export function agentToolLabel(
-    label: string,
-    t: AgentChatLabelTranslate = translateAgentChatLabel,
-): string {
-    const key = Object.hasOwn(TOOL_LABEL_KEYS, label) ? TOOL_LABEL_KEYS[label] : undefined;
-    return key ? t(key) : label;
-}
-
-/**
  * Tool kinds that name an action. `mcp` and `other` name a server or tool instead and keep their label, and a Computer
  * Use step's label is the title the Agent wrote for it.
  */
@@ -467,12 +416,17 @@ export const isAgentToolActionKind = (kind: AgentToolKind): kind is AgentToolAct
 export const agentToolActiveLabel = (
     presentation: Pick<AgentToolPresentation, 'kind' | 'label'>,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
-): string =>
-    presentation.label === 'Waited for'
-        ? t('agentChat.tool.active.waitNamed')
-        : isAgentToolActionKind(presentation.kind)
-          ? t(`agentChat.tool.active.${presentation.kind}`)
-          : agentToolLabel(presentation.label, t);
+): string => {
+    if (presentation.label === 'Waited for') return t('agentChat.tool.active.waitNamed');
+    const cliKey =
+        presentation.kind === 'command'
+            ? CLI_ACTIVE_LABEL_KEYS[presentation.label as AgentShellCliLabel]
+            : undefined;
+    if (cliKey) return t(cliKey);
+    return isAgentToolActionKind(presentation.kind)
+        ? t(`agentChat.tool.active.${presentation.kind}`)
+        : agentToolLabel(presentation.label, t);
+};
 
 /**
  * How a settled tool call ended, as far as its row title is concerned.

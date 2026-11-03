@@ -21,6 +21,7 @@ import {
     clip,
     closeDanglingItem,
     isRecord,
+    mcpArgumentsSummary,
     readableToolInputSummary,
     replacementDiff,
     stringField,
@@ -120,11 +121,14 @@ function claudeToolCallFields(
 }
 
 function genericToolCallFields(name: string, input: Json): { summary?: string; input?: string } {
+    if (name.startsWith('mcp__')) {
+        const summary = mcpArgumentsSummary(input, 1_000);
+        return summary ? { summary } : {};
+    }
     const sendMessage = name === 'SendMessage' ? sendMessageSummary(input) : undefined;
     const subject = sendMessage ? undefined : subjectField(input);
     if (subject) return { summary: subject };
     const preview = jsonPreview(input);
-    if (name.startsWith('mcp__')) return preview ? { summary: preview } : {};
     const summary = sendMessage ?? readableToolInputSummary(input, 1_000);
     return { ...(summary && { summary }), ...(preview && { input: preview }) };
 }
