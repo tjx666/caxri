@@ -81,7 +81,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.dock.expand': '展开目标、活动和队列',
     'chat.mentions.fileHint': '把文件加入消息。',
     'chat.mentions.files': '文件',
-    'chat.mentions.label': '文件和会话',
+    'chat.mentions.label': '会话和文件',
     'chat.mentions.noMatch': '没有匹配的文件或会话',
     'chat.mentions.searchFailed': '暂时无法搜索文件。',
     'chat.mentions.sessionFailed': '无法引用“{{title}}”。',

@@ -1,7 +1,7 @@
 import { composerSuggestionTrigger } from '../sessions/composer-suggestions';
 
 /**
- * Most Project files the `@` list shows at once, as on Desktop; the Sessions group below it keeps its own cap
+ * Most Project files the `@` list shows at once, as on Desktop; the Sessions group above it keeps its own cap
  * (`searchSessionReferenceCandidates`).
  */
 export const MAX_AGENT_CHAT_FILE_MENTIONS = 8;
@@ -23,8 +23,8 @@ export type AgentChatMentionRow =
     | { kind: 'session'; projectTitle: string; sessionId: string; title: string };
 
 /**
- * The `@` list as Desktop orders it: files first (a name search needs at least one typed character), then the Sessions
- * that match the title.
+ * The `@` list as Desktop orders it: the Sessions that match the title first, then the files (a name search needs at
+ * least one typed character).
  */
 export function agentChatMentionRows(
     paths: readonly string[] | undefined,
@@ -42,13 +42,13 @@ export function agentChatMentionRows(
             };
         });
     return [
-        ...files,
         ...sessions.map((session): AgentChatMentionRow => ({
             kind: 'session',
             projectTitle: session.projectTitle,
             sessionId: session.id,
             title: session.title,
         })),
+        ...files,
     ];
 }
 

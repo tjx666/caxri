@@ -149,7 +149,7 @@ export const agentChatComposer = {
     'agentChat.slash.skillsNeedAgent': 'Skills appear once the Agent is running',
     'agentChat.slash.loadingSkills': 'Loading skills…',
     'agentChat.slash.files': 'Files',
-    'agentChat.slash.mentions': 'Files and Sessions',
+    'agentChat.slash.mentions': 'Sessions and Files',
     'agentChat.slash.sessions': 'Sessions',
     'agentChat.slash.keyHintCite': 'to cite',
     'agentChat.slash.keyHintComplete': 'to complete',

@@ -77,15 +77,15 @@ describe('agentChatFileSuggestion', () => {
 });
 
 describe('agentChatMentionHeadingAt', () => {
-    it('starts Files first and Sessions after them', () => {
+    it('starts Sessions first and files after them', () => {
         expect([0, 1, 2, 3].map((index) => agentChatMentionHeadingAt(2, index))).toEqual([
-            'files',
-            undefined,
             'sessions',
+            undefined,
+            'files',
             undefined,
         ]);
         expect([0, 1].map((index) => agentChatMentionHeadingAt(0, index))).toEqual([
-            'sessions',
+            'files',
             undefined,
         ]);
     });
@@ -96,13 +96,13 @@ describe('merged @ list rows', () => {
         sessionId: 's1',
         title: 'Fix login',
         projectName: 'Caxri',
-    } as unknown as Parameters<typeof agentChatMentionRows>[1][number];
+    } as unknown as Parameters<typeof agentChatMentionRows>[0][number];
 
-    it('lists the files before the Sessions and draws each by kind', () => {
-        const rows = agentChatMentionRows(['src/a.ts'], [candidate]);
-        expect(rows.map((row) => row.kind)).toEqual(['file', 'session']);
-        expect(agentChatMentionRowSuggestion(rows[0]).key).toBe('file-src/a.ts');
-        expect(agentChatMentionRowSuggestion(rows[1]).key).not.toBe('file-src/a.ts');
+    it('lists the Sessions before the files and draws each by kind', () => {
+        const rows = agentChatMentionRows([candidate], ['src/a.ts']);
+        expect(rows.map((row) => row.kind)).toEqual(['session', 'file']);
+        expect(agentChatMentionRowSuggestion(rows[0]).key).not.toBe('file-src/a.ts');
+        expect(agentChatMentionRowSuggestion(rows[1]).key).toBe('file-src/a.ts');
     });
 
     it('keeps the highlight only for an unchanged query and clamps it to the last row', () => {

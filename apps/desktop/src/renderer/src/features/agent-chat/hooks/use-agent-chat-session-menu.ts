@@ -33,13 +33,13 @@ import { useAgentChatFileMentions } from './use-agent-chat-file-mentions';
 import { useAgentChatPlacedCaret } from './use-agent-chat-placed-caret';
 
 /**
- * The `@` list: typing `@` at the start of a word offers a `Files` group, the Project files whose path contains the
- * word (`useAgentChatFileMentions`; the files open in Editor tabs for a bare `@`), then a `Sessions` group, the other
- * Sessions with an Agent conversation, searched by title, each with its Project and, when titles repeat, when it was
- * last opened. A group with no match is left out, and with neither the list stays closed. Choosing a file replaces the
- * typed `@word` with `@<Project-relative path>`, quoted when the path holds whitespace. Choosing a Session asks the
- * Server to condense that conversation into a reference file and replaces the typed `@word` with `@<path>` and a
- * sentence saying whose conversation it is; meanwhile the list shows a progress row naming the Session (`preparing`),
+ * The `@` list: typing `@` at the start of a word offers a `Sessions` group, the other Sessions with an Agent
+ * conversation, searched by title, each with its Project and, when titles repeat, when it was last opened, then a
+ * `Files` group, the Project files whose path contains the word (`useAgentChatFileMentions`; the files open in Editor
+ * tabs for a bare `@`). A group with no match is left out, and with neither the list stays closed. Choosing a file
+ * replaces the typed `@word` with `@<Project-relative path>`, quoted when the path holds whitespace. Choosing a Session
+ * asks the Server to condense that conversation into a reference file and replaces the typed `@word` with `@<path>` and
+ * a sentence saying whose conversation it is; meanwhile the list shows a progress row naming the Session (`preparing`),
  * and Enter waits rather than sending the half-typed `@word`. Keys match the slash-command list: arrows move, Enter or
  * Tab chooses, Escape dismisses until the next edit. The list shows only while the input has focus, so it never covers
  * another surface, and waits for the user to edit the draft or move the caret, so showing a Chat whose restored draft
@@ -105,7 +105,7 @@ export function useAgentChatSessionMenu({
         root,
         sessionId: currentSessionId,
     });
-    const rows = agentChatMentionRows(files, candidates);
+    const rows = agentChatMentionRows(candidates, files);
     const isOpen = isListable && rows.length > 0;
     const activeIndex = agentChatMentionActiveIndex(active, mention?.query, rows.length);
     const activeRow = isOpen ? rows[activeIndex] : undefined;
@@ -197,14 +197,14 @@ export function useAgentChatSessionMenu({
         /**
          * Which group heading the row at `index` starts, or `undefined` when it continues the group above it.
          */
-        groupAt: (index: number) => agentChatMentionHeadingAt(files.length, index),
+        groupAt: (index: number) => agentChatMentionHeadingAt(candidates.length, index),
         /**
          * Whether the row at `index` is a Project file rather than a Session.
          */
-        isFileAt: (index: number) => index < files.length,
+        isFileAt: (index: number) => index >= candidates.length,
         suggestions: [
-            ...files.map((path) => agentChatFileSuggestion(path)),
             ...agentChatSessionSuggestions(candidates, openedAt),
+            ...files.map((path) => agentChatFileSuggestion(path)),
         ],
         inputAria: isOpen
             ? {
