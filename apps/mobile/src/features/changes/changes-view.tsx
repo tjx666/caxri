@@ -157,6 +157,7 @@ const ChangesModeNotices = ({
                         { count: hiddenUncommitted },
                     )}
                     onAction={() => onModeChange('working')}
+                    actionTestID="changes-uncommitted-action"
                     testID="changes-uncommitted"
                     theme={theme}
                     tone="muted"
