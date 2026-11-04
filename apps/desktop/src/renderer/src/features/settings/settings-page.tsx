@@ -237,11 +237,9 @@ export function SettingsPage(properties: SettingsPageProperties) {
      * above it would keep the highlight.
      */
     const [pinnedAnchor, setPinnedAnchor] = useState<{ anchor: string; requests: string }>();
-    const searchedQuery = query.trim();
     /**
      * A focus request that arrives later scrolls to its own row, so it releases the pin the same way user scrolling
-     * does: the pin only holds while the requests it was set under are still the latest ones. A new query re-filters
-     * the list under the pin, so it hides the pin at once and the effect below releases it.
+     * does: the pin only holds while the requests it was set under are still the latest ones.
      */
     const focusRequests = [
         trustedDomainsFocusRequestId,
@@ -250,25 +248,33 @@ export function SettingsPage(properties: SettingsPageProperties) {
         properties.gitExclusionsFocusRequestId,
         properties.rowFocusRequest?.id,
         properties.notificationsFocusRequestId,
-        searchedQuery,
     ].join(':');
     const activeAnchor =
         pinnedAnchor?.requests === focusRequests ? pinnedAnchor.anchor : spiedAnchor;
     const releasePinnedAnchor = (): void => setPinnedAnchor(undefined);
 
     /**
-     * A new query lists other rows, so its result starts at the top and the clicked navigation entry no longer holds;
-     * released only through `focusRequests`, the pin came back when the query returned to the one it was set under.
-     * Scrolling to the top also replaces a jump still in flight: TanStack Virtual retargets a `scrollToIndex` for up to
-     * five seconds until it settles, and that index named a row of the previous list, so clearing a query right after
-     * picking Claude landed back on Claude. Declared before the request effects below, so a request arriving in the
-     * same commit still has the last word.
+     * A new query lists other rows, so the clicked navigation entry no longer holds. Released while rendering
+     * (react.dev "You Might Not Need an Effect"), so no frame highlights it over the new result; a pin keyed by the
+     * query instead came back when the query returned to the one it was set under.
+     */
+    const searchedQuery = query.trim();
+    const [pinQuery, setPinQuery] = useState(searchedQuery);
+    if (pinQuery !== searchedQuery) {
+        setPinQuery(searchedQuery);
+        setPinnedAnchor(undefined);
+    }
+
+    /**
+     * A new query's result starts at the top. Scrolling there also replaces a jump still in flight: TanStack Virtual
+     * retargets a `scrollToIndex` for up to five seconds until it settles, and that index named a row of the previous
+     * list, so clearing a query right after picking Claude landed back on Claude. Declared before the request effects
+     * below, so a request arriving in the same commit still has the last word.
      */
     const lastSearchedQuery = useRef(searchedQuery);
     useEffect(() => {
         if (lastSearchedQuery.current === searchedQuery) return;
         lastSearchedQuery.current = searchedQuery;
-        setPinnedAnchor(undefined);
         virtualizer.scrollToOffset(0);
     }, [searchedQuery, virtualizer]);
 
