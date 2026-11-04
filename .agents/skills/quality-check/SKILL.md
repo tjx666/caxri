@@ -202,7 +202,9 @@ a standalone or repository-wide run.
 The pre-commit hook additionally runs two `guards` tests when the staged set can affect them, so a
 violation fails locally instead of in CI: `scripts/__tests__/directory-density-ratchet.test.ts` when
 the index adds, deletes, or renames a file, and `scripts/__tests__/react-compiler-coverage.test.ts`
-when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed. It also runs the
+when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed, together with
+`apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` (DESIGN.md class rules that
+lint does not enforce). It also runs the
 three i18n contract tests when a staged path is a locale source
 (`scripts/staged-locale-contracts.ts`, the same selector as `check --test`).
 

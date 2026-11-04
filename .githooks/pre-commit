@@ -41,7 +41,10 @@ bun run .agents/skills/quality-check/scripts/staged-locale-contracts.ts
 
 # The same React Compiler coverage test the `guards` job runs. It compiles every Renderer source (tens of seconds), so
 # run it only when a staged Renderer `.ts`/`.tsx` file, or the compiler's own options and known-bailout ledger, changed.
+# The Renderer design contract (DESIGN.md class rules, about one second) rides along: lint does not enforce it, and an
+# arbitrary `min-h-[52px]` once passed this hook and failed first in CI.
 if git diff --cached --name-only --diff-filter=ACMR |
     grep -Eq '^apps/desktop/src/renderer/src/.*\.tsx?$|^scripts/react-compiler-[^/]*\.ts$'; then
-    bunx vitest run scripts/__tests__/react-compiler-coverage.test.ts
+    bunx vitest run scripts/__tests__/react-compiler-coverage.test.ts \
+        apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts
 fi
