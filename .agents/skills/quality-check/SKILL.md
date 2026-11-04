@@ -73,9 +73,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   source (the scope `scripts/reporters/ci-e2e-log-safety-scope.ts` defines) runs
   `scripts/__tests__/ci-e2e-log-safety.test.ts`, which scans every launcher for Playwright configs
   and reporters.
-- For added or changed production structured-log writes, explicitly include
-  `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
-  than importing them, so import-based related-test discovery cannot select this contract.
+- `contract-test-candidates.ts` selects `scripts/__tests__/logging-contract.test.ts` for any
+  changed production source under `{apps,packages,extensions}/*/src/`.
 - `--type` runs the repository-wide TypeScript check (`bun check` per project, about 4 seconds)
   because TypeScript cannot safely validate one file in isolation. `bun check` keeps no incremental
   state, so every run is a full check.
