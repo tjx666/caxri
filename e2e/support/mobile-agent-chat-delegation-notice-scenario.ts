@@ -50,7 +50,7 @@ export async function executeMobileDelegationNoticeScenario(
         await waitForCheck(environment.serial, noticeCheck);
         await capture(environment, 'delegation-notice-rows', artifacts);
         // A row opens the child Session it names, leaving the parent Chat.
-        const itemCheck = `agent-chat-delegation-notice-item-${notice.delegationNotice!.items[0].delegationId}`;
+        const itemCheck = `agent-chat-delegation-notice-${notice.id}-item-0`;
         await waitForCheck(environment.serial, itemCheck);
         await tapMobileCheck(environment.serial, itemCheck);
         await waitForNoCheck(environment.serial, noticeCheck);

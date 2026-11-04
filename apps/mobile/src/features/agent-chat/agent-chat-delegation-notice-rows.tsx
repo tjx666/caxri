@@ -43,9 +43,14 @@ const ICONS: Record<DelegationNoticeEvent, LucideIcon> = {
  */
 function DelegationNoticeRow({
     item,
+    testID,
     theme,
 }: {
     item: AgentChatDelegationNotice['items'][number];
+    /**
+     * Built from the message and the item's position: a delegation ID is too long for an Android Acceptance check id.
+     */
+    testID: string;
     theme: MobileTheme;
 }) {
     const { t } = useTranslation();
@@ -74,7 +79,7 @@ function DelegationNoticeRow({
             hitSlop={4}
             onPress={() => openSession(session.id)}
             style={styles.row}
-            testID={`agent-chat-delegation-notice-item-${item.delegationId}`}
+            testID={testID}
         >
             {content}
         </Pressable>
@@ -97,10 +102,11 @@ export const AgentChatDelegationNoticeRows = ({
     theme: MobileTheme;
 }) => (
     <View style={conversationStyles.message} testID={`agent-chat-delegation-notice-${id}`}>
-        {notice.items.map((item) => (
+        {notice.items.map((item, index) => (
             <DelegationNoticeRow
                 item={item}
                 key={`${item.delegationId}:${item.event}`}
+                testID={`agent-chat-delegation-notice-${id}-item-${index}`}
                 theme={theme}
             />
         ))}
