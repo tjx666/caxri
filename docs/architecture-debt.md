@@ -38,18 +38,19 @@ Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answe
 
 Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and its one entry needing measurement was resolved by [issue caxri#3409](https://github.com/tjx666/caxri/issues/3409).
 
-Full audit 2026-11-05 @ `e1aae87d2` found no prior OPEN entry; the batch of [issue caxri#3659](https://github.com/tjx666/caxri/issues/3659) fixed four new findings; a fifth turned out to be an intentional tradeoff with a misleading JSDoc (`IT-ssh-offline-host-records`), [issue caxri#3658](https://github.com/tjx666/caxri/issues/3658) added the tree-wide flat-family guard, and the entry below needs a measurement first.
-
-### AD-perf-ssh-records-full-bootstrap: [OPEN · Coverage or observability gap · M]
-
-- **Summary:** Every SSH Host `state.changed` re-reads the composed snapshot, which runs a full `app.bootstrap` on this Mac and on each changed Host, while a local change uses the lighter `app.records`; the cost is unmeasured.
-- **Evidence:** `apps/desktop/src/renderer/src/stores/workbench-environment-events.ts` marks the Host changed and refreshes; `workbench-environments.ts` `readComposedSnapshot` always bootstraps the local Server.
-- **First seen:** 2026-11-05 @ e1aae87d2 · **Last verified:** 2026-11-05 @ e1aae87d2
-- **Remediation target / Acceptance:** [issue caxri#3657](https://github.com/tjx666/caxri/issues/3657): measure refresh rate and cost against a live Host; if material, a remote records change reads only that Host.
+Full audit 2026-11-05 @ `e1aae87d2` found no prior OPEN entry; the batch of [issue caxri#3659](https://github.com/tjx666/caxri/issues/3659) fixed four new findings; a fifth turned out to be an intentional tradeoff with a misleading JSDoc (`IT-ssh-offline-host-records`), [issue caxri#3658](https://github.com/tjx666/caxri/issues/3658) added the tree-wide flat-family guard, and [issue caxri#3657](https://github.com/tjx666/caxri/issues/3657) made the SSH composed refresh's cost measurable. No entry remains open.
 
 ---
 
 ## RESOLVED
+
+### AD-perf-ssh-records-full-bootstrap: [RESOLVED · Coverage or observability gap · M]
+
+- **Summary:** Every SSH Host `state.changed` re-reads the composed snapshot, which runs a full `app.bootstrap` on this Mac and on each changed Host, while a local change uses the lighter `app.records`; the cost was unmeasured.
+- **Evidence:** `readComposedSnapshot` now feeds `ComposedReadMeter` (`apps/desktop/src/renderer/src/stores/composed-read-diagnostics.ts`), which reports a `workbench-composed-read` diagnostic, logged by Main as `renderer.workbench_composed_read`, for every read at or above 250 ms and every 50th Host-triggered read, with the trigger, local and Host durations, and per-window counts. Refreshes are already coalesced to one in-flight read plus one queued, so a burst of Host events costs at most two composed reads.
+- **First seen:** 2026-11-05 @ e1aae87d2 · **Last verified:** 2026-11-05 @ 575933450
+- **Resolved:** 2026-11-05 via [issue caxri#3657](https://github.com/tjx666/caxri/issues/3657).
+- **Remediation target / Acceptance:** The cost is now visible in the diagnostic log; reading only the changed Host is worth its design only once those records show slow `host-change` reads.
 
 ### AD-layout-density-owner-list: [RESOLVED · Coverage or observability gap · S]
 
@@ -1453,7 +1454,7 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-11-05)
 
-**Top priorities:** `AD-perf-ssh-records-full-bootstrap` (measure first).
+No entry is open.
 
 ## Historical priority guide (all resolved)
 

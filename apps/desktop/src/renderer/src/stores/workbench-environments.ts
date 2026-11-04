@@ -7,6 +7,7 @@ import {
     indexEnvironmentSnapshot,
     routingGeneration,
 } from '../lib/environment-routing';
+import { composedReadMeter } from './composed-read-diagnostics';
 import { environmentIdOf, setSelectedEnvironment, useEnvironmentStore } from './environment';
 
 /**
@@ -115,9 +116,14 @@ function listedHosts(): { connected: string[]; listed: ReadonlySet<string> } {
     };
 }
 
-async function readRemote(environmentId: string): Promise<void> {
+/**
+ * Re-reads a Host's snapshot when it is missing or stale. Resolves to the read's duration in milliseconds, or
+ * `undefined` when the cached snapshot was still current and nothing was requested.
+ */
+async function readRemote(environmentId: string): Promise<number | undefined> {
     if (snapshots.remote.has(environmentId) && !snapshots.dirty.has(environmentId)) return;
     snapshots.dirty.delete(environmentId);
+    const startedAt = performance.now();
     try {
         const readAt = routingGeneration();
         const state = await caxri.in(environmentId).request('app.bootstrap');
@@ -127,6 +133,20 @@ async function readRemote(environmentId: string): Promise<void> {
         // A Host that dropped mid-read keeps its last snapshot until Main reports it disconnected; read it next time.
         snapshots.dirty.add(environmentId);
     }
+    return performance.now() - startedAt;
+}
+
+/**
+ * Notes when a read settles on a side branch, so timing it adds no promise hop to the read itself (the Workbench's
+ * refresh tests depend on how many microtasks a snapshot takes to land).
+ */
+async function noteSettledAt(read: Promise<unknown>, settledAt: { ms: number }, startedAt: number) {
+    try {
+        await read;
+    } catch {
+        // The caller of the read handles its failure.
+    }
+    settledAt.ms = performance.now() - startedAt;
 }
 
 /**
@@ -176,10 +196,28 @@ export async function readComposedSnapshot(): Promise<BootstrapState> {
             snapshots.dirty.delete(id);
             forgetEnvironment(id);
         }
-    const [local] = await Promise.all([
-        caxri.request('app.bootstrap'),
+    const startedAt = performance.now();
+    const dirtyHostCount = connected.filter((id) => snapshots.dirty.has(id)).length;
+    const localRead = caxri.request('app.bootstrap');
+    const localSettled = { ms: 0 };
+    void noteSettledAt(localRead, localSettled, startedAt);
+    const [local, ...remoteDurations] = await Promise.all([
+        localRead,
         ...connected.map((id) => readRemote(id)),
     ]);
+    const performed = remoteDurations.filter((ms): ms is number => ms !== undefined);
+    composedReadMeter.record({
+        connectedHostCount: connected.length,
+        dirtyHostCount,
+        localBootstrapMs: localSettled.ms,
+        remoteReadCount: performed.length,
+        remoteReadMs: Math.max(0, ...performed),
+        totalMs: performance.now() - startedAt,
+    });
+    return composeRead(local, listed);
+}
+
+function composeRead(local: BootstrapState, listed: ReadonlySet<string>): BootstrapState {
     const remotes = [...listed].flatMap((id) => {
         const state = snapshots.remote.get(id);
         return state ? [[id, state] as const] : [];

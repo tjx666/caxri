@@ -26,6 +26,10 @@ import {
     rendererJankLogFields,
     rendererJankLogLevel,
 } from './renderer-diagnostics/renderer-jank-log';
+import {
+    workbenchComposedReadLogFields,
+    workbenchComposedReadLogLevel,
+} from './renderer-diagnostics/workbench-composed-read-log';
 import { runInRequestWindow } from './request-window';
 import { PRIMARY_WINDOW_KEY, runInRequestWindowKey } from './window-presence-registry';
 
@@ -304,6 +308,16 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                             mainEventLoopSuspensionCount: mainLoop?.suspensionCount ?? null,
                         },
                     },
+                );
+            return;
+        }
+        if (diagnostic.kind === 'workbench-composed-read') {
+            options
+                .logger()
+                ?.write(
+                    workbenchComposedReadLogLevel(diagnostic),
+                    logEventCatalog.renderer.workbenchComposedRead,
+                    { fields: workbenchComposedReadLogFields(diagnostic, rendererWindow) },
                 );
             return;
         }
