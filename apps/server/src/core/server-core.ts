@@ -28,6 +28,7 @@ import {
 import { agentEndpointRequest } from './agent-endpoint-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
+import { agentInboxRequest } from './agent-inbox-request';
 import { sendAgentMessage } from './agent-message-send';
 import { ControlServer } from './control-server';
 import type { CoreForwardedMethod } from './core-methods';
@@ -262,10 +263,15 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.result':
                 case 'agent.delegation.transcript':
                 case 'agent.delegation.list':
+                case 'agent.delegation.ask':
+                case 'agent.delegation.askCancel':
+                case 'agent.delegation.questions':
+                case 'agent.delegation.answer':
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );
                 case 'agent.delegation.wait':
+                case 'agent.delegation.askWait':
                     return forwardDisconnectable(
                         context,
                         invocation.requestId,
@@ -335,23 +341,15 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return agentInbox.reply(context, request.params, invocation.requestId);
                 }
                 case 'agent.message.wait':
-                    return agentInbox.wait(context, request.params.timeoutMs, invocation.requestId);
                 case 'agent.message.check':
-                    return agentInbox.check(context, invocation.requestId);
                 case 'agent.message.receipt':
-                    return agentInbox.receipt(context, request.params.messageId);
                 case 'agent.message.policy.get':
-                    return agentInbox.policy(context);
                 case 'agent.message.policy.set':
-                    return agentInbox.setPolicy(context, request.params);
                 case 'agent.message.held':
-                    return { messages: agentInbox.listHeld() };
                 case 'agent.message.held.get':
-                    return agentInbox.heldDetail(request.params.messageId);
                 case 'agent.message.approve':
-                    return agentInbox.approve(request.params.messageId);
                 case 'agent.message.deny':
-                    return agentInbox.deny(request.params.messageId);
+                    return agentInboxRequest(request, context, invocation.requestId, agentInbox);
                 case 'host.status':
                     return readHostStatus({
                         buildId: options.buildId,

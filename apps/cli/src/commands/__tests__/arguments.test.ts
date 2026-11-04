@@ -31,6 +31,7 @@ describe('parseCliArguments timeout bounds', () => {
         ['agent.message.wait', {}],
         ['agent.dispatch.wait', { dispatchId: 'dispatch' }],
         ['agent.delegation.wait', { delegationId: 'task' }],
+        ['agent.delegation.askWait', { questionId: 'question' }],
     ] as const)('matches the %s schema timeoutMs ceiling', (method, identity) => {
         const ceiling = commandTimeoutCeiling(method);
         const accepts = (timeoutMs: number) =>

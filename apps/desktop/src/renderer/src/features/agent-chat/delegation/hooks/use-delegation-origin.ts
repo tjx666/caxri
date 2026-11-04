@@ -29,6 +29,7 @@ type DelegationOriginTask = Pick<
     | 'retryScheduledFor'
     | 'status'
     | 'takenOverAt'
+    | 'waitingOn'
 >;
 
 export interface DelegationOriginState {
@@ -88,6 +89,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                         retryScheduledFor: entry.retryScheduledFor,
                         status: entry.status,
                         takenOverAt: entry.takenOverAt,
+                        waitingOn: entry.waitingOn,
                     }
                 );
             },
@@ -97,7 +99,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
     const takenOverAt = task?.takenOverAt;
     return useMemo(() => {
         if (!canShow || !session) return NONE;
-        const origin = delegationOrigin(session, parent, takenOverAt);
+        const origin = delegationOrigin(session, parent, takenOverAt, task?.waitingOn);
         return origin ? { origin, task, takenOverAt } : NONE;
     }, [canShow, session, parent, task, takenOverAt]);
 }

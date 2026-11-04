@@ -3,6 +3,7 @@ import {
     CaxriError,
     DEVICE_EXEC_MAX_TIMEOUT_MS,
     MAX_DELEGATION_WAIT_TIMEOUT_MS,
+    MAX_QUESTION_WAIT_TIMEOUT_MS,
 } from '@caxri/protocol';
 
 export interface ParsedCliArguments {
@@ -31,6 +32,7 @@ const MAX_REQUEST_TIMEOUT_MS = 120_000;
  * method schema's own `timeoutMs` maximum, so `--help` and validation cannot disagree.
  */
 const LONG_POLL_TIMEOUT_CEILINGS: Partial<Record<CaxriMethod, number>> = {
+    'agent.delegation.askWait': MAX_QUESTION_WAIT_TIMEOUT_MS,
     'agent.delegation.wait': MAX_DELEGATION_WAIT_TIMEOUT_MS,
     'agent.dispatch.wait': MAX_REQUEST_TIMEOUT_MS,
     'agent.message.wait': MAX_REQUEST_TIMEOUT_MS,

@@ -6,6 +6,7 @@ import {
 } from '@caxri/protocol';
 
 import { AGENT_SESSION_COMMANDS } from './agent-session';
+import { DELEGATION_QUESTION_COMMANDS } from './delegation-question';
 import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
 
@@ -98,17 +99,24 @@ function identity(tokens: readonly string[]) {
 }
 
 function waitIdentities(tokens: readonly string[]) {
-    const [delegationId, ...otherDelegationIds] = tokens;
+    const ignoreCount = tokens.filter((token) => token === '--ignore-questions').length;
+    if (ignoreCount > 1) throw new CaxriError('VALIDATION', 'Pass --ignore-questions at most once');
+    const ids = tokens.filter((token) => token !== '--ignore-questions');
+    const [delegationId, ...otherDelegationIds] = ids;
     if (
         !delegationId ||
-        tokens.length > MAX_DELEGATION_WAIT_TASKS ||
-        tokens.some((token) => token.startsWith('-'))
+        ids.length > MAX_DELEGATION_WAIT_TASKS ||
+        ids.some((token) => token.startsWith('-'))
     )
         throw new CaxriError(
             'VALIDATION',
             `Expected one to ${MAX_DELEGATION_WAIT_TASKS} delegation IDs`,
         );
-    return otherDelegationIds.length > 0 ? { delegationId, otherDelegationIds } : { delegationId };
+    return {
+        delegationId,
+        ...(otherDelegationIds.length > 0 && { otherDelegationIds }),
+        ...(ignoreCount === 1 && { ignoreQuestions: true }),
+    };
 }
 
 function listParameters(tokens: readonly string[]) {
@@ -180,8 +188,8 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         path: ['agent', 'delegate', 'wait'],
         method: 'agent.delegation.wait',
         summary:
-            'Wait for the first of your tasks to settle or block, without resending or stopping any of them.',
-        usage: '<delegation-id> [<delegation-id>...] [--timeout <milliseconds>]',
+            'Wait for the first of your tasks to settle, block, or ask a question, without resending or stopping any of them.',
+        usage: '<delegation-id> [<delegation-id>...] [--ignore-questions] [--timeout <milliseconds>]',
         parseParams: waitIdentities,
     },
     {
@@ -230,6 +238,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         usage: '[--active] [--limit <count>]',
         parseParams: listParameters,
     },
+    ...DELEGATION_QUESTION_COMMANDS,
     /**
      * Managing the Sessions `--new-session` created.
      */

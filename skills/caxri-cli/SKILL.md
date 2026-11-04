@@ -278,8 +278,25 @@ Then write the task to a file and run
   again, so keep the latest copy of each row `id`, and once `settled` is true read again without
   `--after` to see every step's final state. It never marks the answer read; an `unavailable`
   `reason` such as `not_chat` means read the answer with `result` instead. With several tasks running, `agent delegate wait <id> <id>...`
-  returns the first one that settled or blocked. Its `--timeout` accepts up to 300000 milliseconds;
+  returns the first one that settled, blocked, or asked a question. Its `--timeout` accepts up to 300000 milliseconds;
   other commands cap `--timeout` at 120000. A wait timeout never authorizes resubmitting the task.
+  A wait outcome `question` carries a `questionId` and repeats on every wait until that question
+  closes; read it with `agent delegate questions [<id>]` and answer it with
+  `agent delegate answer <id> <question-id> --text <text>` (or `--file <path>` for a long answer),
+  or pass `--ignore-questions` to keep waiting for settlement without answering. `answer` returns
+  `already_answered` or `cancelled` when the question closed first, for example because the user
+  answered it from Caxri; the text you sent was then not delivered. Questions and answers hold at
+  most 2000 and 4000 characters.
+  When you are the delegated task and need a decision only the delegating Agent can make, ask it
+  instead of guessing or stopping:
+  `agent delegate ask --text <question> [--option <choice>]... --request-id <id> --json` (at most
+  6 options), then `agent delegate ask-wait <question-id> --timeout 300000 --json`. You may have one
+  open question at a time and 10 per task; `already_open` returns the open one's ID instead of
+  replacing it. An `ask-wait` `timeout` means the question is still open: run `ask-wait` again and
+  never ask it twice. `answered` carries the answer and `answeredBy` (`parent` or `user`: when the
+  delegating Agent does not answer within 10 minutes, the user is asked). `cancelled` means the
+  question closed unanswered, for example because the user took over your Session; continue
+  without it. `agent delegate ask-cancel <question-id>` withdraws a question you no longer need.
   Reuse a stable `--request-id` when recovering a disconnected create request.
   Use `agent delegate create --follow-up <id>` with a fresh prompt file for the next task in the
   same idle Terminal. Use `agent delegate stop <id>` to interrupt your active task.

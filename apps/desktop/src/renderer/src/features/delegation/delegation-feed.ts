@@ -87,16 +87,30 @@ export function isDelegationFailed(
 }
 
 /**
- * A task that waits on the user: its Agent asked a question or a permission, or sits at a first-run prompt in its
- * Terminal. `permission_required` can be a question rather than an approval, so no copy calls it an approval.
+ * A task that waits on the user: its Agent asked a question or a permission, sits at a first-run prompt in its
+ * Terminal, or asked the Agent that delegated it a question that escalated to the user (`waitingOn` is `user`).
+ * `permission_required` can be a question rather than an approval, so no copy calls it an approval.
  */
 export function isDelegationNeedsInput(
-    entry: Pick<AgentDelegationSession, 'failure' | 'status'>,
+    entry: Pick<AgentDelegationSession, 'failure' | 'status'> &
+        Partial<Pick<AgentDelegationSession, 'waitingOn'>>,
 ): boolean {
     return (
-        entry.status === 'blocked' &&
-        (entry.failure === 'permission_required' || entry.failure === 'startup_waiting')
+        entry.waitingOn === 'user' ||
+        (entry.status === 'blocked' &&
+            (entry.failure === 'permission_required' || entry.failure === 'startup_waiting'))
     );
+}
+
+/**
+ * A task whose Agent asked the Agent that delegated it a question, still inside the grace period. The user has nothing
+ * to do yet, so it is muted and never counted as needing attention; once it escalates it is
+ * {@link isDelegationNeedsInput}.
+ */
+export function isDelegationAsking(
+    entry: Partial<Pick<AgentDelegationSession, 'waitingOn'>>,
+): boolean {
+    return entry.waitingOn === 'parent';
 }
 
 /**
@@ -210,14 +224,16 @@ export function failedDelegationSessionIds(
  * a failure whose retry is scheduled (`isDelegationRetryPending`) are separate counts; an `answer_unavailable` task is
  * none of them, because its work may be done. Pass the collapsed list (`collapseRetryChains`) so a retried failure no
  * longer counts. A pending retry survives the collapse (its successor does not exist yet), so it is counted here as
- * waiting, never as failed.
+ * waiting, never as failed. A task asking the Agent that delegated it (`isDelegationAsking`) is counted apart as
+ * `asking`: it is not attention, and an escalated question is `needsInput`.
  */
 export function delegationAttentionCounts(
     entries: ReadonlyArray<
         Pick<AgentDelegationSession, 'failure' | 'status'> &
-            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor'>>
+            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor' | 'waitingOn'>>
     >,
-): { failed: number; needsInput: number; waiting: number } {
+): { asking: number; failed: number; needsInput: number; waiting: number } {
+    let asking = 0;
     let failed = 0;
     let needsInput = 0;
     let waiting = 0;
@@ -225,8 +241,9 @@ export function delegationAttentionCounts(
         if (entry.status === 'failed' && isDelegationRetryPending(entry)) waiting += 1;
         else if (isDelegationFailed(entry)) failed += 1;
         else if (isDelegationNeedsInput(entry)) needsInput += 1;
+        else if (isDelegationAsking(entry)) asking += 1;
     }
-    return { failed, needsInput, waiting };
+    return { asking, failed, needsInput, waiting };
 }
 
 /**

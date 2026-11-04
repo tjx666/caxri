@@ -6,6 +6,7 @@ import { sessionPullRequestStateSchema } from '../../domain/session-pull-request
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { commandPolicy } from '../../transport/method-spec.js';
 import { principalSchema } from '../../transport/principal.js';
+import { agentDelegationQuestionInternalMethods } from './agent-delegation-question-contract.js';
 import {
     delegationEffortSchema,
     delegationModelSchema,
@@ -351,6 +352,10 @@ const waitParameters = identitySchema.extend({
         .max(MAX_DELEGATION_WAIT_TASKS - 1)
         .optional(),
     timeoutMs: z.number().int().min(0).max(MAX_DELEGATION_WAIT_TIMEOUT_MS).default(30_000),
+    /**
+     * Skip the `question` outcome, for a caller that declines to answer and only waits for a task to settle or block.
+     */
+    ignoreQuestions: z.boolean().optional(),
 });
 /**
  * Upper bound on the tasks one `list` returns, newest first.
@@ -389,6 +394,24 @@ const resultSchema = z.strictObject({
     answer: agentDelegationAnswerSchema.optional(),
     pullRequest: agentDelegationPullRequestSchema.optional(),
 });
+
+/**
+ * `question` means a watched task has an open question for the caller (`questionId`, never its text); it repeats on
+ * every wait until the question closes, so pass `ignoreQuestions` to skip it. `settled` and `blocked` rank before it.
+ */
+export interface AgentDelegationWaitResult extends z.infer<typeof resultSchema> {
+    outcome: 'settled' | 'blocked' | 'question' | 'timeout';
+    questionId?: string;
+}
+
+const waitResultSchema: z.ZodType<AgentDelegationWaitResult> = resultSchema
+    .extend({
+        outcome: z.enum(['settled', 'blocked', 'question', 'timeout']),
+        questionId: identifierSchema.optional(),
+    })
+    .refine(({ outcome, questionId }) => (outcome === 'question') === (questionId !== undefined), {
+        message: 'questionId accompanies exactly the question outcome',
+    });
 
 export const agentDelegationMethods = {
     'agent.delegation.presets': {
@@ -436,7 +459,7 @@ export const agentDelegationMethods = {
     'agent.delegation.wait': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
         params: waitParameters,
-        result: resultSchema.extend({ outcome: z.enum(['settled', 'blocked', 'timeout']) }),
+        result: waitResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
 
@@ -446,6 +469,7 @@ const authoritySchema = z.strictObject({
 });
 
 export const agentDelegationInternalMethods = {
+    ...agentDelegationQuestionInternalMethods,
     'agent.delegation.presetsInternal': {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend(rosterParameters.shape),

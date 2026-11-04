@@ -6,6 +6,11 @@ import { CaxriError, isDelegationActive } from '@caxri/protocol';
 interface DelegationRead {
     receipt: AgentDelegationReceipt;
     answer?: AgentDelegationAnswer;
+    /**
+     * The task's open question, when the caller wants to hear about it. Its ID only, never its text. A task that
+     * settled has none: settling closes its question before the receipt is readable as settled.
+     */
+    questionId?: string;
 }
 
 /**
@@ -38,9 +43,9 @@ async function boundedRead(
 }
 
 /**
- * Long-polls the given tasks in argument order and returns the first that settled or blocked, or the first task's
- * current state on timeout. Reads run one at a time, so a wait over many tasks never fans out concurrent transcript
- * reads.
+ * Long-polls the given tasks in argument order and returns the first that settled, has an open question, or blocked (in
+ * that order for each task), or the first task's current state on timeout. Reads run one at a time, so a wait over many
+ * tasks never fans out concurrent transcript reads.
  */
 export async function pollDelegations(
     ids: readonly [string, ...string[]],
@@ -60,6 +65,8 @@ export async function pollDelegations(
             const result = await boundedRead(read(id), hardDeadline, signal);
             if (!isDelegationActive(result.receipt))
                 return { ...result, outcome: 'settled' as const };
+            if (result.questionId)
+                return { ...result, outcome: 'question' as const, questionId: result.questionId };
             if (result.receipt.status === 'blocked')
                 return { ...result, outcome: 'blocked' as const };
             first ??= result;

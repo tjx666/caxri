@@ -27,6 +27,7 @@ export interface RetryAdmission {
     provider: AgentProvider;
     inherited: Pick<AgentDelegationReceipt, 'depth' | 'parentDelegationId'> & {
         callerTurnId?: string;
+        callerLaunchId?: string;
     };
     /**
      * Throws unless the delegating Agent is still the live generation that can read the new task. Called after every

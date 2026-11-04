@@ -10,6 +10,7 @@ import {
     delegationElapsedMs,
     delegationFeedCreatorIdChunks,
     failedDelegationSessionIds,
+    isDelegationAsking,
     isDelegationFailed,
     isDelegationNeedsInput,
     isDelegationRetryPending,
@@ -113,7 +114,28 @@ describe('delegationAttentionCounts', () => {
                 { status: 'interrupted', failure: 'caller_stopped' },
                 {},
             ]),
-        ).toEqual({ failed: 1, needsInput: 2, waiting: 0 });
+        ).toEqual({ asking: 0, failed: 1, needsInput: 2, waiting: 0 });
+    });
+});
+
+describe('delegation questions', () => {
+    it('counts a task asking its delegating Agent apart, and an escalated question as needing input', () => {
+        expect(
+            delegationAttentionCounts([
+                { status: 'running', waitingOn: 'parent' },
+                { status: 'running', waitingOn: 'parent' },
+                { status: 'running', waitingOn: 'user' },
+                { status: 'running' },
+            ]),
+        ).toEqual({ asking: 2, failed: 0, needsInput: 1, waiting: 0 });
+    });
+
+    it('treats only a question that waits on the delegating Agent as asking', () => {
+        expect(isDelegationAsking({ waitingOn: 'parent' })).toBe(true);
+        expect(isDelegationAsking({ waitingOn: 'user' })).toBe(false);
+        expect(isDelegationAsking({})).toBe(false);
+        expect(isDelegationNeedsInput({ status: 'running', waitingOn: 'user' })).toBe(true);
+        expect(isDelegationNeedsInput({ status: 'running', waitingOn: 'parent' })).toBe(false);
     });
 });
 
@@ -195,11 +217,13 @@ describe('collapseRetryChains', () => {
             { delegationId: 'n1', retryOf: 'f1', status: 'running' },
         ] as const;
         expect(delegationAttentionCounts(entries)).toEqual({
+            asking: 0,
             failed: 1,
             needsInput: 0,
             waiting: 0,
         });
         expect(delegationAttentionCounts(collapseRetryChains(entries))).toEqual({
+            asking: 0,
             failed: 0,
             needsInput: 0,
             waiting: 0,
@@ -255,6 +279,7 @@ describe('a pending scheduled retry', () => {
         expect(isDelegationFailed(pending)).toBe(false);
         expect(failedDelegationSessionIds([pending])).toEqual([]);
         expect(delegationAttentionCounts([pending])).toEqual({
+            asking: 0,
             failed: 0,
             needsInput: 0,
             waiting: 1,

@@ -5,6 +5,7 @@ import type {
     AgentLaunchSettings,
     AgentProvider,
     BotHandoverTarget,
+    DelegationQuestionChanged,
     SessionRelation,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -129,6 +130,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * data: the callee must not log it.
      */
     onProgress?(progress: AgentDelegationProgress): void;
+    /**
+     * Called after a delegated Session's question opened, escalated, or closed. Identifiers and closed values only: the
+     * question and answer text are private and the callee must not log them.
+     */
+    onQuestionChanged?(change: DelegationQuestionChanged): void;
     /**
      * The Sessions a `newSession` delegation creates. Optional so a unit test can omit them.
      */

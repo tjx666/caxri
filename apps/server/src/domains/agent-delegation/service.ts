@@ -40,6 +40,7 @@ import {
 } from './lifecycle';
 import { admitDelegationRequest } from './new-session';
 import { isDelegationOwner, listOwnedDelegations } from './ownership';
+import { DelegationQuestions } from './questions/service';
 import { stampedReceipt } from './receipt-timing';
 import { applyDelegationCompletion, collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
@@ -55,6 +56,7 @@ import type { RetryAdmission } from './retry-support';
 import { assertRetryProvider } from './retry-support';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
+import { stopDelegation } from './stop';
 import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
 import { pollDelegations } from './wait';
@@ -83,6 +85,10 @@ export class AgentDelegationService {
      * Owner-only retries of failed tasks, now and scheduled; handlers call it directly. See {@link DelegationRetries}.
      */
     readonly retries: DelegationRetries;
+    /**
+     * The questions delegated Agents ask their delegating Agent; handlers call it directly.
+     */
+    readonly questions: DelegationQuestions;
 
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
@@ -96,6 +102,13 @@ export class AgentDelegationService {
             hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
             admit: (id, authority, input, isNewSession, retry) =>
                 this.createInSession(id, authority, input, isNewSession, retry),
+        });
+        this.questions = new DelegationQuestions({
+            options,
+            now: this.now,
+            isClosed: () => this.isClosed,
+            activeForTerminal: (terminalId) => this.activeForTerminal(terminalId),
+            owned: (id, authority, access) => this.owned(id, authority, access),
         });
         if (options.onProgress)
             this.progress = new DelegationProgress(
@@ -131,6 +144,7 @@ export class AgentDelegationService {
         if (!isDelegationActive(saved.receipt)) {
             this.nextCollections.delete(delegationId);
             this.progress?.settle(delegationId);
+            this.questions.taskEnded(delegationId);
         }
         if (isNewlyCompleted(saved, before))
             recordDelegationResult(this.options.database, saved, this.options.logger);
@@ -170,21 +184,6 @@ export class AgentDelegationService {
         const record = this.options.database.agentDelegations.get(id);
         if (record && canFailDelegation(record, failure))
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
-    }
-
-    /**
-     * Corrects a Stop that reported `caller_stopped` before the Terminal Host refused its Esc. The task is interrupted
-     * either way; what changes is whether the Agent was actually told to stop.
-     */
-    private settleStop(id: string, wasDelivered: boolean): void {
-        if (wasDelivered) return;
-        const record = this.options.database.agentDelegations.get(id);
-        if (record?.receipt.status !== 'interrupted' || record.receipt.failure !== 'caller_stopped')
-            return;
-        this.save({
-            ...record,
-            receipt: { ...record.receipt, failure: 'target_changed' },
-        });
     }
 
     private scheduleCollection(record: StoredAgentDelegation): void {
@@ -486,7 +485,9 @@ export class AgentDelegationService {
                 this.options.userDataPath,
                 this.options.database.agentDelegations.storageRootsForSessions(ids),
             );
-            return await remove();
+            const removed = await remove();
+            this.questions.forget(ids);
+            return removed;
         } finally {
             for (const id of ids) this.deletingSessions.delete(id);
         }
@@ -558,27 +559,15 @@ export class AgentDelegationService {
     }
 
     stop(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
-        const record = this.owned(id, authority, 'existing');
-        if (!isDelegationActive(record.receipt) || record.receipt.status === 'collecting')
-            return record.receipt;
-        const { terminalId } = record.receipt;
-        const accepted =
-            !terminalId ||
-            !record.launchId ||
-            this.options.write?.(terminalId, record.launchId, '\u{1B}', (wasDelivered) =>
-                this.settleStop(id, wasDelivered),
-            );
-        return this.save({
-            ...record,
-            receipt: {
-                ...record.receipt,
-                status: 'interrupted',
-                failure: accepted ? 'caller_stopped' : 'target_changed',
-            },
-        }).receipt;
+        const host = {
+            options: this.options,
+            save: (record: StoredAgentDelegation) => this.save(record),
+        };
+        return stopDelegation(host, this.owned(id, authority, 'existing'));
     }
 
     initialize(): void {
+        this.questions.reset();
         this.retries.recoverClaims();
         for (const record of this.options.database.agentDelegations.active()) {
             const { next, shouldCollect } = recoveredDelegation(
@@ -596,6 +585,7 @@ export class AgentDelegationService {
         for (const timer of this.collectors.values()) clearTimeout(timer);
         this.submissions.close();
         this.progress?.close();
+        this.questions.close();
         this.collectors.clear();
         this.activeTerminals.clear();
         this.nextCollections.clear();
@@ -606,13 +596,17 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         timeoutMs: number,
         signal?: AbortSignal,
+        shouldIgnoreQuestions = false,
     ) {
         if (this.waiterCount >= 64) throw new CaxriError('CAPACITY', 'Too many delegation waiters');
         this.waiterCount++;
         try {
             return await pollDelegations(
                 ids,
-                (id) => this.result(id, authority),
+                async (id) => ({
+                    ...(await this.result(id, authority)),
+                    ...(!shouldIgnoreQuestions && { questionId: this.questions.openId(id) }),
+                }),
                 () => this.isClosed,
                 timeoutMs,
                 signal,
@@ -628,6 +622,12 @@ export class AgentDelegationService {
             this.save({ ...starting, inputEpoch: this.options.inputEpoch?.(terminalId) });
             return;
         }
+        this.questions.interrupted(
+            terminalId,
+            starting?.receipt.delegationId,
+            isHumanInput,
+            retiredLaunchId,
+        );
         // A completed answer stays readable, but takeover revokes its continuation authority for good. Persisted on
         // each task that still lacks the mark (the input epoch alone is lost on restart), dated for the feed's
         // `takenOverAt`. Deliberately not guarded per Terminal: a task delegated into a Terminal the user already

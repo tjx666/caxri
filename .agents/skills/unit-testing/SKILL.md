@@ -9,7 +9,9 @@ Validate the smallest observable behavior below the Electron desktop boundary.
 
 1. Put tests with their source domain. Renderer logic stays beside its source; Main, Runtime, CLI,
    shared, and skill code use their domain-local `__tests__/` or `scripts/*.test.ts` convention.
-   Placement details live in `source-layout`.
+   Placement details live in `source-layout`. Before creating a test file, confirm the path does
+   not exist; when it does, extend it with an edit instead of writing the file whole, which
+   silently deletes its existing cases.
 2. New features ship with a behavior-level test for the functionality they add. For a
    reproducible bug, add a regression that fails for the bug before the fix, in the same commit.
    Prefer observable output and integration boundaries over internal call assertions. When the

@@ -6,6 +6,7 @@ import type {
 import { isDelegationActive, MAX_DELEGATION_SESSIONS } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../../db';
+import { questionSummaries } from '../questions/summary';
 
 /**
  * What the Sessions read borrows from the delegation service.
@@ -69,10 +70,18 @@ export function delegationSessions(
     const receipts = stateReceipts(database.agentDelegations.receiptsForSessions(sessionIds));
     const results = database.createdSessions.results(sessionIds);
     const takeovers = database.agentDelegations.takeoversForSessions(sessionIds);
+    const questions = questionSummaries(
+        database,
+        receipts
+            .values()
+            .map((receipt) => receipt.delegationId)
+            .toArray(),
+    );
     return created.map(({ sessionId, createdBySessionId, relation }) => {
         const receipt = receipts.get(sessionId);
         const result = results.get(sessionId);
         const takenOverAt = takeovers.get(sessionId);
+        const question = receipt && questions.get(receipt.delegationId);
         const step =
             receipt?.terminalId && isDelegationActive(receipt)
                 ? source.chatStep?.(receipt.terminalId)
@@ -101,6 +110,7 @@ export function delegationSessions(
                 }),
             }),
             ...(takenOverAt !== undefined && { takenOverAt }),
+            ...question,
             ...(step && { step }),
             ...(result && {
                 result: {
@@ -127,11 +137,13 @@ export function delegationStatuses(
             .receiptsByIds(delegationIds)
             .map((receipt) => [receipt.delegationId, receipt]),
     );
+    const questions = questionSummaries(source.database, byId.keys().toArray());
     return [...new Set(delegationIds)].flatMap((delegationId) => {
         const receipt = byId.get(delegationId);
         if (!receipt) return [];
         return [
             {
+                ...questions.get(delegationId),
                 delegationId,
                 sessionId: receipt.sessionId,
                 provider: receipt.provider,

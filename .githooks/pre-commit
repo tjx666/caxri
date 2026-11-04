@@ -35,6 +35,10 @@ if git diff --cached --name-status --diff-filter=ADR | grep -q .; then
     bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
 fi
 
+# The i18n contracts read the aggregated locale resources, which import discovery cannot trace to a catalog edit; the
+# script runs them only when a staged path is a locale source, using the same selector as `check --test`.
+bun run .agents/skills/quality-check/scripts/staged-locale-contracts.ts
+
 # The same React Compiler coverage test the `guards` job runs. It compiles every Renderer source (tens of seconds), so
 # run it only when a staged Renderer `.ts`/`.tsx` file, or the compiler's own options and known-bailout ledger, changed.
 if git diff --cached --name-only --diff-filter=ACMR |

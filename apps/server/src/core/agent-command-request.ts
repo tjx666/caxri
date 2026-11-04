@@ -21,6 +21,11 @@ type AgentCommandRequest = Extract<
             | 'agent.delegation.status'
             | 'agent.delegation.result'
             | 'agent.delegation.transcript'
+            | 'agent.delegation.ask'
+            | 'agent.delegation.askWait'
+            | 'agent.delegation.askCancel'
+            | 'agent.delegation.questions'
+            | 'agent.delegation.answer'
             | 'agent.delegation.list'
             | 'agent.delegation.wait'
             | 'agent.dispatch.start'
@@ -124,6 +129,34 @@ export function agentCommandRequest(
             method: 'agent.delegation.transcriptInternal',
             params: { ...authority, ...request.params },
         };
+    switch (request.method) {
+        case 'agent.delegation.ask':
+            return {
+                method: 'agent.delegation.askInternal',
+                params: { ...authority, ...request.params },
+            };
+        case 'agent.delegation.askWait':
+            return {
+                method: 'agent.delegation.askWaitInternal',
+                params: { ...authority, ...request.params },
+            };
+        case 'agent.delegation.askCancel':
+            return {
+                method: 'agent.delegation.askCancelInternal',
+                params: { ...authority, ...request.params },
+            };
+        case 'agent.delegation.questions':
+            return {
+                method: 'agent.delegation.questionsInternal',
+                params: { ...authority, ...request.params },
+            };
+        case 'agent.delegation.answer':
+            return {
+                method: 'agent.delegation.answerInternal',
+                params: { ...authority, ...request.params },
+            };
+        default:
+    }
     return {
         method:
             request.method === 'agent.delegation.status'

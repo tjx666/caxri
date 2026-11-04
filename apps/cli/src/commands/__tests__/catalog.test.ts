@@ -50,6 +50,11 @@ describe('CLI business command catalog', () => {
                 'agent message receipt',
                 'agent message policy',
                 'agent message policy-set',
+                'agent delegate ask',
+                'agent delegate ask-wait',
+                'agent delegate ask-cancel',
+                'agent delegate questions',
+                'agent delegate answer',
                 'bot board',
                 'bot session create',
                 'bot session archive',
@@ -67,6 +72,18 @@ describe('CLI business command catalog', () => {
                 'skills uninstall',
             ]),
         );
+    });
+
+    it('resolves each question command to its own path, not a shorter prefix', () => {
+        const resolved = (tokens: string[]) => findCliCommand(tokens)?.path.join(' ');
+
+        expect(resolved(['agent', 'delegate', 'ask', '--text', 'x'])).toBe('agent delegate ask');
+        expect(resolved(['agent', 'delegate', 'ask-wait', 'q'])).toBe('agent delegate ask-wait');
+        expect(resolved(['agent', 'delegate', 'ask-cancel', 'q'])).toBe(
+            'agent delegate ask-cancel',
+        );
+        expect(resolved(['agent', 'delegate', 'questions'])).toBe('agent delegate questions');
+        expect(resolved(['agent', 'delegate', 'answer', 'd', 'q'])).toBe('agent delegate answer');
     });
 
     it('adds one folder as a Project, resolved from the caller working directory', () => {

@@ -394,6 +394,7 @@ export class DelegationRetries {
                 depth: failed.receipt.depth,
                 parentDelegationId: failed.receipt.parentDelegationId,
                 callerTurnId: failed.callerTurnId,
+                callerLaunchId: failed.callerLaunchId,
             },
             guard: () => {
                 if (!this.isCallerLive(this.claims.load(failedId)))

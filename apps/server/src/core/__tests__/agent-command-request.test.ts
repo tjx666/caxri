@@ -59,3 +59,52 @@ describe('agentCommandRequest', () => {
         });
     });
 });
+
+describe('agentCommandRequest for the questions of a delegated Agent', () => {
+    const context = {
+        principal: {
+            kind: 'agent',
+            id: 'agent',
+            endpointId: 'agent',
+            generation: 1,
+            projectIds: [],
+        },
+    } as unknown as CommandExecutionContext;
+    const endpoints = {
+        context: () => ({ endpoint: { terminalId: 'terminal-1' } }),
+    } as unknown as AgentEndpointRegistry;
+    const authority = { principal: context.principal, callerTerminalId: 'terminal-1' };
+
+    it.each([
+        ['agent.delegation.ask', 'agent.delegation.askInternal', { text: 'Synthetic' }],
+        [
+            'agent.delegation.askWait',
+            'agent.delegation.askWaitInternal',
+            { questionId: 'question-1', timeoutMs: 1000 },
+        ],
+        [
+            'agent.delegation.askCancel',
+            'agent.delegation.askCancelInternal',
+            { questionId: 'question-1' },
+        ],
+        [
+            'agent.delegation.questions',
+            'agent.delegation.questionsInternal',
+            { delegationId: 'task-1' },
+        ],
+        [
+            'agent.delegation.answer',
+            'agent.delegation.answerInternal',
+            { delegationId: 'task-1', questionId: 'question-1', text: 'Synthetic' },
+        ],
+    ] as const)('routes %s to %s with the caller authority', (method, internal, parameters) => {
+        expect(
+            agentCommandRequest(
+                { method, params: parameters } as never,
+                context,
+                'request-1',
+                endpoints,
+            ),
+        ).toEqual({ method: internal, params: { ...authority, ...parameters } });
+    });
+});

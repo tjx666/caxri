@@ -9,6 +9,7 @@ describe('delegationOrigin', () => {
         expect(delegationOrigin({ createdByRelation: 'delegated' }, parent, undefined)).toEqual({
             isParentArchived: false,
             isTakenOver: false,
+            isWaitingOnParent: false,
             parent,
         });
         expect(delegationOrigin({ createdByRelation: 'consult' }, parent, undefined)).toMatchObject(
@@ -30,6 +31,16 @@ describe('delegationOrigin', () => {
         expect(
             delegationOrigin({ createdByRelation: 'delegated' }, undefined, undefined),
         ).toBeUndefined();
+    });
+
+    it('waits on the delegating Agent only while its question is unescalated and not taken over', () => {
+        const waits = (takenOverAt: number | undefined, waitingOn?: 'parent' | 'user') =>
+            delegationOrigin({ createdByRelation: 'delegated' }, parent, takenOverAt, waitingOn)
+                ?.isWaitingOnParent;
+        expect(waits(undefined, 'parent')).toBe(true);
+        expect(waits(undefined, 'user')).toBe(false);
+        expect(waits(undefined)).toBe(false);
+        expect(waits(1, 'parent')).toBe(false);
     });
 
     it('reads a takeover from the time the Server recorded', () => {

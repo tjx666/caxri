@@ -202,7 +202,9 @@ a standalone or repository-wide run.
 The pre-commit hook additionally runs two `guards` tests when the staged set can affect them, so a
 violation fails locally instead of in CI: `scripts/__tests__/directory-density-ratchet.test.ts` when
 the index adds, deletes, or renames a file, and `scripts/__tests__/react-compiler-coverage.test.ts`
-when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed.
+when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed. It also runs the
+three i18n contract tests when a staged path is a locale source
+(`scripts/staged-locale-contracts.ts`, the same selector as `check --test`).
 
 All four also sit in the full CI platform-check manifest (`scripts/ci-platform-gates.ts`), so
 `bun run scripts/ci-platform-checks.ts` exercises them even outside a diff.

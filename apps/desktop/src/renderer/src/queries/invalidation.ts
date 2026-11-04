@@ -17,6 +17,7 @@ import {
 import {
     applyDelegationProgress,
     createDelegationFeedInvalidation,
+    invalidateDelegationQuestion,
 } from './invalidation-delegation-feed';
 import {
     invalidateDeliveryStatusQueries,
@@ -534,6 +535,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'botInbox.changed') {
             invalidateBotInboxQuery(queryClient);
+            return;
+        }
+        if (event.event === 'agent.delegation.questionChanged') {
+            invalidateDelegationQuestion(queryClient, event.payload);
             return;
         }
         if (event.event === 'agent.delegation.progress') {

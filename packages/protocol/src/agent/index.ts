@@ -57,6 +57,8 @@ export * from './bot/caxri-bot-inbox-presentation.js';
 export * from './context/agent-chat-context-alerts.js';
 export * from './delegation/agent-delegated-task.js';
 export * from './delegation/agent-delegation-contract.js';
+export * from './delegation/agent-delegation-question.js';
+export * from './delegation/agent-delegation-question-contract.js';
 export * from './delegation/agent-delegation-sessions.js';
 export * from './delegation/agent-delegation-settings.js';
 export * from './delegation/agent-delegation-transcript.js';
