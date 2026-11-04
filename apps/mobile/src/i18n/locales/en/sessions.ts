@@ -293,7 +293,7 @@ export const sessions = {
     'sessions.new.retryAvailability': 'Retry Agent availability',
     'sessions.new.surfaceChat': 'Chat',
     'sessions.new.surfaceTerminal': 'Terminal',
-    'sessions.new.terminalDescription': "The Agent's own terminal screen",
+    'sessions.new.terminalDescription': "The Agent's own terminal",
     'sessions.new.title': 'New Session',
     'sessions.new.unavailable': 'Not available on this computer.',
     'sessions.noAgent': 'No Agent',
