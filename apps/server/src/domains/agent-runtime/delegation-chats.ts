@@ -1,14 +1,23 @@
 import type {
     AgentChatItem,
     AgentChatPermissionMode,
-    AgentChatRequest,
     AgentChatResponse,
+    AgentChatSnapshot,
 } from '@caxri/protocol';
 import { isChatTerminal } from '@caxri/protocol';
 
 import type { DelegationChatSnapshot, DelegationChatTurn } from '../agent-delegation';
 import type { DispatchChats } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
+
+/**
+ * What a settlement notice reads of a Chat caller's projection, beyond what the task feed reads; see
+ * `chatNoticeCallerState`.
+ */
+type NoticeChatFields = Pick<
+    AgentChatSnapshot,
+    'operation' | 'queue' | 'queueLength' | 'queuePaused' | 'status' | 'usageGuard'
+>;
 
 /**
  * The part of `AgentChatService` Agent delegation drives when a task's Terminal is a Chat.
@@ -25,7 +34,11 @@ export interface DelegationChats extends DispatchChats {
         turnAnswer(terminalId: string, turnId: string): DelegationChatTurn;
         snapshot(
             terminalId: string,
-        ): (DelegationChatSnapshot & { requests: readonly AgentChatRequest[] }) | undefined;
+        ):
+            | (DelegationChatSnapshot &
+                  Pick<AgentChatSnapshot, 'requests'> &
+                  Partial<NoticeChatFields>)
+            | undefined;
         appliedPermission(terminalId: string):
             | {
                   launchId: string;
@@ -47,6 +60,10 @@ export interface DelegationChats extends DispatchChats {
     states?: {
         usageLimitWaits?: {
             claimForDelegationRetry(terminalId: string): 'cancelled' | 'none' | 'running';
+            /**
+             * When the Chat started waiting for its usage limit to reset, or `undefined` when it is not waiting.
+             */
+            waitingAt?(terminalId: string): number | undefined;
         };
     };
 }

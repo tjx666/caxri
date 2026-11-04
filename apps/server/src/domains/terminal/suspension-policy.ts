@@ -77,6 +77,12 @@ export interface TerminalSuspensionPolicyInput {
      * running until the work is attempted or the cache expires, because a suspended Chat is never started for either.
      */
     isChatMaintenancePending?(terminalId: string): boolean;
+    /**
+     * Whether an Agent that delegated work must stay running: a task it delegated is still active, or a notice about
+     * one is owed to it (`SettlementNotices.holds`). Parking it would end the launch the notice is pinned to, so the
+     * Agent would never hear back. Applies to a PTY and a Chat, and to an observation lease too.
+     */
+    isSuspensionHeld?(terminalId: string): boolean;
     sample(terminalId: string): TerminalActivitySample | undefined;
     session(sessionId: string): SessionRecord | undefined;
 }
@@ -163,6 +169,7 @@ function decideTerminal(
     input: TerminalSuspensionPolicyInput,
 ): TerminalSuspensionReason | number | undefined {
     if (!terminal.provider || terminal.lastProcessState !== 'running') return undefined;
+    if (input.isSuspensionHeld?.(terminal.id)) return undefined;
     /**
      * A Chat parks by stopping its provider process, which resumes the same Agent Session on every provider, so the
      * per-provider `automaticSuspension` capability (a PTY restore concern) does not apply. Only the idle rule does:

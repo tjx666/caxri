@@ -184,6 +184,19 @@ export const agentDelegationLogEvents = {
      */
     retryNotice: 'agent_delegation.retry_notice',
     /**
+     * The Agent that delegated a task was, or was not, told that the task settled, asked it a question, or needs its
+     * decision on a permission request. `fields.outcome` is a closed enum: `pending` (the notice is owed), `deferred`
+     * (held back, with the `reason` that holds it; logged once per change of reason and counted, never per check),
+     * `delivered`, `skipped`, `unknown` (written without proof it arrived; never sent again), or `failed` (the write
+     * threw). `fields.reason` is `busy`, `waiter`, `acknowledged`, `draft`, `no_idle_proof`, `launch_changed`,
+     * `caller_gone`, `external`, `handoff`, `independent`, `bot`, `retry_pending`, `paused`, or `resolved` (the
+     * question was answered or the request decided or shown to the user first); `fields.kind` is `settled`, `question`,
+     * or `approval`. `batchSize` and `waitMs` (since the oldest item was owed) describe a send, `deferrals` how many
+     * checks a deferred notice waited through. IDs, enums, and numbers only, never the notice text, a title, or an
+     * answer.
+     */
+    settlementNotice: 'agent_delegation.settlement_notice',
+    /**
      * A scheduled retry changed state. `fields.outcome` is a closed enum: `scheduled`, `cancelled`, `fired` (the retry
      * started), `refused_at_fire` (with `fields.reason`, a `DelegationRetryScheduleOutcome`), `missed_window`,
      * `restored` (logged once per start with `fields.pending` and `fields.overdue` counts), `session_gone`,

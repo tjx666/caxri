@@ -218,6 +218,56 @@ absent until a lookup has seen one. It describes the Session, not the task: `cha
 counts every file the whole pull request changes, and is absent when GitHub reported no count.
 Caxri does not attribute files to one task, so no answer reports a task-scoped file count.
 
+### Settlement notices
+
+A delegating Agent does not have to sit in `wait`. When a task it delegated settles, asks it a
+question, or holds a permission request it may decide, Server Core writes one fixed notice to that
+Agent's own Terminal, which wakes it. The notice carries task IDs, the child Session's title
+(control characters stripped, capped at 80 characters), a closed phrase per event, and the commands
+that read each outcome. It never carries an answer, a summary, question text, or request text: the
+Agent reads those through its own authenticated commands. Several events in one 1500 ms quiet window
+go out as one message of at most 32 items; the rest follow after the caller's next idle.
+
+```json
+{
+  "id": "settled:<task>",
+  "kind": "settled | question | approval",
+  "state": "pending | delivered | skipped | unknown",
+  "callerTerminalId": "...",
+  "callerLaunchId": "...",
+  "acknowledgedAt": 1760000000000
+}
+```
+
+- **Storage.** One `delegation_notices` row per event, keyed `settled:<task>`,
+  `question:<question>`, or `approval:<task>:<request>`, so an event notifies once across restarts.
+  Rows cascade with their task and hold identifiers and closed values only.
+- **Who is notified.** Only the managed Agent launch that delegated the task (a Chat or a PTY, with a
+  known Terminal and launch). Not an external delegation client, the owner's CLI, Desktop, Caxri
+  Bot (which keeps its own notifier), or the creator of a `handoff` Session. A notice is pinned to
+  the launch that delegated: if the caller restarted, the notice is skipped, never moved.
+- **Re-read at send time.** A notice is dropped when the caller already read the outcome through
+  `wait` or `result` (`acknowledgedAt`), when the question was answered or shown to the user, when
+  the request was decided or shown to the user, or when a retry of the failed task is planned or
+  running (its successor reports instead; cancelling the plan notices the failure after all). A
+  notice is held while the caller has an open `wait` that would report the event itself, and sent
+  when that wait ends.
+- **Caller gate.** A Chat caller takes the notice as a non-human message, only when its projection
+  is ready with no turn, queue, operation, pending request, or usage limit. A PTY caller takes a
+  bracketed paste followed by Enter, only when a finished turn is proven idle and the input epoch is
+  unchanged since that turn started (or the last input submitted its line), the same fence Caxri
+  Bot's completion notices use. The proof is spent by each write. Held notices are re-checked on
+  caller events and every 10 seconds.
+- **Never twice.** A notice is claimed as `unknown` before the write. A write refused before anything
+  was sent returns to `pending`; a write whose result is in doubt stays `unknown` and is never
+  resent, because a duplicate wake costs more than a missed one the caller finds with `list`.
+- **Idle suspension.** A caller with an active delegated task, or a pending notice, is not
+  suspended for being idle, a PTY or a Chat, because suspending it ends the launch the notice is
+  pinned to.
+- **Logs.** `agent_delegation.settlement_notice` records `outcome` (`pending`, `deferred`,
+  `delivered`, `skipped`, `unknown`, `failed`), a closed `reason` for a hold or a drop, `kind`,
+  `batchSize`, `waitMs`, and `deferrals`. IDs, enums, and numbers only.
+
 ### Reading a delegated Chat
 
 `agent delegate transcript <id>` (`agent.delegation.transcript`) lets the Agent that delegated a

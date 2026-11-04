@@ -64,6 +64,13 @@
             "when": 1793789412899,
             "tag": "0008_delegation_history",
             "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1793810379733,
+            "tag": "0009_delegation_notices",
+            "breakpoints": true
         }
     ]
 }

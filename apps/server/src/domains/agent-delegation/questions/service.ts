@@ -124,6 +124,14 @@ export class DelegationQuestions {
     }
 
     /**
+     * Whether the question is still open and waits on the delegating Agent, not yet shown to the user.
+     */
+    isWithParent(delegationId: string, questionId: string): boolean {
+        const question = this.store.openFor(delegationId);
+        return question?.id === questionId && question.escalatedAt === undefined;
+    }
+
+    /**
      * Opens a question for the delegating Agent, as the delegated Agent running in the caller's Terminal. The question
      * is bound to that Agent's launch and Endpoint generation.
      */

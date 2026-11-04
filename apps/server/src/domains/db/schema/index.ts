@@ -11,6 +11,7 @@ export * from './claude-windows';
 export * from './core';
 export * from './credentials';
 export * from './delegation-history';
+export * from './delegation-notices';
 export * from './delegation-questions';
 export * from './session-results';
 export * from './usage';

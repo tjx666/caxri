@@ -106,6 +106,7 @@ export async function createDomainTerminalManager({
             suspensionState.service?.observeInput(terminalId, data);
             if (origin === 'human') botHooks.input(terminalId, data);
             if (origin === 'human') coordinator.maintenanceTurns.end(terminalId, 'humanInput');
+            if (origin === 'human') delegationState.service?.notices.observeInput(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
         onAgentStateChanged: dispatchState.observe,

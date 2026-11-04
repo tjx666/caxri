@@ -80,7 +80,9 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
         const hiddenStatusReads = await countRequests(chat.userData, 'agent.delegation.statuses');
         const origin = session.locator('[data-agent-chat-delegation-origin="delegated"]');
         await expect(origin).toContainText(`Delegated by ${parent.title}`);
-        await expect(origin).toContainText('The result goes back automatically');
+        await expect(origin).toContainText(
+            'The Agent that delegated this is notified when it finishes, while it is still running.',
+        );
         await expect(origin).toContainText('takes over this Session');
         const bubble = session.locator('[data-agent-chat-delegated-task]');
         await expect(bubble).toContainText('Delegated by');

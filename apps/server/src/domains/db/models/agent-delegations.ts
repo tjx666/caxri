@@ -17,6 +17,7 @@ import { z } from 'zod';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDelegations } from '../schema';
 import { DelegationHistoryModel } from './delegation-history';
+import { DelegationNoticesModel } from './delegation-notices';
 import { DelegationQuestionsModel } from './delegation-questions';
 
 const activeStatuses = [
@@ -241,9 +242,15 @@ export class AgentDelegationsModel {
      */
     readonly history: DelegationHistoryModel;
 
+    /**
+     * The notices owed to the Agents that delegated tasks. Like the questions, they cascade from a task record.
+     */
+    readonly notices: DelegationNoticesModel;
+
     constructor(private readonly database: CaxriDrizzleDatabase) {
         this.questions = new DelegationQuestionsModel(database);
         this.history = new DelegationHistoryModel(database);
+        this.notices = new DelegationNoticesModel(database);
     }
 
     get(id: string): StoredAgentDelegation | undefined {

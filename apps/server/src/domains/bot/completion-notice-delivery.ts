@@ -5,6 +5,7 @@ import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { TerminalManager } from '../terminal';
+import { didPasteAndSubmitAgentText } from '../terminal';
 import { BotCompletionNotifier } from './completion-notice';
 import type { BotCompletionNotifierOptions } from './completion-notice-contract';
 
@@ -22,36 +23,6 @@ async function sendChatNotice(
         return;
     }
     onDelivered?.(true);
-}
-
-/**
- * Pastes the notice into a PTY Caxri Bot, then presses Enter once the paste is acknowledged. Claude Code reads input
- * arriving in one chunk as a paste, so an Enter inside that chunk only adds a line to the draft and the notice is never
- * sent. A bracketed paste followed by its own Enter submits on every provider, as a Composer submission does
- * (`submitAgentText`). Both writes keep `origin: 'delegation'`, so neither bumps the input epoch.
- */
-function didWritePtyNotice(
-    terminals: Pick<TerminalManager, 'writeAgentExact'>,
-    terminalId: string,
-    text: string,
-    launchId: string,
-    onDelivered?: (wasAccepted: boolean) => void,
-): boolean {
-    return terminals.writeAgentExact(
-        terminalId,
-        `\u{1B}[200~${text}\u{1B}[201~`,
-        launchId,
-        'delegation',
-        (wasPasted) => {
-            if (!wasPasted) {
-                onDelivered?.(false);
-                return;
-            }
-            // A rejected admission never calls back, so the notice is reported unconfirmed here.
-            if (!terminals.writeAgentExact(terminalId, '\r', launchId, 'delegation', onDelivered))
-                onDelivered?.(false);
-        },
-    );
 }
 
 /**
@@ -91,7 +62,7 @@ export function createBotCompletionNotifier({
                 void sendChatNotice(agentChat, terminalId, text, onDelivered);
                 return true;
             }
-            return didWritePtyNotice(terminals, terminalId, text, launchId, onDelivered);
+            return didPasteAndSubmitAgentText(terminals, terminalId, text, launchId, onDelivered);
         },
     });
 }

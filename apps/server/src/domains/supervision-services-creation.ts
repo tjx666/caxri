@@ -30,6 +30,7 @@ export function createTerminalSupervision({
     configuration,
     coordinator,
     database,
+    delegationState,
     dependencies,
     presence,
     settlementWiring,
@@ -41,6 +42,11 @@ export function createTerminalSupervision({
     agentChat: AgentChatService;
     coordinator: Pick<AgentCoordinator, 'maintenanceTurns'>;
     database: CaxriDatabase;
+    /**
+     * Late-bound like `suspensionState`: the delegation service is composed after this slice, and a caller it hosts
+     * must stay running while a task it delegated is active or a notice about one is owed.
+     */
+    delegationState?: { service?: { notices: { holds(terminalId: string): boolean } } };
     dependencies: DomainDependencies;
     presence: Pick<WindowPresence, 'isSettled' | 'visibleSessionIds' | 'watchedSessionId'>;
     settlementWiring: Pick<PullRequestSettlementWiring, 'pullRequest'>;
@@ -81,6 +87,8 @@ export function createTerminalSupervision({
         chats: agentChat,
         isChatMaintenancePending: (terminalId) =>
             idleCompaction.isPending(terminalId) || awayRecap.isPending(terminalId),
+        isSuspensionHeld: (terminalId) =>
+            delegationState?.service?.notices.holds(terminalId) === true,
         watchHub,
     });
     suspensionState.service = terminalSuspension;

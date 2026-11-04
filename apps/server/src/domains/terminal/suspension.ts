@@ -65,6 +65,10 @@ interface TerminalSuspensionServiceOptions {
      * `isChatMaintenancePending` on the policy input.
      */
     isChatMaintenancePending?: (terminalId: string) => boolean;
+    /**
+     * Whether an Agent that delegated work must stay running; see `isSuspensionHeld` on the policy input.
+     */
+    isSuspensionHeld?: (terminalId: string) => boolean;
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
 
@@ -149,6 +153,7 @@ export class TerminalSuspensionService {
             isChatSuspendable: (terminalId) =>
                 this.options.chats?.isSuspendable(terminalId) ?? false,
             isChatMaintenancePending: this.options.isChatMaintenancePending,
+            isSuspensionHeld: this.options.isSuspensionHeld,
             isObservedRemotely: (terminalId) =>
                 this.options.remoteObservers.some((source) =>
                     source.isObservedRemotely(terminalId),

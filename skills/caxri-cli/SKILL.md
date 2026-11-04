@@ -298,7 +298,9 @@ Then write the task to a file and run
   Every managed Agent holds `agents.delegate`; an external caller needs an owner-issued delegation
   identity. Pass `--project` with `--session` or `--new-session --title <text>`.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
-  to retrieve the exact saved answer. A settled answer may carry `pullRequest` (`url`, `state`,
+  to retrieve the exact saved answer. You need not wait: when the task settles, asks you a question,
+  or needs your approval while you are running, Caxri sends you a short `[Caxri] Delegated task update`
+  message naming the task IDs; read each with the command it lists. It carries no answer text. A settled answer may carry `pullRequest` (`url`, `state`,
   `changedFileCount`): the pull request Caxri found for that Session, so its file count covers the
   whole pull request, not only this task. To check a Chat task's progress without interrupting it,
   `agent delegate transcript <id>` returns its conversation as typed rows; pass the returned `next`

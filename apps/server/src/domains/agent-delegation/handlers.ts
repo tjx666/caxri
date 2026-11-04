@@ -182,11 +182,11 @@ export function createDelegationHandlers(
             service.create(delegationId, authority, input),
         'agent.delegation.statusInternal': ({ delegationId, ...authority }) =>
             service.status(delegationId, authority),
-        'agent.delegation.resultInternal': async ({ delegationId, ...authority }) =>
-            withPullRequest(
-                pullRequests,
-                claimed(database, await service.result(delegationId, authority)),
-            ),
+        'agent.delegation.resultInternal': async ({ delegationId, ...authority }) => {
+            const read = await service.result(delegationId, authority);
+            service.notices.readOutcome(read, authority);
+            return withPullRequest(pullRequests, claimed(database, read));
+        },
         'agent.delegation.history': () => coreRouted('agent.delegation.history'),
         /**
          * Reads settled-task rows only, never an answer, so it is never `claimed`.

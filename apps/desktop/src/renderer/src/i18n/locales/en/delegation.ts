@@ -73,7 +73,8 @@ export const delegation = {
     'delegation.record.openAriaUnknown': 'Open {{title}}',
     'delegation.record.unavailable': 'Delegated to a Session that is no longer available',
     'delegation.origin.from': 'Delegated by {{title}}',
-    'delegation.origin.autoReturn': 'The result goes back automatically',
+    'delegation.origin.autoReturn':
+        'The Agent that delegated this is notified when it finishes, while it is still running.',
     'delegation.origin.back': 'Back to {{title}}',
     'delegation.origin.hint':
         'Sending a message, Stop or Rewind here takes over this Session from {{title}}',

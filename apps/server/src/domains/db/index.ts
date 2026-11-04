@@ -23,6 +23,7 @@ export type {
     DelegationHistoryRow,
     DelegationHistoryScope,
 } from './models/delegation-history';
+export type { StoredDelegationNotice } from './models/delegation-notices';
 export type {
     DelegationQuestionsModel,
     StoredDelegationQuestion,
@@ -37,4 +38,5 @@ export type {
 } from './models/server-credentials';
 export { SessionViewsModel } from './models/session-views';
 export { CaxriDatabase } from './repository';
+export type { DelegationNoticeKind } from './schema';
 export { shutdownOutcome, type ShutdownReason } from './session-policy';

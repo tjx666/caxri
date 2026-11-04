@@ -112,6 +112,29 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         onDelivered?: (wasAccepted: boolean) => void,
     ): boolean;
     /**
+     * Where a Chat caller stands, for the notices owed to the Agent that delegated a task: `idle` (ready, no turn,
+     * nothing queued), `busy`, or `paused` (waiting on an approval, stopped, or waiting for a usage limit). Absent when
+     * the Server holds no projection for it.
+     */
+    chatCallerState?(terminalId: string): 'idle' | 'busy' | 'paused' | undefined;
+    /**
+     * Writes one settlement notice to one exact launch of a delegating Agent and reports whether the write was
+     * admitted. A Chat takes it as a non-human message that starts a turn, so it never counts as the user taking the
+     * Chat over; a PTY takes a paste and then Enter. `onDelivered` reports what the Chat or Terminal Host then did.
+     * Absent in a unit test, which turns notices off.
+     */
+    deliverNotice?(
+        terminalId: string,
+        launchId: string,
+        text: string,
+        onDelivered: (wasAccepted: boolean) => void,
+    ): boolean;
+    /**
+     * Quiet window before a batch of notices goes out, and how often notices held back are checked again when no event
+     * announced a change. Production uses 1500 and 10000 milliseconds; a test may shorten them.
+     */
+    noticeTiming?: { quietMs: number; recheckMs: number };
+    /**
      * Steers one exact running turn of a Chat child with a redirect message, strictly: it rejects, never queues and
      * never starts a turn, when the launch, the input epoch, or the turn is not the one given. A rejection whose
      * `details.steerRefusal` names a reason means nothing reached the Agent; any other rejection leaves the delivery in

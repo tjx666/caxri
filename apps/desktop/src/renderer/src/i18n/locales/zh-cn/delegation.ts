@@ -67,7 +67,7 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.record.openAriaUnknown': '打开 {{title}}',
     'delegation.record.unavailable': '已委派给一个不再可用的会话',
     'delegation.origin.from': '委派自 {{title}}',
-    'delegation.origin.autoReturn': '结果会自动回传',
+    'delegation.origin.autoReturn': '发起委派的 Agent 仍在运行时，任务完成会通知它。',
     'delegation.origin.back': '返回 {{title}}',
     'delegation.origin.hint': '在此发送消息、停止或回退会从 {{title}} 接管此会话',
     'delegation.origin.takenOver': '你已接管此会话',
