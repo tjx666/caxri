@@ -1,9 +1,8 @@
-import { formatUsd } from '@caxri/protocol';
-
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
 import { useCaxriQuery } from '../../../../queries/client';
 import type { DelegatedCostLabel } from './agent-chat-delegated-cost';
+import { formatCostAmount } from './agent-chat-delegated-cost';
 
 /**
  * The tooltip's body. Mounted only while the tooltip is open, so the Chat's own cost is read when someone asks for it
@@ -11,17 +10,22 @@ import type { DelegatedCostLabel } from './agent-chat-delegated-cost';
  */
 function DelegatedCostTooltipBody({
     delegatedCostUsd,
+    delegatedIsPartial,
     delegatedSessions,
     sessionId,
 }: {
     delegatedCostUsd: number;
+    delegatedIsPartial: boolean;
     delegatedSessions: number;
     sessionId: string;
 }) {
     const { t } = useTranslation();
     const { data } = useCaxriQuery('usage.sessionCost', { sessionId }, { staleTime: 30_000 });
-    const delegated = formatUsd(delegatedCostUsd);
-    const own = data?.costUsd === undefined ? undefined : formatUsd(data.costUsd);
+    const delegated = formatCostAmount(delegatedCostUsd, delegatedIsPartial) ?? '';
+    const own =
+        data?.costUsd === undefined
+            ? undefined
+            : formatCostAmount(data.costUsd, data.isPartial ?? false);
     return (
         <span className="flex max-w-64 flex-col gap-1">
             <span>{t('delegation.strip.cost.basis')}</span>
@@ -47,11 +51,13 @@ function DelegatedCostTooltipBody({
  */
 export function AgentChatDelegatedCostBadge({
     delegatedCostUsd,
+    delegatedIsPartial,
     delegatedSessions,
     label,
     sessionId,
 }: {
     delegatedCostUsd: number;
+    delegatedIsPartial: boolean;
     delegatedSessions: number;
     label: DelegatedCostLabel;
     sessionId: string;
@@ -62,6 +68,7 @@ export function AgentChatDelegatedCostBadge({
             content={
                 <DelegatedCostTooltipBody
                     delegatedCostUsd={delegatedCostUsd}
+                    delegatedIsPartial={delegatedIsPartial}
                     delegatedSessions={delegatedSessions}
                     sessionId={sessionId}
                 />

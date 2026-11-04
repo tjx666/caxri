@@ -1,4 +1,4 @@
-import type { DelegationCostSummary, SessionCost } from '@caxri/protocol';
+import type { DelegationCostSummary, SessionCost, SessionRelation } from '@caxri/protocol';
 import { isDelegationActive } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
@@ -20,63 +20,56 @@ export const MAX_ROLLUP_DEPTH = 8;
  * Relations whose Sessions bill as delegated work: a delegated task and a consult (an Agent asked another to look into
  * something). A hand-off moves the user's own continuation to another Session, so it is not delegated spend.
  */
-const ROLLED_UP_RELATIONS: ReadonlySet<string> = new Set(['delegated', 'consult']);
+const ROLLED_UP_RELATIONS: readonly SessionRelation[] = ['delegated', 'consult'];
 
 type DelegatedCost = Omit<DelegationCostSummary, 'isScanPending'>;
 
 /**
- * The descendants of `rootSessionId` by creator edges, breadth first. Each level is one bounded query per 500 parents
- * through the `delegation_edges.parent_session_id` index, a Session is visited once however many paths reach it (a
- * diamond or a cycle), the root does not count against {@link MAX_ROLLUP_DESCENDANTS}, and reaching either the
- * descendant bound or {@link MAX_ROLLUP_DEPTH} marks the walk `isTruncated`.
+ * The descendants of `rootSessionId` by creator edges, breadth first. Each level reads at most the remaining descendant
+ * budget plus one edge (a SQL `LIMIT`, in chunks of 500 parents through the `delegation_edges.parent_session_id`
+ * index), so a huge fan-out is never loaded whole. A Session is visited once however many paths reach it (a diamond or
+ * a cycle), the root does not count against {@link MAX_ROLLUP_DESCENDANTS}, and reaching either the descendant bound or
+ * {@link MAX_ROLLUP_DEPTH} marks the walk `isTruncated` and stops expanding.
  *
  * `branchOf` maps each descendant to the direct child of the root its subtree belongs to (the first one that reached
- * it).
+ * it). `truncatedBranches` are the direct children whose subtree may hold Sessions that were not read: a level that was
+ * cut short marks every branch it was expanding, since the unread edges cannot be attributed.
  */
 export function delegatedDescendants(
     database: Pick<CaxriDatabase, 'agentDelegations'>,
     rootSessionId: string,
-): { branchOf: Map<string, string>; isTruncated: boolean } {
+): { branchOf: Map<string, string>; isTruncated: boolean; truncatedBranches: Set<string> } {
     const { history } = database.agentDelegations;
     const branchOf = new Map<string, string>();
+    const truncatedBranches = new Set<string>();
     let isTruncated = false;
     let frontier = [rootSessionId];
     for (let depth = 0; frontier.length > 0; depth += 1) {
+        const remaining = depth >= MAX_ROLLUP_DEPTH ? 0 : MAX_ROLLUP_DESCENDANTS - branchOf.size;
         const edges = history
-            .childEdges(frontier)
-            .filter((edge) => ROLLED_UP_RELATIONS.has(edge.relation));
-        const step = admitEdges(edges, rootSessionId, depth, branchOf);
-        isTruncated ||= step.isTruncated;
-        frontier = step.next;
-    }
-    return { branchOf, isTruncated };
-}
-
-/**
- * Admits one level of edges into `branchOf`, skipping the root and anything already reached, and refusing what the
- * depth or descendant bound no longer allows.
- */
-function admitEdges(
-    edges: ReadonlyArray<{ sessionId: string; parentSessionId: string }>,
-    rootSessionId: string,
-    depth: number,
-    branchOf: Map<string, string>,
-): { next: string[]; isTruncated: boolean } {
-    const next: string[] = [];
-    let isTruncated = false;
-    for (const { sessionId, parentSessionId } of edges) {
-        if (sessionId === rootSessionId || branchOf.has(sessionId)) continue;
-        if (depth >= MAX_ROLLUP_DEPTH || branchOf.size >= MAX_ROLLUP_DESCENDANTS) {
-            isTruncated = true;
-            continue;
+            .childEdges(frontier, ROLLED_UP_RELATIONS, remaining + 1)
+            .filter((edge) => edge.sessionId !== rootSessionId && !branchOf.has(edge.sessionId))
+            .filter(
+                (edge, index, all) =>
+                    all.findIndex((other) => other.sessionId === edge.sessionId) === index,
+            );
+        const next: string[] = [];
+        for (const { sessionId, parentSessionId } of edges.slice(0, remaining)) {
+            branchOf.set(
+                sessionId,
+                parentSessionId === rootSessionId ? sessionId : branchOf.get(parentSessionId)!,
+            );
+            next.push(sessionId);
         }
-        branchOf.set(
-            sessionId,
-            parentSessionId === rootSessionId ? sessionId : branchOf.get(parentSessionId)!,
-        );
-        next.push(sessionId);
+        if (edges.length > remaining) {
+            isTruncated = true;
+            for (const id of [...frontier, ...next])
+                if (id !== rootSessionId) truncatedBranches.add(branchOf.get(id)!);
+            break;
+        }
+        frontier = next;
     }
-    return { next, isTruncated };
+    return { branchOf, isTruncated, truncatedBranches };
 }
 
 /**
@@ -90,7 +83,10 @@ export function delegatedCost(
     rootSessionId: string,
     priceOf: ModelPriceLookup,
 ): DelegatedCost {
-    const { branchOf, isTruncated } = delegatedDescendants(database, rootSessionId);
+    const { branchOf, isTruncated, truncatedBranches } = delegatedDescendants(
+        database,
+        rootSessionId,
+    );
     const sessionIds = branchOf.keys().toArray();
     const rowsBySession = new Map<string, Array<ReturnType<typeof parseUsageRecord>>>();
     for (const row of database.agentSessionUsage.listForSessions(sessionIds)) {
@@ -126,7 +122,12 @@ export function delegatedCost(
         child.isActive ||= isActive;
         children.set(branch, child);
     }
-    // A branch that only has a running task and no usage yet still reports `isActive`, but lists no figure.
+    for (const branch of truncatedBranches) {
+        const child = children.get(branch);
+        if (child) child.isPartial = true;
+    }
+    // A branch that only has a running task and no usage yet stays in `children` (so its row keeps the `~` of a retry
+    // that is still running) with a zero `sessionCount`; it adds nothing to the totals.
     const priced = children
         .entries()
         .filter(([, child]) => child.sessionCount > 0)
@@ -136,7 +137,10 @@ export function delegatedCost(
         delegatedSessions: priced.reduce((sum, [, child]) => sum + child.sessionCount, 0),
         isPartial: isTruncated || priced.some(([, child]) => child.isPartial),
         isActive: children.values().some((child) => child.isActive),
-        children: priced.map(([sessionId, child]) => ({ sessionId, ...child })),
+        children: children
+            .entries()
+            .map(([sessionId, child]) => ({ sessionId, ...child }))
+            .toArray(),
     };
 }
 

@@ -139,20 +139,32 @@ export class DelegationHistoryModel {
     }
 
     /**
-     * The edges whose parent is one of `parentIds`, read in bounded chunks through the `parent_session_id` index.
+     * At most `limit` edges whose parent is one of `parentIds` and whose relation is one of `relations`, read in
+     * bounded chunks through the `parent_session_id` index. The limit is a SQL `LIMIT`, so a parent with a huge fan-out
+     * never loads more rows than the caller can use; ask for one more than needed to learn that rows were left.
      */
-    childEdges(parentIds: readonly string[]): DelegationEdge[] {
+    childEdges(
+        parentIds: readonly string[],
+        relations: readonly SessionRelation[],
+        limit: number,
+    ): DelegationEdge[] {
         const edges: DelegationEdge[] = [];
-        for (let start = 0; start < parentIds.length; start += EDGE_QUERY_CHUNK) {
+        for (
+            let start = 0;
+            start < parentIds.length && edges.length < limit;
+            start += EDGE_QUERY_CHUNK
+        ) {
+            const chunk = parentIds.slice(start, start + EDGE_QUERY_CHUNK);
             const rows = this.database
                 .select()
                 .from(delegationEdges)
                 .where(
-                    inArray(
-                        delegationEdges.parentSessionId,
-                        parentIds.slice(start, start + EDGE_QUERY_CHUNK),
+                    and(
+                        inArray(delegationEdges.parentSessionId, chunk),
+                        inArray(delegationEdges.relation, [...relations]),
                     ),
                 )
+                .limit(limit - edges.length)
                 .all();
             for (const row of rows)
                 edges.push({

@@ -30,6 +30,15 @@ export interface DelegatedCostLabel {
 }
 
 /**
+ * An amount as the strip writes it: `$1.20`, or `$1.20+` for a floor. `undefined` for a floor of nothing (`$0+` says
+ * nothing), so no caller turns an unknown reading into `$0`. Shared by the row label and the tooltip.
+ */
+export function formatCostAmount(costUsd: number, isPartial: boolean): string | undefined {
+    if (isPartial && costUsd === 0) return undefined;
+    return `${formatUsd(costUsd)}${isPartial ? '+' : ''}`;
+}
+
+/**
  * The label for a figure, or `undefined` when there is nothing honest to show: no usage yet, or a floor of nothing but
  * unpriced models (`$0+` says nothing). A figure is never `$0` for an unknown reading.
  */
@@ -38,11 +47,11 @@ export function delegatedCostLabel(
     t: Translate,
 ): DelegatedCostLabel | undefined {
     if (figure === undefined) return undefined;
-    if (figure.isPartial && figure.costUsd === 0) return undefined;
-    const amount = formatUsd(figure.costUsd);
-    const text = `${figure.isActive ? '~' : ''}${amount}${figure.isPartial ? '+' : ''}`;
+    const amount = formatCostAmount(figure.costUsd, figure.isPartial);
+    if (amount === undefined) return undefined;
+    const text = `${figure.isActive ? '~' : ''}${amount}`;
     const description = [
-        t('delegation.strip.cost.rowLabel', { amount: `${amount}${figure.isPartial ? '+' : ''}` }),
+        t('delegation.strip.cost.rowLabel', { amount }),
         figure.isActive && t('delegation.strip.cost.running'),
         figure.isPartial && t('delegation.strip.cost.partial'),
     ]
@@ -86,8 +95,9 @@ export function retryChainSessionIds(
 }
 
 /**
- * One figure for several direct children: the sum, a floor if any is a floor, running if any runs. `undefined` when
- * none of the Sessions has usage yet.
+ * One figure for several direct children: the sum, a floor if any is a floor, running if any runs. A child that only
+ * has a running task (no usage yet, `sessionCount` 0) still makes the figure running, so a fresh retry keeps the `~`
+ * its earlier attempt's spend needs. `undefined` when none of the Sessions has usage yet.
  */
 export function sumDelegatedCost(
     sessionIds: readonly string[],
@@ -95,17 +105,21 @@ export function sumDelegatedCost(
 ): DelegatedCostFigure | undefined {
     const byId = new Map(children.map((child) => [child.sessionId, child]));
     let figure: DelegatedCostFigure | undefined;
+    let isAnyActive = false;
+    let sessionCount = 0;
     const distinctIds = new Set(sessionIds);
     for (const sessionId of distinctIds) {
         const child = byId.get(sessionId);
         if (child === undefined) continue;
+        sessionCount += child.sessionCount;
+        isAnyActive ||= child.isActive;
         figure = {
             costUsd: (figure?.costUsd ?? 0) + child.costUsd,
             isPartial: (figure?.isPartial ?? false) || child.isPartial,
             isActive: (figure?.isActive ?? false) || child.isActive,
         };
     }
-    return figure;
+    return figure && sessionCount > 0 ? { ...figure, isActive: isAnyActive } : undefined;
 }
 
 /**
@@ -123,13 +137,22 @@ export function delegatedHeaderFigure(
 }
 
 /**
- * How many times the summary is re-read while the usage ledger is still scanning, and how long between reads. A scan
+ * How many completed reads the summary gets while the usage ledger is still scanning, and how long between them. A scan
  * that outlives them leaves the last answer in place (the next feed change or reopen reads again), so a stuck scan
  * never becomes a hot loop.
  */
 export const COST_SCAN_POLL_MS = 3_000;
 export const COST_SCAN_POLL_LIMIT = 20;
+
 /**
- * While a delegated task runs its figure grows with the ledger; a slow poll keeps the `~` figure moving without a push.
+ * The next `refetchInterval` for the summary. Pure: TanStack evaluates it on every configuration and state change, so
+ * it must not count its own calls. The budget is the reads that completed since the scan became pending
+ * (`fetchesSincePending`, counted by the caller), and `false` stops polling.
  */
-export const COST_ACTIVE_POLL_MS = 15_000;
+export function costRefetchInterval(
+    summary: Pick<DelegationCostSummary, 'isScanPending'> | undefined,
+    fetchesSincePending: number,
+): number | false {
+    if (!summary?.isScanPending) return false;
+    return fetchesSincePending < COST_SCAN_POLL_LIMIT ? COST_SCAN_POLL_MS : false;
+}

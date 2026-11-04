@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../../i18n';
 import {
+    COST_SCAN_POLL_LIMIT,
+    COST_SCAN_POLL_MS,
+    costRefetchInterval,
     delegatedCostLabel,
     delegatedHeaderFigure,
+    formatCostAmount,
     retryChainSessionIds,
     sumDelegatedCost,
 } from '../cost/agent-chat-delegated-cost';
@@ -124,5 +128,47 @@ describe('retryChainSessionIds', () => {
         const shown = entry('s1', { delegationId: 't2', retryOf: 't1' });
 
         expect(retryChainSessionIds(shown, [shown])).toEqual(['s1']);
+    });
+});
+
+describe('sumDelegatedCost with a running task that has no usage yet', () => {
+    it('keeps the running marker of a fresh retry beside an attempt that already cost money', () => {
+        const children = [child('old', 1), child('fresh', 0, { isActive: true, sessionCount: 0 })];
+
+        expect(sumDelegatedCost(['old', 'fresh'], children)).toEqual({
+            costUsd: 1,
+            isPartial: false,
+            isActive: true,
+        });
+    });
+
+    it('shows no figure when every branch is unknown', () => {
+        expect(
+            sumDelegatedCost(['fresh'], [child('fresh', 0, { isActive: true, sessionCount: 0 })]),
+        ).toBeUndefined();
+    });
+});
+
+describe('formatCostAmount', () => {
+    it('keeps the + of a floor and drops a floor of nothing', () => {
+        expect(formatCostAmount(1.2, true)).toBe('$1.20+');
+        expect(formatCostAmount(1.2, false)).toBe('$1.20');
+        expect(formatCostAmount(0, true)).toBeUndefined();
+    });
+});
+
+describe('costRefetchInterval', () => {
+    it('is pure and polls only a pending scan, within the completed-read budget', () => {
+        const pending = { isScanPending: true };
+        // Re-evaluating with the same inputs never spends the budget.
+        for (let call = 0; call < 100; call += 1)
+            expect(costRefetchInterval(pending, 0)).toBe(COST_SCAN_POLL_MS);
+        expect(costRefetchInterval(pending, COST_SCAN_POLL_LIMIT - 1)).toBe(COST_SCAN_POLL_MS);
+        expect(costRefetchInterval(pending, COST_SCAN_POLL_LIMIT)).toBe(false);
+    });
+
+    it('never polls a settled summary, even while a task is running', () => {
+        expect(costRefetchInterval({ isScanPending: false }, 0)).toBe(false);
+        expect(costRefetchInterval(undefined, 0)).toBe(false);
     });
 });

@@ -91,29 +91,67 @@ describe('delegatedCost', () => {
         const left = create(root);
         const right = create(root);
         const shared = create(left);
-        database.agentDelegations.history.recordEdge({
-            sessionId: shared,
-            parentSessionId: right,
-            relation: 'delegated',
-            createdAt: 1,
-        });
-        // A cycle back to the root.
-        database.agentDelegations.history.recordEdge({
-            sessionId: root,
-            parentSessionId: shared,
-            relation: 'delegated',
-            createdAt: 1,
-        });
         spend(shared);
+        /**
+         * `session_id` is the edge table's primary key, so a real database holds one creator per Session. Stand in a
+         * reader that returns the diamond (root -> left, right -> shared twice) and a cycle (shared -> root).
+         */
+        const edge = (sessionId: string, parentSessionId: string) => ({
+            sessionId,
+            parentSessionId,
+            relation: 'delegated' as const,
+        });
+        const edges = [
+            edge(left, root),
+            edge(right, root),
+            edge(shared, left),
+            edge(shared, right),
+            edge(root, shared),
+        ];
+        const diamond = {
+            agentDelegations: {
+                receiptsForSessions: () => [],
+                history: {
+                    childEdges: (parents: readonly string[]) =>
+                        edges.filter((candidate) => parents.includes(candidate.parentSessionId)),
+                },
+            },
+            agentSessionUsage: database.agentSessionUsage,
+        } as unknown as CaxriDatabase;
+        // Both paths to `shared` really exist before the walk dedupes them.
+        const sharedParents = edges
+            .filter((candidate) => candidate.sessionId === shared)
+            .map((candidate) => candidate.parentSessionId);
+        expect(sharedParents).toEqual([left, right]);
 
-        const cost = delegatedCost(database, root, priceOf);
+        const cost = delegatedCost(diamond, root, priceOf);
 
         expect(cost.delegatedSessions).toBe(1);
         expect(cost.delegatedCostUsd).toBeCloseTo(1e-4);
         const byName = (a: string, b: string) => a.localeCompare(b);
         expect(
-            delegatedDescendants(database, root).branchOf.keys().toArray().toSorted(byName),
+            delegatedDescendants(diamond, root).branchOf.keys().toArray().toSorted(byName),
         ).toEqual([left, right, shared].toSorted(byName));
+    });
+
+    it('reads no more edges than the remaining budget plus one, however wide a level is', async () => {
+        const { database, create } = await setup();
+        const root = create();
+        for (let index = 0; index < MAX_ROLLUP_DESCENDANTS + 50; index += 1) create(root);
+        const history = database.agentDelegations.history;
+        const read: number[] = [];
+        const original = history.childEdges.bind(history);
+        history.childEdges = (parents, relations, limit) => {
+            const edges = original(parents, relations, limit);
+            read.push(edges.length);
+            return edges;
+        };
+
+        const { branchOf, isTruncated } = delegatedDescendants(database, root);
+
+        expect(read).toEqual([MAX_ROLLUP_DESCENDANTS + 1]);
+        expect(branchOf.size).toBe(MAX_ROLLUP_DESCENDANTS);
+        expect(isTruncated).toBe(true);
     });
 
     it('walks exactly the descendant bound without marking it partial, and marks one more partial', async () => {
@@ -157,6 +195,44 @@ describe('delegatedCost', () => {
         // Exactly the depth bound below a Session is fully read.
         expect(delegatedDescendants(database, chain[0]).isTruncated).toBe(true);
         expect(delegatedDescendants(database, chain[1]).isTruncated).toBe(false);
+    });
+
+    it('marks the direct child whose subtree was cut short as partial, not only the root', async () => {
+        const { database, create, spend } = await setup();
+        const root = create();
+        const deep = create(root);
+        const shallow = create(root);
+        spend(deep);
+        spend(shallow);
+        let tip = deep;
+        for (let depth = 0; depth < MAX_ROLLUP_DEPTH; depth += 1) tip = create(tip);
+
+        const cost = delegatedCost(database, root, priceOf);
+
+        expect(cost.isPartial).toBe(true);
+        const byId = Object.fromEntries(cost.children.map((child) => [child.sessionId, child]));
+        expect(byId[deep]?.isPartial).toBe(true);
+        expect(byId[shallow]?.isPartial).toBe(false);
+    });
+
+    it('keeps a branch that only has a running task so its row can show ~', async () => {
+        const { database, create, spend } = await setup();
+        const root = create();
+        const oldAttempt = create(root);
+        const freshRetry = create(root);
+        spend(oldAttempt);
+        database.agentDelegations.receiptsForSessions = (ids) =>
+            ids.includes(freshRetry) ? [{ status: 'running', sessionId: freshRetry } as never] : [];
+
+        const cost = delegatedCost(database, root, priceOf);
+
+        expect(cost.delegatedSessions).toBe(1);
+        expect(cost.isActive).toBe(true);
+        expect(cost.children.find((child) => child.sessionId === freshRetry)).toMatchObject({
+            isActive: true,
+            sessionCount: 0,
+            costUsd: 0,
+        });
     });
 
     it('rolls up delegated and consult Sessions but not a hand-off', async () => {
