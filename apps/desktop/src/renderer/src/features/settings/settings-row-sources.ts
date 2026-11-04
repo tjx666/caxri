@@ -2,6 +2,7 @@ import type { AgentProvider, SettingCategoryId, SettingKey, SettingSpec } from '
 import { agentProviderCatalog, agentProviderIds, settingsSpecByKey } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
+import { delegationRowSources } from './delegation-presets/delegation-row-sources';
 
 /**
  * How a Settings row reads and writes its value. Scalar `settings.jsonc` fields render a generic control from their
@@ -503,82 +504,7 @@ export const settingRowSources: SettingRowSource[] = [
             'caxri secret',
         ]),
     },
-    {
-        id: 'agents.delegation.presets',
-        category: 'agents',
-        titleKey: 'settings.row.delegationPresets.title',
-        descriptionKey: 'settings.row.delegationPresets.description',
-        binding: { type: 'delegation-presets' },
-        searchSpec: 'agents.delegation',
-        searchTerms: lower([
-            'dianjiang',
-            'import',
-            'presets',
-            'delegation',
-            'delegate',
-            'model',
-            'effort',
-        ]),
-    },
-    {
-        id: 'agents.delegation.maxDepth',
-        advanced: true,
-        category: 'agents',
-        titleKey: 'settings.row.delegationDepth.title',
-        descriptionKey: 'settings.row.delegationDepth.description',
-        /**
-         * The worked example and the pointer to where delegation presets are edited both matter, but together they
-         * wrapped this row to four lines (issue caxri#1289). Moved behind the row's info affordance so the one-line
-         * description stays the thing every reader sees.
-         */
-        detailKey: 'settings.row.delegationDepth.detail',
-        binding: { type: 'delegation-field', field: 'maxDepth' },
-        /**
-         * Derived from the one spec that already describes this key, so the words it lists (`model`, `effort`,
-         * `caller`) keep finding the row instead of dying with the complex editor this row replaced.
-         */
-        searchSpec: 'agents.delegation',
-        searchTerms: specSearchTerms(settingsSpecByKey['agents.delegation'], [
-            'delegation depth',
-            'delegate',
-            'max depth',
-            'subagent',
-            'helper',
-            'hand off',
-        ]),
-    },
-    {
-        id: 'agents.delegation.readChildChat',
-        advanced: true,
-        category: 'agents',
-        titleKey: 'settings.row.delegationReadChildChat.title',
-        descriptionKey: 'settings.row.delegationReadChildChat.description',
-        binding: { type: 'delegation-field', field: 'readChildChat' },
-        searchTerms: lower([
-            'delegation transcript',
-            'read child chat',
-            'delegate',
-            'subagent',
-            'conversation',
-            'progress',
-        ]),
-    },
-    {
-        id: 'agents.delegation.approval',
-        advanced: true,
-        category: 'agents',
-        titleKey: 'settings.row.delegationApproval.title',
-        descriptionKey: 'settings.row.delegationApproval.description',
-        binding: { type: 'delegation-field', field: 'approval' },
-        searchTerms: lower([
-            'parent approval',
-            'approve',
-            'permission request',
-            'delegate',
-            'subagent',
-            'helper',
-        ]),
-    },
+    ...delegationRowSources({ lower, specSearchTerms }),
     specRow('agents.longRunningShellCommands', {
         advanced: true,
         binding: { type: 'long-running-commands' },
