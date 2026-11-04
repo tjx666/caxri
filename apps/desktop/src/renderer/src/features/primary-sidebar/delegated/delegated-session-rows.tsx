@@ -98,7 +98,7 @@ export function DelegatedSessionRows({
              */}
             <span
                 aria-hidden="true"
-                className="delegated-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-border"
+                className="delegated-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-muted/40"
             />
             {visibleSessions.map((session) => {
                 const project = lookups.projectsById.get(session.projectId);
