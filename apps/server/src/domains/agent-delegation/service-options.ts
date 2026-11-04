@@ -47,6 +47,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      */
     opensAgentsInChat?(): boolean;
     /**
+     * Whether Agent Chat is available at all, regardless of `session.openAgentsInChat`. A caller's forced `chat`
+     * surface needs only this; `opensAgentsInChat` stays the default resolver for a child that forces nothing.
+     */
+    hasAgentChat?(): boolean;
+    /**
      * Whether the user turned `provider`'s lifecycle hooks on in settings. A visible PTY child needs them to correlate
      * its task, so a child whose provider has them off fails as `hooks_required` before anything launches. This reads
      * the configured setting, the same condition that makes the hook manager ignore a provider's signals, not install

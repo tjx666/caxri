@@ -22,6 +22,7 @@ import {
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
+import { resolveChildSurface } from './chat-child';
 import { validateDelegationLaunch } from './launch';
 
 export interface DelegationAuthority {
@@ -222,6 +223,11 @@ export function resolveDelegationAdmission(options: {
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     currentLaunchId?(terminalId: string): string | undefined;
     /**
+     * Inputs of the child's surface; see `resolveChildSurface`.
+     */
+    hasAgentChat?(): boolean;
+    opensAgentsInChat?(): boolean;
+    /**
      * The turn an Agent Chat caller is in, recorded on the task; see `AgentDelegationServiceOptions.callerTurnId`.
      */
     callerTurnId?(terminalId: string): string | undefined;
@@ -303,6 +309,11 @@ export function resolveDelegationAdmission(options: {
         selection,
         frozenLaunch,
         frozenInstructions: instructions,
+        surface: previous
+            ? previous.receipt.surface
+            : input.continueFromHandover
+              ? undefined
+              : resolveChildSurface(options, selection.provider, input.surface),
         depth,
         parentDelegationId: inherited
             ? inherited.parentDelegationId
@@ -348,6 +359,7 @@ export function admittedDelegation(options: {
             ...(options.retryOf && { retryOf: options.retryOf }),
             provider,
             selection: admission.selection,
+            ...(admission.surface && { surface: admission.surface }),
             depth: admission.depth,
             parentDelegationId: admission.parentDelegationId,
             status: 'requested',

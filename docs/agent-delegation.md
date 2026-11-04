@@ -819,6 +819,22 @@ With `session.openAgentsInChat` on, a new Claude Code or Codex child opens as an
 `apps/server/src/domains/agent-delegation/chat-child.ts`). Grok Build children, and every child
 while the setting is off, keep the PTY. The setting is read when the task is admitted.
 
+**Forcing the surface.** `agent delegate create --surface chat|terminal` overrides the setting for one
+new task (`terminal` is the product term; the protocol value is `pty`). Choose `chat` when the parent
+needs `transcript`, `approve`, or the child's questions; choose `terminal` for TUI-only work, knowing a
+Terminal child has no `transcript` (`not_chat`) and no parent approval, though it can still ask
+questions through the CLI. A forced `chat` works with the setting off. It is refused at admission with
+`UNAVAILABLE` and reason `forced_chat_unavailable`, never downgraded, when the provider's Chat cannot
+carry the task (Grok Build, Antigravity) or this Server has no Agent Chat; the check runs before the
+Session or worktree of `--new-session` exists. A forced `terminal` takes the unchanged PTY branch and
+still fails as `hooks_required` while the provider's hooks are off. `--surface` is a new-task option:
+`--follow-up`, `--resume`, and `--continue-handover` keep the surface of the Terminal they continue and
+refuse it. The surface is part of the request fingerprint, so a replay of a request ID with another
+surface is a `CONFLICT`, and a fresh retry carries the forced surface to its successor. The receipt's
+`surface` (`chat` or `pty`) is the surface resolved at admission, not the requested value; it is absent
+for a hand-over, and a follow-up or resume repeats the task it continues. A preset does not carry a
+default surface.
+
 - **Launch.** The Chat starts with the task's frozen launch settings, translated like any Chat
   launch (Claude Code's read access to the task directory becomes an additional directory), and a
   Claude Code child with the preallocated session ID. The launch is handed to the Chat

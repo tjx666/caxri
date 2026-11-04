@@ -146,6 +146,44 @@ describe('delegation CLI', () => {
         ).rejects.toThrow();
     });
 
+    it('maps --surface terminal to pty and refuses it on a continuation or a bad value', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-cli-'));
+        onTestFinished(() => rm(directory, { recursive: true, force: true }));
+        const path = join(directory, 'task.md');
+        await writeFile(path, 'Synthetic task');
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.create',
+        )!;
+        const base = [
+            '--project',
+            'project',
+            '--session',
+            'session',
+            '--provider',
+            'claude',
+            '--prompt-file',
+            path,
+        ];
+        expect(await command.parseParams([...base, '--surface', 'terminal'])).toMatchObject({
+            surface: 'pty',
+        });
+        expect(await command.parseParams([...base, '--surface', 'chat'])).toMatchObject({
+            surface: 'chat',
+        });
+        expect(await command.parseParams(base)).not.toHaveProperty('surface');
+        await expect(command.parseParams([...base, '--surface', 'pty'])).rejects.toThrow(
+            /chat or terminal/u,
+        );
+        const continuations = ['--follow-up', '--resume', '--continue-handover'];
+        await Promise.all(
+            continuations.map((flag) =>
+                expect(
+                    command.parseParams([...base, '--surface', 'chat', flag, 'task-1']),
+                ).rejects.toThrow(/keeps the surface/u),
+            ),
+        );
+    });
+
     it('waits on one or several tasks and rejects flags or an unbounded list', () => {
         const command = DELEGATION_COMMANDS.find(
             (item) => item.method === 'agent.delegation.wait',

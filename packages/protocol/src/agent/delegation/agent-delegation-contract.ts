@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { identifierSchema } from '../../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../../domain/session.js';
 import { sessionPullRequestStateSchema } from '../../domain/session-pull-request.js';
+import { terminalSurfaceSchema } from '../../domain/terminal-surface.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { commandPolicy } from '../../transport/method-spec.js';
 import { principalSchema } from '../../transport/principal.js';
@@ -118,6 +119,13 @@ export const agentDelegationReceiptSchema = z.strictObject({
      * and never present together with `retriedAs`.
      */
     retryScheduleOutcome: delegationRetryScheduleOutcomeSchema.optional(),
+    /**
+     * The surface the child Terminal opened on, resolved when the task was admitted: the caller's forced `surface`,
+     * else `session.openAgentsInChat` and the provider's Chat support. A caller that needs `transcript` or parent
+     * approval reads it instead of guessing. Absent for a hand-over, which continues the user's own Session surface. A
+     * follow-up or resume keeps the surface of the task it continues.
+     */
+    surface: terminalSurfaceSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
     correlationFailure: z
@@ -200,6 +208,13 @@ const agentDelegationCreateFields = {
      * `handoff`.
      */
     consult: z.literal(true).optional(),
+    /**
+     * Forces the surface the new child Terminal opens on instead of following `session.openAgentsInChat`: `chat` for a
+     * child the parent reads with `transcript`, approves, or is asked questions by; `pty` for TUI-only work. A forced
+     * `chat` the provider or Server cannot satisfy is refused at admission, never downgraded. Only a new task: a
+     * follow-up, resume, or hand-over continues an existing Terminal and keeps its surface.
+     */
+    surface: terminalSurfaceSchema.optional(),
 };
 
 type DelegationCreateShape = Partial<
@@ -210,7 +225,8 @@ type DelegationCreateShape = Partial<
         | 'model'
         | 'preset'
         | 'provider'
-        | 'resumeFrom',
+        | 'resumeFrom'
+        | 'surface',
         unknown
     >
 >;
@@ -219,6 +235,8 @@ const isOneContinuation = (value: DelegationCreateShape) =>
     [value.followUpOf, value.resumeFrom, value.continueFromHandover].filter(Boolean).length <= 1;
 const isPresetExclusive = (value: DelegationCreateShape) =>
     !value.preset || (!value.provider && !value.model && !value.effort);
+const isSurfaceForNewTask = (value: DelegationCreateShape) =>
+    !value.surface || (!value.followUpOf && !value.resumeFrom && !value.continueFromHandover);
 const hasLaunchSource = (value: DelegationCreateShape) =>
     Boolean(
         value.provider ??
@@ -241,7 +259,8 @@ export const agentDelegationCreateSchema = z
     .strictObject(agentDelegationCreateFields)
     .refine(isOneContinuation, 'Choose follow-up or exact resume')
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
-    .refine(hasLaunchSource, 'Choose a provider, preset or saved task');
+    .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
+    .refine(isSurfaceForNewTask, 'A surface applies to a new task, not a continuation');
 
 /**
  * What a caller sends. `newSession` asks Caxri Bot's own delegation to create the Session it runs in, so the Session
@@ -268,6 +287,7 @@ export const agentDelegationCreateRequestSchema = z
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
     .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
     .refine(isHandoverSelectionFree, 'A hand-over keeps its conversation provider and launch')
+    .refine(isSurfaceForNewTask, 'A surface applies to a new task, not a continuation')
     .refine(
         (value) => Boolean(value.sessionId) !== Boolean(value.newSession),
         'Choose one Session or a new Session',

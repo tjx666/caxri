@@ -26,7 +26,28 @@ const createFlags = new Set([
     '--continue-handover',
     '--title',
     '--worktree',
+    '--surface',
 ]);
+
+/**
+ * The CLI says `terminal`, the product term; the protocol's `TerminalSurface` says `pty`.
+ */
+const SURFACE_FLAGS = { chat: 'chat', terminal: 'pty' } as const;
+
+function surfaceParameter(
+    value: string | undefined,
+    continuation: string | undefined,
+): { surface: (typeof SURFACE_FLAGS)[keyof typeof SURFACE_FLAGS] } | undefined {
+    if (value === undefined) return undefined;
+    if (!Object.hasOwn(SURFACE_FLAGS, value))
+        throw new CaxriError('VALIDATION', '--surface must be chat or terminal');
+    if (continuation)
+        throw new CaxriError(
+            'VALIDATION',
+            `--surface starts a new task; ${continuation} keeps the surface of the task it continues`,
+        );
+    return { surface: SURFACE_FLAGS[value as keyof typeof SURFACE_FLAGS] };
+}
 
 const providerUsage = delegationProviderSchema.options.join('|');
 
@@ -72,7 +93,11 @@ async function createParameters(tokens: readonly string[]) {
         throw new CaxriError('VALIDATION', '--consult applies only with --new-session');
     if (isConsult && isHandoff)
         throw new CaxriError('VALIDATION', 'Pass --consult or --handoff, not both');
+    const continuation = (['--follow-up', '--resume', '--continue-handover'] as const).find(
+        (flag) => values.has(flag),
+    );
     return agentDelegationCreateRequestSchema.parse({
+        ...surfaceParameter(values.get('--surface'), continuation),
         projectId,
         ...(sessionId && { sessionId }),
         ...(isNewSession && { newSession: true }),
@@ -200,7 +225,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `--project <id> (--session <id> | --new-session --title <text> [--handoff | --consult] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
+        usage: `--project <id> (--session <id> | --new-session --title <text> [--handoff | --consult] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation: 'Create this visible Agent delegation?',
         parseParams: createParameters,
     },

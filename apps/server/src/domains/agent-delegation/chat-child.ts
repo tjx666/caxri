@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 
-import type { AgentDelegationReceipt, AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
+import type {
+    AgentDelegationReceipt,
+    AgentLaunchSettings,
+    AgentProvider,
+    TerminalSurface,
+} from '@caxri/protocol';
 import { canUseAgentChat, CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { AgentDispatchStartOptions } from '../agent-dispatch';
@@ -38,15 +43,56 @@ export type DelegationChatTurn =
       };
 
 /**
- * The dispatch launch of a new visible child. With `session.openAgentsInChat` on, a Claude Code or Codex child opens as
- * an Agent Chat: it starts with the task's frozen launch settings plus read access to the task directory (the same
- * launch a `--resume` uses), and receives the task pointer as its first message instead of in argv. Claude Code also
- * presets the conversation id the task was admitted with. Every other child keeps the PTY launch unchanged.
+ * Refuses a forced Chat child that cannot run: the provider's Chat does not report the task (Grok Build, Antigravity),
+ * or this Server has no Agent Chat. A caller that forces `chat` waits on `transcript` and parent approval, so a silent
+ * Terminal downgrade would leave it waiting on reads that can never succeed. Throws before any record exists, so no
+ * failed task is stored and the closed failure enum is unchanged.
+ */
+export function assertChatChildAvailable(
+    options: Pick<AgentDelegationServiceOptions, 'hasAgentChat'>,
+    provider: AgentProvider,
+): void {
+    if (
+        options.hasAgentChat?.() !== true ||
+        !canChatCorrelateTask(provider) ||
+        !canUseAgentChat(provider)
+    )
+        throw new CaxriError('UNAVAILABLE', 'A Chat child is unavailable for this Agent', {
+            reason: 'forced_chat_unavailable',
+        });
+}
+
+/**
+ * The surface a new visible child opens on: the caller's forced `surface` when given, else Chat when
+ * `session.openAgentsInChat` is on and the provider's Chat can carry the task, else the PTY Terminal. A forced `pty`
+ * never consults the setting; a forced `chat` works with the setting off and is refused when unsatisfiable. Resolved
+ * once at admission and stored on the receipt, so the caller reads what the child actually got.
+ */
+export function resolveChildSurface(
+    options: Pick<AgentDelegationServiceOptions, 'hasAgentChat' | 'opensAgentsInChat'>,
+    provider: AgentProvider,
+    requested: TerminalSurface | undefined,
+): TerminalSurface {
+    if (requested === 'chat') assertChatChildAvailable(options, provider);
+    if (requested) return requested;
+    return options.opensAgentsInChat?.() &&
+        canChatCorrelateTask(provider) &&
+        canUseAgentChat(provider)
+        ? 'chat'
+        : 'pty';
+}
+
+/**
+ * The dispatch launch of a new visible child, on the surface the task was admitted with (`receipt.surface`). A Chat
+ * child starts with the task's frozen launch settings plus read access to the task directory (the same launch a
+ * `--resume` uses), and receives the task pointer as its first message instead of in argv. Claude Code also presets the
+ * conversation id the task was admitted with. A Terminal child keeps the PTY launch unchanged, including the hooks
+ * check, whether it was forced or chosen by the setting.
  */
 export function delegationChildLaunch(
     options: Pick<
         AgentDelegationServiceOptions,
-        'hasLifecycleHooks' | 'opensAgentsInChat' | 'userDataPath'
+        'hasAgentChat' | 'hasLifecycleHooks' | 'opensAgentsInChat' | 'userDataPath'
     >,
     record: StoredAgentDelegation,
     prepared: {
@@ -60,11 +106,9 @@ export function delegationChildLaunch(
     'assignedAgentSessionId' | 'initialPrompt' | 'launch' | 'surface'
 > {
     const { provider } = record.receipt;
-    if (
-        !options.opensAgentsInChat?.() ||
-        !canChatCorrelateTask(provider) ||
-        !canUseAgentChat(provider)
-    ) {
+    const surface =
+        record.receipt.surface ?? resolveChildSurface(options, provider, record.input.surface);
+    if (surface === 'pty') {
         assertTerminalChildHooks(options, provider);
         return {
             launch: prepared.launch,

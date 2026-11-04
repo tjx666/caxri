@@ -13,6 +13,7 @@ import { CaxriError } from '@caxri/protocol';
 import { assertAgentTitleLanguage } from '../agents';
 import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
+import { assertChatChildAvailable } from './chat-child';
 import type { AgentDelegationServiceOptions } from './service-options';
 
 /**
@@ -36,7 +37,7 @@ function newSessionRelation(
  * the caller's title from the start; see `agentDelegationCreateRequestSchema`.
  */
 export async function admitDelegationRequest(
-    options: Pick<AgentDelegationServiceOptions, 'newSessions' | 'database'>,
+    options: Pick<AgentDelegationServiceOptions, 'newSessions' | 'database' | 'hasAgentChat'>,
     id: string,
     authority: DelegationAuthority,
     request: AgentDelegationCreateRequest,
@@ -53,6 +54,12 @@ export async function admitDelegationRequest(
     const isBot = isCaxriBotCaller(database, authority);
     if (worktreeBranch && (isBot || !newSessions.prepareWorktree))
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new worktree');
+    /**
+     * A forced Chat the named provider cannot satisfy is refused before the worktree and Session exist. A preset's
+     * provider is only known at admission, which refuses it there and discards the Session.
+     */
+    if (fields.surface === 'chat' && fields.provider)
+        assertChatChildAvailable(options, fields.provider);
     /**
      * An Agent's own Session, or the Chat a Client continues in another Agent (`agentChat.continueInAgent`).
      */

@@ -271,6 +271,11 @@ Then write the task to a file and run
 - `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex, Grok, or Antigravity child Terminal.
   Use `agent delegate presets --project <id> --session <id>` to discover caller-specific presets,
   then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
+  Add `--surface chat|terminal` to choose the child's surface for a new task: `chat` when you need
+  `agent delegate transcript`, `approve`, or the child's questions (it works even if the user turned
+  Open Agents in Chat off, and fails with `forced_chat_unavailable` for Grok or Antigravity); `terminal` for
+  TUI-only work (no transcript, no parent approval). Omit it to follow the user's setting. The receipt's
+  `surface` is what the child actually got. Not with `--follow-up`, `--resume`, or `--continue-handover`.
   The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved
   selection and instructions; do not resend a different model or try to override caller identity.
   Every managed Agent holds `agents.delegate`; an external caller needs an owner-issued delegation

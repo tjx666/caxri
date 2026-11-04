@@ -42,8 +42,9 @@ long-lived Shell root. A client disconnect explicitly cancels its dispatch long 
 has no child process to signal: `terminal.sendInternal`, interrupt, stop, and dispatch `resume`/`wake` drive it
 through `AgentChatService` (`agent-dispatch/chat-target.ts`, `chat-launch.ts`), and its process state reaches
 receipts through `AgentChatServiceOptions.onAgentStateChanged`. Dispatch `start` creates a PTY, except a visible
-delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex Chat (`agent-delegation/chat-child.ts`;
-see `docs/agent-delegation.md`).
+delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex Chat, or that the caller forces with
+`--surface chat|terminal` (`agent-delegation/chat-child.ts`, resolved once at admission onto `receipt.surface`; see
+`docs/agent-delegation.md`).
 
 The Caxri Bot Endpoint is the one fixed exception to grant-only delegation. Domain services begin
 it with `role: 'bot'`, which adds `bot` and `agents.delegate` while its Project scope stays

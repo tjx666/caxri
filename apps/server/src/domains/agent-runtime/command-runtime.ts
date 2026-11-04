@@ -98,6 +98,7 @@ export function createAgentCommandRuntime(
         delegationSettings: () => options.settings()['agents.delegation'],
         opensAgentsInChat: () =>
             options.agentChat !== undefined && options.settings()['session.openAgentsInChat'],
+        hasAgentChat: () => options.agentChat !== undefined,
         hasLifecycleHooks: (provider) =>
             options.settings()['agents.providers'][provider].hooks.enabled,
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,

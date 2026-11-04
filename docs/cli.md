@@ -184,6 +184,10 @@ may pass it. Hand-over and take-back are owner-only, since Caxri Bot's Endpoint 
 ([Hand-over](caxri-bot.md#hand-over)). Replying to, dismissing, and merging an [Inbox](caxri-bot.md#bot-inbox) item
 are owner-only Desktop and mobile actions with no CLI command.
 
+`agent delegate create --surface chat|terminal` forces the new child's surface instead of following
+Open Agents in Chat; the receipt's `surface` reports what the child got. It applies to a new task, not
+to `--follow-up`, `--resume`, or `--continue-handover`; see [Agent delegation](agent-delegation.md#agent-chat-children).
+
 `secret list`, `secret request <NAME> --reason <text>`, and `secret exec <NAME>... -- <command>`
 let an Agent use a secret the user saved in Caxri without the value entering the conversation.
 They require the baseline `secrets.use` capability and bind to the caller's own Project; the human

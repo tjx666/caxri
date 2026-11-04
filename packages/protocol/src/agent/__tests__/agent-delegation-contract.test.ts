@@ -45,6 +45,57 @@ describe('agentDelegationCreateRequestSchema consult', () => {
     });
 });
 
+describe('agentDelegationCreateRequestSchema surface', () => {
+    it.each(['chat', 'pty'])('accepts a forced %s surface for a new task', (surface) => {
+        expect(agentDelegationCreateRequestSchema.parse({ ...newSession, surface }).surface).toBe(
+            surface,
+        );
+        expect(
+            agentDelegationCreateRequestSchema.safeParse({
+                ...request,
+                sessionId: 'session-1',
+                surface,
+            }).success,
+        ).toBe(true);
+    });
+
+    it('refuses an unknown surface', () => {
+        expect(
+            agentDelegationCreateRequestSchema.safeParse({ ...newSession, surface: 'terminal' })
+                .success,
+        ).toBe(false);
+    });
+
+    it.each([{ followUpOf: 'task-1' }, { resumeFrom: 'task-1' }])(
+        'refuses a surface together with a continuation %j',
+        (continuation) => {
+            const parsed = agentDelegationCreateRequestSchema.safeParse({
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                prompt: 'Review the design',
+                surface: 'chat',
+                ...continuation,
+            });
+            expect(parsed.success).toBe(false);
+            expect(parsed.error?.issues.map(({ message }) => message)).toContain(
+                'A surface applies to a new task, not a continuation',
+            );
+        },
+    );
+
+    it('refuses a surface together with a hand-over', () => {
+        expect(
+            agentDelegationCreateRequestSchema.safeParse({
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                prompt: 'Review the design',
+                surface: 'pty',
+                continueFromHandover: 'handover-1',
+            }).success,
+        ).toBe(false);
+    });
+});
+
 describe('isRetryableDelegationFailure', () => {
     const retryable = new Set([
         'rate_limited',
