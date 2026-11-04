@@ -15,14 +15,26 @@ import {
     createProjectOrderIntentTracker,
     machineProjectIndex,
     PROJECT_DRAG_TYPE,
+    projectMoveBetween,
     projectOrderAfterDrop,
+    sortByProjectOrder,
 } from '../project-order';
+import { useHeldProjectOrder } from './use-held-project-order';
 
 interface ProjectOrderController {
     draggedProjectId?: string;
     endDrag: () => void;
     move: (projectId: string, title: string, delta: -1 | 1) => void;
     onListDragOver: (event: DragEvent<HTMLElement>) => void;
+    /**
+     * The pointer entering or leaving the Project list; a Server re-sort is held back while it is inside.
+     */
+    onListPointerChange: (isInside: boolean) => void;
+    /**
+     * The Projects in the order the sidebar draws them: held steady while the pointer is in the list or a drag is
+     * active, then caught up to the Server order.
+     */
+    orderedProjectIds: readonly string[];
     projectDropTarget?: ProjectDropTarget;
     projectOrderAnnouncement: string;
     startDrag: (event: DragEvent<HTMLElement>, projectId: string) => void;
@@ -30,10 +42,21 @@ interface ProjectOrderController {
     drop: (event: DragEvent<HTMLElement>, targetProjectId: string) => void;
 }
 
-export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderController {
+export function useProjectOrder(serverProjects: ProjectRecord[]): ProjectOrderController {
     const [draggedProjectId, setDraggedProjectId] = useState<string>();
     const [projectDropTarget, setProjectDropTarget] = useState<ProjectDropTarget>();
     const [projectOrderAnnouncement, setProjectOrderAnnouncement] = useState('');
+    const [isPointerInside, setIsPointerInside] = useState(false);
+    const [releaseKey, setReleaseKey] = useState(0);
+    const serverProjectIds = serverProjects.map((project) => project.id);
+    const orderedProjectIds = useHeldProjectOrder(
+        serverProjectIds,
+        isPointerInside || draggedProjectId !== undefined,
+        releaseKey,
+    );
+    const projects = sortByProjectOrder(serverProjects, orderedProjectIds, (project) => project.id);
+    const previousOrderReference = useRef(orderedProjectIds);
+    const skipRunningAnnouncementReference = useRef(false);
     const intentTrackerReference = useRef<
         ReturnType<typeof createProjectOrderIntentTracker> | undefined
     >(undefined);
@@ -59,9 +82,12 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
 
     useEffect(() => {
         const confirmed = intentTrackerReference.current?.reconcile(
-            projects.map((project) => project.id),
+            serverProjects.map((project) => project.id),
         );
         if (!confirmed) return;
+        // The user's own reorder must show at once even though the pointer is still over the list.
+        skipRunningAnnouncementReference.current = true;
+        setReleaseKey((key) => key + 1);
         setProjectOrderAnnouncement(
             translate('primarySidebar.projectOrder.movedAnnouncement', {
                 position: confirmed.projectIds.indexOf(confirmed.movedProjectId) + 1,
@@ -69,7 +95,28 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
                 total: confirmed.projectIds.length,
             }),
         );
-    }, [projects]);
+    }, [serverProjects]);
+
+    useEffect(() => {
+        const previous = previousOrderReference.current;
+        previousOrderReference.current = orderedProjectIds;
+        if (skipRunningAnnouncementReference.current) {
+            skipRunningAnnouncementReference.current = false;
+            return;
+        }
+        const move = projectMoveBetween(previous, orderedProjectIds);
+        const moved = move && projects.find((project) => project.id === move.movedProjectId);
+        if (!move || !moved) return;
+        // An Agent starting or stopping re-sorts the list; announce it since the held order delays it visually.
+        setProjectOrderAnnouncement(
+            translate('primarySidebar.projectOrder.movedAnnouncement', {
+                position: move.position,
+                title: moved.title,
+                total: move.total,
+            }),
+        );
+        // A rerun for new Server records with the same order finds no move, so only an order change announces.
+    }, [orderedProjectIds, projects]);
 
     const enqueue = (projectIds: string[], movedProjectId: string, title: string): void => {
         intentTrackerReference.current?.set({ title, movedProjectId, projectIds });
@@ -121,6 +168,8 @@ export function useProjectOrder(projects: ProjectRecord[]): ProjectOrderControll
             if (!(target instanceof Element) || !target.closest('.project-heading'))
                 setProjectDropTarget(undefined);
         },
+        onListPointerChange: setIsPointerInside,
+        orderedProjectIds,
         projectDropTarget,
         projectOrderAnnouncement,
         startDrag(event, projectId) {

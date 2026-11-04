@@ -36,7 +36,7 @@ import { PrimarySidebarLiveRegions } from './primary-sidebar-live-regions';
 import { PINNED_GROUP_ROW_ID, primarySidebarPinnedRowId } from './primary-sidebar-tree';
 import { handlePrimarySidebarTreeKey } from './primary-sidebar-tree-keys';
 import { ProjectGroupList } from './project-group-list';
-import { hasProjectDragType } from './project-order';
+import { hasProjectDragType, sortByProjectOrder } from './project-order';
 import { topLevelProjects, worktreeProjectsBySession } from './project-visibility';
 import { SessionSelectionGlideFill } from './session-selection-glide-fill';
 
@@ -50,6 +50,34 @@ const NO_RECORDS: never[] = [];
  * order this tree needs lives here rather than in the shell, so switching modes unmounts all of it instead of leaving a
  * hidden tree recomputing behind the queue.
  */
+/**
+ * Where `session.rename` has to put its editor. A pinned Session is withheld from its Project group, so the Project row
+ * this used to target does not exist for one; expanding that Project would reveal nothing and the rename would silently
+ * no-op.
+ */
+function useRevealSessionRow({
+    headingOf,
+    pinnedCollapse,
+    placement,
+    projectCollapse,
+}: {
+    headingOf: ReadonlyMap<string, string>;
+    pinnedCollapse: { expand: () => void };
+    placement: Parameters<typeof sessionRevealTarget>[0];
+    projectCollapse: { expandProject: (projectId: string) => void };
+}): (session: SessionRecord) => string {
+    return useCallback(
+        (session: SessionRecord): string => {
+            // A nested Session opens its host's group, which is not necessarily its own Project.
+            const { groupId, rowId } = sessionRevealTarget(placement, session);
+            if (groupId === PINNED_GROUP_ROW_ID) pinnedCollapse.expand();
+            else projectCollapse.expandProject(headingOf.get(groupId) ?? groupId);
+            return rowId;
+        },
+        [headingOf, pinnedCollapse, placement, projectCollapse],
+    );
+}
+
 export function PrimarySidebarProjectTree() {
     const { t } = useTranslation();
     const allProjects = useProjects();
@@ -113,21 +141,12 @@ export function PrimarySidebarProjectTree() {
         revealSession: pinnedGroup.revealSession,
     });
 
-    /**
-     * Where `session.rename` has to put its editor. A pinned Session is withheld from its Project group, so the Project
-     * row this used to target does not exist for one; expanding that Project would reveal nothing and the rename would
-     * silently no-op.
-     */
-    const revealSessionRow = useCallback(
-        (session: SessionRecord): string => {
-            // A nested Session opens its host's group, which is not necessarily its own Project.
-            const { groupId, rowId } = sessionRevealTarget(placement, session);
-            if (groupId === PINNED_GROUP_ROW_ID) pinnedCollapse.expand();
-            else projectCollapse.expandProject(headingOf.get(groupId) ?? groupId);
-            return rowId;
-        },
-        [headingOf, pinnedCollapse, placement, projectCollapse],
-    );
+    const revealSessionRow = useRevealSessionRow({
+        headingOf,
+        pinnedCollapse,
+        placement,
+        projectCollapse,
+    });
     const sessionRename = useSessionRename(sessions, revealSessionRow);
     useSelectedSessionReveal({ revealSessionRow, selectedSessionId, sessions });
 
@@ -144,7 +163,18 @@ export function PrimarySidebarProjectTree() {
         selectedSessionId,
         sidebarSessions,
     });
-    const projectWindows = sessionWindows.windows;
+    const projectWindows = sortByProjectOrder(
+        sessionWindows.windows,
+        projectOrder.orderedProjectIds,
+        (entry) => entry.project.id,
+    );
+    /**
+     * The collapse hover and the held Project order both follow the pointer in and out of the list.
+     */
+    const setIsPointerInside = (isInside: boolean): void => {
+        projectCollapse.setIsHovered(isInside);
+        projectOrder.onListPointerChange(isInside);
+    };
     const pinnedSessionIds = useMemo(
         () => pinnedGroup.visibleSessions.map((session) => session.id),
         [pinnedGroup.visibleSessions],
@@ -251,8 +281,8 @@ export function PrimarySidebarProjectTree() {
                         projectCollapse.setHasFocus(false);
                 }}
                 onFocus={() => projectCollapse.setHasFocus(true)}
-                onPointerEnter={() => projectCollapse.setIsHovered(true)}
-                onPointerLeave={() => projectCollapse.setIsHovered(false)}
+                onPointerEnter={() => setIsPointerInside(true)}
+                onPointerLeave={() => setIsPointerInside(false)}
             >
                 <SessionSelectionGlideFill
                     list={projectListReference}

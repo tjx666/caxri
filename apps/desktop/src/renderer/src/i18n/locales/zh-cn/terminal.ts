@@ -253,6 +253,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.new.signedOutMarker': '未登录',
     'terminal.new.terminalMarker': '终端',
     'terminal.new.signIn': '登录…',
+    'terminal.new.signInTyped': '在终端中按回车键开始登录。',
     'terminal.new.signInAgent': '登录 {{agent}}…',
     'terminal.new.signInHint.claude':
         'Claude Code 尚未登录。请在 Terminal 中运行 "claude auth login"，或启动后使用 /login。',

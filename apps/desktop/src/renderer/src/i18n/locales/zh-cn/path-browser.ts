@@ -48,6 +48,7 @@ export const pathBrowser: TranslatedNamespace<typeof source> = {
     'pathBrowser.errors.invalidPath': '路径无效',
     'pathBrowser.errors.browseFailed': '无法浏览文件',
     'pathBrowser.errors.openFailed': '无法打开路径',
+    'pathBrowser.errors.brokenLink': '链接目标不存在',
     'pathBrowser.errors.openExternalFailed': '无法在此会话中打开外部文件',
     'pathBrowser.errors.reopenFolderFailed': '无法重新打开已创建的文件夹',
     'pathBrowser.errors.createFolderFailed': '无法新建文件夹',

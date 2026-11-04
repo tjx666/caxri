@@ -161,3 +161,67 @@ export function machineProjectIndex(
     }
     return index;
 }
+
+/**
+ * Decides which Project order the sidebar draws. The Server re-sorts Projects the moment an Agent starts or stops,
+ * which would replace the row under the pointer mid-click or mid-drag, so while `isHeld` is on the displayed order
+ * stays put. A change in membership (a Project added, removed, or merged) always applies at once: a held order cannot
+ * draw a row that no longer exists or omit one that does.
+ */
+export function resolveHeldProjectOrder(
+    displayed: readonly string[],
+    latest: readonly string[],
+    isHeld: boolean,
+): readonly string[] {
+    if (!isHeld || displayed.length !== latest.length) return latest;
+    const latestSet = new Set(latest);
+    return displayed.every((projectId) => latestSet.has(projectId)) ? displayed : latest;
+}
+
+/**
+ * Sorts items into `order`; ids missing from `order` keep their relative position after the ordered ones.
+ */
+export function sortByProjectOrder<T>(
+    items: readonly T[],
+    order: readonly string[],
+    idOf: (item: T) => string,
+): T[] {
+    const rank = new Map(order.map((projectId, index) => [projectId, index]));
+    return items
+        .map((item, index) => ({ index, item, rank: rank.get(idOf(item)) ?? order.length }))
+        .toSorted((a, b) => a.rank - b.rank || a.index - b.index)
+        .map((entry) => entry.item);
+}
+
+export interface ProjectMove {
+    movedProjectId: string;
+    /**
+     * 1-based position in the new order.
+     */
+    position: number;
+    total: number;
+}
+
+/**
+ * The one Project that moved between two orders of the same members, for the live-region announcement. Returns the
+ * first id whose removal leaves the remaining relative order identical; undefined when nothing moved.
+ */
+export function projectMoveBetween(
+    previous: readonly string[],
+    next: readonly string[],
+): ProjectMove | undefined {
+    if (previous.length !== next.length || previous.every((id, index) => id === next[index]))
+        return undefined;
+    for (const [index, candidate] of next.entries()) {
+        const rest = (ids: readonly string[]) => ids.filter((id) => id !== candidate);
+        const before = rest(previous);
+        const after = rest(next);
+        if (
+            before.length === after.length &&
+            before.every((id, position) => id === after[position]) &&
+            previous.indexOf(candidate) !== index
+        )
+            return { movedProjectId: candidate, position: index + 1, total: next.length };
+    }
+    return undefined;
+}

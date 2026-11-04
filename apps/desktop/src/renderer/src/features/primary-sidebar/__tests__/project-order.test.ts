@@ -8,7 +8,10 @@ import {
     hasProjectDragType,
     machineProjectIndex,
     PROJECT_DRAG_TYPE,
+    projectMoveBetween,
     projectOrderAfterDrop,
+    resolveHeldProjectOrder,
+    sortByProjectOrder,
 } from '../project-order';
 
 describe('Project ordering', () => {
@@ -161,5 +164,41 @@ describe('Project ordering', () => {
         tracker.set(rejected);
         expect(tracker.reconcile(['a', 'b', 'c'])).toBeUndefined();
         expect(tracker.get()).toBeUndefined();
+    });
+});
+
+describe('held project order', () => {
+    it('keeps the displayed order while held and applies the latest when released', () => {
+        expect(resolveHeldProjectOrder(['a', 'b', 'c'], ['b', 'a', 'c'], true)).toEqual([
+            'a',
+            'b',
+            'c',
+        ]);
+        expect(resolveHeldProjectOrder(['a', 'b', 'c'], ['b', 'a', 'c'], false)).toEqual([
+            'b',
+            'a',
+            'c',
+        ]);
+    });
+
+    it('applies a membership change even while held', () => {
+        expect(resolveHeldProjectOrder(['a', 'b'], ['a', 'b', 'c'], true)).toEqual(['a', 'b', 'c']);
+        expect(resolveHeldProjectOrder(['a', 'b'], ['a', 'c'], true)).toEqual(['a', 'c']);
+    });
+
+    it('sorts items by order and keeps unknown ids last', () => {
+        const items = [{ id: 'x' }, { id: 'b' }, { id: 'a' }];
+        expect(
+            sortByProjectOrder(items, ['a', 'b'], (item) => item.id).map((index) => index.id),
+        ).toEqual(['a', 'b', 'x']);
+    });
+
+    it('names the Project that moved', () => {
+        expect(projectMoveBetween(['a', 'b', 'c'], ['c', 'a', 'b'])).toEqual({
+            movedProjectId: 'c',
+            position: 1,
+            total: 3,
+        });
+        expect(projectMoveBetween(['a', 'b'], ['a', 'b'])).toBeUndefined();
     });
 });

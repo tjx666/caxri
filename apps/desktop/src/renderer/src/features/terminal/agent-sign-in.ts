@@ -1,5 +1,5 @@
 import { translate } from '../../i18n';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { createTerminalForSession } from './terminal-commands';
 import { sendTerminalInputAtPrompt } from './terminal-prompt-input';
 
@@ -9,9 +9,11 @@ import { sendTerminalInputAtPrompt } from './terminal-prompt-input';
  * example to point at a CLI installed under another name.
  */
 export async function typeAgentSignInCommand(terminalId: string, command: string): Promise<void> {
-    await tryCommand(translate('terminal.errors.inputFailed'), () =>
-        sendTerminalInputAtPrompt(terminalId, command),
-    );
+    await tryCommand(translate('terminal.errors.inputFailed'), async () => {
+        await sendTerminalInputAtPrompt(terminalId, command);
+        // The command is only typed, so say who has to press Return; otherwise the Terminal looks like it did nothing.
+        pushToast('info', translate('terminal.new.signInTyped'), { history: false });
+    });
 }
 
 /**

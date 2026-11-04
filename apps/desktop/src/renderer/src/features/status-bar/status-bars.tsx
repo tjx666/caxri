@@ -10,6 +10,11 @@ export interface StatusBar {
      * Stable React key, such as the sample's timestamp or local day.
      */
     key: string;
+    /**
+     * Screen-reader text for this bar, such as `2026-11-04: $1.20`. The chart itself is decorative, so when any bar
+     * carries a label they are all exposed as a visually hidden list.
+     */
+    label?: string;
     value: number;
 }
 
@@ -61,6 +66,13 @@ export function StatusBars({
                 })}
             </svg>
             <span className="text-muted tabular-nums">{caption(max)}</span>
+            {bars.some((bar) => bar.label) && (
+                <ul className="sr-only">
+                    {bars.map((bar) => (
+                        <li key={bar.key}>{bar.label}</li>
+                    ))}
+                </ul>
+            )}
         </span>
     );
 }

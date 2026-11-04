@@ -20,30 +20,58 @@ const REFRESH_INTERVAL_MS = 60_000;
 const DAY_BAR_WIDTH = 8;
 
 /**
- * The Agent's estimated spend per local day over the last week, today last, captioned with the busiest day. Counts
- * every conversation of this Agent in the Usage page's remembered scope, so the bars agree with that page's Activity
- * chart. It lives inside the hover card so the report is only requested while the card is open; the TanStack cache
- * makes the next hover instant.
+ * The Agent's estimated spend per local day over the last week, today last, captioned with today's spend and the
+ * busiest day. Counts every conversation of this Agent in the Usage page's remembered scope, so the bars agree with
+ * that page's Activity chart. It lives inside the hover card so the report is only requested while the card is open;
+ * the TanStack cache makes the next hover instant.
  */
 export function AgentDailyCostBars({ provider }: { provider: AgentProvider }) {
     const { t } = useTranslation();
     const scope = useUsageFilterStore((state) => state.scope);
-    const { data: report, isError } = usePolledQuery(
+    const {
+        data: report,
+        isError,
+        refetch,
+    } = usePolledQuery(
         'usage.report',
         { timeZone: LOCAL_TIME_ZONE, range: '7d', provider, scope },
         { label: 'Usage chip daily cost', intervalMs: REFRESH_INTERVAL_MS, retry: false },
     );
     if (!report) {
         // Reserve the chart's height while loading so the card does not grow under the pointer.
-        return isError ? t('statusBar.usage.dailyCostUnavailable') : <span className="block h-6" />;
+        return isError ? (
+            <span className="flex items-center gap-2">
+                {t('statusBar.usage.dailyCostUnavailable')}
+                <button
+                    className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-foreground underline hover:text-muted focus-visible:outline focus-visible:outline-accent"
+                    type="button"
+                    onClick={() => {
+                        void refetch();
+                    }}
+                >
+                    {t('common.retry')}
+                </button>
+            </span>
+        ) : (
+            <span className="block h-6" />
+        );
     }
     const days = dailyCostSeries(report.activity, report.today);
     if (days.every((day) => day.costUsd === 0)) return t('statusBar.usage.dailyCostNone');
     return (
         <StatusBars
             barWidth={DAY_BAR_WIDTH}
-            bars={days.map((day) => ({ key: day.date, value: day.costUsd }))}
-            caption={(max) => t('statusBar.usage.dailyCostMax', { cost: formatUsd(max) })}
+            bars={days.map((day) => ({
+                key: day.date,
+                label: `${day.date}: ${formatUsd(day.costUsd)}`,
+                value: day.costUsd,
+            }))}
+            caption={(max) =>
+                t('statusBar.usage.dailyCostCaption', {
+                    cost: formatUsd(days.at(-1)?.costUsd ?? 0),
+                    max: formatUsd(max),
+                })
+            }
         />
     );
 }

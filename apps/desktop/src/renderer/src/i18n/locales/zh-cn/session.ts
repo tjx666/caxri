@@ -125,6 +125,7 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.search.helpMove': '↑↓ 移动',
     'session.search.helpAction': '↵ 打开、恢复或导入',
     'session.search.helpBranches': '→ ← 展开/收起分支',
+    'session.search.helpFilters': 'Tab 位置 · Shift+Tab Agent · Alt+T 时间 · Alt+S 排序',
     'session.search.sort': '排序',
     'session.search.sort.relevance': '相关度',
     'session.search.sort.recent': '最近',
@@ -135,7 +136,7 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.search.chip.agent': 'Agent：{{value}}',
     'session.search.chip.project': '项目：{{value}}',
     'session.search.chip.before': '早于 {{value}}',
-    'session.search.chip.after': '自 {{value}} 起',
+    'session.search.chip.after': '晚于 {{value}}',
     'session.search.chip.remove': '移除筛选 {{filter}}',
     'session.search.relaxed.allWords': '没有完全匹配的短语，显示包含所有词的结果',
     'session.search.relaxed.anyWord': '没有结果同时包含所有词，显示包含任一词的结果',
@@ -163,6 +164,7 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.notice.restoredUntitled': '已恢复会话',
     'session.notice.restoredCount': '已恢复 {{count}} 个会话',
     'session.notice.undoArchive': '撤销归档 {{title}}',
+    'session.notice.archived': '已归档 {{title}}',
     'session.notice.quotedName': '“{{title}}”',
     'session.notice.autoArchivedSession': '会话',
     'session.notice.autoArchivedMerged': '因拉取请求已合并，已归档{{session}}',
@@ -170,6 +172,7 @@ export const session: TranslatedNamespace<typeof source> = {
 
     // Agent detach, resume, and identifiers
     'session.archive.confirm': '停止并归档',
+    'session.archive.turnGuardTitle': '{{agent}} 仍在工作，要归档“{{title}}”吗？',
     'session.archive.outcome':
         '归档会停止当前轮次及其后台任务。恢复会话后可继续对话，但不会续跑被停止的轮次。',
     'session.detach.confirm': '停止并分离',

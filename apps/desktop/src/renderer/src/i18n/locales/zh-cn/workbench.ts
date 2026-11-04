@@ -14,6 +14,7 @@ export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.zenAttentionOne': '{{count}} 个会话在等你',
     'workbench.zenAttentionOther': '{{count}} 个会话在等你',
     'workbench.resizePanel': '调整面板大小',
+    'workbench.zenAttentionJump': '按 {{shortcut}} 跳转',
     'workbench.resizePrimarySidebar': '调整主侧边栏大小',
     'workbench.resizeSecondarySidebar': '调整辅助侧边栏大小',
 

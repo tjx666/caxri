@@ -128,6 +128,7 @@ export const session = {
     'session.search.helpMove': '↑↓ Move',
     'session.search.helpAction': '↵ Open, restore, or import',
     'session.search.helpBranches': '→ ← Branches',
+    'session.search.helpFilters': 'Tab Location · Shift+Tab Agent · Alt+T Time · Alt+S Sort',
     'session.search.sort': 'Sort',
     'session.search.sort.relevance': 'Relevance',
     'session.search.sort.recent': 'Recent',
@@ -138,7 +139,7 @@ export const session = {
     'session.search.chip.agent': 'Agent: {{value}}',
     'session.search.chip.project': 'Project: {{value}}',
     'session.search.chip.before': 'Before {{value}}',
-    'session.search.chip.after': 'From {{value}}',
+    'session.search.chip.after': 'After {{value}}',
     'session.search.chip.remove': 'Remove filter {{filter}}',
     'session.search.relaxed.allWords':
         'No exact phrase match; showing results containing all words',
@@ -168,6 +169,7 @@ export const session = {
     'session.notice.restoredUntitled': 'Restored Session',
     'session.notice.restoredCount': 'Restored {{count}} Sessions',
     'session.notice.undoArchive': 'Undo archiving {{title}}',
+    'session.notice.archived': 'Archived {{title}}',
     'session.notice.quotedName': '"{{title}}"',
     'session.notice.autoArchivedSession': 'Session',
     'session.notice.autoArchivedMerged': 'Archived {{session}} because its pull request was merged',
@@ -175,6 +177,7 @@ export const session = {
 
     // Agent detach, resume, and identifiers
     'session.archive.confirm': 'Stop and Archive',
+    'session.archive.turnGuardTitle': 'Archive “{{title}}” while {{agent}} is working?',
     'session.archive.outcome':
         'Archiving stops the current turn and its background work. Restoring the Session resumes the conversation, not the stopped turn.',
     'session.detach.confirm': 'Stop and Detach',

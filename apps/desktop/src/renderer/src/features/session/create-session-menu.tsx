@@ -18,6 +18,7 @@ import {
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
@@ -514,7 +515,12 @@ export function ActivitySessionCreationMenu({
             }
             onClick={() => pressSplitNewSession(project.id, 'activity')}
         >
-            <SquarePen className="flex-none text-muted" size={13} />
+            {/* The press repeats an Agent, so its icon says which one will start; with nothing to repeat the press only opens the list. */}
+            {splitKind ? (
+                <AgentIdentityIcon identity={splitKind} size={13} />
+            ) : (
+                <SquarePen className="flex-none text-muted" size={13} />
+            )}
             <span className="flex-none">{t('session.create.newSession')}</span>
             <span className="ml-auto min-w-0 truncate text-muted">{project.title}</span>
         </button>

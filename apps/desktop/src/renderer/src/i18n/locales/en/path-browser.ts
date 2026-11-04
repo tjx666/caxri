@@ -44,6 +44,7 @@ export const pathBrowser = {
     'pathBrowser.errors.invalidPath': 'Invalid path',
     'pathBrowser.errors.browseFailed': 'Unable to browse files',
     'pathBrowser.errors.openFailed': 'Unable to open path',
+    'pathBrowser.errors.brokenLink': 'Link target missing',
     'pathBrowser.errors.openExternalFailed': 'Unable to open external file in this Session',
     'pathBrowser.errors.reopenFolderFailed': 'Created folder could not be reopened',
     'pathBrowser.errors.createFolderFailed': 'Unable to create folder',

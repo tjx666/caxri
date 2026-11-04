@@ -87,18 +87,15 @@ export function SessionSearchFilters({ search }: { search: SessionSearchModel })
     return (
         <>
             <div className="flex flex-wrap items-center gap-1">
-                <div
-                    aria-label={t('session.search.statusFilter')}
-                    className="flex gap-0.5"
-                    role="group"
-                >
-                    {sessionSearchStatusFilters.map((filter) => (
-                        <Tooltip
-                            key={filter}
-                            content={t('session.search.statusFilterTooltip')}
-                            shortcut="Tab"
-                        >
+                <Tooltip content={t('session.search.statusFilterTooltip')} shortcut="Tab">
+                    <div
+                        aria-label={t('session.search.statusFilter')}
+                        className="flex gap-0.5"
+                        role="group"
+                    >
+                        {sessionSearchStatusFilters.map((filter) => (
                             <button
+                                key={filter}
                                 aria-pressed={search.status === filter}
                                 className={chipClassName}
                                 data-session-search-status-filter={filter}
@@ -107,9 +104,9 @@ export function SessionSearchFilters({ search }: { search: SessionSearchModel })
                             >
                                 {t(statusFilterLabelKeys[filter])}
                             </button>
-                        </Tooltip>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                </Tooltip>
                 <Divider />
                 <AgentFilterSelect search={search} />
                 <SessionTimeRangeSelect
@@ -119,6 +116,7 @@ export function SessionSearchFilters({ search }: { search: SessionSearchModel })
                         selectTriggerClassName,
                         search.timeRange !== 'all' && activeSelectTriggerClassName,
                     )}
+                    shortcut="Alt+T"
                     value={search.timeRange}
                     onChange={search.setTimeRange}
                 />
