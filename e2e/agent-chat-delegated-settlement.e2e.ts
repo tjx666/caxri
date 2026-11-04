@@ -190,7 +190,15 @@ test('a settled delegated task wakes the idle parent Chat, and an active wait su
             'completed',
         );
         await expect(session.getByText('[Caxri] Delegated task update:')).toHaveCount(0);
+        await expect(session.locator('[data-agent-chat-user-message]')).toHaveCount(1);
         await page.screenshot({ path: testInfo.outputPath('settlement-notice-turn.png') });
+
+        // The row opens the child Session it names.
+        const childId = (await strip
+            .locator('[data-agent-chat-delegated-session]')
+            .getAttribute('data-agent-chat-delegated-session'))!;
+        await session.locator('[data-agent-chat-delegation-notice-item]').click();
+        await expect.poll(() => selectedSessionId(page)).toBe(childId);
     } finally {
         await chat.cleanup();
     }
