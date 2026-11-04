@@ -372,3 +372,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## WeChat (closed product reference)
 
 - **Mobile Project pager**: Swiping the Session list moves the whole page with the finger and slides the neighboring Project's list in from the edge, like the paged main tabs of WeChat for Android. Evidence: `apps/mobile/src/features/sessions/components/session-project-pager.tsx`; `docs/mobile/design.md` (Session list).
+
+## macOS System Settings (closed product reference)
+
+- **Settings sidebar and grouped cards**: The search field heads the navigation column, the list-wide Show advanced settings switch sits at its foot, and each run of related rows is one rounded card with dividers inside a centered column. Evidence: `apps/desktop/src/renderer/src/features/settings/settings-sidebar.tsx`; `DESIGN.md` (Settings).

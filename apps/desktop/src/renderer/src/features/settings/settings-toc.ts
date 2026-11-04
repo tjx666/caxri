@@ -1,11 +1,15 @@
 import type { SettingsListItem } from './settings-search';
 
 /**
- * Anchor id a TOC entry scrolls to: a category id, or `category:subcategory`.
+ * Anchor id a TOC entry scrolls to: a category id, or `category:subcategory` for a subcategory the navigation lists. A
+ * subcategory it does not list (General's themed groups) answers with its category, the entry that owns it there.
  */
 export function settingsAnchorOf(item: SettingsListItem): string | undefined {
     if (item.kind === 'category') return item.category.id;
-    if (item.kind === 'subcategory') return `${item.categoryId}:${item.title}`;
+    if (item.kind === 'subcategory')
+        return item.subcategory.listedInNavigation
+            ? `${item.categoryId}:${item.subcategory.id}`
+            : item.categoryId;
     return undefined;
 }
 
@@ -32,7 +36,11 @@ export function settingsActiveAnchor(
     for (let index = topItem.index; index >= 0; index -= 1) {
         const item = list[index];
         if (item.kind === 'subcategory' || item.kind === 'category') return settingsAnchorOf(item);
-        if (item.row.subcategory) return `${item.row.category}:${item.row.subcategory}`;
+        const { subcategory } = item.row;
+        if (subcategory)
+            return subcategory.listedInNavigation
+                ? `${item.row.category}:${subcategory.id}`
+                : item.row.category;
     }
     return list[0] ? settingsAnchorOf(list[0]) : undefined;
 }

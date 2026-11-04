@@ -56,3 +56,53 @@ describe('settingsRows', () => {
         expect(categories).toEqual(['agents', 'agents', 'agents']);
     });
 });
+
+describe('settings subcategories', () => {
+    const { categories } = getSettingsRegistry(translate);
+
+    /**
+     * The list draws one heading and one card per run of rows sharing a subcategory, so a subcategory whose rows are
+     * split by another one would show its heading twice.
+     */
+    it('keeps the rows of each subcategory contiguous within their category', () => {
+        const split: string[] = [];
+        for (const category of categories) {
+            const runs = settingsRows
+                .filter((row) => row.category === category.id)
+                .map((row) => row.subcategory?.id ?? '')
+                .filter((id, index, ids) => index === 0 || ids[index - 1] !== id);
+            split.push(
+                ...runs
+                    .filter((id, index) => id && runs.indexOf(id) !== index)
+                    .map((id) => `${category.id}:${id}`),
+            );
+        }
+        expect(split).toEqual([]);
+    });
+
+    it('puts every General row in a group so General never opens with an unnamed card', () => {
+        const ungrouped = settingsRows
+            .filter((row) => row.category === 'general' && row.subcategory === undefined)
+            .map((row) => row.id);
+        expect(ungrouped).toEqual([]);
+        expect(
+            categories
+                .find((category) => category.id === 'general')
+                ?.subcategories.map((subcategory) => subcategory.title),
+        ).toEqual(['Workspace', 'Sessions', 'Appearance', 'Sidebar']);
+    });
+
+    it('lists exactly the Agent provider sections in the navigation', () => {
+        const subcategories = categories.flatMap((category) =>
+            category.subcategories.map((subcategory) => ({ category: category.id, subcategory })),
+        );
+        const listed = subcategories.filter(({ subcategory }) => subcategory.listedInNavigation);
+        expect(listed.map(({ subcategory }) => subcategory.id)).toEqual(
+            expect.arrayContaining(['claude', 'codex', 'grok']),
+        );
+        for (const { category, subcategory } of subcategories) {
+            expect(subcategory.listedInNavigation).toBe(subcategory.provider !== undefined);
+            if (subcategory.provider) expect(category).toBe('agents');
+        }
+    });
+});

@@ -12,6 +12,7 @@ import {
 } from '../../components/ui/field';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { hasOwnSurface } from './setting-row-layout';
 import type { SettingRowDescriptor } from './settings-registry';
 
 interface SettingRowChromeProperties {
@@ -44,7 +45,8 @@ interface SettingRowChromeProperties {
 
 /**
  * Shared chrome around every Settings row's control: title, description, info and reset affordances, and the modified
- * bar. The control itself is resolved by `SettingRow` from the row's binding.
+ * dot. The control itself is resolved by `SettingRow` from the row's binding; the card the row sits in is drawn by
+ * `SettingsPage`.
  */
 export function SettingRowChrome({
     row,
@@ -59,16 +61,47 @@ export function SettingRowChrome({
     showAdvancedTag,
 }: SettingRowChromeProperties) {
     const { t } = useTranslation();
+    if (hasOwnSurface(row))
+        return (
+            // The heading right above already names this row, so its title stays only as the group's accessible name.
+            <div
+                aria-label={row.accessibleTitle}
+                data-setting-row={row.id}
+                role="group"
+                className="flex flex-col gap-2"
+            >
+                {row.description && (
+                    <FieldDescription className="max-w-xl px-1">{row.description}</FieldDescription>
+                )}
+                {status}
+                {control}
+            </div>
+        );
     const labelBlock = (
-        <FieldContent className={fullWidth ? undefined : 'flex-[1_1_12rem]'}>
+        <FieldContent className={fullWidth ? 'gap-0.5' : 'flex-[1_1_12rem] gap-0.5'}>
             <span className="flex items-center gap-1.5">
                 {labelFor ? (
-                    <FieldLabel htmlFor={labelFor}>{row.title}</FieldLabel>
+                    <FieldLabel className="font-medium" htmlFor={labelFor}>
+                        {row.title}
+                    </FieldLabel>
                 ) : (
-                    <FieldTitle>{row.title}</FieldTitle>
+                    <FieldTitle className="font-medium">{row.title}</FieldTitle>
+                )}
+                {/*
+                 * A dot beside the title, not a bar on the row edge: inside a card the edge belongs to the card, and
+                 * a bar there would read as the card's own border.
+                 */}
+                {modified && (
+                    <Tooltip content={t('settings.page.modified')}>
+                        <span
+                            aria-label={t('settings.page.modified')}
+                            role="img"
+                            className="size-1.5 shrink-0 rounded-full bg-state-marker"
+                        />
+                    </Tooltip>
                 )}
                 {showAdvancedTag && (
-                    <span className="rounded-sm border border-border px-1 text-[10px] leading-4 text-muted">
+                    <span className="rounded-sm bg-elevated px-1 text-[10px] leading-4 text-muted">
                         {t('settings.page.advancedTag')}
                     </span>
                 )}
@@ -109,23 +142,11 @@ export function SettingRowChrome({
         </FieldContent>
     );
     return (
-        <div
-            data-setting-row={row.id}
-            className="group/setting relative rounded-md px-3 py-2 hover:bg-state-hover-quiet"
-        >
-            {modified && (
-                <Tooltip content={t('settings.page.modified')}>
-                    <span
-                        aria-label={t('settings.page.modified')}
-                        role="img"
-                        className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-state-marker"
-                    />
-                </Tooltip>
-            )}
+        <div data-setting-row={row.id} className="group/setting px-4 py-3">
             {fullWidth ? (
                 <Field className="gap-2">
                     {toggle ? (
-                        <div className="flex min-h-9 w-full items-start gap-4">
+                        <div className="flex min-h-9 w-full items-start gap-6">
                             {labelBlock}
                             {toggle}
                         </div>
@@ -139,7 +160,10 @@ export function SettingRowChrome({
                  * Wraps instead of squeezing: once the label block cannot keep 12rem beside the control, the control
                  * drops under the description, so a narrow pane never breaks a title one word per line.
                  */
-                <Field orientation="horizontal" className="min-h-9 flex-wrap items-start gap-4">
+                <Field
+                    orientation="horizontal"
+                    className="min-h-9 flex-wrap items-start gap-x-6 gap-y-2"
+                >
                     {labelBlock}
                     {control}
                 </Field>

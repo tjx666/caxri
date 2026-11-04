@@ -1688,18 +1688,28 @@ covers the Welcome view. Leaving the page commits a valid Source draft; an inval
 a warning says it was not saved, and the next plain open lands back on it. The Archived Sessions
 manager still floats its own dialog over the page. References: Superset, Orca, T3 Code. Its
 description reads: "Changes apply immediately and are stored as editable files."
-It has exactly one navigation: a left column listing the `settings.jsonc` categories and their
-subcategories, then Keybindings and Theme after a separator. No horizontal section strip sits above
-it. The column stays mounted and in place
-for every section and for the Source view; picking a category from Keybindings, Theme, or Source
-returns to the Settings list scrolled to it. The current category takes `aria-current="location"`,
-the current file section `aria-current="page"`.
+It has exactly one navigation: a left column listing the `settings.jsonc` categories, each with its
+icon, and the Agent providers under Agent, then Keybindings and Theme after a separator. No
+horizontal section strip sits above it. As in macOS System Settings, the search field heads that
+column and the **Show advanced settings** switch sits at its foot, so the content column holds only
+settings. The column stays mounted and in place for every section and for the Source view; typing a
+query or picking a category from Keybindings, Theme, or Source returns to the Settings list. The
+current category takes `aria-current="location"`, the current file section `aria-current="page"`.
+The list is one centered column, at most 768px wide, under a 15px heading per category. Rows sit in
+cards: each run of rows in one group or provider is one `--surface` card with a 1px `--border`
+outline and a divider between rows; the outline keeps the card visible in a theme whose surface
+matches its background, such as Oscura Midnight. General splits into Workspace, Sessions, Appearance, and Sidebar groups whose 12px muted
+headings the navigation does not list; a provider's heading carries the shared Agent identity icon.
 The list starts with everyday rows only (default Agent, Chat, notifications, fonts, permissions).
 Launch arguments, hooks, recovery rules, delegation depth, the debugging port, and other advanced
-rows appear under the **Show advanced settings** switch beside the search field, which this device
-remembers. Search always covers every row and tags an advanced match `Advanced`, a request that
-scrolls to an advanced row (Edit exclusions, the debugging chip) still lists it, and the navigation
-hides a category or subcategory left with no listed rows.
+rows appear under the advanced switch, which this device remembers and which counts the rows it
+hides. Search always covers every row and tags an advanced match `Advanced`, shows its match count
+under the field, a request that scrolls to an advanced row (Edit exclusions, the debugging chip)
+still lists it, and the navigation hides a category or subcategory left with no listed rows.
+A row whose value differs from its default shows a small dot after its title; its reset button
+appears on hover. Settings › Hosts is one card of its own: a row per machine (glyph, name and
+connection, icon, display name, reconnect switch, more menu) ending in the Connect to SSH Host row,
+with the icon and name fields moving under the machine's name when the card is narrow.
 Field labels in plain language; byte values rendered as human units (`2 MB`) with unit-aware
 input. There is no Apply button and no per-section dirty marker: a structured control writes as
 soon as it changes, and the raw source editor commits when it loses focus, reporting a parse
@@ -1714,8 +1724,7 @@ label or the control toggles it. Keybindings group under their catalog category 
 list, keep each row's command id out of sight behind a hover tooltip, and drop the shared `Kbd`
 chip's own border where the row's own control already supplies the chrome. Theme colors tile in a
 grid instead of one tall column per section, and Import Theme lives on the preset row rather than
-its own toolbar above it. Provider launch groups use quiet `--elevated` sections headed by the
-shared Agent identity icon, and every multiline value uses the same themed field/focus redline as
+its own toolbar above it. Every multiline value uses the same themed field/focus redline as
 single-line input.
 
 A consequential choice may not live only inside a free-text field. Every bundled Agent launches

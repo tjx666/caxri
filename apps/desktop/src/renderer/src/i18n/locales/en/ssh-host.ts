@@ -34,10 +34,7 @@ export const sshHost = {
 
     // Settings › Hosts
     'sshHost.settings.connect': 'Connect to SSH Host…',
-    'sshHost.settings.column.host': 'Host',
-    'sshHost.settings.column.icon': 'Icon',
-    'sshHost.settings.column.name': 'Display Name',
-    'sshHost.settings.column.reconnectOnLaunch': 'Reconnect on Launch',
+    'sshHost.settings.reconnectOnLaunch': 'Reconnect on Launch',
     'sshHost.settings.localMachine': 'Local machine',
     'sshHost.settings.connected': 'Connected',
     'sshHost.settings.disconnected': 'Disconnected',

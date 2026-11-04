@@ -261,6 +261,15 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // "Keeps actions visible" now means the header's UI/Source toggle (Apply is gone) stays
         // pinned instead of scrolling out of view with the content.
         await expect(settingsTab.getByRole('button', { name: 'Edit as File' })).toBeVisible();
+
+        // The search field stays in the navigation column over Theme, and typing there brings the
+        // Settings list back already filtered.
+        await expect(searchInput).toHaveValue('');
+        await searchInput.fill('font size');
+        await expect(
+            settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }),
+        ).toBeVisible();
+        await expect(settingsTab.getByLabel('Theme preview')).toHaveCount(0);
         expect(pageErrors).toEqual([]);
     } finally {
         await running.app.close();
