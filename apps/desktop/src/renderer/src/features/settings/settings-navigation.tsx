@@ -1,3 +1,21 @@
+import type { SettingCategoryId } from '@caxri/protocol';
+import type { LucideIcon } from 'lucide-react';
+import {
+    Bell,
+    Bot,
+    FileCode,
+    Folder,
+    GitPullRequest,
+    Keyboard,
+    MessageSquare,
+    Palette,
+    Server,
+    Settings2,
+    Shield,
+    Smartphone,
+    SquareTerminal,
+} from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utilities';
@@ -7,15 +25,32 @@ import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import type { ConfigKind } from './config-edit';
 import type { SettingsCategory } from './settings-registry';
-import { agentProviderForSubcategory } from './settings-registry';
 
 /**
  * A hovered entry gets a lighter wash than the current one, which also takes a heavier weight, so the entry under the
  * pointer never reads as a second current location.
  */
 const ENTRY_CLASS =
-    'w-full justify-start border-0 text-left text-[12px] font-normal text-muted hover:text-foreground';
+    'w-full justify-start gap-2 border-0 text-left text-[12px] font-normal text-muted hover:text-foreground';
 const ACTIVE_CLASS = 'bg-elevated font-medium text-foreground enabled:hover:bg-elevated';
+
+/**
+ * Every entry leads with an icon so the column scans by shape, as macOS System Settings' sidebar does; an Agent
+ * provider's entry takes that Agent's identity icon instead.
+ */
+const CATEGORY_ICONS: Record<SettingCategoryId, LucideIcon> = {
+    hosts: Server,
+    general: Settings2,
+    chat: MessageSquare,
+    notifications: Bell,
+    mobile: Smartphone,
+    terminal: SquareTerminal,
+    editor: FileCode,
+    security: Shield,
+    files: Folder,
+    projectStatus: GitPullRequest,
+    agents: Bot,
+};
 
 /**
  * The two configuration files that are not schema categories of `settings.jsonc`, listed after them in the same column.
@@ -23,9 +58,10 @@ const ACTIVE_CLASS = 'bg-elevated font-medium text-foreground enabled:hover:bg-e
 const FILE_SECTIONS: ReadonlyArray<{
     kind: Exclude<ConfigKind, 'settings'>;
     label: TranslationKey;
+    icon: LucideIcon;
 }> = [
-    { kind: 'keybindings', label: 'settings.page.tab.keybindings' },
-    { kind: 'theme', label: 'settings.page.tab.theme' },
+    { kind: 'keybindings', label: 'settings.page.tab.keybindings', icon: Keyboard },
+    { kind: 'theme', label: 'settings.page.tab.theme', icon: Palette },
 ];
 
 export interface SettingsNavigationProperties {
@@ -49,10 +85,10 @@ export interface SettingsNavigationProperties {
 }
 
 /**
- * The one Settings navigation column: the `settings.jsonc` categories (the table of contents of the Settings section),
- * then Keybindings and Theme. It replaced a horizontal Settings / Keybindings / Theme strip above a second, vertical
- * table of contents, which stacked two navigations for one page inside a Workbench tab that already sits under two tab
- * rows. The column renders identically for every section so switching sections never moves it.
+ * The one Settings navigation: the `settings.jsonc` categories (the table of contents of the Settings section), then
+ * Keybindings and Theme. It replaced a horizontal Settings / Keybindings / Theme strip above a second, vertical table
+ * of contents, which stacked two navigations for one page inside a Workbench tab that already sits under two tab rows.
+ * The column renders identically for every section so switching sections never moves it.
  */
 export function SettingsNavigation({
     categories,
@@ -67,16 +103,17 @@ export function SettingsNavigation({
     const { t } = useTranslation();
     const isSettings = section === 'settings';
     return (
-        <nav
-            aria-label={t('settings.page.categoriesNav')}
-            className="min-h-0 overflow-y-auto py-2 pl-2"
-        >
+        <nav aria-label={t('settings.page.categoriesNav')} className="min-h-0 overflow-y-auto pl-3">
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                 {categories.map((category) => {
                     const count = counts[category.id] ?? 0;
                     if (filtered && count === 0) return null;
                     // A subcategory carries the location on its own, so `aria-current` names exactly one entry.
                     const isActive = isSettings && activeAnchor === category.id;
+                    const Icon = CATEGORY_ICONS[category.id];
+                    const listedSubcategories = category.subcategories.filter(
+                        (subcategory) => subcategory.listedInNavigation,
+                    );
                     return (
                         <li key={category.id}>
                             <Button
@@ -84,28 +121,24 @@ export function SettingsNavigation({
                                 size="sm"
                                 type="button"
                                 aria-current={isActive ? 'location' : undefined}
-                                className={cn(
-                                    ENTRY_CLASS,
-                                    'justify-between gap-2',
-                                    isActive && ACTIVE_CLASS,
-                                )}
+                                className={cn(ENTRY_CLASS, isActive && ACTIVE_CLASS)}
                                 onClick={() => onNavigate(category.id)}
                             >
-                                <span className="truncate">{category.title}</span>
+                                <Icon aria-hidden="true" className="shrink-0" size={14} />
+                                <span className="min-w-0 flex-1 truncate">{category.title}</span>
                                 {searching && (
                                     <span className="text-[10px] text-muted tabular-nums">
                                         {count}
                                     </span>
                                 )}
                             </Button>
-                            {category.subcategories.length > 0 && (
+                            {listedSubcategories.length > 0 && (
                                 <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-                                    {category.subcategories.map((subcategory) => {
-                                        const anchor = `${category.id}:${subcategory}`;
+                                    {listedSubcategories.map((subcategory) => {
+                                        const anchor = `${category.id}:${subcategory.id}`;
                                         // A subcategory with no matches has no heading in the
                                         // filtered list, so its entry would be a dead click.
                                         if (filtered && (counts[anchor] ?? 0) === 0) return null;
-                                        const provider = agentProviderForSubcategory(subcategory);
                                         const isSubActive = isSettings && activeAnchor === anchor;
                                         return (
                                             <li key={anchor}>
@@ -118,18 +151,20 @@ export function SettingsNavigation({
                                                     }
                                                     className={cn(
                                                         ENTRY_CLASS,
-                                                        'gap-2 pl-6',
+                                                        'pl-8',
                                                         isSubActive && ACTIVE_CLASS,
                                                     )}
                                                     onClick={() => onNavigate(anchor)}
                                                 >
-                                                    {provider && (
+                                                    {subcategory.provider && (
                                                         <AgentIdentityIcon
-                                                            identity={provider}
+                                                            identity={subcategory.provider}
                                                             size={13}
                                                         />
                                                     )}
-                                                    <span className="truncate">{subcategory}</span>
+                                                    <span className="truncate">
+                                                        {subcategory.title}
+                                                    </span>
                                                 </Button>
                                             </li>
                                         );
@@ -142,7 +177,7 @@ export function SettingsNavigation({
             </ul>
             <Separator className="my-2" />
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-                {FILE_SECTIONS.map(({ kind, label }) => (
+                {FILE_SECTIONS.map(({ kind, label, icon: Icon }) => (
                     <li key={kind}>
                         <Button
                             variant="ghost"
@@ -152,6 +187,7 @@ export function SettingsNavigation({
                             className={cn(ENTRY_CLASS, section === kind && ACTIVE_CLASS)}
                             onClick={() => onSectionChange(kind)}
                         >
+                            <Icon aria-hidden="true" className="shrink-0" size={14} />
                             <span className="truncate">{t(label)}</span>
                         </Button>
                     </li>

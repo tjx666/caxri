@@ -1,10 +1,5 @@
 import type { AgentProvider, SettingCategoryId, SettingSpec } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    agentProviderIds,
-    settingCategories,
-    settingsSpecByKey,
-} from '@caxri/protocol';
+import { agentProviderCatalog, settingCategories, settingsSpecByKey } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
@@ -14,7 +9,11 @@ import {
     settingOptionLabel,
     settingTitle,
 } from './setting-spec-text';
-import type { SettingRowBinding, SettingRowSource } from './settings-row-sources';
+import type {
+    SettingRowBinding,
+    SettingRowSource,
+    SettingSubcategorySource,
+} from './settings-row-sources';
 import { lower, settingRowSources } from './settings-row-sources';
 
 export type { SettingRowBinding } from './settings-row-sources';
@@ -26,9 +25,9 @@ export interface SettingRowDescriptor {
     id: string;
     category: SettingCategoryId;
     /**
-     * Secondary grouping rendered as an inline heading and an indented TOC entry (Agents).
+     * The titled group the row belongs to inside its category (see `SettingSubcategorySource`).
      */
-    subcategory?: string;
+    subcategory?: SettingSubcategory;
     title: string;
     /**
      * Accessible name for the row's control, which is `title` unless another row shares it.
@@ -65,10 +64,30 @@ export interface SettingRowDescriptor {
     haystack: string;
 }
 
+/**
+ * A translated subcategory: one heading and card in the list, and an indented navigation entry when listed there.
+ */
+export interface SettingSubcategory {
+    /**
+     * Unique within its category; `category:id` is its navigation anchor.
+     */
+    id: string;
+    title: string;
+    /**
+     * The Agent a provider section configures, whose identity icon heads the section and its navigation entry.
+     */
+    provider?: AgentProvider;
+    /**
+     * Whether the Settings navigation lists it under its category. Only provider sections are listed; a short
+     * category's themed groups are reached by scrolling the category itself.
+     */
+    listedInNavigation: boolean;
+}
+
 export interface SettingsCategory {
     id: SettingCategoryId;
     title: string;
-    subcategories: string[];
+    subcategories: SettingSubcategory[];
 }
 
 export interface SettingsRegistry {
@@ -117,6 +136,17 @@ function translatedSpecTerms(t: Translate, source: SettingRowSource): string[] {
     ].filter((term): term is string => term !== undefined);
 }
 
+function translateSubcategory(t: Translate, source: SettingSubcategorySource): SettingSubcategory {
+    if (source.kind === 'provider')
+        return {
+            id: source.id,
+            title: agentProviderCatalog[source.id].displayName,
+            provider: source.id,
+            listedInNavigation: true,
+        };
+    return { id: source.id, title: t(source.titleKey), listedInNavigation: false };
+}
+
 /**
  * Translates every row and category for the locale `t` renders. Prefer `getSettingsRegistry`, which memoizes per
  * translator.
@@ -132,12 +162,24 @@ function buildSettingsRegistry(t: Translate): SettingsRegistry {
     for (const { source, title } of translated)
         if (titleNamedBindings.has(source.binding.type))
             titleCounts.set(title, (titleCounts.get(title) ?? 0) + 1);
+    const subcategories = new Map<string, SettingSubcategory>();
+    const subcategoryOf = (source: SettingRowSource): SettingSubcategory | undefined => {
+        if (source.subcategory === undefined) return undefined;
+        const key = `${source.category}:${source.subcategory.id}`;
+        let subcategory = subcategories.get(key);
+        if (!subcategory) {
+            subcategory = translateSubcategory(t, source.subcategory);
+            subcategories.set(key, subcategory);
+        }
+        return subcategory;
+    };
     const rows = translated.map(({ source, title, description, detail }) => {
         const categoryTitle = settingCategoryTitle(t, source.category);
+        const subcategory = subcategoryOf(source);
         return {
             id: source.id,
             category: source.category,
-            subcategory: source.subcategory,
+            subcategory,
             title,
             accessibleTitle:
                 (titleCounts.get(title) ?? 0) > 1
@@ -155,7 +197,7 @@ function buildSettingsRegistry(t: Translate): SettingsRegistry {
                 ...translatedSpecTerms(t, source),
                 englishCategoryTitles[source.category],
                 categoryTitle,
-                source.subcategory,
+                subcategory?.title,
             ]),
         } satisfies SettingRowDescriptor;
     });
@@ -198,13 +240,4 @@ export function getSettingsRegistry(t: Translate): SettingsRegistry {
 export function useSettingsRegistry(): SettingsRegistry {
     const { t } = useTranslation();
     return getSettingsRegistry(t);
-}
-
-/**
- * Resolves a subcategory heading back to its Agent provider for identity icons.
- */
-export function agentProviderForSubcategory(title: string): AgentProvider | undefined {
-    return agentProviderIds.find(
-        (provider) => agentProviderCatalog[provider].displayName === title,
-    );
 }

@@ -37,6 +37,19 @@ export type SettingRowBinding =
     | { type: 'hardware-acceleration' };
 
 /**
+ * A titled group of rows inside a category, rendered as a heading over its own card.
+ *
+ * - `group` splits a short category into themed cards (General's Workspace, Sessions, Appearance, Sidebar). The whole
+ *   category fits a screen or two, so its groups stay out of the Settings navigation, which would otherwise list four
+ *   entries for one page.
+ * - `provider` is one Agent's section under Agents: long enough that the navigation lists it, and headed by that Agent's
+ *   identity icon. Provider names are never translated.
+ */
+export type SettingSubcategorySource =
+    | { kind: 'group'; id: string; titleKey: TranslationKey }
+    | { kind: 'provider'; id: AgentProvider };
+
+/**
  * A row as declared, before the registry translates it for a locale. Visible text is stored as translation keys so the
  * registry can render it in the active language; `searchTerms` holds the English corpus (the protocol catalog's text,
  * its keywords, and hand-picked synonyms), which stays searchable in every language.
@@ -48,10 +61,10 @@ export interface SettingRowSource {
     id: string;
     category: SettingCategoryId;
     /**
-     * Secondary grouping rendered as an inline heading and an indented TOC entry (Agents). Provider names, which are
-     * never translated.
+     * The group the row belongs to inside its category. A category's rows with no subcategory come first, and each
+     * subcategory's rows stay contiguous, because the list emits a heading wherever the subcategory changes.
      */
-    subcategory?: string;
+    subcategory?: SettingSubcategorySource;
     titleKey: TranslationKey;
     descriptionKey?: TranslationKey;
     detailKey?: TranslationKey;
@@ -117,9 +130,30 @@ function specRow(key: SettingKey, extra?: Partial<SettingRowSource>): SettingRow
     };
 }
 
+/**
+ * General's themed cards, in display order.
+ */
+const generalGroups = {
+    workspace: {
+        kind: 'group',
+        id: 'workspace',
+        titleKey: 'settings.subcategory.general.workspace',
+    },
+    sessions: { kind: 'group', id: 'sessions', titleKey: 'settings.subcategory.general.sessions' },
+    appearance: {
+        kind: 'group',
+        id: 'appearance',
+        titleKey: 'settings.subcategory.general.appearance',
+    },
+    sidebar: { kind: 'group', id: 'sidebar', titleKey: 'settings.subcategory.general.sidebar' },
+} as const satisfies Record<string, SettingSubcategorySource>;
+
 function providerRows(provider: AgentProvider): SettingRowSource[] {
     const providerName = agentProviderCatalog[provider].displayName;
-    const shared = { category: 'agents' as const, subcategory: providerName };
+    const shared = {
+        category: 'agents' as const,
+        subcategory: { kind: 'provider', id: provider } as const,
+    };
     const providerTerms = [provider, providerName, 'agent', 'provider'];
     return [
         {
@@ -252,25 +286,52 @@ function providerRows(provider: AgentProvider): SettingRowSource[] {
  * Every Settings row in display order, grouped by category.
  */
 export const settingRowSources: SettingRowSource[] = [
-    specRow('workbench.language'),
-    specRow('session.defaultAgent'),
-    specRow('session.openAgentsInChat'),
-    specRow('workbench.externalEditor'),
-    specRow('workbench.theme.followSystem'),
-    specRow('workbench.theme.light', { enabledBy: 'workbench.theme.followSystem' }),
-    specRow('workbench.theme.dark', { enabledBy: 'workbench.theme.followSystem' }),
-    specRow('primarySidebar.autoCollapseProjects'),
-    specRow('primarySidebar.showSubagents'),
-    specRow('primarySidebar.translucent'),
-    specRow('zen.fullScreen', { advanced: true }),
-    specRow('zen.restore', { advanced: true }),
-    specRow('statusBar.usage.limitWindows', { advanced: true }),
-    specRow('workbench.newWorktreeBehavior', { advanced: true }),
-    specRow('workbench.confirmWorktreeAuthorization', { advanced: true }),
-    specRow('workbench.removeWorktreeOnArchive', { advanced: true }),
-    specRow('workbench.fontFamily'),
-    specRow('window.zoomLevel'),
-    specRow('updates.skippedVersion', { advanced: true }),
+    specRow('workbench.language', { subcategory: generalGroups.workspace }),
+    specRow('workbench.externalEditor', { subcategory: generalGroups.workspace }),
+    specRow('workbench.newWorktreeBehavior', {
+        advanced: true,
+        subcategory: generalGroups.workspace,
+    }),
+    specRow('workbench.confirmWorktreeAuthorization', {
+        advanced: true,
+        subcategory: generalGroups.workspace,
+    }),
+    specRow('workbench.removeWorktreeOnArchive', {
+        advanced: true,
+        subcategory: generalGroups.workspace,
+    }),
+    specRow('updates.skippedVersion', { advanced: true, subcategory: generalGroups.workspace }),
+    specRow('session.defaultAgent', { subcategory: generalGroups.sessions }),
+    specRow('session.openAgentsInChat', { subcategory: generalGroups.sessions }),
+    {
+        id: 'sessions.archived',
+        category: 'general',
+        subcategory: generalGroups.sessions,
+        titleKey: 'settings.row.archivedSessions.title',
+        descriptionKey: 'settings.row.archivedSessions.description',
+        binding: { type: 'archived-sessions' },
+        searchTerms: lower(['archived sessions', 'restore', 'delete', 'manage', 'history']),
+    },
+    specRow('statusBar.usage.limitWindows', {
+        advanced: true,
+        subcategory: generalGroups.sessions,
+    }),
+    specRow('workbench.theme.followSystem', { subcategory: generalGroups.appearance }),
+    specRow('workbench.theme.light', {
+        enabledBy: 'workbench.theme.followSystem',
+        subcategory: generalGroups.appearance,
+    }),
+    specRow('workbench.theme.dark', {
+        enabledBy: 'workbench.theme.followSystem',
+        subcategory: generalGroups.appearance,
+    }),
+    specRow('workbench.fontFamily', { subcategory: generalGroups.appearance }),
+    specRow('window.zoomLevel', { subcategory: generalGroups.appearance }),
+    specRow('zen.fullScreen', { advanced: true, subcategory: generalGroups.appearance }),
+    specRow('zen.restore', { advanced: true, subcategory: generalGroups.appearance }),
+    specRow('primarySidebar.autoCollapseProjects', { subcategory: generalGroups.sidebar }),
+    specRow('primarySidebar.showSubagents', { subcategory: generalGroups.sidebar }),
+    specRow('primarySidebar.translucent', { subcategory: generalGroups.sidebar }),
     specRow('agentChat.longPasteThreshold', { advanced: true }),
     specRow('agentChat.workingIndicator', { advanced: true }),
     specRow('agentChat.animatedToolIcons', { advanced: true }),
@@ -300,14 +361,6 @@ export const settingRowSources: SettingRowSource[] = [
         descriptionKey: 'settings.row.hostNames.description',
         binding: { type: 'host-names' },
         searchTerms: lower(['host names', 'side bar', 'sidebar', 'icon', 'label']),
-    },
-    {
-        id: 'sessions.archived',
-        category: 'general',
-        titleKey: 'settings.row.archivedSessions.title',
-        descriptionKey: 'settings.row.archivedSessions.description',
-        binding: { type: 'archived-sessions' },
-        searchTerms: lower(['archived sessions', 'restore', 'delete', 'manage', 'history']),
     },
     {
         id: 'mobile.access',

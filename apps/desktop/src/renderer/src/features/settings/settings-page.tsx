@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
@@ -9,10 +10,10 @@ import type {
     ArgvConfigChanges,
 } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
-
-import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
+import { SearchX } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
@@ -20,10 +21,10 @@ import { useDialogStore } from '../../stores/dialogs';
 import { useAgentFocusRequests } from './hooks/use-agent-focus-requests';
 import { useVisibleSettingsRows } from './hooks/use-visible-settings-rows';
 import { SettingRow } from './setting-row';
-import { SettingsPageHeader } from './settings-page-header';
+import { hasOwnSurface } from './setting-row-layout';
 import type { SettingRowDescriptor } from './settings-registry';
-import { agentProviderForSubcategory, useSettingsRegistry } from './settings-registry';
-import type { SettingsListItem } from './settings-search';
+import { useSettingsRegistry } from './settings-registry';
+import type { SettingsCardPosition, SettingsListItem } from './settings-search';
 import { buildSettingsList, countRowsByCategory } from './settings-search';
 import { settingsActiveAnchor, settingsAnchorOf } from './settings-toc';
 import { rowResetAction } from './settings-values';
@@ -36,6 +37,15 @@ export interface SettingsNavigationState {
      * Rows are filtered (a query, or advanced rows hidden), so a TOC entry with no listed rows would be a dead click.
      */
     filtered: boolean;
+    /**
+     * Rows the list shows, out of {@link totalCount}; the navigation column reports them under its search field.
+     */
+    visibleCount: number;
+    totalCount: number;
+    /**
+     * Advanced rows the list leaves out, shown beside the navigation's Show advanced settings switch.
+     */
+    hiddenAdvancedCount: number;
 }
 
 export interface SettingsPageProperties {
@@ -54,12 +64,10 @@ export interface SettingsPageProperties {
     trustedDomainsFocusRequestId?: number;
     notificationsFocusRequestId?: number;
     /**
-     * Bumped when Settings is opened without a target, which lands the caret in the search field the way VS Code and
-     * macOS System Settings do. This is a revision request rather than the dialog's own `initialFocus` because the
-     * field does not exist yet when Base UI resolves that: the page renders only once `settings.jsonc` has loaded, so
-     * on the first open of a session the dialog's focus resolution runs against a tab panel that is still empty.
+     * The search typed in the navigation column, which owns the field (`useSettingsSearchQuery`).
      */
-    searchFocusRequestId?: number;
+    query: string;
+    onQueryChange: (query: string) => void;
     /**
      * Scrolls to a category or `category:subcategory` anchor picked in the Settings navigation.
      */
@@ -81,46 +89,111 @@ export interface SettingsPageProperties {
     ) => void;
 }
 
-function SubcategoryHeading({ title }: { title: string }) {
-    const provider = agentProviderForSubcategory(title);
-    return (
-        <h4
-            data-agent-provider={provider}
-            className="m-0 flex items-center gap-2 px-3 pt-3 pb-1 text-[13px] font-medium text-foreground"
-        >
-            {provider && <AgentIdentityIcon identity={provider} size={14} />}
-            {title}
-        </h4>
+/**
+ * Class names that draw one row's slice of its card (see `SettingsCardPosition`). The hairline outline keeps a card
+ * visible in a theme whose `--surface` matches `--background` (Oscura Midnight); a slice's top edge is the card's top
+ * outline or the divider above the row.
+ */
+function cardSliceClassName(card: SettingsCardPosition): string {
+    return cn(
+        'border-x border-t border-border bg-surface',
+        card.first && 'rounded-t-md',
+        card.last && 'rounded-b-md border-b',
     );
 }
 
+/**
+ * One entry of the Settings list: a category heading, a subcategory heading, or a row (`children`) drawn as its slice
+ * of the card, unless the row draws its own surface.
+ */
+function SettingsListEntry({
+    item,
+    isFirst,
+    children,
+}: {
+    item: SettingsListItem;
+    isFirst: boolean;
+    children?: ReactNode;
+}) {
+    if (item.kind === 'category')
+        return (
+            <h2
+                className={cn(
+                    'm-0 px-1 pb-3 text-[15px] font-semibold text-foreground',
+                    isFirst ? 'pt-6' : 'pt-5',
+                )}
+            >
+                {item.category.title}
+            </h2>
+        );
+    if (item.kind === 'subcategory') {
+        const { provider } = item.subcategory;
+        return (
+            <h3
+                data-agent-provider={provider}
+                className="m-0 flex items-center gap-2 px-1 pt-1 pb-2 text-[12px] font-medium text-muted"
+            >
+                {provider && <AgentIdentityIcon identity={provider} size={13} />}
+                {item.subcategory.title}
+            </h3>
+        );
+    }
+    return (
+        <div className={hasOwnSurface(item.row) ? undefined : cardSliceClassName(item.card)}>
+            {children}
+        </div>
+    );
+}
+
+/**
+ * The list left empty: by a query with no match, offering to clear it, or by a registry with nothing to show.
+ */
+function SettingsNoMatches({ query, onClear }: { query: string; onClear: () => void }) {
+    const { t } = useTranslation();
+    return (
+        <Empty className="pt-16">
+            <EmptyMedia>
+                <SearchX aria-hidden="true" size={20} />
+            </EmptyMedia>
+            <EmptyTitle>{t('settings.page.noMatches', { query: query.trim() })}</EmptyTitle>
+            {query.trim() && (
+                <Button size="sm" variant="secondary" onClick={onClear}>
+                    {t('settings.page.clearSearchAction')}
+                </Button>
+            )}
+        </Empty>
+    );
+}
+
+/**
+ * Measured heights of the common case: a one-line title with a one-line description and its 1px top edge, plus the last
+ * row's bottom outline and the card's 12px bottom gap. A navigation jump right after Show advanced settings turns on
+ * lands on offsets computed from these estimates for dozens of unmeasured rows, so each pixel of error per row
+ * compounds; an estimate of 68 overshot Claude by ~400px.
+ */
 const estimateItemSize = (item: SettingsListItem): number => {
-    if (item.kind === 'category') return 42;
-    if (item.kind === 'subcategory') return 34;
-    return 76;
+    if (item.kind === 'category') return 55;
+    if (item.kind === 'subcategory') return 30;
+    return item.card.last ? 75 : 62;
 };
 
 /**
- * VS Code-style Settings list: search on top over one virtualized flat list of headings and rows. Its table of contents
- * is `SettingsNavigation`, rendered by the Workbench page so it also stays over Keybindings and Theme. Rendering stays
- * schema-driven: rows come from the Settings registry, so the list scales to any number of settings without DOM cost.
+ * The Settings list: one virtualized flat list of headings and rows, grouped into cards inside a centered column. Its
+ * search field and table of contents live in the navigation column (`SettingsSidebar`), rendered by the Workbench page
+ * so they also stay over Keybindings and Theme. Rendering stays schema-driven: rows come from the Settings registry, so
+ * the list scales to any number of settings without DOM cost.
  */
 export function SettingsPage(properties: SettingsPageProperties) {
-    const { settings, argvConfig, trustedDomainsFocusRequestId } = properties;
-    const { t } = useTranslation();
+    const { settings, argvConfig, trustedDomainsFocusRequestId, query } = properties;
     const { categories, rows } = useSettingsRegistry();
-    const [query, setQuery] = useState('');
     const isSearching = query.trim().length > 0;
     const scrollParentReference = useRef<HTMLDivElement>(null);
-    const searchInputReference = useRef<HTMLInputElement>(null);
     const isCreateSessionSuspended = useDialogStore((state) => state.isPendingSuspended);
     const handledFocusRequest = useRef(0);
     const handledGitExclusionsFocusRequest = useRef(0);
     const handledRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
     const handledAnchorRequest = useRef(0);
-
-    useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
 
     const { showAdvanced, visibleRows, hiddenAdvancedCount } = useVisibleSettingsRows(
         rows,
@@ -164,9 +237,11 @@ export function SettingsPage(properties: SettingsPageProperties) {
      * above it would keep the highlight.
      */
     const [pinnedAnchor, setPinnedAnchor] = useState<{ anchor: string; requests: string }>();
+    const searchedQuery = query.trim();
     /**
      * A focus request that arrives later scrolls to its own row, so it releases the pin the same way user scrolling
-     * does: the pin only holds while the requests it was set under are still the latest ones.
+     * does: the pin only holds while the requests it was set under are still the latest ones. A new query re-filters
+     * the list under the pin, so it hides the pin at once and the effect below releases it.
      */
     const focusRequests = [
         trustedDomainsFocusRequestId,
@@ -175,14 +250,27 @@ export function SettingsPage(properties: SettingsPageProperties) {
         properties.gitExclusionsFocusRequestId,
         properties.rowFocusRequest?.id,
         properties.notificationsFocusRequestId,
+        searchedQuery,
     ].join(':');
     const activeAnchor =
         pinnedAnchor?.requests === focusRequests ? pinnedAnchor.anchor : spiedAnchor;
     const releasePinnedAnchor = (): void => setPinnedAnchor(undefined);
-    const changeQuery = (next: string): void => {
+
+    /**
+     * A new query lists other rows, so its result starts at the top and the clicked navigation entry no longer holds;
+     * released only through `focusRequests`, the pin came back when the query returned to the one it was set under.
+     * Scrolling to the top also replaces a jump still in flight: TanStack Virtual retargets a `scrollToIndex` for up to
+     * five seconds until it settles, and that index named a row of the previous list, so clearing a query right after
+     * picking Claude landed back on Claude. Declared before the request effects below, so a request arriving in the
+     * same commit still has the last word.
+     */
+    const lastSearchedQuery = useRef(searchedQuery);
+    useEffect(() => {
+        if (lastSearchedQuery.current === searchedQuery) return;
+        lastSearchedQuery.current = searchedQuery;
         setPinnedAnchor(undefined);
-        setQuery(next);
-    };
+        virtualizer.scrollToOffset(0);
+    }, [searchedQuery, virtualizer]);
 
     const { anchorRequest, onAnchorRequestHandled, onNavigationStateChange } = properties;
     useEffect(() => {
@@ -205,6 +293,8 @@ export function SettingsPage(properties: SettingsPageProperties) {
         virtualItems.length,
     ]);
 
+    const visibleCount = visibleRows.length;
+    const totalCount = rows.length;
     useEffect(() => {
         // The scroll-spied anchor comes from this page's virtualizer, and the navigation that shows it must outlive the
         // page over Keybindings, Theme, and Source, so the state cannot be lifted into the parent with the list.
@@ -214,8 +304,20 @@ export function SettingsPage(properties: SettingsPageProperties) {
             counts,
             searching: isSearching,
             filtered: isFiltered,
+            visibleCount,
+            totalCount,
+            hiddenAdvancedCount,
         });
-    }, [activeAnchor, counts, isFiltered, isSearching, onNavigationStateChange]);
+    }, [
+        activeAnchor,
+        counts,
+        hiddenAdvancedCount,
+        isFiltered,
+        isSearching,
+        onNavigationStateChange,
+        totalCount,
+        visibleCount,
+    ]);
     useEffect(() => () => onNavigationStateChange?.(undefined), [onNavigationStateChange]);
 
     // A `trusted-domains` open request scrolls the row into view; the mounted editor then grabs
@@ -308,64 +410,49 @@ export function SettingsPage(properties: SettingsPageProperties) {
     };
 
     return (
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-            <SettingsPageHeader
-                inputRef={searchInputReference}
-                query={query}
-                showAdvanced={showAdvanced}
-                hiddenAdvancedCount={hiddenAdvancedCount}
-                totalCount={rows.length}
-                visibleCount={visibleRows.length}
-                onQueryChange={changeQuery}
-            />
-            {/* Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not. */}
-            <div
-                ref={scrollParentReference}
-                className={cn(
-                    'min-h-0 overflow-y-auto pr-2 pb-6 pl-1',
-                    // Keeps the last rows clear of the floating Create Session resume bar.
-                    isCreateSessionSuspended && 'pb-24',
-                )}
-                onKeyDown={releasePinnedAnchor}
-                onPointerDown={(event) => {
-                    if (event.target === event.currentTarget) releasePinnedAnchor();
-                }}
-                onTouchMove={releasePinnedAnchor}
-                onWheel={releasePinnedAnchor}
-            >
-                {list.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
-                        <p className="m-0 text-[12px] text-muted">
-                            {t('settings.page.noMatches', { query: query.trim() })}
-                        </p>
-                        {isSearching && (
-                            <Button size="sm" variant="secondary" onClick={() => changeQuery('')}>
-                                {t('settings.page.clearSearchAction')}
-                            </Button>
-                        )}
-                    </div>
-                ) : (
-                    <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-                        {virtualItems.map((virtualItem) => {
-                            const item = list[virtualItem.index];
-                            return (
-                                <div
-                                    key={virtualItem.key}
-                                    ref={virtualizer.measureElement}
-                                    data-index={virtualItem.index}
-                                    className="absolute top-0 left-0 w-full"
-                                    style={{
-                                        transform: `translateY(${virtualItem.start}px)`,
-                                    }}
-                                >
-                                    {item.kind === 'category' && (
-                                        <h3 className="m-0 px-3 pt-4 pb-1 text-[15px] font-semibold text-foreground">
-                                            {item.category.title}
-                                        </h3>
-                                    )}
-                                    {item.kind === 'subcategory' && (
-                                        <SubcategoryHeading title={item.title} />
-                                    )}
+        // Wheel, touch, keyboard, and scrollbar drags are the user's own scrolling; programmatic scrolls are not.
+        <div
+            ref={scrollParentReference}
+            className={cn(
+                'min-h-0 overflow-y-auto px-8 pb-16',
+                // Keeps the last rows clear of the floating Create Session resume bar.
+                isCreateSessionSuspended && 'pb-24',
+            )}
+            onKeyDown={releasePinnedAnchor}
+            onPointerDown={(event) => {
+                if (event.target === event.currentTarget) releasePinnedAnchor();
+            }}
+            onTouchMove={releasePinnedAnchor}
+            onWheel={releasePinnedAnchor}
+        >
+            {list.length === 0 ? (
+                <SettingsNoMatches query={query} onClear={() => properties.onQueryChange('')} />
+            ) : (
+                /*
+                 * One centered column, as macOS System Settings lays it out: a wide window keeps each label within reach
+                 * of its control instead of stretching the row across the screen.
+                 */
+                <div
+                    className="relative mx-auto w-full max-w-3xl"
+                    style={{ height: virtualizer.getTotalSize() }}
+                >
+                    {virtualItems.map((virtualItem) => {
+                        const item = list[virtualItem.index];
+                        return (
+                            <div
+                                key={virtualItem.key}
+                                ref={virtualizer.measureElement}
+                                data-index={virtualItem.index}
+                                className={cn(
+                                    'absolute top-0 left-0 w-full',
+                                    // The measured wrapper carries the gap after a card: margins are not measured.
+                                    item.kind === 'row' && item.card.last && 'pb-3',
+                                )}
+                                style={{
+                                    transform: `translateY(${virtualItem.start}px)`,
+                                }}
+                            >
+                                <SettingsListEntry isFirst={virtualItem.index === 0} item={item}>
                                     {item.kind === 'row' && (
                                         <SettingRow
                                             agentHookHealth={properties.agentHookHealth}
@@ -379,12 +466,12 @@ export function SettingsPage(properties: SettingsPageProperties) {
                                             }
                                         />
                                     )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
+                                </SettingsListEntry>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

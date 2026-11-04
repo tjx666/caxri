@@ -8,7 +8,7 @@ import type { SettingRowDescriptor } from './settings-registry';
  * without a shared width the left edges still stagger wherever a select sits above or below a number field in the same
  * section, which is the "not the same width" half of the alignment bug this fixes.
  */
-export const SHORT_CONTROL_WIDTH_CLASS_NAME = 'w-52';
+export const SHORT_CONTROL_WIDTH_CLASS_NAME = 'w-56';
 
 /**
  * String settings whose value is one short word, such as the `code` or `cursor` command, so their field sits beside the
@@ -57,4 +57,13 @@ export function isFullWidthRow(row: SettingRowDescriptor): boolean {
             row.binding.key === 'environmentMonitor.mihomoRoutes'
         );
     return FULL_WIDTH_BINDING_TYPES.has(row.binding.type);
+}
+
+/**
+ * Whether a row draws its own card instead of sitting in the card its neighbours share. The Hosts list is a card of
+ * machines, one per row, so nesting it inside another card would stack two surfaces; its title would also repeat the
+ * Hosts heading right above it, so the row shows only its description over the list.
+ */
+export function hasOwnSurface(row: SettingRowDescriptor): boolean {
+    return row.binding.type === 'ssh-hosts';
 }

@@ -35,7 +35,7 @@ export function HostIconPicker({
         <Popover>
             <PopoverTrigger
                 aria-label={t('sshHost.settings.iconFor', { name: host.name })}
-                className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2 text-[12px] outline-none focus-visible:border-accent"
+                className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-2 text-[13px] outline-none focus-visible:border-accent focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]"
             >
                 <span className="flex min-w-0 items-center gap-2">
                     <HostGlyph icon={host.icon} size={14} system={host.system} />

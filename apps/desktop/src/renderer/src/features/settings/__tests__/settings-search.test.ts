@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { translate, useLocaleStore } from '../../../i18n';
-import type { SettingRowDescriptor, SettingsCategory } from '../settings-registry';
+import type {
+    SettingRowDescriptor,
+    SettingsCategory,
+    SettingSubcategory,
+} from '../settings-registry';
 import { getSettingsRegistry } from '../settings-registry';
+import type { SettingsListItem } from '../settings-search';
 import {
     buildSettingsList,
     countHiddenAdvancedRows,
@@ -14,7 +19,7 @@ const row = (
     id: string,
     category: SettingRowDescriptor['category'],
     haystack: string,
-    subcategory?: string,
+    subcategory?: SettingSubcategory,
     isAdvanced = false,
 ): SettingRowDescriptor => ({
     id,
@@ -29,10 +34,48 @@ const row = (
 
 const { categories: settingsCategories, rows: settingsRows } = getSettingsRegistry(translate);
 
+const claude: SettingSubcategory = {
+    id: 'claude',
+    title: 'Claude Code',
+    provider: 'claude',
+    listedInNavigation: true,
+};
+const codex: SettingSubcategory = {
+    id: 'codex',
+    title: 'Codex',
+    provider: 'codex',
+    listedInNavigation: true,
+};
+const appearance: SettingSubcategory = {
+    id: 'appearance',
+    title: 'Appearance',
+    listedInNavigation: false,
+};
+
 const categories: SettingsCategory[] = [
-    { id: 'general', title: 'General', subcategories: [] },
-    { id: 'agents', title: 'Agents', subcategories: ['Claude Code', 'Codex'] },
+    { id: 'general', title: 'General', subcategories: [appearance] },
+    { id: 'hosts', title: 'Hosts', subcategories: [] },
+    { id: 'agents', title: 'Agents', subcategories: [claude, codex] },
 ];
+
+/**
+ * Each row's card position as `first`/`last` flags, keyed by row id, so a test reads like the cards it expects.
+ */
+const cardsOf = (list: SettingsListItem[]): Record<string, string> =>
+    Object.fromEntries(
+        list.flatMap((item) =>
+            item.kind === 'row'
+                ? [
+                      [
+                          item.id,
+                          [item.card.first && 'first', item.card.last && 'last']
+                              .filter(Boolean)
+                              .join('+') || 'middle',
+                      ],
+                  ]
+                : [],
+        ),
+    );
 
 describe('filterSettingsRows', () => {
     it('keeps every row for an empty or blank query', () => {
@@ -192,19 +235,53 @@ describe('buildSettingsList', () => {
 
     it('emits a subcategory heading whenever the subcategory changes', () => {
         const rows = [
-            row('c1', 'agents', 'x', 'Claude Code'),
-            row('c2', 'agents', 'x', 'Claude Code'),
-            row('x1', 'agents', 'x', 'Codex'),
+            row('c1', 'agents', 'x', claude),
+            row('c2', 'agents', 'x', claude),
+            row('x1', 'agents', 'x', codex),
         ];
         const list = buildSettingsList(categories, rows);
         expect(list.map((item) => item.id)).toEqual([
             'category:agents',
-            'subcategory:agents:Claude Code',
+            'subcategory:agents:claude',
             'c1',
             'c2',
-            'subcategory:agents:Codex',
+            'subcategory:agents:codex',
             'x1',
         ]);
+    });
+
+    it('groups each category and subcategory into one card of consecutive rows', () => {
+        const rows = [
+            row('g1', 'general', 'x'),
+            row('g2', 'general', 'x'),
+            row('a1', 'general', 'x', appearance),
+            row('a2', 'general', 'x', appearance),
+            row('a3', 'general', 'x', appearance),
+            row('c1', 'agents', 'x', claude),
+            row('x1', 'agents', 'x', codex),
+        ];
+        expect(cardsOf(buildSettingsList(categories, rows))).toEqual({
+            g1: 'first',
+            g2: 'last',
+            a1: 'first',
+            a2: 'middle',
+            a3: 'last',
+            c1: 'first+last',
+            x1: 'first+last',
+        });
+    });
+
+    it('closes the card around a row that draws its own surface', () => {
+        const machines: SettingRowDescriptor = {
+            ...row('hosts.machines', 'hosts', 'x'),
+            binding: { type: 'ssh-hosts' },
+        };
+        const rows = [row('h0', 'hosts', 'x'), machines, row('h1', 'hosts', 'x')];
+        expect(cardsOf(buildSettingsList(categories, rows))).toEqual({
+            'h0': 'first+last',
+            'hosts.machines': 'first+last',
+            'h1': 'first+last',
+        });
     });
 
     it('flattens the full registry with unique ids in display order', () => {
@@ -225,15 +302,12 @@ describe('countRowsByCategory', () => {
     });
 
     it('counts subcategory anchors so the TOC can hide sections with no matches', () => {
-        const rows = [
-            row('c1', 'agents', 'x', 'Claude Code'),
-            row('c2', 'agents', 'x', 'Claude Code'),
-        ];
+        const rows = [row('c1', 'agents', 'x', claude), row('c2', 'agents', 'x', claude)];
         const counts = countRowsByCategory(rows);
-        expect(counts['agents:Claude Code']).toBe(2);
+        expect(counts['agents:claude']).toBe(2);
         // A filtered-out subcategory has no anchor entry, so its TOC button disappears while
         // searching instead of navigating to a heading that is absent from the filtered list.
-        expect(counts['agents:Codex']).toBeUndefined();
+        expect(counts['agents:codex']).toBeUndefined();
     });
 });
 

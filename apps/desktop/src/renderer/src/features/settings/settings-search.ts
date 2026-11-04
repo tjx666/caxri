@@ -1,6 +1,21 @@
 import type { SettingCategoryId } from '@caxri/protocol';
 
-import type { SettingRowDescriptor, SettingsCategory } from './settings-registry';
+import { hasOwnSurface } from './setting-row-layout';
+import type {
+    SettingRowDescriptor,
+    SettingsCategory,
+    SettingSubcategory,
+} from './settings-registry';
+
+/**
+ * Where a row sits in the card it shares with its neighbours. The virtualizer positions every row on its own, so the
+ * card is drawn piecewise: the first row rounds the top corners, every later row draws the divider above itself, and
+ * the last row rounds the bottom corners and leaves the gap before whatever follows.
+ */
+export interface SettingsCardPosition {
+    first: boolean;
+    last: boolean;
+}
 
 /**
  * One entry of the flattened Settings list the virtualizer renders: category headings, subcategory headings, and
@@ -8,8 +23,13 @@ import type { SettingRowDescriptor, SettingsCategory } from './settings-registry
  */
 export type SettingsListItem =
     | { kind: 'category'; id: string; category: SettingsCategory }
-    | { kind: 'subcategory'; id: string; categoryId: SettingCategoryId; title: string }
-    | { kind: 'row'; id: string; row: SettingRowDescriptor };
+    | {
+          kind: 'subcategory';
+          id: string;
+          categoryId: SettingCategoryId;
+          subcategory: SettingSubcategory;
+      }
+    | { kind: 'row'; id: string; row: SettingRowDescriptor; card: SettingsCardPosition };
 
 export interface SettingsRowFilterOptions {
     /**
@@ -70,6 +90,9 @@ export function filterSettingsRows(
 /**
  * Flattens visible rows into the virtualized list order, emitting a category heading before its first visible row and a
  * subcategory heading whenever the subcategory changes. Categories with no visible rows disappear entirely.
+ *
+ * Consecutive rows under one heading share a card. A row that draws its own surface (the Hosts list) stands alone, so
+ * the rows before and after it close and open cards of their own.
  */
 export function buildSettingsList(
     categories: readonly SettingsCategory[],
@@ -80,20 +103,27 @@ export function buildSettingsList(
         const categoryRows = visibleRows.filter((row) => row.category === category.id);
         if (categoryRows.length === 0) continue;
         items.push({ kind: 'category', id: `category:${category.id}`, category });
-        let subcategory: string | undefined;
+        let subcategory: SettingSubcategory | undefined;
+        let previous: Extract<SettingsListItem, { kind: 'row' }> | undefined;
         for (const row of categoryRows) {
+            let startsCard =
+                previous === undefined || hasOwnSurface(row) || hasOwnSurface(previous.row);
             if (row.subcategory !== subcategory) {
                 subcategory = row.subcategory;
+                startsCard = true;
                 if (subcategory !== undefined)
                     items.push({
                         kind: 'subcategory',
-                        id: `subcategory:${category.id}:${subcategory}`,
+                        id: `subcategory:${category.id}:${subcategory.id}`,
                         categoryId: category.id,
-                        title: subcategory,
+                        subcategory,
                     });
             }
-            items.push({ kind: 'row', id: row.id, row });
+            if (startsCard && previous) previous.card.last = true;
+            previous = { kind: 'row', id: row.id, row, card: { first: startsCard, last: false } };
+            items.push(previous);
         }
+        if (previous) previous.card.last = true;
     }
     return items;
 }
@@ -109,7 +139,7 @@ export function countRowsByCategory(
     for (const row of visibleRows) {
         counts[row.category] = (counts[row.category] ?? 0) + 1;
         if (row.subcategory !== undefined) {
-            const anchor = `${row.category}:${row.subcategory}`;
+            const anchor = `${row.category}:${row.subcategory.id}`;
             counts[anchor] = (counts[anchor] ?? 0) + 1;
         }
     }

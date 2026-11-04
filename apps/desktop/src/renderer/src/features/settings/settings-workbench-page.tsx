@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { AppSettings, SystemColorScheme } from '@caxri/protocol';
 import { resolveEffectiveTheme } from '@caxri/protocol';
 import { ArrowLeft, Braces, SlidersHorizontal } from 'lucide-react';
+
+import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 
 import { SurfaceErrorBoundary } from '../../components/surface-error-boundary';
 import { Button } from '../../components/ui/button';
@@ -19,11 +21,14 @@ import { useImportedThemes, useIsFullScreen } from '../../stores/selectors';
 import { ConfigSourceView } from './config-source-view';
 import type { SettingsPageController } from './hooks/use-settings-page-controller';
 import { useSettingsPageController } from './hooks/use-settings-page-controller';
+import { useSettingsSearchQuery } from './hooks/use-settings-search-query';
 import { KeybindingsForm } from './keybindings-form';
+import { useSettingsAdvancedStore } from './settings-advanced-store';
 import { SettingsNavigation } from './settings-navigation';
 import type { SettingsNavigationState } from './settings-page';
 import { SettingsPage } from './settings-page';
 import { useSettingsRegistry } from './settings-registry';
+import { SettingsSidebar } from './settings-sidebar';
 import { ThemeForm } from './theme-form';
 
 function readThemeAppearance(settings: AppSettings | undefined) {
@@ -85,6 +90,14 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
     const { t } = useTranslation();
     const { categories } = useSettingsRegistry();
     const [navigationState, setNavigationState] = useState<SettingsNavigationState>();
+    const { query, changeQuery } = useSettingsSearchQuery(controller);
+    const showAdvanced = useSettingsAdvancedStore((store) => store.showAdvanced);
+    const searchInputReference = useRef<HTMLInputElement>(null);
+    /**
+     * An untargeted open lands the caret in the search field the way VS Code and macOS System Settings do. It is a
+     * revision request rather than autofocus because reopening a page that is already mounted must claim it again.
+     */
+    useFocusOnRevision(controller.searchFocusRequestId, searchInputReference);
     const systemScheme = useSystemColorScheme();
     const settings = state.settings.value;
     const importedThemes = useImportedThemes();
@@ -136,12 +149,13 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                 argvConfig={controller.argvConfig}
                 gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
                 rowFocusRequest={controller.rowFocusRequest}
-                searchFocusRequestId={controller.searchFocusRequestId}
+                query={query}
                 settings={state.settings.value}
                 trustedDomainsFocusRequestId={controller.trustedDomainsFocusRequestId}
                 onArgvConfigChange={controller.updateArgvConfig}
                 onFieldChange={controller.updateSettingsField}
                 onNavigationStateChange={setNavigationState}
+                onQueryChange={changeQuery}
             />
         );
     else if (tab === 'keybindings')
@@ -182,8 +196,8 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
         // (`openSettingsPage` in `e2e/support/settings.ts`) and the boundary `settings.close` reads to decide whether
         // `Escape` belongs to the page.
         //
-        // The page keeps a minimum width and scrolls sideways below it, so a narrow window never squeezes the 168px
-        // navigation's content into a sliver where zh-CN labels wrap one character per line.
+        // The page keeps a minimum width and scrolls sideways below it, so a narrow window never squeezes the
+        // navigation column's content into a sliver where zh-CN labels wrap one character per line.
         <div className="h-full overflow-x-auto overflow-y-hidden">
             <div
                 data-settings-page
@@ -229,17 +243,31 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                         </Tooltip>
                     </ToggleGroup>
                 </SettingsPageTitleBar>
-                <div className="grid min-h-0 grid-cols-[168px_minmax(0,1fr)] overflow-hidden">
-                    <SettingsNavigation
-                        activeAnchor={navigationState?.activeAnchor}
-                        categories={categories}
-                        counts={navigationState?.counts}
-                        searching={navigationState?.searching}
-                        filtered={navigationState?.filtered}
-                        section={tab}
-                        onNavigate={controller.navigateToAnchor}
-                        onSectionChange={controller.changeTab}
-                    />
+                <div className="grid min-h-0 grid-cols-[208px_minmax(0,1fr)] overflow-hidden">
+                    <SettingsSidebar
+                        hiddenAdvancedCount={navigationState?.hiddenAdvancedCount}
+                        query={query}
+                        searchCount={
+                            navigationState && {
+                                visible: navigationState.visibleCount,
+                                total: navigationState.totalCount,
+                            }
+                        }
+                        searchInputRef={searchInputReference}
+                        showAdvanced={showAdvanced}
+                        onQueryChange={changeQuery}
+                    >
+                        <SettingsNavigation
+                            activeAnchor={navigationState?.activeAnchor}
+                            categories={categories}
+                            counts={navigationState?.counts}
+                            searching={navigationState?.searching}
+                            filtered={navigationState?.filtered}
+                            section={tab}
+                            onNavigate={controller.navigateToAnchor}
+                            onSectionChange={controller.changeTab}
+                        />
+                    </SettingsSidebar>
                     <div className="grid min-h-0 overflow-hidden">
                         <SurfaceErrorBoundary resetKey={`${view}:${tab}`} scope="settings">
                             {content}
