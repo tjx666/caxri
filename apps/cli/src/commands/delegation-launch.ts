@@ -137,8 +137,8 @@ function launchEnvironment(
 /**
  * Runs the Agent until it exits and reports its status as the launcher's own: a signal death becomes `128 + signal`.
  *
- * Ctrl-C reaches the Agent through the Terminal's process group, so SIGINT is swallowed here instead of forwarded
- * (forwarding would deliver it twice and make an Agent that quits on a double Ctrl-C exit early). SIGTERM and SIGHUP
+ * Ctrl-C reaches the Agent through the Terminal's process group, so SIGINT is not forwarded (forwarding would deliver
+ * it twice and make an Agent that quits on a double Ctrl-C exit early); `holdSignals` swallows it. SIGTERM and SIGHUP
  * are sent to this process alone, so they are forwarded and the Agent never outlives the credential's revocation.
  */
 function runAgent(
@@ -153,12 +153,9 @@ function runAgent(
         const forward = (signal: NodeJS.Signals): void => {
             child.kill(signal);
         };
-        const swallow = (): void => {};
         for (const signal of forwarded) process.on(signal, forward);
-        process.on('SIGINT', swallow);
         const cleanup = (): void => {
             for (const signal of forwarded) process.removeListener(signal, forward);
-            process.removeListener('SIGINT', swallow);
         };
         child.once('error', (error: NodeJS.ErrnoException) => {
             cleanup();
@@ -173,6 +170,21 @@ function runAgent(
             resolve(signal ? 128 + constants.signals[signal] : (code ?? 1));
         });
     });
+}
+
+/**
+ * Installs no-op SIGINT, SIGTERM and SIGHUP handlers so the default action (process death) cannot skip the revocation,
+ * and returns the function that removes them. The caller releases them only after the revoke request settled: a signal
+ * that arrives after the Agent exited but while the revoke is still in flight would otherwise kill this process and
+ * leave the credential valid until its TTL.
+ */
+function holdSignals(): () => void {
+    const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+    const hold = (): void => {};
+    for (const signal of signals) process.on(signal, hold);
+    return () => {
+        for (const signal of signals) process.removeListener(signal, hold);
+    };
 }
 
 /**
@@ -191,6 +203,7 @@ export async function runDelegationLaunch(context: RemoteCommandRunContext): Pro
         registerProject: true,
         ...(parameters.ttlMs !== undefined && { ttlMs: parameters.ttlMs }),
     })) as MethodResult<'agent.delegation.access.create'>;
+    const releaseSignals = holdSignals();
     try {
         if (context.signal?.aborted) return 130;
         return await runAgent(
@@ -208,6 +221,8 @@ export async function runDelegationLaunch(context: RemoteCommandRunContext): Pro
             context.writeStderr(
                 `Warning: could not revoke delegation client ${grant.clientId} generation ${grant.generation}; it stays valid until it expires. Run: caxri agent delegate access revoke --client ${grant.clientId} --generation ${grant.generation}\n`,
             );
+        } finally {
+            releaseSignals();
         }
     }
 }

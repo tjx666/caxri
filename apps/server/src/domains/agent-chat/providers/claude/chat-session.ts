@@ -32,7 +32,7 @@ import type {
     ChatSideExchange,
     ChatTaskHistory,
 } from '../../chat-provider';
-import { AgentChatStartError, turnEndedError } from '../../chat-provider';
+import { AgentChatStartError } from '../../chat-provider';
 import { isClaudeGoalClearDuringTurn } from '../../goals/claude-goals';
 import { claudeHistoryOperations } from '../../history/claude-history';
 import { didClaudeInterruptTimeout, stopClaudeTurn } from '../../interrupt/claude-interrupt';
@@ -69,7 +69,7 @@ import {
 } from './models';
 import { ClaudePermissions } from './permissions';
 import { ClaudePlanLimits } from './plan-limits';
-import { ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
+import { claudeExactTurnRefusal, ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
 import { ClaudeRequestBroker } from './requests';
 import { reportClaudeSessionEnd } from './session-end';
 import { claudeQueryOptions, claudeStartError, spawnClaudeProcess } from './session-open';
@@ -466,11 +466,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
         { text, images = [] }: Omit<AgentChatMessageInput, 'delivery'>,
         options?: ChatInputOptions,
     ): Promise<void> {
-        if (
-            options?.exactTurnId !== undefined &&
-            this.options.read().activeTurnId !== options.exactTurnId
-        )
-            return Promise.reject(turnEndedError());
+        if (options?.exactTurnId !== undefined)
+            return Promise.reject(
+                claudeExactTurnRefusal(this.options.read().activeTurnId, options.exactTurnId),
+            );
         this.submit(text, images, options);
         return Promise.resolve();
     }

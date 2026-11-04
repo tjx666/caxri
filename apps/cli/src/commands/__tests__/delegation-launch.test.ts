@@ -330,4 +330,23 @@ describe('agent delegate access launch', () => {
         expect(stderr()).toContain(`--client ${grant.clientId} --generation 3`);
         expect(stderr()).not.toContain(grant.token);
     });
+
+    it('keeps SIGINT, SIGTERM and SIGHUP handled until the revoke request settled', async () => {
+        const { connect, io, request } = launcher();
+        const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+        const before = signals.map((signal) => process.listenerCount(signal));
+        let during: number[] = [];
+        request.mockImplementation((method: CaxriMethod) => {
+            if (method !== 'agent.delegation.access.revoke') return Promise.resolve(grant);
+            // The Agent already exited here: a signal now must not take the default action.
+            during = signals.map((signal) => process.listenerCount(signal));
+            return Promise.resolve({});
+        });
+        await runCli(
+            [...base, '--root', tmpdir(), '--provider', 'codex', '--', process.execPath, '-e', ''],
+            { connect, environment: {}, io },
+        );
+        expect(during.map((count, index) => count - (before[index] ?? 0))).toEqual([1, 1, 1]);
+        expect(signals.map((signal) => process.listenerCount(signal))).toEqual(before);
+    });
 });

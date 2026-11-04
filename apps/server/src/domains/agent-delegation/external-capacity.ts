@@ -15,7 +15,11 @@ const EXTERNAL_ACTIVE_TASK_LIMIT = 4;
  * the wrong buckets, because many clients share an anchor and one client spreads over many targets.
  */
 export class ExternalCapacity {
-    private readonly pending = new Map<string, number>();
+    /**
+     * Admissions in flight per principal, keyed by request ID: callers repeating one request share one entry, because
+     * they join one admission and must not count as several tasks.
+     */
+    private readonly pending = new Map<string, Map<string, number>>();
 
     constructor(private readonly database: CaxriDatabase) {}
 
@@ -29,7 +33,7 @@ export class ExternalCapacity {
         const active = this.database.agentDelegations
             .active()
             .filter((record) => isSamePrincipal(record.principal, principal)).length;
-        const inFlight = this.pending.get(JSON.stringify(principal)) ?? 0;
+        const inFlight = this.pending.get(JSON.stringify(principal))?.size ?? 0;
         if (active + inFlight >= EXTERNAL_ACTIVE_TASK_LIMIT)
             throw new CaxriError(
                 'CAPACITY',
@@ -38,16 +42,19 @@ export class ExternalCapacity {
     }
 
     /**
-     * Counts one admission in flight for the caller; the returned function ends it.
+     * Counts one admission in flight for the caller under its request ID; the returned function ends it.
      */
-    reserve(authority: DelegationAuthority): () => void {
+    reserve(authority: DelegationAuthority, requestId: string): () => void {
         if (authority.principal.kind !== 'delegation-client') return () => {};
         const key = JSON.stringify(authority.principal);
-        this.pending.set(key, (this.pending.get(key) ?? 0) + 1);
+        const requests = this.pending.get(key) ?? new Map<string, number>();
+        this.pending.set(key, requests);
+        requests.set(requestId, (requests.get(requestId) ?? 0) + 1);
         return () => {
-            const remaining = (this.pending.get(key) ?? 1) - 1;
-            if (remaining <= 0) this.pending.delete(key);
-            else this.pending.set(key, remaining);
+            const remaining = (requests.get(requestId) ?? 1) - 1;
+            if (remaining <= 0) requests.delete(requestId);
+            else requests.set(requestId, remaining);
+            if (requests.size === 0 && this.pending.get(key) === requests) this.pending.delete(key);
         };
     }
 }

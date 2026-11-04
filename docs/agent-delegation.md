@@ -956,18 +956,22 @@ active turn and input epoch are exact. A refusal carries a closed `reason`:
   `pending` when the Server restarted. Such an operation is never sent again: read the transcript,
   then redirect again under a new operation ID only if the direction is missing.
 - **Receipt.** `redirectCount` (confirmed redirects) and `redirectedAt` are added to the receipt.
-- **Transcript.** A confirmed redirect appears as a `direction` row in `agent delegate transcript`.
-  The slice crosses a user message only when it is this task's own delivered redirect: the message
-  envelope must name this delegation, a `delivered` claim must exist for its operation ID, and the
-  text digest must match. Any other user message, a pending or unknown claim, or a message Claude
-  Code still holds as awaiting the Agent ends the slice, as a person's input always did.
+- **Transcript.** A redirect that sits in the conversation appears as a `direction` row in
+  `agent delegate transcript`, including one whose claim is still `pending` or `unknown`, so the
+  reader of a `delivery_unknown` refusal can see whether it arrived. The slice crosses a user
+  message only when it is this task's own redirect: the message envelope must name this delegation,
+  a claim must exist for its operation ID, and the text digest must match. Any other user message
+  or a message still held as awaiting the Agent ends the slice, as a person's input always did.
 - **Chat.** Desktop and Mobile label the message "Updated direction from" the delegating Agent, as
   they label the task pointer, and only when the same claim proves it; typing the envelope by hand
   shows an ordinary message.
 - **Logs.** `agent_delegation.redirected` records the outcome, the closed reason, the redirect
   count, the text length, and the duration. It never carries the text or the operation ID.
-- **Providers.** Claude Code and Codex steer the active turn. Grok Build cannot, and answers
-  `not_steerable`.
+- **Providers.** Codex steers the active turn. Claude Code and Grok Build answer `not_steerable`:
+  Claude Code holds a steered prompt until its next model request and may run it as the next turn
+  when the current one ends first, and its echo can arrive after the turn is over, so delivery into
+  the exact turn can never be confirmed. A redirect to a Claude child is refused before anything
+  reaches it; use a follow-up for new work.
 
 ## Agent Chat children
 

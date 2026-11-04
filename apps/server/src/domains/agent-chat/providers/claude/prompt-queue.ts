@@ -2,6 +2,8 @@ import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatItem, AgentChatPatchOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import { turnEndedError, turnNotSteerableError } from '../../chat-provider';
+
 /**
  * The prompt stream the SDK reads user messages from. It stays open for the whole process lifetime so one Claude Code
  * process serves every turn; ending it closes Claude Code's stdin.
@@ -99,4 +101,21 @@ export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Pr
     } finally {
         clearTimeout(timer);
     }
+}
+
+/**
+ * Why Claude refuses an exact-turn steer (`ChatInputOptions.exactTurnId`, which a delegating Agent's redirect uses).
+ *
+ * Claude Code folds a `priority: 'next'` prompt in at its next model request and cannot take it back: when the turn
+ * ends first it may run the held prompt as the next turn. Its echo (`--replay-user-messages`) can therefore arrive
+ * after the turn is over, so "delivered into this exact turn" can never be confirmed. Nothing is sent: a finished or
+ * replaced turn is `turnEnded`, a running one is `turnNotSteerable`.
+ */
+export function claudeExactTurnRefusal(
+    activeTurnId: string | undefined,
+    exactTurnId: string,
+): CaxriError {
+    return activeTurnId === exactTurnId
+        ? turnNotSteerableError('Claude cannot steer an exact turn')
+        : turnEndedError();
 }

@@ -34,7 +34,9 @@ export function delegatedTaskDetails(
     redirect?: DelegatedRedirect,
 ): DelegatedTaskDetails {
     const record = database.agentDelegations.get(delegationId);
-    if (!record) return {};
+    // A pruned record cannot prove the claim, but the envelope is still a direction, not the user's own words: show the
+    // generic card instead of raw envelope text.
+    if (!record) return redirect ? { prompt: redirect.text, redirect: true } : {};
     /**
      * A redirect is recognized only when the task recorded this operation with this exact text, so a person who types
      * the envelope into the Chat does not get a "delegated" message.

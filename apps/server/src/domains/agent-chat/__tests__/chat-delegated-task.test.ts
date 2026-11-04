@@ -149,6 +149,17 @@ describe('delegated redirect', () => {
         ).toEqual({});
     });
 
+    it('falls back to a generic direction card once the task record is gone', () => {
+        const gone = {
+            agentDelegations: { get: () => {} },
+        } as unknown as Parameters<typeof delegatedTaskDetails>[0];
+
+        expect(
+            delegatedTaskDetails(gone, DELEGATION_ID, { operationId: 'op-12345', text }),
+        ).toEqual({ prompt: text, redirect: true });
+        expect(delegatedTaskDetails(gone, DELEGATION_ID)).toEqual({});
+    });
+
     it('stamps a redirect envelope with the redirect flag', () => {
         const message = delegatedRedirectMessage(DELEGATION_ID, 'op-12345', text);
         const operations: AgentChatPatchOperation[] = [

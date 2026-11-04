@@ -1,3 +1,4 @@
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChatDelegationLinks } from '../chat-delegation';
@@ -91,5 +92,32 @@ describe('ChatDelegationLinks.steerToLaunch', () => {
         await expect(links.steerToLaunch('terminal', 'launch', steer)).rejects.toThrow(
             'socket closed',
         );
+    });
+});
+
+describe('ChatDelegationLinks.steerToLaunch before anything reaches the provider', () => {
+    it('refuses as launch_replaced, not as unknown, when the Chat stopped or was archived meanwhile', async () => {
+        const sent = vi.fn(() => Promise.resolve());
+        const state = {
+            launchId: 'launch',
+            sendQueue: Promise.resolve(),
+            followUps: { mustWait: () => true, add: vi.fn() },
+            projection: { snapshot: { activeTurnId: 'turn-1' } },
+            session: { isOpen: true, send: sent },
+        } as unknown as ChatState;
+        let admissions = 0;
+        const links = new ChatDelegationLinks({
+            state: () => state,
+            admit: () => {
+                // The first check passes; the one at the head of the send chain finds the Chat archived.
+                if (++admissions > 1)
+                    throw new CaxriError('CONFLICT', 'This Chat belongs to an archived Session');
+            },
+        });
+
+        expect(await refusal(links.steerToLaunch('terminal', 'launch', steer))).toBe(
+            'launch_replaced',
+        );
+        expect(sent).not.toHaveBeenCalled();
     });
 });

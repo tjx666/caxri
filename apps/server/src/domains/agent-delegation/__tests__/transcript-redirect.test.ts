@@ -125,8 +125,6 @@ describe('transcript with a redirect', () => {
 
     it.each([
         ['an operation the task never recorded', [] as StoredAgentDelegation['redirects']],
-        ['a claim still pending', [{ ...delivered(), state: 'pending' as const }]],
-        ['a claim in doubt', [{ ...delivered(), state: 'unknown' as const }]],
         ['a claim for different text', [delivered('op-1', 'Some other direction')]],
     ])('still ends at %s', (_label, redirects) => {
         const page = read(
@@ -141,6 +139,18 @@ describe('transcript with a redirect', () => {
 
         expect(page.rows.map((row) => row.id)).toEqual(['start', 'before']);
     });
+
+    it.each(['pending', 'unknown'] as const)(
+        'shows a %s redirect that sits in the conversation so the reader can learn it arrived',
+        (state) => {
+            const page = read(
+                [start, redirectItem('direction'), reply('after', 'Switching')],
+                record([{ ...delivered(), state }]),
+            );
+
+            expect(page.rows.map((row) => row.kind)).toEqual(['task', 'direction', 'agentMessage']);
+        },
+    );
 
     it('still ends at a redirect of another task and at what a person typed', () => {
         const task = record([delivered()]);

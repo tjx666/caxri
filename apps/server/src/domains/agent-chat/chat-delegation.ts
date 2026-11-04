@@ -106,7 +106,18 @@ export class ChatDelegationLinks {
                     'The delegated Chat changed before the message reached it',
                     { steerRefusal: 'launch_replaced' satisfies DelegationRedirectRefusal },
                 );
-            this.options.admit(terminalId, state);
+            try {
+                this.options.admit(terminalId, state);
+            } catch (error) {
+                // The Chat stopped, was archived or detached: nothing reached the provider, so it is a refusal and
+                // not a message of unknown fate.
+                throw error instanceof CaxriError
+                    ? new CaxriError(error.code, error.message, {
+                          ...error.details,
+                          steerRefusal: 'launch_replaced' satisfies DelegationRedirectRefusal,
+                      })
+                    : error;
+            }
             return { session, state };
         };
         admitLaunch();
@@ -198,7 +209,17 @@ export class ChatDelegationLinks {
         launchId: string,
         steer: { turnId: string; inputEpoch: number | undefined; text: string },
     ): Promise<void> {
-        assertE2EAgentChatInput(readE2EAgentPolicy(), steer.text);
+        try {
+            assertE2EAgentChatInput(readE2EAgentPolicy(), steer.text);
+        } catch (error) {
+            // Refused before anything reached the provider, so the operation ID stays retryable.
+            throw error instanceof CaxriError
+                ? new CaxriError(error.code, error.message, {
+                      ...error.details,
+                      steerRefusal: 'not_steerable' satisfies DelegationRedirectRefusal,
+                  })
+                : error;
+        }
         const refuse = (reason: DelegationRedirectRefusal) =>
             new CaxriError('CONFLICT', 'The delegated Chat cannot take this direction now', {
                 steerRefusal: reason,

@@ -85,10 +85,12 @@ interface AvailableSlice {
 type Slice = AvailableSlice | { status: 'unavailable'; reason: DelegationTranscriptUnavailable };
 
 /**
- * The text of a user message that is a redirect of this task the Agent has certainly taken in, or `undefined`. It must
- * parse as this task's redirect, match a delivered claim by operation ID and text digest, and not still wait for the
- * Agent: Claude Code holds a steered message (`isAwaitingAgent`) out of order until its next model request, so a row
- * built from it now would move under a cursor already issued past it.
+ * The text of a user message that is a redirect of this task sitting in the conversation, or `undefined`. It must parse
+ * as this task's redirect, match a claim of any state by operation ID and text digest, and not still wait for the
+ * Agent. A claim that stays `pending` or `unknown` is included on purpose: refusing it tells the reader to look here to
+ * learn whether the direction arrived, and a cut at the message would read as "not delivered". Claude Code holds a
+ * steered message (`isAwaitingAgent`) out of order until its next model request, so a row built from it now would move
+ * under a cursor already issued past it.
  */
 function ownRedirectText(
     record: StoredAgentDelegation,
@@ -98,8 +100,7 @@ function ownRedirectText(
     const redirect = parseDelegatedRedirect(item.text);
     if (redirect?.delegationId !== record.receipt.delegationId) return undefined;
     const claim = record.redirects?.find((entry) => entry.operationId === redirect.operationId);
-    return claim?.state === 'delivered' &&
-        claim.digest === createHash('sha256').update(redirect.text).digest('hex')
+    return claim && claim.digest === createHash('sha256').update(redirect.text).digest('hex')
         ? redirect.text
         : undefined;
 }
@@ -108,7 +109,7 @@ function ownRedirectText(
  * The rows of the task's own conversation: from the message that started it (its task pointer) up to, not including,
  * the next message anyone sent the Chat. That next message is a later task or the user taking over, and either way what
  * follows is no longer this task's work, so the cut is structural and never by time. The one exception is this task's
- * own redirect, once confirmed delivered, which continues the same turn and reads as a `direction` row.
+ * own redirect, whatever its claim state, which continues the same turn and reads as a `direction` row.
  */
 function taskSlice(source: DelegationTranscriptSource, record: StoredAgentDelegation): Slice {
     const terminalId = record.receipt.terminalId;

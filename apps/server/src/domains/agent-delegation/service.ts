@@ -362,7 +362,7 @@ export class AgentDelegationService {
         });
         const creations = this.pendingCreations.get(input.sessionId) ?? new Set();
         this.pendingCreations.set(input.sessionId, creations.add(pending));
-        const release = this.capacity.reserve(authority);
+        const release = this.capacity.reserve(authority, id);
         let receipt: AgentDelegationReceipt;
         try {
             receipt = await pending;
