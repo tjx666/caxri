@@ -95,6 +95,7 @@ function ApprovalToolSummary({ name, summary }: { name: string; summary: string 
 function ApprovalBody({
     armDelayMs,
     choices,
+    delegationNote,
     isAnswering,
     linkedItem,
     projectRoot,
@@ -108,6 +109,7 @@ function ApprovalBody({
      */
     armDelayMs: number;
     choices: ReturnType<typeof agentChatApprovalChoices>;
+    delegationNote: string | undefined;
     isAnswering: boolean;
     linkedItem: AgentChatItem | undefined;
     projectRoot: string | undefined;
@@ -165,6 +167,11 @@ function ApprovalBody({
                 <ApprovalPaths paths={request.paths} projectRoot={projectRoot} />
             )}
             {reviewHint && <p className="m-0 text-muted">{reviewHint}</p>}
+            {delegationNote && (
+                <p className="m-0 text-muted" data-agent-chat-delegation-approval-note="">
+                    {delegationNote}
+                </p>
+            )}
             <div className="flex flex-wrap gap-2">
                 {choices.map(({ decision, hint, label }) => {
                     const button = (
@@ -225,6 +232,7 @@ function ApprovalBody({
  */
 export function AgentChatRequestCard({
     approvalArmDelayMs = 0,
+    delegationNote,
     isFramed = true,
     isWindowWide = false,
     linkedItem,
@@ -244,6 +252,11 @@ export function AgentChatRequestCard({
      * or a click meant for what was under the pointer, must not decide this one.
      */
     approvalArmDelayMs?: number;
+    /**
+     * Why the decision is the user's when this approval belongs to a delegated Chat: a fixed sentence per coverage
+     * reason (`approvalCardNote`), shown above the buttons. Never carries the request's own text.
+     */
+    delegationNote?: string;
     /**
      * Replaces Escape's Skip on a question with this action (the waiting popup folds instead of skipping).
      */
@@ -337,6 +350,7 @@ export function AgentChatRequestCard({
                 <ApprovalBody
                     armDelayMs={approvalArmDelayMs}
                     choices={choices}
+                    delegationNote={delegationNote}
                     isAnswering={isAnswering}
                     linkedItem={linkedItem}
                     projectRoot={projectRoot}

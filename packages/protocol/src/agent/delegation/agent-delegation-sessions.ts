@@ -5,6 +5,8 @@ import { identifierSchema } from '../../domain/identifiers.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { ownerOnlyCommandPolicy } from '../../transport/method-spec.js';
 import { agentProviderIds } from '../agents.js';
+import { delegationApprovalSummarySchema } from './agent-delegation-approval.js';
+import { agentDelegationApprovalMethods } from './agent-delegation-approval-contract.js';
 import {
     agentDelegationFailureSchema,
     agentDelegationStatusSchema,
@@ -123,6 +125,11 @@ const agentDelegationSessionSchema = z.strictObject({
      * `user`. Absent without an open question.
      */
     waitingOn: delegationWaitingOnSchema.optional(),
+    /**
+     * The pending permission request of this Session's Chat, without its content. Chat Sessions only; `waitingOn` is
+     * derived from the questions and the approvals together. See `agent-delegation-approval.ts`.
+     */
+    approval: delegationApprovalSummarySchema.optional(),
 });
 
 export type AgentDelegationSession = z.infer<typeof agentDelegationSessionSchema>;
@@ -168,6 +175,7 @@ const agentDelegationStatusEntrySchema = z.strictObject({
      */
     question: delegationQuestionSummarySchema.optional(),
     waitingOn: delegationWaitingOnSchema.optional(),
+    approval: delegationApprovalSummarySchema.optional(),
 });
 
 export type AgentDelegationStatusEntry = z.infer<typeof agentDelegationStatusEntrySchema>;
@@ -281,6 +289,7 @@ const cancelScheduledRetry: CancelScheduledRetrySpec = {
 
 export const agentDelegationSessionsMethods = {
     ...agentDelegationQuestionMethods,
+    ...agentDelegationApprovalMethods,
     ...agentDelegationQuestionOwnerMethods,
     /**
      * The Sessions the named Sessions created, each with its newest delegation's state and stored result, for the

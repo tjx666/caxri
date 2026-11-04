@@ -174,6 +174,20 @@ export function applyDelegationProgress(
 }
 
 /**
+ * Re-reads the feed, task-state, and global waiting-popup reads after a pending approval changed (a held request is
+ * hidden from the popup until it escalates or ends). The event carries ids and a closed state only; the approval
+ * summary arrives with the feed read.
+ */
+export function invalidateDelegationApproval(queryClient: QueryClient): void {
+    void queryClient.invalidateQueries({
+        predicate: (query) =>
+            isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD) ||
+            isQueryMethod(query.queryKey, DELEGATION_STATUSES_METHOD) ||
+            isQueryMethod(query.queryKey, 'agentChat.pendingRequests'),
+    });
+}
+
+/**
  * Re-reads what a question's change moved: every Delegated Sessions feed read (the row asks, escalates, or stops
  * asking) and the question's detail read of that task. The event carries ids and closed values only, so nothing is
  * patched in: the text arrives through the owner-only `questionDetail` read, and only when a question card asks.

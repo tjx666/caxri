@@ -6,6 +6,11 @@ import { sessionPullRequestStateSchema } from '../../domain/session-pull-request
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { commandPolicy } from '../../transport/method-spec.js';
 import { principalSchema } from '../../transport/principal.js';
+import {
+    agentDelegationApprovalInternalMethods,
+    delegationStatusResultSchema,
+    delegationWaitResultSchema,
+} from './agent-delegation-approval-contract.js';
 import { agentDelegationQuestionInternalMethods } from './agent-delegation-question-contract.js';
 import {
     delegationEffortSchema,
@@ -395,23 +400,12 @@ const resultSchema = z.strictObject({
     pullRequest: agentDelegationPullRequestSchema.optional(),
 });
 
-/**
- * `question` means a watched task has an open question for the caller (`questionId`, never its text); it repeats on
- * every wait until the question closes, so pass `ignoreQuestions` to skip it. `settled` and `blocked` rank before it.
- */
-export interface AgentDelegationWaitResult extends z.infer<typeof resultSchema> {
-    outcome: 'settled' | 'blocked' | 'question' | 'timeout';
-    questionId?: string;
-}
+const waitResultSchema = delegationWaitResultSchema(resultSchema);
 
-const waitResultSchema: z.ZodType<AgentDelegationWaitResult> = resultSchema
-    .extend({
-        outcome: z.enum(['settled', 'blocked', 'question', 'timeout']),
-        questionId: identifierSchema.optional(),
-    })
-    .refine(({ outcome, questionId }) => (outcome === 'question') === (questionId !== undefined), {
-        message: 'questionId accompanies exactly the question outcome',
-    });
+/**
+ * `status` as every caller reads it; see `AgentDelegationStatusResult`.
+ */
+const statusResultSchema = delegationStatusResultSchema(agentDelegationReceiptSchema);
 
 export const agentDelegationMethods = {
     'agent.delegation.presets': {
@@ -432,7 +426,7 @@ export const agentDelegationMethods = {
     'agent.delegation.status': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
         params: identitySchema,
-        result: agentDelegationReceiptResultSchema,
+        result: statusResultSchema,
     },
     'agent.delegation.result': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
@@ -470,6 +464,7 @@ const authoritySchema = z.strictObject({
 
 export const agentDelegationInternalMethods = {
     ...agentDelegationQuestionInternalMethods,
+    ...agentDelegationApprovalInternalMethods,
     'agent.delegation.presetsInternal': {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend(rosterParameters.shape),
@@ -496,7 +491,7 @@ export const agentDelegationInternalMethods = {
     'agent.delegation.statusInternal': {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend({ delegationId: identifierSchema }),
-        result: agentDelegationReceiptResultSchema,
+        result: statusResultSchema,
     },
     'agent.delegation.resultInternal': {
         ...commandPolicy('server', 'read'),

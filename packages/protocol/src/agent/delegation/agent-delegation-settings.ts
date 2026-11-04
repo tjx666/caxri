@@ -94,6 +94,12 @@ export const agentDelegationSettingsSchema = z
          * check a delegated task's work without interrupting it. Off answers every read with `disabled`.
          */
         readChildChat: z.boolean().default(true),
+        /**
+         * Whether the Agent that delegated a task may approve the permission requests of its delegated Chat that fall
+         * within its own permission. Off sends every request to the user. A request outside the delegating Agent's
+         * permission always goes to the user.
+         */
+        approval: z.boolean().default(true),
     })
     .superRefine((settings, context) => {
         const names = new Set(settings.presets.map((preset) => preset.name));
@@ -117,7 +123,13 @@ export const agentDelegationSettingsSchema = z
             }
         }
     })
-    .default({ maxDepth: DEFAULT_DELEGATION_DEPTH, presets: [], callers: {}, readChildChat: true });
+    .default({
+        maxDepth: DEFAULT_DELEGATION_DEPTH,
+        presets: [],
+        callers: {},
+        readChildChat: true,
+        approval: true,
+    });
 
 export const delegationRosterSchema = z.strictObject({
     maxDepth: z.number().int().min(MIN_DELEGATION_DEPTH).max(MAX_DELEGATION_DEPTH),

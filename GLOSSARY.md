@@ -154,6 +154,13 @@ the Session that created it, and the sidebar lists it under that Session. A Hand
 not one, and neither is a Session Caxri Bot dispatches a task to.
 _Avoid_: Child Session, sub-Session, subagent
 
+**Parent approval**:
+An Agent's one-shot decision (accept or decline) on a permission request of a Session it delegated a
+task to, allowed only when the request falls within the permission that Agent has applied to its own
+Chat. Anything beyond it, and any request the Agent does not decide within 90 seconds, goes to the
+user.
+_Avoid_: Auto-approve, proxy approval, child approval
+
 **Hand-off**:
 A Session's work carried on in a new Session instead of waiting on a task there; the new Session
 reads as continued from the first. It starts from the Chat `/new-session` command or from continuing

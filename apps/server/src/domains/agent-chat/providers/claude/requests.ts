@@ -155,6 +155,17 @@ export class ClaudeRequestBroker {
     }
 
     /**
+     * The plain decisions a pending approval offers: Claude's approval always lists both. A question or an unknown
+     * request has none.
+     */
+    offers(requestId: string): { accept: boolean; decline: boolean } | undefined {
+        const pending = this.pending.get(requestId);
+        return pending && pending.toolName !== 'AskUserQuestion'
+            ? { accept: true, decline: true }
+            : undefined;
+    }
+
+    /**
      * Reports, once, whether the user declined the tool call behind a tool result.
      */
     takeDeclined(toolUseId: string): boolean {

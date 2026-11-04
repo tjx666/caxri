@@ -287,6 +287,16 @@ Then write the task to a file and run
   `already_answered` or `cancelled` when the question closed first, for example because the user
   answered it from Caxri; the text you sent was then not delivered. Questions and answers hold at
   most 2000 and 4000 characters.
+  A wait outcome `approval` carries an `approval` (`requestId`, `revision`, `kind` `command` or `fileChange`,
+  and the `command`, `cwd` or `paths` the task wants to run or edit) that your own permission
+  covers; it repeats on every wait until the request closes. Decide it with
+  `agent delegate approve <id> <request-id> --revision <revision> (--accept | --decline)`, where
+  `revision` is the one in the `approval` you read; the task is blocked until
+  then, and the user is asked if you do not decide within 90 seconds. `approve` fails with
+  `CONFLICT` when the request closed first (for example the user decided it) or changed after you
+  read it (`conflictReason` `request_changed`: read `status` again and judge the new text) and with `FORBIDDEN`
+  and a `coverageReason` when your permission does not cover it; an `approval` marked
+  `covered: false` or `escalated` belongs to the user, so do not wait for it.
   When you are the delegated task and need a decision only the delegating Agent can make, ask it
   instead of guessing or stopping:
   `agent delegate ask --text <question> [--option <choice>]... --request-id <id> --json` (at most

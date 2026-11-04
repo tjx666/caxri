@@ -108,13 +108,12 @@ export class AgentCoordinator {
                 if (
                     !candidate.provider &&
                     this.shellPromotionCandidates.get(terminalId) === candidate
-                ) {
+                )
                     this.shellPromotionCandidates.delete(terminalId);
-                }
             },
             onInactive: (terminalId, provider) => {
-                if (!this.database.revokeForegroundAgentProvider(terminalId, provider)) return;
-                this.lifecycle.emitMetadataChange(terminalId);
+                if (this.database.revokeForegroundAgentProvider(terminalId, provider))
+                    this.lifecycle.emitMetadataChange(terminalId);
             },
         });
         this.refreshes = new CoalescedScheduler(
@@ -293,10 +292,7 @@ export class AgentCoordinator {
              * A failed probe degrades Agent metadata to unknown; it never interrupts the Server.
              */
             this.logger.write('warn', logEventCatalog.agent.probeFailed, {
-                fields: {
-                    terminalId,
-                    error: errorMessage(error, 'unknown'),
-                },
+                fields: { terminalId, error: errorMessage(error, 'unknown') },
             });
         }
     }
@@ -428,6 +424,10 @@ export class AgentCoordinator {
 
     agentOperation(terminalId: string): AgentOperation | undefined {
         return this.lifecycleWatchdogs.operation(terminalId) ?? this.work.operation(terminalId);
+    }
+
+    raiseHeldAttention(signal: AgentLifecycleSignal): boolean {
+        return this.lifecycle.raise(signal);
     }
 
     /**

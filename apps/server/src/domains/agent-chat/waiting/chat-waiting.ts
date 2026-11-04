@@ -40,11 +40,14 @@ function latestPrompt(items: AgentChatSnapshot['items']): string | undefined {
 /**
  * Every Chat with a running provider that waits on the user, in the order Server Core holds them. It only reads the
  * given in-memory projections, so it never starts a provider; a Chat whose provider is gone is skipped because nothing
- * is left to take the answer. `sessionOf` drops a Terminal whose row is already gone.
+ * is left to take the answer. `sessionOf` drops a Terminal whose row is already gone. `isHeld` names a request that a
+ * delegating Agent is still deciding quietly (see `DelegationApprovals.isHeld`); it stays out of the list until it
+ * escalates, while the Chat's other requests and a proposed plan stay listed.
  */
 export function readWaitingChats(
     sources: Iterable<WaitingChatSource>,
     sessionOf: (terminalId: string) => string | undefined,
+    isHeld: (terminalId: string, requestId: string) => boolean = () => false,
 ): AgentChatWaitingChat[] {
     const chats: AgentChatWaitingChat[] = [];
     for (const { isOpen, snapshot, terminalId } of sources) {
@@ -55,9 +58,8 @@ export function readWaitingChats(
          * still waits on the user, so it lists beside real requests (answered through `agentChat.implementPlan`).
          */
         const planId = agentChatImplementablePlanId(snapshot);
-        const requests = planId
-            ? [...snapshot.requests, agentChatProposedPlanRequest(planId)]
-            : snapshot.requests;
+        const listed = snapshot.requests.filter((request) => !isHeld(terminalId, request.id));
+        const requests = planId ? [...listed, agentChatProposedPlanRequest(planId)] : listed;
         if (requests.length === 0) continue;
         const sessionId = sessionOf(terminalId);
         if (!sessionId) continue;

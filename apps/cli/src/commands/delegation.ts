@@ -6,6 +6,7 @@ import {
 } from '@caxri/protocol';
 
 import { AGENT_SESSION_COMMANDS } from './agent-session';
+import { DELEGATION_APPROVAL_COMMANDS } from './delegation-approval';
 import { DELEGATION_QUESTION_COMMANDS } from './delegation-question';
 import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
@@ -188,7 +189,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         path: ['agent', 'delegate', 'wait'],
         method: 'agent.delegation.wait',
         summary:
-            'Wait for the first of your tasks to settle, block, or ask a question, without resending or stopping any of them.',
+            'Wait for the first of your tasks to settle, block, ask a question, or ask for an approval, without resending or stopping any of them.',
         usage: '<delegation-id> [<delegation-id>...] [--ignore-questions] [--timeout <milliseconds>]',
         parseParams: waitIdentities,
     },
@@ -239,6 +240,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         parseParams: listParameters,
     },
     ...DELEGATION_QUESTION_COMMANDS,
+    ...DELEGATION_APPROVAL_COMMANDS,
     /**
      * Managing the Sessions `--new-session` created.
      */

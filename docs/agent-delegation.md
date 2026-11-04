@@ -216,14 +216,14 @@ final state.
 The read uses the Chat already loaded in Server Core and never starts the Agent. An `unavailable`
 answer carries a closed `reason`:
 
-| Reason              | Meaning                                                                                            |
-| ------------------- | -------------------------------------------------------------------------------------------------- |
-| `disabled`          | The owner turned `agents.delegation.readChildChat` off.                                            |
-| `not_started`       | The task has no Agent yet.                                                                         |
-| `not_chat`          | The task runs in a Terminal; read its answer with `result` instead.                                |
-| `projection_lost`   | The Chat is not loaded (closed, or Server Core restarted).                                         |
-| `boundary_unproven` | The Chat no longer shows where the task began, so no row can be proven to belong to it.            |
-| `cursor_invalid`    | `--after` came from another task or an earlier version of the conversation; read again without it. |
+| Reason              | Meaning                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `disabled`          | The owner turned `agents.delegation.readChildChat` off (a separate setting, `approval`, governs [parent approval](#parent-approval)). |
+| `not_started`       | The task has no Agent yet.                                                                                                            |
+| `not_chat`          | The task runs in a Terminal; read its answer with `result` instead.                                                                   |
+| `projection_lost`   | The Chat is not loaded (closed, or Server Core restarted).                                                                            |
+| `boundary_unproven` | The Chat no longer shows where the task began, so no row can be proven to belong to it.                                               |
+| `cursor_invalid`    | `--after` came from another task or an earlier version of the conversation; read again without it.                                    |
 
 A task Caxri already pruned reads as `NOT_FOUND`, like `result`.
 
@@ -307,6 +307,89 @@ a pending question does not make the task blocked:
   and the event is not bridged to it. The Desktop Session view is the fallback; a question the
   user needs to answer waits there.
 
+### Parent approval
+
+A delegated Chat that asks permission to run a command or change files does not have to stop at the
+user. The Agent that delegated the task may decide the request itself, but only when the request
+falls within the permission that Agent has applied to its own Chat. Anything beyond that goes to
+the user, with a reason. This is not an emulated permission level: each Agent keeps the level it was
+given, and a parent never grants more than it holds
+([Permission level and plan mode](agent-chat.md#permission-level-and-plan-mode)).
+
+```sh
+# the delegating Agent
+caxri agent delegate wait <delegation-id>... --json   # outcome "approval", with command, cwd or paths
+caxri agent delegate status <delegation-id> --json    # the same approval, plus why it is not covered
+caxri agent delegate approve <delegation-id> <request-id> --revision <revision> (--accept | --decline) --json
+```
+
+The delegated task stays `blocked` (`permission_required`) while any request is pending. `wait`
+returns the outcome `approval` for a covered request that is still inside its grace period, with
+an `approval` object `{ requestId, kind, revision, covered, coverageReason, escalated, requestedAt }` plus
+the content the parent needs to judge it: `command` and `cwd` for a command, `paths` for a file
+change. An escalated or uncovered request returns plain `blocked` (the same object, `covered` or
+`escalated` telling why), so a parent that declines does not spin on `approval`. `status` returns
+the approval whether or not it is covered, so the parent learns the reason instead of retrying.
+
+| Parent's applied level | Command | File change inside the Session's Project |
+| ---------------------- | ------- | ---------------------------------------- |
+| Full access            | Covered | Covered                                  |
+| Accept edits           | Never   | Covered                                  |
+| Ask, read-only, auto   | Never   | Never                                    |
+
+For a chain of delegations the request must be covered by every Agent in the chain, and the first
+Agent that is not makes the reason `ancestor_not_covering`.
+
+- **Never covered.** A Terminal parent, a parent that is not Claude Code or Codex, an unresolved
+  permission level, plan mode, a requested level that has not taken effect yet (Codex), a
+  permission switch or plan exit that is not yet confirmed (Claude Code), a delegating Agent whose
+  own task the user took over, any hop whose launch could not be proven, network access, any tool
+  request or plan approval, a command at the 4096 character cap, a file change with no paths, more
+  than 20 paths, a relative path, a path that does not exist, a path outside the Session's Project
+  root, and a decision the provider does not offer. Every one of these has its own closed
+  `coverageReason`. A symlink inside the Project root counts as inside, like the file explorer.
+- **Grace.** A covered request is held quietly for 90 seconds: the Session's attention state, the
+  sidebar, and notifications are unchanged, the row reads `Waiting for the Agent that delegated it to approve`, the Session raises no alert, and the global Chat waiting popup omits the held request (the Chat's other questions and proposed plans stay listed). After 90 seconds, or at once when the delegating
+  Agent's launch is gone, or the setting is turned off, or the parent's permission is lowered, the
+  request escalates: the Session raises its normal "waiting for you" alert exactly once. The held
+  request appears in the popup the moment it escalates. A person typing into the root
+  delegating Agent (which has no task of its own) is normal direction, not a takeover, and does not
+  escalate; typing into a delegating Agent that is itself a delegated task, or into the delegated
+  Chat, does. An uncovered request escalates at creation. Escalation is a mark only: nothing is approved or
+  declined for the user, and a request that has alerted the user never becomes covered again.
+- **One shot.** `approve` answers one request with `accept` or `decline`. It never grants a
+  standing approval (`acceptAlways` and `acceptForSession` do not exist for it) and is not an
+  auto-approve loop: the next request asks again. `accept` is refused with `VALIDATION` when the
+  provider did not offer it.
+- **Atomic and bound.** The Server rechecks the request, the delegating Agent's applied
+  permission, takeover, and the Session's Project binding at answer time. `approve` requires the `revision`
+  of the approval the parent read (an opaque string that changes whenever the provider rewrites the
+  request under the same ID); a mismatch returns `CONFLICT` with `details.conflictReason`
+  `request_changed` and nothing is sent, so the parent re-reads and judges the new text. A request
+  that changed since the parent read it is a new request and is reclassified. If the user answered first, or
+  the request is gone, `approve` returns `CONFLICT` ("no longer pending") and nothing is sent. If
+  the request is no longer covered, `approve` returns `FORBIDDEN` with the `coverageReason`. The
+  first answer wins in either direction.
+- **Takeover and restart.** Typing into the delegated Session cancels the pending approval; a
+  Server Core restart forgets it together with the provider request. The parent's decision does
+  not take the Session over, like the user's own approval.
+- **Terminal children.** A Terminal child never has an approval: it carries none in `wait`,
+  `status`, the feed, or events, and its `blocked` state reads exactly as before.
+- **The user can decide first.** The request card in the delegated Chat stays clickable during the
+  grace. Once the request is the user's, a line above its buttons says why in a fixed sentence per
+  `coverageReason`; it never repeats the command or paths.
+- **After the parent decides.** The delegated Chat shows a notice (`delegationApproval`) "The
+  Agent that delegated this answered the request." and the request card leaves.
+- **Setting.** `agents.delegation.approval` (default `true`, owner toggle in Settings) turns the
+  whole feature off: every request is then uncovered with `disabled`.
+- **Privacy.** Command, working directory, and path text appears only in the `wait` and `status`
+  replies to the delegating Agent. Logs (`agent_delegation.approval_*`: requested, decided, escalated, cancelled, refused), the transient `agent.delegation.approval` event, bootstrap, and the
+  Delegated Session feed carry IDs, closed enums, and durations only; the feed shows `approval` as
+  `{ requestId, kind, revision, covered, coverageReason, escalated, requestedAt }` plus the derived
+  `waitingOn` (`parent` or `user`).
+- **Mobile.** No Mobile role can call `approve` and the event is not bridged; during the grace a
+  Mobile row shows no waiting, and once escalated the existing waiting state appears as usual.
+
 ## Presets and caller policy
 
 Configure `agents.delegation` in the profile's Settings JSON. No preset or model preference is
@@ -317,6 +400,7 @@ installed automatically. The default maximum depth is two; supported values are 
   "agents.delegation": {
     "maxDepth": 2,
     "readChildChat": true,
+    "approval": true,
     "presets": [
       {
         "name": "review",
@@ -744,7 +828,7 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
   bug report. Only the delegation pointer, a dispatch prompt, and a Caxri Bot completion notice
   (written with `origin: 'delegation'` on a PTY) opt out. Rewinding, running a command,
   interrupting, or sending a queued message from the Chat also takes over; answering an approval
-  does not.
+  does not, and neither does the delegating Agent's [parent approval](#parent-approval).
 - **Exact resume.** `--resume-from` on a child whose Chat is still live replaces that Chat's own
   launch: dispatch compares the Chat's live launch, not a PTY launch, with the one the task
   recorded. When dispatch refuses the resume before recording a receipt, the parent's chain claim
@@ -798,7 +882,9 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   `toolBatchFinished` (Claude Code's `PostToolBatch`, which follows a tool the user approved). Both
   are reported without a turn ID, which counts; a resolution naming another turn does not. Codex
   has no permission-resolution hook, so a Codex Terminal Session stays `blocked` until its turn ends.
-  Before this, the receipt stayed `blocked` until the turn ended.
+  Before this, the receipt stayed `blocked` until the turn ended. A Chat child can hold several
+  requests at once and stays `blocked` until the last one is resolved, whether the user or the
+  delegating Agent resolved it ([Parent approval](#parent-approval)).
 - **Stored result.** When a task in a Session whose creator relation is `delegated` or `consult`
   completes with an answer, its summary is written to `session_results`, one row per
   Session, replaced by each later task of that Session; a later completed task whose answer yields
@@ -879,6 +965,14 @@ that decide which Sessions take which place.
   `retriedAs` is not failed either: the retry stands for it, and a pending scheduled retry reads
   as waiting. An interrupted,
   human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
+- **Pending approval.** A nested Chat Session whose request waits on the user (the feed entry
+  carries an `approval` and `waitingOn: user`) keeps a static amber waiting glyph after the user
+  has read the Session, because reading does not decide the request. The glyph does not animate,
+  and clears when the request leaves the feed (decided, withdrawn, or the task ended). It is gated
+  on the feed entry, never on the Session record's activity state alone: a Terminal (PTY) Session
+  with a stale `waiting` state still clears once read. A request still held for the delegating
+  Agent shows the muted asking glyph and no amber
+  ([Parent approval](#parent-approval)). A row with this glyph is always listed, never folded.
 - **Not shown.** A nested row lists no subagent rows of its own, and it is not reorderable, so its
   position follows its host. The result summary and the live step have no sidebar surface; the
   parent's [Chat strip](#chat-surfaces) shows them.
@@ -940,6 +1034,11 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
   is never lost. A later wait or result command that names an already recorded ID is not a second
   record, and a history restore stamps again. The statuses read carries `provider` and
   `failureResetsAt` so the record words a limit failure like the strip row.
+- **Approval wording.** A row that waits on a permission request reads
+  `Waiting for the Agent that delegated it to approve` (muted asking glyph) while the delegating Agent holds it, and `Waiting for your approval` (amber) once it is the user's, with one fixed sentence for the closed
+  `coverageReason`. The header counts escalated approvals as `<n> waiting for your approval` when
+  every task that needs input is an approval, and as `<n> need input` otherwise; held ones count
+  as `asking`, which is not attention and stays out of the live-region announcement.
 - **Child Chat.** A Delegated Session's own Chat keeps the `Delegated by <title> · <parent Project>`
   bubble and adds an origin row at the top of the composer strip: the origin, that the result goes
   back automatically, and `Back to <parent>`, plus a hint that acting here takes the Session over.
@@ -948,6 +1047,9 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
   `takenOverAt`. When the position is uncertain (an earlier entry has no time, earlier history is
   not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
   composer instead of a guessed position.
+  While a request waits, the origin row says `Waiting for <parent> to approve` (muted) or, once
+  the request is the user's, `Waiting for your approval` (amber), and the request card carries
+  the reason line.
   An archived parent stays named but cannot be opened. When the Session's newest task failed with
   a retryable failure, the row offers the same failure actions as the strip (see
   [Failure next steps](#failure-next-steps)).

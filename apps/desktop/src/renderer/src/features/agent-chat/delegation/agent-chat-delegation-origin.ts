@@ -1,5 +1,7 @@
 import type { DelegationWaitingOn, SessionRecord } from '@caxri/protocol';
 
+import type { Translate } from '../../../i18n';
+
 /**
  * What the composer's first strip row says in a Chat that another Session delegated its work to.
  */
@@ -41,4 +43,29 @@ export function delegationOrigin(
         isWaitingOnParent: takenOverAt === undefined && waitingOn === 'parent',
         parent: { id: parent.id, title: parent.title },
     };
+}
+
+/**
+ * The translation key of what a not-yet-taken-over origin row says after the parent's name. A question and a permission
+ * request word the same three states (the result returns on its own, the Agent that delegated this is deciding, the
+ * decision is the user's), so the row never calls a question an approval.
+ */
+export function originReturnNoteKey({
+    hasApproval,
+    isEscalated,
+    isWaitingOnParent,
+}: {
+    hasApproval: boolean;
+    isEscalated: boolean;
+    isWaitingOnParent: boolean;
+}): Parameters<Translate>[0] {
+    if (isEscalated)
+        return hasApproval
+            ? 'delegation.origin.waitingForYourApproval'
+            : 'delegation.origin.waitingForYou';
+    if (isWaitingOnParent)
+        return hasApproval
+            ? 'delegation.origin.waitingForApproval'
+            : 'delegation.origin.waitingForParent';
+    return 'delegation.origin.autoReturn';
 }

@@ -149,4 +149,43 @@ export const delegation = {
     'delegation.question.escalatedReason': '{{title}} did not answer, so it is yours to answer',
     'delegation.question.sendFailedLabel': 'send the answer',
     'delegation.question.optionsLabel': 'Suggested answers',
+    'delegation.copy.approvalParent': 'Waiting for the Agent that delegated it to approve',
+    'delegation.copy.approvalYou': 'Waiting for your approval',
+    'delegation.strip.approvalOne': '{{count}} waiting for your approval',
+    'delegation.strip.approvalOther': '{{count}} waiting for your approval',
+    'delegation.origin.waitingForApproval': 'Waiting for {{title}} to approve',
+    'delegation.origin.waitingForYourApproval': 'Waiting for your approval',
+    'delegation.approval.reason.covered': 'The Agent that delegated this did not decide in time',
+    'delegation.approval.reason.disabled': 'Parent approval is turned off in Settings',
+    'delegation.approval.reason.parent_not_chat':
+        'The Agent that delegated this runs in a Terminal and cannot approve requests',
+    'delegation.approval.reason.parent_provider':
+        'The Agent that delegated this cannot approve requests',
+    'delegation.approval.reason.parent_launch_unknown':
+        'The Agent that delegated this could not be confirmed as running',
+    'delegation.approval.reason.parent_mode_unresolved':
+        'The permission level of the Agent that delegated this is not known',
+    'delegation.approval.reason.parent_mode_unapplied':
+        'The permission change of the Agent that delegated this has not taken effect yet',
+    'delegation.approval.reason.parent_plan_mode': 'The Agent that delegated this is in plan mode',
+    'delegation.approval.reason.parent_mode_insufficient':
+        'The Agent that delegated this may not approve requests at its permission level',
+    'delegation.approval.reason.ancestor_not_covering':
+        'An Agent above the one that delegated this may not approve it',
+    'delegation.approval.reason.ancestor_taken_over':
+        'You took over an Agent in the chain that delegated this',
+    'delegation.approval.reason.lineage_unproven': 'Who delegated this could not be confirmed',
+    'delegation.approval.reason.taken_over': 'You already took over this Session',
+    'delegation.approval.reason.turn_unproven':
+        'This request does not belong to the delegated task',
+    'delegation.approval.reason.kind_unsupported':
+        'The Agent that delegated this may not decide this kind of request',
+    'delegation.approval.reason.network':
+        'The Agent that delegated this may not approve network access',
+    'delegation.approval.reason.command_unproven': 'The command could not be shown in full',
+    'delegation.approval.reason.path_missing': 'The files this would change are not known',
+    'delegation.approval.reason.path_outside':
+        "This would change files outside the Session's Project",
+    'delegation.approval.reason.path_unproven': 'The files this would change could not be verified',
+    'delegation.approval.reason.accept_not_offered': 'Approving is not offered for this request',
 } as const;

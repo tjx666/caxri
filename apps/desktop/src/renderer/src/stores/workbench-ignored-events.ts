@@ -35,10 +35,13 @@ import type { ServerEvent } from '@caxri/protocol';
  * - `agent.delegation.questionChanged` carries ids only. `subscribeRuntimeQueryInvalidation` refreshes the Delegated
  *   Sessions feed and the changed task's `agent.delegation.questionDetail` read on it
  *   (`queries/invalidation-delegation-feed.ts`).
+ * - `agent.delegation.approval` carries ids and a closed state only. `subscribeRuntimeQueryInvalidation` refreshes the
+ *   Delegated Sessions feed and task-state reads on it (`queries/invalidation-delegation-feed.ts`).
  * - `desktop.shareReceived` goes to `subscribeShareRequests` in `features/share/share-request-store.ts`, which opens the
  *   Send to Session picker.
  */
 const WORKBENCH_IGNORED_EVENTS = [
+    'agent.delegation.approval',
     'agent.delegation.progress',
     'agent.delegation.questionChanged',
     'agent.dispatch.changed',

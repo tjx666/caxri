@@ -22,6 +22,7 @@ const TAKEOVER_STALE_TIME_MS = 60_000;
  */
 type DelegationOriginTask = Pick<
     AgentDelegationSession,
+    | 'approval'
     | 'delegationId'
     | 'failure'
     | 'provider'
@@ -82,6 +83,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                 const entry = feed.sessions.find((candidate) => candidate.sessionId === sessionId);
                 return (
                     entry && {
+                        approval: entry.approval,
                         delegationId: entry.delegationId,
                         failure: entry.failure,
                         provider: entry.provider,

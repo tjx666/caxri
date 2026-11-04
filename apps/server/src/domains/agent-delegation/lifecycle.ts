@@ -8,6 +8,7 @@ import type { AgentLifecycleSignal } from '../agents';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
+import type { AgentDelegationServiceOptions } from './service-options';
 
 /**
  * Whether `failure` may settle this task: any active task, and also a startup already interrupted by `target_changed`
@@ -93,6 +94,12 @@ export function isAwaitingStartup(record: StoredAgentDelegation): boolean {
 }
 
 /**
+ * What a lifecycle signal reads about a Chat child: whether the Terminal is a Chat, and how many requests its
+ * projection still lists.
+ */
+type ChatReads = Pick<AgentDelegationServiceOptions, 'isChatTerminal' | 'pendingChatRequests'>;
+
+/**
  * Only coordinator-applied, main-agent signals may close a turn. A deferred parent Stop remains in the coordinator
  * until all child work is settled. Grok Stop evidence uses the separate authenticated-hook source, so native continued
  * drafts are counted without treating them as completed lifecycle events or counting deferred replays twice.
@@ -101,8 +108,9 @@ export function applyDelegationLifecycle(
     record: StoredAgentDelegation,
     signal: AgentLifecycleSignal,
     source: 'lifecycle' | 'evidence' = 'lifecycle',
-    isChatTerminal?: (terminalId: string) => boolean,
+    chats: ChatReads = {},
 ): StoredAgentDelegation | undefined {
+    const { isChatTerminal } = chats;
     const isGrokStop = signal.provider === 'grok' && signal.phase === 'turnFinished';
     if (isGrokStop !== (source === 'evidence')) return;
     if (
@@ -202,6 +210,10 @@ export function applyDelegationLifecycle(
          * hook names one only for some providers, so an absent turn counts; a resolution of another turn does not.
          */
         if (signal.agentTurnId !== undefined && signal.agentTurnId !== record.turnId) return;
+        /**
+         * A Chat can hold several requests at once; the task stays blocked until the last one is resolved.
+         */
+        if (signal.terminalId && (chats.pendingChatRequests?.(signal.terminalId) ?? 0) > 0) return;
         return record.receipt.status === 'blocked' &&
             record.receipt.failure === 'permission_required'
             ? patch('running')

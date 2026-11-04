@@ -58,6 +58,9 @@ export function buildServerLaunchEnvironment(
             CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS:
                 processEnvironment.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS,
         }),
+        ...(processEnvironment.CAXRI_E2E_APPROVAL_GRACE_MS && {
+            CAXRI_E2E_APPROVAL_GRACE_MS: processEnvironment.CAXRI_E2E_APPROVAL_GRACE_MS,
+        }),
         // Server Core ignores these unless `CAXRI_E2E=1`; see `terminal/e2e-resource-override.ts` and
         // `terminal/e2e-pty-usage-override.ts`.
         ...(processEnvironment.CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE && {

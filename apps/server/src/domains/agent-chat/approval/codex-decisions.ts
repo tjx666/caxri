@@ -78,3 +78,18 @@ export function codexApprovalDecisions(parameters: Json): AgentChatDecision[] | 
     if (codexExecpolicyAmendment(parameters)) decisions.add('acceptAlways');
     return decisions.size > 0 ? [...decisions] : undefined;
 }
+
+/**
+ * Which plain decisions Codex accepts for this request, kept apart from {@link codexApprovalDecisions}: that function
+ * returns `undefined` both for "no list" (every plain decision) and for a list with no usable entry, so it cannot say
+ * whether `accept` is offered. A parent Agent may approve only when `accept` is, so an empty or unknown-only list
+ * offers nothing. `decline` is also offered whenever `cancel` is listed, as above.
+ */
+export function codexOffers(parameters: Json): { accept: boolean; decline: boolean } {
+    const available = parameters.availableDecisions;
+    if (!Array.isArray(available)) return { accept: true, decline: true };
+    return {
+        accept: available.includes('accept'),
+        decline: available.includes('decline') || available.includes('cancel'),
+    };
+}

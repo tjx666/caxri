@@ -1,7 +1,7 @@
 import type { AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import { agentChatAnsweredNotice, CaxriError } from '@caxri/protocol';
 
-import { codexExecpolicyAmendment } from '../../approval/codex-decisions';
+import { codexExecpolicyAmendment, codexOffers } from '../../approval/codex-decisions';
 import { clip, questionAnswers, stringField } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import type { JsonRpcConnection, JsonRpcServerRequest } from '../../json-rpc-connection';
@@ -16,6 +16,10 @@ interface PendingRequest {
      * The command prefix rule Codex proposed, held here so the Client only names `acceptAlways` and never carries it.
      */
     execpolicyAmendment?: string[];
+    /**
+     * Which plain decisions Codex accepts, rewritten whenever the request is received again; see {@link codexOffers}.
+     */
+    offers: { accept: boolean; decline: boolean };
 }
 
 /**
@@ -73,6 +77,7 @@ export class CodexRequestBroker {
             kind,
             ...(turnId && { turnId: clip(turnId, 200) }),
             ...(amendment && { execpolicyAmendment: amendment }),
+            offers: codexOffers(request.params),
         });
         const { items, requests } = this.host.read();
         const mapped: AgentChatRequest = mapCodexRequest(kind, key, request.params, items);
@@ -93,6 +98,14 @@ export class CodexRequestBroker {
                 agentTurnId: turnId,
                 agentToolUseId: key,
             });
+    }
+
+    /**
+     * The plain decisions Codex accepts for a pending approval, or `undefined` for a question or an unknown request.
+     */
+    offers(requestId: string): { accept: boolean; decline: boolean } | undefined {
+        const pending = this.pending.get(requestId);
+        return pending?.kind === 'question' ? undefined : pending?.offers;
     }
 
     settle(key: string): void {

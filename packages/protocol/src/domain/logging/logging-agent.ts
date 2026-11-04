@@ -219,6 +219,32 @@ export const agentDelegationLogEvents = {
      * (`grace_elapsed` or `parent_gone`), `latencyMs`.
      */
     questionEscalated: 'agent_delegation.question_escalated',
+    /**
+     * A delegated Chat's permission request was observed. Fields: `delegationId`, `requestKind` (`command` or
+     * `fileChange`), `coverageReason` (the closed `ApprovalCoverageReason`). Never the command, cwd, path, or tool
+     * name.
+     */
+    approvalRequested: 'agent_delegation.approval_requested',
+    /**
+     * The Agent that delegated the task decided a request. Fields: `delegationId`, `requestKind`, `decision` (`accept`
+     * or `decline`), `latencyMs`.
+     */
+    approvalDecided: 'agent_delegation.approval_decided',
+    /**
+     * A request became the user's to decide. Fields: `delegationId`, `requestKind`, `escalationReason` (the closed
+     * `ApprovalEscalationReason`), `latencyMs`.
+     */
+    approvalEscalated: 'agent_delegation.approval_escalated',
+    /**
+     * A pending request ended without the delegating Agent's decision. Fields: `delegationId`, `requestKind`,
+     * `cancelReason` (the closed `ApprovalCancelReason`), `latencyMs`.
+     */
+    approvalCancelled: 'agent_delegation.approval_cancelled',
+    /**
+     * An approval attempt was refused. Fields: `delegationId`, `requestKind`, `refusal` (the closed
+     * `ApprovalCoverageReason`, or `stale` for a request that changed or was answered first).
+     */
+    approvalRefused: 'agent_delegation.approval_refused',
 } as const;
 
 export const agentDispatchLogEvents = {

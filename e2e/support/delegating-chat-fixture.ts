@@ -57,7 +57,7 @@ export interface DelegatingChat {
  */
 export async function launchDelegatingChat(
     prefix: string,
-    options: { withClaude?: boolean } = {},
+    options: { env?: NodeJS.ProcessEnv; withClaude?: boolean } = {},
 ): Promise<DelegatingChat> {
     const temporary = await mkdtemp(join(tmpdir(), `${prefix}-`));
     const directory = await realpath(temporary);
@@ -86,7 +86,12 @@ export async function launchDelegatingChat(
             },
         },
     });
-    const launchOptions = { agentMode, userDataDir: userData, testRootPath: root };
+    const launchOptions = {
+        agentMode,
+        userDataDir: userData,
+        testRootPath: root,
+        ...(options.env && { env: options.env }),
+    };
     const running = await launchCaxri(launchOptions);
     const chat: DelegatingChat = {
         controlDirectory,

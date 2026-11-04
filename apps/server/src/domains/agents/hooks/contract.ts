@@ -156,6 +156,12 @@ export interface AgentLifecycleSignal {
      * outcome. It is opaque, bounded, and never joined to Terminal output or transcripts.
      */
     agentToolUseId?: string;
+    /**
+     * Server-only presentation of an `attentionRequested` signal. `quiet` runs the whole normal lifecycle but skips the
+     * Session record write that shows `waiting`, unread, and a new attention generation: a delegating Agent may still
+     * decide the request, and `raise` writes it later, once. Never accepted from the hook wire.
+     */
+    alert?: 'quiet' | 'raise';
     launchId: string;
     phase: AgentLifecyclePhase;
     provider: AgentProvider;

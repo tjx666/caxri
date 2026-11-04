@@ -60,6 +60,7 @@ export function useRenderDelegatedRows({
         const sessionWindow = delegated.children.windows.get(host.id);
         return sessionWindow
             ? createElement(DelegatedSessionRows, {
+                  approvalSessionIds: delegated.feed.approvalSessionIds,
                   failedSessionIds: delegated.feed.failedSessionIds,
                   host,
                   lookups,

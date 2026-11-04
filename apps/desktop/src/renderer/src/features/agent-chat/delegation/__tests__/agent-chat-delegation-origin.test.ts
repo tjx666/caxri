@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { delegationOrigin } from '../agent-chat-delegation-origin';
+import { delegationOrigin, originReturnNoteKey } from '../agent-chat-delegation-origin';
 
 const parent = { id: 'p1', title: 'Plan the release' };
 
@@ -47,5 +47,17 @@ describe('delegationOrigin', () => {
         expect(delegationOrigin({ createdByRelation: 'delegated' }, parent, 1_700)).toMatchObject({
             isTakenOver: true,
         });
+    });
+});
+
+describe('originReturnNoteKey', () => {
+    it('words a held question and a held permission request apart, and never calls a question an approval', () => {
+        const key = (hasApproval: boolean, isEscalated: boolean, isWaitingOnParent: boolean) =>
+            originReturnNoteKey({ hasApproval, isEscalated, isWaitingOnParent });
+        expect(key(false, false, true)).toBe('delegation.origin.waitingForParent');
+        expect(key(true, false, true)).toBe('delegation.origin.waitingForApproval');
+        expect(key(false, true, false)).toBe('delegation.origin.waitingForYou');
+        expect(key(true, true, false)).toBe('delegation.origin.waitingForYourApproval');
+        expect(key(true, false, false)).toBe('delegation.origin.autoReturn');
     });
 });

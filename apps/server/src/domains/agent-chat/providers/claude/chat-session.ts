@@ -111,15 +111,10 @@ type Json = Record<string, unknown>;
  */
 class ClaudeChatSession implements AgentChatProviderSession {
     private readonly settings: ClaudeChatSettings;
-
     private readonly permissions: ClaudePermissions;
-
     private readonly prompts = new PromptQueue();
-
     private readonly requests: ClaudeRequestBroker;
-
     private readonly stream: ClaudeStream;
-
     private readonly tasks: ClaudeTasks;
     private readonly steers = new ClaudeSteers((operations) => this.options.apply(operations));
     private readonly toolClock = new ClaudeToolClock();
@@ -132,19 +127,12 @@ class ClaudeChatSession implements AgentChatProviderSession {
     });
 
     private query: Query | undefined;
-
     private process: ProviderProcess | undefined;
-
     private spawnErrorCode: string | undefined;
-
     private sessionId: string;
-
     private isSessionBound: boolean;
-
     private isEnded = false;
-
     private requested = false;
-
     private readonly turns: ClaudeTurns;
 
     private readonly commands = new ClaudeCommandList((commands) =>
@@ -519,6 +507,14 @@ class ClaudeChatSession implements AgentChatProviderSession {
         );
         // A model switch can move the effort too, to the new model's default or to none, and can withdraw ultracode.
         this.reportAppliedSettings(stream);
+    }
+
+    appliedPermission() {
+        return this.permissions.appliedPermission();
+    }
+
+    requestOffers(requestId: string) {
+        return this.requests.offers(requestId);
     }
 
     setPermission(permission: AgentChatPermission): Promise<void> {

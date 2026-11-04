@@ -1,6 +1,10 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type { AgentDelegationAnswer, AgentDelegationReceipt } from '@caxri/protocol';
+import type {
+    AgentDelegationAnswer,
+    AgentDelegationReceipt,
+    DelegationApproval,
+} from '@caxri/protocol';
 import { CaxriError, isDelegationActive } from '@caxri/protocol';
 
 interface DelegationRead {
@@ -11,7 +15,31 @@ interface DelegationRead {
      * settled has none: settling closes its question before the receipt is readable as settled.
      */
     questionId?: string;
+    /**
+     * The task's pending permission request, with its content: only the Agent that delegated the task reads it.
+     */
+    approval?: DelegationApproval;
 }
+
+/**
+ * Whether the delegating Agent may decide the approval now: covered, and the user has not been shown it.
+ */
+const isDecidable = (approval: DelegationApproval | undefined) =>
+    approval?.covered === true && !approval.escalated;
+
+/**
+ * The read without its approval. `wait` reports one only as the `approval` outcome, or on a `blocked` task whose
+ * request is the user's; anywhere else the delegating Agent would see a decidable request it was not told to decide.
+ */
+function withoutApproval(read: DelegationRead): DelegationRead {
+    const { approval, ...rest } = read;
+    return approval === undefined ? read : rest;
+}
+
+/**
+ * Most `wait` long polls open at once.
+ */
+const MAX_WAITERS = 64;
 
 /**
  * How long one read may run past the wait's own deadline. Public delegation waits carry no client transport timer,
@@ -43,9 +71,9 @@ async function boundedRead(
 }
 
 /**
- * Long-polls the given tasks in argument order and returns the first that settled, has an open question, or blocked (in
- * that order for each task), or the first task's current state on timeout. Reads run one at a time, so a wait over many
- * tasks never fans out concurrent transcript reads.
+ * Long-polls the given tasks in argument order and returns the first that settled, has an open question, has a request
+ * the caller may decide, or blocked (in that order for each task), or the first task's current state on timeout. Reads
+ * run one at a time, so a wait over many tasks never fans out concurrent transcript reads.
  */
 export async function pollDelegations(
     ids: readonly [string, ...string[]],
@@ -64,17 +92,40 @@ export async function pollDelegations(
             // eslint-disable-next-line no-await-in-loop -- each read observes the previous wait's newer durable state
             const result = await boundedRead(read(id), hardDeadline, signal);
             if (!isDelegationActive(result.receipt))
-                return { ...result, outcome: 'settled' as const };
+                return { ...withoutApproval(result), outcome: 'settled' as const };
             if (result.questionId)
-                return { ...result, outcome: 'question' as const, questionId: result.questionId };
+                return {
+                    ...withoutApproval(result),
+                    outcome: 'question' as const,
+                    questionId: result.questionId,
+                };
+            if (isDecidable(result.approval)) return { ...result, outcome: 'approval' as const };
             if (result.receipt.status === 'blocked')
                 return { ...result, outcome: 'blocked' as const };
             first ??= result;
         }
         const remaining = deadline - performance.now();
-        if (remaining <= 0) return { ...first!, outcome: 'timeout' as const };
+        if (remaining <= 0) return { ...withoutApproval(first!), outcome: 'timeout' as const };
         // eslint-disable-next-line no-await-in-loop -- bounded long polling must never issue concurrent reads
         await delay(Math.min(200, remaining), undefined, { signal });
     }
     throw new CaxriError('UNAVAILABLE', 'Delegation service is closed');
+}
+
+/**
+ * Counts the open long polls so one caller cannot hold them all, and runs {@link pollDelegations} under that bound.
+ */
+export class DelegationWaiters {
+    private count = 0;
+
+    async poll(...arguments_: Parameters<typeof pollDelegations>) {
+        if (this.count >= MAX_WAITERS)
+            throw new CaxriError('CAPACITY', 'Too many delegation waiters');
+        this.count++;
+        try {
+            return await pollDelegations(...arguments_);
+        } finally {
+            this.count--;
+        }
+    }
 }

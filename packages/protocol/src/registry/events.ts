@@ -9,6 +9,7 @@ import {
     agentMessageReceiptSchema,
 } from '../agent/agent-inbox-contract.js';
 import { agentProviderSchema } from '../agent/agents.js';
+import { delegationApprovalChangedSchema } from '../agent/delegation/agent-delegation-approval.js';
 import { delegationQuestionChangedSchema } from '../agent/delegation/agent-delegation-question.js';
 import { agentDelegationProgressSchema } from '../agent/delegation/agent-delegation-sessions.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
@@ -359,6 +360,11 @@ export const serverEventPayloads = {
      * answer text; a Client re-reads `agent.delegation.sessions`.
      */
     'agent.delegation.questionChanged': delegationQuestionChangedSchema,
+    /**
+     * A pending permission request of a delegated Chat changed state. Transient, ids and a closed state only: no
+     * command, path, or reason; a Client re-reads `agent.delegation.sessions`.
+     */
+    'agent.delegation.approval': delegationApprovalChangedSchema,
     'keybindings.changed': configChangedSchema,
     'theme.changed': configChangedSchema,
     'updates.state': updateStateSchema,

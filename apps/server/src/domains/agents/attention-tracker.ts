@@ -43,6 +43,18 @@ export class AgentAttentionTracker {
         requests.add(signal.agentToolUseId ?? '');
     }
 
+    /**
+     * Whether this exact request is still tracked as pending.
+     */
+    has(signal: AgentLifecycleSignal): boolean {
+        return (
+            this.pendingScopesByTerminal
+                .get(signal.terminalId)
+                ?.get(this.scope(signal))
+                ?.has(signal.agentToolUseId ?? '') === true
+        );
+    }
+
     allowsLifecycle(signal: AgentLifecycleSignal): boolean {
         if (signal.phase !== 'attentionResolved' && signal.phase !== 'toolBatchFinished')
             return true;

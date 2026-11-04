@@ -6,27 +6,30 @@ import { DelegationQuestionCard } from '../../delegation/delegation-question-car
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
+import { originReturnNoteKey } from './agent-chat-delegation-origin';
 import { useDelegationOrigin } from './hooks/use-delegation-origin';
 
 /**
  * What a not-yet-taken-over origin row says after the parent's name: that the result goes back on its own, that the
- * Agent which delegated this is answering a question, or (amber) that the question is the user's to answer.
+ * Agent which delegated this is answering a question or deciding a permission request, or (amber) that it is the user's
+ * to answer.
  */
 function OriginReturnNote({
+    hasApproval,
     isEscalated,
     isWaitingOnParent,
     title,
 }: {
+    hasApproval: boolean;
     isEscalated: boolean;
     isWaitingOnParent: boolean;
     title: string;
 }) {
     const { t } = useTranslation();
-    if (isEscalated)
-        return <span className="text-warning">{t('delegation.origin.waitingForYou')}</span>;
-    return isWaitingOnParent
-        ? t('delegation.origin.waitingForParent', { title })
-        : t('delegation.origin.autoReturn');
+    const text = t(originReturnNoteKey({ hasApproval, isEscalated, isWaitingOnParent }), {
+        title,
+    });
+    return isEscalated ? <span className="text-warning">{text}</span> : text;
 }
 
 /**
@@ -70,6 +73,7 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
                             <>
                                 {' · '}
                                 <OriginReturnNote
+                                    hasApproval={task?.approval !== undefined}
                                     isEscalated={isEscalated}
                                     isWaitingOnParent={origin.isWaitingOnParent}
                                     title={title}

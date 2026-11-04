@@ -33,6 +33,7 @@ import {
 } from '../../chat-items';
 import { withCacheRewriteEstimate } from '../../chat-usage';
 import { mapCodexReviewItem } from '../../review/codex-review';
+import { completeCodexPaths, renamedMarker } from './approval/request-paths';
 import type { CodexComputerUseBindings } from './computer-use';
 import { codexComputerUseCall } from './computer-use';
 import { codexDelivery, codexUserImageCount, isCodexNotice, userMessageText } from './input';
@@ -258,6 +259,7 @@ export function mapCodexItem(
                             kind: kind === 'add' || kind === 'delete' ? kind : 'update',
                             diff,
                             ...(diff.length < fullDiff.length && { truncated: true }),
+                            ...renamedMarker(change),
                         },
                     ];
                 }),
@@ -430,11 +432,8 @@ export function mapCodexRequest(
             const item = items.find(
                 (candidate) => candidate.id === fields.itemId && candidate.type === 'fileChange',
             );
-            const paths =
-                item?.type === 'fileChange'
-                    ? item.changes.flatMap(({ path }) => (path ? [path] : []))
-                    : [];
-            return { ...fields, kind, ...(paths.length > 0 && { paths }) };
+            const paths = completeCodexPaths(item, parameters);
+            return { ...fields, kind, ...(paths && { paths }) };
         }
         case 'question': {
             const questions = Array.isArray(parameters.questions) ? parameters.questions : [];

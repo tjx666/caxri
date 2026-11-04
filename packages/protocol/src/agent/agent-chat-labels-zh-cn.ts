@@ -85,6 +85,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.message.agentError': 'Agent 报告了错误',
     'agentChat.message.answered': '已回答',
     'agentChat.message.answeredWith': '已回答：{{message}}',
+    'agentChat.message.delegationApproval': '委派此任务的 Agent 已处理该请求。',
 
     // Finished turns (`agentChatTurnLabel`) and their durations (`formatShortDuration`)
     'agentChat.fold.workedFor': '用时 {{duration}}',

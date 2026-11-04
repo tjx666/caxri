@@ -189,7 +189,10 @@ describe('AgentChatService as a delegated child', () => {
             promptDigest: digest(prompt),
         } as StoredAgentDelegation;
         for (const signal of applied)
-            record = applyDelegationLifecycle(record, signal, 'lifecycle', () => true) ?? record;
+            record =
+                applyDelegationLifecycle(record, signal, 'lifecycle', {
+                    isChatTerminal: () => true,
+                }) ?? record;
         expect(record.receipt).toMatchObject({ status: 'collecting', failure: undefined });
         expect(record.turnId).toBe(woke?.agentTurnId);
         expect(

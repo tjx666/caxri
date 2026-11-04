@@ -482,6 +482,10 @@ export function agentChatNoticeMessage(
         case 'output': {
             return item.message ?? '';
         }
+        case 'delegationApproval': {
+            // Caxri's own words, never the request's: the notice carries no text of its own.
+            return t('agentChat.message.delegationApproval');
+        }
         case 'compacted': {
             const { beforeTokens, afterTokens } = item.compaction ?? {};
             return beforeTokens !== undefined && afterTokens !== undefined

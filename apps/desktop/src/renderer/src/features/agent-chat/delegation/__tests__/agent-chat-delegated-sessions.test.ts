@@ -33,7 +33,7 @@ describe('delegatedSessionsSummary', () => {
                 entry({ status: 'running' }),
                 entry({ status: 'blocked' }),
             ]),
-        ).toEqual({ asking: 0, failed: 1, needsInput: 2, total: 6, waiting: 0 });
+        ).toEqual({ approvals: 0, asking: 0, failed: 1, needsInput: 2, total: 6, waiting: 0 });
     });
 });
 
@@ -81,7 +81,14 @@ describe('delegatedSessionsSummary with a pending retry', () => {
             status: 'failed',
         });
         const summary = delegatedSessionsSummary([pending]);
-        expect(summary).toEqual({ asking: 0, failed: 0, needsInput: 0, total: 1, waiting: 1 });
+        expect(summary).toEqual({
+            approvals: 0,
+            asking: 0,
+            failed: 0,
+            needsInput: 0,
+            total: 1,
+            waiting: 1,
+        });
         expect(delegatedSessionsHeaderParts(summary, t)).toEqual({
             count: 'delegation.strip.count:{"count":1}',
             waiting: 'delegation.strip.retryWaitingOne:{"count":1}',
@@ -89,11 +96,55 @@ describe('delegatedSessionsSummary with a pending retry', () => {
     });
 });
 
+describe('delegation permission requests in the strip', () => {
+    const escalated = (): AgentDelegationSession =>
+        entry({
+            approval: {
+                covered: false,
+                coverageReason: 'parent_mode_insufficient',
+                escalated: true,
+                kind: 'command',
+                requestId: 'r1',
+                requestedAt: 1,
+            },
+            failure: 'permission_required',
+            status: 'blocked',
+            waitingOn: 'user',
+        });
+
+    it('words escalated requests as waiting for the approval, and held ones as asking', () => {
+        const summary = delegatedSessionsSummary([
+            escalated(),
+            entry({ failure: 'permission_required', status: 'blocked', waitingOn: 'parent' }),
+        ]);
+        expect(summary).toMatchObject({ approvals: 1, asking: 1, needsInput: 1 });
+        expect(delegatedSessionsHeaderParts(summary, t)).toMatchObject({
+            asking: 'delegation.strip.askingOne:{"count":1}',
+            needsInput: 'delegation.strip.approvalOne:{"count":1}',
+        });
+    });
+
+    it('falls back to needs input when a plain question or startup prompt waits beside the approval', () => {
+        const summary = delegatedSessionsSummary([
+            escalated(),
+            escalated(),
+            entry({ failure: 'startup_waiting', status: 'blocked' }),
+        ]);
+        expect(delegatedSessionsHeaderParts(summary, t).needsInput).toBe(
+            'delegation.strip.needsInputOther:{"count":3}',
+        );
+        const approvals = delegatedSessionsSummary([escalated(), escalated()]);
+        expect(delegatedSessionsHeaderParts(approvals, t).needsInput).toBe(
+            'delegation.strip.approvalOther:{"count":2}',
+        );
+    });
+});
+
 describe('delegatedSessionsHeaderParts', () => {
     it('states only the attention parts that have a count, with singular and plural needs-input', () => {
         expect(
             delegatedSessionsHeaderParts(
-                { asking: 0, failed: 0, needsInput: 0, total: 3, waiting: 0 },
+                { approvals: 0, asking: 0, failed: 0, needsInput: 0, total: 3, waiting: 0 },
                 t,
             ),
         ).toEqual({
@@ -101,7 +152,7 @@ describe('delegatedSessionsHeaderParts', () => {
         });
         expect(
             delegatedSessionsHeaderParts(
-                { asking: 0, failed: 2, needsInput: 1, total: 3, waiting: 0 },
+                { approvals: 0, asking: 0, failed: 2, needsInput: 1, total: 3, waiting: 0 },
                 t,
             ),
         ).toEqual({
@@ -111,13 +162,13 @@ describe('delegatedSessionsHeaderParts', () => {
         });
         expect(
             delegatedSessionsHeaderParts(
-                { asking: 0, failed: 0, needsInput: 2, total: 3, waiting: 0 },
+                { approvals: 0, asking: 0, failed: 0, needsInput: 2, total: 3, waiting: 0 },
                 t,
             ).needsInput,
         ).toBe('delegation.strip.needsInputOther:{"count":2}');
         expect(
             delegatedSessionsHeaderParts(
-                { asking: 0, failed: 0, needsInput: 0, total: 3, waiting: 2 },
+                { approvals: 0, asking: 0, failed: 0, needsInput: 0, total: 3, waiting: 2 },
                 t,
             ).waiting,
         ).toBe('delegation.strip.retryWaitingOther:{"count":2}');

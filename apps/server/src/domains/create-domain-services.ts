@@ -28,6 +28,7 @@ import { createSessionHandlers } from './parking-handlers';
 import {
     createProjectFolderBrowser,
     createProjectHidingHandlers,
+    ProjectRootResolver,
     resolveOwnerProjectRoot,
 } from './project';
 import { createDomainTerminalManager } from './pty-manager-creation';
@@ -105,6 +106,8 @@ export async function createDomainServices(
         database,
         dependencies,
         logger,
+        classifyChatAttention: (signal) =>
+            delegationState.service?.approvals.classify(signal) ?? 'alert',
         ...createAgentLifecycleFanOut({
             botHooks,
             compactionReadiness,
@@ -308,6 +311,7 @@ export async function createDomainServices(
         terminalWorkingDirectory,
         terminals,
     });
+    const approvalRoots = new ProjectRootResolver(database);
     const agentCommands = createAgentCommandRuntime({
         agentChat,
         usageGuards: agentRuntime.usageGuards,
@@ -325,6 +329,12 @@ export async function createDomainServices(
         userDataPath,
         agentEnvironment,
         onDelegationReceiptChanged: botHooks.receiptChanged,
+        approvals: {
+            raiseAttention: agentRuntime.raiseChatAttention,
+            resolveWorkspacePath: (sessionId, path) =>
+                approvalRoots.resolveSessionPath(sessionId, path, true),
+            subscribeSettings: (listener) => configuration.subscribeSettings(() => listener()),
+        },
     });
     dispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
@@ -397,6 +407,8 @@ export async function createDomainServices(
             database,
             agentEnvironment,
             createSessionForProject,
+            isRequestHeld: (terminalId, requestId) =>
+                delegationState.service?.approvals.isHeld(terminalId, requestId) === true,
         }),
         ...benchmark.handlers,
         ...claudeWindows.handlers,

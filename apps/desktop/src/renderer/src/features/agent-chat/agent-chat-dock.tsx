@@ -11,7 +11,9 @@ import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useDialogStore } from '../../stores/dialogs';
 import { useTerminal } from '../../stores/selectors';
+import { approvalCardNote } from '../delegation/delegation-copy';
 import { didImplementAgentChatPlan } from './agent-chat-commands';
+import { useDelegationOrigin } from './delegation/hooks/use-delegation-origin';
 import {
     dismissAgentChatPlan,
     useDismissedAgentChatPlanId,
@@ -184,6 +186,9 @@ export function AgentChatDock({
     onOpenAsTerminal: (() => void) | undefined;
     onRecover: () => void;
 }) {
+    const { t } = useTranslation();
+    // Only a delegated Chat has a task; its pending approval explains why the decision is the user's.
+    const delegationTask = useDelegationOrigin(terminalId).task;
     return (
         <div className="mx-auto flex max-h-[60%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
             <AgentChatRecoveryBanner
@@ -197,6 +202,7 @@ export function AgentChatDock({
                 .map((request) => (
                     <AgentChatRequestCard
                         key={request.id}
+                        delegationNote={approvalCardNote(delegationTask, request.id, t)}
                         linkedItem={
                             request.kind === 'question'
                                 ? undefined

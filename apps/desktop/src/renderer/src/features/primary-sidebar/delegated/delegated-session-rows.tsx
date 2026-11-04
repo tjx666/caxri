@@ -35,6 +35,10 @@ interface DelegatedSessionRowsProperties {
      */
     failedSessionIds: ReadonlySet<string>;
     /**
+     * The nested Chat Sessions whose permission request waits on the user (`DelegationFeed.approvalSessionIds`).
+     */
+    approvalSessionIds: ReadonlySet<string>;
+    /**
      * The Session row these rows sit under.
      */
     host: SessionRecord;
@@ -65,6 +69,7 @@ interface DelegatedSessionRowsProperties {
  * row re-renders only when its own value moves.
  */
 export function DelegatedSessionRows({
+    approvalSessionIds,
     failedSessionIds,
     host,
     lookups,
@@ -106,6 +111,7 @@ export function DelegatedSessionRows({
                 return (
                     <MemoizedActiveSessionRow
                         key={session.id}
+                        approvalPending={approvalSessionIds.has(session.id)}
                         delegatedBy={creator && sessionTitleForDisplay(creator.title, t)}
                         delegationFailed={failedSessionIds.has(session.id)}
                         focusRenameInput={sessionRename.focusRenameInput}

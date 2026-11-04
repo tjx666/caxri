@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentChatSnapshot, AgentLaunchSettings } from '@caxri/protocol';
+import type {
+    AgentChatItem,
+    AgentChatPermissionMode,
+    AgentChatSnapshot,
+    AgentLaunchSettings,
+} from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 
@@ -174,6 +179,43 @@ export class ChatDelegationLinks {
      */
     snapshot(terminalId: string): AgentChatSnapshot | undefined {
         return this.options.state(terminalId)?.projection.snapshot;
+    }
+
+    /**
+     * The permission the live provider of a Chat runs under, tied to the launch that holds it, or `undefined` when no
+     * launch is live or the provider reports none. Agent delegation reads it to decide what a delegating Agent may
+     * approve.
+     */
+    appliedPermission(terminalId: string):
+        | {
+              launchId: string;
+              permissionMode?: AgentChatPermissionMode;
+              planMode: boolean;
+              applied: boolean;
+          }
+        | undefined {
+        const launchId = this.liveLaunchId(terminalId);
+        const permission = launchId
+            ? this.options.state(terminalId)?.session?.appliedPermission?.()
+            : undefined;
+        return launchId && permission ? { launchId, ...permission } : undefined;
+    }
+
+    /**
+     * The plain decisions the live provider offers for a pending request; see `AgentChatProviderSession`.
+     */
+    requestOffers(
+        terminalId: string,
+        requestId: string,
+    ): { accept: boolean; decline: boolean } | undefined {
+        return this.options.state(terminalId)?.session?.requestOffers?.(requestId);
+    }
+
+    /**
+     * Adds one item to the Chat's transcript, such as a note that a delegating Agent decided a request.
+     */
+    applyItem(terminalId: string, item: AgentChatItem): void {
+        this.options.state(terminalId)?.projection.apply([{ op: 'upsertItem', item }]);
     }
 
     /**

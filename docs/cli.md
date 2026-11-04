@@ -156,6 +156,12 @@ delegating Agent's side. `ask-wait --timeout` accepts up to 300000 milliseconds;
 answer text goes in `--text` or, for long text, `--file <path>`. See
 [questions from a delegated task](agent-delegation.md#questions-from-a-delegated-task).
 
+`agent delegate approve <delegation-id> <request-id> --revision <revision> (--accept | --decline)` is how the delegating
+Agent decides one command or file change permission request of a delegated Chat when it falls
+within its own applied permission; `wait` reports it as the outcome `approval`, and `status` shows
+why a request is not covered. `--revision` echoes the `revision` of the approval you read, and
+exactly one decision flag is required; the decision never outlives the request. See [parent approval](agent-delegation.md#parent-approval).
+
 `agent delegate access create|list|revoke` manages owner-authorized external callers with
 `agents.delegation.access`. The resulting `delegation-client` credential is limited to one Project,
 Session and caller provider; it grants only delegation and does not start a Server implicitly.

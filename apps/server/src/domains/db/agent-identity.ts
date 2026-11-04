@@ -130,6 +130,7 @@ export class AgentIdentity {
                 session,
                 signal.provider,
                 signal.phase,
+                signal.alert,
             );
             if (!decision) return false;
             this.db.sessions.setTitleAndActivity(

@@ -66,15 +66,10 @@ type Json = Record<string, unknown>;
  */
 class CodexChatSession implements AgentChatProviderSession {
     private readonly settings: CodexThreadSettings;
-
     private connection: JsonRpcConnection | undefined;
-
     private threadId: string | undefined;
-
     private isThreadBound: boolean;
-
     private requested = false;
-
     private turnCount = 0;
 
     /**
@@ -82,27 +77,16 @@ class CodexChatSession implements AgentChatProviderSession {
      * service's send chain allows one request at a time, so at most one is pending.
      */
     private pendingPromptDigest: string | undefined;
-
     private readonly thumbnails = new CodexThumbnails();
-
     private readonly computerUse = new CodexComputerUseBindings();
-
     private readonly deliveries: CodexDeliveryCheck;
-
     private readonly requests: CodexRequestBroker;
-
     private readonly tasks: CodexTasks;
-
     private readonly models: CodexModelSettings;
-
     private readonly permissions: CodexPermissions;
-
     private readonly goals: CodexGoals;
-
     private readonly usage: CodexUsage;
-
     private readonly shellTools: ChatShellToolSignals;
-
     private readonly sideQuestions = new CodexSideQuestions();
     private readonly usageLimits = new CodexUsageLimits();
     readonly readSkills = () => readCodexSkills(this.connection, this.options.cwd);
@@ -516,6 +500,14 @@ class CodexChatSession implements AgentChatProviderSession {
 
     saveDefaults(change: AgentChatModelChange): Promise<AgentChatDefaultsSave> {
         return this.models.saveDefaults(this.requireConnection(), change);
+    }
+
+    appliedPermission() {
+        return this.permissions.appliedPermission();
+    }
+
+    requestOffers(requestId: string) {
+        return this.requests.offers(requestId);
     }
 
     setPermission(permission: AgentChatPermission): Promise<void> {

@@ -4,12 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import { delegationCopy } from '../delegation-copy';
 import {
+    approvalPendingSessionIds,
     collapseRetryChains,
     delegationAttemptNumbers,
     delegationAttentionCounts,
     delegationElapsedMs,
     delegationFeedCreatorIdChunks,
     failedDelegationSessionIds,
+    isDelegationApprovalPending,
     isDelegationAsking,
     isDelegationFailed,
     isDelegationNeedsInput,
@@ -114,7 +116,7 @@ describe('delegationAttentionCounts', () => {
                 { status: 'interrupted', failure: 'caller_stopped' },
                 {},
             ]),
-        ).toEqual({ asking: 0, failed: 1, needsInput: 2, waiting: 0 });
+        ).toEqual({ approvals: 0, asking: 0, failed: 1, needsInput: 2, waiting: 0 });
     });
 });
 
@@ -127,7 +129,7 @@ describe('delegation questions', () => {
                 { status: 'running', waitingOn: 'user' },
                 { status: 'running' },
             ]),
-        ).toEqual({ asking: 2, failed: 0, needsInput: 1, waiting: 0 });
+        ).toEqual({ approvals: 0, asking: 2, failed: 0, needsInput: 1, waiting: 0 });
     });
 
     it('treats only a question that waits on the delegating Agent as asking', () => {
@@ -136,6 +138,67 @@ describe('delegation questions', () => {
         expect(isDelegationAsking({})).toBe(false);
         expect(isDelegationNeedsInput({ status: 'running', waitingOn: 'user' })).toBe(true);
         expect(isDelegationNeedsInput({ status: 'running', waitingOn: 'parent' })).toBe(false);
+    });
+});
+
+describe('delegation permission requests', () => {
+    const approval = (isEscalated: boolean) => ({
+        approval: {
+            covered: !isEscalated,
+            coverageReason: isEscalated
+                ? ('parent_mode_insufficient' as const)
+                : ('covered' as const),
+            escalated: isEscalated,
+            kind: 'command' as const,
+            requestId: 'r1',
+            requestedAt: 1,
+        },
+    });
+
+    it('keeps a blocked task held for the delegating Agent out of needs-input and counts it as asking', () => {
+        const held = {
+            ...approval(false),
+            failure: 'permission_required' as const,
+            status: 'blocked' as const,
+            waitingOn: 'parent' as const,
+        };
+        expect(isDelegationNeedsInput(held)).toBe(false);
+        expect(isDelegationAsking(held)).toBe(true);
+        expect(delegationAttentionCounts([held])).toEqual({
+            approvals: 0,
+            asking: 1,
+            failed: 0,
+            needsInput: 0,
+            waiting: 0,
+        });
+    });
+
+    it('counts an escalated request as needing input and as an approval', () => {
+        const escalated = {
+            ...approval(true),
+            failure: 'permission_required' as const,
+            status: 'blocked' as const,
+            waitingOn: 'user' as const,
+        };
+        expect(isDelegationNeedsInput(escalated)).toBe(true);
+        expect(
+            delegationAttentionCounts([
+                escalated,
+                { status: 'blocked', failure: 'permission_required' },
+            ]),
+        ).toMatchObject({ approvals: 1, needsInput: 2 });
+    });
+
+    it('lists only the Sessions whose request waits on the user, sorted', () => {
+        expect(
+            approvalPendingSessionIds([
+                { sessionId: 'b', ...approval(true), waitingOn: 'user' },
+                { sessionId: 'a', ...approval(false), waitingOn: 'parent' },
+                { sessionId: 'c', waitingOn: 'user' },
+                { sessionId: 'a2', ...approval(true), waitingOn: 'user' },
+            ]),
+        ).toEqual(['a2', 'b']);
+        expect(isDelegationApprovalPending({})).toBe(false);
     });
 });
 
@@ -217,12 +280,14 @@ describe('collapseRetryChains', () => {
             { delegationId: 'n1', retryOf: 'f1', status: 'running' },
         ] as const;
         expect(delegationAttentionCounts(entries)).toEqual({
+            approvals: 0,
             asking: 0,
             failed: 1,
             needsInput: 0,
             waiting: 0,
         });
         expect(delegationAttentionCounts(collapseRetryChains(entries))).toEqual({
+            approvals: 0,
             asking: 0,
             failed: 0,
             needsInput: 0,
@@ -279,6 +344,7 @@ describe('a pending scheduled retry', () => {
         expect(isDelegationFailed(pending)).toBe(false);
         expect(failedDelegationSessionIds([pending])).toEqual([]);
         expect(delegationAttentionCounts([pending])).toEqual({
+            approvals: 0,
             asking: 0,
             failed: 0,
             needsInput: 0,

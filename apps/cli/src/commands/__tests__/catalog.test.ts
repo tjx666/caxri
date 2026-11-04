@@ -55,6 +55,7 @@ describe('CLI business command catalog', () => {
                 'agent delegate ask-cancel',
                 'agent delegate questions',
                 'agent delegate answer',
+                'agent delegate approve',
                 'bot board',
                 'bot session create',
                 'bot session archive',

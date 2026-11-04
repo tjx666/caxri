@@ -1,3 +1,9 @@
+import type {
+    AgentChatItem,
+    AgentChatPermissionMode,
+    AgentChatRequest,
+    AgentChatResponse,
+} from '@caxri/protocol';
 import { isChatTerminal } from '@caxri/protocol';
 
 import type { DelegationChatSnapshot, DelegationChatTurn } from '../agent-delegation';
@@ -12,8 +18,24 @@ export interface DelegationChats extends DispatchChats {
         sendToLaunch(terminalId: string, launchId: string, text: string): Promise<void>;
         inputEpoch(terminalId: string): number;
         turnAnswer(terminalId: string, turnId: string): DelegationChatTurn;
-        snapshot(terminalId: string): DelegationChatSnapshot | undefined;
+        snapshot(
+            terminalId: string,
+        ): (DelegationChatSnapshot & { requests: readonly AgentChatRequest[] }) | undefined;
+        appliedPermission(terminalId: string):
+            | {
+                  launchId: string;
+                  permissionMode?: AgentChatPermissionMode;
+                  planMode: boolean;
+                  applied: boolean;
+              }
+            | undefined;
+        requestOffers(
+            terminalId: string,
+            requestId: string,
+        ): { accept: boolean; decline: boolean } | undefined;
+        applyItem(terminalId: string, item: AgentChatItem): void;
     };
+    respond(terminalId: string, requestId: string, response: AgentChatResponse): void;
     /**
      * The Chat states, for the usage-limit wait a delegated retry takes over; see `claimChatUsageLimitWait`.
      */

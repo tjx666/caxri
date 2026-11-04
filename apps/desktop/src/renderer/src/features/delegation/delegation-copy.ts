@@ -2,6 +2,8 @@ import type {
     AgentDelegationReceipt,
     AgentDelegationSession,
     AgentProvider,
+    ApprovalCoverageReason,
+    DelegationApprovalSummary,
     DelegationRetryScheduleOutcome,
     DelegationWaitingOn,
 } from '@caxri/protocol';
@@ -20,6 +22,11 @@ type AgentDelegationStatus = AgentDelegationReceipt['status'];
  * (`agent.delegation.sessions`) or of a task-state read (`agent.delegation.statuses`) that decide the copy.
  */
 export interface DelegationCopyInput {
+    /**
+     * The task's pending permission request, without its content. A blocked task that carries one is waiting on an
+     * approval, not on a generic input.
+     */
+    approval?: Pick<DelegationApprovalSummary, 'coverageReason'>;
     failure?: AgentDelegationFailure;
     /**
      * When the provider's own limit resets, in epoch milliseconds, as the Server recorded it. Shown only while it is in
@@ -267,6 +274,19 @@ export function delegationCopy(
             headline: t('delegation.copy.askingYou'),
             primaryAction: 'openSession',
         };
+    if (status === 'blocked' && input.approval && input.waitingOn === 'parent')
+        return {
+            glyph: 'asking',
+            headline: t('delegation.copy.approvalParent'),
+            primaryAction: 'none',
+        };
+    if (status === 'blocked' && input.approval && input.waitingOn === 'user')
+        return {
+            glyph: 'needsInput',
+            headline: t('delegation.copy.approvalYou'),
+            detail: approvalReasonSentence(input.approval.coverageReason, t),
+            primaryAction: 'openSession',
+        };
     if (status === 'running')
         return { glyph: 'running', headline: t('delegation.copy.working'), primaryAction: 'none' };
     if (status === 'collecting')
@@ -339,6 +359,33 @@ function statusCopy(
 }
 
 /**
+ * One fixed sentence per closed coverage reason: why the Agent that delegated a task did not, or could not, decide its
+ * permission request, so the request is the user's. Never interpolates a command, a path, or a working directory.
+ */
+function approvalReasonSentence(reason: ApprovalCoverageReason, t: Translate): string {
+    return t(`delegation.approval.reason.${reason}`);
+}
+
+/**
+ * The line above a request card's buttons in a delegated Chat: why the decision is the user's. Only the request the
+ * feed entry's approval names gets it, and only once the task waits on the user; a request still held for the Agent
+ * that delegated it shows no note.
+ */
+export function approvalCardNote(
+    task:
+        | {
+              approval?: Pick<DelegationApprovalSummary, 'coverageReason' | 'requestId'>;
+              waitingOn?: DelegationWaitingOn;
+          }
+        | undefined,
+    requestId: string,
+    t: Translate,
+): string | undefined {
+    if (task?.waitingOn !== 'user' || task.approval?.requestId !== requestId) return undefined;
+    return approvalReasonSentence(task.approval.coverageReason, t);
+}
+
+/**
  * The input a feed entry gives {@link delegationCopy}.
  */
 export function delegationCopyInput(
@@ -346,11 +393,16 @@ export function delegationCopyInput(
         Partial<
             Pick<
                 AgentDelegationSession,
-                'retriedAs' | 'retryScheduledFor' | 'retryScheduleOutcome' | 'waitingOn'
+                | 'approval'
+                | 'retriedAs'
+                | 'retryScheduledFor'
+                | 'retryScheduleOutcome'
+                | 'waitingOn'
             >
         >,
 ): DelegationCopyInput {
     return {
+        ...(entry.approval && { approval: { coverageReason: entry.approval.coverageReason } }),
         ...(entry.retriedAs && { retriedAs: entry.retriedAs }),
         ...(entry.retryScheduledFor !== undefined && {
             retryScheduledFor: entry.retryScheduledFor,

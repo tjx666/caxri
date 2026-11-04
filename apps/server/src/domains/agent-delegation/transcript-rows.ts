@@ -86,6 +86,8 @@ export function delegationTranscriptRow(item: AgentChatItem): DelegationTranscri
                 ...(item.summary !== undefined && { summary: item.summary }),
             };
         case 'notice':
+            // A parent's approval note is about the delegating Agent's own decision, not the child's work.
+            if (item.kind === 'delegationApproval') return undefined;
             return {
                 id: item.id,
                 kind: 'notice',

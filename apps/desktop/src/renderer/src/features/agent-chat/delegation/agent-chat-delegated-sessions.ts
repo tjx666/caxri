@@ -14,6 +14,10 @@ import {
  */
 export interface DelegatedSessionsSummary {
     /**
+     * How many of the `needsInput` tasks wait on a permission request of a Chat.
+     */
+    approvals: number;
+    /**
      * Tasks asking the Agent that delegated them, still inside the grace period. Not attention.
      */
     asking: number;
@@ -26,7 +30,12 @@ export interface DelegatedSessionsSummary {
 export function delegatedSessionsSummary(
     entries: ReadonlyArray<
         Pick<AgentDelegationSession, 'failure' | 'status'> &
-            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor' | 'waitingOn'>>
+            Partial<
+                Pick<
+                    AgentDelegationSession,
+                    'approval' | 'retriedAs' | 'retryScheduledFor' | 'waitingOn'
+                >
+            >
     >,
 ): DelegatedSessionsSummary {
     return { ...delegationAttentionCounts(entries), total: entries.length };
@@ -35,7 +44,8 @@ export function delegatedSessionsSummary(
 /**
  * The header's parts, `3 delegated`, then `1 needs input`, `1 failed`, `1 retry waiting`, and `1 asking` only when
  * there are some. `asking` is muted text and is no attention: the caller leaves it out of the live-region announcement.
- * A task waiting on a question or permission is "needs input", never "approval", because it can be a question; an
+ * A task waiting on a question or permission is "needs input" because it can be a question; the part says "waiting for
+ * your approval" only when every one of those tasks carries a permission request of a Chat (`approvals`). An
  * `answer_unavailable` task is neither needs-input nor failed.
  */
 export function delegatedSessionsHeaderParts(
@@ -64,14 +74,18 @@ export function delegatedSessionsHeaderParts(
             ),
         }),
         ...(summary.needsInput > 0 && {
-            needsInput: t(
-                summary.needsInput === 1
-                    ? 'delegation.strip.needsInputOne'
-                    : 'delegation.strip.needsInputOther',
-                { count: summary.needsInput },
-            ),
+            needsInput: t(needsInputKey(summary), { count: summary.needsInput }),
         }),
     };
+}
+
+function needsInputKey(
+    summary: Pick<DelegatedSessionsSummary, 'approvals' | 'needsInput'>,
+): Parameters<Translate>[0] {
+    const isOne = summary.needsInput === 1;
+    if (summary.approvals === summary.needsInput)
+        return isOne ? 'delegation.strip.approvalOne' : 'delegation.strip.approvalOther';
+    return isOne ? 'delegation.strip.needsInputOne' : 'delegation.strip.needsInputOther';
 }
 
 /**

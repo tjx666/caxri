@@ -97,6 +97,11 @@ describe('agentCommandRequest for the questions of a delegated Agent', () => {
             'agent.delegation.answerInternal',
             { delegationId: 'task-1', questionId: 'question-1', text: 'Synthetic' },
         ],
+        [
+            'agent.delegation.approve',
+            'agent.delegation.approveInternal',
+            { delegationId: 'task-1', requestId: 'request-1', decision: 'accept' },
+        ],
     ] as const)('routes %s to %s with the caller authority', (method, internal, parameters) => {
         expect(
             agentCommandRequest(

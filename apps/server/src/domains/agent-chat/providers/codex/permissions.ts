@@ -177,6 +177,26 @@ export class CodexPermissions {
     }
 
     /**
+     * The level and plan mode this Chat was asked for, and whether the provider runs them. `applied` is false while a
+     * native switch waits for the next `turn/start` (`pending`) or the collaboration mode differs from the thread's
+     * (`threadMode`, undefined counting as `default`). The level here is the requested one, so a delegating Agent's
+     * approval power reads `applied` and covers nothing while it is false.
+     */
+    appliedPermission(): {
+        permissionMode?: AgentChatPermissionMode;
+        planMode: boolean;
+        applied: boolean;
+    } {
+        return {
+            ...(this.permissionMode && { permissionMode: this.permissionMode }),
+            planMode: this.planMode,
+            applied:
+                Object.keys(this.pending).length === 0 &&
+                this.planMode === (this.threadMode === 'plan'),
+        };
+    }
+
+    /**
      * Shows the opened thread's permission and records the collaboration mode Codex reported for it.
      */
     reportOpened(collaborationMode: string | undefined): void {

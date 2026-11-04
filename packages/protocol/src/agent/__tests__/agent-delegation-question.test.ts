@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isTransientServerEvent } from '../../transport/event-journal';
-import type { AgentDelegationWaitResult } from '../delegation/agent-delegation-contract';
+import type { AgentDelegationWaitResult } from '../delegation/agent-delegation-approval-contract';
 import { agentDelegationMethods } from '../delegation/agent-delegation-contract';
 import type {
     DelegationQuestionChanged,

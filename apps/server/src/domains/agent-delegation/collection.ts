@@ -7,8 +7,10 @@ import type { DelegationTranscriptBatch } from '../agents';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
+import type { DelegationAuthority } from './admission';
 import type { DelegationChatTurn } from './chat-child';
 import { chatDelegationCompletion } from './chat-child';
+import { applyDelegationCompletion, shouldCollectDelegation } from './result';
 
 export interface DelegationTranscriptReader {
     readTranscript(terminalId: string): Promise<AgentTranscript | null>;
@@ -83,4 +85,41 @@ export async function readDelegationCompletion(
         }
     }
     return { completion, batch };
+}
+
+/**
+ * What one transcript collection borrows from the delegation service.
+ */
+export interface DelegationCollectionHost {
+    reader: DelegationTranscriptReader;
+    owned(id: string, authority: DelegationAuthority): StoredAgentDelegation;
+    save(record: StoredAgentDelegation): StoredAgentDelegation;
+    now(): number;
+    isClosed(): boolean;
+}
+
+/**
+ * Reads a task's completion once and stores what it proves. A read is asynchronous, so the record is re-read
+ * afterwards: human input, a restart, or another collector may have invalidated it.
+ */
+export async function collectDelegationResult(
+    host: DelegationCollectionHost,
+    id: string,
+    authority: DelegationAuthority,
+) {
+    let record = host.owned(id, authority);
+    if (shouldCollectDelegation(record) && record.receipt.terminalId && record.providerSessionId) {
+        const { completion, batch } = await readDelegationCompletion(record, host.reader);
+        if (host.isClosed()) return { receipt: record.receipt, answer: record.answer };
+        const current = host.owned(id, authority);
+        if (current.receipt.revision !== record.receipt.revision)
+            return { receipt: current.receipt, answer: current.answer };
+        const next = applyDelegationCompletion(record, completion, host.now(), batch?.isFinished);
+        if (next || (batch?.offset !== undefined && batch.offset !== record.transcriptOffset))
+            record = host.save({
+                ...(next ?? record),
+                transcriptOffset: batch?.offset ?? record.transcriptOffset,
+            });
+    }
+    return { receipt: record.receipt, answer: record.answer };
 }

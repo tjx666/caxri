@@ -51,6 +51,7 @@ export const EVENT_AUDIENCE = {
     'agent.dispatch.changed': 'all',
     'agent.delegation.progress': 'all',
     'agent.delegation.questionChanged': 'all',
+    'agent.delegation.approval': 'all',
     'agent.recapChanged': 'all',
     'keybindings.changed': 'all',
     'theme.changed': 'all',

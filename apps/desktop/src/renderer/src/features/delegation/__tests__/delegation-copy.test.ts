@@ -1,9 +1,13 @@
 import type { DelegationRetryScheduleOutcome } from '@caxri/protocol';
-import { agentDelegationFailureSchema, agentDelegationStatusSchema } from '@caxri/protocol';
+import {
+    agentDelegationFailureSchema,
+    agentDelegationStatusSchema,
+    approvalCoverageReasonSchema,
+} from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { translate, useLocaleStore } from '../../../i18n';
-import { delegationCopy, delegationCopyInput } from '../delegation-copy';
+import { approvalCardNote, delegationCopy, delegationCopyInput } from '../delegation-copy';
 
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
@@ -12,6 +16,87 @@ const STATUSES = agentDelegationStatusSchema.options;
 
 const copyOf = (input: Parameters<typeof delegationCopy>[0], now = NOW) =>
     delegationCopy(input, now, translate);
+
+describe('delegationCopy with a pending permission request', () => {
+    const approval = { coverageReason: 'parent_mode_insufficient' as const };
+
+    it('shows the muted asking glyph while the delegating Agent holds the request', () => {
+        expect(copyOf({ approval, status: 'blocked', waitingOn: 'parent' })).toEqual({
+            glyph: 'asking',
+            headline: 'Waiting for the Agent that delegated it to approve',
+            primaryAction: 'none',
+        });
+    });
+
+    it('turns amber, names the reason, and points at the Session once the request is the user', () => {
+        expect(copyOf({ approval, status: 'blocked', waitingOn: 'user' })).toEqual({
+            detail: 'The Agent that delegated this may not approve requests at its permission level',
+            glyph: 'needsInput',
+            headline: 'Waiting for your approval',
+            primaryAction: 'openSession',
+        });
+    });
+
+    it('keeps the generic needs-input copy for a blocked task with no approval', () => {
+        expect(copyOf({ status: 'blocked' })).toMatchObject({
+            glyph: 'needsInput',
+            headline: 'Needs your input',
+        });
+        expect(copyOf({ failure: 'permission_required', status: 'blocked' }).headline).toBe(
+            'Needs your input',
+        );
+    });
+
+    it('carries the approval reason from a feed entry and nothing else of it', () => {
+        expect(
+            delegationCopyInput({
+                approval: {
+                    covered: false,
+                    coverageReason: 'path_outside',
+                    escalated: true,
+                    kind: 'fileChange',
+                    requestId: 'r1',
+                    requestedAt: 1,
+                },
+                status: 'blocked',
+                waitingOn: 'user',
+            }),
+        ).toEqual({
+            approval: { coverageReason: 'path_outside' },
+            status: 'blocked',
+            waitingOn: 'user',
+        });
+    });
+
+    it('words every coverage reason with its own fixed sentence and no interpolation', () => {
+        const sentences = new Set<string>();
+        for (const coverageReason of approvalCoverageReasonSchema.options) {
+            const detail = copyOf({
+                approval: { coverageReason },
+                status: 'blocked',
+                waitingOn: 'user',
+            }).detail;
+            expect(detail).toBeTruthy();
+            expect(detail).not.toContain('{{');
+            expect(detail).not.toContain('delegation.approval.reason');
+            sentences.add(detail!);
+        }
+        expect(sentences.size).toBe(approvalCoverageReasonSchema.options.length);
+    });
+
+    it('puts the reason above the card of the named request only, and only once it is the user', () => {
+        const task = {
+            approval: { coverageReason: 'network' as const, requestId: 'r1' },
+            waitingOn: 'user' as const,
+        };
+        expect(approvalCardNote(task, 'r1', translate)).toBe(
+            'The Agent that delegated this may not approve network access',
+        );
+        expect(approvalCardNote(task, 'r2', translate)).toBeUndefined();
+        expect(approvalCardNote({ ...task, waitingOn: 'parent' }, 'r1', translate)).toBeUndefined();
+        expect(approvalCardNote(undefined, 'r1', translate)).toBeUndefined();
+    });
+});
 
 describe('delegationCopy with an open question', () => {
     it('shows the dotted asking glyph and no action while the delegating Agent has the question', () => {
