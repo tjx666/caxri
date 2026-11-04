@@ -53,6 +53,11 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
     await waitFor(serial, (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.files'));
     await setMobileNetworkAvailable(serial, false);
     try {
+        /**
+         * The reconnecting banner pushes the tab row down when it appears; tapping before it lands hits the tab's old
+         * position, leaves Conversation selected, and the wait for the offline Files state times out.
+         */
+        await waitFor(serial, (nodes) => hasCheck(nodes, 'connection-stale-banner'));
         await tapMobileCheck(serial, 'session-segment-panel-caxri.files');
         await waitFor(serial, (nodes) => hasCheck(nodes, 'panels-offline'));
         await capture(environment, 'project-offline', artifacts, 'panels-offline');
