@@ -27,3 +27,31 @@ describe('atomic-write contract selection', () => {
         ).not.toContain(ATOMIC_WRITE_CONTRACT);
     });
 });
+
+const LOGGING_CONTRACT = 'scripts/__tests__/logging-contract.test.ts';
+
+describe('logging contract selection', () => {
+    it('selects the contract for a changed production source', () => {
+        expect(
+            contractTestCandidates(['apps/server/src/domains/agents/lifecycle-projection.ts'], []),
+        ).toContain(LOGGING_CONTRACT);
+        expect(
+            contractTestCandidates(['apps/desktop/src/renderer/components/app.tsx'], []),
+        ).toContain(LOGGING_CONTRACT);
+    });
+
+    it('skips tests and paths outside the scanned sources', () => {
+        expect(
+            contractTestCandidates(
+                [
+                    'apps/server/src/domains/agents/__tests__/lifecycle.test.ts',
+                    'apps/server/src/domains/agents/lifecycle.test.ts',
+                    'e2e/agent-delegation.e2e.ts',
+                    'scripts/build-alerter.ts',
+                    'apps/server/package.json',
+                ],
+                [],
+            ),
+        ).not.toContain(LOGGING_CONTRACT);
+    });
+});

@@ -146,8 +146,8 @@ planned time. It needs no `--yes`, sends at most one request per window, and ref
 
 ## Agent automation
 
-`agent delegate import --from <file>` previews dianjiang presets; `--apply --yes` explicitly replaces
-the selected profile's delegation configuration. It requires owner capability
+`agent delegate import --from <file>` previews dianjiang presets; `--apply --yes` merges them into
+the selected profile's delegation configuration (`--replace` replaces it instead; `--merge` is the default). It requires owner capability
 `settings.delegation.write`, never an Agent grant. See [preset import](agent-delegation.md#import-dianjiang-presets).
 
 `agent delegate ask|ask-wait|ask-cancel` lets a delegated Agent put one question to the Agent that

@@ -103,7 +103,7 @@ export const settingsPage = {
     'settings.row.delegationDepth.description':
         'How many times in a row an Agent may hand part of its job to another Agent.',
     'settings.row.delegationDepth.detail':
-        '1 lets the Agent you started bring in one helper, which then finishes alone; 2 lets that helper bring in one more. Which Agents may be brought in is set by the delegation presets, in the Source view.',
+        '1 lets the Agent you started bring in one helper, which then finishes alone; 2 lets that helper bring in one more. Which Agents may be brought in is set by the delegation presets above.',
     'settings.row.delegationApproval.title': 'Let delegating Agents approve requests',
     'settings.row.delegationApproval.description':
         'Let the Agent that delegated a task approve the requests that fall within its own permission. Anything beyond it asks you.',

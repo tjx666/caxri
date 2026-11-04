@@ -35,6 +35,7 @@ export function contractTestCandidates(
         ...e2ePoolContractTestCandidates(files, removedFiles),
         ...ciLogSafetyContractTestCandidates(files, removedFiles),
         ...atomicWriteContractTestCandidates(files, removedFiles),
+        ...loggingContractTestCandidates(files),
     ];
 }
 
@@ -300,4 +301,23 @@ function isAtomicWriteScanPath(file: string): boolean {
     if (file.split('/').some((segment) => segment === '__tests__' || segment === 'node_modules'))
         return false;
     return file.startsWith('scripts/') || /^\.agents\/skills\/[^/]+\/scripts\//u.test(file);
+}
+
+const LOGGING_CONTRACT_TEST = 'scripts/__tests__/logging-contract.test.ts';
+
+/**
+ * The logging contract globs every production source under `{apps,packages,extensions}/*\/src/` and flags any
+ * `.write(x, '<string literal>')` call as a bare log event, so a private method named `write` failed only in a CI unit
+ * shard. Selecting on the scanned path rather than on a `.write(` diff hunk also catches an edited second argument or a
+ * call split across lines; the whole scan takes about 4 seconds.
+ */
+function loggingContractTestCandidates(files: readonly string[]): string[] {
+    return files.some((file) => isLoggingContractScanPath(file.replaceAll('\\', '/')))
+        ? [LOGGING_CONTRACT_TEST]
+        : [];
+}
+
+function isLoggingContractScanPath(file: string): boolean {
+    if (!/^(?:apps|packages|extensions)\/[^/]+\/src\/.+\.tsx?$/u.test(file)) return false;
+    return !file.includes('/__tests__/') && !/\.(?:e2e|test)\.tsx?$/u.test(file);
 }

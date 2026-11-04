@@ -100,7 +100,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.delegationDepth.title': '委派深度',
     'settings.row.delegationDepth.description': 'Agent 可以连续将部分工作交给另一个 Agent 的次数。',
     'settings.row.delegationDepth.detail':
-        '设为 1 时，你启动的 Agent 可以引入一个助手，由它独自完成；设为 2 时，该助手还可以再引入一个。可以引入哪些 Agent 由委派预设决定，在源文件视图中编辑。',
+        '设为 1 时，你启动的 Agent 可以引入一个助手，由它独自完成；设为 2 时，该助手还可以再引入一个。可以引入哪些 Agent 由上方的委派预设决定。',
     'settings.row.delegationApproval.title': '允许委派方批准请求',
     'settings.row.delegationApproval.description':
         '委派任务的 Agent 可以批准在其自身权限范围内的请求，超出范围的请求仍由你决定。',

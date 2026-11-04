@@ -103,6 +103,7 @@ export function delegationSessions(
             ...(receipt && {
                 delegationId: receipt.delegationId,
                 provider: receipt.provider,
+                ...(receipt.selection && { selection: receipt.selection }),
                 status: receipt.status,
                 createdAt: receipt.createdAt,
                 ...(receipt.failure && { failure: receipt.failure }),

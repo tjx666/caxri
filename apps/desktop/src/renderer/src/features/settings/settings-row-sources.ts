@@ -32,6 +32,7 @@ export type SettingRowBinding =
     | { type: 'host-names' }
     | { type: 'claude-windows' }
     | { type: 'agent-secrets' }
+    | { type: 'delegation-presets' }
     | { type: 'delegation-field'; field: 'approval' | 'maxDepth' | 'readChildChat' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
@@ -500,6 +501,23 @@ export const settingRowSources: SettingRowSource[] = [
             'credential',
             'environment variable',
             'caxri secret',
+        ]),
+    },
+    {
+        id: 'agents.delegation.presets',
+        category: 'agents',
+        titleKey: 'settings.row.delegationPresets.title',
+        descriptionKey: 'settings.row.delegationPresets.description',
+        binding: { type: 'delegation-presets' },
+        searchSpec: 'agents.delegation',
+        searchTerms: lower([
+            'dianjiang',
+            'import',
+            'presets',
+            'delegation',
+            'delegate',
+            'model',
+            'effort',
         ]),
     },
     {

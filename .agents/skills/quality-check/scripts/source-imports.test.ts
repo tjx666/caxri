@@ -308,6 +308,7 @@ describe('direct import test selection', () => {
         const scans = new Set([
             'apps/server/src/domains/__tests__/structure.test.ts',
             'scripts/__tests__/ci-e2e-log-safety.test.ts',
+            'scripts/__tests__/logging-contract.test.ts',
         ]);
         expect(selected.filter((test) => !scans.has(test))).toEqual(direct);
         expect(selected).not.toContain(

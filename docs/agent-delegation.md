@@ -585,23 +585,53 @@ launch policy; it is not a reason to fall back to owner credentials or an invisi
 
 ## Import dianjiang presets
 
-The human profile owner can preview an explicitly selected JSONC configuration:
+The profile owner imports an explicitly selected JSONC configuration, from Desktop or the CLI. The
+file is always previewed first, and nothing is written until the import is applied.
+
+Desktop: Settings, Agents, "Delegation presets" lists the current presets read-only (name, Agent,
+model, effort, whether it carries private instructions) and offers "Import from dianjiang…". Choosing
+a file opens an inline preview with a Merge or Replace choice and the counts it would add, change and
+remove, plus caller-rule and depth changes. Switching the mode re-previews. Import applies the shown
+preview; if settings changed since it was made, the Server rejects it as a stale preview and Desktop
+shows the refreshed preview instead of writing.
 
 ```sh
 caxri agent delegate import --profile /path/to/caxri-profile --from /path/to/config.jsonc
-caxri agent delegate import --profile /path/to/caxri-profile --from /path/to/config.jsonc --apply --yes
+caxri agent delegate import --profile /path/to/caxri-profile --from /path/to/config.jsonc --replace --apply --yes
 ```
 
-Preview is the default and writes nothing. Applying replaces only `agents.delegation`, preserving
-other settings and their JSONC comments. The source file is never changed; source comments are not
-copied. The report contains preset names, depth and whether settings would change, without private
-instructions. No global configuration or skill is discovered, installed, removed or rewritten.
+Both surfaces call `settings.delegation.import` with `sourceText` (at most 256 KiB of UTF-8), `mode`
+(`merge`, the default, or `replace`), `dryRun` (default true) and an optional `expectedRevision`.
+
+- **Merge** (default): presets are keyed by name. A preset in the file replaces the current one of
+  the same name as a whole tuple (Agent, model, effort, descriptions, private instructions); a preset
+  only in the current settings is kept; new presets are appended. Caller rules are replaced per
+  provider. The current `maxDepth` is kept.
+- **Replace**: the file's presets, caller rules and `maxDepth` become the configuration.
+- In both modes `readChildChat` and `approval` stay as currently configured; the dianjiang format
+  does not carry them. The merged result is validated again, including the 32-preset cap.
+
+Applying rewrites the whole `agents.delegation` node: comments inside that node are lost, comments
+elsewhere in `settings.jsonc` are preserved. The source file is never changed and its comments are
+not copied. No global configuration or skill is discovered, installed, removed or rewritten.
 
 `agents` maps to `presets`, `harness` to `provider`, and caller `agents` to caller `presets`.
 Caller model/effort tuples remain whole replacements; exclusions, descriptions, private instructions,
 prepend and append retain their meaning. Import rejects unknown fields, invalid names, unsupported
 provider efforts, excessive depth or lengths, duplicate presets and invalid caller references.
-Inputs must be regular, non-symlink JSONC files of at most 1 MiB.
+
+A rejected file reports value-free issues only: a stage, a path, and a reason from a closed set. An
+unknown field is reported at the object that holds it (`agents.0: unknown_field`), never by its name;
+a record key that is not a provider id or a preset name defined in the file is shown as `*`. The
+reasons are `invalid_jsonc`, `too_large`, `unknown_field`, `missing`, `wrong_type`, `invalid_value`, `too_long`,
+`too_many`, `duplicate_name`, `unsupported_effort`, `unknown_preset` and `excluded_and_overridden`.
+Neither the wire error message, the logs nor the report contain file text or private instructions;
+Desktop and the CLI format the issues themselves. The preview result carries preset names, counts and
+depth, never instructions.
+
+A preset chip appears on delegated Session rows and on the "Delegated from" row of a delegated
+Session. It shows the preset name; its provider, model and effort come from the selection frozen on
+the task's receipt, so a preset edited or removed afterwards still describes what the task ran with.
 
 The dedicated `settings.delegation.write` capability belongs to the profile owner. Ordinary Agent
 settings grants cannot change delegation instructions. The CLI rejects managed Endpoint credentials

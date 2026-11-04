@@ -2,10 +2,11 @@ import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CaxriError } from '@caxri/protocol';
 import { expect, it, onTestFinished, vi } from 'vitest';
 
 import { runCli } from '../application';
-import { convertDelegationConfig, DELEGATION_IMPORT_COMMAND } from '../commands/delegation-import';
+import { DELEGATION_IMPORT_COMMAND } from '../commands/delegation-import';
 
 const config = {
     maxDepth: 2,
@@ -28,45 +29,6 @@ const config = {
     },
 };
 
-it('preserves private instructions and whole caller binding replacements', () => {
-    const result = convertDelegationConfig(config);
-    expect(result.presets[0]).toMatchObject({
-        name: 'review',
-        provider: 'claude',
-        model: 'opus',
-        effort: 'xhigh',
-        instructions: 'Synthetic private instructions',
-    });
-    expect(result.callers.claude?.presets?.review).toEqual({
-        provider: 'codex',
-        useWhen: 'Independent review',
-    });
-    expect(result.callers.claude?.prepend).toBe(config.callers.claude.prepend);
-    expect(
-        convertDelegationConfig({ ...config, callers: { grok: { exclude: ['review'] } } }).callers
-            .grok?.exclude,
-    ).toEqual(['review']);
-});
-
-it.each([
-    { agents: [{ ...config.agents[0], name: 'Invalid Name' }] },
-    { agents: [{ ...config.agents[0], harness: 'grok', effort: 'xhigh' }] },
-    { agents: [{ ...config.agents[0], useWhen: 'x'.repeat(2049) }] },
-    { agents: [{ ...config.agents[0], instructions: 'x'.repeat(8193) }] },
-    {
-        agents: Array.from({ length: 33 }, (_, index) => ({
-            ...config.agents[0],
-            name: `preset-${index}`,
-        })),
-    },
-    { callers: { claude: { exclude: ['unknown'] } } },
-    { callers: { claude: { exclude: ['review'], agents: { review: { harness: 'codex' } } } } },
-    { maxDepth: 9 },
-    { unknown: true },
-])('rejects incompatible source semantics: %j', (changes) => {
-    expect(() => convertDelegationConfig({ ...config, ...changes })).toThrow();
-});
-
 it('reads only an explicit bounded JSONC file and defaults to a non-mutating preview', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-import-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
@@ -74,7 +36,7 @@ it('reads only an explicit bounded JSONC file and defaults to a non-mutating pre
     const source = `// Synthetic configuration\n${JSON.stringify(config)}`;
     await writeFile(path, source);
     const preview = await DELEGATION_IMPORT_COMMAND.parseParams(['--from', path]);
-    expect(preview).toMatchObject({ dryRun: true, settings: { maxDepth: 2 } });
+    expect(preview).toEqual({ dryRun: true, mode: 'merge', sourceText: source });
     expect(DELEGATION_IMPORT_COMMAND.mutates?.(preview)).toBe(false);
     expect(await readFile(path, 'utf8')).toBe(source);
     const connect = vi.fn();
@@ -117,25 +79,30 @@ it('reads only an explicit bounded JSONC file and defaults to a non-mutating pre
         DELEGATION_IMPORT_COMMAND.parseParams(['--from', path, '--apply', '--dry-run']),
     ).rejects.toThrow();
     await expect(DELEGATION_IMPORT_COMMAND.parseParams([])).rejects.toThrow();
-    await writeFile(
-        path,
-        JSON.stringify({ ...config, agents: [{ ...config.agents[0], harness: 'grok' }] }),
-    );
-    await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow(
-        'Unsupported effort for delegation preset review',
-    );
-    await writeFile(
-        path,
-        JSON.stringify({ ...config, callers: { claude: { exclude: ['unknown'] } } }),
-    );
-    await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow(
-        'excludes an unknown preset',
-    );
+    expect(
+        await DELEGATION_IMPORT_COMMAND.parseParams(['--from', path, '--replace', '--apply']),
+    ).toMatchObject({ mode: 'replace', dryRun: false });
+    await expect(
+        DELEGATION_IMPORT_COMMAND.parseParams(['--from', path, '--merge', '--replace']),
+    ).rejects.toThrow();
     const link = join(directory, 'link.jsonc');
     await symlink(path, link);
     await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', link])).rejects.toThrow();
-    await writeFile(path, 'x'.repeat(1_048_577));
+    await writeFile(path, 'x'.repeat(262_145));
     await expect(DELEGATION_IMPORT_COMMAND.parseParams(['--from', path])).rejects.toThrow(
-        '1024 KiB',
+        '256 KiB',
     );
+});
+
+it('prints rejected-import issues from details and requires a matching Server', () => {
+    expect(DELEGATION_IMPORT_COMMAND).toMatchObject({ requiresServerVersionMatch: true });
+    const error = DELEGATION_IMPORT_COMMAND.describeError?.(
+        new CaxriError('VALIDATION', 'Delegation presets could not be imported', {
+            issues: [{ stage: 'source', path: 'agents.0', reason: 'unknown_field' }],
+        }),
+    );
+    expect(error?.message).toBe('Invalid delegation configuration: agents.0: unknown_field');
+    expect(
+        DELEGATION_IMPORT_COMMAND.describeError?.(new CaxriError('CONFLICT', 'x')),
+    ).toBeUndefined();
 });

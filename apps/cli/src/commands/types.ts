@@ -34,6 +34,11 @@ export interface RemoteCommandDefinition {
      * Owner confirmation is separate from the Server's explicit generation-scoped Agent grant.
      */
     ownerConfirmation?: string;
+    /**
+     * Turns a Server rejection into the error the CLI prints, for a command whose rejection carries structured details
+     * the message must not repeat. Return `undefined` to keep the original error.
+     */
+    describeError?(error: unknown): Error | undefined;
     kind: 'remote';
     method: CaxriMethod;
     mutates?(parameters: unknown): boolean;

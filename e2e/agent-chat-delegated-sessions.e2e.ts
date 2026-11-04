@@ -211,6 +211,50 @@ test('the strip words a usage limit, a task that needs input, an unreadable resu
 });
 
 /**
+ * A task admitted with a preset shows its name as a chip on the strip row and on the child's origin row. The provider,
+ * model and effort come from the selection frozen on the receipt: the strip row reads them from its tooltip, which also
+ * opens on keyboard focus, and the origin row prints them.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a delegated task shows the preset it was admitted with on the strip and the origin row', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-preset-', { preset: 'review' });
+    try {
+        const { page } = chat.running;
+        const { projectId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await openAgentChat(page, 'Codex Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill(DELEGATE_PROMPT);
+        await message.press('Enter');
+
+        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const row = strip.locator('[data-agent-chat-delegated-session]');
+        await expect(row).toContainText(CHILD_SUMMARY);
+        const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
+        await expect(row.locator('[data-delegation-preset="review"]')).toBeVisible();
+
+        // The row's button names itself with the chip's screen-reader text, and a keyboard user sees the same sentence.
+        const detail = 'review: Codex, Provider default model, high';
+        const summary = 'Preset review: Codex, Provider default model, high';
+        const button = row.getByRole('button', {
+            name: /review\s*:\s*Codex, Provider default model, high/u,
+        });
+        await button.focus();
+        await expect(page.locator('.tooltip-popup')).toContainText(summary);
+        await page.screenshot({ path: testInfo.outputPath('delegated-preset-strip.png') });
+
+        await button.click();
+        await expect.poll(() => selectedSessionId(page)).toBe(childId);
+        const origin = session.locator('[data-agent-chat-delegation-origin="delegated"]');
+        await expect(origin.locator('[data-delegation-preset="review"]')).toContainText(detail);
+        await page.screenshot({ path: testInfo.outputPath('delegated-preset-origin.png') });
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
  * Caxri Bot's window has no pane layout to open a Session in, so it hides the strip and the records even for a Chat
  * that did delegate. Caxri Bot cannot create a Session itself, so its children are seeded for its own Session while the
  * app is closed, and the Workbench's feed read proves they exist.

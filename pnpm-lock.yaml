@@ -322,9 +322,6 @@ importers:
       '@caxri/system':
         specifier: workspace:*
         version: link:../../packages/system
-      jsonc-parser:
-        specifier: ^3.3.1
-        version: 3.3.1
       zod:
         specifier: 'catalog:'
         version: 4.6.7

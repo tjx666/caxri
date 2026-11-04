@@ -1,6 +1,7 @@
 import type { AgentDelegationSession } from '@caxri/protocol';
 import { formatNoticeableDuration } from '@caxri/protocol';
 
+import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { openExternalUrl } from '../../../lib/external-link';
@@ -9,6 +10,8 @@ import { useProjectById, useSessionById } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
 import { delegationCopy, delegationCopyInput } from '../../delegation/delegation-copy';
 import { delegationElapsedMs } from '../../delegation/delegation-feed';
+import { delegationPresetSummary } from '../../delegation/delegation-preset';
+import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
 import { SessionPullRequestIndicator } from '../../primary-sidebar/session-pull-request-indicator';
@@ -51,12 +54,17 @@ function DelegatedResultMeta({ sessionId }: { sessionId: string }) {
 function DelegatedSessionRowContent({
     attempt,
     entry,
+    isPresetDetailVisible,
     now,
     projectTitle,
     title,
 }: {
     attempt?: number;
     entry: AgentDelegationSession;
+    /**
+     * Prints the preset's provider, model and effort in the row, for a row with no tooltip to carry them.
+     */
+    isPresetDetailVisible: boolean;
     now: number;
     projectTitle?: string;
     title: string;
@@ -76,6 +84,10 @@ function DelegatedSessionRowContent({
                     {projectTitle && (
                         <span className="min-w-0 shrink truncate">{projectTitle}</span>
                     )}
+                    <DelegationPresetChip
+                        isDetailVisible={isPresetDetailVisible}
+                        selection={entry.selection}
+                    />
                     {attempt !== undefined && (
                         <span className="shrink-0">
                             {t('delegation.retry.attempt', { number: attempt })}
@@ -129,10 +141,12 @@ export function AgentChatDelegatedSessionRow({
     const title = session
         ? sessionTitleForDisplay(session.title, t)
         : t('delegation.strip.unavailable');
+    const presetSummary = delegationPresetSummary(entry.selection, t);
     const content = (
         <DelegatedSessionRowContent
             attempt={attempt}
             entry={entry}
+            isPresetDetailVisible={!session}
             now={now}
             projectTitle={project?.title}
             title={title}
@@ -141,16 +155,18 @@ export function AgentChatDelegatedSessionRow({
     return (
         <li className="flex min-w-0 flex-col" data-agent-chat-delegated-session={entry.sessionId}>
             {session ? (
-                <button
-                    className={cn(
-                        ROW_CLASS_NAME,
-                        'cursor-pointer border-0 bg-transparent hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent',
-                    )}
-                    type="button"
-                    onClick={() => openSession(entry.sessionId)}
-                >
-                    {content}
-                </button>
+                <Tooltip content={presetSummary} disabled={presetSummary === undefined}>
+                    <button
+                        className={cn(
+                            ROW_CLASS_NAME,
+                            'cursor-pointer border-0 bg-transparent hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent',
+                        )}
+                        type="button"
+                        onClick={() => openSession(entry.sessionId)}
+                    >
+                        {content}
+                    </button>
+                </Tooltip>
             ) : (
                 <div className={ROW_CLASS_NAME}>{content}</div>
             )}

@@ -21,6 +21,7 @@ import { AgentSecretsForm } from './agent-secrets/agent-secrets-form';
 import { ArchivedSessionsEntry } from './archived-sessions-entry';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
 import { DelegationFieldControl } from './delegation-field-control';
+import { DelegationPresetsSection } from './delegation-presets/delegation-presets-section';
 import { EnvironmentMonitorSettingControl } from './environment-monitor-setting-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { HostsSettingsForm, ShowHostNamesSwitch } from './hosts-settings-form';
@@ -486,6 +487,8 @@ function rowControl(
             return { control: <ClaudeWindowsForm /> };
         case 'agent-secrets':
             return { control: <AgentSecretsForm /> };
+        case 'delegation-presets':
+            return { control: <DelegationPresetsSection value={settings['agents.delegation']} /> };
         case 'delegation-field':
             return {
                 labelFor: controlId,

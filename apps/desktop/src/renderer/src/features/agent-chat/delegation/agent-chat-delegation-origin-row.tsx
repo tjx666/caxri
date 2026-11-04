@@ -2,6 +2,7 @@ import { Forward } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
+import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
 import { DelegationQuestionCard } from '../../delegation/delegation-question-card';
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { openSession } from '../../session/session-commands';
@@ -69,6 +70,8 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
                         <span className="text-foreground">
                             {t('delegation.origin.from', { title })}
                         </span>
+                        {task?.selection?.preset && ' '}
+                        <DelegationPresetChip isDetailVisible selection={task?.selection} />
                         {!origin.isParentArchived && (
                             <>
                                 {' · '}

@@ -17,7 +17,7 @@ not make their authority, origin, retry, or audit semantics interchangeable.
 
 ## Dispatch lifecycle
 
-`agent delegate import --from <file> [--dry-run|--apply]` requires the owner-only
+`agent delegate import --from <file> [--merge|--replace] [--dry-run|--apply]` (merges by default) requires the owner-only
 `settings.delegation.write` capability, not `agents.delegate`. The CLI rejects detected Agent and CI
 environments for this command and `terminal send`. These checks distinguish authenticated connection
 roles; they do not isolate mutually untrusted processes sharing the same OS user.

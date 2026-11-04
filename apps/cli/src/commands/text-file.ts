@@ -16,11 +16,28 @@ export async function readBoundedTextFile(
     try {
         return await readBoundedRegularFileText(path, maxBytes, { symlinks: 'nofollow' });
     } catch (error) {
-        if (error instanceof CaxriError && (error.code === 'CAPACITY' || error.code === 'IO'))
+        if (
+            (error instanceof CaxriError && (error.code === 'CAPACITY' || error.code === 'IO')) ||
+            isFileShapeError(error)
+        )
             throw new CaxriError(
                 'VALIDATION',
                 `${label} must be a regular file of at most ${limit}`,
             );
+        if (isMissingFileError(error)) throw new CaxriError('VALIDATION', `${label} was not found`);
         throw error;
     }
+}
+
+/**
+ * The shared reader lets filesystem faults through unchanged; a symlink or a directory is a bad argument, not a crash.
+ */
+function isFileShapeError(error: unknown): boolean {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    return code === 'ELOOP' || code === 'EISDIR';
+}
+
+function isMissingFileError(error: unknown): boolean {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    return code === 'ENOENT' || code === 'ENOTDIR';
 }

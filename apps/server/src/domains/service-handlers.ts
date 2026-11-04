@@ -461,8 +461,8 @@ export function createServiceHandlers(services: {
         'settings.get': () => configuration.getSettings(),
         'settings.inspect': () => configuration.inspectSettings(),
         'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
-        'settings.delegation.import': ({ settings, dryRun }) =>
-            configuration.importDelegationSettings(settings, dryRun),
+        'settings.delegation.import': (parameters) =>
+            configuration.importDelegationSettings(parameters),
         'agentAvailability.get': createAgentAvailabilityHandler({ configuration }),
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),

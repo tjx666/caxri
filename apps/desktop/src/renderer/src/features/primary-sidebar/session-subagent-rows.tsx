@@ -145,7 +145,7 @@ export function SessionSubagentRows({
              */}
             <span
                 aria-hidden="true"
-                className="subagent-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-border"
+                className="subagent-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-muted/40"
             />
             {rows}
         </div>

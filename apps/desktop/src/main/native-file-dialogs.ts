@@ -1,5 +1,13 @@
-import type { ProjectTransferExportResult } from '@caxri/protocol';
-import { themeImportExtensions } from '@caxri/protocol';
+import { basename } from 'node:path';
+
+import type { DelegationImportPick, ProjectTransferExportResult } from '@caxri/protocol';
+import {
+    CaxriError,
+    DELEGATION_IMPORT_REJECTED_MESSAGE,
+    MAX_CONFIGURATION_SOURCE_BYTES,
+    themeImportExtensions,
+} from '@caxri/protocol';
+import { readBoundedRegularFileText } from '@caxri/system';
 import type { BrowserWindow, Dialog, OpenDialogOptions, SaveDialogOptions } from 'electron';
 
 import { translateMain } from './locale';
@@ -20,6 +28,53 @@ export function themeImportDialogOptions(): OpenDialogOptions {
             { name: translateMain('desktop.fileFilter.allFiles'), extensions: ['*'] },
         ],
     };
+}
+
+function delegationImportDialogOptions(): OpenDialogOptions {
+    return {
+        title: translateMain('desktop.delegationImport.title'),
+        properties: ['openFile'],
+        filters: [
+            {
+                name: translateMain('desktop.delegationImport.files'),
+                extensions: ['jsonc', 'json'],
+            },
+            { name: translateMain('desktop.fileFilter.allFiles'), extensions: ['*'] },
+        ],
+    };
+}
+
+/**
+ * Asks which dianjiang `delegation.jsonc` to import and reads it with a bounded read. A symlink the user picked is
+ * followed (dotfile-managed configuration commonly is one), but the target must be a regular file within the
+ * configuration size limit. Main only reads: the Renderer sends the text to the Server it is connected to, so no local
+ * path crosses to a remote Server and Main holds no copy of the file. Resolves `null` when the user cancels.
+ */
+export async function pickDelegationImportFile(input: {
+    dialog: Pick<Dialog, 'showOpenDialog'>;
+    window: BrowserWindow | undefined;
+}): Promise<DelegationImportPick | null> {
+    const options = delegationImportDialogOptions();
+    const result = await (input.window
+        ? input.dialog.showOpenDialog(input.window, options)
+        : input.dialog.showOpenDialog(options));
+    const path = result.filePaths[0];
+    if (!path || result.canceled) return null;
+    try {
+        return {
+            fileName: basename(path).slice(0, 255),
+            sourceText: await readBoundedRegularFileText(path, MAX_CONFIGURATION_SOURCE_BYTES, {
+                symlinks: 'follow',
+            }),
+        };
+    } catch (error) {
+        // Same shape the Server gives an oversized source, so the Renderer words both the same way.
+        if (error instanceof CaxriError && error.code === 'CAPACITY')
+            throw new CaxriError('VALIDATION', DELEGATION_IMPORT_REJECTED_MESSAGE, {
+                issues: [{ stage: 'source', path: '', reason: 'too_large' }],
+            });
+        throw new CaxriError('IO', 'The selected file could not be read as a regular text file');
+    }
 }
 
 /**
