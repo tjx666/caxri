@@ -29,9 +29,22 @@ export const DELEGATE_PROMPT = 'delegate the review';
  */
 export const RETRY_NOTICE_REPLY = 'Noted: waiting on the retried task.';
 /**
+ * The parent's reply to the settlement notice the Server sends when its delegated task finishes. Without a scripted
+ * turn the fake Agent would answer an unknown prompt with a file-change approval and block the Chat.
+ */
+export const SETTLEMENT_NOTICE_REPLY = 'Noted: the delegated review finished.';
+/**
  * Present in the control directory while the delegated child's turn is held; removing it lets the child finish.
  */
 export const HOLD_CHILD_FILE = 'hold-child';
+
+/**
+ * A shell command that runs the built Caxri CLI with `args`, as a fake Agent's command step does.
+ */
+export function caxriCliCommand(arguments_: string): string {
+    const cliPath = join(import.meta.dirname, '..', '..', 'apps/cli/dist/caxri.cjs');
+    return `${process.execPath} ${cliPath} ${arguments_}`;
+}
 
 export interface DelegatingChat {
     controlDirectory: string;
@@ -68,7 +81,6 @@ export async function launchDelegatingChat(
     const taskPath = join(directory, 'task.md');
     await Promise.all([mkdir(root, { recursive: true }), mkdir(controlDirectory)]);
     await writeFile(taskPath, 'Review the retry design and report back.');
-    const cliPath = join(import.meta.dirname, '..', '..', 'apps/cli/dist/caxri.cjs');
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
         providers: {
@@ -109,9 +121,7 @@ export async function launchDelegatingChat(
         },
         writeScript: async (projectId) => {
             const create = [
-                process.execPath,
-                cliPath,
-                'agent delegate create',
+                caxriCliCommand('agent delegate create'),
                 `--project ${projectId} --new-session --title "${CHILD_TITLE}"`,
                 `${options.preset ? `--preset ${options.preset}` : '--provider codex'} --prompt-file ${taskPath}`,
                 '--request-id e2e-delegated-review --json',
@@ -140,6 +150,11 @@ export async function launchDelegatingChat(
                                     text: `Reviewed the retry design.\n\nSummary: ${CHILD_SUMMARY}`,
                                 },
                             ],
+                        },
+                        {
+                            prompt: '[Caxri] Delegated task update',
+                            isPrefix: true,
+                            steps: [{ kind: 'message', text: SETTLEMENT_NOTICE_REPLY }],
                         },
                         {
                             // The notice a parent receives when the owner retries its failed task.
