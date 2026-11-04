@@ -268,6 +268,10 @@ test('an escalated question is the user to answer, and taking the child over wit
         await expect(row.locator('[data-agent-chat-delegation-glyph="needsInput"]')).toBeVisible();
         // Escalation is also inline only: still no sidebar attention and no notification source.
         await expectNoAttention(page, parent.id, childId);
+        // The question is the user's to answer, so the child's sidebar row keeps the static amber mark until it is.
+        await expect(
+            page.locator(`[data-session-id="${childId}"] [data-attention-pending]`),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('delegated-escalated.png') });
 
         await selectSession(page, childId);

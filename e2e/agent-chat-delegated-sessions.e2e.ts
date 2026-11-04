@@ -21,7 +21,10 @@ import {
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest, selectedSessionId, VISIBLE_SESSION } from './support/helpers.ts';
 import { runServerDatabase } from './support/run-server-database.ts';
-import type { DelegatedChatSeed } from './support/server-database/delegated-chat-seed.ts';
+import type {
+    DeepDelegatedChatSeed,
+    DelegatedChatSeed,
+} from './support/server-database/delegated-chat-seed.ts';
 
 /**
  * A real delegation, end to end: the parent Chat's fake Agent runs the Caxri CLI (`agent delegate create
@@ -472,6 +475,41 @@ test('the strip states the estimated cost of a delegated Chat per row and in the
         await strip.locator('[data-agent-chat-delegated-cost]').hover();
         await expect(page.getByText('Estimated at API list prices')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('delegated-cost-tooltip.png') });
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
+ * A grandchild that needs the user is rolled up into the host's strip: its row reads "via" the direct child it sits
+ * under, and the header counts it.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the strip rolls up a failed grandchild and names the direct child it sits under', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-deep-');
+    try {
+        const { projectId, sessionId: hostId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await openAgentChat(chat.running.page, 'Codex Chat');
+        await chat.running.app.close();
+        const seed = await runServerDatabase<DeepDelegatedChatSeed>('delegated-chat-seed', {
+            userData: chat.userData,
+            phase: 'deep',
+            hostSessionId: hostId,
+            projectId,
+        });
+        chat.running = await launchCaxri(chat.launchOptions);
+        const { page } = chat.running;
+        await selectSession(page, hostId);
+        const strip = page
+            .locator(VISIBLE_SESSION)
+            .getByRole('region', { name: 'Delegated Sessions' });
+        await expect(strip).toContainText('1 delegated');
+        await expect(strip).toContainText('1 failed');
+        const deeper = strip.locator(`[data-agent-chat-delegated-session="${seed.leaf}"]`);
+        await expect(deeper).toContainText('Port the billing exports');
+        await expect(deeper).toContainText('via Coordinate the migration');
+        await page.screenshot({ path: testInfo.outputPath('delegated-via.png') });
     } finally {
         await chat.cleanup();
     }
