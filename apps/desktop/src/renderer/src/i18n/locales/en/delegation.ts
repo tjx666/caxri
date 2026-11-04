@@ -93,6 +93,7 @@ export const delegation = {
     'delegation.origin.takenOver': 'You took over this Session',
     'delegation.origin.takenOverDetail': 'its replies no longer go back to {{title}}',
     'delegation.origin.handBack': 'Hand back',
+    'delegation.origin.handBackAria': 'Hand back to {{title}}',
     'delegation.origin.handBackTooltip': 'Let {{title}} continue driving this Session',
     'delegation.origin.handBackPending': 'Handed back to {{title}} · waiting for it to continue',
     'delegation.origin.handBackBlocked.busy':

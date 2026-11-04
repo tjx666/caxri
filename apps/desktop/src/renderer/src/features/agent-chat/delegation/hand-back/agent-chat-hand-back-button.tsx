@@ -32,6 +32,7 @@ export function AgentChatHandBackButton({
         <Tooltip content={t('delegation.origin.handBackTooltip', { title })}>
             <Button
                 aria-disabled={view.block !== undefined || isPending}
+                aria-label={t('delegation.origin.handBackAria', { title })}
                 className="flex-none"
                 size="sm"
                 variant="secondary"

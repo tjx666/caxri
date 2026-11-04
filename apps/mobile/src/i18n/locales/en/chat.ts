@@ -75,6 +75,7 @@ export const chat = {
     'chat.delegationNotice.answer_unavailable': 'finished, answer unavailable',
     'chat.delegationNotice.settled': 'finished',
     'chat.delegationNotice.openHint': 'Opens the Session this update is about.',
+    'chat.delegationNotice.rowLabel': '{{status}}: {{title}}',
     'chat.delegationNotice.unavailable': 'A Session that is no longer available',
     'chat.disabled.configure.access': 'Reply access is required to change the model.',
     'chat.disabled.configure.failed': 'Retry the Chat before changing the model.',

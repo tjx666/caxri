@@ -21,7 +21,7 @@ import { conversationStyles } from '../conversation/conversation-styles';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { allMobileSessions } from '../sessions/hooks/use-session-polling';
 import { sessionTitleForDisplay } from '../sessions/session-row-model';
-import { noticeEventKey } from './agent-chat-delegation-notice';
+import { delegationNoticeRowLabel, noticeEventKey } from './agent-chat-delegation-notice';
 import { useOpenSession } from './use-open-session';
 
 const ICONS: Record<DelegationNoticeEvent, LucideIcon> = {
@@ -59,13 +59,15 @@ function DelegationNoticeRow({
     const session = allMobileSessions(sessions.sections).find(({ id }) => id === item.sessionId);
     const Icon = ICONS[item.event];
     const tone = delegationNoticeEventTone(item.event);
+    const title = session
+        ? sessionTitleForDisplay(session.title, t)
+        : t('chat.delegationNotice.unavailable');
+    const label = delegationNoticeRowLabel(t, item.event, title);
     const content = (
         <>
             <Icon color={tone === 'muted' ? theme.muted : theme[tone]} size={14} />
             <Text numberOfLines={1} style={[styles.title, { color: theme.muted }]}>
-                {session
-                    ? sessionTitleForDisplay(session.title, t)
-                    : t('chat.delegationNotice.unavailable')}
+                {title}
             </Text>
             <Text style={[styles.status, { color: theme.muted }]}>
                 {t(noticeEventKey(item.event))}
@@ -75,6 +77,7 @@ function DelegationNoticeRow({
     return session ? (
         <Pressable
             accessibilityHint={t('chat.delegationNotice.openHint')}
+            accessibilityLabel={label}
             accessibilityRole="link"
             hitSlop={4}
             onPress={() => openSession(session.id)}
@@ -84,7 +87,9 @@ function DelegationNoticeRow({
             {content}
         </Pressable>
     ) : (
-        <View style={styles.row}>{content}</View>
+        <View accessibilityLabel={label} accessible style={styles.row}>
+            {content}
+        </View>
     );
 }
 

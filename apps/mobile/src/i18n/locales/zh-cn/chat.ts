@@ -75,6 +75,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.delegationNotice.answer_unavailable': '已结束，无法读取答案',
     'chat.delegationNotice.settled': '已结束',
     'chat.delegationNotice.openHint': '打开此更新所属的会话。',
+    'chat.delegationNotice.rowLabel': '{{status}}：{{title}}',
     'chat.delegationNotice.unavailable': '一个不再可用的会话',
     'chat.disabled.configure.access': '需要回复权限才能更改模型。',
     'chat.disabled.configure.failed': '请先重试对话，再更改模型。',

@@ -269,7 +269,7 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         await expect(session.getByText('You said: Let me check one thing')).toBeVisible();
 
         // A draft in the composer disables the hand-back and says why.
-        const handBack = takenOver.getByRole('button', { name: 'Hand back', exact: true });
+        const handBack = takenOver.getByRole('button', { name: /^Hand back to / });
         await expect(handBack).toBeVisible();
         await childMessage.fill('half-typed note');
         await expect(handBack).toHaveAttribute('aria-disabled', 'true');

@@ -38,7 +38,7 @@ const TONE_CLASS_NAMES = {
 } as const;
 
 const ROW_CLASS_NAME =
-    'flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-[12px] leading-5 text-muted';
+    'flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-xs leading-5 text-muted';
 
 /**
  * One item of a delivered notice: an icon, the child Session's title, and what happened to it. The title is read from

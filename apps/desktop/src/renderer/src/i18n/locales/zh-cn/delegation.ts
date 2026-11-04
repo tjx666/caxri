@@ -85,6 +85,7 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.origin.takenOver': '你已接管此会话',
     'delegation.origin.takenOverDetail': '它的回复不再回传给 {{title}}',
     'delegation.origin.handBack': '交还',
+    'delegation.origin.handBackAria': '交还给 {{title}}',
     'delegation.origin.handBackTooltip': '让 {{title}} 继续驱动此会话',
     'delegation.origin.handBackPending': '已交还给 {{title}} · 等待其继续',
     'delegation.origin.handBackBlocked.busy': '请等当前回复结束后再交还',
