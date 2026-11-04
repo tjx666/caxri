@@ -18,6 +18,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
+import { playCommandApproval, playFileApproval } from './fake-codex-script-approval.ts';
 import {
     asArray,
     asOneOf,
@@ -77,8 +78,10 @@ type FakeCodexScriptStep =
     /**
      * A command that asks for approval like the `approve` scenario and waits. Accept runs it with `output`; decline
      * records it as declined, the Agent says so, and the rest of the turn is skipped, as the Agent would stop there.
+     * With `paths` (resolved against the Chat's working directory) it is a file change that updates those files
+     * instead, and `command` and `output` are unused.
      */
-    | { kind: 'approval'; command: string; output: string }
+    | { kind: 'approval'; command: string; output: string; paths?: string[] }
     /**
      * A streamed agent message (Markdown allowed).
      */
@@ -143,6 +146,7 @@ const STEP_FIELDS = [
     'exitCode',
     'durationMs',
     'shouldRun',
+    'paths',
     'changes',
     'text',
     'file',
@@ -206,11 +210,18 @@ function parseStep(value: unknown, where: string, controlDirectory: string | und
             } satisfies FakeCodexScriptStep;
         }
         case 'approval': {
-            const record = fields('command', 'output');
+            const record = fields('command', 'output', 'paths');
+            const paths =
+                record.paths === undefined
+                    ? undefined
+                    : asArray(record.paths, `${where}.paths`).map((entry, index) =>
+                          asString(entry, `${where}.paths[${index}]`),
+                      );
             return {
                 kind,
-                command: asString(record.command, `${where}.command`),
+                command: asString(record.command, `${where}.command`, paths !== undefined),
                 output: asString(record.output, `${where}.output`, true),
+                ...(paths && { paths }),
             } satisfies FakeCodexScriptStep;
         }
         case 'message': {
@@ -462,41 +473,26 @@ function playFileChange(
 type StepOutcome = 'continue' | 'stop';
 
 /**
- * Asks for approval and waits. A declined (or interrupted) command stops the script.
+ * Asks for approval and waits: a command, or a file change with `paths`. A declined (or interrupted) one stops the
+ * script.
  */
 async function playApproval(
     playback: Playback,
     step: Extract<FakeCodexScriptStep, { kind: 'approval' }>,
 ): Promise<StepOutcome> {
     const { io, turn } = playback;
-    const item = commandItem(playback, step.command);
-    io.startItem(turn, { ...item });
-    const response = (await io.serverRequest('item/commandExecution/requestApproval', {
-        turnId: turn.id,
-        itemId: item.id,
-        startedAtMs: Date.now(),
-        command: item.command,
-        cwd: item.cwd,
-    })) as { decision?: string } | undefined;
-    if (response?.decision !== 'accept' && response?.decision !== 'acceptForSession') {
-        io.completeItem(turn, { ...item, status: 'declined' });
-        await io.streamMessage(turn, 'The command was declined.', 0);
-        return 'stop';
-    }
-    const output = playback.fill(step.output);
-    io.notifyTurn(turn, 'item/commandExecution/outputDelta', {
-        turnId: turn.id,
-        itemId: item.id,
-        delta: output,
-    });
-    io.completeItem(turn, {
-        ...item,
-        status: 'completed',
-        aggregatedOutput: output,
-        exitCode: 0,
-        durationMs: 900,
-    });
-    return 'continue';
+    if (step.paths)
+        return playFileApproval(
+            io,
+            turn,
+            step.paths.map((entry) => path.resolve(playback.cwd, playback.fill(entry))),
+        );
+    return playCommandApproval(
+        io,
+        turn,
+        commandItem(playback, step.command),
+        playback.fill(step.output),
+    );
 }
 
 async function playHold(playback: Playback, file: string) {

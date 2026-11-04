@@ -20,6 +20,10 @@ export function createAgentChatHandlers(
     agentChat: AgentChatService,
     records: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'> & {
         createSessionForProject: ReturnType<typeof createSessionCreator>;
+        /**
+         * Whether a delegating Agent still holds a request quietly; held requests stay out of the waiting popup.
+         */
+        isRequestHeld?: (terminalId: string, requestId: string) => boolean;
     },
 ): Pick<
     DomainHandlers,
@@ -114,6 +118,7 @@ export function createAgentChatHandlers(
                         };
                     }),
                     (terminalId) => records.database.getTerminal(terminalId)?.sessionId,
+                    records.isRequestHeld,
                 ),
                 ...readWaitingTerminals(records.database.listSessions(), (terminalId) =>
                     records.database.getTerminal(terminalId),

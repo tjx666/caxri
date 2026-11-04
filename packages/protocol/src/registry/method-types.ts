@@ -108,6 +108,7 @@ export const effectfulCommandRecovery = {
     'agent.delegation.askCancel': 'durable',
     'agent.delegation.answer': 'durable',
     'agent.delegation.questionAnswer': 'durable',
+    'agent.delegation.approve': 'durable',
     'agent.session.rename': 'durable',
     'agent.session.archive': 'durable',
     'agent.session.unarchive': 'durable',

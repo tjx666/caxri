@@ -238,6 +238,45 @@ describe('Codex Chat with scripted fake turns', () => {
         expect(declined.items.at(-1)).toMatchObject({ text: 'The command was declined.' });
     });
 
+    it('waits for a file change approval naming the scripted paths, and stops when it is declined', async () => {
+        await useScript({
+            turns: [
+                {
+                    prompt: 'Edit it.',
+                    steps: [
+                        { kind: 'approval', command: '', output: '', paths: ['src/greeting.ts'] },
+                        { kind: 'message', text: 'Edited.' },
+                    ],
+                },
+            ],
+        });
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'Edit it.' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        expect(request).toMatchObject({ kind: 'fileChange' });
+        const change = pending.items.find((item) => item.type === 'fileChange');
+        expect(change).toMatchObject({
+            changes: [{ path: expect.stringMatching(/src[/\\]greeting\.ts$/) as string }],
+        });
+
+        service.respond(terminal.id, request.id, { kind: 'decision', decision: 'accept' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.at(-1)).toMatchObject({ text: 'Edited.' });
+
+        await service.send(terminal.id, { text: 'Edit it.' });
+        const second = await until((snapshot) => snapshot.requests.length === 1);
+        service.respond(terminal.id, second.requests[0].id, {
+            kind: 'decision',
+            decision: 'decline',
+        });
+        const declined = await until(
+            (snapshot) =>
+                snapshot.turns.at(-1)?.status === 'completed' && snapshot.turns.length === 2,
+        );
+        expect(declined.items.at(-1)).toMatchObject({ text: 'The change was declined.' });
+    });
+
     it('holds a turn in progress while its control file exists and ends a failing turn with the provider error', async () => {
         const { control } = await useScript(
             {

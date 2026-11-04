@@ -17,6 +17,7 @@ import { SessionStatusIndicator } from './session-status-indicator';
  * of the row's edge.
  */
 export function SessionRowStatus({
+    approvalPending,
     className,
     delegationFailed,
     pullRequest,
@@ -26,6 +27,11 @@ export function SessionRowStatus({
     shortcutHint,
     terminal,
 }: {
+    /**
+     * True for a nested Chat Session whose delegation carries a permission request that waits on the user (see
+     * `sessionStatus`).
+     */
+    approvalPending?: boolean;
     /**
      * Collapses the slot on row hover so Pin and Archive own the right edge; the hover card restates a non-default
      * status as one muted line.
@@ -63,6 +69,7 @@ export function SessionRowStatus({
             )}
         >
             <SessionStatusIndicator
+                approvalPending={approvalPending}
                 delegationFailed={delegationFailed}
                 fallback={!renaming && <SessionPullRequestIndicator pullRequest={pullRequest} />}
                 session={session}

@@ -4,6 +4,8 @@ import { isDelegationActive } from '@caxri/protocol';
 import { coreRouted } from '../core-routed';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
+import type { ApprovalMethod } from './approvals/handlers';
+import { createApprovalHandlers } from './approvals/handlers';
 import { delegationStatuses } from './feed';
 import type { QuestionMethod } from './questions/handlers';
 import { createQuestionHandlers } from './questions/handlers';
@@ -33,6 +35,7 @@ type DelegationMethod =
     | 'agent.delegation.resultInternal'
     | 'agent.delegation.transcript'
     | 'agent.delegation.transcriptInternal'
+    | ApprovalMethod
     | QuestionMethod;
 
 /**
@@ -100,6 +103,7 @@ export function createDelegationHandlers(
     const { pullRequests, transcripts = NO_TRANSCRIPTS } = sources;
     return {
         ...createQuestionHandlers(service.questions),
+        ...createApprovalHandlers(service.approvals),
         /**
          * Owner-only (enforced from the method spec before this runs) and never `claimed`: the feed reads summaries,
          * and an answer still unread by the Agent that delegated the task must stay unread.
@@ -111,7 +115,7 @@ export function createDelegationHandlers(
          * Owner-only and never `claimed`, like the feed: it reads states, not answers.
          */
         'agent.delegation.statuses': ({ delegationIds }) => ({
-            statuses: delegationStatuses({ database }, delegationIds),
+            statuses: delegationStatuses({ database, approvals: service.approvals }, delegationIds),
         }),
         /**
          * Owner-only (enforced from the method spec before this runs). The retry runs as the failed task's own Agent

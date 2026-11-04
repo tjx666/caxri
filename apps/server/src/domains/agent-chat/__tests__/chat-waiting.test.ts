@@ -44,6 +44,43 @@ describe('readWaitingChats', () => {
         ).toEqual([]);
     });
 
+    describe('a request a delegating Agent holds', () => {
+        const other: AgentChatRequest = {
+            id: 'request-2',
+            kind: 'question',
+            questions: [],
+        } as never;
+        const isHeld = (_terminalId: string, requestId: string) => requestId === 'request-1';
+
+        it("stays out of the list until it escalates, while the Chat's other requests stay", () => {
+            const both = source('a', { snapshot: { items: [], requests: [approval, other] } });
+            expect(readWaitingChats([both], sessionOf, isHeld)[0]?.requests).toEqual([other]);
+            expect(readWaitingChats([both], sessionOf, () => false)[0]?.requests).toEqual([
+                approval,
+                other,
+            ]);
+        });
+
+        it('drops a Chat whose only request is held before the count cap applies', () => {
+            const sources = Array.from({ length: AGENT_CHAT_WAITING_MAX_CHATS + 2 }, (_, index) =>
+                source(index < 2 ? `held-${index}` : `open-${index}`),
+            );
+            const chats = readWaitingChats(sources, sessionOf, (terminalId) =>
+                terminalId.startsWith('held-'),
+            );
+            expect(chats).toHaveLength(AGENT_CHAT_WAITING_MAX_CHATS);
+            expect(chats.some((chat) => chat.terminalId.startsWith('held-'))).toBe(false);
+        });
+
+        it('keeps a proposed plan listed', () => {
+            const items = [{ id: 'p1', type: 'plan', text: 'Plan' }] as unknown as AgentChatItem[];
+            const chat = source('a', { items });
+            chat.snapshot = { ...chat.snapshot, planMode: true };
+            const listed = readWaitingChats([chat], sessionOf, isHeld);
+            expect(listed.flatMap((entry) => entry.requests)).not.toContain(approval);
+        });
+    });
+
     it('quotes the latest message the user typed, not a delegated task pointer or a blank one', () => {
         const items: AgentChatItem[] = [
             { id: 'm1', type: 'userMessage', text: '  Set up CI  ' },

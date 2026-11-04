@@ -73,12 +73,14 @@ export const SIZE_BUDGETS: SizeBudget[] = [
  * Wall-time ceilings guard against toolchain regressions (for example accidentally enabling an analysis plugin on every
  * build) rather than machine noise. Hosted macOS runners vary by more than 2x with no build change: eighteen `main`
  * runs in 2026-10 measured build 74 to 182 s (median ≈ 118 s) and package 13 to 28 s, with both phases slow on the same
- * runs. A phase over its ceiling is therefore timed once more and judged by its faster attempt (see `measureWallTime`),
- * so one slow runner passes while a regression that slows every attempt still fails.
+ * runs. A phase over its ceiling is timed once more and judged by its faster attempt (see `measureWallTime`), which
+ * absorbs a brief load spike but not a runner that stays slow: in 2026-11 one runner built the same 8889 Renderer
+ * modules in 226.9 s and 214.5 s while the next run took 109.8 s. The build ceiling (270 s) therefore sits above that
+ * slow-runner band; it still fails a regression that more than doubles the median build.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const TIME_BUDGETS: TimeBudget[] = [
-    { label: 'build', maxSeconds: 180, command: ['bun', 'run', 'build'] },
+    { label: 'build', maxSeconds: 270, command: ['bun', 'run', 'build'] },
     {
         label: 'package',
         maxSeconds: 300,

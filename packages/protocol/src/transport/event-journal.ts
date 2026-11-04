@@ -22,6 +22,7 @@ export type TransientServerEvent = Extract<
             | 'caxriBot.inboxRequested'
             | 'agent.delegation.progress'
             | 'agent.delegation.questionChanged'
+            | 'agent.delegation.approval'
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
@@ -106,6 +107,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * Ids and closed values only; a reconnecting client reads open questions again through `agent.delegation.sessions`.
      */
     'agent.delegation.questionChanged',
+    /**
+     * Ids and a closed state only; a reconnecting client reads pending approvals again through
+     * `agent.delegation.sessions`.
+     */
+    'agent.delegation.approval',
     'agent.message.held',
     'agent.message.receipt',
     /**

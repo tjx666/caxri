@@ -210,6 +210,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
                      * of presenting a partial patch as the whole change.
                      */
                     truncated: z.boolean().optional(),
+                    /**
+                     * Set when the provider moved the file (a rename), so `path` is only one of its two locations.
+                     * Clients ignore it; Server Core reads it to know the change touches a second path.
+                     */
+                    renamed: z.boolean().optional(),
                 }),
             )
             .max(MAX_AGENT_CHAT_FILE_CHANGES),
@@ -245,7 +250,15 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * retries, and for `answered` the user's own answers to a question request, so the transcript keeps what was
          * chosen after the request card goes away.
          */
-        kind: z.enum(['error', 'warning', 'compacted', 'retrying', 'answered', 'output']),
+        kind: z.enum([
+            'error',
+            'warning',
+            'compacted',
+            'retrying',
+            'answered',
+            'output',
+            'delegationApproval',
+        ]),
         /**
          * Provider feedback heading, kept separate from its complete readable details. A closed kind plus the
          * provider's own names, so each Client words it in the reader's language (`agentChatNoticeHeading`); Hook,

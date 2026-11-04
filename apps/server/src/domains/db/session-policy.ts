@@ -304,6 +304,7 @@ export function decideAgentLifecycleUpdate(
     >,
     provider: TerminalRecord['provider'],
     phase: AgentLifecyclePhase,
+    alert?: 'quiet' | 'raise',
 ): AgentLifecycleDecision | undefined {
     if (NON_SESSION_ACTIVITY_PHASES.has(phase)) return undefined;
     if (
@@ -329,6 +330,19 @@ export function decideAgentLifecycleUpdate(
                 session.agentActivityState === 'waiting' ? 'running' : session.agentActivityState,
             ...(supersedesUnreadAttention && { supersedesUnreadAttention }),
         };
+    }
+    if (phase === 'attentionRequested' && alert === 'raise') {
+        /**
+         * A held request alerts the user now. The ordinary same-state suppression would swallow it when an earlier
+         * `waiting` generation exists, so only a Session that already shows an unread `waiting` alert is left alone.
+         */
+        if (
+            session.agentActivityState === 'waiting' &&
+            session.hasUnread &&
+            session.lastAttentionKind === 'waiting'
+        )
+            return undefined;
+        return { agentActivityState: 'waiting', attentionKind: 'waiting' };
     }
     const agentActivityState: AgentActivityState =
         phase === 'turnStarted'

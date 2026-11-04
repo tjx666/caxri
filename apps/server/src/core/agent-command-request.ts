@@ -26,6 +26,7 @@ type AgentCommandRequest = Extract<
             | 'agent.delegation.askCancel'
             | 'agent.delegation.questions'
             | 'agent.delegation.answer'
+            | 'agent.delegation.approve'
             | 'agent.delegation.list'
             | 'agent.delegation.wait'
             | 'agent.dispatch.start'
@@ -153,6 +154,11 @@ export function agentCommandRequest(
         case 'agent.delegation.answer':
             return {
                 method: 'agent.delegation.answerInternal',
+                params: { ...authority, ...request.params },
+            };
+        case 'agent.delegation.approve':
+            return {
+                method: 'agent.delegation.approveInternal',
                 params: { ...authority, ...request.params },
             };
         default:

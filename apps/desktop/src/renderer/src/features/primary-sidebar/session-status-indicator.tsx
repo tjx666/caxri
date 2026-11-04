@@ -38,12 +38,18 @@ const STATUS_SLOT_CLASS: Record<Exclude<SessionStatus['kind'], 'default'>, strin
  */
 export function SessionStatusIndicator({
     className,
+    approvalPending,
     delegationFailed,
     fallback,
     reserveSlot = false,
     session,
     terminal,
 }: {
+    /**
+     * True for a nested Chat Session whose delegation carries a permission request that waits on the user: the static
+     * amber cue that survives reading (see `sessionStatus`). Only nested rows pass it.
+     */
+    approvalPending?: boolean;
     className?: string;
     /**
      * True for a nested Session whose delegation failed (see `sessionStatus`). Only nested rows pass it.
@@ -63,7 +69,10 @@ export function SessionStatusIndicator({
 }) {
     const descriptionId = useId();
     const { t } = useTranslation();
-    const status = sessionStatus(session, terminal ?? {}, t, { delegationFailed });
+    const status = sessionStatus(session, terminal ?? {}, t, {
+        approvalPending,
+        delegationFailed,
+    });
     if (status.kind === 'default')
         return (
             <>
@@ -99,6 +108,9 @@ export function SessionStatusIndicator({
                 data-attention-kind={
                     status.kind === 'attention' ? session.lastAttentionKind : undefined
                 }
+                data-attention-pending={
+                    status.kind === 'attention' && status.isPending ? '' : undefined
+                }
                 data-attention-variant={status.kind === 'attention' ? status.variant : undefined}
                 data-session-status={status.kind}
             >
@@ -107,7 +119,7 @@ export function SessionStatusIndicator({
                     // event is noticed even when the Session never passed through running in between.
                     key={
                         status.kind === 'attention'
-                            ? `${session.lastAttentionKind}:${status.variant}`
+                            ? `${session.lastAttentionKind}:${status.variant}:${status.isPending ? 'pending' : 'unread'}`
                             : status.kind
                     }
                     status={status}
@@ -135,11 +147,13 @@ function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind:
         return status.variant === 'background' ? <BackgroundArc /> : <RunningArc />;
     return (
         <>
-            <span
-                aria-hidden="true"
-                className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-safe:[animation-fill-mode:forwards] motion-safe:[animation-iteration-count:3] motion-reduce:hidden"
-                data-session-status-ripple=""
-            />
+            {!status.isPending && (
+                <span
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-safe:[animation-fill-mode:forwards] motion-safe:[animation-iteration-count:3] motion-reduce:hidden"
+                    data-session-status-ripple=""
+                />
+            )}
             {status.variant === 'waiting' ? (
                 <CircleQuestionMark aria-hidden="true" size={14} strokeWidth={2.25} />
             ) : (

@@ -62,6 +62,67 @@ describe('Session list status', () => {
         ).toMatchObject({ kind: 'attention' });
     });
 
+    describe('a permission request only the user can decide', () => {
+        it('stays static amber after the Session is read, until the request leaves the feed', () => {
+            const read = sessionSource('waiting', { lastAttentionKind: 'waiting' });
+            expect(sessionStatus(read, {}, translate)).toEqual({ kind: 'default' });
+            expect(sessionStatus(read, {}, translate, { approvalPending: true })).toEqual({
+                ariaDescription: 'The Agent is waiting for input or confirmation.',
+                ariaLabel: 'Waiting for you',
+                isPending: true,
+                kind: 'attention',
+                variant: 'waiting',
+            });
+            expect(sessionStatus(read, {}, translate, { approvalPending: false })).toEqual({
+                kind: 'default',
+            });
+        });
+
+        it('does not depend on the Session record, so a Chat child with a stale idle state still shows it', () => {
+            expect(
+                sessionStatus(sessionSource('idle'), {}, translate, { approvalPending: true }),
+            ).toMatchObject({ isPending: true, kind: 'attention', variant: 'waiting' });
+        });
+
+        it('leaves a Terminal Session with a stale waiting state clearing once read', () => {
+            // The flag comes from the feed, which a Terminal child never has an approval in.
+            expect(sessionStatus(sessionSource('waiting'), {}, translate)).toEqual({
+                kind: 'default',
+            });
+            expect(
+                sessionStatus(
+                    sessionSource('waiting', { hasUnread: true, lastAttentionKind: 'waiting' }),
+                    {},
+                    translate,
+                ),
+            ).toMatchObject({ kind: 'attention', variant: 'waiting' });
+        });
+
+        it('keeps the animated unread cue while unread and outranks the running and detached glyphs', () => {
+            const unread = sessionStatus(
+                sessionSource('waiting', { hasUnread: true, lastAttentionKind: 'waiting' }),
+                {},
+                translate,
+                { approvalPending: true },
+            );
+            expect(unread).toMatchObject({ kind: 'attention', variant: 'waiting' });
+            expect(unread).not.toHaveProperty('isPending');
+            expect(
+                sessionStatus(sessionSource('running'), {}, translate, { approvalPending: true }),
+            ).toMatchObject({ isPending: true, kind: 'attention' });
+            expect(
+                sessionStatus(
+                    sessionSource('waiting'),
+                    { lastProcessState: 'detached' },
+                    translate,
+                    {
+                        approvalPending: true,
+                    },
+                ),
+            ).toMatchObject({ isPending: true, kind: 'attention' });
+        });
+    });
+
     it('keeps the unread name short for waiting and unknown attention', () => {
         expect(
             sessionStatus(

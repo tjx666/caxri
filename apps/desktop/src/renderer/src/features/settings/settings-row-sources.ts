@@ -32,7 +32,7 @@ export type SettingRowBinding =
     | { type: 'host-names' }
     | { type: 'claude-windows' }
     | { type: 'agent-secrets' }
-    | { type: 'delegation-field'; field: 'maxDepth' | 'readChildChat' }
+    | { type: 'delegation-field'; field: 'approval' | 'maxDepth' | 'readChildChat' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
 
@@ -490,6 +490,22 @@ export const settingRowSources: SettingRowSource[] = [
             'subagent',
             'conversation',
             'progress',
+        ]),
+    },
+    {
+        id: 'agents.delegation.approval',
+        advanced: true,
+        category: 'agents',
+        titleKey: 'settings.row.delegationApproval.title',
+        descriptionKey: 'settings.row.delegationApproval.description',
+        binding: { type: 'delegation-field', field: 'approval' },
+        searchTerms: lower([
+            'parent approval',
+            'approve',
+            'permission request',
+            'delegate',
+            'subagent',
+            'helper',
         ]),
     },
     specRow('agents.longRunningShellCommands', {

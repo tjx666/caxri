@@ -85,6 +85,20 @@ describe('isRowModified', () => {
         });
     });
 
+    it('tracks and resets parent approval apart from the depth', () => {
+        const current = settings();
+        const binding = { type: 'delegation-field', field: 'approval' } as const;
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        current['agents.delegation'] = { ...current['agents.delegation'], approval: false };
+        expect(isRowModified(binding, { settings: current })).toBe(true);
+        expect(rowResetAction(binding, current)).toEqual({
+            kind: 'field',
+            key: 'agents.delegation',
+            member: 'approval',
+            value: { ...current['agents.delegation'], approval: true },
+        });
+    });
+
     it('flags a scalar setting only when it diverges from its default', () => {
         const current = settings();
         expect(

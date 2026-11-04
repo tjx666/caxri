@@ -83,6 +83,7 @@ describe('diagnostics redaction', () => {
         settings['agents.delegation'] = {
             maxDepth: 3,
             readChildChat: true,
+            approval: true,
             presets: [
                 {
                     name: 'reviewer',
@@ -123,6 +124,7 @@ describe('diagnostics redaction', () => {
         expect(parsed['agents.delegation']).toEqual({
             maxDepth: 3,
             readChildChat: true,
+            approval: true,
             presets: [
                 {
                     name: 'reviewer',

@@ -105,6 +105,7 @@ process.stdout.write('Synthetic caller ready\r\n');
             settings.value['agents.delegation'] = {
                 maxDepth: 2,
                 readChildChat: true,
+                approval: true,
                 presets: [
                     {
                         name: 'synthetic-review',

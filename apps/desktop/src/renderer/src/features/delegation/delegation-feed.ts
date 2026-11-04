@@ -88,8 +88,10 @@ export function isDelegationFailed(
 
 /**
  * A task that waits on the user: its Agent asked a question or a permission, sits at a first-run prompt in its
- * Terminal, or asked the Agent that delegated it a question that escalated to the user (`waitingOn` is `user`).
- * `permission_required` can be a question rather than an approval, so no copy calls it an approval.
+ * Terminal, or asked the Agent that delegated it a question or a permission request that escalated to the user
+ * (`waitingOn` is `user`). `permission_required` can be a question rather than an approval, so no copy calls it an
+ * approval unless the entry carries an `approval`. A blocked task whose request still waits on the Agent that delegated
+ * it (`waitingOn` is `parent`) is {@link isDelegationAsking}, not this: the user has nothing to do yet.
  */
 export function isDelegationNeedsInput(
     entry: Pick<AgentDelegationSession, 'failure' | 'status'> &
@@ -97,15 +99,16 @@ export function isDelegationNeedsInput(
 ): boolean {
     return (
         entry.waitingOn === 'user' ||
-        (entry.status === 'blocked' &&
+        (entry.waitingOn !== 'parent' &&
+            entry.status === 'blocked' &&
             (entry.failure === 'permission_required' || entry.failure === 'startup_waiting'))
     );
 }
 
 /**
- * A task whose Agent asked the Agent that delegated it a question, still inside the grace period. The user has nothing
- * to do yet, so it is muted and never counted as needing attention; once it escalates it is
- * {@link isDelegationNeedsInput}.
+ * A task whose Agent asked the Agent that delegated it a question or a permission request, still inside the grace
+ * period. The user has nothing to do yet, so it is muted and never counted as needing attention; once it escalates it
+ * is {@link isDelegationNeedsInput}.
  */
 export function isDelegationAsking(
     entry: Partial<Pick<AgentDelegationSession, 'waitingOn'>>,
@@ -219,6 +222,33 @@ export function failedDelegationSessionIds(
 }
 
 /**
+ * Whether the task's pending permission request is the user's to decide: the feed carries an `approval` summary and the
+ * task waits on the user (the request was not covered, or its grace ended). Only a Chat child ever has one; a Terminal
+ * child never does. The sidebar keeps the amber cue for it until the request is decided (`sessionStatus`).
+ */
+export function isDelegationApprovalPending(
+    entry: Partial<Pick<AgentDelegationSession, 'approval' | 'waitingOn'>>,
+): boolean {
+    return entry.approval !== undefined && entry.waitingOn === 'user';
+}
+
+/**
+ * The nested Sessions whose permission request waits on the user, as a sorted list for the same reason as
+ * {@link failedDelegationSessionIds}.
+ */
+export function approvalPendingSessionIds(
+    entries: ReadonlyArray<
+        Pick<AgentDelegationSession, 'sessionId'> &
+            Partial<Pick<AgentDelegationSession, 'approval' | 'waitingOn'>>
+    >,
+): string[] {
+    return entries
+        .filter((entry) => isDelegationApprovalPending(entry))
+        .map((entry) => entry.sessionId)
+        .toSorted(compareIds);
+}
+
+/**
  * How many delegated Sessions a header counts as needing the user, as failed, and as waiting for a scheduled retry. A
  * task waiting on a question or a permission (`isDelegationNeedsInput`), a task that failed (`isDelegationFailed`), and
  * a failure whose retry is scheduled (`isDelegationRetryPending`) are separate counts; an `answer_unavailable` task is
@@ -230,9 +260,15 @@ export function failedDelegationSessionIds(
 export function delegationAttentionCounts(
     entries: ReadonlyArray<
         Pick<AgentDelegationSession, 'failure' | 'status'> &
-            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor' | 'waitingOn'>>
+            Partial<
+                Pick<
+                    AgentDelegationSession,
+                    'approval' | 'retriedAs' | 'retryScheduledFor' | 'waitingOn'
+                >
+            >
     >,
-): { asking: number; failed: number; needsInput: number; waiting: number } {
+): { approvals: number; asking: number; failed: number; needsInput: number; waiting: number } {
+    let approvals = 0;
     let asking = 0;
     let failed = 0;
     let needsInput = 0;
@@ -240,10 +276,12 @@ export function delegationAttentionCounts(
     for (const entry of entries) {
         if (entry.status === 'failed' && isDelegationRetryPending(entry)) waiting += 1;
         else if (isDelegationFailed(entry)) failed += 1;
-        else if (isDelegationNeedsInput(entry)) needsInput += 1;
-        else if (isDelegationAsking(entry)) asking += 1;
+        else if (isDelegationNeedsInput(entry)) {
+            needsInput += 1;
+            if (entry.approval !== undefined) approvals += 1;
+        } else if (isDelegationAsking(entry)) asking += 1;
     }
-    return { asking, failed, needsInput, waiting };
+    return { approvals, asking, failed, needsInput, waiting };
 }
 
 /**

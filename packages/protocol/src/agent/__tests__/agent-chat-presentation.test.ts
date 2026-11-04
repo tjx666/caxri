@@ -461,6 +461,12 @@ describe('agentChatItemStatusLabel', () => {
 });
 
 describe('agentChatNoticeMessage', () => {
+    it("words a delegating Agent's answer with Caxri's own copy and carries no request text", () => {
+        expect(
+            agentChatNoticeMessage({ id: 'n', type: 'notice', kind: 'delegationApproval' }),
+        ).toBe('The Agent that delegated this answered the request.');
+    });
+
     it('owns the copy for known notices and keeps provider text after it', () => {
         expect(agentChatNoticeMessage({ id: 'n', type: 'notice', kind: 'compacted' })).toBe(
             'Context compacted',

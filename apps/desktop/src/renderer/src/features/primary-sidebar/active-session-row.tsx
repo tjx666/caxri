@@ -32,6 +32,11 @@ interface ActiveSessionRowProperties {
      */
     delegatedBy?: string;
     /**
+     * True for a nested Chat Session whose delegation carries a permission request that waits on the user: a static
+     * amber cue that survives reading (see `sessionStatus`). A primitive from the sidebar's single feed read.
+     */
+    approvalPending?: boolean;
+    /**
      * True for a nested Session whose delegation failed, which shows the red X in the status slot (see
      * `sessionStatus`). A primitive from the sidebar's single feed read, so no row subscribes to the feed itself.
      */
@@ -141,6 +146,7 @@ const HIDDEN_ON_ROW_HOVER =
  */
 export function ActiveSessionRow({
     sessionOrder,
+    approvalPending,
     delegatedBy,
     delegationFailed,
     inPinnedGroup,
@@ -297,6 +303,7 @@ export function ActiveSessionRow({
              * them read as a third, unlabeled action.
              */}
             <SessionRowStatus
+                approvalPending={approvalPending}
                 className={HIDDEN_ON_ROW_HOVER}
                 delegationFailed={delegationFailed}
                 pullRequest={pullRequestUnavailable ? undefined : pullRequest}
@@ -328,6 +335,7 @@ export function ActiveSessionRow({
                 sessionCard
             ) : (
                 <SessionActivityCard
+                    approvalPending={approvalPending}
                     delegatedBy={delegatedBy}
                     delegationFailed={delegationFailed}
                     inPinnedGroup={inPinnedGroup}

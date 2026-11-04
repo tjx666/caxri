@@ -28,7 +28,7 @@ type DelegationSettings = AppSettings['agents.delegation'];
 interface DelegationFieldControlProperties {
     id: string;
     label: string;
-    field: 'maxDepth' | 'readChildChat';
+    field: 'approval' | 'maxDepth' | 'readChildChat';
     value: DelegationSettings;
     /**
      * Receives the whole value with only `field` changed, so the presets and caller bindings the user hand-wrote
@@ -47,6 +47,16 @@ export function DelegationFieldControl({
     value,
     onChange,
 }: DelegationFieldControlProperties) {
+    if (field === 'approval')
+        return (
+            <Switch
+                id={id}
+                aria-label={label}
+                checked={value.approval}
+                className="mt-0.5"
+                onCheckedChange={(checked) => onChange({ ...value, approval: checked }, 'approval')}
+            />
+        );
     if (field === 'readChildChat')
         return (
             <Switch

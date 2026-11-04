@@ -12,6 +12,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentDispatchService } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
+import type { DelegationApprovalEnvironment } from './approvals/entry';
 import type { DelegationTranscriptReader } from './collection';
 import type { DelegationLimitFailure } from './receipt-timing';
 
@@ -62,6 +63,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * `currentLaunchId` has no launch yet or any more).
      */
     isChatLive?(terminalId: string): boolean;
+    /**
+     * How many requests a Chat Terminal's projection lists as pending now. A Chat child stays blocked until the last
+     * one is resolved, so a resolution while others remain does not unblock the task.
+     */
+    pendingChatRequests?(terminalId: string): number;
     inputEpoch?(terminalId: string): number;
     currentLaunchId?(terminalId: string): string | undefined;
     isIdle?(terminalId: string, launchId: string, turnId: string): boolean;
@@ -135,6 +141,12 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * question and answer text are private and the callee must not log them.
      */
     onQuestionChanged?(change: DelegationQuestionChanged): void;
+    /**
+     * Everything delegating-Agent approval of a delegated Chat's permission requests borrows from the Chat, the
+     * provider, and the settings. Absent in a unit test and for a build without Agent Chat: no request is then held or
+     * covered.
+     */
+    approvals?: DelegationApprovalEnvironment;
     /**
      * The Sessions a `newSession` delegation creates. Optional so a unit test can omit them.
      */

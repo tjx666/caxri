@@ -56,6 +56,7 @@ export function useDelegatedSessions({
     );
     const feed = useDelegationFeed(creatorIdChunks);
     const children = useDelegatedChildren({
+        approvalSessionIds: feed.approvalSessionIds,
         failedSessionIds: feed.failedSessionIds,
         nestedByHost: placement.nestedByHost,
         selectedSessionId,

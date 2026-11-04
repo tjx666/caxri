@@ -84,6 +84,7 @@ function sessionCardDescription(
 }
 
 export function SessionActivityCard({
+    approvalPending = false,
     delegatedBy,
     delegationFailed = false,
     inPinnedGroup,
@@ -96,6 +97,11 @@ export function SessionActivityCard({
     trigger,
     worktreeProject,
 }: {
+    /**
+     * True for a nested Chat Session whose delegation carries a permission request that waits on the user: a static
+     * amber cue that survives reading (see `sessionStatus`). A primitive from the sidebar's single feed read.
+     */
+    approvalPending?: boolean;
     /**
      * The title of the Session that created this one, set on a nested Session row only. Its row sits under the host,
      * with its own Project name trailing the title, so the description says who delegated it.
@@ -157,7 +163,10 @@ export function SessionActivityCard({
         pullRequestUnavailable,
         worktreeProject,
     });
-    const statusLine = sessionCardStatusLine(session, terminal, t, { delegationFailed });
+    const statusLine = sessionCardStatusLine(session, terminal, t, {
+        approvalPending,
+        delegationFailed,
+    });
     // The list's status slot collapses every attention kind into one signal; the description names the exact one.
     const unreadSentence = session.hasUnread
         ? t('primarySidebar.card.sentence', {

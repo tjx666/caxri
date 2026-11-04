@@ -27,12 +27,41 @@ interface Options {
  * Applies lifecycle cleanup and projects Session activity.
  */
 export class AgentLifecycleProjection {
+    /**
+     * Requests whose release arrived before their quiet signal was applied (the coordinator registers a request only
+     * after its async provenance step). The matching quiet signal is then written as a normal alert instead of being
+     * skipped, so a held request is never left unalerted once it has escalated.
+     */
+    private readonly earlyReleases = new Set<string>();
+
     constructor(
         private readonly database: CaxriDatabase,
         private readonly logger: StructuredLogger,
         private readonly emit: (event: ServerEvent) => void,
         private readonly options: Options,
     ) {}
+
+    private requestKey(event: AgentLifecycleSignal): string {
+        return JSON.stringify([event.terminalId, event.agentId ?? '', event.agentToolUseId ?? '']);
+    }
+
+    private writeRecord(event: AgentLifecycleSignal, source: SessionActivitySource): void {
+        if (
+            this.recordActivity({
+                applyWrite: () => this.database.updateAgentLifecycle(event),
+                phase: event.phase,
+                source,
+                terminalId: event.terminalId,
+            })
+        )
+            this.emitMetadataChange(event.terminalId);
+    }
+
+    private forgetEarlyReleases(terminalId: string): void {
+        const prefix = `${JSON.stringify([terminalId]).slice(0, -1)},`;
+        for (const key of this.earlyReleases)
+            if (key.startsWith(prefix)) this.earlyReleases.delete(key);
+    }
 
     emitMetadataChange(terminalId: string): void {
         const terminal = this.database.getTerminal(terminalId);
@@ -64,18 +93,32 @@ export class AgentLifecycleProjection {
         idleProof.apply(event, source === 'hook');
         if (event.phase === 'turnFinished' || event.phase === 'turnFailed') {
             attention.forget(event.terminalId);
+            this.forgetEarlyReleases(event.terminalId);
             watchdogs.stopRunningTurn(event.terminalId);
             hookLaunches.markAuthoritative(event.terminalId, event.launchId, event.agentTurnId);
-        }
-        if (
-            this.recordActivity({
-                applyWrite: () => this.database.updateAgentLifecycle(event),
-                phase: event.phase,
-                source,
-                terminalId: event.terminalId,
-            })
-        )
-            this.emitMetadataChange(event.terminalId);
+        } else if (event.phase === 'attentionResolved')
+            this.earlyReleases.delete(this.requestKey(event));
+        const releasedEarly =
+            event.phase === 'attentionRequested' &&
+            event.alert === 'quiet' &&
+            this.earlyReleases.delete(this.requestKey(event));
+        if (releasedEarly) this.writeRecord({ ...event, alert: 'raise' }, source);
+        else if (event.phase !== 'attentionRequested' || event.alert !== 'quiet')
+            this.writeRecord(event, source);
         this.options.onApplied?.(event);
+    }
+
+    /**
+     * Shows a held request to the user: the one Session record write a quiet `attentionRequested` skipped. Neither idle
+     * proof nor `onApplied` runs again. False, and no write, unless the request is still tracked as pending, so a
+     * request the provider already resolved never alerts.
+     */
+    raise(event: AgentLifecycleSignal): boolean {
+        if (!this.options.attention.has(event)) {
+            this.earlyReleases.add(this.requestKey(event));
+            return false;
+        }
+        this.writeRecord({ ...event, alert: 'raise' }, 'hook');
+        return true;
     }
 }

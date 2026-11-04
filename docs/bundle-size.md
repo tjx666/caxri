@@ -132,12 +132,15 @@ headroom over this baseline: when the gate fails, first try to optimize the regr
 only consciously raise the budget in `scripts/ci-bundle-budget.ts` and update this document in
 the same PR.
 
-The build and packaging wall-time ceilings (180 s and 300 s) catch toolchain regressions, not runner
+The build and packaging wall-time ceilings (270 s and 300 s) catch toolchain regressions, not runner
 speed. Hosted macOS runners vary by more than 2x with no build change: eighteen `main` runs in
 2026-10 measured build 74 to 182 s (median about 118 s) and package 13 to 28 s, with both phases
 slow on the same runs. A phase over its ceiling is timed once more and judged by its faster
-attempt; the job log prints both attempts. A single slow runner therefore passes, while a
-regression that slows every attempt still fails the gate.
+attempt; the job log prints both attempts. The retime absorbs a brief load spike but not a runner
+that stays slow: in 2026-11 one runner built the same 8889 Renderer modules in 226.9 s and
+214.5 s, and the next run took 109.8 s. The build ceiling therefore sits above that band. It is an
+empirical threshold that can still misfire on an unusually slow runner, while a regression that
+more than doubles the median build still fails the gate.
 
 ### Job summary and baseline deltas
 

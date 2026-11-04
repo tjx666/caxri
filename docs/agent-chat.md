@@ -906,6 +906,12 @@ several callbacks can share one item, so the transport id is never the key.
   takes `decline` for any command approval and continues the turn without running the command, as
   its own TUI's "No, continue without running it" does. `cancel` itself is never a card button;
   stopping the turn is the Stop button's job. Controls stay disabled while an answer is in flight.
+- In a delegated Chat, a request the Agent that delegated the task cannot decide shows one muted
+  line above the buttons saying why (a fixed sentence per `coverageReason`, never the request's
+  own text), and a request the delegating Agent did decide leaves a `delegationApproval` notice,
+  "The Agent that delegated this answered the request." The first answer wins, so the card stays
+  clickable while the request is held for the delegating Agent
+  ([Parent approval](agent-delegation.md#parent-approval)).
 - A Codex command approval that lists `acceptWithExecpolicyAmendment` (with a usable
   `execpolicy_amendment`, falling back to `proposedExecpolicyAmendment`) also offers
   `acceptAlways`, shown as `Always Allow <prefix>` (`alwaysAllowPrefix` on the request, display
@@ -2034,8 +2040,10 @@ while on, like the Plan chip, show the pressed `--selection` fill, never the acc
 The composer's permission picker sits beside the model picker. It switches the Chat's permission
 level and, where the provider has one, plan mode. Levels are provider-neutral ids
 (`agentChatPermissionCapabilities` in `packages/protocol/src/agent/agent-chat-permissions.ts`), but
-a provider offers only the levels it runs natively; Caxri never emulates a level by answering
-approvals itself. Server Core rejects any other level, or plan mode for a provider without it, with
+a provider offers only the levels it runs natively; Caxri never emulates a level. The one case
+where an approval is not answered by the user is a delegated Chat, where the Agent that delegated
+the task may decide a request within its own applied level
+([Parent approval](agent-delegation.md#parent-approval)); the Chat's own level is unchanged. Server Core rejects any other level, or plan mode for a provider without it, with
 `VALIDATION`.
 
 | Level        | Codex                                                             | Claude Code                         | Grok Build                       |

@@ -23,6 +23,7 @@ export type CoreHandledMethod = Extract<
     | 'agent.delegation.access.list'
     | 'agent.delegation.access.revoke'
     | 'agent.delegation.answer'
+    | 'agent.delegation.approve'
     | 'agent.delegation.ask'
     | 'agent.delegation.askCancel'
     | 'agent.delegation.askWait'

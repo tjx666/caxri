@@ -56,6 +56,7 @@ describe('isFullWidthRow', () => {
         { type: 'archived-sessions' },
         { type: 'delegation-field', field: 'maxDepth' },
         { type: 'delegation-field', field: 'readChildChat' },
+        { type: 'delegation-field', field: 'approval' },
         { type: 'hardware-acceleration' },
         { type: 'remote-debugging' },
         { type: 'provider-toggle', provider: 'claude', field: 'hooks' },

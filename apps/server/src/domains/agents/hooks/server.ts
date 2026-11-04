@@ -214,6 +214,8 @@ function parsePacket(
     if (signal.kind === 'bridgeStarted')
         return { packet: signal as unknown as HookWireBridgeStarted };
     if (signal.kind !== undefined) return { reason: 'invalidSignal' };
+    // `alert` is Server-only (see `AgentLifecycleSignal.alert`): a wire packet must not suppress or force a waiting alert.
+    if ('alert' in signal) return { reason: 'invalidSignal' };
     const identityReason = validateAgentIdentity(signal);
     if (identityReason) return { reason: identityReason };
     for (const [field, phase] of [

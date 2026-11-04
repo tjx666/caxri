@@ -16,11 +16,6 @@ interface Watch {
 }
 
 /**
- * How many retired launch IDs are remembered to judge a question asked after its parent's launch ended.
- */
-const MAX_REMEMBERED_RETIREMENTS = 256;
-
-/**
  * Hands an open question to the user when the delegating Agent will not answer it. Two things do that: the fixed grace
  * period elapsing, and the delegating Agent's original launch being definitively gone (retired, or its Terminal
  * deleted). Escalation is only a mark; it never answers or cancels the question.
@@ -30,7 +25,6 @@ const MAX_REMEMBERED_RETIREMENTS = 256;
  */
 export class QuestionEscalations {
     private readonly watches = new Map<string, Watch>();
-    private readonly retired = new Set<string>();
 
     constructor(
         private readonly escalate: (
@@ -75,21 +69,11 @@ export class QuestionEscalations {
      * has no ID yet never reaches here.
      */
     parentRetired(terminalId: string, launchId: string): void {
-        this.retired.add(launchId);
-        if (this.retired.size > MAX_REMEMBERED_RETIREMENTS)
-            this.retired.delete(this.retired.values().next().value!);
         for (const [questionId, { parent }] of this.watches)
             if (parent.terminalId === terminalId && parent.launchId === launchId) {
                 this.disarm(questionId);
                 this.escalate(questionId, 'parent_gone');
             }
-    }
-
-    /**
-     * Whether a launch was seen retiring in this lifetime.
-     */
-    hasRetired(launchId: string): boolean {
-        return this.retired.has(launchId);
     }
 
     close(): void {

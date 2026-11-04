@@ -1,5 +1,6 @@
 export type { DelegationAuthority } from './admission';
 export { isCaxriBotCaller } from './admission';
+export type { WorkspacePathResolver } from './approvals/paths';
 export type { DelegationChatTurn } from './chat-child';
 export { canChatCorrelateTask } from './chat-child';
 export type { DelegationChatSnapshot } from './feed';

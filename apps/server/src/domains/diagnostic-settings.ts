@@ -129,6 +129,7 @@ function projectDelegation(delegation: DelegationSettings) {
     return {
         maxDepth: delegation.maxDepth,
         readChildChat: delegation.readChildChat,
+        approval: delegation.approval,
         presets: delegation.presets.map(
             (preset) =>
                 ({

@@ -8,6 +8,7 @@ import type {
     AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatPermission,
+    AgentChatPermissionMode,
     AgentChatResponse,
     AgentChatSnapshot,
     AgentChatTaskPatchOperation,
@@ -451,6 +452,20 @@ export interface AgentChatProviderSession {
      * service restarts it on the same conversation instead.
      */
     setPermission?(permission: AgentChatPermission): Promise<void>;
+    /**
+     * The permission this session runs under, and whether the provider has applied it. Read by agent delegation to
+     * decide what a delegating Agent may approve; a provider without it (Grok Build, Antigravity) covers nothing.
+     */
+    appliedPermission?(): {
+        permissionMode?: AgentChatPermissionMode;
+        planMode: boolean;
+        applied: boolean;
+    };
+    /**
+     * The plain decisions a pending approval offers, kept apart from the projected `decisions` (whose absence means
+     * every plain decision): `undefined` for a question or an unknown request.
+     */
+    requestOffers?(requestId: string): { accept: boolean; decline: boolean } | undefined;
     /**
      * Rewinds the provider's own record to just before `target`, restoring files first when asked. The service has
      * already checked that no turn runs and that the provider offers file restore; it restarts the session afterwards,

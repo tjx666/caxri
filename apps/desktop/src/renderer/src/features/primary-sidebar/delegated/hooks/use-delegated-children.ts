@@ -14,6 +14,10 @@ import { delegatedChildWindow } from '../delegated-child-window';
 
 interface UseDelegatedChildrenInput {
     /**
+     * Nested Sessions whose permission request waits on the user (`useDelegationFeed`); they stay listed while it does.
+     */
+    approvalSessionIds: ReadonlySet<string>;
+    /**
      * Nested Sessions whose delegation failed (`useDelegationFeed`); a failure keeps its row out of the folded part.
      */
     failedSessionIds: ReadonlySet<string>;
@@ -48,6 +52,7 @@ export interface DelegatedChildrenModel {
  * relaunch starts from the short list again.
  */
 export function useDelegatedChildren({
+    approvalSessionIds,
     failedSessionIds,
     nestedByHost,
     selectedSessionId,
@@ -66,7 +71,10 @@ export function useDelegatedChildren({
                     child,
                     indexedSessionAgentTerminal(child, terminalIndex) ?? {},
                     t,
-                    { delegationFailed: failedSessionIds.has(child.id) },
+                    {
+                        approvalPending: approvalSessionIds.has(child.id),
+                        delegationFailed: failedSessionIds.has(child.id),
+                    },
                 );
                 if (status.kind !== 'default') activeSessionIds.add(child.id);
             }
@@ -80,7 +88,15 @@ export function useDelegatedChildren({
             );
         }
         return built;
-    }, [failedSessionIds, nestedByHost, revealedCounts, selectedSessionId, t, terminals]);
+    }, [
+        approvalSessionIds,
+        failedSessionIds,
+        nestedByHost,
+        revealedCounts,
+        selectedSessionId,
+        t,
+        terminals,
+    ]);
     const rowNodes = useMemo(() => {
         const nodes = new Map<string, PrimarySidebarDelegatedNode>();
         for (const [hostSessionId, window] of windows)

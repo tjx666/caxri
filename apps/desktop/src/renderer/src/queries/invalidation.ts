@@ -17,6 +17,7 @@ import {
 import {
     applyDelegationProgress,
     createDelegationFeedInvalidation,
+    invalidateDelegationApproval,
     invalidateDelegationQuestion,
 } from './invalidation-delegation-feed';
 import {
@@ -539,6 +540,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'agent.delegation.questionChanged') {
             invalidateDelegationQuestion(queryClient, event.payload);
+            return;
+        }
+        if (event.event === 'agent.delegation.approval') {
+            invalidateDelegationApproval(queryClient);
             return;
         }
         if (event.event === 'agent.delegation.progress') {

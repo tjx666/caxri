@@ -1,7 +1,7 @@
 import type { AgentDelegationReceipt, AppSettings, FullStateChangeReason } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
-import type { DelegationPullRequestSource } from '../agent-delegation';
+import type { DelegationPullRequestSource, WorkspacePathResolver } from '../agent-delegation';
 import {
     AgentDelegationService,
     createDelegationHandlers,
@@ -19,7 +19,7 @@ import {
     claudeTrustPreparer,
     createAgentCommandHandlers,
 } from '../agent-dispatch';
-import type { AgentEnvironment } from '../agents';
+import type { AgentEnvironment, AgentLifecycleSignal } from '../agents';
 import {
     delegationAdapter,
     discoverExecutable,
@@ -47,6 +47,15 @@ export function createAgentCommandRuntime(
          * follow-ups, stops, and answer go through it.
          */
         agentChat?: DelegationChats;
+        /**
+         * What approval handling borrows from the composition root; without it a delegated Chat's permission requests
+         * are never covered.
+         */
+        approvals?: {
+            raiseAttention(signal: AgentLifecycleSignal): boolean;
+            resolveWorkspacePath: WorkspacePathResolver;
+            subscribeSettings(listener: () => void): () => void;
+        };
         settings(): Pick<
             AppSettings,
             'agents.delegation' | 'agents.providers' | 'session.openAgentsInChat'
@@ -83,6 +92,7 @@ export function createAgentCommandRuntime(
         options.emit({ event: 'state.changed', payload: { kind: 'full', reason } });
     const chatOf = (terminalId: string) =>
         delegationChatFor(options.database, options.agentChat, terminalId);
+    const { approvals } = options;
     const delegationService = new AgentDelegationService({
         database: options.database,
         delegationSettings: () => options.settings()['agents.delegation'],
@@ -117,6 +127,33 @@ export function createAgentCommandRuntime(
             ),
         onProgress: (progress) =>
             options.emit({ event: 'agent.delegation.progress', payload: progress }),
+        pendingChatRequests: (terminalId) =>
+            chatOf(terminalId)?.delegation.snapshot(terminalId)?.requests.length ?? 0,
+        approvals: approvals && {
+            enabled: () => options.settings()['agents.delegation'].approval,
+            appliedPermission: (terminalId) =>
+                chatOf(terminalId)?.delegation.appliedPermission(terminalId),
+            chat: (terminalId) => {
+                const snapshot = chatOf(terminalId)?.delegation.snapshot(terminalId);
+                return (
+                    snapshot && { requests: snapshot.requests, activeTurnId: snapshot.activeTurnId }
+                );
+            },
+            offers: (terminalId, requestId) =>
+                chatOf(terminalId)?.delegation.requestOffers(terminalId, requestId),
+            respond: (terminalId, requestId, decision) => {
+                const chats = chatOf(terminalId);
+                if (!chats) throw new CaxriError('CONFLICT', 'This request is no longer pending');
+                chats.respond(terminalId, requestId, { kind: 'decision', decision });
+            },
+            resolveWorkspacePath: approvals.resolveWorkspacePath,
+            applyItem: (terminalId, item) =>
+                chatOf(terminalId)?.delegation.applyItem(terminalId, item),
+            raiseAttention: (signal) => approvals.raiseAttention(signal),
+            onChanged: (change) =>
+                options.emit({ event: 'agent.delegation.approval', payload: change }),
+            onSettingsChanged: (listener) => approvals.subscribeSettings(listener),
+        },
         onQuestionChanged: (change) =>
             options.emit({ event: 'agent.delegation.questionChanged', payload: change }),
         dispatch: dispatchService,

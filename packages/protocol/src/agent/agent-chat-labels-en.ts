@@ -86,6 +86,7 @@ export const agentChatLabelsEn = {
     'agentChat.message.agentError': 'The Agent reported an error',
     'agentChat.message.answered': 'Answered',
     'agentChat.message.answeredWith': 'Answered: {{message}}',
+    'agentChat.message.delegationApproval': 'The Agent that delegated this answered the request.',
 
     // Finished turns (`agentChatTurnLabel`) and their durations (`formatShortDuration`)
     'agentChat.fold.workedFor': 'Worked for {{duration}}',

@@ -200,7 +200,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         })();
         return stopPromise;
     };
-
     const serverAdapter: CommandAdapter = withRequestOrigin({
         async invoke(request, context, invocation) {
             if (!isServerRequest(request))
@@ -267,6 +266,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.askCancel':
                 case 'agent.delegation.questions':
                 case 'agent.delegation.answer':
+                case 'agent.delegation.approve':
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );

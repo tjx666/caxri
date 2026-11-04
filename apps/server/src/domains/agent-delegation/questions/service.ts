@@ -13,6 +13,7 @@ import { CaxriError, MAX_LISTED_QUESTIONS } from '@caxri/protocol';
 import type { StoredAgentDelegation, StoredDelegationQuestion } from '../../db';
 import type { DelegationAccess, DelegationAuthority } from '../admission';
 import { listOwnedDelegations } from '../ownership';
+import type { ParentPresence } from '../parent-presence';
 import type { AgentDelegationServiceOptions } from '../service-options';
 import { QuestionEscalations } from './escalation';
 import { DelegationQuestionStore } from './store';
@@ -28,6 +29,7 @@ export interface DelegationQuestionsHost {
     >;
     now(): number;
     isClosed(): boolean;
+    presence: ParentPresence;
     activeForTerminal(terminalId: string): StoredAgentDelegation | undefined;
     owned(
         id: string,
@@ -61,22 +63,6 @@ export class DelegationQuestions {
         this.escalations = new QuestionEscalations((id, reason) => {
             this.store.escalate(id, reason);
         });
-    }
-
-    /**
-     * Whether the delegating Agent's original launch is definitively gone: its Terminal was deleted, its launch was
-     * seen retiring, or a different launch is live in its Terminal. A launch that is only starting or suspending, or
-     * has no ID yet, is not gone: the grace period covers it.
-     */
-    private isParentGone(task: StoredAgentDelegation): boolean {
-        const terminalId = task.receipt.callerTerminalId;
-        if (!terminalId) return false;
-        if (!this.host.options.database.getTerminal(terminalId)) return true;
-        const launchId = task.callerLaunchId;
-        if (!launchId) return false;
-        if (this.escalations.hasRetired(launchId)) return true;
-        const live = this.host.options.currentLaunchId?.(terminalId);
-        return live !== undefined && live !== launchId;
     }
 
     /**
@@ -165,7 +151,8 @@ export class DelegationQuestions {
                 terminalId: task.receipt.callerTerminalId,
                 launchId: task.callerLaunchId,
             });
-            if (this.isParentGone(task)) this.store.escalate(opened.id, 'parent_gone');
+            if (this.host.presence.isGone(task.receipt.callerTerminalId, task.callerLaunchId))
+                this.store.escalate(opened.id, 'parent_gone');
         }
         return result;
     }
@@ -294,7 +281,10 @@ export class DelegationQuestions {
     ): void {
         if (isHumanInput) {
             if (activeDelegationId) this.cancelForDelegation(activeDelegationId, 'taken_over');
-        } else if (retiredLaunchId) this.escalations.parentRetired(terminalId, retiredLaunchId);
+        } else if (retiredLaunchId) {
+            this.host.presence.retire(retiredLaunchId);
+            this.escalations.parentRetired(terminalId, retiredLaunchId);
+        }
     }
 
     /**

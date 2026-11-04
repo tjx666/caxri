@@ -32,6 +32,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'agent.delegation.access.revoke': 'ordered',
     'agent.delegation.answer': 'ordered',
     'agent.delegation.answerInternal': 'ordered',
+    'agent.delegation.approve': 'ordered',
+    'agent.delegation.approveInternal': 'ordered',
     'agent.delegation.ask': 'ordered',
     'agent.delegation.askCancel': 'ordered',
     'agent.delegation.askCancelInternal': 'ordered',

@@ -2,6 +2,8 @@ import type {
     AgentDelegationReceipt,
     AgentDelegationSession,
     AgentDelegationStatusEntry,
+    DelegationApprovalSummary,
+    DelegationWaitingOn,
 } from '@caxri/protocol';
 import { isDelegationActive, MAX_DELEGATION_SESSIONS } from '@caxri/protocol';
 
@@ -17,6 +19,14 @@ export interface DelegationSessionsSource {
      * The step an active Chat Session is on; see `AgentDelegationServiceOptions.chatStep`.
      */
     chatStep?(terminalId: string): string | undefined;
+    /**
+     * The pending approval of each named task, and whom the task then waits on; see `DelegationApprovals.feed`.
+     */
+    approvals?: {
+        feed(
+            delegationIds: readonly string[],
+        ): Map<string, { approval: DelegationApprovalSummary; waitingOn: DelegationWaitingOn }>;
+    };
 }
 
 /**
@@ -70,18 +80,18 @@ export function delegationSessions(
     const receipts = stateReceipts(database.agentDelegations.receiptsForSessions(sessionIds));
     const results = database.createdSessions.results(sessionIds);
     const takeovers = database.agentDelegations.takeoversForSessions(sessionIds);
-    const questions = questionSummaries(
-        database,
-        receipts
-            .values()
-            .map((receipt) => receipt.delegationId)
-            .toArray(),
-    );
+    const delegationIds = receipts
+        .values()
+        .map((receipt) => receipt.delegationId)
+        .toArray();
+    const questions = questionSummaries(database, delegationIds);
+    const approvals = source.approvals?.feed(delegationIds);
     return created.map(({ sessionId, createdBySessionId, relation }) => {
         const receipt = receipts.get(sessionId);
         const result = results.get(sessionId);
         const takenOverAt = takeovers.get(sessionId);
         const question = receipt && questions.get(receipt.delegationId);
+        const approval = receipt && approvals?.get(receipt.delegationId);
         const step =
             receipt?.terminalId && isDelegationActive(receipt)
                 ? source.chatStep?.(receipt.terminalId)
@@ -110,6 +120,7 @@ export function delegationSessions(
                 }),
             }),
             ...(takenOverAt !== undefined && { takenOverAt }),
+            ...(approval && { approval: approval.approval, waitingOn: approval.waitingOn }),
             ...question,
             ...(step && { step }),
             ...(result && {
@@ -129,7 +140,7 @@ export function delegationSessions(
  * left out. It reads receipts only, so it carries no answer and claims nothing.
  */
 export function delegationStatuses(
-    source: Pick<DelegationSessionsSource, 'database'>,
+    source: Pick<DelegationSessionsSource, 'database' | 'approvals'>,
     delegationIds: readonly string[],
 ): AgentDelegationStatusEntry[] {
     const byId = new Map(
@@ -138,11 +149,16 @@ export function delegationStatuses(
             .map((receipt) => [receipt.delegationId, receipt]),
     );
     const questions = questionSummaries(source.database, byId.keys().toArray());
+    const approvals = source.approvals?.feed(byId.keys().toArray());
     return [...new Set(delegationIds)].flatMap((delegationId) => {
         const receipt = byId.get(delegationId);
         if (!receipt) return [];
         return [
             {
+                ...(approvals?.has(delegationId) && {
+                    approval: approvals.get(delegationId)!.approval,
+                    waitingOn: approvals.get(delegationId)!.waitingOn,
+                }),
                 ...questions.get(delegationId),
                 delegationId,
                 sessionId: receipt.sessionId,

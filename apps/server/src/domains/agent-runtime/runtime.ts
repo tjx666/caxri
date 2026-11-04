@@ -64,6 +64,12 @@ interface CreateAgentRuntimeOptions {
     onLifecycleSignal?: (signal: AgentLifecycleSignal) => void;
     onLifecycleApplied?: (signal: AgentLifecycleSignal) => void;
     /**
+     * Decides, synchronously and before any await, whether a Chat's `attentionRequested` shows to the user now or is
+     * held quietly for a delegating Agent to decide first. Synchronous so the order of a request and its resolution
+     * through the coordinator stays the provider's order. See `AgentLifecycleSignal.alert`.
+     */
+    classifyChatAttention?: (signal: AgentLifecycleSignal) => 'alert' | 'quiet';
+    /**
      * A Session's durable activity state changed; see `AgentCoordinatorOptions.onSessionActivityChanged`.
      */
     onSessionActivityChanged?: (transition: SessionActivityTransition) => void;
@@ -365,15 +371,21 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
          * downstream path as an authenticated hook signal.
          */
         observeChatLifecycleSignal: async (signal: AgentLifecycleSignal) => {
+            const isQuiet = options.classifyChatAttention?.(signal) === 'quiet';
             const decision = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,
-                signal,
+                isQuiet ? { ...signal, alert: 'quiet' } : signal,
                 { settleAgentCwd: true },
             );
             if (decision === 'accepted') options.onLifecycleSignal?.(signal);
             return decision;
         },
+        /**
+         * Shows a request `classifyChatAttention` held. False when the provider already resolved it.
+         */
+        raiseChatAttention: (signal: AgentLifecycleSignal) =>
+            coordinator.raiseHeldAttention(signal),
         grantAutoAllow: (sessionId: string) => attentionAutoAllow.grant(sessionId),
         revokeAutoAllow: (sessionId: string, reason: PermissionAutoAllowRevokeReason) =>
             attentionAutoAllow.revoke(sessionId, reason),

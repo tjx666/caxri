@@ -188,3 +188,45 @@ describe('decideAgentLifecycleUpdate', () => {
         });
     });
 });
+
+describe('decideAgentLifecycleUpdate for a held request that is raised', () => {
+    const primary = terminal({ id: 'codex-1', provider: 'codex' });
+    const raise = (overrides: Partial<SessionRecord>) =>
+        decideAgentLifecycleUpdate(
+            primary,
+            session({ primaryAgentTerminalId: primary.id, ...overrides }),
+            'codex',
+            'attentionRequested',
+            'raise',
+        );
+
+    it('alerts a running Session', () => {
+        expect(raise({ agentActivityState: 'running' })).toEqual({
+            agentActivityState: 'waiting',
+            attentionKind: 'waiting',
+        });
+    });
+
+    it('alerts again when an earlier waiting alert was read', () => {
+        expect(
+            raise({
+                agentActivityState: 'waiting',
+                lastAttentionKind: 'waiting',
+                hasUnread: false,
+                attentionGeneration: 1,
+                acknowledgedAttentionGeneration: 1,
+            }),
+        ).toEqual({ agentActivityState: 'waiting', attentionKind: 'waiting' });
+    });
+
+    it('leaves a Session that already shows an unread waiting alert', () => {
+        expect(
+            raise({
+                agentActivityState: 'waiting',
+                lastAttentionKind: 'waiting',
+                hasUnread: true,
+                attentionGeneration: 1,
+            }),
+        ).toBeUndefined();
+    });
+});

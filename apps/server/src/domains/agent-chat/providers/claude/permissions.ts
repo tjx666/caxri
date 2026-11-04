@@ -62,6 +62,16 @@ export class ClaudePermissions {
     private planMode: boolean;
 
     /**
+     * Switches (`set`) whose native result is not yet confirmed.
+     */
+    private unconfirmed = 0;
+
+    /**
+     * The native mode a plan-exit correction is switching Claude Code to, until Claude Code confirms or refuses it.
+     */
+    private correction: ClaudePermissionMode | undefined;
+
+    /**
      * The mode Claude Code starts with.
      */
     readonly startMode: ClaudePermissionMode;
@@ -87,6 +97,35 @@ export class ClaudePermissions {
     }
 
     /**
+     * Switches Claude Code back to the chosen level after an approved plan left it in another mode. Until Claude Code
+     * confirms, the Chat is unapplied (`appliedPermission`). A refusal converges to the mode Claude Code is really in,
+     * so a failed correction never leaves the chosen level standing for a mode that does not run. Without a `query`
+     * there is nothing to switch, and the caller converges at once.
+     */
+    private correct(
+        query: PermissionModeSwitch,
+        target: ClaudePermissionMode,
+        native: AgentChatPermissionMode | undefined,
+    ): void {
+        this.correction = target;
+        const settle = () => {
+            if (this.correction === target) this.correction = undefined;
+        };
+        void (async () => {
+            try {
+                await query.setPermissionMode(target);
+                settle();
+            } catch {
+                if (this.correction !== target) return;
+                this.correction = undefined;
+                this.level = native;
+                this.report();
+                this.host.onPermissionChanged(this.current());
+            }
+        })();
+    }
+
+    /**
      * The mode an approved plan returns to: the chosen level, so the approval switches to it in the same step. Without
      * a chosen level, or outside plan mode, Claude Code picks.
      */
@@ -96,6 +135,23 @@ export class ClaudePermissions {
             { permissionMode: this.level, planMode: false },
             this.launchMode,
         );
+    }
+
+    /**
+     * What this Chat runs under now, and whether that is confirmed. `applied` is false while a switch or a plan-exit
+     * correction is still in flight: Claude Code may then still run the previous native mode, so the chosen level is
+     * not yet what authorizes tool calls. A delegating Agent's approval power reads this, never the chosen level
+     * alone.
+     */
+    appliedPermission(): {
+        permissionMode?: AgentChatPermissionMode;
+        planMode: boolean;
+        applied: boolean;
+    } {
+        return {
+            ...this.current(),
+            applied: this.unconfirmed === 0 && this.correction === undefined,
+        };
     }
 
     report(): void {
@@ -109,12 +165,17 @@ export class ClaudePermissions {
      */
     async set(query: PermissionModeSwitch, permission: AgentChatPermission): Promise<void> {
         const level = permission.permissionMode ?? this.level;
-        await query.setPermissionMode(
-            claudePermissionMode(
-                { ...(level && { permissionMode: level }), planMode: permission.planMode },
-                this.launchMode,
-            ),
-        );
+        this.unconfirmed += 1;
+        try {
+            await query.setPermissionMode(
+                claudePermissionMode(
+                    { ...(level && { permissionMode: level }), planMode: permission.planMode },
+                    this.launchMode,
+                ),
+            );
+        } finally {
+            this.unconfirmed -= 1;
+        }
         this.level = level;
         this.planMode = permission.planMode;
         this.report();
@@ -135,9 +196,10 @@ export class ClaudePermissions {
         } else if (this.planMode) {
             this.planMode = false;
             const target = this.level && claudePermissionMode(this.current(), this.launchMode);
-            if (!target || target === reported) this.level = permissionMode;
-            else if (query) void query.setPermissionMode(target).catch(() => {});
+            if (!target || target === reported || !query) this.level = permissionMode;
+            else this.correct(query, target, permissionMode);
         } else {
+            if (this.correction === reported) this.correction = undefined;
             if (permissionMode === this.level) return;
             this.level = permissionMode;
         }

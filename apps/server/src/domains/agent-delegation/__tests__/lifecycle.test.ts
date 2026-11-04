@@ -225,7 +225,9 @@ describe('Delegation continuation correlation', () => {
             agentContinuedTurnId: 'first',
         };
         const isChat = (terminalId: string) => terminalId === 'terminal';
-        const continued = applyDelegationLifecycle(record, woke, 'lifecycle', isChat)!;
+        const continued = applyDelegationLifecycle(record, woke, 'lifecycle', {
+            isChatTerminal: isChat,
+        })!;
         expect(continued).toMatchObject({ turnId: 'second', receipt: { status: 'running' } });
         expect(continued.continuationPromptDigests).toBeUndefined();
         expect(
@@ -238,7 +240,7 @@ describe('Delegation continuation correlation', () => {
                     agentResponseDigest: 'c'.repeat(64),
                 },
                 'lifecycle',
-                isChat,
+                { isChatTerminal: isChat },
             )?.receipt.status,
         ).toBe('collecting');
         // Without coordinator proof, or for a PTY child, the promptless turn still fails correlation.
@@ -247,7 +249,7 @@ describe('Delegation continuation correlation', () => {
                 record,
                 { ...woke, agentContinuedTurnId: undefined },
                 'lifecycle',
-                isChat,
+                { isChatTerminal: isChat },
             )?.receipt,
         ).toMatchObject({ status: 'answer_unavailable', correlationFailure: 'turn_changed' });
         expect(applyDelegationLifecycle(record, woke)?.receipt).toMatchObject({
