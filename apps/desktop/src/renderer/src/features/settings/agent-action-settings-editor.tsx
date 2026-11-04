@@ -1,6 +1,11 @@
 import { useState } from 'react';
 
-import type { AgentActionOverride, AgentActionsSettings, AgentProvider } from '@caxri/protocol';
+import type {
+    AgentAction,
+    AgentActionOverride,
+    AgentActionsSettings,
+    AgentProvider,
+} from '@caxri/protocol';
 import {
     agentActionInvocationSchema,
     defaultAgentActions,
@@ -14,7 +19,7 @@ import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
-import { useTranslation } from '../../i18n';
+import { isTranslationKey, useTranslation } from '../../i18n';
 import { isImeComposing } from '../../lib/ime';
 
 interface AgentActionSettingsEditorProperties {
@@ -57,6 +62,14 @@ export function AgentActionSettingsEditor({
     const customInvocations = Object.keys(value.items)
         .filter((invocation) => !defaultInvocations.has(invocation))
         .toSorted((left, right) => left.localeCompare(right));
+    /**
+     * The protocol keeps the built-in descriptions in English because the Server and the CLI read them too; Settings
+     * shows them in the UI language, falling back to the protocol text for a command added without a translation.
+     */
+    const builtInDescription = (action: AgentAction): string | undefined => {
+        const key = `settings.agentActionsEditor.builtInDescription.${provider}.${action.invocation}`;
+        return isTranslationKey(key) ? t(key) : action.description;
+    };
     const isAtCapacity = Object.keys(value.items).length >= MAX_AGENT_ACTIONS;
     const isValidDraft = agentActionInvocationSchema.safeParse(invocationDraft.trim()).success;
     const hasCapacity = Object.hasOwn(value.items, invocationDraft.trim()) || !isAtCapacity;
@@ -107,7 +120,7 @@ export function AgentActionSettingsEditor({
                             {action.invocation}
                         </code>
                         <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
-                            {override?.description ?? action.description}
+                            {override?.description ?? builtInDescription(action)}
                         </span>
                         <small className="text-[11px] text-muted">
                             {t('settings.agentActionsEditor.builtIn')}

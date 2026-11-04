@@ -157,3 +157,27 @@ export function skillScopeSummary(
         version: installation.installedVersion,
     });
 }
+
+/**
+ * The next step under a Skill scope, in the UI language. The Server's `action` text is English because the CLI prints
+ * it too; the reason enum is the stable contract, so Settings translates from that and keeps the Server text only for a
+ * versioned case whose version is missing.
+ */
+export function skillScopeAction(t: Translate, installation: AgentSkillInstallationHealth): string {
+    switch (installation.reason) {
+        case 'newer-version':
+            return installation.installedVersion
+                ? t('settings.providerHealth.skill.action.newer-version', {
+                      version: installation.installedVersion,
+                  })
+                : installation.action;
+        case 'unknown-schema':
+            return installation.installedSchemaVersion
+                ? t('settings.providerHealth.skill.action.unknown-schema', {
+                      schema: installation.installedSchemaVersion,
+                  })
+                : installation.action;
+        default:
+            return t(`settings.providerHealth.skill.action.${installation.reason}`);
+    }
+}

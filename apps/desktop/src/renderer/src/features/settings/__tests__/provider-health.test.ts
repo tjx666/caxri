@@ -7,6 +7,7 @@ import {
     hookHealthLabel,
     hookHealthTone,
     isHookAdapterAvailable,
+    skillScopeAction,
     skillScopeHealth,
     skillScopeSummary,
     skillScopeTone,
@@ -150,5 +151,37 @@ describe('skillScopeTone', () => {
         expect(skillScopeTone({ ...installation, status: 'stale' })).toBe('warning');
         expect(skillScopeTone({ ...installation, status: 'conflict' })).toBe('danger');
         expect(skillScopeTone(undefined)).toBe('neutral');
+    });
+});
+
+describe('skillScopeAction', () => {
+    const installation = health.installations[0];
+
+    it('translates the next step from the reason instead of showing the Server text', () => {
+        expect(
+            skillScopeAction(translate, {
+                ...installation,
+                action: 'Server text',
+                reason: 'not-installed',
+            }),
+        ).toBe('Install the bundled skill here.');
+    });
+
+    it('fills a versioned step from the installation and falls back without its version', () => {
+        expect(
+            skillScopeAction(translate, {
+                ...installation,
+                installedSchemaVersion: 99,
+                reason: 'unknown-schema',
+            }),
+        ).toBe('Use a Caxri CLI that supports marker schema 99; this one will not overwrite it.');
+        expect(
+            skillScopeAction(translate, {
+                ...installation,
+                action: 'Server text',
+                installedVersion: undefined,
+                reason: 'newer-version',
+            }),
+        ).toBe('Server text');
     });
 });

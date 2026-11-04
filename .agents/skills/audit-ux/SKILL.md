@@ -85,6 +85,10 @@ app under the repository-wide desktop lease, the render phase needs an unpackage
 Renderer's component names are minified into noise), and two live instances fight over window
 focus, so a screenshot taken while a second app is up can capture the wrong window.
 
+The desktop and mobile agents run every command in the checkout the root session works in. When
+the root has entered a task worktree (`EnterWorktree`), a subagent pointed at the primary checkout
+has each Bash call refused by the worktree isolation, and both live layers come back empty.
+
 Visual phase:
 
 - Launch through the `acceptance` skill's sanctioned scripts (start-electron / capture-renderer /

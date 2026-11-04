@@ -18,6 +18,27 @@ export const settingsAgents = {
     'settings.providerHealth.skill.scope.local': 'Project local',
     'settings.providerHealth.skill.scope.global': 'Global',
     'settings.providerHealth.skill.checking': '{{scope}} · Checking installation…',
+    'settings.providerHealth.skill.action.foreign-entry':
+        'Keep this entry; Caxri never overwrites or removes a skill it did not install.',
+    'settings.providerHealth.skill.action.invalid-installed-version':
+        'Use a matching Caxri CLI, or inspect this installation by hand.',
+    'settings.providerHealth.skill.action.invalid-marker':
+        'Keep this entry and inspect its Caxri marker by hand.',
+    'settings.providerHealth.skill.action.matches-bundle': 'Nothing to do.',
+    'settings.providerHealth.skill.action.modified-or-foreign-files':
+        'This copy was changed. Back it up and remove it by hand before reinstalling.',
+    'settings.providerHealth.skill.action.newer-version':
+        'Use Caxri CLI {{version}} or newer; this one will not downgrade it.',
+    'settings.providerHealth.skill.action.not-installed': 'Install the bundled skill here.',
+    'settings.providerHealth.skill.action.older-version': 'Update it to the bundled version.',
+    'settings.providerHealth.skill.action.same-version-contract-mismatch':
+        'Same version, different contents. Inspect it by hand before reinstalling.',
+    'settings.providerHealth.skill.action.unknown-schema':
+        'Use a Caxri CLI that supports marker schema {{schema}}; this one will not overwrite it.',
+    'settings.providerHealth.skill.action.unreadable-installation':
+        'Keep this entry and inspect its files by hand.',
+    'settings.providerHealth.skill.action.unsafe-parent':
+        'The Provider folder is a link. Choose a safe Project root or the global scope.',
     'settings.providerHealth.skill.selectProject': '{{scope}} · Select a Project to inspect',
     'settings.providerHealth.skill.uninspectable': '{{scope}} · Unable to inspect this location',
     'settings.providerHealth.skill.notInstalled': '{{scope}} · Not installed',
@@ -46,6 +67,23 @@ export const settingsAgents = {
     // Agent commands & skills editor
     'settings.agentActionsEditor.listLabel': '{{provider}} Agent commands and skills',
     'settings.agentActionsEditor.builtIn': 'Built-in',
+    'settings.agentActionsEditor.builtInDescription.claude./model': 'Choose the active model',
+    'settings.agentActionsEditor.builtInDescription.claude./compact':
+        'Summarize the conversation to free context',
+    'settings.agentActionsEditor.builtInDescription.claude./diff':
+        'Review uncommitted and per-turn changes',
+    'settings.agentActionsEditor.builtInDescription.claude./review': 'Review the current diff',
+    'settings.agentActionsEditor.builtInDescription.claude./context':
+        'Visualize current context usage',
+    'settings.agentActionsEditor.builtInDescription.codex./model':
+        'Choose the active model and reasoning effort',
+    'settings.agentActionsEditor.builtInDescription.codex./compact':
+        'Summarize the conversation to free context',
+    'settings.agentActionsEditor.builtInDescription.codex./diff': 'Show the current Git diff',
+    'settings.agentActionsEditor.builtInDescription.codex./review':
+        'Review the current working tree',
+    'settings.agentActionsEditor.builtInDescription.codex./status':
+        'Show session configuration and token usage',
     'settings.agentActionsEditor.show': 'Show {{invocation}}',
     'settings.agentActionsEditor.descriptionFor': 'Description for {{invocation}}',
     'settings.agentActionsEditor.optionalDescription': 'Optional description',

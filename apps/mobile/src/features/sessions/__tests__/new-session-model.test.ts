@@ -206,8 +206,8 @@ describe('New Session surface descriptions', () => {
         expect(newSessionSurfaceDescription('chat', 'chat')).toBe(
             'Replies as readable messages · Default',
         );
-        expect(newSessionSurfaceDescription('pty', 'chat')).toBe("The Agent's own terminal screen");
-        expect(newSessionSurfaceDescription('pty', null)).toBe("The Agent's own terminal screen");
+        expect(newSessionSurfaceDescription('pty', 'chat')).toBe("The Agent's own terminal");
+        expect(newSessionSurfaceDescription('pty', null)).toBe("The Agent's own terminal");
     });
 });
 
