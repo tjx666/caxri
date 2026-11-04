@@ -7,11 +7,11 @@ import type { AgentDelegationReceipt, DelegationRetryReply } from '@caxri/protoc
 import type { StructuredLogger } from '@caxri/system';
 import { onTestFinished, vi } from 'vitest';
 
-import type { AgentDispatchService } from '../../agent-dispatch';
-import { CaxriDatabase } from '../../db';
-import { createBackgroundSession, discardEmptySession } from '../../session';
-import { AgentDelegationService } from '../service';
-import type { AgentDelegationServiceOptions } from '../service-options';
+import type { AgentDispatchService } from '../../../agent-dispatch';
+import { CaxriDatabase } from '../../../db';
+import { createBackgroundSession, discardEmptySession } from '../../../session';
+import { AgentDelegationService } from '../../service';
+import type { AgentDelegationServiceOptions } from '../../service-options';
 
 export type Failure = NonNullable<AgentDelegationReceipt['failure']>;
 

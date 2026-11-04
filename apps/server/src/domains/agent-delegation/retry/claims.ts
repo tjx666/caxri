@@ -1,8 +1,8 @@
 import type { DelegationRetryScheduleOutcome } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import type { StoredAgentDelegation } from '../db';
-import type { DelegationRetryHost } from './retry';
+import type { StoredAgentDelegation } from '../../db';
+import type { DelegationRetryHost } from './service';
 
 /**
  * Reads and writes the claim a retry holds on its failed task (`retriedAs`, the mode, and a pending schedule time).

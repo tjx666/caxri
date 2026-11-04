@@ -73,6 +73,12 @@ export class ArchivedWorktreeCleanup {
      * the earlier one instead of racing it.
      */
     private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+    /**
+     * Bumped by every later decision about a Session's worktree (restore, or a new archive). A removal already running
+     * when the user restores and archives again choosing Keep would otherwise pass its final check, because the Session
+     * is archived and bound to the worktree again. Entries exist only while a removal of theirs is pending or running.
+     */
+    private readonly generations = new Map<string, number>();
     private readonly removals = new Set<Promise<void>>();
     private isClosed = false;
     private resolvePullRequest?: SessionPullRequestResolver;
@@ -90,22 +96,17 @@ export class ArchivedWorktreeCleanup {
         }
     }
 
-    private async remove(sessionId: string, target: ArchivedWorktreeTarget): Promise<void> {
+    private async remove(
+        sessionId: string,
+        target: ArchivedWorktreeTarget,
+        generation: number,
+    ): Promise<void> {
         const startedAt = performance.now();
         try {
             const { database } = this.options;
-            const session = database.getSession(sessionId);
-            if (session?.archivedAt === undefined) {
-                this.logSkipped(sessionId, 'restored', startedAt);
-                return;
-            }
-            if (
-                !isSameWorkbenchBinding(
-                    target.binding,
-                    database.getSessionWorkbenchBinding(sessionId),
-                )
-            ) {
-                this.logSkipped(sessionId, 'rebound', startedAt);
+            const heldBack = this.heldBackReason(sessionId, target, generation);
+            if (heldBack) {
+                this.logSkipped(sessionId, heldBack, startedAt);
                 return;
             }
             const current = await this.findTarget(sessionId);
@@ -113,23 +114,38 @@ export class ArchivedWorktreeCleanup {
                 this.logSkipped(sessionId, 'ineligible', startedAt);
                 return;
             }
+            /**
+             * Each await below (the topology read above, then the removal's own Git probes and backup commit) is a
+             * window in which the user can restore the Session or another Session can adopt the worktree, so the
+             * conditions are re-proven immediately before the directory is deleted.
+             */
             const removal = await this.options.removeWorktree({
                 backupMessage: BACKUP_COMMIT_MESSAGE,
+                isStillWanted: () =>
+                    this.heldBackReason(sessionId, current, generation) === undefined,
                 ownerRoot: current.ownerRoot,
                 rootPath: current.rootPath,
             });
             if (removal.outcome === 'refused') {
-                this.logSkipped(sessionId, removal.reason, startedAt);
+                this.logSkipped(
+                    sessionId,
+                    removal.reason === 'withdrawn'
+                        ? (this.heldBackReason(sessionId, current, generation) ?? 'restored')
+                        : removal.reason,
+                    startedAt,
+                );
                 return;
             }
             /**
-             * The folder is gone, so every Session bound to it, all archived by now, returns to its own Project root.
-             * Doing it here, silently, keeps a later restore from announcing a fallback the user caused.
+             * The folder is gone, so every archived Session bound to it returns to its own Project root. Doing it here,
+             * silently, keeps a later restore from announcing a fallback the user caused. An open Session never reaches
+             * this point: the removal re-proved that none works in the folder.
              */
             for (const bound of database.listSessionsUsingWorkbenchProject(
                 current.worktreeProjectId,
             ))
-                database.selectWorkbenchProject(bound.id, bound.projectId);
+                if (bound.archivedAt !== undefined)
+                    database.selectWorkbenchProject(bound.id, bound.projectId);
             this.options.sendFullStateChange('session.workbenchRoot');
             this.options.logger.write('info', worktreeArchiveCleanup, {
                 durationMs: performance.now() - startedAt,
@@ -142,7 +158,30 @@ export class ArchivedWorktreeCleanup {
             await this.refreshTopology(current.ownerRoot);
         } catch (error) {
             this.logFailed(sessionId, error, startedAt);
+        } finally {
+            if (this.generations.get(sessionId) === generation) this.generations.delete(sessionId);
         }
+    }
+
+    /**
+     * Why a scheduled removal must hold back now, from in-memory and database state alone so it can run synchronously
+     * right before the directory is deleted: the Session was restored (even if archived again since), it moved to
+     * another Workbench Root, or another open Session works in the worktree.
+     */
+    private heldBackReason(
+        sessionId: string,
+        target: ArchivedWorktreeTarget,
+        generation: number,
+    ): CleanupSkipReason | undefined {
+        const { database } = this.options;
+        if (this.generations.get(sessionId) !== generation) return 'restored';
+        if (database.getSession(sessionId)?.archivedAt === undefined) return 'restored';
+        if (!isSameWorkbenchBinding(target.binding, database.getSessionWorkbenchBinding(sessionId)))
+            return 'rebound';
+        const isShared = database
+            .listSessionsUsingWorkbenchProject(target.worktreeProjectId)
+            .some((session) => session.id !== sessionId && session.archivedAt === undefined);
+        return isShared ? 'ineligible' : undefined;
     }
 
     /**
@@ -198,9 +237,16 @@ export class ArchivedWorktreeCleanup {
         }
     }
 
-    private cancel(sessionId: string): void {
+    /**
+     * Drops the pending removal and invalidates a running one; returns the generation a new removal must carry.
+     */
+    private cancel(sessionId: string): number {
         clearTimeout(this.timers.get(sessionId));
         this.timers.delete(sessionId);
+        const generation = (this.generations.get(sessionId) ?? 0) + 1;
+        // With nothing pending or running there is nothing to invalidate, so no entry is kept for it.
+        if (this.generations.has(sessionId)) this.generations.set(sessionId, generation);
+        return generation;
     }
 
     private logSkipped(sessionId: string, reason: CleanupSkipReason, startedAt: number): void {
@@ -280,13 +326,22 @@ export class ArchivedWorktreeCleanup {
      */
     schedule(sessionId: string, target: ArchivedWorktreeTarget): void {
         if (this.isClosed) return;
-        this.cancel(sessionId);
+        const generation = this.cancel(sessionId);
+        this.generations.set(sessionId, generation);
         const timer = setTimeout(() => {
             this.timers.delete(sessionId);
             // Fire-and-forget: `remove` logs its own failure, and `close` awaits it through `removals`.
-            void this.track(this.remove(sessionId, target));
+            void this.track(this.remove(sessionId, target, generation));
         }, this.delayMs);
         this.timers.set(sessionId, timer);
+    }
+
+    /**
+     * Drops the pending removal of each restored Session, and makes one already running hold back at its final check
+     * even if the Session is archived again before then.
+     */
+    withdraw(sessionIds: readonly string[]): void {
+        for (const sessionId of sessionIds) this.cancel(sessionId);
     }
 
     /**

@@ -10,26 +10,21 @@ import type {
 import { CaxriError, isDelegationActive, isRetryableDelegationFailure } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 
-import type { StoredAgentDelegation } from '../db';
-import type { WatchHub } from '../watch';
-import type { DelegationAuthority } from './admission';
-import { isCaxriBotCaller } from './admission';
-import { logDelegationRetry } from './diagnostics';
-import { resumeRejection } from './rejection';
-import { RetryClaims } from './retry-claims';
-import { startFreshRetry } from './retry-fresh';
-import { createRetryNotice, createRetryRefusedNotice } from './retry-notice';
-import { DelegationRetrySchedules } from './retry-schedule';
-import { scheduledRetryTime, scheduleOutcomeOf } from './retry-schedule-time';
-import type { Reason, RetryAdmission, VerifiedWorktree } from './retry-support';
-import {
-    RESUME_REASONS,
-    retryDelegationId,
-    RetryRefused,
-    verifyRetryWorktree,
-} from './retry-support';
-import { retrySwitchTargets } from './retry-switch';
-import type { AgentDelegationServiceOptions, DelegationWorktree } from './service-options';
+import type { StoredAgentDelegation } from '../../db';
+import type { WatchHub } from '../../watch';
+import type { DelegationAuthority } from '../admission';
+import { isCaxriBotCaller } from '../admission';
+import { logDelegationRetry } from '../diagnostics';
+import { resumeRejection } from '../rejection';
+import type { AgentDelegationServiceOptions, DelegationWorktree } from '../service-options';
+import { RetryClaims } from './claims';
+import { startFreshRetry } from './fresh';
+import { createRetryNotice, createRetryRefusedNotice } from './notice';
+import { DelegationRetrySchedules } from './schedule';
+import { scheduledRetryTime, scheduleOutcomeOf } from './schedule-time';
+import type { Reason, RetryAdmission, VerifiedWorktree } from './support';
+import { RESUME_REASONS, retryDelegationId, RetryRefused, verifyRetryWorktree } from './support';
+import { retrySwitchTargets } from './switch';
 
 /**
  * What a retry borrows from the delegation service.

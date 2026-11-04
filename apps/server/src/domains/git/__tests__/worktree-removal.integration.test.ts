@@ -104,4 +104,19 @@ describe('removeLinkedWorktree', () => {
         ).resolves.toEqual({ outcome: 'refused', reason: 'operation-in-progress' });
         expect(await isPresent(join(rootPath, 'draft.md'))).toBe(true);
     });
+
+    it('keeps the worktree, with its backup commit, when the caller withdraws after the backup', async () => {
+        const { ownerRoot, rootPath } = await repo();
+        await writeFile(join(rootPath, 'draft.md'), 'unfinished');
+        await expect(
+            removeLinkedWorktree(runner, {
+                backupMessage: 'backup',
+                isStillWanted: () => false,
+                ownerRoot,
+                rootPath,
+            }),
+        ).resolves.toEqual({ outcome: 'refused', reason: 'withdrawn' });
+        expect(await isPresent(join(rootPath, 'draft.md'))).toBe(true);
+        expect((await git(ownerRoot, 'log', '-1', '--format=%s', 'feat/x')).trim()).toBe('backup');
+    });
 });

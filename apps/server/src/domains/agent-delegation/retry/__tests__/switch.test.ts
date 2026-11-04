@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { retryDelegationId } from '../retry-support';
-import { retrySwitchTargets } from '../retry-switch';
-import { fixture, reasonOf } from './retry.fixture';
+import { retryDelegationId } from '../support';
+import { retrySwitchTargets } from '../switch';
+import { fixture, reasonOf } from './fixture';
 
 const installed = (providers: string[]) => (provider: string) =>
     Promise.resolve(providers.includes(provider));

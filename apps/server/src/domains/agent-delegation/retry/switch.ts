@@ -1,7 +1,7 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
 
-import type { AgentDelegationServiceOptions } from './service-options';
+import type { AgentDelegationServiceOptions } from '../service-options';
 
 /**
  * The Agents a fresh retry of a task that failed on `failed` may switch to: installed, not at their weekly usage guard,
