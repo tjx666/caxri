@@ -3,20 +3,21 @@ import { agentProviderCatalog, settingCategories, settingsSpecByKey } from '@cax
 
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import type {
+    SettingRowBinding,
+    SettingRowSource,
+    SettingSubcategorySource,
+} from './setting-row-source';
+import { lower } from './setting-row-source';
 import {
     settingCategoryTitle,
     settingDescription,
     settingOptionLabel,
     settingTitle,
 } from './setting-spec-text';
-import type {
-    SettingRowBinding,
-    SettingRowSource,
-    SettingSubcategorySource,
-} from './settings-row-sources';
-import { lower, settingRowSources } from './settings-row-sources';
+import { settingRowSources } from './settings-row-sources';
 
-export type { SettingRowBinding } from './settings-row-sources';
+export type { SettingRowBinding } from './setting-row-source';
 
 export interface SettingRowDescriptor {
     /**
