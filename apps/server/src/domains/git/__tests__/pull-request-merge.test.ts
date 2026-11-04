@@ -14,16 +14,22 @@ const repo = { rootPath: '/workspace/widget' } as GitRepositorySummary;
 function harness(
     settings: Record<string, boolean>,
     mergeFailure?: Error,
+    view?: { headRefOid: string; state: string },
 ): {
     forget: ReturnType<typeof vi.fn>;
     run: ReturnType<typeof vi.fn<ExternalStatusRunner>>;
     merge: () => ReturnType<typeof mergeGitHubPullRequest>;
     failureRecords: () => unknown[];
+    successRecords: () => unknown[];
 } {
     const forget = vi.fn();
     const write = vi.fn<StructuredLogger['write']>();
     const run = vi.fn<ExternalStatusRunner>((_source, arguments_) => {
         if (arguments_[0] === 'repo') return Promise.resolve(JSON.stringify(settings));
+        if (arguments_[1] === 'view')
+            return view
+                ? Promise.resolve(JSON.stringify(view))
+                : Promise.reject(new ExternalStatusCliError('gh', 'network', 'offline'));
         return mergeFailure ? Promise.reject(mergeFailure) : Promise.resolve('');
     });
     return {
@@ -40,6 +46,10 @@ function harness(
                     run,
                 },
             ),
+        successRecords: () =>
+            write.mock.calls
+                .filter(([, event]) => event === logEventCatalog.git.githubCommand)
+                .map((call) => call[2]),
         failureRecords: () =>
             write.mock.calls
                 .filter(([, event]) => event === logEventCatalog.git.githubCommandFailed)
@@ -80,6 +90,7 @@ describe('mergeGitHubPullRequest', () => {
             'gh',
             ['pr', 'merge', '42', '--repo', 'acme/widget', '--merge', '--match-head-commit', HEAD],
             '/workspace/widget',
+            { timeoutMs: 60_000 },
         );
         expect(run.mock.calls.flatMap(([, arguments_]) => arguments_)).not.toContain(
             '--delete-branch',
@@ -103,6 +114,55 @@ describe('mergeGitHubPullRequest', () => {
                 'Pull request acme/widget#42 is not mergeable: the base branch policy prohibits the merge.',
         });
         expect(forget).toHaveBeenCalledWith('acme', 'widget', 42);
+    });
+
+    it('reports success when GitHub merged the pull request after `gh pr merge` timed out', async () => {
+        const { failureRecords, merge, successRecords } = harness(
+            { squashMergeAllowed: true },
+            new ExternalStatusCliError('gh', 'timeout', 'Command failed'),
+            { headRefOid: HEAD, state: 'MERGED' },
+        );
+
+        await expect(merge()).resolves.toEqual({
+            method: 'squash',
+            url: 'https://github.com/acme/widget/pull/42',
+        });
+        expect(failureRecords()).toEqual([]);
+        expect(successRecords()).toEqual([
+            expect.objectContaining({
+                fields: { operation: 'pr.merge', method: 'squash', recoveredFrom: 'timeout' },
+            }),
+        ]);
+    });
+
+    it('keeps the merge failure when GitHub still shows the pull request open', async () => {
+        const { failureRecords, merge } = harness(
+            { squashMergeAllowed: true },
+            new ExternalStatusCliError('gh', 'timeout', 'Command failed'),
+            { headRefOid: HEAD, state: 'OPEN' },
+        );
+
+        await expect(merge()).rejects.toMatchObject({ code: 'GIT' });
+        expect(failureRecords()).toEqual([
+            expect.objectContaining({
+                fields: {
+                    operation: 'pr.merge',
+                    step: 'pr.merge',
+                    reason: 'timeout',
+                    exitCode: null,
+                },
+            }),
+        ]);
+    });
+
+    it('keeps the merge failure when a different head was merged', async () => {
+        const { merge } = harness(
+            { squashMergeAllowed: true },
+            new ExternalStatusCliError('gh', 'timeout', 'Command failed'),
+            { headRefOid: 'b'.repeat(40), state: 'MERGED' },
+        );
+
+        await expect(merge()).rejects.toMatchObject({ code: 'GIT' });
     });
 
     it('refuses before calling GitHub when the repository allows no merge method', async () => {

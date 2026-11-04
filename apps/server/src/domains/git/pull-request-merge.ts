@@ -20,6 +20,15 @@ import {
 type MergeMethod = ServerOperationResult<'git.mergePullRequest'>['method'];
 
 /**
+ * Budget for `gh pr merge` itself. The shared 8-second status-read budget is too tight: GitHub's merge regularly takes
+ * about 5 seconds and sometimes longer, and killing `gh` does not cancel the merge, so the user saw "could not merge"
+ * for a pull request GitHub had already merged.
+ */
+const MERGE_TIMEOUT_MS = 60_000;
+
+const mergedStateSchema = z.object({ headRefOid: z.string(), state: z.string() });
+
+/**
  * The `gh` call a merge failed in: reading the repository's allowed methods, or the merge itself.
  */
 type MergeStep = 'pr.merge' | 'repo.view';
@@ -75,6 +84,28 @@ function githubFailureMessage(error: unknown): string {
     return line ?? 'GitHub did not accept the merge';
 }
 
+/**
+ * Whether GitHub merged the pull request at the expected head even though `gh pr merge` reported a failure, such as a
+ * timeout after GitHub accepted the merge. Any read failure answers no, so the original merge error stands.
+ */
+async function isMergedDespiteFailure(
+    target: GitHubPullRequestMergeTarget,
+    slug: string,
+    run: ExternalStatusRunner,
+): Promise<boolean> {
+    try {
+        const output = await run(
+            'gh',
+            ['pr', 'view', String(target.number), '--repo', slug, '--json', 'state,headRefOid'],
+            target.cwd,
+        );
+        const view = mergedStateSchema.parse(JSON.parse(output));
+        return view.state === 'MERGED' && view.headRefOid === target.headSha;
+    } catch {
+        return false;
+    }
+}
+
 function mergeFailure(error: unknown): CaxriError {
     if (error instanceof ExternalStatusCliError) {
         if (error.kind === 'not-found')
@@ -107,7 +138,8 @@ export interface GitHubPullRequestMergeTarget {
 
 /**
  * Merges one repository's GitHub pull request. Reads the repository's allowed merge methods first because `gh pr merge`
- * refuses to pick one non-interactively, then pins the merge to the head the user saw with `--match-head-commit`.
+ * refuses to pick one non-interactively, then pins the merge to the head the user saw with `--match-head-commit`. A
+ * failed merge call is checked against GitHub once more, because the merge may have completed after `gh` gave up.
  * Deliberately never passes `--delete-branch`: that would also delete the local branch, which a linked worktree may
  * still have checked out, and the repository's own auto-delete setting already covers the remote branch.
  */
@@ -119,6 +151,10 @@ export async function mergeGitHubPullRequestAt(
     const startedAt = performance.now();
     let method: MergeMethod | undefined;
     let step: MergeStep = 'repo.view';
+    /**
+     * Closed cause of a `gh pr merge` failure after which GitHub still reported the pull request merged.
+     */
+    let recoveredFrom: MergeFailureReason | undefined;
     try {
         const settings = repoMergeSettingsSchema.parse(
             JSON.parse(
@@ -132,20 +168,26 @@ export async function mergeGitHubPullRequestAt(
         method = chooseMergeMethod(settings);
         if (!method) throw new NoMergeMethodError();
         step = 'pr.merge';
-        await dependencies.run(
-            'gh',
-            [
-                'pr',
-                'merge',
-                String(target.number),
-                '--repo',
-                slug,
-                `--${method}`,
-                '--match-head-commit',
-                target.headSha,
-            ],
-            target.cwd,
-        );
+        try {
+            await dependencies.run(
+                'gh',
+                [
+                    'pr',
+                    'merge',
+                    String(target.number),
+                    '--repo',
+                    slug,
+                    `--${method}`,
+                    '--match-head-commit',
+                    target.headSha,
+                ],
+                target.cwd,
+                { timeoutMs: MERGE_TIMEOUT_MS },
+            );
+        } catch (error) {
+            if (!(await isMergedDespiteFailure(target, slug, dependencies.run))) throw error;
+            recoveredFrom = mergeFailureReason(error);
+        }
     } catch (error) {
         dependencies.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
             durationMs: performance.now() - startedAt,
@@ -164,7 +206,7 @@ export async function mergeGitHubPullRequestAt(
     }
     dependencies.logger.write('info', logEventCatalog.git.githubCommand, {
         durationMs: performance.now() - startedAt,
-        fields: { operation: 'pr.merge', method },
+        fields: { operation: 'pr.merge', method, ...(recoveredFrom && { recoveredFrom }) },
     });
     return { method, url: `https://github.com/${slug}/pull/${target.number}` };
 }
