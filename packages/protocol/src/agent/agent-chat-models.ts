@@ -151,7 +151,9 @@ function resolveModelAndEffort(
             : snapshot.models?.find((candidate) => candidate.id === change.model);
     if (!model && change.model !== undefined)
         throw new CaxriError('VALIDATION', `${change.model} is not available in this Chat`);
-    const target = model ?? findAgentChatModel(snapshot.models, snapshot.model);
+    // The model the menu offered efforts for, so a new Claude Chat that names no model yet validates against the
+    // provider's `default` alias like its menu does.
+    const target = model ?? agentChatMenuModel(snapshot);
     if (change.effort !== undefined) {
         if (!target?.efforts.includes(change.effort))
             throw new CaxriError('VALIDATION', `${change.effort} effort is not available`);
