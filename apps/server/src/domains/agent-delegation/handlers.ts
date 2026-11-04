@@ -1,3 +1,4 @@
+import type { AgentDelegationPullRequest, SessionPullRequest } from '@caxri/protocol';
 import { isDelegationActive } from '@caxri/protocol';
 
 import { coreRouted } from '../core-routed';
@@ -40,9 +41,42 @@ function claimed<T extends { receipt: Parameters<typeof isDelegationActive>[0]; 
     return read;
 }
 
+/**
+ * Reads a Session's pull request from the cache Server Core keeps of the last lookup (`PullRequestSettlementWiring`),
+ * never from GitHub.
+ */
+export interface DelegationPullRequestSource {
+    pullRequest(sessionId: string): SessionPullRequest | undefined;
+}
+
+/**
+ * Adds the settled task's Session pull request to an answer the delegating Agent reads. An active task has none yet:
+ * its Agent may still open or push one.
+ */
+function withPullRequest<
+    T extends { receipt: Parameters<typeof isDelegationActive>[0] & { sessionId: string } },
+>(
+    source: DelegationPullRequestSource | undefined,
+    read: T,
+): T & { pullRequest?: AgentDelegationPullRequest } {
+    if (isDelegationActive(read.receipt)) return read;
+    const found = source?.pullRequest(read.receipt.sessionId);
+    if (!found) return read;
+    return {
+        ...read,
+        pullRequest: {
+            url: found.url,
+            number: found.number,
+            state: found.state,
+            ...(found.changedFiles !== undefined && { changedFileCount: found.changedFiles }),
+        },
+    };
+}
+
 export function createDelegationHandlers(
     service: AgentDelegationService,
     database: CaxriDatabase,
+    pullRequests?: DelegationPullRequestSource,
 ): Pick<DomainHandlers, DelegationMethod> {
     return {
         /**
@@ -89,13 +123,16 @@ export function createDelegationHandlers(
             { delegationId, otherDelegationIds = [], timeoutMs, ...authority },
             signal,
         ) =>
-            claimed(
-                database,
-                await service.wait(
-                    [delegationId, ...otherDelegationIds],
-                    authority,
-                    timeoutMs,
-                    signal,
+            withPullRequest(
+                pullRequests,
+                claimed(
+                    database,
+                    await service.wait(
+                        [delegationId, ...otherDelegationIds],
+                        authority,
+                        timeoutMs,
+                        signal,
+                    ),
                 ),
             ),
         'agent.delegation.createInternal': ({ delegationId, input, ...authority }) =>
@@ -103,6 +140,9 @@ export function createDelegationHandlers(
         'agent.delegation.statusInternal': ({ delegationId, ...authority }) =>
             service.status(delegationId, authority),
         'agent.delegation.resultInternal': async ({ delegationId, ...authority }) =>
-            claimed(database, await service.result(delegationId, authority)),
+            withPullRequest(
+                pullRequests,
+                claimed(database, await service.result(delegationId, authority)),
+            ),
     };
 }

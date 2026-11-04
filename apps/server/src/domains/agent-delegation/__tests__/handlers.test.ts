@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { SessionPullRequest } from '@caxri/protocol';
 import { expect, it, onTestFinished } from 'vitest';
 
 import type { StoredAgentDelegation } from '../../db';
@@ -11,7 +12,7 @@ import type { AgentDelegationService } from '../service';
 
 const authority = { principal: { kind: 'human-cli', id: 'synthetic-owner' } } as const;
 
-async function fixture() {
+async function fixture(pullRequest?: SessionPullRequest) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-handlers-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(async () => {
@@ -59,7 +60,8 @@ async function fixture() {
         result: read,
         wait: async (ids: readonly string[]) => ({ ...(await read(ids[0])), outcome: 'settled' }),
     } as unknown as AgentDelegationService;
-    return { database, make, handlers: createDelegationHandlers(service, database) };
+    const pullRequests = { pullRequest: () => pullRequest };
+    return { database, make, handlers: createDelegationHandlers(service, database, pullRequests) };
 }
 
 it('claims a completed answer once wait or result returns it', async () => {
@@ -88,4 +90,61 @@ it('claims a completed answer once wait or result returns it', async () => {
     expect(database.agentDelegations.get('resulted')?.collectedAt).toBeDefined();
     expect(database.agentDelegations.get('running')?.collectedAt).toBeUndefined();
     expect(database.agentDelegations.get('waited')?.receipt.revision).toBe(1);
+});
+
+const pullRequest: SessionPullRequest = {
+    number: 7,
+    title: 'Synthetic change',
+    url: 'https://github.com/owner/example/pull/7',
+    state: 'open',
+    source: 'agent',
+    changedFiles: 3,
+};
+
+it('returns the Session pull request with a settled task, labeled as the whole pull request', async () => {
+    const { database, make, handlers } = await fixture(pullRequest);
+    database.agentDelegations.insert(make('done', 'completed', true));
+    database.agentDelegations.insert(make('active', 'running', false));
+
+    const result = await handlers['agent.delegation.resultInternal'](
+        { delegationId: 'done', ...authority },
+        undefined,
+    );
+    const waited = await handlers['agent.delegation.waitInternal'](
+        { delegationId: 'done', timeoutMs: 0, ...authority },
+        undefined,
+    );
+    const running = await handlers['agent.delegation.resultInternal'](
+        { delegationId: 'active', ...authority },
+        undefined,
+    );
+
+    const expected = { url: pullRequest.url, number: 7, state: 'open', changedFileCount: 3 };
+    expect(result.pullRequest).toStrictEqual(expected);
+    expect(waited.pullRequest).toStrictEqual(expected);
+    expect(running.pullRequest).toBeUndefined();
+});
+
+it('omits a file count GitHub did not report, and a pull request the Session has none of', async () => {
+    const uncounted = { ...pullRequest, changedFiles: undefined };
+    const counted = await fixture(uncounted);
+    counted.database.agentDelegations.insert(counted.make('done', 'completed', true));
+    const none = await fixture();
+    none.database.agentDelegations.insert(none.make('done', 'completed', true));
+
+    const withoutCount = await counted.handlers['agent.delegation.resultInternal'](
+        { delegationId: 'done', ...authority },
+        undefined,
+    );
+    const withoutPullRequest = await none.handlers['agent.delegation.resultInternal'](
+        { delegationId: 'done', ...authority },
+        undefined,
+    );
+
+    expect(withoutCount.pullRequest).toStrictEqual({
+        url: pullRequest.url,
+        number: 7,
+        state: 'open',
+    });
+    expect(withoutPullRequest).not.toHaveProperty('pullRequest');
 });
