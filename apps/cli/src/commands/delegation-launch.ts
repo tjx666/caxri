@@ -89,13 +89,16 @@ async function resolveRoot(context: RemoteCommandRunContext, explicit?: string):
         'project.list',
         {},
     )) as MethodResult<'project.list'>;
+    const topLevel = projects.flatMap((project) =>
+        'rootPath' in project && !('ownerProjectId' in project && project.ownerProjectId)
+            ? [{ rootPath: project.rootPath }]
+            : [],
+    );
+    const roots = await Promise.all(topLevel.map((project) => canonical(project.rootPath)));
     let best: string | undefined;
     let bestCanonical = '';
-    for (const project of projects) {
-        if (!('rootPath' in project) || ('ownerProjectId' in project && project.ownerProjectId))
-            continue;
-        // eslint-disable-next-line no-await-in-loop -- a handful of Projects; resolving in order keeps the longest-match rule simple.
-        const root = await canonical(project.rootPath);
+    for (const [index, project] of topLevel.entries()) {
+        const root = roots[index] ?? '';
         const isInside =
             cwd === root || cwd.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
         if (isInside && root.length > bestCanonical.length) {

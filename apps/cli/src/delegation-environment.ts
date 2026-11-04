@@ -34,7 +34,8 @@ export function assertAgentDelegationCredential(
 }
 
 function hasAny(tokens: readonly string[], flags: readonly string[]): boolean {
-    return flags.some((flag) => tokens.includes(flag));
+    const present = new Set(tokens);
+    return flags.some((flag) => present.has(flag));
 }
 
 /**
