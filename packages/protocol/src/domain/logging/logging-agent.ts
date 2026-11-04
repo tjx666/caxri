@@ -192,6 +192,13 @@ export const agentDelegationLogEvents = {
      * numbers only, never the task.
      */
     retrySchedule: 'agent_delegation.retry_schedule',
+    /**
+     * A delegating Agent read a page of its task's Chat (`agent.delegation.transcript`). `fields.outcome` is
+     * `available` or `unavailable` (with `fields.reason`, a `DelegationTranscriptUnavailable`), plus whether it resumed
+     * from a cursor, the page's row count and text length, whether any row was clipped, whether more rows remain, and
+     * the read's duration. Counts and enums only, never row text, item IDs, or the cursor.
+     */
+    transcriptRead: 'agent_delegation.transcript_read',
 } as const;
 
 export const agentDispatchLogEvents = {

@@ -166,19 +166,6 @@ export class AgentDelegationService {
         authorizeDelegationSession(this.options.database, authority, input, access, isNewSession);
     }
 
-    private owned(
-        id: string,
-        authority: DelegationAuthority,
-        access: DelegationAccess = 'create',
-    ): StoredAgentDelegation {
-        const record = this.options.database.agentDelegations.get(id);
-        if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
-        this.authorize(authority, record.input, access);
-        if (!isDelegationOwner(this.options.database, record, authority))
-            throw new CaxriError('FORBIDDEN', 'Delegation belongs to another Agent');
-        return record;
-    }
-
     private fail(id: string, failure: AgentDelegationReceipt['failure']): void {
         const record = this.options.database.agentDelegations.get(id);
         if (record && canFailDelegation(record, failure))
@@ -430,6 +417,19 @@ export class AgentDelegationService {
             launchId,
         );
         return false;
+    }
+
+    owned(
+        id: string,
+        authority: DelegationAuthority,
+        access: DelegationAccess = 'create',
+    ): StoredAgentDelegation {
+        const record = this.options.database.agentDelegations.get(id);
+        if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
+        this.authorize(authority, record.input, access);
+        if (!isDelegationOwner(this.options.database, record, authority))
+            throw new CaxriError('FORBIDDEN', 'Delegation belongs to another Agent');
+        return record;
     }
 
     /**

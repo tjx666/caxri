@@ -59,6 +59,7 @@ export * from './delegation/agent-delegated-task.js';
 export * from './delegation/agent-delegation-contract.js';
 export * from './delegation/agent-delegation-sessions.js';
 export * from './delegation/agent-delegation-settings.js';
+export * from './delegation/agent-delegation-transcript.js';
 export * from './delegation/agent-delegation-usage.js';
 export * from './delegation/delegation-access-contract.js';
 export * from './images/agent-chat-image-contract.js';

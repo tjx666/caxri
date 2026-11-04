@@ -128,6 +128,16 @@ function listParameters(tokens: readonly string[]) {
     return limit === undefined ? { active: isActive } : { active: isActive, limit };
 }
 
+function transcriptParameters(tokens: readonly string[]) {
+    const [delegationId, ...rest] = tokens;
+    if (!delegationId || delegationId.startsWith('-'))
+        throw new CaxriError('VALIDATION', 'Expected one delegation ID');
+    if (rest.length === 0) return { delegationId };
+    if (rest[0] !== '--after' || rest.length !== 2 || !rest[1] || rest[1].startsWith('-'))
+        throw new CaxriError('VALIDATION', 'Expected --after <cursor> after the delegation ID');
+    return { delegationId, after: rest[1] };
+}
+
 export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
     {
         kind: 'remote',
@@ -200,6 +210,15 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         summary: 'Retrieve the private answer for one exact delegated task.',
         usage: '<delegation-id>',
         parseParams: identity,
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'delegate', 'transcript'],
+        method: 'agent.delegation.transcript',
+        summary:
+            'Read what one of your delegated Agent Chats did, a page at a time, without interrupting it.',
+        usage: '<delegation-id> [--after <cursor>]',
+        parseParams: transcriptParameters,
     },
     {
         kind: 'remote',

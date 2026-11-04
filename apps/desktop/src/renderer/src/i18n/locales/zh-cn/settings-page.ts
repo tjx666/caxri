@@ -97,6 +97,9 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.delegationDepth.description': 'Agent 可以连续将部分工作交给另一个 Agent 的次数。',
     'settings.row.delegationDepth.detail':
         '设为 1 时，你启动的 Agent 可以引入一个助手，由它独自完成；设为 2 时，该助手还可以再引入一个。可以引入哪些 Agent 由委派预设决定，在源文件视图中编辑。',
+    'settings.row.delegationReadChildChat.title': '允许 Agent 读取委派的对话',
+    'settings.row.delegationReadChildChat.description':
+        '把任务委派给另一个 Agent 的对话后，委派方可以读取对方目前做了什么，不打断它就能查看进度。',
     'settings.row.agentSecrets.title': '密钥',
     'settings.row.agentSecrets.description':
         'Agent 运行命令时可使用的 API Key 和 Token，值不会出现在对话中。',

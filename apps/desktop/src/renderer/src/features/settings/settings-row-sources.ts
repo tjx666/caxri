@@ -32,7 +32,7 @@ export type SettingRowBinding =
     | { type: 'host-names' }
     | { type: 'claude-windows' }
     | { type: 'agent-secrets' }
-    | { type: 'delegation-depth' }
+    | { type: 'delegation-field'; field: 'maxDepth' | 'readChildChat' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
 
@@ -461,7 +461,7 @@ export const settingRowSources: SettingRowSource[] = [
          * description stays the thing every reader sees.
          */
         detailKey: 'settings.row.delegationDepth.detail',
-        binding: { type: 'delegation-depth' },
+        binding: { type: 'delegation-field', field: 'maxDepth' },
         /**
          * Derived from the one spec that already describes this key, so the words it lists (`model`, `effort`,
          * `caller`) keep finding the row instead of dying with the complex editor this row replaced.
@@ -474,6 +474,22 @@ export const settingRowSources: SettingRowSource[] = [
             'subagent',
             'helper',
             'hand off',
+        ]),
+    },
+    {
+        id: 'agents.delegation.readChildChat',
+        advanced: true,
+        category: 'agents',
+        titleKey: 'settings.row.delegationReadChildChat.title',
+        descriptionKey: 'settings.row.delegationReadChildChat.description',
+        binding: { type: 'delegation-field', field: 'readChildChat' },
+        searchTerms: lower([
+            'delegation transcript',
+            'read child chat',
+            'delegate',
+            'subagent',
+            'conversation',
+            'progress',
         ]),
     },
     specRow('agents.longRunningShellCommands', {

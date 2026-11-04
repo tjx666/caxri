@@ -175,4 +175,20 @@ describe('delegation CLI', () => {
         expect(() => command.parseParams(['--limit', 'all'])).toThrow(/positive integer/u);
         expect(() => command.parseParams(['--session', 'x'])).toThrow(/Unexpected argument/u);
     });
+
+    it('reads a delegated Chat from the start or after a cursor', () => {
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.transcript',
+        )!;
+
+        expect(command.path).toEqual(['agent', 'delegate', 'transcript']);
+        expect(command.parseParams(['task-1'])).toEqual({ delegationId: 'task-1' });
+        expect(command.parseParams(['task-1', '--after', 'cursor'])).toEqual({
+            delegationId: 'task-1',
+            after: 'cursor',
+        });
+        expect(() => command.parseParams([])).toThrow(/one delegation ID/u);
+        expect(() => command.parseParams(['task-1', '--after'])).toThrow(/--after <cursor>/u);
+        expect(() => command.parseParams(['task-1', 'task-2'])).toThrow(/--after <cursor>/u);
+    });
 });

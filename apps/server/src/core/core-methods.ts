@@ -28,6 +28,7 @@ export type CoreHandledMethod = Extract<
     | 'agent.delegation.result'
     | 'agent.delegation.status'
     | 'agent.delegation.stop'
+    | 'agent.delegation.transcript'
     | 'agent.delegation.wait'
     | 'agent.grant'
     | 'agent.grants'

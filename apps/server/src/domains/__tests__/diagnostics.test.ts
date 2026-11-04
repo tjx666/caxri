@@ -82,6 +82,7 @@ describe('diagnostics redaction', () => {
         const settings = structuredClone(defaultAppSettings);
         settings['agents.delegation'] = {
             maxDepth: 3,
+            readChildChat: true,
             presets: [
                 {
                     name: 'reviewer',
@@ -121,6 +122,7 @@ describe('diagnostics redaction', () => {
         const parsed = parseExport(exported);
         expect(parsed['agents.delegation']).toEqual({
             maxDepth: 3,
+            readChildChat: true,
             presets: [
                 {
                     name: 'reviewer',

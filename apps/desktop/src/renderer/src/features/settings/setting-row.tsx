@@ -5,16 +5,8 @@ import type {
     AgentSkillHealth,
     AppSettings,
     ArgvConfigChanges,
-    IntegerSettingSpec,
 } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    DEFAULT_DELEGATION_DEPTH,
-    hasProviderAutonomy,
-    MAX_DELEGATION_DEPTH,
-    MIN_DELEGATION_DEPTH,
-    settingsSpecByKey,
-} from '@caxri/protocol';
+import { agentProviderCatalog, hasProviderAutonomy, settingsSpecByKey } from '@caxri/protocol';
 
 import { FieldDescription } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
@@ -28,6 +20,7 @@ import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { AgentSecretsForm } from './agent-secrets/agent-secrets-form';
 import { ArchivedSessionsEntry } from './archived-sessions-entry';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
+import { DelegationFieldControl } from './delegation-field-control';
 import { EnvironmentMonitorSettingControl } from './environment-monitor-setting-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { HostsSettingsForm, ShowHostNamesSwitch } from './hosts-settings-form';
@@ -81,21 +74,6 @@ export interface SettingRowProperties {
     showAdvancedTag?: boolean;
     handlers: SettingRowHandlers;
 }
-
-/**
- * `agents.delegation` is one complex value, so its depth has no entry in `settingsSpecByKey` to render from. The bounds
- * come from the schema that validates the write, not from numbers retyped here, so the control can never offer a value
- * the write would reject.
- */
-const DELEGATION_DEPTH_SPEC: IntegerSettingSpec = {
-    kind: 'integer',
-    key: 'agents.delegation',
-    title: 'Delegation depth',
-    category: 'agents',
-    min: MIN_DELEGATION_DEPTH,
-    max: MAX_DELEGATION_DEPTH,
-    default: DEFAULT_DELEGATION_DEPTH,
-};
 
 /**
  * Per-option adornments for enum rows whose names alone do not say what you get. The working indicator's dropdown items
@@ -508,21 +486,17 @@ function rowControl(
             return { control: <ClaudeWindowsForm /> };
         case 'agent-secrets':
             return { control: <AgentSecretsForm /> };
-        case 'delegation-depth':
+        case 'delegation-field':
             return {
                 labelFor: controlId,
                 control: (
-                    <IntegerControl
+                    <DelegationFieldControl
                         id={controlId}
                         label={row.accessibleTitle}
-                        spec={DELEGATION_DEPTH_SPEC}
-                        value={settings['agents.delegation'].maxDepth}
-                        onChange={(value) =>
-                            onFieldChange(
-                                'agents.delegation',
-                                { ...settings['agents.delegation'], maxDepth: value },
-                                'maxDepth',
-                            )
+                        field={binding.field}
+                        value={settings['agents.delegation']}
+                        onChange={(value, member) =>
+                            onFieldChange('agents.delegation', value, member)
                         }
                     />
                 ),

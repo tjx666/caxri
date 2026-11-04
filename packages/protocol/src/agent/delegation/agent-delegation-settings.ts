@@ -89,6 +89,11 @@ export const agentDelegationSettingsSchema = z
             .default(DEFAULT_DELEGATION_DEPTH),
         presets: z.array(delegationPresetSchema).max(32).default([]),
         callers: z.partialRecord(delegationProviderSchema, callerSchema).default({}),
+        /**
+         * Whether an Agent may read what the Agent Chats it delegated to did (`agent.delegation.transcript`), so it can
+         * check a delegated task's work without interrupting it. Off answers every read with `disabled`.
+         */
+        readChildChat: z.boolean().default(true),
     })
     .superRefine((settings, context) => {
         const names = new Set(settings.presets.map((preset) => preset.name));
@@ -112,7 +117,7 @@ export const agentDelegationSettingsSchema = z
             }
         }
     })
-    .default({ maxDepth: DEFAULT_DELEGATION_DEPTH, presets: [], callers: {} });
+    .default({ maxDepth: DEFAULT_DELEGATION_DEPTH, presets: [], callers: {}, readChildChat: true });
 
 export const delegationRosterSchema = z.strictObject({
     maxDepth: z.number().int().min(MIN_DELEGATION_DEPTH).max(MAX_DELEGATION_DEPTH),

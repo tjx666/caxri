@@ -111,6 +111,23 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
         await expect(session.locator('[data-agent-chat-delegation-record]')).toContainText(
             `Delegated to ${CHILD_TITLE}`,
         );
+
+        // The task's own conversation reads back as typed rows, ending before the message that took it over.
+        const { delegations } = await pageRequest<{
+            delegations: Array<{ delegationId: string }>;
+        }>(page, 'agent.delegation.list', { active: false, limit: 1 });
+        const transcript = await pageRequest<{
+            status: string;
+            settled: boolean;
+            rows: Array<{ kind: string; text?: string }>;
+        }>(page, 'agent.delegation.transcript', { delegationId: delegations[0].delegationId });
+        expect(transcript).toMatchObject({ status: 'available', settled: true });
+        expect(transcript.rows[0]).toMatchObject({ kind: 'task' });
+        expect(transcript.rows.at(-1)).toMatchObject({
+            kind: 'agentMessage',
+            text: `Reviewed the retry design.\n\nSummary: ${CHILD_SUMMARY}`,
+        });
+        expect(JSON.stringify(transcript.rows)).not.toContain('One more question');
     } finally {
         await chat.cleanup();
     }

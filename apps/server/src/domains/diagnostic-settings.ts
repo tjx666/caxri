@@ -128,6 +128,7 @@ function projectDelegationBinding(binding: DelegationBinding) {
 function projectDelegation(delegation: DelegationSettings) {
     return {
         maxDepth: delegation.maxDepth,
+        readChildChat: delegation.readChildChat,
         presets: delegation.presets.map(
             (preset) =>
                 ({

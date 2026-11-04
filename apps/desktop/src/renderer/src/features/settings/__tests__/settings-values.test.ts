@@ -49,7 +49,7 @@ describe('isRowModified', () => {
      */
     it('tracks the delegation depth without touching hand-written presets', () => {
         const current = settings();
-        const binding = { type: 'delegation-depth' } as const;
+        const binding = { type: 'delegation-field', field: 'maxDepth' } as const;
         current['agents.delegation'] = {
             ...current['agents.delegation'],
             presets: [{ name: 'reviewer', provider: 'codex', useWhen: 'Reviewing a diff' }],
@@ -67,6 +67,21 @@ describe('isRowModified', () => {
                 ...current['agents.delegation'],
                 maxDepth: defaultAppSettings['agents.delegation'].maxDepth,
             },
+        });
+    });
+
+    it('tracks and resets reading delegated Chats apart from the depth', () => {
+        const current = settings();
+        const binding = { type: 'delegation-field', field: 'readChildChat' } as const;
+        current['agents.delegation'] = { ...current['agents.delegation'], maxDepth: 5 };
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        current['agents.delegation'] = { ...current['agents.delegation'], readChildChat: false };
+        expect(isRowModified(binding, { settings: current })).toBe(true);
+        expect(rowResetAction(binding, current)).toEqual({
+            kind: 'field',
+            key: 'agents.delegation',
+            member: 'readChildChat',
+            value: { ...current['agents.delegation'], readChildChat: true },
         });
     });
 

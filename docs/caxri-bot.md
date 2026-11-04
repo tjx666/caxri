@@ -718,6 +718,7 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `agent_delegation.transitioned`               | Every receipt `status`/`failure` change: previous status, the task's age, restart recovery, and `hasFailureResetsAt` for a usage limit.                |
 | `agent_delegation.result_recorded`            | A completed task stored (`stored` with `summarySource`) or dropped (`no_summary`) its Session's one-line result, with the duration since creation.     |
 | `agent_delegation.admission_rejected`         | Why a follow-up or resume was refused, as a closed reason.                                                                                             |
+| `agent_delegation.transcript_read`            | A page of a delegated Chat was read: `outcome`, the closed unavailable `reason`, row count, text length, clipping, `hasMore`, and the duration.        |
 | `caxri_bot.completion_notice_queued`          | A settled task, Inbox or hand-over event, or managed Session state (`sessionState`) was queued for Caxri Bot, with the batch size (debug).             |
 | `caxri_bot.completion_notice_deferred`        | Which gate holds the batch back (`bot_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                                      |
 | `caxri_bot.completion_notice_delivered`       | The coalesced line was written, with its entry count per kind (`sessionCount` for Session states), the oldest entry's wait, and the blocked turns.     |
