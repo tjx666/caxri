@@ -62,6 +62,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.delegated.hideInstruction': '收起原始指令',
     'chat.delegated.openSourceHint': '打开委派此任务的会话。',
     'chat.delegated.showInstruction': '显示原始指令',
+    'chat.delegated.redirect': '新的方向',
+    'chat.delegated.redirectedBy': '新的方向来自',
     'chat.delegated.task': '委派任务',
     'chat.disabled.configure.access': '需要回复权限才能更改模型。',
     'chat.disabled.configure.failed': '请先重试对话，再更改模型。',

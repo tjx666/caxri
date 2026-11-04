@@ -139,6 +139,20 @@ export function isTurnNotSteerable(error: unknown): boolean {
 }
 
 /**
+ * An exact-turn steer (`ChatInputOptions.exactTurnId`) found the turn already over, or replaced by another. Nothing
+ * reached the provider and nothing was queued or started in its place. `details.turnEnded` marks it.
+ */
+export function turnEndedError(): CaxriError {
+    return new CaxriError('CONFLICT', 'The turn this message was meant for is no longer running', {
+        turnEnded: true,
+    });
+}
+
+export function isTurnEnded(error: unknown): boolean {
+    return isCaxriError(error) && error.details?.turnEnded === true;
+}
+
+/**
  * Bounded tail of an Agent Session's transcript. `truncated` is true when older records were cut off.
  */
 export interface AgentChatTranscript {
@@ -289,6 +303,13 @@ export interface ChatProviderNotice {
  */
 export interface ChatInputOptions {
     delivery?: 'queued' | 'steered';
+    /**
+     * With `delivery: 'steered'`, delivers the message only into this exact running turn. A turn that ended, or another
+     * one that began, rejects with {@link turnEndedError}; a turn that takes no steered input rejects with
+     * {@link turnNotSteerableError}. Unlike a plain steer it never starts a turn with the message and the service never
+     * queues it, which is what a delegating Agent's redirect needs: new direction for this turn or nothing.
+     */
+    exactTurnId?: string;
 }
 
 /**

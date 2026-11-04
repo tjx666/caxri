@@ -16,6 +16,11 @@ import type { CaxriDatabase } from '../db';
 export interface DelegationChats extends DispatchChats {
     delegation: NonNullable<DispatchChats['delegation']> & {
         sendToLaunch(terminalId: string, launchId: string, text: string): Promise<void>;
+        steerToLaunch(
+            terminalId: string,
+            launchId: string,
+            steer: { turnId: string; inputEpoch: number | undefined; text: string },
+        ): Promise<void>;
         inputEpoch(terminalId: string): number;
         turnAnswer(terminalId: string, turnId: string): DelegationChatTurn;
         snapshot(

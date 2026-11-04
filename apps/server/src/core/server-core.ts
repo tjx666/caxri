@@ -257,6 +257,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.create':
                 case 'agent.delegation.presets':
                 case 'agent.delegation.stop':
+                case 'agent.delegation.redirect':
                 case 'agent.delegation.status':
                 case 'agent.delegation.result':
                 case 'agent.delegation.transcript':
@@ -545,8 +546,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 idleExitConnections.updateControlCount(clientCount);
             },
             onDesktopAttached: () => {
-                // Starting is idempotent and logs its own failure; the handshake callback cannot await it.
-                void extensionService?.startHost('desktop-attached');
+                void extensionService?.startHost('desktop-attached'); // Idempotent; logs its own failure.
             },
             ...createServerCoreControlCallbacks({
                 agentEndpoints,

@@ -4,7 +4,11 @@ import type {
     AgentProvider,
     AgentUsageLimitWindow,
 } from '@caxri/protocol';
-import { agentProviderCatalog, parseDelegatedTaskPointer } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    parseDelegatedRedirect,
+    parseDelegatedTaskPointer,
+} from '@caxri/protocol';
 
 /**
  * The delegation prompt limit (`agentDelegationCreateRequestSchema`), in UTF-8 bytes, less room for its frozen
@@ -52,6 +56,8 @@ function block(text: string, characters: number): string {
  * what it is instead.
  */
 function userText(item: Extract<AgentChatItem, { type: 'userMessage' }>): string {
+    if (parseDelegatedRedirect(item.text))
+        return `Updated direction: ${item.delegatedTask?.prompt ?? 'a redirect of a delegated task'}`;
     return parseDelegatedTaskPointer(item.text)
         ? (item.delegatedTask?.prompt ?? 'A delegated task')
         : item.text;

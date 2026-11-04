@@ -42,6 +42,7 @@ import { isDelegationOwner, listOwnedDelegations } from './ownership';
 import { ParentPresence } from './parent-presence';
 import { DelegationQuestions } from './questions/service';
 import { stampedReceipt } from './receipt-timing';
+import { DelegationRedirects } from './redirect';
 import { collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
 import {
@@ -54,7 +55,7 @@ import {
 import type { RetryAdmission } from './retry';
 import { assertRetryProvider, DelegationRetries } from './retry';
 import type { AgentDelegationServiceOptions } from './service-options';
-import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
+import { interruptedDelegation, isStartupPromptInput } from './startup';
 import { stopDelegation } from './stop';
 import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
@@ -96,11 +97,18 @@ export class AgentDelegationService {
      */
     readonly approvals: DelegationApprovals;
 
+    /**
+     * Strict redirects of running Chat tasks; handlers call it directly.
+     */
+    readonly redirects: DelegationRedirects;
+
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
         this.capacity = new ExternalCapacity(options.database);
-        this.submissions = new DelegationSubmissions(options, (id, failure) =>
-            this.fail(id, failure),
+        this.submissions = new DelegationSubmissions(
+            options,
+            (id, failure) => this.fail(id, failure),
+            (record) => this.save(record),
         );
         this.retries = new DelegationRetries({
             options,
@@ -124,6 +132,12 @@ export class AgentDelegationService {
         };
         this.questions = new DelegationQuestions(host);
         this.approvals = new DelegationApprovals(host);
+        this.redirects = new DelegationRedirects({
+            ...host,
+            questions: this.questions,
+            approvals: this.approvals,
+            save: (record) => this.save(record),
+        });
         this.collection = {
             reader: options,
             owned: (id, authority) => this.owned(id, authority, 'existing'),
@@ -243,19 +257,6 @@ export class AgentDelegationService {
         };
     }
 
-    /**
-     * Settles a launch that has not started its turn by the deadline; see `startupDeadlineOutcome`.
-     */
-    private armStartupDeadline(id: string, terminalId: string, launchId: string): void {
-        this.submissions.arm(id, () => {
-            const current = this.options.database.agentDelegations.get(id);
-            const isAlive = this.options.currentLaunchId?.(terminalId) === launchId;
-            const outcome = current && startupDeadlineOutcome(current, isAlive);
-            if (outcome === 'startup_not_ready') this.fail(id, outcome);
-            else if (outcome) this.save(outcome);
-        });
-    }
-
     private async createInSession(
         id: string,
         authority: DelegationAuthority,
@@ -359,12 +360,8 @@ export class AgentDelegationService {
             }
             return this.owned(id, authority).receipt;
         });
-        let creations = this.pendingCreations.get(input.sessionId);
-        if (!creations) {
-            creations = new Set();
-            this.pendingCreations.set(input.sessionId, creations);
-        }
-        creations.add(pending);
+        const creations = this.pendingCreations.get(input.sessionId) ?? new Set();
+        this.pendingCreations.set(input.sessionId, creations.add(pending));
         const release = this.capacity.reserve(authority);
         let receipt: AgentDelegationReceipt;
         try {
@@ -491,7 +488,7 @@ export class AgentDelegationService {
             inputEpoch: this.options.inputEpoch?.(terminalId),
             receipt: { ...record.receipt, status: 'awaiting_ready' },
         });
-        this.armStartupDeadline(record.receipt.delegationId, terminalId, launchId);
+        this.submissions.armStartup(record.receipt.delegationId, terminalId, launchId);
         return true;
     }
 
@@ -523,7 +520,7 @@ export class AgentDelegationService {
             const saved = this.save(next);
             // A session that starts past the deadline gets a fresh one, so a turn that never follows still settles.
             if (record.receipt.status === 'blocked' && saved.receipt.status === 'awaiting_ready')
-                this.armStartupDeadline(
+                this.submissions.armStartup(
                     saved.receipt.delegationId,
                     signal.terminalId,
                     saved.launchId!,
@@ -551,17 +548,17 @@ export class AgentDelegationService {
     }
 
     stop(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
-        const host = {
-            options: this.options,
-            save: (record: StoredAgentDelegation) => this.save(record),
-        };
-        return stopDelegation(host, this.owned(id, authority, 'existing'));
+        return stopDelegation(
+            { options: this.options, save: (record) => this.save(record) },
+            this.owned(id, authority, 'existing'),
+        );
     }
 
     initialize(): void {
         this.questions.reset();
         this.approvals.reset();
         this.retries.recoverClaims();
+        this.redirects.recover();
         for (const record of this.options.database.agentDelegations.active()) {
             const { next, shouldCollect } = recoveredDelegation(
                 record,

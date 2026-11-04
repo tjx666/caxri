@@ -32,7 +32,7 @@ import type {
     ChatSideExchange,
     ChatTaskHistory,
 } from '../../chat-provider';
-import { AgentChatStartError } from '../../chat-provider';
+import { AgentChatStartError, turnEndedError } from '../../chat-provider';
 import { isClaudeGoalClearDuringTurn } from '../../goals/claude-goals';
 import { claudeHistoryOperations } from '../../history/claude-history';
 import { didClaudeInterruptTimeout, stopClaudeTurn } from '../../interrupt/claude-interrupt';
@@ -466,6 +466,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
         { text, images = [] }: Omit<AgentChatMessageInput, 'delivery'>,
         options?: ChatInputOptions,
     ): Promise<void> {
+        if (
+            options?.exactTurnId !== undefined &&
+            this.options.read().activeTurnId !== options.exactTurnId
+        )
+            return Promise.reject(turnEndedError());
         this.submit(text, images, options);
         return Promise.resolve();
     }

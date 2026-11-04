@@ -240,8 +240,8 @@ export class ChatStates {
                 send: (event) => this.options.send(event),
                 onChange: () => state.followUps.dispatch(),
                 onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
-                delegatedTask: (delegationId) =>
-                    delegatedTaskDetails(this.options.database, delegationId),
+                delegatedTask: (delegationId, redirect) =>
+                    delegatedTaskDetails(this.options.database, delegationId, redirect),
                 commandDelegations: {
                     owned: (delegationId) => {
                         const record = this.options.database.agentDelegations.get(delegationId);

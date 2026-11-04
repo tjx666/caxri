@@ -67,6 +67,12 @@ const changedPath = z.strictObject({
  */
 const delegationTranscriptRowSchema = z.discriminatedUnion('kind', [
     z.strictObject({ ...rowBase, kind: z.literal('task') }),
+    /**
+     * New direction the delegating Agent steered into this task's running turn (`agent.delegation.redirect`), with the
+     * text it sent. Only a redirect of this task that the Agent has taken in appears; anything else a person or another
+     * task sent still ends the conversation.
+     */
+    z.strictObject({ ...rowBase, kind: z.literal('direction'), text: rowText }),
     z.strictObject({
         ...rowBase,
         kind: z.literal('agentMessage'),

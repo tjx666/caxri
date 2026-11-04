@@ -71,6 +71,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.showLess': '收起',
     'agentChat.delegated.by': '委派自',
     'agentChat.delegated.task': '委派任务',
+    'agentChat.delegated.redirectedBy': '新的方向来自',
+    'agentChat.delegated.redirect': '新的方向',
     'agentChat.delegated.archived': '{{title}}（已归档）',
     'agentChat.delegated.showInstruction': '显示原始指令',
     'agentChat.delegated.hideInstruction': '收起原始指令',

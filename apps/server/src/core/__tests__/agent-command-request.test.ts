@@ -107,6 +107,11 @@ describe('agentCommandRequest for the questions of a delegated Agent', () => {
             'agent.delegation.historyInternal',
             { query: 'retry', outcome: 'completed', limit: 5 },
         ],
+        [
+            'agent.delegation.redirect',
+            'agent.delegation.redirectInternal',
+            { delegationId: 'task-1', operationId: 'op-12345', text: 'Synthetic' },
+        ],
     ] as const)('routes %s to %s with the caller authority', (method, internal, parameters) => {
         expect(
             agentCommandRequest(

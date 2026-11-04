@@ -73,6 +73,7 @@ const shortLivedDurableMethods = new Set<string>([
     'agent.delegation.approve',
     'agent.delegation.questionAnswer',
     'agent.delegation.stop',
+    'agent.delegation.redirect',
     'agent.dispatch.resume',
     'agent.dispatch.start',
     'agent.grant',

@@ -32,7 +32,13 @@ function DelegatedTaskSource({
     const { source } = task;
     const by = (
         <Text style={[styles.sourceText, { color: theme.muted }]}>
-            {t(task.handoff ? 'chat.handoff.continuedFrom' : 'chat.delegated.by')}
+            {t(
+                task.redirect
+                    ? 'chat.delegated.redirectedBy'
+                    : task.handoff
+                      ? 'chat.handoff.continuedFrom'
+                      : 'chat.delegated.by',
+            )}
         </Text>
     );
     if (source?.kind === 'bot')
@@ -47,7 +53,13 @@ function DelegatedTaskSource({
     if (!session)
         return (
             <Text style={[styles.sourceText, { color: theme.text }]}>
-                {t(task.handoff ? 'chat.handoff.fromEarlier' : 'chat.delegated.task')}
+                {t(
+                    task.redirect
+                        ? 'chat.delegated.redirect'
+                        : task.handoff
+                          ? 'chat.handoff.fromEarlier'
+                          : 'chat.delegated.task',
+                )}
             </Text>
         );
     const title = sessionTitleForDisplay(session.title, t);
@@ -74,8 +86,9 @@ function DelegatedTaskSource({
  * A delegated task in place of the user's bubble, as Desktop draws it. Its text is only the pointer to a private task
  * file that the user never typed, so the bubble names who delegated it and shows the task the caller wrote, clamped to
  * six lines with Show more like Desktop's. Only a task whose delegation record is gone falls back to the pointer behind
- * Show instruction. The list owns `isExpanded`, so a recycled row never carries another message's state and grows when
- * it unfolds.
+ * Show instruction. A redirect of a running task (`task.redirect`) reads "Updated direction from" instead of "Delegated
+ * by" and shows the new direction. The list owns `isExpanded`, so a recycled row never carries another message's state
+ * and grows when it unfolds.
  */
 export const AgentChatDelegatedMessage = ({
     body,

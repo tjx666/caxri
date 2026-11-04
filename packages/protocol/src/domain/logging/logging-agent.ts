@@ -214,6 +214,13 @@ export const agentDelegationLogEvents = {
      */
     projectAdded: 'agent_delegation.project_added',
     /**
+     * A redirect of a running task was decided. Fields: `delegationId`, `outcome` (`delivered`, `replayed`, `refused`,
+     * or `unknown`), `reason` (a `DelegationRedirectRefusal` value, or `null` when delivered), `principalKind`
+     * (closed), `textLength` (a count), `redirectCount` (confirmed redirects after this one), and `durationMs`. Never
+     * the text, the operation ID, or a path.
+     */
+    redirected: 'agent_delegation.redirected',
+    /**
      * A settled task's history row was written or refused. Fields: `delegationId`, `outcome`, `failure` (closed),
      * `isInsert`, `compactedCount`, `durationMs`, and `result` (`ok` or `failed` with a closed `reason`: `constraint`,
      * `database`, or `unknown`). A failed write is retried by the task's next save. IDs and enums only.

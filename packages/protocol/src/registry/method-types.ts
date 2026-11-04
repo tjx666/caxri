@@ -137,6 +137,7 @@ export const effectfulCommandRecovery = {
     'agent.delegation.access.create': 'memory',
     'agent.delegation.access.revoke': 'memory',
     'agent.delegation.stop': 'durable',
+    'agent.delegation.redirect': 'durable',
     'agent.dispatch.resume': 'durable',
     'agent.control.interrupt': 'durable',
     'agent.control.stop': 'durable',

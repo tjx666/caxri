@@ -31,6 +31,14 @@ import {
     agentDelegationHistoryInternalMethods,
     agentDelegationHistoryMethods,
 } from './history/contract.js';
+import {
+    hasLaunchSource,
+    isHandoverSelectionFree,
+    isOneContinuation,
+    isPresetExclusive,
+    isSurfaceForNewTask,
+} from './request/create-rules.js';
+import { delegationRedirectParametersSchema } from './request/redirect.js';
 
 export const agentDelegationStatusSchema = z.enum([
     'requested',
@@ -128,6 +136,12 @@ export const agentDelegationReceiptSchema = z.strictObject({
     surface: terminalSurfaceSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
+    /**
+     * How many redirects (`agent.delegation.redirect`) the child's Agent has confirmed taking in, and when the last one
+     * arrived (same unit as `createdAt`). Both appear after the first confirmed redirect and never before delivery.
+     */
+    redirectCount: z.number().int().positive().max(64).optional(),
+    redirectedAt: z.number().int().positive().optional(),
     correlationFailure: z
         .enum([
             'native_session_missing',
@@ -216,41 +230,6 @@ const agentDelegationCreateFields = {
      */
     surface: terminalSurfaceSchema.optional(),
 };
-
-type DelegationCreateShape = Partial<
-    Record<
-        | 'continueFromHandover'
-        | 'effort'
-        | 'followUpOf'
-        | 'model'
-        | 'preset'
-        | 'provider'
-        | 'resumeFrom'
-        | 'surface',
-        unknown
-    >
->;
-
-const isOneContinuation = (value: DelegationCreateShape) =>
-    [value.followUpOf, value.resumeFrom, value.continueFromHandover].filter(Boolean).length <= 1;
-const isPresetExclusive = (value: DelegationCreateShape) =>
-    !value.preset || (!value.provider && !value.model && !value.effort);
-const isSurfaceForNewTask = (value: DelegationCreateShape) =>
-    !value.surface || (!value.followUpOf && !value.resumeFrom && !value.continueFromHandover);
-const hasLaunchSource = (value: DelegationCreateShape) =>
-    Boolean(
-        value.provider ??
-        value.preset ??
-        value.followUpOf ??
-        value.resumeFrom ??
-        value.continueFromHandover,
-    );
-/**
- * A hand-over continues an existing conversation, whose provider and launch are already fixed.
- */
-const isHandoverSelectionFree = (value: DelegationCreateShape) =>
-    !value.continueFromHandover ||
-    (!value.provider && !value.preset && !value.model && !value.effort);
 
 /**
  * A task admitted into one exact Session. This is what the delegation domain stores and authorizes.
@@ -430,6 +409,16 @@ export const agentDelegationMethods = {
         params: identitySchema,
         result: agentDelegationReceiptResultSchema,
     },
+    /**
+     * Steers the child's running turn with new direction, as one message in that same turn. Not human input, so it
+     * never takes the child over; refused, never queued, when the turn cannot take it now. See
+     * `DelegationRedirectRefusal`.
+     */
+    'agent.delegation.redirect': {
+        ...commandPolicy('server', 'control', ['agents.delegate']),
+        params: delegationRedirectParametersSchema,
+        result: agentDelegationReceiptResultSchema,
+    },
     'agent.delegation.create': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
         params: agentDelegationCreateRequestSchema,
@@ -486,6 +475,11 @@ export const agentDelegationInternalMethods = {
     'agent.delegation.stopInternal': {
         ...commandPolicy('server', 'control'),
         params: authoritySchema.extend(identitySchema.shape),
+        result: agentDelegationReceiptResultSchema,
+    },
+    'agent.delegation.redirectInternal': {
+        ...commandPolicy('server', 'control'),
+        params: authoritySchema.extend(delegationRedirectParametersSchema.shape),
         result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.waitInternal': {

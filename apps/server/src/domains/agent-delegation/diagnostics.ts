@@ -56,6 +56,30 @@ export function logDelegationProjectAdded(
 }
 
 /**
+ * Records one redirect decision. Closed values and counts only: never the text, the operation ID, or a path.
+ */
+export function logDelegationRedirect(
+    logger: StructuredLogger | undefined,
+    fields: {
+        delegationId: string;
+        outcome: 'delivered' | 'replayed' | 'refused' | 'unknown';
+        reason: string | null;
+        principalKind: string;
+        textLength: number;
+        redirectCount: number;
+        durationMs: number;
+    },
+): void {
+    logger?.write(
+        fields.outcome === 'delivered' ? 'info' : 'warn',
+        logEventCatalog.agentDelegation.redirected,
+        {
+            fields,
+        },
+    );
+}
+
+/**
  * Records that a completed task changed its Session's stored result: a summary written (with where it came from) or the
  * earlier one removed because this answer had none. Content-free; `durationMs` runs from the task's creation.
  */

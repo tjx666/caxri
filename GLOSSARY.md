@@ -154,6 +154,12 @@ the Session that created it, and the sidebar lists it under that Session. A Hand
 not one, and neither is a Session Caxri Bot dispatches a task to.
 _Avoid_: Child Session, sub-Session, subagent
 
+**Redirect**:
+A Delegated Session's delegator changing the direction of a task that is running now, as one message
+steered into the task's current turn or refused. It is never queued and never starts a turn, and it
+is not the user taking the Chat over.
+_Avoid_: Interrupt, steer (as a noun), mid-task follow-up
+
 **Parent approval**:
 An Agent's one-shot decision (accept or decline) on a permission request of a Session it delegated a
 task to, allowed only when the request falls within the permission that Agent has applied to its own

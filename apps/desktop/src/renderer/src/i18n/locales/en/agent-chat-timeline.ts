@@ -75,6 +75,8 @@ export const agentChatTimeline = {
     'agentChat.message.showLess': 'Show less',
     'agentChat.delegated.by': 'Delegated by',
     'agentChat.delegated.task': 'Delegated task',
+    'agentChat.delegated.redirectedBy': 'Updated direction from',
+    'agentChat.delegated.redirect': 'Updated direction',
     'agentChat.delegated.archived': '{{title}} (archived)',
     'agentChat.delegated.showInstruction': 'Show instruction',
     'agentChat.delegated.hideInstruction': 'Hide instruction',

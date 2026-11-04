@@ -18,6 +18,7 @@ type AgentCommandRequest = Extract<
             | 'agent.delegation.presets'
             | 'agent.delegation.create'
             | 'agent.delegation.stop'
+            | 'agent.delegation.redirect'
             | 'agent.delegation.status'
             | 'agent.delegation.result'
             | 'agent.delegation.transcript'
@@ -132,6 +133,11 @@ export function agentCommandRequest(
     if (request.method === 'agent.delegation.stop')
         return {
             method: 'agent.delegation.stopInternal',
+            params: { ...authority, ...request.params },
+        };
+    if (request.method === 'agent.delegation.redirect')
+        return {
+            method: 'agent.delegation.redirectInternal',
             params: { ...authority, ...request.params },
         };
     if (request.method === 'agent.delegation.list')

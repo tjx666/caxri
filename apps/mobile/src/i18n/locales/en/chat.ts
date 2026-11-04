@@ -62,6 +62,8 @@ export const chat = {
     'chat.delegated.hideInstruction': 'Hide instruction',
     'chat.delegated.openSourceHint': 'Opens the Session that delegated this task.',
     'chat.delegated.showInstruction': 'Show instruction',
+    'chat.delegated.redirect': 'Updated direction',
+    'chat.delegated.redirectedBy': 'Updated direction from',
     'chat.delegated.task': 'Delegated task',
     'chat.disabled.configure.access': 'Reply access is required to change the model.',
     'chat.disabled.configure.failed': 'Retry the Chat before changing the model.',

@@ -273,6 +273,11 @@ Then write the task to a file and run
   outcome. It lists finished work and never marks an answer read; read one with `agent delegate result <id>`. A
   title can echo the first words of the prompt and an `excerpt` summary can hold answer text, so do
   not forward history output to others.
+- Change the direction of a running Chat task with `caxri agent delegate redirect <id> --text <direction> --json`
+  (or `--prompt-file`). It is steered into the task's current turn or refused with a closed `reason`
+  (`waiting`, `human_intervened`, `not_running`, `not_chat`, `turn_changed`, `not_steerable`, ...); it is
+  never queued. On `turn_changed` use `--follow-up`. On `delivery_unknown` read the transcript before
+  sending again; reuse the same `--operation-id` only to repeat the same text safely.
 - The user sees which Session created the new one. Keep what you created tidy:
   `caxri agent session rename <session-id> --title <title> --json` when its subject changes, and
   `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).

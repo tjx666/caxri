@@ -20,6 +20,8 @@ type DelegationMethod =
     | 'agent.delegation.presetsInternal'
     | 'agent.delegation.stop'
     | 'agent.delegation.stopInternal'
+    | 'agent.delegation.redirect'
+    | 'agent.delegation.redirectInternal'
     | 'agent.delegation.sessions'
     | 'agent.delegation.statuses'
     | 'agent.delegation.retryOptions'
@@ -142,6 +144,9 @@ export function createDelegationHandlers(
         'agent.delegation.stop': () => coreRouted('agent.delegation.stop'),
         'agent.delegation.stopInternal': ({ delegationId, ...authority }) =>
             service.stop(delegationId, authority),
+        'agent.delegation.redirect': () => coreRouted('agent.delegation.redirect'),
+        'agent.delegation.redirectInternal': ({ delegationId, operationId, text, ...authority }) =>
+            service.redirects.redirect(authority, { delegationId, operationId, text }),
         'agent.delegation.create': () => coreRouted('agent.delegation.create'),
         'agent.delegation.status': () => coreRouted('agent.delegation.status'),
         'agent.delegation.result': () => coreRouted('agent.delegation.result'),

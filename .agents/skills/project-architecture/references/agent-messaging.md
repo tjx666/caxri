@@ -46,6 +46,11 @@ delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex
 `--surface chat|terminal` (`agent-delegation/chat-child.ts`, resolved once at admission onto `receipt.surface`; see
 `docs/agent-delegation.md`).
 
+`agent.delegation.redirect` is the one Agent-originated input into a running Chat turn. It is exact-turn
+only (`exactTurnId`, no queue, no new-turn fallback), claims its operation ID in the delegation record
+before sending, and is recognized as a redirect (transcript `direction` row, Desktop and Mobile label)
+only through a delivered claim whose digest matches the text; see `docs/agent-delegation.md`.
+
 The Caxri Bot Endpoint is the one fixed exception to grant-only delegation. Domain services begin
 it with `role: 'bot'`, which adds `bot` and `agents.delegate` while its Project scope stays
 Caxri Bot's system Project. Server Core defers the delegation target check for that principal to the

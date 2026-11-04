@@ -19,7 +19,7 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { DelegatedTaskDetails } from './chat-delegated-task';
+import type { DelegatedRedirect, DelegatedTaskDetails } from './chat-delegated-task';
 import { stampDelegatedTasks } from './chat-delegated-task';
 import { isCompactionFailureNotice } from './chat-items';
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
@@ -64,7 +64,7 @@ interface ChatProjectionOptions {
     /**
      * The Session a delegated task came from and the task it asked; see {@link stampDelegatedTasks}.
      */
-    delegatedTask(delegationId: string): DelegatedTaskDetails;
+    delegatedTask(delegationId: string, redirect?: DelegatedRedirect): DelegatedTaskDetails;
     /**
      * The tasks this Chat's Terminal created, for the command items that made them; see
      * {@link CommandDelegationStamper}.
@@ -434,8 +434,8 @@ export class ChatProjection {
         );
         observeGuardStops(timed, isHistoryReplay, this.options.usageLimitWaits);
         const stamped = stampUsageContinuations(
-            stampDelegatedTasks(this.stampTargets(timed), (delegationId) =>
-                this.options.delegatedTask(delegationId),
+            stampDelegatedTasks(this.stampTargets(timed), (delegationId, redirect) =>
+                this.options.delegatedTask(delegationId, redirect),
             ),
             (turnId) => this.options.usageContinuedIn?.(turnId),
             (turnId) => this.options.usageLimitWaits?.stateOf(turnId),

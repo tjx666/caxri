@@ -6,7 +6,9 @@ import {
     agentLaunchSettingsSchema,
     CaxriError,
     delegationProviderSchema,
+    delegationRedirectStateSchema,
     delegationRetryModeSchema,
+    MAX_DELEGATION_REDIRECT_OPERATIONS,
     principalSchema,
 } from '@caxri/protocol';
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -57,6 +59,13 @@ function isRetryScheduleConsistent(record: {
         return false;
     return retryScheduleOutcome === undefined || retriedAs === undefined;
 }
+
+const redirectClaimSchema = z.strictObject({
+    operationId: z.string().min(1).max(64),
+    digest: z.string().regex(/^[\da-f]{64}$/u),
+    state: delegationRedirectStateSchema,
+    at: z.number().int().positive(),
+});
 
 const storedDelegationSchema = z
     .strictObject({
@@ -115,6 +124,13 @@ const storedDelegationSchema = z
          */
         callerLaunchId: z.string().min(1).max(256).optional(),
         hasLostTarget: z.boolean().optional(),
+        /**
+         * The redirects (`agent.delegation.redirect`) this task has been asked to deliver, one claim per operation ID.
+         * A claim is written before the message is sent and settled after, so a repeated request is answered from it
+         * and a message whose delivery is in doubt (`pending` or `unknown`) is never sent a second time. Holds a digest
+         * of the text, never the text. At most `MAX_DELEGATION_REDIRECT_OPERATIONS`; never evicted.
+         */
+        redirects: z.array(redirectClaimSchema).max(MAX_DELEGATION_REDIRECT_OPERATIONS).optional(),
         continuationPromptDigests: z
             .array(z.string().regex(/^[\da-f]{64}$/u))
             .max(64)

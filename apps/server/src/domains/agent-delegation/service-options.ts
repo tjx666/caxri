@@ -112,6 +112,17 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         onDelivered?: (wasAccepted: boolean) => void,
     ): boolean;
     /**
+     * Steers one exact running turn of a Chat child with a redirect message, strictly: it rejects, never queues and
+     * never starts a turn, when the launch, the input epoch, or the turn is not the one given. A rejection whose
+     * `details.steerRefusal` names a reason means nothing reached the Agent; any other rejection leaves the delivery in
+     * doubt. Absent when there is no Chat service, so no task can be redirected.
+     */
+    steer?(
+        terminalId: string,
+        launchId: string,
+        steer: { turnId: string; inputEpoch: number | undefined; text: string },
+    ): Promise<void>;
+    /**
      * Called after a task is created or its `status` or `failure` changes. Many of those transitions come from this
      * service alone (a startup deadline, an asynchronous result collection, a rejected follow-up) with no Session or
      * Terminal record change beside them, yet Caxri Bot's board shows both fields. Saves that only advance internal

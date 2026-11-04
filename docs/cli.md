@@ -155,6 +155,10 @@ the caller's earlier settled tasks by Session title or summary, newest first, a 
 Agent sees only its own, the owner sees all, and it never marks an answer read. See
 [delegation history](agent-delegation.md#delegation-history-and-cost).
 
+`agent delegate redirect <delegation-id> (--text <text> | --prompt-file <path>) [--operation-id <id>]`
+steers the caller's own running Chat task in its current turn, or is refused with a closed reason; it is
+never queued and never starts a turn. See [redirect](agent-delegation.md#redirect-a-running-task).
+
 `agent delegate ask|ask-wait|ask-cancel` lets a delegated Agent put one question to the Agent that
 delegated it, and `agent delegate questions|answer` plus `wait --ignore-questions` are the
 delegating Agent's side. `ask-wait --timeout` accepts up to 300000 milliseconds; question and

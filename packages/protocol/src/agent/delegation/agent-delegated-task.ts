@@ -31,6 +31,11 @@ export const agentChatDelegatedTaskSchema = z.strictObject({
      * `agentDelegationCreateRequestSchema`'s `handoff`.
      */
     handoff: z.literal(true).optional(),
+    /**
+     * The message is a redirect of a running task (`agent.delegation.redirect`), not the task itself. `prompt` then
+     * holds the new direction; the message steered the task's own turn and is no takeover.
+     */
+    redirect: z.literal(true).optional(),
 });
 
 export type AgentChatDelegatedTask = z.infer<typeof agentChatDelegatedTaskSchema>;
@@ -42,6 +47,31 @@ export type AgentChatDelegatedTaskSource = z.infer<typeof agentChatDelegatedTask
  */
 export function delegatedTaskPointer(taskPath: string, delegationId: string): string {
     return `Read the delegated task from ${JSON.stringify(taskPath)} and carry it out. Delegation ID: ${delegationId}.`;
+}
+
+const REDIRECT =
+    /^Updated direction from the Agent that delegated this task \(Delegation ID: ([\w-]+), Operation ID: ([\w-]+)\):\n\n([\s\S]+)$/u;
+
+/**
+ * The message that steers a running delegated task: the new direction inline, tagged with the task and the redirect
+ * operation so the Chat and the transcript can tell it from anything a person typed.
+ */
+export function delegatedRedirectMessage(
+    delegationId: string,
+    operationId: string,
+    text: string,
+): string {
+    return `Updated direction from the Agent that delegated this task (Delegation ID: ${delegationId}, Operation ID: ${operationId}):\n\n${text}`;
+}
+
+/**
+ * Reads a message back as a {@link delegatedRedirectMessage}; `undefined` for anything else, including a task pointer.
+ */
+export function parseDelegatedRedirect(
+    text: string,
+): { delegationId: string; operationId: string; text: string } | undefined {
+    const match = REDIRECT.exec(text.trim());
+    return match ? { delegationId: match[1], operationId: match[2], text: match[3] } : undefined;
 }
 
 /**

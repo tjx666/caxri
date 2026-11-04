@@ -33,7 +33,13 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
     const { source } = task;
     const by = (
         <span className="flex-none text-muted">
-            {t(task.handoff ? 'agentChat.handoff.continuedFrom' : 'agentChat.delegated.by')}
+            {t(
+                task.redirect
+                    ? 'agentChat.delegated.redirectedBy'
+                    : task.handoff
+                      ? 'agentChat.handoff.continuedFrom'
+                      : 'agentChat.delegated.by',
+            )}
         </span>
     );
     if (source?.kind === 'bot')
@@ -78,7 +84,13 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
         );
     return (
         <span>
-            {t(task.handoff ? 'agentChat.handoff.fromEarlier' : 'agentChat.delegated.task')}
+            {t(
+                task.redirect
+                    ? 'agentChat.delegated.redirect'
+                    : task.handoff
+                      ? 'agentChat.handoff.fromEarlier'
+                      : 'agentChat.delegated.task',
+            )}
         </span>
     );
 }
@@ -157,7 +169,9 @@ function DelegatedTaskPointer({ text }: { text: string }) {
  * never typed and cannot act on, so the bubble names who delegated it (a link to that Session, Caxri Bot, or an
  * archived Session's title) and shows the task the caller wrote, from the delegation record. Only a task whose record
  * is gone falls back to the pointer behind Show instruction. Copy and the message's other actions still take the
- * pointer text. A hand-off wears the `/new-session` card's glyph, so its two ends read as one move.
+ * pointer text. A hand-off wears the `/new-session` card's glyph, so its two ends read as one move. A redirect
+ * (`task.redirect`) of a running task reads "Updated direction from" the same way and shows the new direction in place
+ * of the task; it steered the task's own turn and is no takeover.
  */
 export function AgentChatDelegatedTaskBubble({
     task,

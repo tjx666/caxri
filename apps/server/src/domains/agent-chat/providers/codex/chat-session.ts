@@ -33,6 +33,7 @@ import type {
     ChatSideExchange,
     ChatTaskHistory,
 } from '../../chat-provider';
+import { turnEndedError } from '../../chat-provider';
 import { chatTextDigest } from '../../chat-turn-answer';
 import { codexTurnFailure, CodexUsageLimits } from '../../continuation/codex-usage-limit';
 import { applyCodexNotice } from '../../feedback/codex-feedback';
@@ -404,6 +405,8 @@ class CodexChatSession implements AgentChatProviderSession {
         const input = codexUserInput(message);
         this.thumbnails.remember(clientUserMessageId, message);
         const { activeTurnId } = this.options.read();
+        if (options.exactTurnId !== undefined && activeTurnId !== options.exactTurnId)
+            throw turnEndedError();
         if (activeTurnId && options.delivery === 'steered') {
             const isSteered = await didSteerCodexTurn({
                 connection,
@@ -414,6 +417,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 clientUserMessageId,
             });
             if (isSteered) return;
+            if (options.exactTurnId !== undefined) throw turnEndedError();
             clientUserMessageId = codexClientMessageId();
             this.thumbnails.remember(clientUserMessageId, message);
         }

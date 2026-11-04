@@ -231,6 +231,9 @@ export function createAgentCommandRuntime(
                 }
             );
         },
+        steer: (terminalId, launchId, steer) =>
+            chatOf(terminalId)?.delegation.steerToLaunch(terminalId, launchId, steer) ??
+            Promise.reject(new CaxriError('CONFLICT', 'The task is not a Chat child')),
         write: (terminalId, launchId, data, onDelivered) => {
             const chats = chatOf(terminalId);
             if (chats)

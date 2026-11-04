@@ -1,6 +1,8 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
 
+import type { StoredAgentDelegation } from '../db';
 import type { AgentDelegationServiceOptions } from './service-options';
+import { startupDeadlineOutcome } from './startup';
 
 /**
  * The per-task deadlines a delegation arms while it waits for its Agent: a submitted pointer that has not started a
@@ -12,14 +14,11 @@ export class DelegationSubmissions {
     constructor(
         private readonly options: Pick<
             AgentDelegationServiceOptions,
-            'database' | 'submissionTimeoutMs' | 'write'
+            'currentLaunchId' | 'database' | 'submissionTimeoutMs' | 'write'
         >,
         private readonly fail: (id: string, failure: AgentDelegationReceipt['failure']) => void,
+        private readonly save: (record: StoredAgentDelegation) => void,
     ) {}
-
-    private isSubmitting(id: string): boolean {
-        return this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting';
-    }
 
     /**
      * Applies the Terminal Host's real answer for a pointer that was admitted before it was delivered.
@@ -33,6 +32,10 @@ export class DelegationSubmissions {
         if (wasDelivered || !this.isSubmitting(id)) return;
         this.clear(id);
         this.fail(id, 'target_changed');
+    }
+
+    private isSubmitting(id: string): boolean {
+        return this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting';
     }
 
     /**
@@ -49,6 +52,19 @@ export class DelegationSubmissions {
                 if (this.isSubmitting(id)) this.fail(id, 'submission_unconfirmed');
             });
         return true;
+    }
+
+    /**
+     * Settles a launch that has not started its turn by the deadline; see `startupDeadlineOutcome`.
+     */
+    armStartup(id: string, terminalId: string, launchId: string): void {
+        this.arm(id, () => {
+            const current = this.options.database.agentDelegations.get(id);
+            const isAlive = this.options.currentLaunchId?.(terminalId) === launchId;
+            const outcome = current && startupDeadlineOutcome(current, isAlive);
+            if (outcome === 'startup_not_ready') this.fail(id, outcome);
+            else if (outcome) this.save(outcome);
+        });
     }
 
     arm(id: string, onExpired: () => void): void {

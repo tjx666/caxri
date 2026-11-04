@@ -69,6 +69,7 @@ export * from './delegation/delegation-access-contract.js';
 export * from './delegation/history/contract.js';
 export * from './delegation/import/agent-delegation-import.js';
 export * from './delegation/import/agent-delegation-import-issues.js';
+export * from './delegation/request/redirect.js';
 export * from './images/agent-chat-image-contract.js';
 export * from './path-targets/agent-chat-path-targets.js';
 export * from './prompt/agent-prompt-text.js';
