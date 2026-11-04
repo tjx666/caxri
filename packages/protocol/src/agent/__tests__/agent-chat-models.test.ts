@@ -87,6 +87,22 @@ describe('resolveAgentChatModelChange', () => {
         });
     });
 
+    it('switches the effort the menu offers before the provider names its model', () => {
+        // Claude Code names its model only with the first turn; the menu offers the `default` alias's efforts.
+        const DEFAULT: AgentChatModel = {
+            id: 'default',
+            displayName: 'Default',
+            efforts: ['low', 'medium', 'high'],
+        };
+        const fresh = { model: undefined, effort: 'medium', models: [DEFAULT, MINI] };
+        expect(resolveAgentChatModelChange(fresh, { effort: 'high' })).toEqual({
+            effort: 'high',
+        });
+        expect(() => resolveAgentChatModelChange(fresh, { effort: 'max' })).toThrow(
+            expect.objectContaining({ code: 'VALIDATION' }),
+        );
+    });
+
     it('rejects a model or effort the provider never offered', () => {
         expect(() => resolveAgentChatModelChange(snapshot, { model: 'gone' })).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }),
