@@ -3,6 +3,7 @@ import type {
     AgentChatWorkItem,
     AgentDelegationStatusEntry,
 } from '@caxri/protocol';
+import { isDelegationRetryPending } from '@caxri/protocol';
 import { Forward, RotateCcw } from 'lucide-react';
 
 import { Tooltip } from '@/components/ui/tooltip';
@@ -16,7 +17,6 @@ import {
     delegationCopyInput,
     isDelegationCopyClockDependent,
 } from '../../delegation/delegation-copy';
-import { isDelegationRetryPending } from '../../delegation/delegation-feed';
 import { useDelegationStatuses } from '../../delegation/hooks/use-delegation-statuses';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';

@@ -6,7 +6,7 @@ import { keepPreviousData, useQueries } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
 import { caxriQueryKey } from '../../../queries/client';
-import { approvalPendingSessionIds, failedDelegationSessionIds } from '../delegation-feed';
+import { failedDelegationSessionIds, userPendingSessionIds } from '../delegation-feed';
 
 /**
  * The feed has no poll: `subscribeRuntimeQueryInvalidation` refreshes it when a delegated Session's state changes (see
@@ -34,8 +34,9 @@ function combineDelegationFeeds(
 
 export interface DelegationFeed {
     /**
-     * The nested Chat Sessions whose permission request waits on the user (it was not covered, or its grace ended).
-     * Feeds `sessionStatus`'s `approvalPending` option, which keeps the amber cue until the request is decided.
+     * The nested Sessions whose permission request or question waits on the user (it was not covered, or its grace
+     * ended): an escalated question keeps the cue too (`isDelegationUserPending`). Feeds `sessionStatus`'s
+     * `approvalPending` option, which keeps the amber cue until the request is decided or the question answered.
      */
     approvalSessionIds: ReadonlySet<string>;
     /**
@@ -90,7 +91,7 @@ export function useDelegationFeed(
     });
     return useMemo(
         () => ({
-            approvalSessionIds: new Set(approvalPendingSessionIds(entries)),
+            approvalSessionIds: new Set(userPendingSessionIds(entries)),
             entries,
             entriesBySessionId: new Map(entries.map((entry) => [entry.sessionId, entry])),
             failedSessionIds: new Set(failedDelegationSessionIds(entries)),

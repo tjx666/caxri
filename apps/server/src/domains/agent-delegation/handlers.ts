@@ -7,7 +7,7 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { ApprovalMethod } from './approvals/handlers';
 import { createApprovalHandlers } from './approvals/handlers';
-import { delegationStatuses } from './feed';
+import { delegationAttention, delegationStatuses } from './feed';
 import { readHistory } from './history';
 import type { QuestionMethod } from './questions/handlers';
 import { createQuestionHandlers } from './questions/handlers';
@@ -24,6 +24,7 @@ type DelegationMethod =
     | 'agent.delegation.redirectInternal'
     | 'agent.delegation.sessions'
     | 'agent.delegation.statuses'
+    | 'agent.delegation.attention'
     | 'agent.delegation.retryOptions'
     | 'agent.delegation.retry'
     | 'agent.delegation.cancelScheduledRetry'
@@ -118,6 +119,12 @@ export function createDelegationHandlers(
         'agent.delegation.sessions': ({ createdBySessionIds }) => ({
             sessions: service.sessions(createdBySessionIds),
         }),
+        /**
+         * Owner-only and never `claimed`: the tree-wide roll-up of what needs the user below the direct children; see
+         * `delegationAttention`.
+         */
+        'agent.delegation.attention': ({ sessionId }) =>
+            delegationAttention({ database, approvals: service.approvals }, sessionId),
         /**
          * Owner-only and never `claimed`, like the feed: it reads states, not answers.
          */

@@ -5,14 +5,13 @@ import { join } from 'node:path';
 import type { SessionRelation } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { CaxriDatabase } from '../../db';
 import {
-    delegatedCost,
     delegatedDescendants,
     MAX_ROLLUP_DEPTH,
     MAX_ROLLUP_DESCENDANTS,
-    sessionCostWithDelegated,
-} from '../delegated-cost';
+} from '../../agent-delegation/tree';
+import { CaxriDatabase } from '../../db';
+import { delegatedCost, sessionCostWithDelegated } from '../delegated-cost';
 import type { ModelPrice } from '../pricing';
 import type { UsageRecord } from '../record';
 

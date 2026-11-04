@@ -1,3 +1,4 @@
+export { delegationAttention } from './attention';
 export type { DelegationChatSnapshot } from './chat-snapshot';
 export { delegationChatStep, delegationUsageLimitResetsAt } from './chat-snapshot';
 export { DelegationProgress } from './progress';

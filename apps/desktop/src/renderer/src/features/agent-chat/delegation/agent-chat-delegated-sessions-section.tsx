@@ -35,11 +35,12 @@ function DelegatedPullRequestPoll() {
  */
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
-    const { attempts, chainSessionIds, entries, sessionId } = useDelegatedSessions(terminalId);
-    const cost = useDelegatedCost(sessionId, entries.length > 0);
+    const { attempts, chainSessionIds, entries, isPartial, sessionId, total, viaBySessionId } =
+        useDelegatedSessions(terminalId);
+    const cost = useDelegatedCost(sessionId, total > 0);
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
     if (entries.length === 0) return null;
-    const summary = delegatedSessionsSummary(entries);
+    const summary = delegatedSessionsSummary(entries, total);
     const { asking, count, failed, needsInput, waiting } = delegatedSessionsHeaderParts(summary, t);
     const attention = [needsInput, failed, waiting].filter((part) => part !== undefined);
     const hasCompleted = entries.some((entry) => entry.status === 'completed');
@@ -68,6 +69,7 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                         {failed && <span className="text-danger">{` · ${failed}`}</span>}
                         {waiting && <span>{` · ${waiting}`}</span>}
                         {asking && <span>{` · ${asking}`}</span>}
+                        {isPartial && <span>{` · ${t('delegation.strip.more')}`}</span>}
                         {headerCost && cost && sessionId && (
                             <>
                                 {' · '}
@@ -103,6 +105,7 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                             )}
                             entry={entry}
                             key={entry.sessionId}
+                            viaSessionId={viaBySessionId.get(entry.sessionId)}
                         />
                     ))}
                 </ul>

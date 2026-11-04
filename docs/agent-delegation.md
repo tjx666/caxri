@@ -314,8 +314,10 @@ a pending question does not make the task blocked:
   when the delegating Agent's original launch is gone: the launch that created the delegation
   retired for good (including an idle suspension, because a resumed parent is a new generation
   without authority) or its Terminal was deleted. A launch that is only starting, suspending, or
-  has no launch ID yet does not count. Escalation is an inline mark in the Session view only; it
-  raises no notification, attention state, or sidebar change, and it never answers or cancels. The
+  has no launch ID yet does not count. Escalation is an inline mark in the Session view, plus the
+  static amber sidebar glyph of a [pending approval](#sidebar-rows) (it clears when the question is answered or
+  cancelled, and shows for an external parent's immediate escalation too); it raises no
+  notification or attention state, and it never answers or cancels. The
   user answers with the owner-only `agent.delegation.questionAnswer`, which an Agent credential,
   the Bot, Benchmark windows, and Mobile cannot call; `agent.delegation.questionDetail` is the
   owner-only read of the open question's text. The answer then reaches the asker as
@@ -1120,6 +1122,24 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   the feed cannot make a caller's answer evictable before the caller reads it. An Agent Endpoint
   principal is refused even though it can read its own delegations: other Sessions' results are not
   its to read. Caxri Bot and Benchmark windows deny it.
+- **`agent.delegation.attention`.** An owner-only, non-claiming read for the parent strip:
+  `{ sessionId }` returns `{ items, isPartial }`. It walks the `delegated` and `consult` edges below
+  the Session (the walk `usage.delegationSummary` uses: depth 8, 1000 Sessions; a `handoff` Session is
+  the user's own continuation and is neither walked nor listed), keeps depth two and deeper (direct
+  children are the feed's rows), and picks each Session's representative task the way the feed does.
+  The order of the steps is the contract: it folds retry chains first (`collapseRetryChains`; a failure
+  with a started retry, a scheduled retry, or a pruned successor is not a to-do), then keeps the entries
+  with a `delegationAttentionKind` (`approval`, `question`, `input`, or a real `failed`), then drops
+  deleted and archived Sessions, ranks by kind and recency, and cuts to 64. `isPartial` is true when the
+  walk hit a bound or the cut dropped an item, so a header never claims a complete count. An item is
+  the feed entry without `step` and `result`, plus `branchSessionId` (the direct child it sits under);
+  it carries IDs and closed values only. The held-for-the-delegating-Agent requests
+  (`waitingOn: parent`) are not attention. The predicates are shared with the Renderer
+  (`delegation/attention/predicates.ts` in the protocol), so the Server and the strip cannot disagree about
+  what counts. Caxri Bot and Benchmark windows deny it, an Agent Endpoint principal is refused, and
+  mobile role methods do not list it. The Renderer refreshes it on any delegated or unknown Session
+  push and on approval and question changes, coalesced like the feed. No CLI aggregates the tree:
+  `wait` covers only the caller's own tasks.
 - **`agent.delegation.statuses`.** An owner-only, non-claiming read like the feed:
   `{ delegationIds }` (1 to 64 IDs) returns `{ statuses }`, one `{ delegationId, sessionId,
 provider, status, failure?, failureResetsAt?, retryOf?, retriedAs?, retryScheduledFor?, retryScheduleOutcome?, settledAt? }` per task the Server still has. It
@@ -1168,10 +1188,12 @@ that decide which Sessions take which place.
   `retriedAs` is not failed either: the retry stands for it, and a pending scheduled retry reads
   as waiting. An interrupted,
   human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
-- **Pending approval.** A nested Chat Session whose request waits on the user (the feed entry
-  carries an `approval` and `waitingOn: user`) keeps a static amber waiting glyph after the user
-  has read the Session, because reading does not decide the request. The glyph does not animate,
-  and clears when the request leaves the feed (decided, withdrawn, or the task ended). It is gated
+- **Pending approval or question.** A nested Session whose request or question waits on the user
+  (the feed entry carries an `approval` or a `question`, and `waitingOn: user`) keeps a static
+  amber waiting glyph after the user has read the Session, because reading does not decide it. An
+  escalated question qualifies (`isDelegationUserPending`), including the immediate escalation of
+  an external parent's question; it still raises no notification. The glyph does not animate,
+  and clears when the request or question leaves the feed (decided, answered, withdrawn, or the task ended). It is gated
   on the feed entry, never on the Session record's activity state alone: a Terminal (PTY) Session
   with a stale `waiting` state still clears once read. A request still held for the delegating
   Agent shows the muted asking glyph and no amber
@@ -1191,7 +1213,13 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
 - **Parent strip.** The Chat of the Session that delegated has a collapsible Delegated Sessions
   section in the composer strip, one row per Session it created (`delegation/` in the Agent Chat
   feature). Its data is the `agent.delegation.sessions` feed for that one Session ID, so a progress
-  or state push refreshes the rows without re-rendering the transcript. The section mounts only
+  or state push refreshes the rows without re-rendering the transcript. The strip also lists the deeper Sessions that need the user
+  (`agent.delegation.attention`: an approval, an escalated question, a blocked prompt, or a real
+  failure at depth two and deeper), sorted with the direct rows, each with a muted `via <direct
+child title>` part. The header counts them in its needs-input and failed parts but keeps
+  `delegated` as the direct-child count; when the Server could not read or list every deeper item
+  it appends `and more`. Nothing was added to act on them: the rows are the existing rows (click
+  opens the Session), with no "next item" action, and a handoff subtree is not rolled up. The section mounts only
   while the Chat is shown, so a hidden Chat does not subscribe. A hidden kept-alive Chat also
   reads no record statuses, ticks no record clock, and follows no change of its origin row's
   takeover time (`DelegationLiveContext`); showing it reads the cached values again. A completed row also shows the

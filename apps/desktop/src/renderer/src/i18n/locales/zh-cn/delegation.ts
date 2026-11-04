@@ -47,6 +47,8 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.strip.needsInputOther': '{{count}} 个需要处理',
     'delegation.strip.failed': '{{count}} 个失败',
     'delegation.strip.unavailable': '会话不可用',
+    'delegation.strip.via': '经由 {{title}}',
+    'delegation.strip.more': '还有更多',
     'delegation.strip.excerpt': '节选',
     'delegation.strip.prFilesOne': '拉取请求共 {{count}} 个文件',
     'delegation.strip.prFilesOther': '拉取请求共 {{count}} 个文件',

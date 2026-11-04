@@ -143,6 +143,60 @@ const agentDelegationSessionSchema = z.strictObject({
 export type AgentDelegationSession = z.infer<typeof agentDelegationSessionSchema>;
 
 /**
+ * Most items one `agent.delegation.attention` read returns. The roll-up lists what needs the user, so a longer list is
+ * cut after ranking and `isPartial` says so.
+ */
+export const MAX_DELEGATION_ATTENTION_ITEMS = 64;
+
+/**
+ * One Session below the root's direct children that needs the user (see `delegationAttentionKind`): the feed entry
+ * without `step` and `result`, which a row that needs the user does not draw, plus the direct child of the root whose
+ * subtree it sits in. Ids and closed values only; it carries no text.
+ */
+export type AgentDelegationAttentionItem = Omit<AgentDelegationSession, 'result' | 'step'> & {
+    branchSessionId: string;
+};
+
+/**
+ * The reply of `agent.delegation.attention`. `isPartial` is true when the walk below the root stopped at its depth or
+ * size bound, or when more than {@link MAX_DELEGATION_ATTENTION_ITEMS} items needed the user, so the list may omit
+ * some.
+ */
+export interface AgentDelegationAttentionReply {
+    items: AgentDelegationAttentionItem[];
+    isPartial: boolean;
+}
+
+/**
+ * Annotated rather than inferred: the method registry's inferred type is at the compiler's serialization limit.
+ */
+const agentDelegationAttentionItemSchema: z.ZodType<AgentDelegationAttentionItem> =
+    agentDelegationSessionSchema
+        .omit({ result: true, step: true })
+        .extend({ branchSessionId: identifierSchema });
+
+/**
+ * `agent.delegation.attention` as a named type; annotated for the same reason as {@link CancelScheduledRetrySpec}.
+ *
+ * @public
+ */
+export interface DelegationAttentionSpec extends ReturnType<
+    typeof ownerOnlyCommandPolicy<'server', 'read'>
+> {
+    params: z.ZodType<{ sessionId: string }>;
+    result: z.ZodType<AgentDelegationAttentionReply>;
+}
+
+const delegationAttention: DelegationAttentionSpec = {
+    ...ownerOnlyCommandPolicy('server', 'read'),
+    params: z.strictObject({ sessionId: identifierSchema }),
+    result: z.strictObject({
+        items: z.array(agentDelegationAttentionItemSchema).max(MAX_DELEGATION_ATTENTION_ITEMS),
+        isPartial: z.boolean(),
+    }),
+};
+
+/**
  * Payload of the transient `agent.delegation.progress` event: the step an active Chat Session is on, or none once it is
  * between steps. It carries no task text, only the short label; it is never logged.
  */
@@ -314,6 +368,14 @@ export const agentDelegationSessionsMethods = {
             sessions: z.array(agentDelegationSessionSchema).max(MAX_DELEGATION_SESSIONS),
         }),
     },
+    /**
+     * What needs the user in the delegation tree below a Session's direct children, for the parent strip: the Sessions
+     * at depth two and deeper whose newest task waits on the user (an approval, an escalated question, or a blocked
+     * prompt) or really failed, with retried failures folded away on the Server before anything is ranked or cut.
+     * Direct children are the Delegated Sessions feed's job and never repeat here. Follows `delegated` and `consult`
+     * edges only, so a hand-off Session is not rolled up. Owner-only and non-claiming like the feed.
+     */
+    'agent.delegation.attention': delegationAttention,
     /**
      * The state of each named task, by task ID, for the records a Chat timeline draws where its Agent delegated work.
      * Unlike `agent.delegation.sessions`, which reports the newest task of a Session, this names the exact task, so a

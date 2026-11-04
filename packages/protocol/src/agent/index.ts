@@ -65,6 +65,7 @@ export * from './delegation/agent-delegation-sessions.js';
 export * from './delegation/agent-delegation-settings.js';
 export * from './delegation/agent-delegation-transcript.js';
 export * from './delegation/agent-delegation-usage.js';
+export * from './delegation/attention/predicates.js';
 export * from './delegation/delegation-access-contract.js';
 export * from './delegation/history/contract.js';
 export * from './delegation/import/agent-delegation-import.js';

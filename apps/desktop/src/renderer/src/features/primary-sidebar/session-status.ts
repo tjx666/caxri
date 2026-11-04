@@ -30,8 +30,9 @@ export type SessionStatus =
     | (VisibleSessionStatus & {
           kind: 'attention';
           /**
-           * True for the static amber cue of a permission request the user must decide (`approvalPending`): it does not
-           * animate and is not cleared by reading the Session, only by the request leaving the feed.
+           * True for the static amber cue of a permission request or an escalated question the user must decide
+           * (`approvalPending`): it does not animate and is not cleared by reading the Session, only by the request
+           * leaving the feed.
            */
           isPending?: boolean;
           variant: SessionAttentionVariant;
@@ -65,12 +66,12 @@ type SessionStatusSource = Pick<
  *
  * The amber attention slot means an event the user has not opened yet: the animated unread state, which clears once the
  * Session is read. There is exactly one quieter "still waiting" cue, and it is gated: `approvalPending`, passed only
- * for a nested Chat Session whose delegation feed entry carries a permission request that waits on the user. It stays
- * static amber after the Session is read, because reading does not decide the request, and clears when the request
- * leaves the feed (decided, withdrawn, or the task ended). It is never keyed off `agentActivityState` alone: that state
- * is not Chat-specific, and a Terminal (PTY) Session with a stale `waiting` would keep an amber cue no amount of
- * reading could clear, which is why the ungated static variant was removed. A Terminal child never has a feed
- * approval.
+ * for a nested Session whose delegation feed entry carries a permission request or an escalated question that waits on
+ * the user (`isDelegationUserPending`). It stays static amber after the Session is read, because reading does not
+ * decide the request, and clears when the request or question leaves the feed (decided, answered, withdrawn, or the
+ * task ended). It raises no notification. It is never keyed off `agentActivityState` alone: that state is not
+ * Chat-specific, and a Terminal (PTY) Session with a stale `waiting` would keep an amber cue no amount of reading could
+ * clear, which is why the ungated static variant was removed. A Terminal child never has a feed approval.
  *
  * `delegationFailed` is the one signal a Session record cannot carry: the delegation that runs in a nested Session
  * ended in `failed` (see `useDelegationFeed`). It only ever changes how a nested row reads, so the caller passes it for
@@ -143,8 +144,8 @@ export function sessionStatus(
     }
 
     /**
-     * A permission request only the user can decide keeps its amber cue after the Session is read. It outranks the
-     * running and detached glyphs, like unread attention does: the Agent is blocked on it.
+     * A permission request or an escalated question only the user can answer keeps its amber cue after the Session is
+     * read. It outranks the running and detached glyphs, like unread attention does: the Agent is blocked on it.
      */
     if (approvalPending) {
         const waiting = sessionActivityPresentation('waiting', undefined, t);

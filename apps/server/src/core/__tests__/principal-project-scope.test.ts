@@ -17,6 +17,7 @@ describe('assertOwnerOnlyMethod', () => {
             // The Delegated Sessions feed reads other Sessions' results; an Agent grant must not.
             'agent.delegation.sessions',
             'agent.delegation.statuses',
+            'agent.delegation.attention',
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
             'agent.delegation.cancelScheduledRetry',

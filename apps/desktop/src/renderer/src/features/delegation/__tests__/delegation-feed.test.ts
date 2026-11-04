@@ -1,22 +1,25 @@
-import { agentDelegationFailureSchema, MAX_DELEGATION_CREATORS } from '@caxri/protocol';
+import {
+    agentDelegationFailureSchema,
+    collapseRetryChains,
+    isDelegationFailed,
+    isDelegationNeedsInput,
+    isDelegationRetryPending,
+    MAX_DELEGATION_CREATORS,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
 import { delegationCopy } from '../delegation-copy';
 import {
-    approvalPendingSessionIds,
-    collapseRetryChains,
     delegationAttemptNumbers,
     delegationAttentionCounts,
     delegationElapsedMs,
     delegationFeedCreatorIdChunks,
     failedDelegationSessionIds,
-    isDelegationApprovalPending,
     isDelegationAsking,
-    isDelegationFailed,
-    isDelegationNeedsInput,
-    isDelegationRetryPending,
+    isDelegationUserPending,
     isRetryCandidate,
+    userPendingSessionIds,
 } from '../delegation-feed';
 
 describe('delegationFeedCreatorIdChunks', () => {
@@ -189,16 +192,23 @@ describe('delegation permission requests', () => {
         ).toMatchObject({ approvals: 1, needsInput: 2 });
     });
 
-    it('lists only the Sessions whose request waits on the user, sorted', () => {
+    it('lists only the Sessions whose request or question waits on the user, sorted', () => {
         expect(
-            approvalPendingSessionIds([
+            userPendingSessionIds([
                 { sessionId: 'b', ...approval(true), waitingOn: 'user' },
                 { sessionId: 'a', ...approval(false), waitingOn: 'parent' },
                 { sessionId: 'c', waitingOn: 'user' },
                 { sessionId: 'a2', ...approval(true), waitingOn: 'user' },
             ]),
         ).toEqual(['a2', 'b']);
-        expect(isDelegationApprovalPending({})).toBe(false);
+        expect(isDelegationUserPending({})).toBe(false);
+    });
+
+    it('keeps the amber cue for an escalated question and not for one the delegating Agent still holds', () => {
+        const question = { question: { questionId: 'q1', askedAt: 5, escalated: true } };
+        expect(isDelegationUserPending({ ...question, waitingOn: 'user' })).toBe(true);
+        expect(isDelegationUserPending({ ...question, waitingOn: 'parent' })).toBe(false);
+        expect(isDelegationUserPending({ ...question })).toBe(false);
     });
 });
 

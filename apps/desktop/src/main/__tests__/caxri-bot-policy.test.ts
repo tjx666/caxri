@@ -45,6 +45,7 @@ describe('Caxri Bot Renderer policy', () => {
         for (const method of [
             'agent.delegation.sessions',
             'agent.delegation.statuses',
+            'agent.delegation.attention',
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
             'agent.delegation.cancelScheduledRetry',

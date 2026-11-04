@@ -33,6 +33,13 @@ const DELEGATION_QUESTION_DETAIL_METHOD = 'agent.delegation.questionDetail' sati
  */
 const DELEGATION_COST_METHOD = 'usage.delegationSummary' satisfies CaxriMethod;
 
+/**
+ * What needs the user in the tree below a Chat's direct children, behind the Delegated Sessions strip's deeper rows. It
+ * is keyed by the Chat's own Session, which a deep descendant's push does not name, so it refreshes like the cost
+ * read.
+ */
+const DELEGATION_ATTENTION_METHOD = 'agent.delegation.attention' satisfies CaxriMethod;
+
 type DelegationFeed = MethodResult<'agent.delegation.sessions'>;
 type DelegationStatuses = MethodResult<'agent.delegation.statuses'>;
 
@@ -64,11 +71,16 @@ function invalidateDelegationFeedForSessions(
         isQueryMethod(query.queryKey, DELEGATION_STATUSES_METHOD);
     const isCostQuery = (query: { queryKey: readonly unknown[] }): boolean =>
         isQueryMethod(query.queryKey, DELEGATION_COST_METHOD);
+    const isAttentionQuery = (query: { queryKey: readonly unknown[] }): boolean =>
+        isQueryMethod(query.queryKey, DELEGATION_ATTENTION_METHOD);
     // Nearly every record push arrives while no nested row is mounted; skip the lookup then.
     if (
         queryClient.getQueryCache().findAll({
             predicate: (query) =>
-                isFeedQuery(query) || isStatusesQuery(query) || isCostQuery(query),
+                isFeedQuery(query) ||
+                isStatusesQuery(query) ||
+                isCostQuery(query) ||
+                isAttentionQuery(query),
         }).length === 0
     )
         return;
@@ -91,7 +103,8 @@ function invalidateDelegationFeedForSessions(
                 );
             // The cost read is keyed by the Chat's own Session, which a deep descendant's push does not name, so any
             // delegated or not-yet-known Session refreshes it.
-            if (isCostQuery(query)) return isAnyUnknown || creatorIds.size > 0;
+            if (isCostQuery(query) || isAttentionQuery(query))
+                return isAnyUnknown || creatorIds.size > 0;
             if (!isStatusesQuery(query)) return false;
             const answer = query.state.data as DelegationStatuses | undefined;
             return (
@@ -186,15 +199,16 @@ export function applyDelegationProgress(
 }
 
 /**
- * Re-reads the feed, task-state, and global waiting-popup reads after a pending approval changed (a held request is
- * hidden from the popup until it escalates or ends). The event carries ids and a closed state only; the approval
- * summary arrives with the feed read.
+ * Re-reads the feed, task-state, attention, and global waiting-popup reads after a pending approval changed (a held
+ * request is hidden from the popup until it escalates or ends). The event carries ids and a closed state only; the
+ * approval summary arrives with the feed read.
  */
 export function invalidateDelegationApproval(queryClient: QueryClient): void {
     void queryClient.invalidateQueries({
         predicate: (query) =>
             isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD) ||
             isQueryMethod(query.queryKey, DELEGATION_STATUSES_METHOD) ||
+            isQueryMethod(query.queryKey, DELEGATION_ATTENTION_METHOD) ||
             isQueryMethod(query.queryKey, 'agentChat.pendingRequests'),
     });
 }
@@ -210,7 +224,12 @@ export function invalidateDelegationQuestion(
 ): void {
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            if (isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD)) return true;
+            // An approval or question moving between the delegating Agent and the user changes the roll-up's items.
+            if (
+                isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD) ||
+                isQueryMethod(query.queryKey, DELEGATION_ATTENTION_METHOD)
+            )
+                return true;
             if (!isQueryMethod(query.queryKey, DELEGATION_QUESTION_DETAIL_METHOD)) return false;
             const parameters = query.queryKey[1] as { delegationId?: string } | undefined;
             return parameters?.delegationId === change.delegationId;

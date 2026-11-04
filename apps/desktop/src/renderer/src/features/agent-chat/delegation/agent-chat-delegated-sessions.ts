@@ -1,12 +1,10 @@
-import type { AgentDelegationSession } from '@caxri/protocol';
+import type { AgentDelegationAttentionReply, AgentDelegationSession } from '@caxri/protocol';
+import { isDelegationFailed, isDelegationNeedsInput } from '@caxri/protocol';
+import { omit } from 'es-toolkit';
 
 import type { Translate } from '../../../i18n';
 import type { DelegationCopy } from '../../delegation/delegation-copy';
-import {
-    delegationAttentionCounts,
-    isDelegationFailed,
-    isDelegationNeedsInput,
-} from '../../delegation/delegation-feed';
+import { delegationAttentionCounts } from '../../delegation/delegation-feed';
 
 /**
  * The counts the Delegated Sessions strip's header states: every child Session the Chat delegated to, and how many of
@@ -37,8 +35,42 @@ export function delegatedSessionsSummary(
                 >
             >
     >,
+    total: number = entries.length,
 ): DelegatedSessionsSummary {
-    return { ...delegationAttentionCounts(entries), total: entries.length };
+    return { ...delegationAttentionCounts(entries), total };
+}
+
+/**
+ * The strip's rows once the tree-wide roll-up joins the direct children: `entries` is every row in the order a person
+ * should look at them, `viaBySessionId` names the direct child a deeper row sits under (for its "via" line), and
+ * `isPartial` says the Server could not read or list every deeper item.
+ */
+export interface DelegatedSessionRows {
+    entries: AgentDelegationSession[];
+    isPartial: boolean;
+    viaBySessionId: ReadonlyMap<string, string>;
+}
+
+/**
+ * Joins the direct children (already collapsed by retry chain) with the deeper items the Server rolled up
+ * (`agent.delegation.attention`), which it already folded by retry chain, filtered to what needs the user and capped. A
+ * Session the direct read also lists keeps its direct row. Sorting is the strip's usual order, so a deeper item that
+ * needs the user ranks with the direct ones, and a deeper row never appears for any other reason.
+ */
+export function mergeDeeperAttention(
+    direct: readonly AgentDelegationSession[],
+    reply: AgentDelegationAttentionReply | undefined,
+): DelegatedSessionRows {
+    const directIds = new Set(direct.map((entry) => entry.sessionId));
+    const deeper = (reply?.items ?? []).filter((item) => !directIds.has(item.sessionId));
+    return {
+        entries: sortDelegatedSessions([
+            ...deeper.map((item) => omit(item, ['branchSessionId'])),
+            ...direct,
+        ]),
+        isPartial: reply?.isPartial ?? false,
+        viaBySessionId: new Map(deeper.map((item) => [item.sessionId, item.branchSessionId])),
+    };
 }
 
 /**

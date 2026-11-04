@@ -51,6 +51,8 @@ export const delegation = {
     'delegation.strip.needsInputOther': '{{count}} need input',
     'delegation.strip.failed': '{{count}} failed',
     'delegation.strip.unavailable': 'Session unavailable',
+    'delegation.strip.via': 'via {{title}}',
+    'delegation.strip.more': 'and more',
     'delegation.strip.excerpt': 'Excerpt',
     'delegation.strip.prFilesOne': '{{count}} PR file',
     'delegation.strip.prFilesOther': '{{count}} PR files',

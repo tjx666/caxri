@@ -1541,7 +1541,7 @@ and the Chat's own spend beside it (left out when unknown, never `$0`). `~` befo
 a task below it still runs, so the figure may grow; `+` after it means a floor (a model without a
 price); both show together as `~$1.20+`; a floor of nothing is hidden. The header cost stays out of
 the live region. Rows sort needs-input, then failed, then the rest; each is a 12px row with the
-Agent icon, the title, the child's Project in `--muted`, a second line (the live step with the
+Agent icon, the title, the child's Project in `--muted`, a muted `via <direct child title>` part on a deeper Session (a grandchild or below that needs the user or failed; the header counts it, and `and more` follows the counts when the Server could not list every one), a second line (the live step with the
 activity shimmer, the result summary with an `Excerpt` chip when it is the first paragraph rather
 than the Agent's `Summary:` line, or the status copy), the child's estimated cost (with the same
 `~` and `+` markers, shown only once it has usage and summing the Sessions of a collapsed retry
