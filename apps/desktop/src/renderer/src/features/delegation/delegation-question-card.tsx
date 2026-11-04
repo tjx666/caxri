@@ -74,7 +74,7 @@ export function DelegationQuestionCard({
                     <span>{t('delegation.question.hint')}</span>
                     <Textarea
                         aria-label={t('delegation.question.placeholder')}
-                        className="min-h-[52px]"
+                        className="min-h-13"
                         maxLength={MAX_ANSWER_TEXT_CHARS}
                         placeholder={t('delegation.question.placeholder')}
                         rows={2}
