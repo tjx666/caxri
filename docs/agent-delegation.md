@@ -609,6 +609,41 @@ Endpoint nor a delegation credential, every `agent.delegation.*` and `agent.disp
 refused with FORBIDDEN and a hint to use `access launch`. This covers the generic `request` entry
 point. A human in a plain shell and CI keep owner authority.
 
+### External lineage
+
+A client does not stay inside its one Project. `agent delegate create --new-session --project <id>`
+starts the task in a new Session of any Project the user can see, as a managed Agent does, and that
+Session nests under the client's **anchor Session** in the sidebar as a `delegated` child (the same
+creator edge, parent strip and cost roll-up as an in-Caxri delegation).
+
+```text
+Session "External Claude"            Project api   (anchor, shared)
+  +- Session "Fix flow"              Project web   (created by the anchor, relation delegated)
+```
+
+- **Anchor**: one visible Session per Project and caller provider, titled `External <Provider>` (for
+  example `External Claude`). Every client of that Project and provider shares it, and a fresh
+  credential from `access launch` reuses it instead of adding another row. It is the nesting parent,
+  not an ownership boundary.
+- **Ownership**: a child Session belongs to the exact principal that created it, client ID and
+  generation included. The anchor's creator edge is not proof of ownership, because many clients share
+  the anchor. A client may start more work in a child Session only while a task of that exact principal
+  is recorded there, or in the Session the same request just created. Once that record is pruned the
+  Session is refused rather than guessed at. Reading, waiting on or stopping a task stays limited to
+  the principal that started it.
+- **Targets**: only a visible, non-archived, top-level Project. A hidden Project, a worktree Project,
+  `--project-path` (adding a Project) and `--worktree` are refused with FORBIDDEN, so an external
+  caller reaches only folders the user already added.
+- **Concurrency**: at most four active or pending tasks per client, counted across all its Projects
+  and Sessions, not per anchor and not per target Session.
+- **Questions**: a child's `ask` addressed to an external client goes to the user at once
+  (`parent_gone`) instead of waiting out the grace period, because the client has no Terminal or
+  launch Caxri could watch. The question appears like any other escalated question.
+- **Approvals**: an external client never approves for its child. Caxri cannot see the permission its
+  own provider holds, so a permission request from the child is handed to the user, and the client's
+  `approve` is refused like any caller that is not the delegating Agent. Use a managed Agent when the
+  parent must approve.
+
 ### Manual credentials
 
 The private response contains `clientId`, `generation`, `token`, `projectId` and `sessionId`.
@@ -625,10 +660,13 @@ The usual `agent delegate presets|create|status|wait|result|stop` commands then 
 Pass its Project and Session IDs to `create`; any `--caller` must match its bound provider. A client
 cannot read another client's answers even when both use the same dedicated Session. Reissuing access
 reuses that Session but creates a distinct identity; the owner can still recover earlier results.
+`create --new-session` starts a task in its own Session of any visible Project; see
+[External lineage](#external-lineage).
 
 The credential grants only `agents.delegate`. It cannot steer arbitrary Terminals, change settings,
-register another root, issue credentials or use managed-Endpoint messaging. Each dedicated Session
-admits at most four active or pending tasks. The private Server registry stores only token digests,
+register another root, issue credentials or use managed-Endpoint messaging. Each client (client ID and
+generation) may have at most four active or pending tasks in total, across every Project and Session
+it delegates into. The private Server registry stores only token digests,
 survives restart and holds at most 128 live authorizations. Authorization lasts 12 hours by default;
 `--ttl-ms` accepts one minute through seven days. Every request rechecks expiry and revocation before
 returning even a cached receipt.

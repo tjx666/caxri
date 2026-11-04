@@ -151,7 +151,14 @@ export class DelegationQuestions {
                 terminalId: task.receipt.callerTerminalId,
                 launchId: task.callerLaunchId,
             });
-            if (this.host.presence.isGone(task.receipt.callerTerminalId, task.callerLaunchId))
+            /**
+             * An external parent is a process outside Caxri with no Terminal or launch to watch, so it is never proven
+             * present: its question goes to the user at once instead of waiting out the grace period.
+             */
+            if (
+                task.principal.kind === 'delegation-client' ||
+                this.host.presence.isGone(task.receipt.callerTerminalId, task.callerLaunchId)
+            )
                 this.store.escalate(opened.id, 'parent_gone');
         }
         return result;

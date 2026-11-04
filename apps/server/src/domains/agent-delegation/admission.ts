@@ -68,6 +68,55 @@ export function delegationPaneCaller(
 export type DelegationAccess = 'create' | 'existing';
 
 /**
+ * Whether two principals are the same caller: the exact Endpoint or delegation generation, never a shared client or a
+ * sibling that merely names the same Project. The one comparison ownership, proof of creation and the task cap share.
+ */
+export function isSamePrincipal(a: Principal, b: Principal): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * A delegation client works from its anchor Session, the shared dedicated Session of its Project and provider (titled
+ * `External <Provider>`), and from the Sessions it created from there for a task, in any Project the user can still
+ * see. The anchor is shared by every client of that Project and provider, so a Session whose creator is the anchor is
+ * not enough: an earlier or concurrent client created it too. A new task is admitted only where this exact principal,
+ * generation included, already has a recorded task, or in the Session this very request just created. Once that record
+ * is pruned the Session is refused rather than guessed at. Reading or stopping an existing task needs only its creator
+ * edge here, because `isDelegationOwner` already holds the caller to its own tasks.
+ */
+function authorizeExternalSession(
+    database: CaxriDatabase,
+    principal: Extract<Principal, { kind: 'delegation-client' }>,
+    session: NonNullable<ReturnType<CaxriDatabase['getSession']>>,
+    input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
+    access: DelegationAccess,
+    isNewSession: boolean,
+): void {
+    if (principal.projectIds[0] === input.projectId && principal.sessionId === input.sessionId)
+        return;
+    const isCreated = session.createdBySessionId === principal.sessionId;
+    if (access === 'existing' && isCreated) return;
+    const project = database
+        .listVisibleProjects()
+        .find((candidate) => candidate.id === input.projectId);
+    if (
+        isCreated &&
+        project &&
+        isTopLevelProject(project) &&
+        session.archivedAt === undefined &&
+        (isNewSession ||
+            database.agentDelegations
+                .principalsForSession(input.sessionId)
+                .some((recorded) => isSamePrincipal(recorded, principal)))
+    )
+        return;
+    throw new CaxriError(
+        'FORBIDDEN',
+        'Delegation must remain in the authorized external Session or a Session it created',
+    );
+}
+
+/**
  * Admits a caller to a delegation Session. For Caxri Bot, `existing` access skips the create-only limits below, which
  * decide where new work may go: the task's owner was proven when it was created and `owned` re-checks the caller
  * Terminal, so archiving the Session or hiding its Project must not cut Caxri Bot off from a result it is still waiting
@@ -109,14 +158,14 @@ export function authorizeDelegationSession(
         return;
     }
     if (authority.principal.kind === 'delegation-client') {
-        if (
-            authority.principal.projectIds[0] !== input.projectId ||
-            authority.principal.sessionId !== input.sessionId
-        )
-            throw new CaxriError(
-                'FORBIDDEN',
-                'Delegation must remain in the authorized external Session',
-            );
+        authorizeExternalSession(
+            database,
+            authority.principal,
+            session,
+            input,
+            access,
+            isNewSession,
+        );
         return;
     }
     if (authority.principal.kind !== 'agent')

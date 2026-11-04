@@ -38,8 +38,8 @@ type AgentCommandRequest = Extract<
 /**
  * An Agent delegates into Sessions it creates in any Project the user added, so its own Project scope cannot decide the
  * target. Core defers that check to the delegation domain, which admits the caller's own Session and Sessions it
- * created in a visible top-level Project (`authorizeDelegationSession`). An external delegation identity stays bound to
- * its Project here.
+ * created in a visible top-level Project (`authorizeDelegationSession`). An external delegation client is held to the
+ * same rule by the domain, anchored on its dedicated Session, but never adds a Project (`projectPath`).
  */
 function assertDelegationTargetScope(
     context: CommandExecutionContext,
@@ -56,6 +56,11 @@ function assertDelegationTargetScope(
         return;
     }
     if (kind === 'agent') return;
+    /**
+     * An external delegation client delegates from its anchor Session into any visible top-level Project, like an
+     * Agent. The domain decides the target (`authorizeDelegationSession`), so its one bound Project must not.
+     */
+    if (kind === 'delegation-client') return;
     assertProjectScope(context, target.projectId!);
 }
 

@@ -1,4 +1,4 @@
-import type { AgentDelegationReceipt } from '@caxri/protocol';
+import type { AgentDelegationReceipt, Principal } from '@caxri/protocol';
 import {
     agentDelegationAnswerSchema,
     agentDelegationCreateSchema,
@@ -270,6 +270,19 @@ export class AgentDelegationsModel {
             .where(inArray(agentDelegations.sessionId, [...sessionIds]))
             .all()
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).receipt);
+    }
+
+    /**
+     * The principals that recorded a task in `sessionId`: the proof a delegation client created work there, which
+     * disappears with a pruned record.
+     */
+    principalsForSession(sessionId: string): Principal[] {
+        return this.database
+            .select({ recordJson: agentDelegations.recordJson })
+            .from(agentDelegations)
+            .where(eq(agentDelegations.sessionId, sessionId))
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).principal);
     }
 
     /**

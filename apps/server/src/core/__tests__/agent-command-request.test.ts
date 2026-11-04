@@ -182,3 +182,40 @@ describe('agentCommandRequest for a delegation by folder', () => {
         },
     );
 });
+
+describe('agentCommandRequest for an external delegation client', () => {
+    const endpoints = {} as unknown as AgentEndpointRegistry;
+    const toOtherProject = {
+        method: 'agent.delegation.create',
+        params: {
+            projectId: 'project-2',
+            newSession: true,
+            title: 'Fix login retry',
+            provider: 'claude',
+            prompt: 'Synthetic',
+        },
+    } as never;
+
+    it('leaves the target Project to the delegation domain, which anchors the client on its Session', () => {
+        const routed = agentCommandRequest(
+            toOtherProject,
+            contextFor('delegation-client', ['project-1']),
+            'request-1',
+            endpoints,
+        );
+
+        expect(routed.method).toBe('agent.delegation.createInternal');
+        expect(routed.params).toMatchObject({ input: { projectId: 'project-2' } });
+    });
+
+    it.each(['paired-device', 'extension'])('keeps holding %s to its own Project scope', (kind) => {
+        expect(() =>
+            agentCommandRequest(
+                toOtherProject,
+                contextFor(kind, ['project-1']),
+                'request-1',
+                endpoints,
+            ),
+        ).toThrow();
+    });
+});

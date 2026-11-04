@@ -170,8 +170,10 @@ exactly one decision flag is required; the decision never outlives the request. 
 `agent delegate access launch [--root <dir>] [--provider <id>] [--ttl-ms <ms>] -- <command>` runs an Agent
 outside Caxri with a fresh credential and revokes it when the command exits; an Agent without any
 credential is refused for delegation and dispatch methods. `agent delegate access create|list|revoke` manages owner-authorized external callers with
-`agents.delegation.access`. The resulting `delegation-client` credential is limited to one Project,
-Session and caller provider; it grants only delegation and does not start a Server implicitly.
+`agents.delegation.access`. The resulting `delegation-client` credential is anchored on one Project,
+Session and caller provider (the shared `External <Provider>` Session) and grants only delegation. It
+may `create --new-session` into any visible Project, with at most four active or pending tasks per
+client, but never adds a Project or worktree, and it does not start a Server implicitly.
 See [external callers](agent-delegation.md#external-callers-and-directory-authorization).
 
 `bot board`, `bot session create --project <id>`, `bot session archive <session-id>`,

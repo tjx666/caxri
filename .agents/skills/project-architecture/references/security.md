@@ -68,6 +68,9 @@ Every path that registers a Project is one of these authorities; a new one belon
   ID, so a Session still references its Project by ID and never submits a root path. Only an Agent,
   the human CLI, and the Desktop may send it (Server Core refuses every other principal and
   admission refuses Caxri Bot); an external delegation client or paired device never mints Projects.
+  An external delegation client may still start Sessions with `--new-session`, but only in a visible
+  top-level Project, nested under its anchor Session and owned by its exact principal and generation
+  (`authorizeDelegationSession`); it never creates a worktree and never decides a parent approval.
 
 ## Main outbound requests
 

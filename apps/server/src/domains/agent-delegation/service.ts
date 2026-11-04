@@ -25,6 +25,7 @@ import { assertTerminalChildHooks, childLaunchFailure } from './chat-child';
 import type { DelegationCollectionHost } from './collection';
 import { collectDelegationResult } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
+import { ExternalCapacity } from './external-capacity';
 import { DelegationProgress, delegationSessions } from './feed';
 import { startFreshTask } from './fresh-start';
 import { recordSettlement } from './history';
@@ -76,6 +77,7 @@ export class AgentDelegationService {
     private readonly waiters = new DelegationWaiters();
     private readonly deletingSessions = new Set<string>();
     private readonly pendingCreations = new Map<string, Set<Promise<AgentDelegationReceipt>>>();
+    private readonly capacity: ExternalCapacity;
 
     private readonly submissions: DelegationSubmissions;
     private readonly progress?: DelegationProgress;
@@ -96,6 +98,7 @@ export class AgentDelegationService {
 
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
+        this.capacity = new ExternalCapacity(options.database);
         this.submissions = new DelegationSubmissions(options, (id, failure) =>
             this.fail(id, failure),
         );
@@ -275,16 +278,7 @@ export class AgentDelegationService {
                 return existing.receipt;
             }
             const previousId = input.followUpOf ?? input.resumeFrom;
-            if (authority.principal.kind === 'delegation-client') {
-                const active = this.options.database.agentDelegations
-                    .active()
-                    .filter((record) => record.input.sessionId === input.sessionId).length;
-                if (active + (this.pendingCreations.get(input.sessionId)?.size ?? 0) >= 4)
-                    throw new CaxriError(
-                        'CAPACITY',
-                        'External delegation Session already has four active or pending tasks',
-                    );
-            }
+            this.capacity.assertRoom(authority);
             const previous = previousId ? this.owned(previousId, authority) : undefined;
             const { continueFromHandover } = input;
             const handoverRequest = continueFromHandover
@@ -371,10 +365,12 @@ export class AgentDelegationService {
             this.pendingCreations.set(input.sessionId, creations);
         }
         creations.add(pending);
+        const release = this.capacity.reserve(authority);
         let receipt: AgentDelegationReceipt;
         try {
             receipt = await pending;
         } finally {
+            release();
             creations.delete(pending);
             if (creations.size === 0) this.pendingCreations.delete(input.sessionId);
         }

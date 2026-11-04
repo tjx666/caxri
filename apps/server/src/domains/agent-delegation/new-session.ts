@@ -4,7 +4,7 @@ import type {
     AgentDelegationReceipt,
     SessionRelation,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import { KeyedSerialQueue } from '@caxri/system';
 
 /**
@@ -39,10 +39,11 @@ const admissionQueues = new WeakMap<object, KeyedSerialQueue<string>>();
 /**
  * Resolves the Session a create request runs in, then admits it. `newSession` creates the Session here, right before
  * its Agent Terminal, so the Workbench never shows it empty while the caller composes a second command. Any Agent or
- * the owner (from the CLI or a Client) may use it; an external delegation identity stays bound to its one Session. A
- * retry of the same request reuses the Session its first attempt created, and a request refused before any task was
- * recorded removes the empty Session again (metadata only; the Project folder is never touched). The Session carries
- * the caller's title from the start; see `agentDelegationCreateRequestSchema`.
+ * the owner (from the CLI or a Client) may use it. An external delegation client may too, in a visible Project, and the
+ * Session it creates nests under its anchor Session; it can neither add a Project nor create a worktree. A retry of the
+ * same request reuses the Session its first attempt created, and a request refused before any task was recorded removes
+ * the empty Session again (metadata only; the Project folder is never touched). The Session carries the caller's title
+ * from the start; see `agentDelegationCreateRequestSchema`.
  *
  * A `projectPath` adds that folder as a visible Project (the authority of `project.add`) and continues with the
  * resulting Project ID, so the stored task and the Session still reference a Project by ID. Everything that can be
@@ -115,13 +116,31 @@ async function admitNewSession(
             projectPath,
         );
     const { kind } = authority.principal;
-    if (!newSessions || (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop'))
+    const isExternal = kind === 'delegation-client';
+    if (
+        !newSessions ||
+        (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop' && !isExternal)
+    )
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new Session');
     const isBot = isCaxriBotCaller(database, authority);
-    if (worktreeBranch && (isBot || !newSessions.prepareWorktree))
+    if (worktreeBranch && (isBot || isExternal || !newSessions.prepareWorktree))
         throw new CaxriError('FORBIDDEN', 'This caller cannot delegate into a new worktree');
-    if (projectPath !== undefined && (isBot || !newSessions.addProject))
+    if (projectPath !== undefined && (isBot || isExternal || !newSessions.addProject))
         throw new CaxriError('FORBIDDEN', 'This caller cannot add a Project');
+    /**
+     * An external client reaches only a Project the user can still see, checked before the Session exists so a refusal
+     * leaves nothing to discard. `authorizeDelegationSession` repeats it for the Session this request creates.
+     */
+    if (isExternal) {
+        const target = database
+            .listVisibleProjects()
+            .find((candidate) => candidate.id === fields.projectId);
+        if (!target || !isTopLevelProject(target))
+            throw new CaxriError(
+                'FORBIDDEN',
+                'An external client may delegate only into a visible Project',
+            );
+    }
     /**
      * A forced Chat the named provider cannot satisfy is refused before the Project, the worktree and the Session
      * exist. A preset's provider is only known at admission, which refuses it there and discards the Session.
@@ -129,12 +148,15 @@ async function admitNewSession(
     if (fields.surface === 'chat' && fields.provider)
         assertChatChildAvailable(options, fields.provider);
     /**
-     * An Agent's own Session, or the Chat a Client continues in another Agent (`agentChat.continueInAgent`).
+     * An Agent's own Session, the Chat a Client continues in another Agent (`agentChat.continueInAgent`), or an
+     * external client's anchor Session: the nesting edge the sidebar and the cost roll-up follow.
      */
     const callerSessionId =
-        (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
-            ? database.getTerminal(authority.callerTerminalId)?.sessionId
-            : undefined;
+        authority.principal.kind === 'delegation-client'
+            ? authority.principal.sessionId
+            : (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
+              ? database.getTerminal(authority.callerTerminalId)?.sessionId
+              : undefined;
     /**
      * Checked before the Project and the worktree so a refused title leaves nothing behind. Only an Agent is held to
      * it: the owner's own title, from a Client or the CLI, stands as typed.

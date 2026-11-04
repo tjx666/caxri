@@ -69,31 +69,6 @@ describe('Delegation into a new Session for Caxri Bot', () => {
         expect(database.listVisibleSessions()).toHaveLength(sessionsBefore);
         expect(database.caxriBotRows()?.sessionIds).toEqual([]);
     });
-
-    it('refuses an external delegation identity bound to one Session', async () => {
-        const { database, service, project, request } = await fixture();
-        const bound = database.createSession(project.id, null);
-        const sessionsBefore = database.listVisibleSessions().length;
-
-        await expect(
-            service.create(
-                randomUUID(),
-                {
-                    principal: {
-                        kind: 'delegation-client',
-                        id: 'external',
-                        clientId: 'external-client',
-                        generation: 1,
-                        projectIds: [project.id] as [string],
-                        sessionId: bound.session.id,
-                        callerProvider: 'codex',
-                    },
-                },
-                request,
-            ),
-        ).rejects.toThrow('cannot delegate into a new Session');
-        expect(database.listVisibleSessions()).toHaveLength(sessionsBefore);
-    });
 });
 
 /**

@@ -40,7 +40,10 @@ If context instead reports `principal.kind: delegation-client`, use its `project
 The human owner starts you with `caxri agent delegate access launch -- <agent>` (or authorizes the root
 with `agent delegate access create` and provides the private credential through process
 configuration). `CAXRI_DELEGATION_PROJECT_ID` and `CAXRI_DELEGATION_SESSION_ID` then default
-`--project` and `--session` for `agent delegate create`. Without a credential, delegation commands are
+`--project` and `--session` for `agent delegate create`. To work in another visible Project, pass
+`--project <id> --new-session`: the new Session nests under your `External <Provider>` Session, at
+most four tasks may be active per credential, a child's question goes straight to the user, and
+permission requests are the user's to approve. Without a credential, delegation commands are
 refused; do not retry as the owner. Never issue access yourself, read a profile's
 owner credential, or loosen the provider sandbox. A missing or unreachable Server requires the
 owner's startup or transport action, not an implicit privilege fallback.

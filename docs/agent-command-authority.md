@@ -23,8 +23,10 @@ environments for this command and `terminal send`. These checks distinguish auth
 roles; they do not isolate mutually untrusted processes sharing the same OS user.
 
 `agent delegate access create|list|revoke|launch` requires the owner CLI's `agents.delegation.access`
-capability. It issues a separate `delegation-client` principal, bound to one Project, dedicated
-Session and caller provider, with only `agents.delegate`. It is not a managed Endpoint and cannot
+capability. It issues a separate `delegation-client` principal, anchored on one Project, dedicated
+Session and caller provider, with only `agents.delegate`. Its `create --new-session` reaches any
+visible top-level Project and nests the new Session under the anchor; it never adds a Project or
+worktree and never approves for its child. It is not a managed Endpoint and cannot
 use messaging, dispatch control, settings import or Terminal steering. Expiry and revocation are
 checked before each command, including cached replies. `launch` issues a fresh credential for one
 launched command and revokes it on exit. An Agent-recognized CLI without an Endpoint or delegation

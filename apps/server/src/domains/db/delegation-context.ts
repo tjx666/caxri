@@ -1,10 +1,11 @@
 import type { AgentProvider, SessionRecord } from '@caxri/protocol';
-import { CaxriError, isTopLevelProject } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
 
 /**
- * Idempotent owner bootstrap commits Project, Session and binding together without changing visible selection. A
+ * Idempotent owner bootstrap commits Project, Session and binding together without changing visible selection. The
+ * Session is the shared anchor of every external client of that Project and provider, titled `External <Provider>`. A
  * Project the user hid is un-hidden (`ProjectsModel.create` restores the existing row, order, and Sessions): the
  * delegated Session would otherwise run in a Project the Desktop user cannot see. The caller emits the `state.changed`
  * that makes the Project reappear at the sidebar.
@@ -14,7 +15,7 @@ export function ensureDelegationContext(
     rootPath: string,
     provider: AgentProvider,
     isRegisterProject: boolean,
-    createSession: (projectId: string) => SessionRecord,
+    createSession: (projectId: string, title: string) => SessionRecord,
 ) {
     return database.transaction(() => {
         let project = database.projects.findByRootPath(rootPath);
@@ -36,7 +37,10 @@ export function ensureDelegationContext(
         if (previous?.projectId === project.id && previous.archivedAt === undefined)
             return { projectId: project.id, sessionId: previous.id, callerProvider: provider };
         const selectedProject = database.appState.get('lastSelectedProjectId') ?? null;
-        const session = createSession(project.id);
+        const session = createSession(
+            project.id,
+            `External ${agentProviderCatalog[provider].displayName}`,
+        );
         database.appState.set('lastSelectedProjectId', selectedProject);
         const liveBindings = Object.fromEntries(
             Object.entries(bindings).filter(([, sessionId]) => database.sessions.get(sessionId)),
