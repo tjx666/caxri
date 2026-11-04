@@ -9,6 +9,7 @@ export const components: TranslatedNamespace<typeof source> = {
     'components.copyCode': '复制代码',
     'components.copyFailed': '复制失败，请重试。',
     'components.copyQuote': '复制引用',
+    'components.toastActionAvailable': '可{{action}}',
     'components.done': '完成',
     'components.openLinkFailed.message': '此设备上没有可以打开 {{url}} 的应用。',
     'components.openLinkFailed.title': '无法打开链接',

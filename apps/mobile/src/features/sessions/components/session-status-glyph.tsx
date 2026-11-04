@@ -7,7 +7,7 @@ import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
-import { sessionStatusGlyphKind } from '../session-row-model';
+import { sessionAttentionStateLabel, sessionStatusGlyphKind } from '../session-row-model';
 
 /**
  * The single status slot shared by the Session list and the Session header. It mirrors Desktop's
@@ -41,13 +41,12 @@ export const SessionStatusGlyph = ({
 }) => {
     const { t } = useTranslation();
     const stateLabel = label ?? session.stateLabel;
+    const attentionLabel = sessionAttentionStateLabel(session, isSaved, stateLabel, t);
     switch (sessionStatusGlyphKind(session, isSaved, isRunShownBelow)) {
         case 'attention-waiting':
             return (
                 <View
-                    accessibilityLabel={t('sessions.status.waitingForAnswer', {
-                        state: stateLabel,
-                    })}
+                    accessibilityLabel={attentionLabel}
                     accessible
                     testID="session-status-attention-waiting"
                 >
@@ -57,7 +56,7 @@ export const SessionStatusGlyph = ({
         case 'attention-result':
             return (
                 <View
-                    accessibilityLabel={t('sessions.status.needsAttention', { state: stateLabel })}
+                    accessibilityLabel={attentionLabel}
                     accessible
                     style={{
                         alignItems: 'center',

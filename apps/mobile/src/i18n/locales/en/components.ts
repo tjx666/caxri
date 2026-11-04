@@ -6,6 +6,7 @@ export const components = {
     'components.copyFailed': 'Unable to copy. Try again.',
     'components.copyQuote': 'Copy quote',
     'components.done': 'Done',
+    'components.toastActionAvailable': '{{action}} is available',
     'components.openLinkFailed.message': 'No app on this device could open {{url}}.',
     'components.openLinkFailed.title': "Couldn't open link",
     'components.routeError.body':

@@ -4,6 +4,7 @@ import type { changes as source } from '../en/changes';
 
 export const changes: TranslatedNamespace<typeof source> = {
     'changes.askAgentToCommit': '让 Agent 提交',
+    'changes.askAgentToOpenPullRequest': '让 Agent 创建 Pull Request',
     'changes.askAgentToCommitHint': '填入消息草稿。点击发送之前不会发送任何内容。',
     'changes.backToFiles': '返回已更改的文件',
     'changes.diffLoadFailed': '无法加载此差异。',
@@ -12,7 +13,7 @@ export const changes: TranslatedNamespace<typeof source> = {
     'changes.diffRefresh': '刷新',
     'changes.diffReconnect': '重新连接以查看此差异。',
     'changes.diffUnavailable': '此文件过大或不是文本。请在电脑上查看。',
-    'changes.emptyBody': '此会话的工作树没有更改。',
+    'changes.emptyBody': '没有未提交的更改。',
     'changes.emptyTitle': '没有更改',
     'changes.fileRowLabel':
         '{{filename}}，{{status}}，目录 {{directory}}，仓库 {{repository}}，新增 {{additions}} 行，删除 {{deletions}} 行',
@@ -47,7 +48,7 @@ export const changes: TranslatedNamespace<typeof source> = {
     'changes.mode.pullRequest': 'Pull Request',
     'changes.mode.working': '工作区',
     'changes.modeGroup': '要显示的更改',
-    'changes.showUncommitted': '查看',
+    'changes.showUncommitted': '查看未提交的更改',
     'changes.uncommittedHiddenOne': '还有 {{count}} 个未提交的更改',
     'changes.uncommittedHiddenOther': '还有 {{count}} 个未提交的更改',
 };

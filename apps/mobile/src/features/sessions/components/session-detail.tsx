@@ -11,7 +11,7 @@ import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
 import { useReleaseMessageEdit } from '../../agent-chat/use-release-message-edit';
 import { useSessionAgentChat } from '../../agent-chat/use-session-agent-chat';
 import { ChangesPanel } from '../../changes/changes-panel';
-import { COMMIT_DRAFT } from '../../changes/changes-view';
+import { COMMIT_DRAFT, OPEN_PULL_REQUEST_DRAFT } from '../../changes/changes-view';
 import { useChangesList } from '../../changes/use-changes';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import { ProjectPanelView } from '../../panels/panels-view';
@@ -124,6 +124,7 @@ export const SessionDetail = ({
             }
             list={changes}
             onAskAgentToCommit={() => onDraftChange(COMMIT_DRAFT)}
+            onAskAgentToOpenPullRequest={() => onDraftChange(OPEN_PULL_REQUEST_DRAFT)}
             sessionId={session.id}
             theme={theme}
         />

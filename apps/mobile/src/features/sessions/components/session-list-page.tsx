@@ -24,6 +24,7 @@ export const SessionListPage = ({
     interactionRef,
     isActive,
     activeListRef,
+    bottomInset = 0,
     onLoad,
     onScroll,
     renderEntry,
@@ -36,6 +37,11 @@ export const SessionListPage = ({
     interactionRef: RefObject<ReturnType<typeof createSessionListInteraction> | null>;
     isActive: boolean;
     activeListRef: RefObject<FlashListRef<SessionListRow> | null>;
+    /**
+     * Space kept below the last row so a control floating over the list (the phone's New Session button) never covers
+     * its trailing glyph or pull request chip.
+     */
+    bottomInset?: number;
     onLoad: () => void;
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     renderEntry: (info: ListRenderItemInfo<SessionListRow>) => ReactElement;
@@ -56,6 +62,9 @@ export const SessionListPage = ({
             onTouchStart={() => active?.current?.touchStart()}
         >
             <FlashList
+                ListFooterComponent={
+                    bottomInset > 0 ? <View style={{ height: bottomInset }} /> : null
+                }
                 data={rows}
                 getItemType={entryType}
                 keyExtractor={entryKey}

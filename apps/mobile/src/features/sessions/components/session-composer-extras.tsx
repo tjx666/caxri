@@ -194,7 +194,7 @@ export const SessionComposerAttachments = ({
                                 {attachment.state === 'failed' ? (
                                     <Pressable
                                         accessibilityHint={t('sessions.image.failedHint')}
-                                        accessibilityLabel={t('common.retry')}
+                                        accessibilityLabel={t('sessions.image.uploadFailedBand')}
                                         accessibilityRole="button"
                                         onPress={() => images.explainFailure(attachment.id)}
                                         style={[
@@ -212,7 +212,7 @@ export const SessionComposerAttachments = ({
                                             style={[styles.scrimText, { color: theme.onScrim }]}
                                             testID={`session-image-status-${index}`}
                                         >
-                                            {t('common.retry')}
+                                            {t('sessions.image.uploadFailedBand')}
                                         </Text>
                                     </Pressable>
                                 ) : null}

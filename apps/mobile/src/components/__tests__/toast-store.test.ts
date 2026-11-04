@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     createToastStore,
     TOAST_ACTION_DURATION_MS,
+    TOAST_ACTION_SCREEN_READER_DURATION_MS,
     TOAST_DURATION_MS,
     TOAST_ERROR_DURATION_MS,
+    toastAnnouncement,
 } from '../toast-store';
 
 const fakeTimers = () => {
@@ -22,6 +24,33 @@ const fakeTimers = () => {
         },
     };
 };
+
+describe('toast with a screen reader', () => {
+    it('keeps an action toast longer only while a screen reader is on', () => {
+        const { pending, timers } = fakeTimers();
+        const store = createToastStore(timers);
+        const action = { label: 'Undo', onPress: vi.fn() };
+        store.setScreenReaderEnabled(true);
+        store.show('success', 'Session archived', undefined, action);
+        expect(pending.values().next().value?.delayMs).toBe(TOAST_ACTION_SCREEN_READER_DURATION_MS);
+        store.setScreenReaderEnabled(false);
+        store.show('success', 'Session archived', undefined, action);
+        expect(pending.values().toArray().at(-1)?.delayMs).toBe(TOAST_ACTION_DURATION_MS);
+    });
+
+    it('announces that the action is available', () => {
+        const available = (label: string) => `${label} is available`;
+        expect(
+            toastAnnouncement(
+                { action: { label: 'Undo', onPress: vi.fn() }, message: 'Session archived' },
+                available,
+            ),
+        ).toBe('Session archived. Undo is available');
+        expect(toastAnnouncement({ detail: 'Why', message: 'Failed' }, available)).toBe(
+            'Failed. Why',
+        );
+    });
+});
 
 describe('toast store', () => {
     it('shows one toast and removes it after the duration', () => {

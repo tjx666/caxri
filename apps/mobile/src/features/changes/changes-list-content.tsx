@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 
 import { NoticeBanner } from '../../components/notice-banner';
 import { ScreenState } from '../../components/screen-state';
@@ -90,12 +90,17 @@ const ChangeFileRow = ({
 
 export const ChangesListContent = ({
     mode,
+    onAskAgent,
     onOpenFile,
     onRefresh,
     state,
     theme,
 }: {
     mode: ChangesMode;
+    /**
+     * Offered by the empty Pull Request state: fills the composer with a request to open one.
+     */
+    onAskAgent?: () => void;
     onOpenFile: (file: ChangedFile) => void;
     onRefresh: () => void;
     state: ChangesViewState;
@@ -152,10 +157,13 @@ export const ChangesListContent = ({
     }
     if (snapshot.files.length === 0) {
         const empty = changesEmptyKeys(mode, snapshot.isRepository);
+        const askAgent = snapshot.isRepository ? onAskAgent : undefined;
         return (
             <ScreenState
+                actionLabel={askAgent ? t('changes.askAgentToOpenPullRequest') : undefined}
                 detail={t(empty.body)}
                 kind="empty"
+                onAction={askAgent}
                 testID="changes-empty"
                 theme={theme}
                 title={t(empty.title)}
@@ -166,6 +174,13 @@ export const ChangesListContent = ({
         <FlatList
             data={snapshot.files}
             keyExtractor={keyExtractor}
+            refreshControl={
+                <RefreshControl
+                    onRefresh={onRefresh}
+                    refreshing={state.isRefreshing}
+                    tintColor={theme.muted}
+                />
+            }
             renderItem={renderItem}
             style={styles.list}
             ListFooterComponent={

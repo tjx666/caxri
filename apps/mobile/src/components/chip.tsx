@@ -31,6 +31,7 @@ export const Chip = ({
     label,
     onAccessibilityAction,
     onPress,
+    role = 'button',
     selected = false,
     testID,
     theme,
@@ -55,6 +56,11 @@ export const Chip = ({
     label?: string;
     onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
     onPress: () => void;
+    /**
+     * The accessibility role: `tab` when the chip is one choice of a `tablist`, so a screen reader announces the
+     * selected state like the Session header tabs.
+     */
+    role?: 'button' | 'tab';
     selected?: boolean;
     testID: string;
     theme: MobileTheme;
@@ -70,7 +76,7 @@ export const Chip = ({
             accessibilityActions={accessibilityActions}
             accessibilityHint={accessibilityHint}
             accessibilityLabel={accessibilityLabel ?? label}
-            accessibilityRole="button"
+            accessibilityRole={role}
             accessibilityState={{ disabled, selected }}
             disabled={disabled}
             hitSlop={chipHitSlop}

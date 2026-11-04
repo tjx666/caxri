@@ -207,7 +207,7 @@ export const ProjectFilterChips = ({
             testID="session-project-filters"
         >
             <Chip
-                accessibilityLabel={t('sessions.home.allProjects')}
+                accessibilityLabel={t('sessions.home.allProjectsLabel')}
                 label={t('sessions.home.allProjects')}
                 onPress={() => onChooseProject(null)}
                 selected={activeProjectId === null}
