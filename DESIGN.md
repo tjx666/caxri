@@ -1744,7 +1744,10 @@ dismissal. Every variant auto-dismisses after 4s of visible, non-interacting tim
 such an action routinely opens a confirmation the user can still cancel and deleting the card first
 would take the only way back to the offer. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
-Use the close or action button to dismiss; clicking the message body does not dismiss it. Both
+Use the close or action button to dismiss; clicking the message body does not dismiss it. The
+action sits beside a short message and wraps below it, right-aligned, only when the message needs
+the width, so a one-line notice stays one line tall; the icon, the message's first line, the
+buttons, and the close button share one midline. Both
 are borderless compact chrome: the action sits on a quiet `--state-hover-ink-quiet` wash that
 deepens to `--state-hover-ink` on hover, and the close button is a bare `X` that gains the same
 wash on hover, never an outlined circle. An
