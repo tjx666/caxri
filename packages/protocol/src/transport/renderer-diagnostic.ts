@@ -251,6 +251,41 @@ const editorWorkerStallDiagnosticSchema = z.strictObject({
     editorWorkersStartupStalledNow: editorWorkerCountSchema,
 });
 
+const workbenchReadCountSchema = z.number().int().nonnegative().max(1_000_000_000);
+const workbenchReadMsSchema = z.number().int().nonnegative().max(600_000);
+
+/**
+ * One composed Workbench read in the Desktop Renderer: this Mac's `app.bootstrap` run beside a re-read of every SSH
+ * Host that reported a change. Every Host `state.changed` triggers one, so this is what shows whether that
+ * amplification is material. It is emitted for slow reads and as a periodic sample of Host-triggered reads, never per
+ * read; the per-lifetime counts carry the true volume. Durations and counts only: no Project, Session, path, or Host
+ * name.
+ */
+const workbenchComposedReadDiagnosticSchema = z.strictObject({
+    kind: z.literal('workbench-composed-read'),
+    diagnosticId: z.uuid(),
+    /**
+     * `host-change` when at least one connected Host was marked changed when the read began, else `local`.
+     */
+    trigger: z.enum(['host-change', 'local']),
+    /**
+     * Whether this read met the Renderer's slow budget (as opposed to being a periodic sample), so Main can pick the
+     * log level without duplicating the budget.
+     */
+    slow: z.boolean(),
+    totalMs: workbenchReadMsSchema,
+    localBootstrapMs: workbenchReadMsSchema,
+    /**
+     * The slowest Host re-read actually performed; `0` when none ran.
+     */
+    remoteReadMs: workbenchReadMsSchema,
+    connectedHostCount: z.number().int().nonnegative().max(1_000),
+    remoteReadCount: z.number().int().nonnegative().max(1_000),
+    composedReadCount: workbenchReadCountSchema,
+    hostChangeReadCount: workbenchReadCountSchema,
+    slowReadCount: workbenchReadCountSchema,
+});
+
 function addAggregateIssue(context: z.core.$RefinementCtx<unknown>, path: string): void {
     context.addIssue({
         code: 'custom',
@@ -286,6 +321,7 @@ export const rendererDiagnosticSchema = z
         terminalOsc52ClipboardWriteFailureDiagnosticSchema,
         terminalResizeBurstDiagnosticSchema,
         editorWorkerStallDiagnosticSchema,
+        workbenchComposedReadDiagnosticSchema,
         rendererPerformanceScenarioDiagnosticSchema,
         rendererJankDiagnosticSchema,
         startupFrameDiagnosticSchema,
@@ -314,6 +350,16 @@ export const rendererDiagnosticSchema = z
                 diagnostic.workerRoundTrip === 'skipped';
             if ((diagnostic.workerBroadcast === 'skipped') !== isProbedNothing)
                 addAggregateIssue(context, 'workerBroadcast');
+            return;
+        }
+
+        if (diagnostic.kind === 'workbench-composed-read') {
+            if (diagnostic.hostChangeReadCount > diagnostic.composedReadCount)
+                addAggregateIssue(context, 'hostChangeReadCount');
+            if (diagnostic.slowReadCount > diagnostic.composedReadCount)
+                addAggregateIssue(context, 'slowReadCount');
+            if (diagnostic.remoteReadCount > diagnostic.connectedHostCount)
+                addAggregateIssue(context, 'remoteReadCount');
             return;
         }
 
@@ -350,5 +396,6 @@ export type TerminalOsc52ClipboardWriteFailureDiagnostic = z.infer<
     typeof terminalOsc52ClipboardWriteFailureDiagnosticSchema
 >;
 export type EditorWorkerStallDiagnostic = z.infer<typeof editorWorkerStallDiagnosticSchema>;
+export type WorkbenchComposedReadDiagnostic = z.infer<typeof workbenchComposedReadDiagnosticSchema>;
 export type StartupFrameDiagnostic = z.infer<typeof startupFrameDiagnosticSchema>;
 export type RendererDiagnostic = z.infer<typeof rendererDiagnosticSchema>;

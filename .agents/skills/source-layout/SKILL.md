@@ -94,6 +94,10 @@ Before adding or moving source files, consult the directory owners and filename 
 (`packages/protocol/src/domain/`, `agent/`) and Desktop agent-chat folders, among others: put a new
 module in a topical subdirectory (for example `agent/chat/`) instead of adding another flat file.
 Caps only shrink; lower the cap when files move out.
+Anywhere under a workspace `src/`, six production modules sharing the prefix before their first
+hyphen (`retry-claims.ts`, `retry-notice.ts`, ...) fail `scripts/__tests__/flat-family-ratchet.test.ts`
+unless the family predates the guard in `scripts/flat-family-baseline.ts`; move them into a
+directory instead (`retry/claims.ts`). Never add a family to that list.
 
 Provider-specific modules of a Server domain live in `providers/<id>/` (for example
 `agent-chat/providers/claude/`); do not add flat

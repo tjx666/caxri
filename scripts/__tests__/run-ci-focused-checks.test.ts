@@ -24,23 +24,26 @@ describe('focused CI checks', () => {
 
     it('runs the directory density ratchet when an affected or draft source change touches a guarded directory', () => {
         const guard = 'scripts/__tests__/directory-density-ratchet.test.ts';
+        const families = 'scripts/__tests__/flat-family-ratchet.test.ts';
         // A new file is not imported by the ratchet (it reads the filesystem), so `vitest related` cannot reach it.
         const added = ['apps/desktop/src/main/brand-new-module.ts'];
-        expect(focusedRegressionPaths('affected', added, added)).toEqual([guard]);
-        expect(focusedRegressionPaths('focused-source', added, added)).toEqual([guard]);
+        expect(focusedRegressionPaths('affected', added, added)).toEqual([guard, families]);
+        expect(focusedRegressionPaths('focused-source', added, added)).toEqual([guard, families]);
         // A pure deletion must also run it so the baseline gets tightened.
-        expect(focusedRegressionPaths('affected', added)).toEqual([guard]);
+        expect(focusedRegressionPaths('affected', added)).toEqual([guard, families]);
         expect(
             focusedRegressionPaths('affected', ['apps/server/src/domains/agent-chat/claude-x.ts']),
-        ).toEqual([guard]);
+        ).toEqual([guard, families]);
         expect(
             focusedRegressionPaths('affected', [
                 'apps/desktop/src/renderer/src/features/agent-chat/new-thing.tsx',
             ]),
-        ).toEqual([guard]);
+        ).toEqual([guard, families]);
+        // Outside the guarded owners only the tree-wide family ratchet applies.
         expect(
             focusedRegressionPaths('affected', ['apps/server/src/domains/git/index.ts']),
-        ).toEqual([]);
+        ).toEqual([families]);
+        expect(focusedRegressionPaths('affected', ['docs/testing.md'])).toEqual([]);
     });
 
     it('formats and tests documentation or skill changes without a repository-wide typecheck', () => {

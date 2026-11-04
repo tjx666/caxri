@@ -181,6 +181,7 @@ export const rendererLogEvents = {
     terminalResizeBurst: 'renderer.terminal_resize_burst',
     terminalRendererStatus: 'renderer.terminal_renderer_status',
     unhandledRejection: 'renderer.unhandled_rejection',
+    workbenchComposedRead: 'renderer.workbench_composed_read',
 } as const;
 
 export const serverConnectionLogEvents = {

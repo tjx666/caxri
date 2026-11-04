@@ -61,6 +61,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   A changed `Dockerfile` runs `toolchain-contract`, which rejects a copy of a `mise.toml` version.
   A changed or removed path inside a directory `scripts/directory-density-baseline.ts`
   guards runs `scripts/__tests__/directory-density-ratchet.test.ts`, which counts files on disk.
+  A changed or removed `.ts`/`.tsx` under any workspace `src/` runs
+  `scripts/__tests__/flat-family-ratchet.test.ts`, which scans every source tree for flat filename families.
   A changed or removed `packages/protocol/src/` source runs the tests that enumerate every registry
   method (`control-server-lane`, `operation-dispatcher`, `domain-service`, `role-capabilities`,
   and the Caxri Bot and Benchmark window policies), which reach method specs only through the
@@ -199,8 +201,8 @@ a standalone or repository-wide run.
   job run it unscoped; the hook passes `--staged` to read the index instead of the working tree.
 
 The pre-commit hook additionally runs two `guards` tests when the staged set can affect them, so a
-violation fails locally instead of in CI: `scripts/__tests__/directory-density-ratchet.test.ts` when
-the index adds, deletes, or renames a file, and `scripts/__tests__/react-compiler-coverage.test.ts`
+violation fails locally instead of in CI: `scripts/__tests__/directory-density-ratchet.test.ts` and
+`scripts/__tests__/flat-family-ratchet.test.ts` when the index adds, deletes, or renames a file, and `scripts/__tests__/react-compiler-coverage.test.ts`
 when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed, together with
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` (DESIGN.md class rules that
 lint does not enforce). It also runs the

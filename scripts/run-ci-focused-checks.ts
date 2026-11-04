@@ -7,6 +7,7 @@ import process from 'node:process';
 import type { CIChecksScope } from './ci-execution-plan';
 import { DIRECTORY_DENSITY_TEST, isDirectoryDensityPath } from './directory-density-baseline';
 import { runChildProcess } from './exec';
+import { FLAT_FAMILY_TEST, isFlatFamilyPath } from './flat-family-scan';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
@@ -99,6 +100,12 @@ export function focusedRegressionPaths(
         changedFiles.some(isDirectoryDensityPath)
     ) {
         paths.add(DIRECTORY_DENSITY_TEST);
+    }
+    if (
+        (scope === 'affected' || scope === 'focused-source') &&
+        changedFiles.some(isFlatFamilyPath)
+    ) {
+        paths.add(FLAT_FAMILY_TEST);
     }
     if (deletedFiles.some(isSkillContractPath)) {
         paths.add(SKILL_INVOCATION_CONTRACT_TEST);

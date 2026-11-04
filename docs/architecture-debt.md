@@ -38,25 +38,27 @@ Full audit 2026-10-31 @ `b1226a6dc` found `AD-persist-delegation-collected-answe
 
 Full audit 2026-11-01 @ `39856632e` found no prior OPEN entry; the batch of [issue caxri#3405](https://github.com/tjx666/caxri/issues/3405) fixed twelve new findings, and its one entry needing measurement was resolved by [issue caxri#3409](https://github.com/tjx666/caxri/issues/3409).
 
-Full audit 2026-11-05 @ `e1aae87d2` found no prior OPEN entry; the batch of [issue caxri#3659](https://github.com/tjx666/caxri/issues/3659) fixed four new findings; a fifth turned out to be an intentional tradeoff with a misleading JSDoc (`IT-ssh-offline-host-records`), and the two entries below need a measurement or the owner's policy first.
-
-### AD-perf-ssh-records-full-bootstrap: [OPEN · Coverage or observability gap · M]
-
-- **Summary:** Every SSH Host `state.changed` re-reads the composed snapshot, which runs a full `app.bootstrap` on this Mac and on each changed Host, while a local change uses the lighter `app.records`; the cost is unmeasured.
-- **Evidence:** `apps/desktop/src/renderer/src/stores/workbench-environment-events.ts` marks the Host changed and refreshes; `workbench-environments.ts` `readComposedSnapshot` always bootstraps the local Server.
-- **First seen:** 2026-11-05 @ e1aae87d2 · **Last verified:** 2026-11-05 @ e1aae87d2
-- **Remediation target / Acceptance:** [issue caxri#3657](https://github.com/tjx666/caxri/issues/3657): measure refresh rate and cost against a live Host; if material, a remote records change reads only that Host.
-
-### AD-layout-density-owner-list: [OPEN · Coverage or observability gap · S]
-
-- **Summary:** The directory density ratchet guards only the hand-listed `DIRECTORY_DENSITY_OWNERS`, so a new flat filename family elsewhere grows unseen; about 100 directories hold 12 or more direct modules.
-- **Evidence:** `scripts/directory-density-baseline.ts`; the `agent-delegation` `retry-*` family (14 files) grew at a domain root the guard does not list until this audit moved it.
-- **First seen:** 2026-11-05 @ e1aae87d2 · **Last verified:** 2026-11-05 @ e1aae87d2
-- **Remediation target / Acceptance:** [issue caxri#3658](https://github.com/tjx666/caxri/issues/3658): the owner picks a tree-derived policy (whole-tree threshold or prefix families only); a new unlisted flat family then fails the ratchet test. At `e1aae87d2` the tree held 102 same-prefix families of six or more production modules (167 of four or more), most of them a parent-name prefix such as `features/terminal/terminal-*`, so either policy freezes or exempts a large existing set.
+Full audit 2026-11-05 @ `e1aae87d2` found no prior OPEN entry; the batch of [issue caxri#3659](https://github.com/tjx666/caxri/issues/3659) fixed four new findings; a fifth turned out to be an intentional tradeoff with a misleading JSDoc (`IT-ssh-offline-host-records`), [issue caxri#3658](https://github.com/tjx666/caxri/issues/3658) added the tree-wide flat-family guard, and [issue caxri#3657](https://github.com/tjx666/caxri/issues/3657) made the SSH composed refresh's cost measurable. No entry remains open.
 
 ---
 
 ## RESOLVED
+
+### AD-perf-ssh-records-full-bootstrap: [RESOLVED · Coverage or observability gap · M]
+
+- **Summary:** Every SSH Host `state.changed` re-reads the composed snapshot, which runs a full `app.bootstrap` on this Mac and on each changed Host, while a local change uses the lighter `app.records`; the cost was unmeasured.
+- **Evidence:** `readComposedSnapshot` now feeds `ComposedReadMeter` (`apps/desktop/src/renderer/src/stores/composed-read-diagnostics.ts`), which reports a `workbench-composed-read` diagnostic, logged by Main as `renderer.workbench_composed_read`, for every read at or above 250 ms and every 50th Host-triggered read, with the trigger, local and Host durations, and per-window counts. Refreshes are already coalesced to one in-flight read plus one queued, so a burst of Host events costs at most two composed reads.
+- **First seen:** 2026-11-05 @ e1aae87d2 · **Last verified:** 2026-11-05 @ 575933450
+- **Resolved:** 2026-11-05 via [issue caxri#3657](https://github.com/tjx666/caxri/issues/3657).
+- **Remediation target / Acceptance:** The cost is now visible in the diagnostic log; reading only the changed Host is worth its design only once those records show slow `host-change` reads.
+
+### AD-layout-density-owner-list: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** The directory density ratchet guarded only the hand-listed `DIRECTORY_DENSITY_OWNERS`, so a new flat filename family elsewhere grew unseen.
+- **Evidence:** `scripts/__tests__/flat-family-ratchet.test.ts` scans every workspace `src` tree (`scripts/flat-family-scan.ts`) and fails a new family of six or more production modules sharing a prefix before the first hyphen (`use-` excluded). The 91 families that predate the guard are recorded in `scripts/flat-family-baseline.ts`, which only shrinks; freezing their sizes would block parallel Sessions on about 100 existing parent-name families. Local selection, CI focused scopes, the pre-commit hook, and the `guards` job run it.
+- **First seen:** 2026-11-05 @ e1aae87d2 · **Last verified:** 2026-11-05 @ 575933450
+- **Resolved:** 2026-11-05 via [issue caxri#3658](https://github.com/tjx666/caxri/issues/3658).
+- **Remediation target / Acceptance:** A new unlisted flat family of six fails the ratchet; a recorded family that moved out or shrank must leave the list.
 
 ### AD-lifecycle-archive-worktree-restore-race: [RESOLVED · Confirmed defect · S]
 
@@ -1439,7 +1441,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-external-document-in-place-save   | Saving a file outside every Project overwrites it in place to keep its inode, mode, and extended attributes, so a crash mid-save can truncate it; Project saves stay atomic                                                                                                                                                                                                                   | `apps/desktop/src/main/external-documents/registry.ts`, [ADR 0013](adr/0013-editable-external-documents.md)                                                                                            |
 | IT-bot-owner-reads                   | `bot.managedSessions` and `session.permissionAutoAllowStatus` are owner-only rather than project-scoped for Agent principals; handlers carry no principal context and no Agent consumer exists                                                                                                                                                                                                | `packages/protocol/src/transport/method-spec.ts`, `agent-messaging.md`                                                                                                                                 |
 | IT-updater-streamed-rename           | The Desktop updater streams the DMG to a temp file, verifies hash and size, then renames it itself instead of using `atomicWriteFile`, which takes in-memory data                                                                                                                                                                                                                             | `apps/desktop/src/main/updates/updates.ts`                                                                                                                                                             |
-| IT-guards-density-ratchet-subset     | `guards` runs only the about 1.4 s directory-density ratchet among whole-tree contract tests; `checks` still runs it and the slower workspace contract, so merging before `checks` finishes remains possible for those                                                                                                                                                                        | `.github/workflows/guards.yml`, `scripts/run-ci-focused-checks.ts`                                                                                                                                     |
+| IT-guards-density-ratchet-subset     | `guards` runs only the directory-density and flat-family ratchets (about 1.5 s together) among whole-tree contract tests; `checks` still runs them and the slower workspace contract, so merging before `checks` finishes remains possible for those                                                                                                                                          | `.github/workflows/guards.yml`, `scripts/run-ci-focused-checks.ts`                                                                                                                                     |
 | IT-chat-read-starts-provider         | Reading a stopped Chat may start its provider for models, commands, and live state; read leases are time- and count-bounded and pass the capacity gate                                                                                                                                                                                                                                        | Owner closed [issue caxri#1800](https://github.com/tjx666/caxri/issues/1800) as not planned on 2026-10-29 (formerly `AD-lifecycle-chat-idle-providers`)                                                |
 | IT-mobile-control-only-pairing       | Every Mobile pairing is granted `control`; the `view` and `reply` roles stay defined but unassigned                                                                                                                                                                                                                                                                                           | Owner closed [issue caxri#2334](https://github.com/tjx666/caxri/issues/2334) as not planned on 2026-10-29 (formerly `AD-contract-mobile-view-reply-roles`)                                             |
 | IT-provider-literal-comparisons      | Provider-specific branches may compare provider IDs as literals instead of going through registry capability flags                                                                                                                                                                                                                                                                            | Owner closed [issue caxri#2335](https://github.com/tjx666/caxri/issues/2335) as not planned on 2026-10-29 (formerly `AD-contract-provider-literal-comparisons`)                                        |
@@ -1452,9 +1454,7 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ## Current priority guide (OPEN at 2026-11-05)
 
-**Top priorities:** `AD-perf-ssh-records-full-bootstrap` (measure first).
-
-**Quick wins (S):** `AD-layout-density-owner-list` once the owner picks a policy.
+No entry is open.
 
 ## Historical priority guide (all resolved)
 

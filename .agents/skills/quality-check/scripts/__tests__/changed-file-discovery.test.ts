@@ -131,6 +131,25 @@ describe('directory density contract selection', () => {
     });
 });
 
+describe('flat family contract selection', () => {
+    it('runs the family ratchet for any changed or removed workspace source module', async () => {
+        const contract = 'scripts/__tests__/flat-family-ratchet.test.ts';
+        await expect(
+            selectedTestCandidates(process.cwd(), ['packages/utils/src/index.ts']),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(
+                process.cwd(),
+                ['docs/testing.md'],
+                ['apps/server/src/domains/workbench/removed.ts'],
+            ),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), ['docs/testing.md']),
+        ).resolves.not.toContain(contract);
+    });
+});
+
 describe('E2E pool contract selection', () => {
     it('runs the pool contract for a changed or removed top-level spec only', async () => {
         const contract = 'scripts/__tests__/e2e-pools.test.ts';

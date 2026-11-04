@@ -113,7 +113,7 @@ jobs:
       # request can merge once `guards` passes, so a ratchet that only `checks` runs can turn `main`
       # red after the merge (PR 2313 and the directory-density ratchet). Imports only Node builtins.
       - name: Run directory-density ratchet
-        run: bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
+        run: bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts scripts/__tests__/flat-family-ratchet.test.ts
 
       # Every source file that opens a network request must be accounted for in security.md's outbound inventory.
       - name: Run network egress inventory

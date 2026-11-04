@@ -12,6 +12,7 @@ import {
     DIRECTORY_DENSITY_TEST,
     isDirectoryDensityPath,
 } from '../../../../scripts/directory-density-baseline';
+import { FLAT_FAMILY_TEST, isFlatFamilyPath } from '../../../../scripts/flat-family-scan';
 import {
     CI_E2E_LOG_SAFETY_TEST,
     isCiE2ELogSafetyScanPath,
@@ -206,11 +207,11 @@ function directoryDensityContractTestCandidates(
     files: readonly string[],
     removedFiles: readonly string[],
 ): string[] {
-    return [...files, ...removedFiles].some((file) =>
-        isDirectoryDensityPath(file.replaceAll('\\', '/')),
-    )
-        ? [DIRECTORY_DENSITY_TEST]
-        : [];
+    const paths = [...files, ...removedFiles].map((file) => file.replaceAll('\\', '/'));
+    return [
+        ...(paths.some(isDirectoryDensityPath) ? [DIRECTORY_DENSITY_TEST] : []),
+        ...(paths.some(isFlatFamilyPath) ? [FLAT_FAMILY_TEST] : []),
+    ];
 }
 
 /**
