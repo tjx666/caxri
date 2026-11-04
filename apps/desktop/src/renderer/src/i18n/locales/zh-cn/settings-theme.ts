@@ -90,4 +90,17 @@ export const settingsTheme: TranslatedNamespace<typeof source> = {
     'settings.themeEditor.token.lineHighlight': '当前行高亮',
     'settings.themeEditor.token.number': '数字',
     'settings.themeEditor.token.string': '字符串',
+    'settings.themeEditor.warning.terminalPaletteFallback':
+        '此主题没有定义终端颜色，因此终端使用 {{preset}} 的配色。可在下方“终端”中修改。',
+    'settings.themeEditor.warning.missingSyntaxColors': '未导入语法颜色。',
+    'settings.themeEditor.warning.missingSyntaxColorsFor': '未导入{{roles}}的语法颜色。',
+    'settings.themeEditor.warning.role.comment': '注释',
+    'settings.themeEditor.warning.role.keyword': '关键字',
+    'settings.themeEditor.warning.role.string': '字符串',
+    'settings.themeEditor.warning.role.number': '数字',
+    'settings.themeEditor.warning.otherSyntaxColors': '未导入其他语法标记的颜色。',
+    'settings.themeEditor.warning.semanticTokenColors': '未导入语义标记颜色。',
+    'settings.themeEditor.warning.itermTerminalOnly':
+        'iTerm2 主题只包含终端配色，界面和编辑器颜色沿用当前主题。',
+    'settings.themeEditor.warning.warpVisualEffects': '已忽略 Warp 的渐变和背景图片。',
 };

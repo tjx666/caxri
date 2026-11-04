@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/input';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import { Spinner } from '../../components/ui/spinner';
 import { Switch } from '../../components/ui/switch';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { environmentIdOf, useEnvironmentStore } from '../../stores/environment';
@@ -19,7 +20,15 @@ import {
     useHostPreference,
     useHostPreferencesStore,
 } from '../../stores/host-preferences';
-import { isConnectionSettled } from '../ssh-host/connection-status';
+import {
+    canReconnect,
+    connectionFailureCopy,
+    connectionFailureTone,
+    connectionPhaseLabel,
+    connectionToneClasses,
+    isConnectionSettled,
+    reconnectLabelKey,
+} from '../ssh-host/connection-status';
 import { HostGlyph } from '../ssh-host/host-glyph';
 import { HostIconPicker } from '../ssh-host/host-icon-picker';
 import {
@@ -53,13 +62,26 @@ function ConnectionLabel({ state }: { state: SshEnvironmentState | undefined }) 
                 {t('sshHost.settings.disconnected')}
             </>
         );
-    if (isConnectionSettled(state.phase))
-        return (
-            <>
-                <span className="size-1.5 rounded-full bg-danger" />
-                <span className="text-danger">{t('sshHost.settings.failed')}</span>
-            </>
+    if (isConnectionSettled(state.phase)) {
+        const tone = connectionToneClasses(connectionFailureTone(state));
+        const label = connectionPhaseLabel(state);
+        const reason = state.failure ? connectionFailureCopy(state.failure) : undefined;
+        const text = (
+            <span className={cn('inline-flex items-center gap-1', tone.text)}>
+                <span className={cn('size-1.5 rounded-full', tone.dot)} />
+                {t(label.key, label.values)}
+            </span>
         );
+        return reason ? (
+            <Tooltip content={t(reason.key, reason.values)}>
+                <span className={FOCUSABLE_TOOLTIP_TRIGGER_CLASS} tabIndex={0}>
+                    {text}
+                </span>
+            </Tooltip>
+        ) : (
+            text
+        );
+    }
     if (state.phase !== 'connected')
         return (
             <>
@@ -151,23 +173,36 @@ function HostSettingRow({
                 </>
             )}
             {!isLocal && (
-                <label className="flex items-center gap-2 text-[12px] whitespace-nowrap text-muted">
-                    {/* Below the card's full width the caption gives way to the name; the switch keeps its own name. */}
-                    <span className="hidden @3xl/hosts:inline">
-                        {t('sshHost.settings.reconnectOnLaunch')}
-                    </span>
-                    <Switch
-                        aria-label={t('sshHost.settings.reconnectOnLaunchFor', {
-                            name: host.name,
-                        })}
-                        checked={preference?.reconnectOnLaunch ?? true}
-                        onCheckedChange={(checked) => {
-                            void updateHostPreference(environmentId, {
-                                reconnectOnLaunch: checked,
-                            });
-                        }}
-                    />
-                </label>
+                <div className="flex items-center gap-2">
+                    {state && canReconnect(state) && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                void reconnectSshHost(environmentId);
+                            }}
+                        >
+                            {t(reconnectLabelKey(state))}
+                        </Button>
+                    )}
+                    <label className="flex items-center gap-2 text-[12px] whitespace-nowrap text-muted">
+                        {/* Below the card's full width the caption gives way to the name; the switch keeps its own name. */}
+                        <span className="hidden @3xl/hosts:inline">
+                            {t('sshHost.settings.reconnectOnLaunch')}
+                        </span>
+                        <Switch
+                            aria-label={t('sshHost.settings.reconnectOnLaunchFor', {
+                                name: host.name,
+                            })}
+                            checked={preference?.reconnectOnLaunch ?? true}
+                            onCheckedChange={(checked) => {
+                                void updateHostPreference(environmentId, {
+                                    reconnectOnLaunch: checked,
+                                });
+                            }}
+                        />
+                    </label>
+                </div>
             )}
             {!isLocal && (
                 <Menu>

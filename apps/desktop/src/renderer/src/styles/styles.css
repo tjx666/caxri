@@ -176,7 +176,7 @@
     color: var(--foreground);
     background: var(--state-hover-ink-quiet);
     font-weight: 500;
-    transition: background-color 120ms ease;
+    transition: background-color var(--motion-feedback) var(--motion-ease-enter);
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-cancel] {
@@ -218,8 +218,17 @@
     background: transparent;
     box-shadow: none;
     transition:
-        background-color 120ms ease,
-        color 120ms ease;
+        background-color var(--motion-feedback) var(--motion-ease-enter),
+        color var(--motion-feedback) var(--motion-ease-enter);
+}
+
+/* The button stays 20px to match the title; this invisible 2px rim lifts its hit area to the 24px minimum target. */
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']
+    [data-close-button]::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
 }
 
 .caxri-toaster[data-sonner-toaster]

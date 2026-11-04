@@ -10,6 +10,7 @@ import {
     FieldLabel,
     FieldTitle,
 } from '../../components/ui/field';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { hasOwnSurface } from './setting-row-layout';
@@ -120,19 +121,25 @@ export function SettingRowChrome({
                         </Button>
                     </Tooltip>
                 )}
+                {/*
+                 * A Popover, not a Tooltip: a tooltip opens only after its hover delay and does nothing on click, so a
+                 * button named "More about X" gave a pointer or keyboard user no answer. Click or Enter opens the
+                 * detail at once.
+                 */}
                 {row.detail && (
-                    <Tooltip content={row.detail}>
-                        <Button
+                    <Popover>
+                        <PopoverTrigger
                             aria-label={t('settings.page.moreAbout', {
                                 title: row.accessibleTitle,
                             })}
-                            className="size-5 min-h-0 p-0 text-muted hover:text-foreground"
-                            size="icon"
-                            variant="ghost"
+                            className="inline-flex size-5 min-h-0 items-center justify-center rounded border border-transparent bg-transparent p-0 text-muted hover:text-foreground"
                         >
-                            <Info size={12} />
-                        </Button>
-                    </Tooltip>
+                            <Info aria-hidden="true" size={12} />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-3 text-[12px] text-muted">
+                            {row.detail}
+                        </PopoverContent>
+                    </Popover>
                 )}
             </span>
             {row.description && (

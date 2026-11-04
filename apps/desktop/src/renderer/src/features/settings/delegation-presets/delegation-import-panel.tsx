@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 import type { DelegationImportMode } from '@caxri/protocol';
 
 import { Button } from '../../../components/ui/button';
@@ -33,10 +35,17 @@ export function DelegationImportPanel({
         outcome.kind === 'ready' || outcome.kind === 'applying' ? outcome.preview : undefined;
     const isApplying = outcome.kind === 'applying';
     const isBusy = isApplying || outcome.kind === 'checking';
+    const panel = useRef<HTMLElement>(null);
+    // Opening the panel moves focus into it, so a keyboard or screen reader user lands on the preview they asked for.
+    useEffect(() => {
+        panel.current?.focus();
+    }, []);
     return (
         <section
+            ref={panel}
+            tabIndex={-1}
             aria-label={t('settings.row.delegationPresets.title')}
-            className="mt-2 flex min-w-0 flex-col gap-2 rounded border border-border bg-elevated p-3"
+            className="mt-2 flex min-w-0 flex-col gap-2 rounded border border-border bg-elevated p-3 outline-none"
         >
             {state.fileName && (
                 <p className="m-0 truncate text-[11px] text-muted">

@@ -156,6 +156,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                 onFieldChange={controller.updateSettingsField}
                 onNavigationStateChange={setNavigationState}
                 onQueryChange={changeQuery}
+                onOpenTab={controller.changeTab}
             />
         );
     else if (tab === 'keybindings')
@@ -229,6 +230,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                                 value="ui"
                             >
                                 <SlidersHorizontal size={14} />
+                                {t('settings.page.view.ui')}
                             </ToggleGroupItem>
                         </Tooltip>
                         <Tooltip content={t('settings.page.view.sourceHint')}>

@@ -47,22 +47,26 @@ const preview: DelegationImportPreview = {
 it.each(['en', 'zh-CN'] as const)('describes every change of a preview in %s', (locale) => {
     const t = translateFor(locale);
     expect(importCounts(preview.diff)).toEqual({ added: 1, changed: 1, removed: 2 });
-    expect(changedPresetLines(preview.diff)).toEqual(['keep-me: model, effort']);
+    expect(changedPresetLines(preview.diff, t)).toEqual([
+        locale === 'en' ? 'keep-me: model and effort' : 'keep-me: 模型和推理强度',
+    ]);
     const lines = otherChangeLines(preview, t);
     expect(lines).toHaveLength(4);
     expect(lines.join('\n')).toContain('Claude');
-    expect(lines.join('\n')).toContain('Codex (prepend)');
+    expect(lines.join('\n')).toContain(
+        locale === 'en' ? 'Codex (text before the task)' : 'Codex (任务前置文本)',
+    );
     expect(lines.join('\n')).toContain('4');
 });
 
 it('lists every added and removed preset by name', () => {
     expect(presetNameLines(preview.diff, translateFor('en'))).toEqual([
         'Adds: review',
-        'Removes: only-here, old',
+        'Removes: only-here and old',
     ]);
     expect(presetNameLines(preview.diff, translateFor('zh-CN'))).toEqual([
         '新增：review',
-        '移除：only-here, old',
+        '移除：only-here和old',
     ]);
 });
 

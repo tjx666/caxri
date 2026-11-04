@@ -27,12 +27,12 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.icon.color': '颜色',
     'sshHost.icon.defaultColor': '默认颜色',
     'sshHost.icon.colorAriaLabel': '{{color}}色',
-    'sshHost.preferences.failed': '无法保存主机设置',
+    'sshHost.preferences.failed': '无法保存 SSH Host 设置',
     'sshHost.addProject.title': '在哪台机器上添加项目…',
-    'sshHost.addProject.description': '本机会打开文件夹对话框；SSH 主机会打开它的文件夹浏览器。',
-    'sshHost.settings.connect': '连接到 SSH 主机…',
+    'sshHost.addProject.description': '本机会打开文件夹对话框；SSH Host会打开它的文件夹浏览器。',
+    'sshHost.settings.connect': '连接到 SSH Host…',
     'sshHost.settings.reconnectOnLaunch': '启动时重连',
-    'sshHost.settings.localMachine': '本地机器',
+    'sshHost.settings.localMachine': '本机',
     'sshHost.settings.connected': '已连接',
     'sshHost.settings.disconnected': '已断开',
     'sshHost.settings.reconnecting': '正在重连',
@@ -42,7 +42,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.settings.reconnectOnLaunchFor': '启动时重连 {{name}}',
     'sshHost.settings.moreFor': '{{name}} 的更多操作',
     'sshHost.settings.connectHost': '连接',
-    'sshHost.settings.reconnectHost': '重新连接 SSH 主机',
+    'sshHost.settings.reconnectHost': '重新连接 SSH Host',
     'sshHost.thisMac': '本机',
     'sshHost.disconnect': '断开连接',
     'sshHost.disconnect.failed': '无法断开 SSH Host',
@@ -51,7 +51,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
         '{{hostname}} · Linux {{architecture}} · glibc {{systemVersion}}',
     'sshHost.status.platformMacos': '{{hostname}} · macOS {{systemVersion}} · {{architecture}}',
     'sshHost.status.reconnectOnLaunch': '启动时重连',
-    'sshHost.status.manageHosts': '管理主机…',
+    'sshHost.status.manageHosts': '管理 SSH Host…',
     'sshHost.status.stopServer': '停止 SSH Host 上的 Server…',
 
     // 连接到 SSH Host 对话框
@@ -88,7 +88,7 @@ export const sshHost: TranslatedNamespace<typeof source> = {
     'sshHost.failure.authentication':
         'SSH Host 未接受你的凭据。请检查密码、密钥或两步验证码，然后重新连接。',
     'sshHost.failure.hostKey':
-        '无法验证 SSH Host 的主机密钥。如果该主机重装过系统，请先更新 ~/.ssh/known_hosts 再重新连接。',
+        '无法验证 SSH Host 的主机密钥。如果该 SSH Host 重装过系统，请先更新 ~/.ssh/known_hosts 再重新连接。',
     'sshHost.failure.unreachable':
         '无法访问 SSH Host。请检查网络、VPN，以及 ~/.ssh/config 中的主机名。',
     'sshHost.failure.unsupportedPlatform':
@@ -101,9 +101,9 @@ export const sshHost: TranslatedNamespace<typeof source> = {
         '无法在 SSH Host 上安装 Caxri Server。请检查磁盘剩余空间以及 ~/.caxri-server 的权限。',
     'sshHost.failure.launchFailed': 'Caxri Server 已安装，但未能在 SSH Host 上启动。',
     'sshHost.failure.profileInUse':
-        '另一台与此主机共用 home 目录的机器正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
+        '另一台与此 SSH Host 共用 home 目录的机器正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
     'sshHost.failure.profileInUseHost':
-        '另一台与此主机共用 home 目录的机器（{{hostname}}）正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
+        '另一台与此 SSH Host 共用 home 目录的机器（{{hostname}}）正在运行使用同一份数据的 Caxri Server。请先停止那个 Server，或在它退出约一分钟后再重新连接。',
     'sshHost.failure.takenOver':
         '另一个窗口或另一台电脑上的 Caxri 接管了这个 SSH Host 的 Server。终端和 Agent 仍在那里运行。',
     'sshHost.failure.cancelled': '需要时选择“重新连接”即可再次连接。',

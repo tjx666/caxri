@@ -270,10 +270,9 @@ describe('theme import mapping', () => {
         const theme = await importTheme(path, draculaTheme);
         expect(theme.editor.keyword).toBe('#569cd6');
         expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
-        expect(theme.warnings).toContainEqual({
-            id: 'missing-syntax-colors',
-            message: 'Syntax colors for comments, strings, numbers were not imported.',
-        });
+        expect(theme.warnings).toContainEqual(
+            expect.objectContaining({ params: { roles: 'comment,string,number' } }),
+        );
     });
 
     it('does not let a descendant scope overwrite an exact syntax role', async () => {

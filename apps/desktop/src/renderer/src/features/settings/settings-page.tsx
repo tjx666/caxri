@@ -22,9 +22,10 @@ import { useAgentFocusRequests } from './hooks/use-agent-focus-requests';
 import { useVisibleSettingsRows } from './hooks/use-visible-settings-rows';
 import { SettingRow } from './setting-row';
 import { hasOwnSurface } from './setting-row-layout';
+import { cardSliceClassName, SETTINGS_COLUMN_CLASS_NAME } from './settings-card';
 import type { SettingRowDescriptor } from './settings-registry';
 import { useSettingsRegistry } from './settings-registry';
-import type { SettingsCardPosition, SettingsListItem } from './settings-search';
+import type { SettingsListItem } from './settings-search';
 import { buildSettingsList, countRowsByCategory } from './settings-search';
 import { settingsActiveAnchor, settingsAnchorOf } from './settings-toc';
 import { rowResetAction } from './settings-values';
@@ -81,25 +82,16 @@ export interface SettingsPageProperties {
      * `undefined` on unmount, when the list it describes is gone.
      */
     onNavigationStateChange?: (state: SettingsNavigationState | undefined) => void;
+    /**
+     * Opens a Settings page whose content is not searchable as rows; offered when a search finds no rows.
+     */
+    onOpenTab?: (tab: 'keybindings' | 'theme') => void;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onFieldChange: <K extends keyof AppSettings>(
         key: K,
         value: AppSettings[K],
         member?: string,
     ) => void;
-}
-
-/**
- * Class names that draw one row's slice of its card (see `SettingsCardPosition`). The hairline outline keeps a card
- * visible in a theme whose `--surface` matches `--background` (Oscura Midnight); a slice's top edge is the card's top
- * outline or the divider above the row.
- */
-function cardSliceClassName(card: SettingsCardPosition): string {
-    return cn(
-        'border-x border-t border-border bg-surface',
-        card.first && 'rounded-t-md',
-        card.last && 'rounded-b-md border-b',
-    );
 }
 
 /**
@@ -148,8 +140,16 @@ function SettingsListEntry({
 /**
  * The list left empty: by a query with no match, offering to clear it, or by a registry with nothing to show.
  */
-function SettingsNoMatches({ query, onClear }: { query: string; onClear: () => void }) {
+function SettingsNoMatches({
+    page,
+    query,
+}: {
+    page: Pick<SettingsPageProperties, 'onOpenTab' | 'onQueryChange'>;
+    query: string;
+}) {
     const { t } = useTranslation();
+    const { onOpenTab } = page;
+    const onClear = (): void => page.onQueryChange('');
     return (
         <Empty className="pt-16">
             <EmptyMedia>
@@ -160,6 +160,17 @@ function SettingsNoMatches({ query, onClear }: { query: string; onClear: () => v
                 <Button size="sm" variant="secondary" onClick={onClear}>
                     {t('settings.page.clearSearchAction')}
                 </Button>
+            )}
+            {/* Search covers the Settings rows only; these two pages hold no rows, so offer them by name. */}
+            {onOpenTab && (
+                <p className="m-0 flex flex-wrap items-center justify-center gap-x-2 text-[12px] text-muted">
+                    {t('settings.page.noMatchesPages')}
+                    {(['keybindings', 'theme'] as const).map((tab) => (
+                        <Button key={tab} size="sm" variant="ghost" onClick={() => onOpenTab(tab)}>
+                            {t(`settings.page.tab.${tab}`)}
+                        </Button>
+                    ))}
+                </p>
             )}
         </Empty>
     );
@@ -432,14 +443,14 @@ export function SettingsPage(properties: SettingsPageProperties) {
             onWheel={releasePinnedAnchor}
         >
             {list.length === 0 ? (
-                <SettingsNoMatches query={query} onClear={() => properties.onQueryChange('')} />
+                <SettingsNoMatches page={properties} query={query} />
             ) : (
                 /*
                  * One centered column, as macOS System Settings lays it out: a wide window keeps each label within reach
                  * of its control instead of stretching the row across the screen.
                  */
                 <div
-                    className="relative mx-auto w-full max-w-3xl"
+                    className={cn('relative', SETTINGS_COLUMN_CLASS_NAME)}
                     style={{ height: virtualizer.getTotalSize() }}
                 >
                     {virtualItems.map((virtualItem) => {

@@ -7,6 +7,7 @@ import { findKeybindingConflicts } from '@caxri/protocol';
 import { useTranslation } from '../../i18n';
 import { commandCategory } from '../../lib/command-labels';
 import { isModifierKey, keyboardEventShortcut } from '../../lib/keybindings';
+import { cn } from '../../lib/utilities';
 import type { KeybindingRow, RecordingState } from './keybinding-editor';
 import {
     buildKeybindingRows,
@@ -21,6 +22,11 @@ import {
     startRecording,
 } from './keybinding-editor';
 import { KeybindingRowItem } from './keybinding-row-item';
+import {
+    SETTINGS_COLUMN_CLASS_NAME,
+    SETTINGS_SOLO_CARD_CLASS_NAME,
+    SETTINGS_SUBGROUP_HEADING_CLASS_NAME,
+} from './settings-card';
 import { SettingsSearchInput } from './settings-search-input';
 
 interface KeybindingsFormProperties {
@@ -163,53 +169,62 @@ export function KeybindingsForm({
             ref={rootReference}
             className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
         >
-            <div className="border-b border-border p-3">
-                <SettingsSearchInput
-                    inputRef={searchReference}
-                    label={t('settings.keybindingEditor.searchLabel')}
-                    placeholder={t('settings.keybindingEditor.searchPlaceholder')}
-                    clearTooltip={t('settings.keybindingEditor.clearSearch')}
-                    clearLabel={t('settings.keybindingEditor.clearSearchLabel')}
-                    value={query}
-                    onChange={setQuery}
-                />
-                <p className="mt-2 text-[11px] text-muted">
-                    {t('settings.keybindingEditor.count', {
-                        visible: visibleRows.length,
-                        total: rows.length,
-                    })}
-                </p>
+            <div className="px-8 pt-6 pb-3">
+                <div className={SETTINGS_COLUMN_CLASS_NAME}>
+                    <SettingsSearchInput
+                        inputRef={searchReference}
+                        label={t('settings.keybindingEditor.searchLabel')}
+                        placeholder={t('settings.keybindingEditor.searchPlaceholder')}
+                        clearTooltip={t('settings.keybindingEditor.clearSearch')}
+                        clearLabel={t('settings.keybindingEditor.clearSearchLabel')}
+                        value={query}
+                        onChange={setQuery}
+                    />
+                    <p className="mt-2 mb-0 text-[12px] text-muted">
+                        {t('settings.keybindingEditor.count', {
+                            visible: visibleRows.length,
+                            total: rows.length,
+                        })}
+                    </p>
+                </div>
             </div>
-            <div className="structured-editor m-0 min-h-0 overflow-auto p-2">
-                {groups.map((group) => (
-                    <section key={group.category} className="mb-3 last:mb-0">
-                        <h3 className="mb-1 truncate px-3 text-[11px] font-semibold tracking-[0.04em] text-muted uppercase">
-                            {group.category === CUSTOM_KEYBINDING_CATEGORY
-                                ? t('settings.keybindingEditor.customCategory')
-                                : commandCategory(group.category, t)}
-                        </h3>
-                        <ul className="m-0 list-none p-0">
-                            {group.rows.map((row) => (
-                                <KeybindingRowItem
-                                    key={row.id}
-                                    conflictsByKey={conflictsByKey}
-                                    recording={recording}
-                                    row={row}
-                                    onRecordingBlur={handleRecordingBlur}
-                                    onRecordingKey={handleRecordingKey}
-                                    onRemove={removeRow}
-                                    onReset={resetRow}
-                                    onStartRecording={startRecordingRow}
-                                />
-                            ))}
-                        </ul>
-                    </section>
-                ))}
-                {visibleRows.length === 0 && (
-                    <div className="flex flex-col items-center gap-2 p-6 text-center text-muted">
-                        <p>{t('settings.keybindingEditor.empty')}</p>
-                    </div>
-                )}
+            <div className="structured-editor m-0 min-h-0 overflow-auto px-8 pb-16">
+                <div className={SETTINGS_COLUMN_CLASS_NAME}>
+                    {groups.map((group) => (
+                        <section key={group.category} className="mb-5 last:mb-0">
+                            <h3 className={cn(SETTINGS_SUBGROUP_HEADING_CLASS_NAME, 'truncate')}>
+                                {group.category === CUSTOM_KEYBINDING_CATEGORY
+                                    ? t('settings.keybindingEditor.customCategory')
+                                    : commandCategory(group.category, t)}
+                            </h3>
+                            <ul
+                                className={cn(
+                                    SETTINGS_SOLO_CARD_CLASS_NAME,
+                                    'm-0 list-none divide-y divide-border overflow-hidden p-0',
+                                )}
+                            >
+                                {group.rows.map((row) => (
+                                    <KeybindingRowItem
+                                        key={row.id}
+                                        conflictsByKey={conflictsByKey}
+                                        recording={recording}
+                                        row={row}
+                                        onRecordingBlur={handleRecordingBlur}
+                                        onRecordingKey={handleRecordingKey}
+                                        onRemove={removeRow}
+                                        onReset={resetRow}
+                                        onStartRecording={startRecordingRow}
+                                    />
+                                ))}
+                            </ul>
+                        </section>
+                    ))}
+                    {visibleRows.length === 0 && (
+                        <div className="flex flex-col items-center gap-2 p-6 text-center text-muted">
+                            <p>{t('settings.keybindingEditor.empty')}</p>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

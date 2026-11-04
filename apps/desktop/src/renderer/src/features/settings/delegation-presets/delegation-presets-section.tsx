@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 import type { AppSettings } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { Upload } from 'lucide-react';
@@ -19,6 +21,15 @@ export function DelegationPresetsSection({ value }: { value: DelegationSettings 
     const flow = useDelegationImport();
     const callerRules = Object.keys(value.callers).length;
     const isBusy = flow.state.phase !== 'closed';
+    const importButton = useRef<HTMLDivElement>(null);
+    const isOpen = flow.state.phase === 'open';
+    const wasOpen = useRef(false);
+    // The panel replaces the Import button while open; when it closes (cancel or a finished import) the button comes
+    // back, and focus returns to it instead of falling to the document body.
+    useEffect(() => {
+        if (!isOpen && wasOpen.current) importButton.current?.querySelector('button')?.focus();
+        wasOpen.current = isOpen;
+    }, [isOpen]);
     return (
         <div className="flex min-w-0 flex-col gap-2">
             {value.presets.length === 0 ? (
@@ -64,7 +75,12 @@ export function DelegationPresetsSection({ value }: { value: DelegationSettings 
             )}
             {callerRules > 0 && (
                 <p className="m-0 text-[11px] text-muted">
-                    {t('settings.delegationPresets.callerOverrides', { count: callerRules })}
+                    {t(
+                        callerRules === 1
+                            ? 'settings.delegationPresets.callerOverridesOne'
+                            : 'settings.delegationPresets.callerOverridesOther',
+                        { count: callerRules },
+                    )}
                 </p>
             )}
             {flow.state.phase === 'open' && (
@@ -78,7 +94,7 @@ export function DelegationPresetsSection({ value }: { value: DelegationSettings 
                 />
             )}
             {flow.state.phase !== 'open' && (
-                <div>
+                <div ref={importButton}>
                     <Button
                         size="sm"
                         variant="secondary"
