@@ -165,6 +165,7 @@
                     ".agents/skills/design-prototype/scripts/build-runtime.ts",
                     ".agents/skills/design-prototype/scripts/verify-prototype.ts",
                     ".agents/skills/debug/scripts/collect-macos-gpu-logs.ts",
+                    ".agents/skills/quality-check/scripts/staged-locale-contracts.ts",
                     ".agents/skills/promo-images/scripts/promo.ts",
                     ".agents/skills/promo-images/scripts/promo-capture.pw.ts",
                     ".agents/skills/promo-images/scripts/promo-compose.ts",

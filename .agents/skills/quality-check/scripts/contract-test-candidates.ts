@@ -249,7 +249,7 @@ const LOCALE_CONTRACT_TESTS = [
  * literals rather than pure re-exports, so import discovery stops before the test. An untranslated "Session" in a zh-CN
  * Settings description once passed `check --test` and failed first in CI's sharded unit suite.
  */
-function localeContractTestCandidates(
+export function localeContractTestCandidates(
     files: readonly string[],
     removedFiles: readonly string[],
 ): string[] {
