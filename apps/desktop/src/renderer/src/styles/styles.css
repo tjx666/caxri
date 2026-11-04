@@ -80,19 +80,24 @@
 }
 
 /*
- * Sonner lays every child (icon, content, cancel/action buttons) out as one flex row by default, so a message long
- * enough to need an action button had nowhere to shrink but its own text column (issue: text wrapped into a narrow
- * strip beside a fixed-width button). The grid below keeps the icon and message text on row 1 across the full card
- * width (spanning the trailing button columns), and the buttons sit on row 2 (a secondary `[data-cancel]` in column 3,
- * the primary `[data-action]` in column 4), so they always land on their own row under the text instead of squeezing it. The close button stays `position:
- * absolute` (Sonner's own layout), just re-anchored to the top-right corner instead of Sonner's default top-left.
+ * Sonner lays every child (icon, content, cancel/action buttons) out as one non-wrapping flex row, so a message long
+ * enough to need an action button had nowhere to shrink but its own text column (text wrapped into a narrow strip
+ * beside a fixed-width button). Wrapping fixes that without forcing every action onto a second row: the buttons stay
+ * beside a short title ("Squash-merged #2351  [Open on GitHub]") and wrap below, right-aligned, only when the text
+ * needs the width. Flex places line breaks from each item's max-content width before growing anything, so the text
+ * never shrinks to make room for a button. The close button stays `position: absolute` (Sonner's own layout), just
+ * re-anchored to the top-right corner instead of Sonner's default top-left.
+ *
+ * `--toast-line` is the title's line box (13px at Sonner's 1.5 line-height); the icon, buttons, and close button all
+ * center on it so they share the first line's midline. It is a length, not `1.5em`: a custom property resolves `em`
+ * where it is used, and the buttons' 12px font would shrink it.
  */
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
+    --toast-line: 19.5px;
+    flex-wrap: wrap;
+    align-items: flex-start;
     column-gap: 8px;
-    row-gap: 8px;
-    align-items: start;
+    row-gap: 10px;
     padding: 10px 32px 10px 12px;
     border-left: 3px solid var(--muted);
     box-shadow: 0 8px 24px var(--shadow);
@@ -111,8 +116,17 @@
 }
 
 .caxri-toaster [data-icon] {
-    grid-column: 1;
     color: var(--muted);
+}
+
+/* Sonner nudges the icon with asymmetric margins meant for its own 6px gap; drop them so the column gap is the gap. */
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-icon] {
+    height: var(--toast-line);
+    margin: 0;
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-icon] svg {
+    margin: 0;
 }
 
 .caxri-toaster [data-type='success'] [data-icon] {
@@ -127,9 +141,16 @@
     color: var(--danger);
 }
 
-.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-content] {
-    grid-column: 2 / -1;
-    width: 100%;
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-content] {
+    flex: 1 1 auto;
+}
+
+/* Capped at the width the icon leaves, a long message wraps its text instead of wrapping away from its icon. */
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']
+    [data-icon]
+    + [data-content] {
+    max-width: calc(100% - 24px);
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-title] {
@@ -146,11 +167,9 @@
  * `[data-styled='true']` and the toast's `:hover` to win on specificity instead of `!important`.
  */
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button] {
-    grid-row: 2;
-    grid-column: 4;
-    justify-self: end;
     height: 24px;
-    margin: 0;
+    /* Negative block margins fit the 24px button into the title's line box, so it centers on the title. */
+    margin: calc((var(--toast-line) - 24px) / 2) 0;
     padding: 0 10px;
     border: none;
     border-radius: 6px;
@@ -161,9 +180,16 @@
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-cancel] {
-    grid-column: 3;
     color: var(--muted);
     background: transparent;
+}
+
+/* Only the first button pushes right; Sonner's `margin-left: auto` on every button would split a cancel/action pair. */
+.caxri-toaster[data-sonner-toaster]
+    [data-sonner-toast][data-styled='true']
+    [data-content]
+    + [data-button] {
+    margin-left: auto;
 }
 
 .caxri-toaster[data-sonner-toaster]
@@ -179,7 +205,8 @@
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-close-button] {
-    top: 8px;
+    /* The 20px button centers on the title's line box: 10px padding plus (19.5px - 20px) / 2 rounds to 10px. */
+    top: 10px;
     right: 8px;
     left: auto;
     width: 20px;
