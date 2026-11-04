@@ -426,13 +426,11 @@ export function buildAgentTitlePrompt(context: AgentTitleContext, isRetry = fals
 }
 
 /**
- * The model sometimes echoes a label before the title (`Title:`, `Session title:`, `标题如下：`, `会话标题：`). A short qualifier
- * of at most two Han characters may precede `标题`, so `会话标题：…` is caught while a real subject such as `修复会话标题：…` still
- * passes.
+ * A colon splits a title into a topic and a subtitle (`设置页改版：合并通知开关`), which reads as a report heading rather than a
+ * name and truncates mid-clause in the sidebar. It also covers a label the model echoes before the title (`Title:`,
+ * `会话标题：`).
  */
-function isLabelledTitleAnswer(title: string): boolean {
-    return /^(?:[A-Z]+\s+)?title\s*[:：]|^\p{Script=Han}{0,2}标题[^:：]{0,4}[:：]/iu.test(title);
-}
+const TITLE_COLON = /[:：]/u;
 
 export function normalizeGeneratedAgentTitle(
     value: string,
@@ -451,7 +449,7 @@ export function normalizeGeneratedAgentTitle(
                     isBareIssueReferenceTitle(text) &&
                     title.toLowerCase().includes(text.trim().toLowerCase()),
             )) ||
-        isLabelledTitleAnswer(title) ||
+        TITLE_COLON.test(title) ||
         (language === 'Chinese' &&
             (!/\p{Script=Han}/u.test(title) ||
                 /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title))) ||
@@ -521,6 +519,7 @@ export const AGENT_TITLE_SYSTEM_INSTRUCTIONS = [
     'Name the concrete problem or outcome in the user request language. <title_language> identifies its script; Latin means the same Latin-script language as the user, not necessarily English. Technical identifiers do not change the language.',
     'Prefer at most 12 CJK characters or 6 words; never exceed 80 characters.',
     'Do not use emoji, quotes, Markdown, an explanation or a label such as "Title:".',
+    'Never use a colon: write one phrase, not a topic followed by a subtitle.',
     'Do not name opening mechanics such as analyzing an image or reading a file.',
     '<opening_request> holds the first user request and the assistant reply that interpreted it; it defines the subject of the Session.',
     'When the opening request is only an image, a link or an issue identifier, take the subject from the assistant reply that resolved it.',

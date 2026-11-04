@@ -233,7 +233,7 @@ describe('Session title material', () => {
         expect(normalizeGeneratedAgentTitle('会话标题同步')).toBe('会话标题同步');
     });
 
-    it('rejects a labelled answer and kana mixed into a Chinese title', () => {
+    it('rejects a colon, a labelled answer and kana mixed into a Chinese title', () => {
         const context = {
             opening: [
                 { role: 'user' as const, text: '<image> 他最后说的啥' },
@@ -247,16 +247,13 @@ describe('Session title material', () => {
             '会话标题：默认请求模式讨论',
             '对话标题: 默认请求模式讨论',
             'Session title: 默认请求模式讨论',
+            '修复会话标题：前缀残留',
+            '设置页改版：合并通知开关',
             '磁吧ぶ',
         ])
             expect(normalizeGeneratedAgentTitle(title, context)).toBeUndefined();
         expect(normalizeGeneratedAgentTitle('默认请求模式讨论', context)).toBe('默认请求模式讨论');
-        expect(normalizeGeneratedAgentTitle('修复会话标题：前缀残留', context)).toBe(
-            '修复会话标题：前缀残留',
-        );
-        expect(normalizeGeneratedAgentTitle('Fix: Session title sync')).toBe(
-            'Fix: Session title sync',
-        );
+        expect(normalizeGeneratedAgentTitle('Fix: Session title sync')).toBeUndefined();
     });
 });
 
