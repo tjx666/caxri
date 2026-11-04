@@ -41,9 +41,22 @@ type AgentCommandRequest = Extract<
  * created in a visible top-level Project (`authorizeDelegationSession`). An external delegation identity stays bound to
  * its Project here.
  */
-function assertDelegationTargetScope(context: CommandExecutionContext, projectId: string): void {
-    if (context.principal.kind === 'agent') return;
-    assertProjectScope(context, projectId);
+function assertDelegationTargetScope(
+    context: CommandExecutionContext,
+    target: { projectId?: string; projectPath?: string },
+): void {
+    const { kind } = context.principal;
+    if (target.projectPath !== undefined) {
+        /**
+         * A path adds a Project, the authority of `project.add`: only an Agent, the owner's CLI, or the Desktop holds
+         * it. A scoped identity (an external delegation client, a paired device) must never mint Projects.
+         */
+        if (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop')
+            throw new CaxriError('FORBIDDEN', 'This caller cannot add a Project');
+        return;
+    }
+    if (kind === 'agent') return;
+    assertProjectScope(context, target.projectId!);
 }
 
 /**
@@ -94,7 +107,7 @@ export function agentCommandRequest(
                 : undefined,
     };
     if (request.method === 'agent.delegation.create') {
-        assertDelegationTargetScope(context, request.params.projectId);
+        assertDelegationTargetScope(context, request.params);
         return {
             method: 'agent.delegation.createInternal',
             params: {
@@ -105,7 +118,7 @@ export function agentCommandRequest(
         };
     }
     if (request.method === 'agent.delegation.presets') {
-        assertDelegationTargetScope(context, request.params.projectId);
+        assertDelegationTargetScope(context, request.params);
         return {
             method: 'agent.delegation.presetsInternal',
             params: { ...authority, ...request.params },

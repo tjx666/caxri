@@ -62,6 +62,11 @@ Every path that registers a Project is one of these authorities; a new one belon
   the home-directory restriction: an Agent already runs as the user, and the user chose to let Agents
   open repositories they have not added yet. It is idempotent by root and shows a hidden Project
   again; see [visible delegation](../../../../docs/agent-delegation.md#start-work-in-a-new-session).
+  `agent delegate create --project-path <dir> --new-session` is the same authority in one request:
+  the Server runs the same add (canonical root, idempotent, un-hide) and continues with the Project
+  ID, so a Session still references its Project by ID and never submits a root path. Only an Agent,
+  the human CLI, and the Desktop may send it (Server Core refuses every other principal and
+  admission refuses Caxri Bot); an external delegation client or paired device never mints Projects.
 
 ## Main outbound requests
 

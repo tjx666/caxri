@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { identifierSchema } from '../../domain/identifiers.js';
+import { identifierSchema, pathSchema } from '../../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../../domain/session.js';
 import { sessionPullRequestStateSchema } from '../../domain/session-pull-request.js';
 import { terminalSurfaceSchema } from '../../domain/terminal-surface.js';
@@ -274,6 +274,17 @@ export const agentDelegationCreateSchema = z
 export const agentDelegationCreateRequestSchema = z
     .strictObject({
         ...agentDelegationCreateFields,
+        /**
+         * The Project the new Session joins, as an ID. Exactly one of this and `projectPath`.
+         */
+        projectId: identifierSchema.optional(),
+        /**
+         * An absolute folder to add as a visible Project, the way `project.add` does, and delegate into in the same
+         * request. Only with `newSession`. Resolved to a Project ID before the Session exists, so the stored task and
+         * the Session reference the Project by ID and never carry a root path. The request fingerprint keeps the path,
+         * so a replay of the request ID with another folder is a conflict.
+         */
+        projectPath: pathSchema.optional(),
         sessionId: identifierSchema.optional(),
         newSession: z.literal(true).optional(),
         title: sessionRenameTitleSchema.optional(),
@@ -305,6 +316,14 @@ export const agentDelegationCreateRequestSchema = z
     .refine(
         (value) => !value.consult || Boolean(value.newSession),
         'A consult asks in a new Session',
+    )
+    .refine(
+        (value) => Boolean(value.projectId) !== Boolean(value.projectPath),
+        'Choose a Project ID or a Project path',
+    )
+    .refine(
+        (value) => !value.projectPath || Boolean(value.newSession),
+        'A Project path adds a Project for a new Session',
     )
     .refine((value) => !value.consult || !value.handoff, 'A consult is not a hand-off; choose one')
     .refine(

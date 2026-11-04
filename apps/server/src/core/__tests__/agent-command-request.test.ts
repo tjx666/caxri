@@ -135,3 +135,50 @@ describe('agentCommandRequest for the questions of a delegated Agent', () => {
         ).toThrow(/expired/u);
     });
 });
+
+describe('agentCommandRequest for a delegation by folder', () => {
+    const endpoints = {
+        context: () => ({ endpoint: { terminalId: 'terminal-1' } }),
+    } as unknown as AgentEndpointRegistry;
+    const byPath = {
+        method: 'agent.delegation.create',
+        params: {
+            projectPath: '/work/other-repo',
+            newSession: true,
+            title: 'Fix login retry',
+            provider: 'claude',
+            prompt: 'Synthetic',
+        },
+    } as never;
+
+    it.each(['agent', 'human-cli', 'desktop'])(
+        'forwards a folder from %s without a Project scope check',
+        (kind) => {
+            const routed = agentCommandRequest(
+                byPath,
+                contextFor(kind, ['project-1']),
+                'request-1',
+                endpoints,
+            );
+
+            expect(routed.method).toBe('agent.delegation.createInternal');
+            expect(routed.params).toMatchObject({
+                input: { projectPath: '/work/other-repo' },
+            });
+        },
+    );
+
+    it.each(['delegation-client', 'paired-device', 'extension'])(
+        'refuses a folder from %s, which must never add a Project',
+        (kind) => {
+            expect(() =>
+                agentCommandRequest(
+                    byPath,
+                    contextFor(kind, ['project-1']),
+                    'request-1',
+                    endpoints,
+                ),
+            ).toThrow(/cannot add a Project/u);
+        },
+    );
+});

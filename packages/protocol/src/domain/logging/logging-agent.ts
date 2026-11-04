@@ -207,6 +207,13 @@ export const agentDelegationLogEvents = {
      */
     historyRead: 'agent_delegation.history_read',
     /**
+     * A `newSession` delegation named a folder (`projectPath`) instead of a Project ID, and the Server resolved it to a
+     * Project. Fields: `outcome`, a closed enum: `created` (a new visible Project), `existing` (the folder was already
+     * a visible top-level Project), `unhidden` (a hidden Project came back), or `adopted_worktree` (a registered
+     * worktree Project was promoted to top level), plus `principalKind` (closed) and `durationMs`. Never the path.
+     */
+    projectAdded: 'agent_delegation.project_added',
+    /**
      * A settled task's history row was written or refused. Fields: `delegationId`, `outcome`, `failure` (closed),
      * `isInsert`, `compactedCount`, `durationMs`, and `result` (`ok` or `failed` with a closed `reason`: `constraint`,
      * `database`, or `unknown`). A failed write is retried by the task's next save. IDs and enums only.

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
@@ -323,6 +325,27 @@ export function resolveDelegationAdmission(options: {
             : authority.callerTerminalId && options.callerTurnId?.(authority.callerTerminalId),
         callerLaunchId: inherited ? inherited.callerLaunchId : (callerLaunch ?? undefined),
     };
+}
+
+/**
+ * The digest that makes a request ID name one task. `projectPath` is the folder the original request named instead of a
+ * Project ID: the stored input only holds the Project it resolved to, so without it in the digest a replay naming
+ * another folder would pass as the same request. Only the digest is stored, never the path.
+ */
+export function delegationFingerprint(
+    authority: DelegationAuthority,
+    input: AgentDelegationCreate,
+    projectPath?: string,
+): string {
+    return createHash('sha256')
+        .update(
+            JSON.stringify(
+                projectPath === undefined
+                    ? { authority, input }
+                    : { authority, input, projectPath },
+            ),
+        )
+        .digest('hex');
 }
 
 /**

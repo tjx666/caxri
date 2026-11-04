@@ -10,6 +10,8 @@ import type {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { ProjectAddOutcome } from '../project';
+
 /**
  * Records one receipt transition. `isRecovery` marks a transition Server startup applied to a task the previous Server
  * left active, which is never announced to Caxri Bot.
@@ -40,6 +42,17 @@ export function logDelegationTransition(
 
 function isUsageLimitFailure(failure: AgentDelegationReceipt['failure']): boolean {
     return failure === 'quota_exhausted' || failure === 'rate_limited';
+}
+
+/**
+ * Records that a `projectPath` delegation resolved its folder to a Project. Closed values and a duration only, never
+ * the path.
+ */
+export function logDelegationProjectAdded(
+    logger: StructuredLogger | undefined,
+    added: { outcome: ProjectAddOutcome; principalKind: string; durationMs: number },
+): void {
+    logger?.write('info', logEventCatalog.agentDelegation.projectAdded, { fields: added });
 }
 
 /**

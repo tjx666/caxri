@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 import {
     agentDelegationCreateRequestSchema,
     CaxriError,
@@ -14,6 +16,7 @@ import type { RemoteCommandDefinition } from './types';
 
 const createFlags = new Set([
     '--project',
+    '--project-path',
     '--session',
     '--provider',
     '--preset',
@@ -73,12 +76,17 @@ async function createParameters(tokens: readonly string[]) {
         values.set(flag, value);
     }
     const projectId = values.get('--project');
+    const projectPath = values.get('--project-path');
+    if (projectId && projectPath)
+        throw new CaxriError('VALIDATION', 'Pass --project or --project-path, not both');
+    if (projectPath && !isNewSession)
+        throw new CaxriError('VALIDATION', '--project-path applies only with --new-session');
     const sessionId = values.get('--session');
     const path = values.get('--prompt-file');
-    if (!projectId || !path || Boolean(sessionId) === isNewSession)
+    if (!path || !(projectId ?? projectPath) || Boolean(sessionId) === isNewSession)
         throw new CaxriError(
             'VALIDATION',
-            'Delegation requires --project, one of --session or --new-session, and --prompt-file',
+            'Delegation requires --project or --project-path, one of --session or --new-session, and --prompt-file',
         );
     if (isNewSession !== values.has('--title'))
         throw new CaxriError(
@@ -98,7 +106,9 @@ async function createParameters(tokens: readonly string[]) {
     );
     return agentDelegationCreateRequestSchema.parse({
         ...surfaceParameter(values.get('--surface'), continuation),
-        projectId,
+        ...(projectId && { projectId }),
+        // Resolved here, from the shell's directory, because the Server has no working directory of the caller's.
+        ...(projectPath && { projectPath: resolve(projectPath) }),
         ...(sessionId && { sessionId }),
         ...(isNewSession && { newSession: true }),
         ...(isHandoff && { handoff: true }),
@@ -225,8 +235,9 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `--project <id> (--session <id> | --new-session --title <text> [--handoff | --consult] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
-        ownerConfirmation: 'Create this visible Agent delegation?',
+        usage: `(--project <id> | --project-path <dir>) (--session <id> | --new-session --title <text> [--handoff | --consult] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
+        ownerConfirmation:
+            'Create this visible Agent delegation, adding its folder as a Project if needed?',
         parseParams: createParameters,
     },
     {

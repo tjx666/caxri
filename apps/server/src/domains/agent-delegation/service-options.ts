@@ -12,6 +12,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentDispatchService } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
+import type { ProjectAddOutcome } from '../project';
 import type { DelegationApprovalEnvironment } from './approvals/entry';
 import type { DelegationTranscriptReader } from './collection';
 import type { DelegationLimitFailure } from './receipt-timing';
@@ -177,6 +178,12 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
          * omit it.
          */
         prepareWorktree?(projectId: string, branch: string): Promise<DelegationWorktree>;
+        /**
+         * Adds an absolute folder as a visible top-level Project the way `project.add` does (canonical root,
+         * idempotent, un-hides a hidden Project) and returns its ID with what happened. Rejects a path that is not an
+         * existing directory. Optional so a unit test can omit it; a request with a `projectPath` is then refused.
+         */
+        addProject?(absolutePath: string): Promise<{ id: string; outcome: ProjectAddOutcome }>;
         /**
          * Removes a Session the delegation just created but never used. Metadata only.
          */

@@ -188,6 +188,11 @@ are owner-only Desktop and mobile actions with no CLI command.
 Open Agents in Chat; the receipt's `surface` reports what the child got. It applies to a new task, not
 to `--follow-up`, `--resume`, or `--continue-handover`; see [Agent delegation](agent-delegation.md#agent-chat-children).
 
+`agent delegate create --project-path <dir> --new-session` adds the folder as a Project and delegates
+into it in one request, in place of `project add` and `--project <id>`. The CLI resolves the path
+against its working directory. Only a managed Agent, the owner's CLI, and the Desktop may use it; see
+[Agent delegation](agent-delegation.md#start-work-in-a-new-session).
+
 `secret list`, `secret request <NAME> --reason <text>`, and `secret exec <NAME>... -- <command>`
 let an Agent use a secret the user saved in Caxri without the value entering the conversation.
 They require the baseline `secrets.use` capability and bind to the caller's own Project; the human

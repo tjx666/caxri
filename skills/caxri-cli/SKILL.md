@@ -231,6 +231,12 @@ Then write the task to a file and run
   or to add one the user has not opened yet, run `project add <path>`: it returns the existing
   Project for an added folder and shows a hidden one again, so tell the user when you add or
   unhide one.
+- `--project-path <dir>` in place of `--project <id>` does the `project add` step inside the same
+  request (only with `--new-session`): `agent delegate create --project-path ../other-repo
+--new-session --title <subject> --provider <provider> --prompt-file <path> --request-id <id>
+--json`. The folder must exist; the same reuse and unhide rules apply, so tell the user when it
+  adds a Project. Replaying the request ID with another folder fails, and a refusal after the add
+  keeps the Project.
 - `--new-session --title <subject>` creates the Session together with its task. Name it after the
   task's concrete subject, in the language the user speaks with you even when the task file is in
   English, and without a generic prefix such as `Delegated task:`; the user reads it in the

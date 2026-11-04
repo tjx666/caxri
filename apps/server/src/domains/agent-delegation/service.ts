@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type {
     AgentDelegationCreate,
     AgentDelegationCreateRequest,
@@ -17,6 +15,7 @@ import {
     admittedDelegation,
     authorizeDelegationSession,
     delegationCaller,
+    delegationFingerprint,
     delegationRoster,
     isCaxriBotCaller,
     resolveDelegationAdmission,
@@ -260,11 +259,10 @@ export class AgentDelegationService {
         input: AgentDelegationCreate,
         isNewSession: boolean,
         retry?: RetryAdmission,
+        projectPath?: string,
     ): Promise<AgentDelegationReceipt> {
         this.authorize(authority, input, 'create', isNewSession);
-        const fingerprint = createHash('sha256')
-            .update(JSON.stringify({ authority, input }))
-            .digest('hex');
+        const fingerprint = delegationFingerprint(authority, input, projectPath);
         const pending = this.requests.run(id, async () => {
             const existing = this.options.database.agentDelegations.get(id);
             if (existing) {
@@ -459,8 +457,8 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         request: AgentDelegationCreateRequest,
     ): Promise<AgentDelegationReceipt> {
-        return admitDelegationRequest(this.options, id, authority, request, (input, isNewSession) =>
-            this.createInSession(id, authority, input, isNewSession),
+        return admitDelegationRequest(this.options, id, authority, request, (input, isNew, path) =>
+            this.createInSession(id, authority, input, isNew, undefined, path),
         );
     }
 

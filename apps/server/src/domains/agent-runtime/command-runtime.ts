@@ -29,6 +29,7 @@ import {
 } from '../agents';
 import { botHandoverAccess, createBotSession, discardBotSession } from '../bot';
 import { coreRouted } from '../core-routed';
+import { addProjectFolderWithOutcome } from '../project';
 import { createBackgroundSession, discardEmptySession } from '../session';
 import type { AgentUsageGuards } from '../usage';
 import { prepareDelegatedWorktree } from './delegated-worktree';
@@ -179,6 +180,14 @@ export function createAgentCommandRuntime(
                     );
                 announce('session.create');
                 return sessionId;
+            },
+            addProject: async (absolutePath) => {
+                const { project, outcome } = await addProjectFolderWithOutcome(
+                    options.database,
+                    (event) => options.emit(event),
+                    absolutePath,
+                );
+                return { id: project.id, outcome };
             },
             prepareWorktree: (projectId, branch) => {
                 const project = options.database

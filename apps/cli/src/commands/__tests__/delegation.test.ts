@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
@@ -182,6 +182,44 @@ describe('delegation CLI', () => {
                 ).rejects.toThrow(/keeps the surface/u),
             ),
         );
+    });
+
+    it('delegates by folder: --project-path resolves against the shell directory and needs --new-session', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-cli-'));
+        onTestFinished(() => rm(directory, { recursive: true, force: true }));
+        const path = join(directory, 'task.md');
+        await writeFile(path, 'Synthetic task');
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.create',
+        )!;
+        const base = ['--provider', 'codex', '--prompt-file', path];
+        const fresh = ['--new-session', '--title', 'Fix login retry'];
+        const parsed = await command.parseParams([
+            ...base,
+            ...fresh,
+            '--project-path',
+            '../other-repo',
+        ]);
+        expect(parsed).toEqual({
+            projectPath: resolve('../other-repo'),
+            newSession: true,
+            title: 'Fix login retry',
+            provider: 'codex',
+            prompt: 'Synthetic task',
+        });
+        expect(parsed).not.toHaveProperty('projectId');
+        await expect(
+            command.parseParams([...base, ...fresh, '--project-path', '/a', '--project', 'p']),
+        ).rejects.toThrow(/not both/u);
+        await expect(
+            command.parseParams([...base, '--session', 'session', '--project-path', '/a']),
+        ).rejects.toThrow(/only with --new-session/u);
+        await expect(command.parseParams([...base, ...fresh])).rejects.toThrow(
+            /--project or --project-path/u,
+        );
+        expect(
+            await command.parseParams([...base, ...fresh, '--consult', '--project-path', '/a']),
+        ).toMatchObject({ projectPath: '/a', consult: true });
     });
 
     it('waits on one or several tasks and rejects flags or an unbounded list', () => {

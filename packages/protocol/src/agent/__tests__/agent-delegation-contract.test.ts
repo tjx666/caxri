@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentDelegationCreateRequestSchema,
+    agentDelegationCreateSchema,
     formatDelegationRetryNotice,
     isRetryableDelegationFailure,
 } from '../delegation/agent-delegation-contract';
@@ -91,6 +92,58 @@ describe('agentDelegationCreateRequestSchema surface', () => {
                 prompt: 'Review the design',
                 surface: 'pty',
                 continueFromHandover: 'handover-1',
+            }).success,
+        ).toBe(false);
+    });
+});
+
+describe('agentDelegationCreateRequestSchema projectPath', () => {
+    const withoutProject = {
+        provider: 'claude',
+        prompt: 'Review the design',
+        newSession: true,
+        title: 'Review the retry design',
+    };
+    const byPath = { ...withoutProject, projectPath: '/work/other-repo' };
+
+    it('accepts a folder in place of a Project ID for a new Session', () => {
+        expect(agentDelegationCreateRequestSchema.parse(byPath)).toMatchObject({
+            projectPath: '/work/other-repo',
+            newSession: true,
+        });
+        expect(agentDelegationCreateRequestSchema.safeParse(newSession).success).toBe(true);
+    });
+
+    it('needs exactly one of a Project ID and a folder', () => {
+        expect(
+            agentDelegationCreateRequestSchema.safeParse({ ...byPath, projectId: 'project-1' })
+                .success,
+        ).toBe(false);
+        expect(agentDelegationCreateRequestSchema.safeParse(withoutProject).success).toBe(false);
+    });
+
+    it('refuses a folder without a new Session', () => {
+        const parsed = agentDelegationCreateRequestSchema.safeParse({
+            provider: 'claude',
+            prompt: 'Review the design',
+            projectPath: '/work/other-repo',
+            sessionId: 'session-1',
+        });
+
+        expect(parsed.success).toBe(false);
+        expect(parsed.error?.issues.map(({ message }) => message)).toContain(
+            'A Project path adds a Project for a new Session',
+        );
+    });
+
+    it('is not part of a stored task, which references the Project by ID', () => {
+        expect(
+            agentDelegationCreateSchema.safeParse({
+                projectId: 'project-1',
+                sessionId: 'session-1',
+                provider: 'claude',
+                prompt: 'Review the design',
+                projectPath: '/work/other-repo',
             }).success,
         ).toBe(false);
     });

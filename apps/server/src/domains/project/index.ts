@@ -1,4 +1,4 @@
-export { addProjectFolder } from './add';
+export { addProjectFolder, addProjectFolderWithOutcome, type ProjectAddOutcome } from './add';
 export {
     createProjectFolderBrowser,
     hasVisibleChildDirectory,
