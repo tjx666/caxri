@@ -63,6 +63,11 @@ export interface EndTurnConfirmationCopy {
     failureTitle: string;
     outcome: string;
     /**
+     * Overrides the dialog title (default "Stop the running turn?") with one that names the subject and verb; receives
+     * the Agent's display name.
+     */
+    title?: (agent: string) => string;
+    /**
      * The question to ask when no turn is running, for an action that must never happen silently even then (Start New
      * Conversation drops the binding the Terminal resumes from). Omitted, an idle Agent proceeds without a dialog.
      */
@@ -110,7 +115,7 @@ export async function confirmBeforeEndingTurn(
     const providerName = agentProviderCatalog[terminal.provider].displayName;
     const isConfirmed = await tryCommand(copy.failureTitle, () =>
         caxri.window.showConfirm({
-            title: translate('terminal.turnGuard.title'),
+            title: copy.title?.(providerName) ?? translate('terminal.turnGuard.title'),
             message: translate('terminal.turnGuard.message', {
                 outcome: copy.outcome,
                 provider: providerName,

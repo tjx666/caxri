@@ -14,7 +14,11 @@ import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { AgentChatStatusGlyph } from '../../tools/agent-chat-status-glyph';
 import { agentChatWorkflowPhaseState, agentChatWorkflowPhaseSummary } from './agent-chat-workflow';
-import { copyAgentChatWorkflowError, resumeAgentChatWorkflow } from './agent-chat-workflow-actions';
+import {
+    copyAgentChatWorkflowError,
+    copyAgentChatWorkflowResult,
+    resumeAgentChatWorkflow,
+} from './agent-chat-workflow-actions';
 import { AgentChatWorkflowMemberRow } from './agent-chat-workflow-member-row';
 
 /**
@@ -77,22 +81,36 @@ function WorkflowOutcome({
         );
     }
     if (!workflow.result) return null;
+    const { result } = workflow;
     const isStructured = /^\s*[[{]/u.test(workflow.result);
     return (
         <section
             aria-label={t('agentChat.workflow.result')}
             className="rounded border border-border px-3 py-2"
         >
-            <h3 className="m-0 text-[11px] leading-4 font-medium text-muted">
-                {t('agentChat.workflow.result')}
-            </h3>
+            <div className="flex items-center gap-2">
+                <h3 className="m-0 min-w-0 flex-1 text-[11px] leading-4 font-medium text-muted">
+                    {t('agentChat.workflow.result')}
+                </h3>
+                <Tooltip content={t('agentChat.workflow.copyResult')}>
+                    <Button
+                        aria-label={t('agentChat.workflow.copyResult')}
+                        className="size-6 p-0"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => copyAgentChatWorkflowResult(result)}
+                    >
+                        <Copy className="size-3.5" />
+                    </Button>
+                </Tooltip>
+            </div>
             <p
                 className={cn(
                     'm-0 mt-1 max-h-60 overflow-auto text-[12px] leading-5 whitespace-pre-wrap text-foreground select-text',
                     isStructured && 'font-mono text-[11px] leading-4',
                 )}
             >
-                {workflow.result}
+                {result}
             </p>
         </section>
     );

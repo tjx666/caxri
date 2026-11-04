@@ -33,6 +33,12 @@ import { SessionListPage } from './session-list-page';
 import { SessionProjectPager } from './session-project-pager';
 import { SessionRow } from './session-row';
 
+/**
+ * The list's bottom padding on a phone: the floating New Session button (58dp) and its bottom and side margins. The
+ * screen's `SafeAreaView` already keeps the whole pane above the system inset, so no extra inset is added here.
+ */
+const PHONE_NEW_BUTTON_CLEARANCE = 58 + mobileSpace.xl + mobileSpace.lg;
+
 const styles = StyleSheet.create({
     pane: { minWidth: 0 },
     phonePane: { flex: 1 },
@@ -292,6 +298,7 @@ export const SessionHome = ({
                 interactionRef={listInteractionReference}
                 isActive={index === activeIndex}
                 activeListRef={listReference}
+                bottomInset={layout === 'phone' ? PHONE_NEW_BUTTON_CLEARANCE : 0}
                 onLoad={restoreScroll}
                 onScroll={rememberScroll}
                 renderEntry={projectId === null ? renderAllEntry : renderProjectEntry}

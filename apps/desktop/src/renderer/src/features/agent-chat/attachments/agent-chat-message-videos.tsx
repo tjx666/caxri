@@ -49,7 +49,7 @@ function VideoTile({ path, onPlay }: { path: string; onPlay: () => void }) {
         <Tooltip content={path}>
             <button
                 aria-label={t('agentChat.message.playVideo', { name })}
-                className="group relative flex h-28 w-48 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-border bg-background p-0 text-muted focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                className="group relative flex h-28 w-48 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-border bg-background p-0 text-muted focus-visible:outline focus-visible:outline-accent"
                 data-agent-chat-video={path}
                 type="button"
                 onClick={onPlay}

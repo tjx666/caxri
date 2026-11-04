@@ -11,6 +11,7 @@ import type { MobileSessionItem } from '../session-model';
 import {
     sessionAgeLabel,
     sessionAgentLabel,
+    sessionAttentionStateLabel,
     sessionRowPullRequest,
     sessionStateLabel,
     sessionTitleForDisplay,
@@ -107,7 +108,7 @@ export const SessionRow = ({
             accessibilityLabel={[
                 title,
                 sessionAgentLabel(session, t),
-                stateLabel,
+                sessionAttentionStateLabel(session, savedAt !== null, stateLabel, t),
                 ...(worktree ? [t('sessions.row.worktree', { name: worktree })] : []),
                 ...(pullRequest ? [pullRequest.label] : []),
             ].join(', ')}

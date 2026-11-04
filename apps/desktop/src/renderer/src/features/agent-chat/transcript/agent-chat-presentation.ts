@@ -562,17 +562,20 @@ const AGENT_CHAT_REQUEST_PATHS_SHOWN = 5;
 
 /**
  * The files a file-change approval names, as a waiting surface lists them: relative to the Project when inside it (the
- * full path stays available for a tooltip), at most {@link AGENT_CHAT_REQUEST_PATHS_SHOWN}, plus how many more.
+ * full path stays available for a tooltip), at most {@link AGENT_CHAT_REQUEST_PATHS_SHOWN} unless `isExpanded`, plus how
+ * many more are hidden.
  */
 export function agentChatRequestPaths(
     paths: readonly string[] | undefined,
     projectRoot: string | undefined,
+    isExpanded = false,
 ): { moreCount: number; shown: Array<{ label: string; path: string }> } {
     const all = paths ?? [];
+    const limit = isExpanded ? all.length : AGENT_CHAT_REQUEST_PATHS_SHOWN;
     return {
-        moreCount: Math.max(0, all.length - AGENT_CHAT_REQUEST_PATHS_SHOWN),
+        moreCount: Math.max(0, all.length - limit),
         shown: all
-            .slice(0, AGENT_CHAT_REQUEST_PATHS_SHOWN)
+            .slice(0, limit)
             .map((path) => ({ label: projectDisplayPath(path, projectRoot), path })),
     };
 }

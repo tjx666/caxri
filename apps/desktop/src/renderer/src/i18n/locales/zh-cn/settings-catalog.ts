@@ -7,7 +7,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.category.chat': '对话',
     'settings.category.notifications': '通知',
     'settings.category.mobile': '移动设备',
-    'settings.category.hosts': '主机',
+    'settings.category.hosts': 'SSH Host',
     'settings.category.terminal': '终端',
     'settings.category.editor': '编辑器',
     'settings.category.security': '安全',

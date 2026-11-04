@@ -1,7 +1,5 @@
 import { Forward } from 'lucide-react';
 
-import { useClockTick } from '@/hooks/use-clock-tick';
-
 import { useTranslation } from '../../../i18n';
 import { isPrimarySidebarShown, useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { useSessionPullRequestPoll } from '../../primary-sidebar/hooks/use-session-pull-request';
@@ -39,8 +37,6 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
     const { t } = useTranslation();
     const { attempts, chainSessionIds, entries, sessionId } = useDelegatedSessions(terminalId);
     const cost = useDelegatedCost(sessionId, entries.length > 0);
-    // A minute tick: it ages the elapsed labels and expires a reset time, and no row needs finer than that.
-    const now = useClockTick('minute');
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
     if (entries.length === 0) return null;
     const summary = delegatedSessionsSummary(entries);
@@ -59,7 +55,7 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
             <AgentChatStripSection
                 ariaLabel={[
                     `${t('delegation.strip.label')}, ${announcement}`,
-                    headerCost && t('delegation.strip.cost.header', { amount: headerCost.text }),
+                    headerCost?.description,
                 ]
                     .filter(Boolean)
                     .join(', ')}
@@ -107,7 +103,6 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                             )}
                             entry={entry}
                             key={entry.sessionId}
-                            now={now}
                         />
                     ))}
                 </ul>

@@ -9,9 +9,11 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { cn } from '../../lib/utilities';
 import { useImportedThemes } from '../../stores/selectors';
 import type { ImportedThemeUsageInput, ImportedThemeUse } from './imported-theme-usage';
 import { importedThemeUses } from './imported-theme-usage';
+import { SETTINGS_GROUP_HEADING_CLASS_NAME, SETTINGS_SOLO_CARD_CLASS_NAME } from './settings-card';
 import { removeImportedTheme } from './settings-client';
 import { reportSettingsError } from './settings-error-report';
 
@@ -51,8 +53,8 @@ export function ImportedThemesSection({ usage }: { usage: ImportedThemeUsageInpu
         defaultThemeIdForScheme(scheme);
 
     /**
-     * A theme that paints right now is confirmed first, because the window may repaint in a theme the user did not
-     * pick.
+     * Every removal is confirmed first: nothing offers undo, and a theme that paints right now may repaint the window
+     * in a theme the user did not pick.
      */
     const confirmRemoval = (
         theme: ThemeTokens,
@@ -76,7 +78,7 @@ export function ImportedThemesSection({ usage }: { usage: ImportedThemeUsageInpu
 
     const remove = async (theme: ThemeTokens): Promise<void> => {
         const uses = importedThemeUses(theme.id, usage);
-        if (uses.length > 0 && !(await confirmRemoval(theme, uses))) return;
+        if (!(await confirmRemoval(theme, uses))) return;
         const released = slotsNaming(slots, theme.id);
         try {
             await removeImportedTheme(theme.id);
@@ -99,7 +101,7 @@ export function ImportedThemesSection({ usage }: { usage: ImportedThemeUsageInpu
 
     return (
         <fieldset className="my-3 min-w-0 border-0 p-0">
-            <legend className="mb-2 text-[11px] font-semibold text-foreground uppercase">
+            <legend className={SETTINGS_GROUP_HEADING_CLASS_NAME}>
                 {t('settings.themeEditor.imported.title')}
             </legend>
             {notice && (
@@ -126,7 +128,7 @@ export function ImportedThemesSection({ usage }: { usage: ImportedThemeUsageInpu
                     </Tooltip>
                 </Alert>
             )}
-            <ul className="m-0 list-none p-0">
+            <ul className={cn(SETTINGS_SOLO_CARD_CLASS_NAME, 'm-0 list-none p-2')}>
                 {importedThemes.map((theme) => {
                     const uses = importedThemeUses(theme.id, usage);
                     return (
@@ -134,7 +136,7 @@ export function ImportedThemesSection({ usage }: { usage: ImportedThemeUsageInpu
                             key={theme.id}
                             className="flex min-w-0 items-center gap-2 rounded px-1 py-1 hover:bg-state-hover-quiet"
                         >
-                            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
+                            <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
                                 {theme.name}
                             </span>
                             <span className="shrink-0 text-[11px] text-muted">

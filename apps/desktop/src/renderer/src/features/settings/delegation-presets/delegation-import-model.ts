@@ -6,6 +6,7 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
+import { formatList } from '../../../lib/list-format';
 
 export type DelegationImportPreview = MethodResult<'settings.delegation.import'>;
 
@@ -20,12 +21,30 @@ export function importCounts(diff: DelegationImportPreview['diff']) {
     };
 }
 
+type ImportField =
+    | DelegationImportPreview['diff']['presets']['changed'][number]['fields'][number]
+    | DelegationImportPreview['diff']['callers']['changed'][number]['fields'][number];
+
 /**
- * `review: model, effort`: which fields of a preset the import rewrites. Field names are protocol identifiers, shown as
- * they are written in the settings file.
+ * A changed field in plain words ("model", "when to use"), not the identifier the settings file writes.
  */
-export function changedPresetLines(diff: DelegationImportPreview['diff']): string[] {
-    return diff.presets.changed.map(({ name, fields }) => `${name}: ${fields.join(', ')}`);
+function fieldLabel(field: ImportField, t: Translate): string {
+    return t(`settings.delegationPresets.field.${field}`);
+}
+
+/**
+ * The changed fields as one phrase in the interface language ("model and effort").
+ */
+function fieldList(fields: readonly ImportField[], t: Translate): string {
+    const labels = fields.map((field) => fieldLabel(field, t));
+    return formatList(labels, t.locale);
+}
+
+/**
+ * `review: model and effort`: which fields of a preset the import rewrites, named in plain words.
+ */
+export function changedPresetLines(diff: DelegationImportPreview['diff'], t: Translate): string[] {
+    return diff.presets.changed.map(({ name, fields }) => `${name}: ${fieldList(fields, t)}`);
 }
 
 /**
@@ -36,14 +55,20 @@ export function presetNameLines(diff: DelegationImportPreview['diff'], t: Transl
     const { added, removed } = diff.presets;
     const lines: string[] = [];
     if (added.length > 0)
-        lines.push(t('settings.delegationPresets.added', { names: added.join(', ') }));
+        lines.push(t('settings.delegationPresets.added', { names: formatList(added, t.locale) }));
     if (removed.length > 0)
-        lines.push(t('settings.delegationPresets.removed', { names: removed.join(', ') }));
+        lines.push(
+            t('settings.delegationPresets.removed', { names: formatList(removed, t.locale) }),
+        );
     return lines;
 }
 
 function providerName(provider: AgentProvider): string {
     return agentProviderCatalog[provider].displayName;
+}
+
+function providerList(providers: readonly AgentProvider[], t: Translate): string {
+    return formatList(providers.map(providerName), t.locale);
 }
 
 /**
@@ -56,24 +81,23 @@ export function otherChangeLines(preview: DelegationImportPreview, t: Translate)
     if (callers.added.length > 0)
         lines.push(
             t('settings.delegationPresets.callersAdded', {
-                providers: callers.added.map(providerName).join(', '),
+                providers: providerList(callers.added, t),
             }),
         );
-    if (callers.changed.length > 0)
+    if (callers.changed.length > 0) {
+        const changed = callers.changed.map(
+            ({ provider, fields }) => `${providerName(provider)} (${fieldList(fields, t)})`,
+        );
         lines.push(
             t('settings.delegationPresets.callersChanged', {
-                providers: callers.changed
-                    .map(
-                        ({ provider, fields }) =>
-                            `${providerName(provider)} (${fields.join(', ')})`,
-                    )
-                    .join(', '),
+                providers: formatList(changed, t.locale),
             }),
         );
+    }
     if (callers.removed.length > 0)
         lines.push(
             t('settings.delegationPresets.callersRemoved', {
-                providers: callers.removed.map(providerName).join(', '),
+                providers: providerList(callers.removed, t),
             }),
         );
     if (settings.includes('maxDepth'))

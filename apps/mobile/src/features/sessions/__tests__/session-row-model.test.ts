@@ -9,6 +9,7 @@ import {
     savedAgeLabel,
     sessionAgeLabel,
     sessionAgentLabel,
+    sessionAttentionStateLabel,
     sessionRowPullRequest,
     sessionStateLabel,
     sessionStatusGlyphKind,
@@ -76,6 +77,27 @@ describe('savedAgeLabel', () => {
         const now = 1_000_000_000;
         expect(savedAgeLabel(now, now)).toBe('saved just now');
         expect(savedAgeLabel(now - 5 * 60_000, now)).toBe('saved 5m ago');
+    });
+});
+
+describe('sessionAttentionStateLabel', () => {
+    it('prefixes what an unread mark asks of the user, and leaves other states alone', () => {
+        const settled = { hasUnread: false, agentActivityState: 'idle' } as const;
+        expect(sessionAttentionStateLabel(settled, false, 'Idle')).toBe('Idle');
+        expect(
+            sessionAttentionStateLabel(
+                { hasUnread: true, agentActivityState: 'waiting', lastAttentionKind: 'waiting' },
+                false,
+                'Waiting',
+            ),
+        ).toBe('Needs your answer: Waiting');
+        expect(
+            sessionAttentionStateLabel(
+                { hasUnread: true, agentActivityState: 'idle', lastAttentionKind: 'completed' },
+                false,
+                'Done',
+            ),
+        ).toBe('Needs attention: Done');
     });
 });
 

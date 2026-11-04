@@ -5,7 +5,13 @@ import { Spinner } from '../../components/ui/spinner';
 import { useTranslation } from '../../i18n';
 import { environmentIdOf, useEnvironmentStore } from '../../stores/environment';
 import { hostDisplayOf, useHostPreference } from '../../stores/host-preferences';
-import { canReconnect, connectionPhaseLabel, isConnectionBusy } from './connection-status';
+import {
+    canReconnect,
+    connectionFailureTone,
+    connectionPhaseLabel,
+    connectionToneClasses,
+    isConnectionBusy,
+} from './connection-status';
 import { remoteMachinesOf } from './remote-machines';
 import { reconnectSshHost } from './ssh-host-commands';
 
@@ -31,6 +37,7 @@ function HostConnectionRow({
     const preference = useHostPreference(environmentId);
     if (!state || state.phase === 'connected') return null;
     const label = connectionPhaseLabel(state);
+    const tone = connectionToneClasses(connectionFailureTone(state));
     const text = `${named ? `${hostDisplayOf(environmentId, preference).name}: ` : ''}${t(label.key, label.values)}`;
     return (
         <div
@@ -44,8 +51,8 @@ function HostConnectionRow({
                 </>
             ) : (
                 <>
-                    <span className="size-1.5 flex-none rounded-full bg-danger" />
-                    <span className="min-w-0 flex-1 truncate text-danger">{text}</span>
+                    <span className={`size-1.5 flex-none rounded-full ${tone.dot}`} />
+                    <span className={`min-w-0 flex-1 truncate ${tone.text}`}>{text}</span>
                     {canReconnect(state) && (
                         <Button
                             size="sm"

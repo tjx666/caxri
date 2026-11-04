@@ -11,7 +11,11 @@ import { useClockTick } from '@/hooks/use-clock-tick';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById } from '../../../stores/selectors';
-import { delegationCopy, delegationCopyInput } from '../../delegation/delegation-copy';
+import {
+    delegationCopy,
+    delegationCopyInput,
+    isDelegationCopyClockDependent,
+} from '../../delegation/delegation-copy';
 import { isDelegationRetryPending } from '../../delegation/delegation-feed';
 import { useDelegationStatuses } from '../../delegation/hooks/use-delegation-statuses';
 import { openSession } from '../../session/session-commands';
@@ -40,10 +44,12 @@ function DelegationRecordRow({
     status: AgentDelegationStatusEntry | undefined;
 }) {
     const { t } = useTranslation();
-    const now = useClockTick('minute', isLive);
+    const copyInput = status ? delegationCopyInput(status) : {};
+    // Only a reset or retry time ages; every other record reads no clock.
+    const now = useClockTick('minute', isLive && isDelegationCopyClockDependent(copyInput));
     const session = useSessionById(delegation.sessionId);
     const project = useProjectById(session?.projectId);
-    const copy = delegationCopy(status ? delegationCopyInput(status) : {}, now, t);
+    const copy = delegationCopy(copyInput, now, t);
     // A task whose state the Server no longer has shows no state rather than the "No task details" headline.
     const glyph = status ? copy.glyph : 'ordinary';
     const title = session ? sessionTitleForDisplay(session.title, t) : undefined;

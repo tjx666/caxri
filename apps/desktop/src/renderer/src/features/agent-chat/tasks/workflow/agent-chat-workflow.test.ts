@@ -12,6 +12,7 @@ import {
     agentChatWorkflowPhaseDurationMs,
     agentChatWorkflowPhaseState,
     agentChatWorkflowPhaseSummary,
+    agentChatWorkflowPosition,
     agentChatWorkflowProgressLabel,
     agentChatWorkflowResumeDraft,
     isAgentChatWorkflowMemberQuiet,
@@ -242,5 +243,21 @@ describe('agentChatWorkflowPhaseSummary', () => {
 describe('agentChatWorkflowResumeDraft', () => {
     it('names the run so the Agent can resume it', () => {
         expect(agentChatWorkflowResumeDraft('review', 'wf_1')).toContain('"review" (run wf_1)');
+    });
+});
+
+describe('agentChatWorkflowPosition', () => {
+    it('counts only openable members in run order', () => {
+        const workflow = {
+            phases: [],
+            members: [
+                member(0, 'completed', { taskId: 'a' }),
+                member(1, 'queued'),
+                member(2, 'running', { taskId: 'c' }),
+            ],
+        };
+        expect(agentChatWorkflowPosition(workflow, 'a')).toEqual({ index: 1, total: 2 });
+        expect(agentChatWorkflowPosition(workflow, 'c')).toEqual({ index: 2, total: 2 });
+        expect(agentChatWorkflowPosition(workflow, 'missing')).toBeUndefined();
     });
 });

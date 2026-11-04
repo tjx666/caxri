@@ -82,6 +82,7 @@ describe('VS Code syntax import', () => {
         expect(theme.warnings).toContainEqual({
             id: 'missing-syntax-colors',
             message: 'Syntax colors for comments were not imported.',
+            params: { roles: 'comment' },
         });
         expect(theme.warnings).toContainEqual({
             id: 'other-syntax-colors',

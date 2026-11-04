@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import {
     Select,
@@ -7,6 +7,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import type { SessionTimeRange } from './session-time-range';
 import { sessionTimeRangeLabelKeys, sessionTimeRanges } from './session-time-range';
@@ -21,6 +22,7 @@ export function SessionTimeRangeSelect({
     id,
     leading,
     onChange,
+    shortcut,
     triggerClassName,
     value,
 }: {
@@ -28,21 +30,27 @@ export function SessionTimeRangeSelect({
     id?: string;
     leading?: ReactNode;
     onChange: (value: SessionTimeRange) => void;
+    /**
+     * When set, the trigger gets a tooltip naming this shortcut, like its sibling filter controls.
+     */
+    shortcut?: string;
     triggerClassName?: string;
     value: SessionTimeRange;
 }) {
     const { t } = useTranslation();
     return (
         <Select value={value} onValueChange={(next) => onChange(next ?? 'all')}>
-            <SelectTrigger
-                aria-label={ariaLabel}
-                className={triggerClassName}
-                data-session-time-range={value}
-                id={id}
-            >
-                {leading}
-                <SelectValue>{t(sessionTimeRangeLabelKeys[value])}</SelectValue>
-            </SelectTrigger>
+            <TriggerTooltip label={ariaLabel} shortcut={shortcut}>
+                <SelectTrigger
+                    aria-label={ariaLabel}
+                    className={triggerClassName}
+                    data-session-time-range={value}
+                    id={id}
+                >
+                    {leading}
+                    <SelectValue>{t(sessionTimeRangeLabelKeys[value])}</SelectValue>
+                </SelectTrigger>
+            </TriggerTooltip>
             <SelectContent>
                 {sessionTimeRanges.map((range) => (
                     <SelectItem key={range} value={range}>
@@ -51,5 +59,23 @@ export function SessionTimeRangeSelect({
                 ))}
             </SelectContent>
         </Select>
+    );
+}
+
+function TriggerTooltip({
+    children,
+    label,
+    shortcut,
+}: {
+    children: ReactElement;
+    label: string;
+    shortcut?: string;
+}) {
+    return shortcut ? (
+        <Tooltip content={label} shortcut={shortcut}>
+            {children}
+        </Tooltip>
+    ) : (
+        children
     );
 }

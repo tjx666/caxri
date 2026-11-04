@@ -43,6 +43,7 @@ export const conversation: TranslatedNamespace<typeof source> = {
     'conversation.event.taskNotification': '后台任务',
     'conversation.historyExpired': '电脑上的对话历史已变更，正在显示最新消息。',
     'conversation.jumpToLatest': '跳到最新',
+    'conversation.startOfConversation': '对话开头',
     'conversation.loadEarlier': '加载更早的消息',
     'conversation.loadEarlierFailed': '无法加载更早的消息。',
     'conversation.loadFailed': '无法加载对话。',

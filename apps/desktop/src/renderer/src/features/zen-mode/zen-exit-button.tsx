@@ -1,8 +1,10 @@
 import { useEffect, useId, useState } from 'react';
 
+import { formatShortcut } from '@caxri/protocol';
 import { Minimize2 } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
@@ -26,13 +28,15 @@ const ENTRY_CUE_MS = 1500;
  * on entry: the button shows for {@link ENTRY_CUE_MS} (on a restored launch, until the first pointer move or keypress),
  * then fades out on the feedback token (instantly under reduced motion).
  *
- * Zen hides the side bar's Activity badge too, so while any Session needs the user a small accent dot stays in the hot
- * zone regardless of the button's fade: the only ambient signal that another Session finished or waits for approval.
- * The count reaches the tooltip and the button's description; the dot itself is decorative and never takes focus.
+ * Zen hides the side bar's Activity badge too, so while any Session needs the user a small badge-colored dot (the
+ * sidebar Activity badge's token; persistent chrome never uses accent) stays in the hot zone regardless of the button's
+ * fade: the only ambient signal that another Session finished or waits for approval. The count reaches the tooltip and
+ * the button's description; the dot itself is decorative and never takes focus.
  */
 export function ZenExitButton() {
     const { t } = useTranslation();
     const shortcut = useCommandShortcut('view.toggleZenMode');
+    const nextAttentionShortcut = useCommandShortcut('session.focusNextAttention');
     const attention = zenAttentionMessage(useAgentAttentionCount());
     const attentionText = attention && t(attention.key, { count: attention.count });
     const attentionId = useId();
@@ -58,9 +62,21 @@ export function ZenExitButton() {
         <div className="group/zen-exit fixed top-0 right-0 z-30 flex h-9 w-14 items-center justify-center [-webkit-app-region:no-drag]">
             <Tooltip
                 content={
-                    attentionText
-                        ? `${t('workbench.exitZenMode')}\n${attentionText}`
-                        : t('workbench.exitZenMode')
+                    attentionText ? (
+                        <StructuredTooltip
+                            title={t('workbench.exitZenMode')}
+                            details={[attentionText]}
+                            hint={
+                                nextAttentionShortcut
+                                    ? t('workbench.zenAttentionJump', {
+                                          shortcut: formatShortcut(nextAttentionShortcut),
+                                      })
+                                    : undefined
+                            }
+                        />
+                    ) : (
+                        t('workbench.exitZenMode')
+                    )
                 }
                 shortcut={shortcut}
                 side="left"
@@ -85,7 +101,7 @@ export function ZenExitButton() {
                         the button. */}
                     <span
                         aria-hidden="true"
-                        className="pointer-events-none absolute top-2 right-4 size-1.5 rounded-full bg-accent"
+                        className="pointer-events-none absolute top-2 right-4 size-1.5 rounded-full bg-badge"
                         data-zen-attention-dot=""
                     />
                     <span id={attentionId} className="sr-only">

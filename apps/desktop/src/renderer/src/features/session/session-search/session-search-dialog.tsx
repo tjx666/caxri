@@ -11,6 +11,7 @@ import { Spinner } from '../../../components/ui/spinner';
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { setSessionSearchOpen, useDialogStore } from '../../../stores/dialogs';
+import { nextSessionTimeRange } from '../session-time-range';
 import { runSessionSearchAction } from './session-search-commands';
 import { SessionSearchFilters } from './session-search-filters';
 import {
@@ -85,10 +86,15 @@ function SessionSearchBody() {
             else search.setStatus(nextStatusFilter(search.status, 1));
             return;
         }
-        // Alt+S and Alt+P are read from the physical key: on macOS Option+letter types a different character.
+        // Alt+S, Alt+T, and Alt+P are read from the physical key: on macOS Option+letter types a different character.
         if (event.altKey && !event.metaKey && !event.ctrlKey && event.code === 'KeyS') {
             event.preventDefault();
             search.setSort(search.sort === 'relevance' ? 'recent' : 'relevance');
+            return;
+        }
+        if (event.altKey && !event.metaKey && !event.ctrlKey && event.code === 'KeyT') {
+            event.preventDefault();
+            search.setTimeRange(nextSessionTimeRange(search.timeRange));
             return;
         }
         if (
@@ -154,13 +160,14 @@ function SessionSearchBody() {
                 </div>
             </div>
             <div className="flex h-7 flex-none items-center gap-3 border-t border-border px-3 text-[11px] text-muted">
-                {/* Filter, sort, and match-step shortcuts live in their controls' tooltips; the footer keeps only what
-                    has no control of its own. */}
+                {/* Each filter control also names its own shortcut in a tooltip; the footer repeats them in one muted line so
+                    they are discoverable without hovering. */}
                 <span className="flex-none">{t('session.search.helpMove')}</span>
                 <span className="flex-none">{t('session.search.helpAction')}</span>
                 {search.entries.some((entry) => entry.branches) && (
                     <span className="flex-none">{t('session.search.helpBranches')}</span>
                 )}
+                <span className="min-w-0 truncate">{t('session.search.helpFilters')}</span>
                 {search.query.trim() === '' && (
                     <span className="min-w-0 truncate">{t('session.search.operatorHint')}</span>
                 )}

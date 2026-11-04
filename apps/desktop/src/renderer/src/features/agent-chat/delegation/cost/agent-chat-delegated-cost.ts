@@ -156,3 +156,13 @@ export function costRefetchInterval(
     if (!summary?.isScanPending) return false;
     return fetchesSincePending < COST_SCAN_POLL_LIMIT ? COST_SCAN_POLL_MS : false;
 }
+
+/**
+ * `1 Session` or `3 Sessions`, the count the cost tooltip ends on, with the language's own plural form.
+ */
+export function delegatedSessionCountLabel(count: number, t: Translate): string {
+    return t(
+        count === 1 ? 'delegation.strip.cost.sessionsOne' : 'delegation.strip.cost.sessionsOther',
+        { count },
+    );
+}

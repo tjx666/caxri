@@ -51,12 +51,15 @@ async function chooseArchivedWorktree(
 }
 
 /**
- * Archiving raises no notice, and an idle Session no confirmation: it is reversible, and the row leaving the
- * PrimarySidebar is the feedback. Reopen Closed Item brings the Session back, and the Archived Sessions dialog lists
- * it.
+ * Archiving an idle Session raises no confirmation: it is reversible, and the row leaving the PrimarySidebar is the
+ * feedback. The one exception is archiving the Session the user has open: the view advances to another Session, so a
+ * short toast names what vanished and offers Undo (the same `session.unarchive` follow-up the automatic-archive notice
+ * uses). Reopen Closed Item also brings the Session back, and the Archived Sessions dialog lists it.
  */
 async function archiveSessionQuietly(sessionId: string): Promise<void> {
     // Read from the bootstrap snapshot so an archive with the setting off never waits on the plan's pull request lookup.
+    const wasOpen = getSelectedSession()?.id === sessionId;
+    const title = getBootstrap()?.sessions.find((session) => session.id === sessionId)?.title;
     const worktree =
         getBootstrap()?.settings['workbench.removeWorktreeOnArchive'] === true
             ? await chooseArchivedWorktree(sessionId)
@@ -73,6 +76,16 @@ async function archiveSessionQuietly(sessionId: string): Promise<void> {
     );
     if (!archived) return;
     recordClosedSession(sessionId);
+    if (wasOpen) {
+        const displayTitle = sessionTitleForDisplay(title ?? '', translate);
+        pushToast('info', translate('session.notice.archived', { title: displayTitle }), {
+            action: {
+                id: 'session.unarchive',
+                params: { sessionId },
+                accessibleLabel: translate('session.notice.undoArchive', { title: displayTitle }),
+            },
+        });
+    }
 }
 
 /**
@@ -100,6 +113,11 @@ export function archiveSession(sessionId: string): void {
             confirmLabel: translate('session.archive.confirm'),
             failureTitle: translate('session.errors.archiveFailed'),
             outcome: translate('session.archive.outcome'),
+            title: (agent) =>
+                translate('session.archive.turnGuardTitle', {
+                    agent,
+                    title: sessionTitleForDisplay(session?.title ?? '', translate),
+                }),
         },
         archive,
     );

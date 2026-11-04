@@ -88,4 +88,20 @@ export const settingsTheme = {
     'settings.themeEditor.token.lineHighlight': 'Line highlight',
     'settings.themeEditor.token.number': 'Number',
     'settings.themeEditor.token.string': 'String',
+    'settings.themeEditor.warning.terminalPaletteFallback':
+        'This theme defines no Terminal colors, so the Terminal uses the {{preset}} colors. Edit them under Terminal below.',
+    'settings.themeEditor.warning.missingSyntaxColors': 'Syntax colors were not imported.',
+    'settings.themeEditor.warning.missingSyntaxColorsFor':
+        'Syntax colors for {{roles}} were not imported.',
+    'settings.themeEditor.warning.role.comment': 'comments',
+    'settings.themeEditor.warning.role.keyword': 'keywords',
+    'settings.themeEditor.warning.role.string': 'strings',
+    'settings.themeEditor.warning.role.number': 'numbers',
+    'settings.themeEditor.warning.otherSyntaxColors':
+        'Other syntax token colors were not imported.',
+    'settings.themeEditor.warning.semanticTokenColors': 'Semantic token colors were not imported.',
+    'settings.themeEditor.warning.itermTerminalOnly':
+        'iTerm2 is terminal-only; app and editor colors inherit from the active theme.',
+    'settings.themeEditor.warning.warpVisualEffects':
+        'Warp gradients and background images were ignored.',
 } as const;

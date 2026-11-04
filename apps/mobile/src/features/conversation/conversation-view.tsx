@@ -15,6 +15,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { ConversationDisclosure } from './conversation-disclosure';
 import { ConversationEntry } from './conversation-entry';
+import { ConversationHistory } from './conversation-history';
 import { ConversationJumpLatest } from './conversation-jump-latest';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
@@ -38,91 +39,6 @@ import type {
     ConversationTimelineState,
 } from './use-conversation-timeline';
 import { useConversationTurnSpacer } from './use-conversation-turn-spacer';
-
-const ConversationHistory = ({
-    error,
-    historyExpired,
-    isLoadingOlder,
-    needsConnection,
-    onLoadOlder,
-    olderCursor,
-    theme,
-    truncated,
-}: {
-    error: string | null;
-    historyExpired: boolean;
-    isLoadingOlder: boolean;
-    needsConnection: boolean;
-    onLoadOlder: () => void;
-    olderCursor?: string;
-    theme: MobileTheme;
-    truncated: boolean;
-}) => {
-    const { t } = useTranslation();
-    /**
-     * The tallest the header has been while it offered older messages. FlashList keeps the reader's row in place only
-     * against rows, not this header, so when the last older page removed the load-earlier button the shorter header
-     * pulled every row up by its height. Keeping the space trades a gap above the conversation's start for a list that
-     * stays put; a passing error or offline note does not count, so it leaves no lasting gap.
-     */
-    const [minHeight, setMinHeight] = useState(0);
-    const onLayout = (event: LayoutChangeEvent): void => {
-        if (!olderCursor || error || needsConnection || historyExpired) return;
-        const { height } = event.nativeEvent.layout;
-        setMinHeight((current) => Math.max(current, height));
-    };
-    return (
-        <View onLayout={onLayout} style={[styles.history, { minHeight }]}>
-            {historyExpired ? (
-                <Text
-                    accessibilityRole="alert"
-                    style={[styles.historyText, { color: theme.muted }]}
-                    testID="conversation-history-expired"
-                >
-                    {t('conversation.historyExpired')}
-                </Text>
-            ) : null}
-            {olderCursor ? (
-                <Button
-                    isBusy={isLoadingOlder}
-                    label={t(
-                        isLoadingOlder ? 'conversation.loadingEarlier' : 'conversation.loadEarlier',
-                    )}
-                    onPress={onLoadOlder}
-                    style={styles.stateButton}
-                    testID="conversation-load-earlier"
-                    theme={theme}
-                    variant="secondary"
-                />
-            ) : null}
-            {needsConnection ? (
-                <Text
-                    style={[styles.historyText, { color: theme.muted }]}
-                    testID="conversation-history-offline"
-                >
-                    {t('conversation.connectToLoadEarlier')}
-                </Text>
-            ) : null}
-            {truncated ? (
-                <Text
-                    style={[styles.historyText, { color: theme.muted }]}
-                    testID="conversation-history-truncated"
-                >
-                    {t('conversation.earlierOnComputer')}
-                </Text>
-            ) : null}
-            {error ? (
-                <Text
-                    accessibilityRole="alert"
-                    style={[styles.historyText, { color: theme.danger }]}
-                    testID="conversation-history-error"
-                >
-                    {error}
-                </Text>
-            ) : null}
-        </View>
-    );
-};
 
 const ConversationStatus = ({
     historyExpired,

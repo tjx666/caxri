@@ -7,6 +7,7 @@ import {
     costRefetchInterval,
     delegatedCostLabel,
     delegatedHeaderFigure,
+    delegatedSessionCountLabel,
     formatCostAmount,
     retryChainSessionIds,
     sumDelegatedCost,
@@ -170,5 +171,12 @@ describe('costRefetchInterval', () => {
     it('never polls a settled summary, even while a task is running', () => {
         expect(costRefetchInterval({ isScanPending: false }, 0)).toBe(false);
         expect(costRefetchInterval(undefined, 0)).toBe(false);
+    });
+});
+
+describe('delegatedSessionCountLabel', () => {
+    it('uses the singular form for one Session and the plural otherwise', () => {
+        expect(delegatedSessionCountLabel(1, t)).toBe('delegation.strip.cost.sessionsOne:');
+        expect(delegatedSessionCountLabel(3, t)).toBe('delegation.strip.cost.sessionsOther:');
     });
 });

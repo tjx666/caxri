@@ -18,7 +18,7 @@ export function ImportPreviewSummary({ preview }: { preview: ImportPreview }) {
     const counts = importCounts(preview.diff);
     const lines = [
         ...presetNameLines(preview.diff, t),
-        ...changedPresetLines(preview.diff),
+        ...changedPresetLines(preview.diff, t),
         ...otherChangeLines(preview, t),
     ];
     return (
@@ -29,7 +29,7 @@ export function ImportPreviewSummary({ preview }: { preview: ImportPreview }) {
                     : t('settings.delegationPresets.upToDate')}
             </p>
             {lines.map((line) => (
-                <p key={line} className="m-0 truncate text-[11px] text-muted">
+                <p key={line} className="m-0 text-[11px] break-words text-muted">
                     {line}
                 </p>
             ))}

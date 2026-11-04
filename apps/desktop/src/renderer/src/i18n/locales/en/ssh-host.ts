@@ -32,7 +32,7 @@ export const sshHost = {
     'sshHost.addProject.description':
         'This Mac opens the folder dialog; an SSH Host opens its folder browser.',
 
-    // Settings › Hosts
+    // Settings › SSH Hosts
     'sshHost.settings.connect': 'Connect to SSH Host…',
     'sshHost.settings.reconnectOnLaunch': 'Reconnect on Launch',
     'sshHost.settings.localMachine': 'Local machine',
@@ -54,7 +54,7 @@ export const sshHost = {
     'sshHost.status.platformMacos': '{{hostname}} · macOS {{systemVersion}} · {{architecture}}',
     'sshHost.status.stopServer': 'Stop Server on SSH Host…',
     'sshHost.status.reconnectOnLaunch': 'Reconnect on Launch',
-    'sshHost.status.manageHosts': 'Manage Hosts…',
+    'sshHost.status.manageHosts': 'Manage SSH Hosts…',
 
     // Connect to SSH Host dialog
     'sshHost.connect.title': 'Connect to SSH Host',

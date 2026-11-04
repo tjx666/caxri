@@ -29,6 +29,11 @@ import { changesStyles as styles } from './changes-styles';
 export const COMMIT_DRAFT = 'Commit the current changes with a clear message.';
 
 /**
+ * The prompt the empty Pull Request state puts in the composer; English for the same reason as {@link COMMIT_DRAFT}.
+ */
+export const OPEN_PULL_REQUEST_DRAFT = 'Open a pull request for the current branch.';
+
+/**
  * The mode chips and the summary with its refresh action. Hidden outside a Git repository, where a "0 files changed"
  * summary would contradict the empty state below it.
  */
@@ -61,6 +66,7 @@ const ChangesToolbar = ({
                         key={candidate}
                         label={changesModeLabel(candidate, t)}
                         onPress={() => onModeChange(candidate)}
+                        role="tab"
                         selected={candidate === mode}
                         testID={`changes-mode-${candidate}`}
                         theme={theme}
@@ -171,6 +177,7 @@ export const ChangesView = ({
     canAskAgent,
     mode,
     onAskAgentToCommit,
+    onAskAgentToOpenPullRequest,
     onModeChange,
     onOpenFile,
     onRefresh,
@@ -180,6 +187,7 @@ export const ChangesView = ({
     canAskAgent: boolean;
     mode: ChangesMode;
     onAskAgentToCommit: () => void;
+    onAskAgentToOpenPullRequest: () => void;
     onModeChange: (mode: ChangesMode) => void;
     onOpenFile: (file: ChangedFile) => void;
     onRefresh: () => void;
@@ -226,6 +234,9 @@ export const ChangesView = ({
             ) : null}
             <ChangesListContent
                 mode={mode}
+                onAskAgent={
+                    canAskAgent && mode === 'pull-request' ? onAskAgentToOpenPullRequest : undefined
+                }
                 onOpenFile={onOpenFile}
                 onRefresh={onRefresh}
                 state={state}

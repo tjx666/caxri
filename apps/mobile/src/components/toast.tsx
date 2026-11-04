@@ -1,15 +1,33 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, ReduceMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check, CircleAlert } from 'lucide-react-native';
 
+import { useTranslation } from '../i18n';
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../theme/scale';
 import { useMobileTheme } from '../theme/use-mobile-theme';
 import { Button } from './button';
-import { toastStore } from './toast-store';
+import { toastAnnouncement, toastStore } from './toast-store';
+
+/**
+ * Whether a screen reader is on, mirrored into the toast store so it can lengthen toasts that carry an action.
+ */
+const useIsScreenReaderOn = (): boolean => {
+    const [isOn, setIsOn] = useState(false);
+    useEffect(() => {
+        const apply = (isEnabled: boolean): void => {
+            toastStore.setScreenReaderEnabled(isEnabled);
+            setIsOn(isEnabled);
+        };
+        void AccessibilityInfo.isScreenReaderEnabled().then(apply);
+        const subscription = AccessibilityInfo.addEventListener('screenReaderChanged', apply);
+        return () => subscription.remove();
+    }, []);
+    return isOn;
+};
 
 /**
  * Space kept free above the bottom safe area for the Chat Composer (its 52dp Send/Stop button plus padding), so a toast
@@ -28,10 +46,22 @@ export const ToastHost = () => {
     const theme = useMobileTheme();
     const insets = useSafeAreaInsets();
     const id = toast?.id;
-    const spoken = toast && [toast.message, toast.detail].filter(Boolean).join('. ');
+    const { t } = useTranslation();
+    const isScreenReaderOn = useIsScreenReaderOn();
+    const spoken =
+        toast &&
+        toastAnnouncement(toast, (label) =>
+            t('components.toastActionAvailable', { action: label }),
+        );
+    /**
+     * A toast with an action is announced explicitly on both platforms while a screen reader is on, so the sentence
+     * says the action is available; its live region is switched off then, or Android would read it twice.
+     */
+    const isActionAnnounced = Boolean(toast?.action) && isScreenReaderOn;
     useEffect(() => {
-        if (spoken && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(spoken);
-    }, [id, spoken]);
+        if (spoken && (isActionAnnounced || Platform.OS === 'ios'))
+            AccessibilityInfo.announceForAccessibility(spoken);
+    }, [id, isActionAnnounced, spoken]);
     if (!toast) return null;
     const Icon = toast.tone === 'success' ? Check : CircleAlert;
     return (
@@ -40,7 +70,7 @@ export const ToastHost = () => {
             style={[styles.host, { bottom: insets.bottom + COMPOSER_CLEARANCE }]}
         >
             <Animated.View
-                accessibilityLiveRegion="polite"
+                accessibilityLiveRegion={isActionAnnounced ? 'none' : 'polite'}
                 entering={FadeInDown.duration(160).reduceMotion(ReduceMotion.System)}
                 exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)}
                 key={toast.id}

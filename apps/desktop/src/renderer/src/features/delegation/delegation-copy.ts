@@ -415,3 +415,13 @@ export function delegationCopyInput(
         ...(entry.waitingOn && { waitingOn: entry.waitingOn }),
     };
 }
+
+/**
+ * Whether the copy of this task changes as minutes pass: only a usage-limit reset time (shown while it is still ahead)
+ * and a scheduled retry's time read the clock. A row without either needs no minute tick.
+ */
+export function isDelegationCopyClockDependent(
+    input: Pick<DelegationCopyInput, 'failureResetsAt' | 'retryScheduledFor'>,
+): boolean {
+    return input.failureResetsAt !== undefined || input.retryScheduledFor !== undefined;
+}

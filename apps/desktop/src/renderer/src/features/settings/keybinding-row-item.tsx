@@ -55,7 +55,7 @@ export function KeybindingRowItem({
     return (
         <li
             aria-describedby={conflictId}
-            className="group grid min-h-8 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded border border-transparent px-3 py-1 focus-within:border-border focus-within:bg-elevated hover:border-border hover:bg-elevated"
+            className="group grid min-h-8 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-2 focus-within:bg-state-hover-quiet hover:bg-state-hover-quiet"
         >
             <div className="min-w-0">
                 {/* The command id is one Tab lookup a script author needs and every other

@@ -52,20 +52,32 @@ function ApprovalPaths({
     projectRoot: string | undefined;
 }) {
     const { t } = useTranslation();
-    const { moreCount, shown } = agentChatRequestPaths(paths, projectRoot);
+    const [isExpanded, setExpanded] = useState(false);
+    const { moreCount, shown } = agentChatRequestPaths(paths, projectRoot, isExpanded);
     if (shown.length === 0) return null;
     return (
         <ul className="m-0 flex list-none flex-col gap-0.5 p-0 font-mono text-[11px] text-foreground">
             {shown.map(({ label, path }) => (
                 <li key={path} className="min-w-0">
                     <Tooltip content={path}>
-                        <span className="block truncate">{label}</span>
+                        <span
+                            className="block truncate rounded-sm outline-none focus-visible:outline focus-visible:outline-accent"
+                            tabIndex={0}
+                        >
+                            {label}
+                        </span>
                     </Tooltip>
                 </li>
             ))}
             {moreCount > 0 && (
-                <li className="font-sans text-muted">
-                    {t('agentChat.request.morePaths', { count: moreCount })}
+                <li className="font-sans">
+                    <button
+                        className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-muted underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                        type="button"
+                        onClick={() => setExpanded(true)}
+                    >
+                        {t('agentChat.request.morePaths', { count: moreCount })}
+                    </button>
                 </li>
             )}
         </ul>

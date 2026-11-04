@@ -1,5 +1,6 @@
 export const changes = {
     'changes.askAgentToCommit': 'Ask Agent to commit',
+    'changes.askAgentToOpenPullRequest': 'Ask Agent to open a pull request',
     'changes.askAgentToCommitHint': 'Fills the message draft. Nothing is sent until you tap Send.',
     'changes.backToFiles': 'Back to changed files',
     'changes.diffLoadFailed': 'Unable to load this diff.',
@@ -9,7 +10,7 @@ export const changes = {
     'changes.diffRefresh': 'Refresh',
     'changes.diffReconnect': 'Reconnect to review this diff.',
     'changes.diffUnavailable': 'This file is too large or not text. Review it on your computer.',
-    'changes.emptyBody': "This Session's worktree is clean.",
+    'changes.emptyBody': 'No uncommitted changes.',
     'changes.emptyTitle': 'No changes',
     'changes.fileRowLabel':
         '{{filename}}, {{status}}, directory {{directory}}, repository {{repository}}, {{additions}} lines added, {{deletions}} lines removed',
@@ -45,7 +46,7 @@ export const changes = {
     'changes.mode.pullRequest': 'Pull Request',
     'changes.mode.working': 'Working Tree',
     'changes.modeGroup': 'Changes to show',
-    'changes.showUncommitted': 'Show',
+    'changes.showUncommitted': 'Show uncommitted',
     'changes.uncommittedHiddenOne': '{{count}} uncommitted change',
     'changes.uncommittedHiddenOther': '{{count}} uncommitted changes',
 } as const;

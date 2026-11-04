@@ -389,7 +389,18 @@ export function usePathBrowser(
                 }),
             );
         } catch (error_) {
-            setError(toBrowserError(error_, translate('pathBrowser.errors.openFailed')));
+            // A link whose target is gone fails like any other open; naming the cause tells the user what to fix.
+            const isBrokenLink = entry.kind === 'symlink' && entry.linkKind === 'broken';
+            setError(
+                toBrowserError(
+                    error_,
+                    translate(
+                        isBrokenLink
+                            ? 'pathBrowser.errors.brokenLink'
+                            : 'pathBrowser.errors.openFailed',
+                    ),
+                ),
+            );
         }
         // After the try/catch rather than in a `finally`, which React Compiler cannot lower; the catch never rethrows.
         setIsNavigating(false);

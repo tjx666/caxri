@@ -6,6 +6,7 @@ import {
     delegationQuestionMode,
     delegationQuestionNoticeKey,
     delegationQuestionOptions,
+    isDelegationAnswerSendKey,
 } from '../delegation-question';
 
 describe('delegationQuestionMode', () => {
@@ -50,5 +51,22 @@ describe('delegationQuestionOptions', () => {
         expect(delegationQuestionOptions({ options: ['a', 'b'] })).toEqual(['a', 'b']);
         expect(delegationQuestionOptions({})).toEqual([]);
         expect(delegationQuestionOptions(undefined)).toEqual([]);
+    });
+});
+
+describe('isDelegationAnswerSendKey', () => {
+    const base = { ctrlKey: false, key: 'Enter', keyCode: 13, metaKey: false };
+
+    it('sends on Cmd+Enter and Ctrl+Enter', () => {
+        expect(isDelegationAnswerSendKey({ ...base, metaKey: true })).toBe(true);
+        expect(isDelegationAnswerSendKey({ ...base, ctrlKey: true })).toBe(true);
+    });
+
+    it('ignores a plain Enter, another key, and an IME composition', () => {
+        expect(isDelegationAnswerSendKey(base)).toBe(false);
+        expect(isDelegationAnswerSendKey({ ...base, key: 'a', metaKey: true })).toBe(false);
+        expect(isDelegationAnswerSendKey({ ...base, isComposing: true, metaKey: true })).toBe(
+            false,
+        );
     });
 });

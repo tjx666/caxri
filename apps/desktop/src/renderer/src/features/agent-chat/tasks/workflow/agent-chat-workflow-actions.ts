@@ -19,6 +19,16 @@ export function resumeAgentChatWorkflow(
 }
 
 /**
+ * Copies a finished run's result, for pasting into the Chat or a note.
+ */
+export function copyAgentChatWorkflowResult(result: string): void {
+    void tryCommand(translate('agentChat.userMenu.copyFailed'), async () => {
+        await writeClipboardText(result);
+        pushToast('success', translate('agentChat.workflow.resultCopied'));
+    });
+}
+
+/**
  * Copies a failed script's error, for pasting into an issue or back into the Chat.
  */
 export function copyAgentChatWorkflowError(error: string): void {

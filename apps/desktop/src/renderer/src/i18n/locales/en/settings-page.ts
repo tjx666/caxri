@@ -27,6 +27,7 @@ export const settingsPage = {
     'settings.page.advancedHiddenOther': '{{count}} hidden',
     'settings.page.clearSearchAction': 'Clear search',
     'settings.page.modified': 'Modified',
+    'settings.page.noMatchesPages': 'Keybindings and Theme have their own pages:',
     'settings.page.noMatches': 'No settings match “{{query}}”',
     'settings.page.accessibleTitle': '{{category}} {{title}}',
     'settings.page.resetToDefault': 'Reset to default',
@@ -82,7 +83,7 @@ export const settingsPage = {
     'settings.row.archivedSessions.title': 'Archived Sessions',
     'settings.row.archivedSessions.description': 'Restore or permanently delete archived Sessions',
     'settings.row.archivedSessions.manage': 'Manage…',
-    'settings.row.hosts.title': 'Hosts',
+    'settings.row.hosts.title': 'SSH Hosts',
     'settings.row.hosts.description':
         'Every machine this window reaches. Auto shows the detected system; a chosen icon replaces the name in the side bar.',
     'settings.row.hostNames.title': 'Show Host Names Next to Icons',

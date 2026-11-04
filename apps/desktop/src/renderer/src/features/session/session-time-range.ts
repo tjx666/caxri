@@ -36,3 +36,10 @@ export function sessionTimeRangeStart(range: SessionTimeRange, now: number): num
     start.setDate(start.getDate() - (RANGE_DAYS[range] - 1));
     return start.getTime();
 }
+
+/**
+ * The next preset in the dropdown's order, wrapping back to `all`; the Session search shortcut steps through it.
+ */
+export function nextSessionTimeRange(range: SessionTimeRange): SessionTimeRange {
+    return sessionTimeRanges[(sessionTimeRanges.indexOf(range) + 1) % sessionTimeRanges.length];
+}

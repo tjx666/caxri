@@ -9,12 +9,28 @@ import {
     agentChatWorkflowAgentKind,
     agentChatWorkflowCounts,
     agentChatWorkflowCurrentPhase,
+    agentChatWorkflowPhaseGroups,
     formatNoticeableDuration,
     formatTokens,
     formatUsd,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../../../i18n';
+
+/**
+ * Where a member sits among the run's openable members, in the order the previous and next buttons walk, as 1-based
+ * `index` of `total`. `undefined` for a member that cannot be opened or is unknown.
+ */
+export function agentChatWorkflowPosition(
+    workflow: Pick<AgentChatWorkflow, 'members' | 'phases'>,
+    taskId: string,
+): { index: number; total: number } | undefined {
+    const openable = agentChatWorkflowPhaseGroups(workflow)
+        .flatMap((group) => group.members)
+        .filter((member) => member.taskId !== undefined);
+    const index = openable.findIndex((member) => member.taskId === taskId);
+    return index === -1 ? undefined : { index: index + 1, total: openable.length };
+}
 
 /**
  * A workflow member the user has heard nothing from for this long reads as possibly stuck.

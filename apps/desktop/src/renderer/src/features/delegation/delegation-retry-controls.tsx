@@ -6,6 +6,7 @@ import { useClockTick } from '@/hooks/use-clock-tick';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { isDelegationRetryPending, isRetryCandidate } from './delegation-feed';
+import { DELEGATION_LINK_CLASS_NAME } from './delegation-link-class-name';
 import { DelegationNextStepActions } from './delegation-next-step-actions';
 import { DelegationRetryAction } from './delegation-retry-action';
 import { formatRetryTime } from './delegation-retry-time';
@@ -14,9 +15,6 @@ import {
     useDelegationRetry,
     useDelegationRetryOptions,
 } from './hooks/use-delegation-retry';
-
-const LINK_CLASS_NAME =
-    'cursor-pointer border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45';
 
 type RetryControlsEntry = Pick<
     AgentDelegationSession,
@@ -47,15 +45,19 @@ function UsageLimitRetryActions({
     delegationId,
     projectTitle,
     provider,
+    retryState: { isPending, retry },
     sessionTitle,
 }: {
     delegationId: string;
     projectTitle: string;
     provider: AgentProvider | undefined;
+    /**
+     * The row's one retry request, shared with the Retry menu so a single pending state covers every retry action.
+     */
+    retryState: ReturnType<typeof useDelegationRetry>;
     sessionTitle: string;
 }) {
     const { t } = useTranslation();
-    const { isPending, retry } = useDelegationRetry();
     const { data } = useDelegationRetryOptions(delegationId, true);
     if (data === undefined) return null;
     const providerName = provider
@@ -79,7 +81,7 @@ function UsageLimitRetryActions({
                             provider: targetName,
                             title: sessionTitle,
                         })}
-                        className={LINK_CLASS_NAME}
+                        className={DELEGATION_LINK_CLASS_NAME}
                         data-delegation-retry-switch={target}
                         disabled={isPending}
                         key={target}
@@ -135,7 +137,7 @@ function ScheduleButton({
     return (
         <button
             aria-label={t('delegation.retry.scheduleAria', { time, title: sessionTitle })}
-            className={LINK_CLASS_NAME}
+            className={DELEGATION_LINK_CLASS_NAME}
             data-delegation-retry-schedule={scheduledFor}
             disabled={isDisabled}
             type="button"
@@ -162,7 +164,7 @@ function CancelScheduledRetry({
     return (
         <button
             aria-label={t('delegation.retry.cancelAria', { title: sessionTitle })}
-            className={LINK_CLASS_NAME}
+            className={DELEGATION_LINK_CLASS_NAME}
             data-delegation-retry-cancel={delegationId}
             disabled={isPending}
             type="button"
@@ -195,7 +197,9 @@ export function DelegationRetryControls({
     projectTitle: string;
     sessionTitle: string;
 }) {
+    const { t } = useTranslation();
     const { delegationId } = entry;
+    const retryState = useDelegationRetry();
     if (delegationId === undefined) return null;
     const isPending = isDelegationRetryPending(entry);
     if (!isPending && !isRetryCandidate(entry)) return null;
@@ -204,6 +208,10 @@ export function DelegationRetryControls({
         <span className={cn('flex min-w-0 flex-wrap items-center gap-x-3', className)}>
             {isPending ? (
                 <CancelScheduledRetry delegationId={delegationId} sessionTitle={sessionTitle} />
+            ) : retryState.isPending ? (
+                <span className="text-muted" role="status">
+                    {t('delegation.retry.retrying')}
+                </span>
             ) : (
                 <>
                     <DelegationNextStepActions
@@ -216,6 +224,7 @@ export function DelegationRetryControls({
                         showSwitchTargets={!isUsageLimit}
                         projectTitle={projectTitle}
                         provider={entry.provider}
+                        retryState={retryState}
                         sessionTitle={sessionTitle}
                     />
                     {isUsageLimit && (
@@ -223,6 +232,7 @@ export function DelegationRetryControls({
                             delegationId={delegationId}
                             projectTitle={projectTitle}
                             provider={entry.provider}
+                            retryState={retryState}
                             sessionTitle={sessionTitle}
                         />
                     )}

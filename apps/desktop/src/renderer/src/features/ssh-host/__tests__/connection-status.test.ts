@@ -9,6 +9,7 @@ import {
     connectionFailureDetail,
     connectionFailureTone,
     connectionPhaseLabel,
+    connectionToneClasses,
     hostKeyResetCommand,
     installProgressPercent,
     isConnectionBusy,
@@ -177,5 +178,23 @@ describe('connection status', () => {
                 state({ phase: 'starting', progress: { completedBytes: 1, totalBytes: 2 } }),
             ),
         ).toBeUndefined();
+    });
+});
+
+describe('connectionToneClasses', () => {
+    it('colors each tone with its own semantic token', () => {
+        expect(connectionToneClasses('danger')).toEqual({ dot: 'bg-danger', text: 'text-danger' });
+        expect(connectionToneClasses('warning')).toEqual({
+            dot: 'bg-warning',
+            text: 'text-warning',
+        });
+        expect(connectionToneClasses('muted')).toEqual({ dot: 'bg-muted', text: 'text-muted' });
+    });
+
+    it('mutes a cancelled attempt and warns on a takeover, as the overlay does', () => {
+        const cancelled = state({ phase: 'failed', failure: { reason: 'cancelled', message: '' } });
+        const takenOver = state({ phase: 'failed', failure: { reason: 'takenOver', message: '' } });
+        expect(connectionToneClasses(connectionFailureTone(cancelled)).text).toBe('text-muted');
+        expect(connectionToneClasses(connectionFailureTone(takenOver)).text).toBe('text-warning');
     });
 });

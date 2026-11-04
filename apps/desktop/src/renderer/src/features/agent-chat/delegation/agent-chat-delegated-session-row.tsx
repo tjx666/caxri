@@ -1,6 +1,8 @@
 import type { AgentDelegationSession } from '@caxri/protocol';
 import { formatNoticeableDuration } from '@caxri/protocol';
 
+import { useClockTick } from '@/hooks/use-clock-tick';
+
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
@@ -8,7 +10,11 @@ import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
-import { delegationCopy, delegationCopyInput } from '../../delegation/delegation-copy';
+import {
+    delegationCopy,
+    delegationCopyInput,
+    isDelegationCopyClockDependent,
+} from '../../delegation/delegation-copy';
 import { delegationElapsedMs } from '../../delegation/delegation-feed';
 import { delegationPresetSummary } from '../../delegation/delegation-preset';
 import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
@@ -57,7 +63,6 @@ function DelegatedSessionRowContent({
     cost,
     entry,
     isPresetDetailVisible,
-    now,
     projectTitle,
     title,
 }: {
@@ -68,12 +73,18 @@ function DelegatedSessionRowContent({
      * Prints the preset's provider, model and effort in the row, for a row with no tooltip to carry them.
      */
     isPresetDetailVisible: boolean;
-    now: number;
     projectTitle?: string;
     title: string;
 }) {
     const { t } = useTranslation();
-    const copy = delegationCopy(delegationCopyInput(entry), now, t);
+    const copyInput = delegationCopyInput(entry);
+    // A minute tick ages the elapsed label of a running task and expires a reset time. Mounted here, in the row, so the
+    // section and its siblings stay still; a settled task with no reset or retry time reads no clock at all.
+    const now = useClockTick(
+        'minute',
+        entry.settledAt === undefined || isDelegationCopyClockDependent(copyInput),
+    );
+    const copy = delegationCopy(copyInput, now, t);
     const line = delegatedSessionLine(entry, copy);
     const elapsed = formatNoticeableDuration(delegationElapsedMs(entry, now), t);
     return (
@@ -136,7 +147,6 @@ export function AgentChatDelegatedSessionRow({
     attempt,
     cost,
     entry,
-    now,
 }: {
     /**
      * Which attempt this task is when it retries a failed one (2 or more); `undefined` for a first attempt.
@@ -147,7 +157,6 @@ export function AgentChatDelegatedSessionRow({
      */
     cost?: DelegatedCostLabel;
     entry: AgentDelegationSession;
-    now: number;
 }) {
     const { t } = useTranslation();
     const session = useSessionById(entry.sessionId);
@@ -162,7 +171,6 @@ export function AgentChatDelegatedSessionRow({
             cost={cost}
             entry={entry}
             isPresetDetailVisible={!session}
-            now={now}
             projectTitle={project?.title}
             title={title}
         />

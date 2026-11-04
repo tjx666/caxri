@@ -10,6 +10,7 @@ export const workbench = {
     'workbench.zenAttentionOne': '{{count}} Session needs you',
     'workbench.zenAttentionOther': '{{count}} Sessions need you',
     'workbench.resizePanel': 'Resize Panel',
+    'workbench.zenAttentionJump': 'Jump to it with {{shortcut}}',
     'workbench.resizePrimarySidebar': 'Resize Primary Side Bar',
     'workbench.resizeSecondarySidebar': 'Resize Secondary Side Bar',
 

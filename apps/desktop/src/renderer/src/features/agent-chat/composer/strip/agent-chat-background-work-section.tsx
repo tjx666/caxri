@@ -48,19 +48,21 @@ function EndedTasksToggle({
 }) {
     const { t } = useTranslation();
     return (
-        <Button
-            aria-controls={listId}
-            aria-expanded={isShowing}
-            className={cn(
-                'h-6 shrink-0 px-1.5 text-[11px] text-muted tabular-nums hover:text-foreground',
-                isShowing && 'text-foreground',
-            )}
-            size="sm"
-            variant="ghost"
-            onClick={onToggle}
-        >
-            {t('agentChat.tasks.endedCount', { count })}
-        </Button>
+        <Tooltip content={t(isShowing ? 'agentChat.tasks.hideEnded' : 'agentChat.tasks.showEnded')}>
+            <Button
+                aria-controls={listId}
+                aria-expanded={isShowing}
+                className={cn(
+                    'h-6 shrink-0 px-1.5 text-[11px] text-muted tabular-nums hover:text-foreground',
+                    isShowing && 'text-foreground',
+                )}
+                size="sm"
+                variant="ghost"
+                onClick={onToggle}
+            >
+                {t('agentChat.tasks.endedCount', { count })}
+            </Button>
+        </Tooltip>
     );
 }
 
@@ -274,7 +276,7 @@ function FoldableSection({
                         <StopAllTasksButton taskIds={stoppableIds} terminalId={terminalId} />
                     )}
                     {failed.length > 0 && (
-                        <Tooltip content={t('agentChat.tasks.dismissFailures')}>
+                        <Tooltip content={t('agentChat.tasks.dismissFailuresDetail')}>
                             <Button
                                 aria-label={t('agentChat.tasks.dismissFailures')}
                                 className="size-6 shrink-0 text-muted hover:text-foreground"

@@ -139,11 +139,14 @@ export const themeTokensSchema = z.object({
 });
 
 /**
- * Import diagnostics are transient and never part of a saved theme.
+ * Import diagnostics are transient and never part of a saved theme. `id` is a closed code the Renderer translates into
+ * the user's language; `params` carries the values that translation interpolates (comma-separated where a value is a
+ * list). `message` stays as the English fallback for consumers that cannot translate, such as the CLI.
  */
 export const themeImportWarningSchema = z.object({
     id: z.string().min(1),
     message: z.string().min(1),
+    params: z.record(z.string(), z.string()).optional(),
 });
 
 export type ThemeTokens = z.infer<typeof themeTokensSchema>;

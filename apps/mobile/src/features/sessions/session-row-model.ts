@@ -122,6 +122,27 @@ export const sessionStatusGlyphKind = (
 };
 
 /**
+ * The accessible state of a Session: its state label, prefixed with what the user must do when an unread attention mark
+ * is showing ("Needs your answer", "Needs attention"). The status glyph and the row's own label share it, so the row
+ * announces the same cue a sighted user reads from the glyph.
+ */
+export const sessionAttentionStateLabel = (
+    session: Parameters<typeof sessionStatusGlyphKind>[0],
+    isSaved: boolean,
+    stateLabel: string,
+    t: Translate = translate,
+): string => {
+    switch (sessionStatusGlyphKind(session, isSaved)) {
+        case 'attention-waiting':
+            return t('sessions.status.waitingForAnswer', { state: stateLabel });
+        case 'attention-result':
+            return t('sessions.status.needsAttention', { state: stateLabel });
+        default:
+            return stateLabel;
+    }
+};
+
+/**
  * The announcement for a rocket glyph follows the deployment outcome the tone carries, not the glyph alone.
  */
 const DEPLOYMENT_LABEL_KEY: Partial<Record<SessionPullRequestTone, TranslationKey>> = {

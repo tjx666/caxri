@@ -45,7 +45,7 @@ export function AgentChatJumpToLatest({
     return (
         <>
             {!isLatestInView && <ScrollFade className="right-2" edge="bottom" fill="background" />}
-            <Tooltip content={label} side="top">
+            <Tooltip content={label} shortcut="End" side="top">
                 <Button
                     aria-label={label}
                     className={cn(

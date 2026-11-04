@@ -7,7 +7,9 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { useDelegationRetry, useDelegationRetryOptions } from './hooks/use-delegation-retry';
+import { DELEGATION_LINK_CLASS_NAME } from './delegation-link-class-name';
+import type { useDelegationRetry } from './hooks/use-delegation-retry';
+import { useDelegationRetryOptions } from './hooks/use-delegation-retry';
 
 /**
  * The text of an option that cannot run: the reason, or the generic refusal when the Server named none.
@@ -35,6 +37,7 @@ export function DelegationRetryAction({
     delegationId,
     projectTitle,
     provider,
+    retryState: { isPending, retry },
     sessionTitle,
     showSwitchTargets = false,
 }: {
@@ -42,6 +45,10 @@ export function DelegationRetryAction({
     delegationId: string;
     projectTitle: string;
     provider: AgentProvider | undefined;
+    /**
+     * The row's one retry request, shared with the other retry actions so a single pending state covers them all.
+     */
+    retryState: ReturnType<typeof useDelegationRetry>;
     sessionTitle: string;
     /**
      * Also list "Retry with <Agent>" for each Agent the Server offers. Off where the row already shows those as direct
@@ -52,7 +59,6 @@ export function DelegationRetryAction({
     const { t } = useTranslation();
     const [isInterested, setInterested] = useState(false);
     const [isOpen, setOpen] = useState(false);
-    const { isPending, retry } = useDelegationRetry();
     const { data, isError } = useDelegationRetryOptions(delegationId, isInterested || isOpen);
     const providerName = provider
         ? agentProviderCatalog[provider].displayName
@@ -61,10 +67,7 @@ export function DelegationRetryAction({
         <Menu open={isOpen} onOpenChange={setOpen}>
             <MenuTrigger
                 aria-label={t('delegation.retry.actionAria', { title: sessionTitle })}
-                className={cn(
-                    'cursor-pointer border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45',
-                    className,
-                )}
+                className={cn(DELEGATION_LINK_CLASS_NAME, className)}
                 data-delegation-retry={delegationId}
                 disabled={isPending}
                 onFocus={() => setInterested(true)}

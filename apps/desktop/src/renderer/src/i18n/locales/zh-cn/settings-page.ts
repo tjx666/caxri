@@ -26,6 +26,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.page.advancedHiddenOther': '已隐藏 {{count}} 项',
     'settings.page.clearSearchAction': '清除搜索',
     'settings.page.modified': '已修改',
+    'settings.page.noMatchesPages': '快捷键和主题在各自的页面中：',
     'settings.page.noMatches': '没有与“{{query}}”匹配的设置',
     'settings.page.accessibleTitle': '{{category}} {{title}}',
     'settings.page.resetToDefault': '恢复默认值',
@@ -81,7 +82,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.archivedSessions.title': '已归档的会话',
     'settings.row.archivedSessions.description': '恢复或永久删除已归档的会话',
     'settings.row.archivedSessions.manage': '管理…',
-    'settings.row.hosts.title': '主机',
+    'settings.row.hosts.title': 'SSH Host',
     'settings.row.hosts.description':
         '此窗口连接的每台机器。自动会显示检测到的系统；选定的图标会在侧边栏中代替名称。',
     'settings.row.hostNames.title': '在图标旁显示主机名称',

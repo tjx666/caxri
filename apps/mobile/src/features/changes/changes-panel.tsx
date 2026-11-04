@@ -13,6 +13,7 @@ export const ChangesPanel = ({
     canAskAgent,
     list,
     onAskAgentToCommit,
+    onAskAgentToOpenPullRequest,
     sessionId,
     theme,
 }: {
@@ -22,6 +23,7 @@ export const ChangesPanel = ({
      */
     list: ReturnType<typeof useChangesList>;
     onAskAgentToCommit: () => void;
+    onAskAgentToOpenPullRequest: () => void;
     sessionId: string;
     theme: MobileTheme;
 }) => {
@@ -63,6 +65,7 @@ export const ChangesPanel = ({
             canAskAgent={canAskAgent}
             mode={mode}
             onAskAgentToCommit={onAskAgentToCommit}
+            onAskAgentToOpenPullRequest={onAskAgentToOpenPullRequest}
             onModeChange={setMode}
             onOpenFile={setFile}
             onRefresh={shown.refresh}

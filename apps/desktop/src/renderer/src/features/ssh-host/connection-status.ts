@@ -119,6 +119,19 @@ export function connectionFailureTone(state: SshEnvironmentState): 'danger' | 'm
 }
 
 /**
+ * The status dot and text utility classes for a {@link connectionFailureTone}, so the Settings row and the side bar row
+ * color the same state the same way.
+ */
+export function connectionToneClasses(tone: ReturnType<typeof connectionFailureTone>): {
+    dot: string;
+    text: string;
+} {
+    if (tone === 'muted') return { dot: 'bg-muted', text: 'text-muted' };
+    if (tone === 'warning') return { dot: 'bg-warning', text: 'text-warning' };
+    return { dot: 'bg-danger', text: 'text-danger' };
+}
+
+/**
  * The command that removes the SSH Host's stale `known_hosts` entry after a host-key failure, quoted for a POSIX shell
  * so a bracketed `[host]:port` is not read as a glob. Main supplies the name only for `hostKey` failures.
  */

@@ -218,6 +218,7 @@ describe('VS Code theme color role mapping', () => {
         const fallback = (preset: string) => ({
             id: 'terminal-palette-fallback',
             message: `This theme defines no Terminal colors, so the Terminal uses the ${preset} colors. Edit them under Terminal below.`,
+            params: { preset },
         });
 
         expect(

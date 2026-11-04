@@ -42,6 +42,7 @@ export const conversation = {
     'conversation.historyExpired':
         'Conversation history changed on your computer. Showing the latest messages.',
     'conversation.jumpToLatest': 'Jump to latest',
+    'conversation.startOfConversation': 'Start of conversation',
     'conversation.loadEarlier': 'Load earlier messages',
     'conversation.loadEarlierFailed': 'Unable to load earlier messages.',
     'conversation.loadFailed': 'Unable to load Conversation.',

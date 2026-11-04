@@ -85,3 +85,22 @@ export function secretAnswerFailure(error: unknown): 'failed' | 'gone' {
         ? 'gone'
         : 'failed';
 }
+
+/**
+ * The waiting-request count the minimized chip last saw, and how many times that count has grown while a chip had a
+ * previous count to grow from. A growth is the chip's one-shot attention cue; the first request, a shrink, or the same
+ * count change nothing.
+ */
+interface SecretChipPulse {
+    count: number;
+    pulses: number;
+}
+
+export function nextSecretChipPulse(previous: SecretChipPulse, count: number): SecretChipPulse {
+    if (count === previous.count) return previous;
+    return {
+        count,
+        pulses:
+            previous.count > 0 && count > previous.count ? previous.pulses + 1 : previous.pulses,
+    };
+}

@@ -227,7 +227,7 @@ describe('newSessionCreateFailure', () => {
     it('asks to reconnect when the request never left the phone', () => {
         expect(newSessionCreateFailure({ kind: 'offline' })).toEqual({
             kind: 'failed',
-            message: 'Reconnect to Caxri before creating a Session.',
+            message: 'Reconnect to your computer before creating a Session.',
         });
     });
 
