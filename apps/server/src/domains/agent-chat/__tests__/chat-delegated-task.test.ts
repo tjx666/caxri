@@ -20,8 +20,13 @@ function database(
     callerSessionId: string | undefined,
     botSessionId = 'bot-session',
     isHandoff = false,
+    isIndependent = false,
 ) {
-    const input = { prompt: 'Fix the flaky login test', ...(isHandoff && { handoff: true }) };
+    const input = {
+        prompt: 'Fix the flaky login test',
+        ...(isHandoff && { handoff: true }),
+        ...(isIndependent && { independent: true }),
+    };
     return {
         agentDelegations: {
             get: (id: string) =>
@@ -69,6 +74,16 @@ describe('delegatedTaskDetails', () => {
             prompt: 'Fix the flaky login test',
             source: { kind: 'session', sessionId: 'session-a' },
             handoff: true,
+        });
+    });
+
+    it('marks a task that started an independent Session', () => {
+        expect(
+            delegatedTaskDetails(database('session-a', 'bot-session', false, true), DELEGATION_ID),
+        ).toEqual({
+            prompt: 'Fix the flaky login test',
+            source: { kind: 'session', sessionId: 'session-a' },
+            independent: true,
         });
     });
 });

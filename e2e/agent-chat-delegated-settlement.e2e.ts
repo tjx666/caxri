@@ -338,6 +338,9 @@ test('an independent Session gets its own sidebar row and a Started from line, a
         await expect.poll(() => selectedSessionId(page)).toBe(siblingId);
         const origin = session.locator('[data-agent-chat-independent-origin]');
         await expect(origin).toContainText(`Started from ${parent.title}`);
+        await expect(session.locator('[data-agent-chat-delegated-task]').first()).toContainText(
+            'Started by',
+        );
         await expect(origin.getByRole('button', { name: `Back to ${parent.title}` })).toBeVisible();
         await expect(session.locator('[data-agent-chat-delegation-origin]')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('independent-origin.png') });

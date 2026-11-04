@@ -83,6 +83,8 @@ export const agentChatTimeline = {
     'agentChat.handoff.command': 'New Session',
     'agentChat.handoff.noNote': 'Hand off the next task to a new Session',
     'agentChat.handoff.continuedIn': 'Continued in',
+    'agentChat.independent.startedBy': 'Started by',
+    'agentChat.independent.task': 'Started by another Session',
     'agentChat.handoff.continuedFrom': 'Continued from',
     'agentChat.handoff.fromEarlier': 'Continued from an earlier Session',
     'agentChat.handoff.startIssue': 'Start {{reference}} in a new Session',

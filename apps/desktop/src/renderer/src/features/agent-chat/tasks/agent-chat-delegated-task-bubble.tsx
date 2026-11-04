@@ -23,6 +23,29 @@ function DelegatingProject({ projectId }: { projectId: string }) {
 }
 
 /**
+ * The two labels of a task's source row: before the source's name, and when the source cannot be shown. A redirect, a
+ * hand-off and an independent Session each say what they are instead of "Delegated".
+ */
+function taskSourceKeys(task: AgentChatDelegatedTask) {
+    if (task.redirect)
+        return {
+            by: 'agentChat.delegated.redirectedBy',
+            unknown: 'agentChat.delegated.redirect',
+        } as const;
+    if (task.handoff)
+        return {
+            by: 'agentChat.handoff.continuedFrom',
+            unknown: 'agentChat.handoff.fromEarlier',
+        } as const;
+    if (task.independent)
+        return {
+            by: 'agentChat.independent.startedBy',
+            unknown: 'agentChat.independent.task',
+        } as const;
+    return { by: 'agentChat.delegated.by', unknown: 'agentChat.delegated.task' } as const;
+}
+
+/**
  * "Delegated by" and who: a link to an open Session, Caxri Bot, or an archived Session's title. A source the Workbench
  * cannot show (deleted, or in a hidden Project) reads as a plain delegated task. A hand-off (`/new-session`) reads
  * "Continued from" its Session instead, since this Session carries that one's work on.
@@ -31,17 +54,7 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
     const { t } = useTranslation();
     const sessions = useSessions();
     const { source } = task;
-    const by = (
-        <span className="flex-none text-muted">
-            {t(
-                task.redirect
-                    ? 'agentChat.delegated.redirectedBy'
-                    : task.handoff
-                      ? 'agentChat.handoff.continuedFrom'
-                      : 'agentChat.delegated.by',
-            )}
-        </span>
-    );
+    const by = <span className="flex-none text-muted">{t(taskSourceKeys(task).by)}</span>;
     if (source?.kind === 'bot')
         return (
             <>
@@ -82,17 +95,7 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
                 {creatorProjectId && <DelegatingProject projectId={creatorProjectId} />}
             </>
         );
-    return (
-        <span>
-            {t(
-                task.redirect
-                    ? 'agentChat.delegated.redirect'
-                    : task.handoff
-                      ? 'agentChat.handoff.fromEarlier'
-                      : 'agentChat.delegated.task',
-            )}
-        </span>
-    );
+    return <span>{t(taskSourceKeys(task).unknown)}</span>;
 }
 
 const TOGGLE_CLASS =

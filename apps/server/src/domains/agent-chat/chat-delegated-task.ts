@@ -55,7 +55,11 @@ export function delegatedTaskDetails(
     return {
         prompt: redirect ? redirect.text : record.input.prompt,
         ...(source && { source }),
-        ...(redirect ? { redirect: true as const } : record.input.handoff && { handoff: true }),
+        ...(redirect
+            ? { redirect: true as const }
+            : record.input.handoff
+              ? { handoff: true as const }
+              : record.input.independent && { independent: true as const }),
     };
 }
 

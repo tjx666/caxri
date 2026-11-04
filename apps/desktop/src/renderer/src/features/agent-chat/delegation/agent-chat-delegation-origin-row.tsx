@@ -53,7 +53,7 @@ function DelegatedSummary({
 }) {
     const { t } = useTranslation();
     return (
-        <span className="min-w-0 truncate">
+        <span className="min-w-0">
             <span className="text-foreground">{t('delegation.origin.from', { title })}</span>
             {task?.selection?.preset && ' '}
             <DelegationPresetChip isDetailVisible selection={task?.selection} />

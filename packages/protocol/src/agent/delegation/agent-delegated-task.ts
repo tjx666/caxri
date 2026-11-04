@@ -32,6 +32,11 @@ export const agentChatDelegatedTaskSchema = z.strictObject({
      */
     handoff: z.literal(true).optional(),
     /**
+     * The task started a separate Session the caller does not wait on (`independent`), so the message reads "Started
+     * by" its creator rather than "Delegated by".
+     */
+    independent: z.literal(true).optional(),
+    /**
      * The message is a redirect of a running task (`agent.delegation.redirect`), not the task itself. `prompt` then
      * holds the new direction; the message steered the task's own turn and is no takeover.
      */

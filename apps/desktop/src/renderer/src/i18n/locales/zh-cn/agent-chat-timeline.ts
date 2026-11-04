@@ -79,6 +79,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.handoff.command': '新会话',
     'agentChat.handoff.noNote': '把下一个任务交给新会话',
     'agentChat.handoff.continuedIn': '已转到',
+    'agentChat.independent.startedBy': '创建自',
+    'agentChat.independent.task': '由另一个会话创建',
     'agentChat.handoff.continuedFrom': '接续自',
     'agentChat.handoff.fromEarlier': '接续自之前的会话',
     'agentChat.handoff.startIssue': '在新会话中开始 {{reference}}',
