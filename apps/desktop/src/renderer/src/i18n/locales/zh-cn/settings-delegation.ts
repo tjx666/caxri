@@ -18,6 +18,8 @@ export const settingsDelegation = {
     'settings.delegationPresets.checking': '正在检查文件…',
     'settings.delegationPresets.counts':
         '新增 {{added}} 个，修改 {{changed}} 个，移除 {{removed}} 个',
+    'settings.delegationPresets.added': '新增：{{names}}',
+    'settings.delegationPresets.removed': '移除：{{names}}',
     'settings.delegationPresets.upToDate': '已是最新',
     'settings.delegationPresets.callersAdded': '新增调用方规则：{{providers}}',
     'settings.delegationPresets.callersChanged': '修改调用方规则：{{providers}}',

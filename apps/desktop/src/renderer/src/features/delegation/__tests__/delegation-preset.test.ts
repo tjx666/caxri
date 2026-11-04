@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 
 import { withLocale } from '../../../i18n';
 import { localeDictionaries } from '../../../i18n/resources';
-import { delegationPresetSummary } from '../delegation-preset';
+import { delegationPresetDetail, delegationPresetSummary } from '../delegation-preset';
 
 function translateFor(locale: 'en' | 'zh-CN') {
     return withLocale(
@@ -22,6 +22,16 @@ it('summarizes the frozen selection of a preset task with provider, model and ef
     expect(
         delegationPresetSummary({ provider: 'claude', preset: 'review' }, translateFor('zh-CN')),
     ).toBe('预设 review：Claude、默认模型、默认强度');
+});
+
+it('words the frozen provider, model and effort without the preset name', () => {
+    expect(
+        delegationPresetDetail(
+            { provider: 'codex', model: 'gpt-5.5', effort: 'high', preset: 'review' },
+            translateFor('en'),
+        ),
+    ).toBe('Codex, gpt-5.5, high');
+    expect(delegationPresetDetail({ provider: 'claude' }, translateFor('en'))).toBeUndefined();
 });
 
 it('has no summary for a task started without a preset', () => {

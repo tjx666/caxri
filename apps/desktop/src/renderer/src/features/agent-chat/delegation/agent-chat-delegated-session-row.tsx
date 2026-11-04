@@ -54,12 +54,17 @@ function DelegatedResultMeta({ sessionId }: { sessionId: string }) {
 function DelegatedSessionRowContent({
     attempt,
     entry,
+    isPresetDetailVisible,
     now,
     projectTitle,
     title,
 }: {
     attempt?: number;
     entry: AgentDelegationSession;
+    /**
+     * Prints the preset's provider, model and effort in the row, for a row with no tooltip to carry them.
+     */
+    isPresetDetailVisible: boolean;
     now: number;
     projectTitle?: string;
     title: string;
@@ -79,7 +84,10 @@ function DelegatedSessionRowContent({
                     {projectTitle && (
                         <span className="min-w-0 shrink truncate">{projectTitle}</span>
                     )}
-                    <DelegationPresetChip selection={entry.selection} />
+                    <DelegationPresetChip
+                        isDetailVisible={isPresetDetailVisible}
+                        selection={entry.selection}
+                    />
                     {attempt !== undefined && (
                         <span className="shrink-0">
                             {t('delegation.retry.attempt', { number: attempt })}
@@ -138,6 +146,7 @@ export function AgentChatDelegatedSessionRow({
         <DelegatedSessionRowContent
             attempt={attempt}
             entry={entry}
+            isPresetDetailVisible={!session}
             now={now}
             projectTitle={project?.title}
             title={title}

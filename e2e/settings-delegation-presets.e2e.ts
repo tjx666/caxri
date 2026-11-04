@@ -63,11 +63,14 @@ test('delegation presets import previews Merge and Replace before writing, keepi
         await settings.getByRole('button', { name: 'Import from dianjiang…' }).click();
         const preview = settings.getByRole('region', { name: 'Delegation presets' });
         await expect(preview).toContainText('1 to add, 1 to change, 0 to remove');
+        await expect(preview).toContainText('Adds: review');
+        await expect(preview).not.toContainText('Removes:');
         await expect(preview).not.toContainText(SENTINEL);
         expect(await readFile(settingsPath, 'utf8')).toBe(seededSettings);
 
         await preview.getByRole('button', { name: /^Replace/ }).click();
         await expect(preview).toContainText('1 to add, 1 to change, 1 to remove');
+        await expect(preview).toContainText('Removes: only-here');
         expect(await readFile(settingsPath, 'utf8')).toBe(seededSettings);
 
         await preview.getByRole('button', { name: /^Merge/ }).click();

@@ -28,6 +28,20 @@ export function changedPresetLines(diff: DelegationImportPreview['diff']): strin
     return diff.presets.changed.map(({ name, fields }) => `${name}: ${fields.join(', ')}`);
 }
 
+/**
+ * `Adds: review, audit`: every preset the import adds, or `Removes: ...` for those it removes, by name, so the counts
+ * never stand in for which presets change. Empty when there are none.
+ */
+export function presetNameLines(diff: DelegationImportPreview['diff'], t: Translate): string[] {
+    const { added, removed } = diff.presets;
+    const lines: string[] = [];
+    if (added.length > 0)
+        lines.push(t('settings.delegationPresets.added', { names: added.join(', ') }));
+    if (removed.length > 0)
+        lines.push(t('settings.delegationPresets.removed', { names: removed.join(', ') }));
+    return lines;
+}
+
 function providerName(provider: AgentProvider): string {
     return agentProviderCatalog[provider].displayName;
 }

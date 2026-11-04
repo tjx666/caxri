@@ -86,7 +86,10 @@ export function useDelegationImport() {
 
     const setMode = useCallback(
         (mode: DelegationImportMode) => {
-            if (state.phase === 'open' && state.sourceText !== undefined && mode !== state.mode)
+            // A write is in flight for the current mode; a second preview would leave the UI on a mode that is not the
+            // one being written.
+            if (state.phase !== 'open' || state.outcome.kind === 'applying') return;
+            if (state.sourceText !== undefined && mode !== state.mode)
                 void preview(state.sourceText, mode, state.fileName, false);
         },
         [preview, state],
@@ -131,9 +134,11 @@ export function useDelegationImport() {
     }, [preview, state, t]);
 
     const cancel = useCallback(() => {
+        // Closing cannot stop a write that was already sent, so it would only hide its result.
+        if (state.phase === 'open' && state.outcome.kind === 'applying') return;
         latest.current += 1;
         setState({ phase: 'closed' });
-    }, []);
+    }, [state]);
 
     return { state, choose, setMode, apply, cancel };
 }

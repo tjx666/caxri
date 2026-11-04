@@ -31,7 +31,8 @@ export function DelegationImportPanel({
     const { outcome } = state;
     const preview =
         outcome.kind === 'ready' || outcome.kind === 'applying' ? outcome.preview : undefined;
-    const isBusy = outcome.kind === 'applying' || outcome.kind === 'checking';
+    const isApplying = outcome.kind === 'applying';
+    const isBusy = isApplying || outcome.kind === 'checking';
     return (
         <section
             aria-label={t('settings.row.delegationPresets.title')}
@@ -43,7 +44,11 @@ export function DelegationImportPanel({
                 </p>
             )}
             {outcome.kind !== 'unreadable' && state.sourceText !== undefined && (
-                <ImportModeChoice mode={state.mode} onModeChange={onModeChange} />
+                <ImportModeChoice
+                    isDisabled={isApplying}
+                    mode={state.mode}
+                    onModeChange={onModeChange}
+                />
             )}
             {outcome.kind === 'checking' && (
                 <p role="status" className="m-0 flex items-center gap-2 text-[11px] text-muted">
@@ -54,7 +59,7 @@ export function DelegationImportPanel({
             {preview && <ImportPreviewSummary preview={preview} />}
             <ImportOutcomeAlerts outcome={outcome} />
             <div className="flex items-center justify-end gap-2">
-                <Button size="sm" variant="secondary" onClick={onCancel}>
+                <Button size="sm" variant="secondary" disabled={isApplying} onClick={onCancel}>
                     {t('settings.delegationPresets.cancel')}
                 </Button>
                 <Button size="sm" disabled={isBusy || !preview?.changed} onClick={onApply}>
@@ -69,9 +74,11 @@ export function DelegationImportPanel({
  * The Merge or Replace choice with a one-line hint of what the chosen mode keeps or removes.
  */
 function ImportModeChoice({
+    isDisabled,
     mode,
     onModeChange,
 }: {
+    isDisabled: boolean;
     mode: DelegationImportMode;
     onModeChange: (mode: DelegationImportMode) => void;
 }) {
@@ -80,6 +87,7 @@ function ImportModeChoice({
         <>
             <ToggleGroup
                 aria-label={t('settings.delegationPresets.mode')}
+                disabled={isDisabled}
                 value={[mode]}
                 onValueChange={(next: DelegationImportMode[]) => {
                     // Re-activating the selected segment reports an empty selection; the mode must stay chosen.

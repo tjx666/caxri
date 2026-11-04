@@ -18,6 +18,8 @@ export const settingsDelegation = {
     'settings.delegationPresets.checking': 'Checking the file…',
     'settings.delegationPresets.counts':
         '{{added}} to add, {{changed}} to change, {{removed}} to remove',
+    'settings.delegationPresets.added': 'Adds: {{names}}',
+    'settings.delegationPresets.removed': 'Removes: {{names}}',
     'settings.delegationPresets.upToDate': 'Already up to date',
     'settings.delegationPresets.callersAdded': 'Caller rules added for {{providers}}',
     'settings.delegationPresets.callersChanged': 'Caller rules changed for {{providers}}',

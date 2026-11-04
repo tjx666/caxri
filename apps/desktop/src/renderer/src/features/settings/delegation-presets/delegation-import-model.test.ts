@@ -11,6 +11,7 @@ import {
     importIssues,
     isStalePreview,
     otherChangeLines,
+    presetNameLines,
 } from './delegation-import-model';
 
 function translateFor(locale: 'en' | 'zh-CN') {
@@ -52,6 +53,17 @@ it.each(['en', 'zh-CN'] as const)('describes every change of a preview in %s', (
     expect(lines.join('\n')).toContain('Claude');
     expect(lines.join('\n')).toContain('Codex (prepend)');
     expect(lines.join('\n')).toContain('4');
+});
+
+it('lists every added and removed preset by name', () => {
+    expect(presetNameLines(preview.diff, translateFor('en'))).toEqual([
+        'Adds: review',
+        'Removes: only-here, old',
+    ]);
+    expect(presetNameLines(preview.diff, translateFor('zh-CN'))).toEqual([
+        '新增：review',
+        '移除：only-here, old',
+    ]);
 });
 
 it('words issues from the closed reason set with a position and the merge stage', () => {

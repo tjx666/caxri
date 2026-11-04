@@ -43,9 +43,9 @@ export interface DelegatingChat {
     userData: string;
     cleanup(): Promise<void>;
     /**
-     * Writes the scripted turns for a Project: the parent delegates `CHILD_TITLE` through the real Caxri CLI, and the
-     * child's reply ends in a `Summary:` line after it is released. Must run before the first Chat opens, because the
-     * fake Agent reads its script once at startup.
+     * Writes the scripted turns for a Project: the parent delegates `CHILD_TITLE` through the real Caxri CLI (with the
+     * configured `preset` when the launch asked for one), and the child's reply ends in a `Summary:` line after it is
+     * released. Must run before the first Chat opens, because the fake Agent reads its script once at startup.
      */
     writeScript(projectId: string): Promise<void>;
 }
@@ -57,7 +57,7 @@ export interface DelegatingChat {
  */
 export async function launchDelegatingChat(
     prefix: string,
-    options: { env?: NodeJS.ProcessEnv; withClaude?: boolean } = {},
+    options: { env?: NodeJS.ProcessEnv; preset?: string; withClaude?: boolean } = {},
 ): Promise<DelegatingChat> {
     const temporary = await mkdtemp(join(tmpdir(), `${prefix}-`));
     const directory = await realpath(temporary);
@@ -111,7 +111,8 @@ export async function launchDelegatingChat(
                 cliPath,
                 'agent delegate create',
                 `--project ${projectId} --new-session --title "${CHILD_TITLE}"`,
-                `--provider codex --prompt-file ${taskPath} --request-id e2e-delegated-review --json`,
+                `${options.preset ? `--preset ${options.preset}` : '--provider codex'} --prompt-file ${taskPath}`,
+                '--request-id e2e-delegated-review --json',
             ].join(' ');
             await writeFile(
                 scriptPath,
@@ -152,7 +153,23 @@ export async function launchDelegatingChat(
     try {
         const settings = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
         await pageRequest(running.page, 'settings.update', {
-            source: JSON.stringify({ ...settings.value, 'session.openAgentsInChat': true }),
+            source: JSON.stringify({
+                ...settings.value,
+                'session.openAgentsInChat': true,
+                ...(options.preset && {
+                    'agents.delegation': {
+                        ...settings.value['agents.delegation'],
+                        presets: [
+                            {
+                                name: options.preset,
+                                provider: 'codex',
+                                effort: 'high',
+                                useWhen: 'Review a change',
+                            },
+                        ],
+                    },
+                }),
+            }),
         });
     } catch (error) {
         await chat.cleanup();

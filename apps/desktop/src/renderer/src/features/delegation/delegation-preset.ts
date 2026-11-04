@@ -4,6 +4,22 @@ import { agentProviderCatalog } from '@caxri/protocol';
 import type { Translate } from '../../i18n';
 
 /**
+ * The provider, model and effort frozen on a delegated task's receipt, as one phrase (`Codex, gpt-5.5, high`). Reads
+ * only that frozen selection; `undefined` for a task started without a preset.
+ */
+export function delegationPresetDetail(
+    selection: DelegationSelection | undefined,
+    t: Translate,
+): string | undefined {
+    if (!selection?.preset) return undefined;
+    return t('delegation.preset.detail', {
+        provider: agentProviderCatalog[selection.provider].displayName,
+        model: selection.model ?? t('delegation.preset.defaultModel'),
+        effort: selection.effort ?? t('delegation.preset.defaultEffort'),
+    });
+}
+
+/**
  * The preset a delegated task was admitted with, as one sentence: its name and the provider, model and effort frozen on
  * the task's receipt. It reads only that frozen selection, never the current settings, so a preset edited or removed
  * since still describes what the task actually ran with. `undefined` for a task started without a preset.
@@ -12,11 +28,7 @@ export function delegationPresetSummary(
     selection: DelegationSelection | undefined,
     t: Translate,
 ): string | undefined {
-    if (!selection?.preset) return undefined;
-    return t('delegation.preset.summary', {
-        name: selection.preset,
-        provider: agentProviderCatalog[selection.provider].displayName,
-        model: selection.model ?? t('delegation.preset.defaultModel'),
-        effort: selection.effort ?? t('delegation.preset.defaultEffort'),
-    });
+    const detail = delegationPresetDetail(selection, t);
+    if (detail === undefined || !selection?.preset) return undefined;
+    return t('delegation.preset.summary', { name: selection.preset, detail });
 }

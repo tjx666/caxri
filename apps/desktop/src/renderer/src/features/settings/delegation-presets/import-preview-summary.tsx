@@ -1,5 +1,10 @@
 import { useTranslation } from '../../../i18n';
-import { changedPresetLines, importCounts, otherChangeLines } from './delegation-import-model';
+import {
+    changedPresetLines,
+    importCounts,
+    otherChangeLines,
+    presetNameLines,
+} from './delegation-import-model';
 import type { DelegationImportState } from './use-delegation-import';
 
 type OpenState = Extract<DelegationImportState, { phase: 'open' }>;
@@ -11,7 +16,11 @@ type ImportPreview = Extract<OpenState['outcome'], { kind: 'ready' }>['preview']
 export function ImportPreviewSummary({ preview }: { preview: ImportPreview }) {
     const { t } = useTranslation();
     const counts = importCounts(preview.diff);
-    const lines = [...changedPresetLines(preview.diff), ...otherChangeLines(preview, t)];
+    const lines = [
+        ...presetNameLines(preview.diff, t),
+        ...changedPresetLines(preview.diff),
+        ...otherChangeLines(preview, t),
+    ];
     return (
         <div role="status" className="flex min-w-0 flex-col gap-1 text-[12px]">
             <p className="m-0 text-foreground">
