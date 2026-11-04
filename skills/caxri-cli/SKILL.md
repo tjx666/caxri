@@ -37,8 +37,11 @@ action. Never substitute an arbitrary shell command.
 If context instead reports `principal.kind: delegation-client`, use its `projectIds[0]`, `sessionId`,
 `callerProvider`, capabilities and negotiated commands. This external identity grants only
 `agents.delegate`; skip the managed-Endpoint status, messaging and Project-query workflows below.
-The human owner must first authorize its exact root with `agent delegate access create` and provide
-the private credential through process configuration. Never issue access yourself, read a profile's
+The human owner starts you with `caxri agent delegate access launch -- <agent>` (or authorizes the root
+with `agent delegate access create` and provides the private credential through process
+configuration). `CAXRI_DELEGATION_PROJECT_ID` and `CAXRI_DELEGATION_SESSION_ID` then default
+`--project` and `--session` for `agent delegate create`. Without a credential, delegation commands are
+refused; do not retry as the owner. Never issue access yourself, read a profile's
 owner credential, or loosen the provider sandbox. A missing or unreachable Server requires the
 owner's startup or transport action, not an implicit privilege fallback.
 

@@ -570,6 +570,47 @@ restore as adding its folder manually) and Server Core emits `state.changed`, so
 the delegated Session runs. Project, Session and binding creation share one database
 transaction. This owner CLI operation is separate from the Renderer's native folder grants.
 
+### One step: `access launch`
+
+Starting an Agent in a normal terminal (for example iTerm) does not need the manual flow below:
+
+```sh
+cd /absolute/project
+caxri agent delegate access launch -- claude
+```
+
+The owner CLI issues a fresh credential for that run, starts the command with structured argv, and
+revokes that exact generation when the command ends. It never prints the token; the credential reaches
+only the launched process's environment.
+
+- **Root**: `--root <dir>` if given. Otherwise the root of the top-level Project that contains the
+  working directory, or the working directory itself when it is outside every Project. The folder is
+  added as a Project if needed, as with `--register-project`; the confirmation says so. A worktree
+  Project is refused, as with `access create`.
+- **Provider**: derived only when the executable's basename is exactly `claude`, `codex`, `grok` or
+  `antigravity`. Any other command (a wrapper script, a renamed binary) needs `--provider`.
+- **TTL**: `--ttl-ms` as for `create`; the default is 12 hours.
+- **Environment**: the four credential variables below, plus the non-secret `CAXRI_DELEGATION_PROJECT_ID`
+  and `CAXRI_DELEGATION_SESSION_ID`. With these set, `agent delegate create` and `presets` use them as
+  the default `--project` and `--session`. An explicit `--project`, `--project-path`, `--session` or
+  `--new-session` always wins, and a default never adds a Session next to `--new-session`.
+  Credential and hint variables inherited from an earlier launch or a managed Endpoint are dropped.
+- **Cleanup**: the generation is revoked after a normal exit, a non-zero exit, a spawn failure,
+  SIGTERM or SIGHUP, or an interrupt before the command started. The revocation is sent before the
+  owner connection closes. The launcher swallows SIGINT because Ctrl-C already reaches the command
+  through the terminal's process group. SIGKILL cannot be handled, so that credential lives until its
+  TTL; if the revocation request itself fails, the launcher prints the exact `access revoke` command
+  (client ID and generation, never the token).
+- Every launch creates a fresh client, so two concurrent launches never share a credential.
+
+A credential-less Agent no longer falls through to the profile owner. When the environment identifies
+the caller as an Agent (Claude Code, Codex or Grok variables) and it carries neither a managed
+Endpoint nor a delegation credential, every `agent.delegation.*` and `agent.dispatch.*` method is
+refused with FORBIDDEN and a hint to use `access launch`. This covers the generic `request` entry
+point. A human in a plain shell and CI keep owner authority.
+
+### Manual credentials
+
 The private response contains `clientId`, `generation`, `token`, `projectId` and `sessionId`.
 Deliver it only to the intended caller through private process configuration; do not paste it into
 prompts, issue comments, logs or shared artifacts. Configure that caller with:

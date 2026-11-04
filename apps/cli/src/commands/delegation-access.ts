@@ -1,5 +1,6 @@
 import { CaxriError, delegationAccessParametersSchema } from '@caxri/protocol';
 
+import { launchParameters, runDelegationLaunch } from './delegation-launch';
 import type { RemoteCommandDefinition } from './types';
 
 function options(tokens: readonly string[]) {
@@ -45,6 +46,20 @@ export const DELEGATION_ACCESS_COMMANDS: RemoteCommandDefinition[] = [
                 ...(values['--ttl-ms'] && { ttlMs: Number(values['--ttl-ms']) }),
             });
         },
+    },
+    {
+        kind: 'remote',
+        path: ['agent', 'delegate', 'access', 'launch'],
+        method: 'agent.delegation.access.create',
+        requiresHumanOwner: true,
+        settlesBeforeClose: true,
+        summary:
+            'Run an Agent outside Caxri with a fresh bounded delegation credential, revoked when it exits.',
+        usage: '[--root <dir>] [--provider <claude|codex|grok|antigravity>] [--ttl-ms <duration>] -- <command> [args...]',
+        confirmation:
+            'Authorize this Agent to delegate in its directory (adding it as a Project if needed) until it exits?',
+        parseParams: launchParameters,
+        run: runDelegationLaunch,
     },
     {
         kind: 'remote',

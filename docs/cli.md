@@ -167,7 +167,9 @@ within its own applied permission; `wait` reports it as the outcome `approval`, 
 why a request is not covered. `--revision` echoes the `revision` of the approval you read, and
 exactly one decision flag is required; the decision never outlives the request. See [parent approval](agent-delegation.md#parent-approval).
 
-`agent delegate access create|list|revoke` manages owner-authorized external callers with
+`agent delegate access launch [--root <dir>] [--provider <id>] [--ttl-ms <ms>] -- <command>` runs an Agent
+outside Caxri with a fresh credential and revokes it when the command exits; an Agent without any
+credential is refused for delegation and dispatch methods. `agent delegate access create|list|revoke` manages owner-authorized external callers with
 `agents.delegation.access`. The resulting `delegation-client` credential is limited to one Project,
 Session and caller provider; it grants only delegation and does not start a Server implicitly.
 See [external callers](agent-delegation.md#external-callers-and-directory-authorization).

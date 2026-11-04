@@ -39,7 +39,8 @@ Every path that registers a Project is one of these authorities; a new one belon
 - Caxri Bot's system Project, which Server Core registers for its own `caxri-bot`
   workspace inside the profile; no Client supplies that path.
 - The external-caller delegation bootstrap: the profile owner's confirmed
-  `caxri agent delegate access create --root <path> --register-project`. Server Core
+  `caxri agent delegate access create --root <path> --register-project`, or the same grant issued by
+  `agent delegate access launch`, which revokes it when the launched command exits. Server Core
   (`agent.delegation.access.bootstrap`, `apps/server/src/domains/db/delegation-context.ts`)
   canonicalizes the root, reuses an existing Project for that exact root (un-hiding it if the user
   hid it, so the delegated Session is visible) or creates an ordinary,

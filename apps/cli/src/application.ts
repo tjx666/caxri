@@ -24,6 +24,7 @@ import {
     validateRequestParameters,
     withCommandTimeout,
 } from './commands';
+import { assertAgentDelegationCredential, withDelegationDefaults } from './delegation-environment';
 import type {
     AgentEndpointCredential,
     CliAutomation,
@@ -306,7 +307,10 @@ export async function runCli(
     const io = options.io ?? defaultIo;
     let mode = fallbackOutputMode(argv, automation);
     let client: CliServerClient | undefined;
-    const abort = (): void => client?.close();
+    let isConnectionHeldOnAbort = false;
+    const abort = (): void => {
+        if (!isConnectionHeldOnAbort) client?.close();
+    };
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
         const parsed = parseCliArguments(argv);
@@ -457,11 +461,17 @@ export async function runCli(
                   })
                 : undefined;
         const command = generic?.command ?? remoteCommand(parsed.tokens);
+        assertAgentDelegationCredential(command.method, automation, endpointCredential);
+        isConnectionHeldOnAbort = command.settlesBeforeClose === true;
+        const commandTokens = withDelegationDefaults(
+            command.method,
+            parsed.tokens.slice(command.path.length),
+            environment,
+            externalCredential,
+        );
         const parameters = withCommandTimeout(
             command.method,
-            generic
-                ? generic.parameters
-                : await command.parseParams(parsed.tokens.slice(command.path.length)),
+            generic ? generic.parameters : await command.parseParams(commandTokens),
             parsed.timeoutMs,
         );
         if (generic) validateRequestParameters(command.method, parameters);
@@ -544,6 +554,7 @@ export async function runCli(
                 environment,
                 json: mode === 'json',
                 parameters,
+                profilePath: profile.path,
                 request: (method, methodParameters) => connected.request(method, methodParameters),
                 ...(options.signal && { signal: options.signal }),
                 writeStderr: (text) => io.writeStderr(text),

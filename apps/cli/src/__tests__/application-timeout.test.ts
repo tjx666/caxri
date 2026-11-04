@@ -53,7 +53,17 @@ describe('CLI --timeout ceilings', () => {
                 String(MAX_DELEGATION_WAIT_TIMEOUT_MS),
                 '--json',
             ],
-            { connect, environment: { CODEX_THREAD_ID: 'thread-1' }, io: output.io },
+            {
+                connect,
+                environment: {
+                    CAXRI_USER_DATA_DIR: '/profiles/external',
+                    CAXRI_DELEGATION_CLIENT_ID: 'd1decb80-7644-44fd-b821-a7d6678fb0eb',
+                    CAXRI_DELEGATION_GENERATION: '1',
+                    CAXRI_DELEGATION_TOKEN: 'ab'.repeat(32),
+                    CODEX_THREAD_ID: 'thread-1',
+                },
+                io: output.io,
+            },
         );
         expect(output.stderr()).not.toContain('--timeout');
         expect(connect).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 120_000 }));
