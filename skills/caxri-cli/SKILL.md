@@ -254,7 +254,13 @@ Then write the task to a file and run
 - Report the returned `sessionId` and title to the user, then follow the task as described below:
   `wait`, `result`, `--follow-up` for the next instruction to the same Agent, and `stop`.
 - Lost track of a task after a context reset? `caxri agent delegate list --active --json` lists
-  your own tasks, newest first.
+  your own tasks, newest first. For a settled task from long ago, `caxri agent delegate history
+--query <text> [--outcome completed|failed|interrupted|human_intervened|answer_unavailable]
+[--limit <1-50>] --json` searches your own earlier tasks by Session title or summary; pass the
+  returned `nextCursor` as `--after <cursor>` for the next page, only with the same query and
+  outcome. It lists finished work and never marks an answer read; read one with `agent delegate result <id>`. A
+  title can echo the first words of the prompt and an `excerpt` summary can hold answer text, so do
+  not forward history output to others.
 - The user sees which Session created the new one. Keep what you created tidy:
   `caxri agent session rename <session-id> --title <title> --json` when its subject changes, and
   `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).

@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import type {
     AgentProvider,
     AgentUsageReadout,
+    DelegationCostSummary,
     SessionCost,
     UsageLimit,
     UsageNotice,
@@ -21,6 +22,7 @@ import {
 } from '../agents';
 import type { AgentSessionUsageRow, CaxriDatabase, ExternalAgentUsageRow } from '../db';
 import type { ExternalStatusRunner } from '../external-status';
+import { delegatedCost, sessionCostWithDelegated } from './delegated-cost';
 import { UsageKeyIndex } from './key-index';
 import { LiveAgentUsage } from './live-usage';
 import { PlanLimitRefresh } from './plan-limit-refresh';
@@ -41,7 +43,6 @@ import {
 } from './scan-progress';
 import type { ClaudeTranscriptMisses, UsageScanOptions, UsageTranscriptFiles } from './scanner';
 import { compressedFailureCounter, scanUsage, UsageTranscriptLocator } from './scanner';
-import { sessionCostOf } from './summary';
 import { UsageNoticeDismissals } from './usage-notice-dismissals';
 import { waitBriefly } from './wait-briefly';
 
@@ -518,20 +519,34 @@ export class UsageService {
 
     /**
      * One Session's all-time Agent spend for its sidebar card. Waits briefly for the ledger sync like a report does,
-     * but reads only that Session's rows and builds no report.
+     * but reads only that Session's rows and builds no report. `costUsd` is absent when the Session's own ledger rows
+     * hold no usage (unknown, not free); `delegated*` carry what the Sessions it delegated to cost, when any has
+     * usage.
      */
     async sessionCost(sessionId: string): Promise<SessionCost | null> {
         await Promise.all([
             this.loadPricing(),
             waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
         ]);
-        const rows = this.options.database.agentSessionUsage.listForSession(sessionId);
-        return (
-            sessionCostOf(
-                rows.map((row) => parseUsageRecord(row.usageJson)),
-                (model) => this.pricing.priceOf(model),
-            ) ?? null
+        return sessionCostWithDelegated(this.options.database, sessionId, (model) =>
+            this.pricing.priceOf(model),
         );
+    }
+
+    /**
+     * What the Sessions one Session delegated to cost, for its Delegated Sessions strip. `isScanPending` is true when
+     * the ledger scan was still running after the brief wait, so the Client asks again instead of trusting an empty
+     * answer.
+     */
+    async delegationSummary(sessionId: string): Promise<DelegationCostSummary> {
+        await Promise.all([
+            this.loadPricing(),
+            waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
+        ]);
+        const summary = delegatedCost(this.options.database, sessionId, (model) =>
+            this.pricing.priceOf(model),
+        );
+        return { ...summary, isScanPending: this.syncs.has('ledger') };
     }
 
     /**

@@ -6,6 +6,7 @@ import type { BootstrapState } from '@caxri/protocol';
 import { openAgentChat } from './support/agent-chat-fixture.ts';
 import { countRequests } from './support/agent-chat-switch-samples.ts';
 import { openCaxriBot } from './support/caxri-bot.ts';
+import { writeCodexUsageRollout } from './support/codex-usage-rollout.ts';
 import { selectSession } from './support/delegated-sessions-fixture.ts';
 import {
     CHILD_SUMMARY,
@@ -400,6 +401,77 @@ test('the owner retries a failed delegated task from the strip and the Agent tha
         // The Agent that delegated the task heard of the retry through its own Chat.
         await expect(session.getByText(RETRY_NOTICE_REPLY)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('delegation-retry-done.png') });
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
+ * The cost of a real delegated Chat. The parent's fake Agent delegates through the Caxri CLI, so the child is a real
+ * Session with a real Chat Terminal. The fake Codex writes no native usage, so the spec gives the child's thread a
+ * rollout in the isolated `CODEX_HOME`; the Server's own ledger scan turns it into the child's cost (no ledger row is
+ * seeded).
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the strip states the estimated cost of a delegated Chat per row and in the header, with ~ while it runs', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-cost-');
+    try {
+        const { page } = chat.running;
+        const { projectId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await writeFile(join(chat.controlDirectory, HOLD_CHILD_FILE), '');
+        await openAgentChat(page, 'Codex Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill(DELEGATE_PROMPT);
+        await message.press('Enter');
+
+        const strip = session.getByRole('region', { name: /^Delegated Sessions/u });
+        const row = strip.locator('[data-agent-chat-delegated-session]');
+        await expect(row).toHaveCount(1);
+        const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
+
+        // No usage yet: the strip states no cost, rather than $0.
+        await expect(strip).not.toContainText('$');
+
+        // The running child's Chat binds a native thread; give that thread usage.
+        let threadId: string | undefined;
+        await expect
+            .poll(async () => {
+                const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
+                threadId = state.terminals.find(
+                    (terminal) => terminal.sessionId === childId && terminal.agentSessionId,
+                )?.agentSessionId;
+                return threadId;
+            })
+            .toBeTruthy();
+        await writeCodexUsageRollout(chat.userData, {
+            cwd: chat.directory,
+            inputTokens: 2_000_000,
+            outputTokens: 100_000,
+            threadId: threadId!,
+        });
+
+        // While the child runs, the figure is marked `~` on the row and in the header.
+        const rowCost = row.locator('span[aria-hidden="true"]', { hasText: '$' });
+        await expect(rowCost).toHaveText(/^~\$\d+\.\d\d$/u, { timeout: 45_000 });
+        await expect(strip).toContainText(/delegated · ~\$\d+\.\d\d/u);
+        await page.screenshot({ path: testInfo.outputPath('delegated-cost-running.png') });
+
+        // Released, the child settles and the same figure loses the marker.
+        await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
+        await expect(row).toContainText(CHILD_SUMMARY);
+        await expect(rowCost).toHaveText(/^\$\d+\.\d\d$/u, { timeout: 45_000 });
+        await expect(strip).toContainText(/delegated · \$\d+\.\d\d/u);
+        await expect(strip).not.toContainText('~');
+        await page.screenshot({ path: testInfo.outputPath('delegated-cost-settled.png') });
+
+        // The header's figure and the row's agree, and hovering the header states the basis.
+        const rowAmount = (await rowCost.textContent())!;
+        await expect(strip).toContainText(`delegated · ${rowAmount}`);
+        await strip.locator('[data-agent-chat-delegated-cost]').hover();
+        await expect(page.getByText('Estimated at API list prices')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('delegated-cost-tooltip.png') });
     } finally {
         await chat.cleanup();
     }

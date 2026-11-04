@@ -11,6 +11,13 @@ import {
     delegatedSessionsHeaderParts,
     delegatedSessionsSummary,
 } from './agent-chat-delegated-sessions';
+import {
+    delegatedCostLabel,
+    delegatedHeaderFigure,
+    sumDelegatedCost,
+} from './cost/agent-chat-delegated-cost';
+import { AgentChatDelegatedCostBadge } from './cost/agent-chat-delegated-cost-badge';
+import { useDelegatedCost } from './hooks/use-delegated-cost';
 import { useDelegatedSessions } from './hooks/use-delegated-sessions';
 
 /**
@@ -30,7 +37,8 @@ function DelegatedPullRequestPoll() {
  */
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
-    const { attempts, entries } = useDelegatedSessions(terminalId);
+    const { attempts, chainSessionIds, entries, sessionId } = useDelegatedSessions(terminalId);
+    const cost = useDelegatedCost(sessionId, entries.length > 0);
     // A minute tick: it ages the elapsed labels and expires a reset time, and no row needs finer than that.
     const now = useClockTick('minute');
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
@@ -40,6 +48,8 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
     const attention = [needsInput, failed, waiting].filter((part) => part !== undefined);
     const hasCompleted = entries.some((entry) => entry.status === 'completed');
     const announcement = [count, ...attention, ...(asking ? [asking] : [])].join(', ');
+    const headerFigure = delegatedHeaderFigure(cost);
+    const headerCost = delegatedCostLabel(headerFigure, t);
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
@@ -47,7 +57,12 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
             </span>
             {hasCompleted && !isSidebarShown && <DelegatedPullRequestPoll />}
             <AgentChatStripSection
-                ariaLabel={`${t('delegation.strip.label')}, ${announcement}`}
+                ariaLabel={[
+                    `${t('delegation.strip.label')}, ${announcement}`,
+                    headerCost && t('delegation.strip.cost.header', { amount: headerCost.text }),
+                ]
+                    .filter(Boolean)
+                    .join(', ')}
                 glyph={<Forward aria-hidden="true" className="size-3.5 shrink-0" />}
                 label={t('delegation.strip.label')}
                 meta={
@@ -57,6 +72,17 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                         {failed && <span className="text-danger">{` · ${failed}`}</span>}
                         {waiting && <span>{` · ${waiting}`}</span>}
                         {asking && <span>{` · ${asking}`}</span>}
+                        {headerCost && cost && sessionId && (
+                            <>
+                                {' · '}
+                                <AgentChatDelegatedCostBadge
+                                    delegatedCostUsd={cost.delegatedCostUsd}
+                                    delegatedSessions={cost.delegatedSessions}
+                                    label={headerCost}
+                                    sessionId={sessionId}
+                                />
+                            </>
+                        )}
                     </>
                 }
                 section="delegated"
@@ -70,6 +96,14 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                                     ? undefined
                                     : attempts.get(entry.delegationId)
                             }
+                            cost={delegatedCostLabel(
+                                cost &&
+                                    sumDelegatedCost(
+                                        chainSessionIds.get(entry.sessionId) ?? [entry.sessionId],
+                                        cost.children,
+                                    ),
+                                t,
+                            )}
                             entry={entry}
                             key={entry.sessionId}
                             now={now}

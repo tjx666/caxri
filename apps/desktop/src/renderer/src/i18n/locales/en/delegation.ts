@@ -55,6 +55,15 @@ export const delegation = {
     'delegation.strip.prFilesOne': '{{count}} PR file',
     'delegation.strip.prFilesOther': '{{count}} PR files',
     'delegation.strip.openPullRequest': 'Open pull request #{{number}}',
+    'delegation.strip.cost.header': '{{amount}}',
+    'delegation.strip.cost.rowLabel': 'Estimated cost {{amount}}',
+    'delegation.strip.cost.basis':
+        'Estimated at API list prices; a subscription plan bills differently.',
+    'delegation.strip.cost.running': 'Still running; the figure may grow.',
+    'delegation.strip.cost.partial': 'At least this much; some models have no price.',
+    'delegation.strip.cost.parent':
+        'This Chat {{own}} · delegated {{delegated}} · Sessions: {{count}}',
+    'delegation.strip.cost.parentDelegatedOnly': 'Delegated {{delegated}} · Sessions: {{count}}',
     'delegation.record.label': 'Delegated to {{title}}',
     'delegation.record.openAria': 'Open {{title}}: {{status}}',
     'delegation.record.openAriaUnknown': 'Open {{title}}',

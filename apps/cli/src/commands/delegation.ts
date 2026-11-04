@@ -7,6 +7,7 @@ import {
 
 import { AGENT_SESSION_COMMANDS } from './agent-session';
 import { DELEGATION_APPROVAL_COMMANDS } from './delegation-approval';
+import { DELEGATION_HISTORY_COMMANDS } from './delegation-history';
 import { DELEGATION_QUESTION_COMMANDS } from './delegation-question';
 import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
@@ -239,6 +240,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         usage: '[--active] [--limit <count>]',
         parseParams: listParameters,
     },
+    ...DELEGATION_HISTORY_COMMANDS,
     ...DELEGATION_QUESTION_COMMANDS,
     ...DELEGATION_APPROVAL_COMMANDS,
     /**

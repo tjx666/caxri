@@ -79,6 +79,23 @@ describe('createDelegationFeedInvalidation', () => {
         invalidation.dispose();
     });
 
+    it('refreshes the delegated cost read when a delegated Session changes, and not for an ordinary one', () => {
+        const client = new QueryClient();
+        const costKey = caxriQueryKey('usage.delegationSummary', { sessionId: 'host-a' });
+        client.setQueryData(costKey, { children: [] });
+        const invalidation = createDelegationFeedInvalidation(client, () => sessions);
+
+        invalidation.invalidate(['host-b']);
+        vi.advanceTimersByTime(1600);
+        expect(client.getQueryState(costKey)?.isInvalidated).toBe(false);
+
+        // A deep descendant's push names a Session whose creator is not the Chat, so any delegated Session counts.
+        invalidation.invalidate(['child-b']);
+        vi.advanceTimersByTime(1600);
+        expect(client.getQueryState(costKey)?.isInvalidated).toBe(true);
+        invalidation.dispose();
+    });
+
     it('does nothing for a known Session that was not created by another Session', () => {
         const { client, isInvalidated } = setup();
         const invalidation = createDelegationFeedInvalidation(client, () => sessions);

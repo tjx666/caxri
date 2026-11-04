@@ -13,10 +13,8 @@ import { terminalFileLinkOpenResultSchema } from '../../domain/terminal-file-lin
 import { terminalKindSchema, terminalRecordSchema } from '../../domain/terminal-record.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { commandPolicy } from '../../transport/method-spec.js';
-import {
-    agentDelegationFailureSchema,
-    agentDelegationStatusSchema,
-} from '../delegation/agent-delegation-contract.js';
+import { agentDelegationStatusSchema } from '../delegation/agent-delegation-contract.js';
+import { agentDelegationFailureSchema } from '../delegation/agent-delegation-settings.js';
 import {
     botHandoverMethods,
     botHandoverOwnershipReasonSchema,

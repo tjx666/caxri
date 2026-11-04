@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentDelegationCreateRequestSchema,
-    agentDelegationFailureSchema,
     formatDelegationRetryNotice,
     isRetryableDelegationFailure,
 } from '../delegation/agent-delegation-contract';
 import { agentDelegationSessionsMethods } from '../delegation/agent-delegation-sessions';
+import { agentDelegationFailureSchema } from '../delegation/agent-delegation-settings';
 
 const request = { projectId: 'project-1', provider: 'claude', prompt: 'Review the design' };
 const newSession = { ...request, newSession: true, title: 'Review the retry design' };

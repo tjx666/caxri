@@ -1535,10 +1535,17 @@ ends of a hand-off read as one move; an ordinary delegated task keeps the muted 
 windows. The **Delegated Sessions strip section** sits in the composer strip after Background work
 and before queued messages, with the same 32px foldable header: a `Forward` glyph, `Delegated
 Sessions`, then `3 delegated` with `1 needs input` and `1 failed` (the latter in `--danger`) only
-when there are some. Rows sort needs-input, then failed, then the rest; each is a 12px row with the
+when there are some, then `$1.20 delegated`: the estimated spend of everything below the Chat, in
+`--muted` `tabular-nums` text with a plain Tooltip stating that it is estimated at API list prices
+and the Chat's own spend beside it (left out when unknown, never `$0`). `~` before the amount means
+a task below it still runs, so the figure may grow; `+` after it means a floor (a model without a
+price); both show together as `~$1.20+`; a floor of nothing is hidden. The header cost stays out of
+the live region. Rows sort needs-input, then failed, then the rest; each is a 12px row with the
 Agent icon, the title, the child's Project in `--muted`, a second line (the live step with the
 activity shimmer, the result summary with an `Excerpt` chip when it is the first paragraph rather
-than the Agent's `Summary:` line, or the status copy), the elapsed time, and the status glyph
+than the Agent's `Summary:` line, or the status copy), the child's estimated cost (with the same
+`~` and `+` markers, shown only once it has usage and summing the Sessions of a collapsed retry
+chain), the elapsed time, and the status glyph
 (running arc, `CircleX`, needs-input mark, or an empty slot when settled). A completed row adds a
 line with the pull request indicator, an `--accent` `Open pull request #N` link, and `<n> PR files`
 when GitHub reported the count. The whole row opens the child. A **timeline record** replaces the

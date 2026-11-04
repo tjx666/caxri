@@ -28,6 +28,7 @@ type AgentCommandRequest = Extract<
             | 'agent.delegation.answer'
             | 'agent.delegation.approve'
             | 'agent.delegation.list'
+            | 'agent.delegation.history'
             | 'agent.delegation.wait'
             | 'agent.dispatch.start'
             | 'agent.dispatch.resume';
@@ -118,6 +119,11 @@ export function agentCommandRequest(
     if (request.method === 'agent.delegation.list')
         return {
             method: 'agent.delegation.listInternal',
+            params: { ...authority, ...request.params },
+        };
+    if (request.method === 'agent.delegation.history')
+        return {
+            method: 'agent.delegation.historyInternal',
             params: { ...authority, ...request.params },
         };
     if (request.method === 'agent.delegation.wait')

@@ -1,5 +1,6 @@
 import type { AgentDelegationPullRequest, SessionPullRequest } from '@caxri/protocol';
 import { isDelegationActive } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
 import { coreRouted } from '../core-routed';
 import type { CaxriDatabase } from '../db';
@@ -7,6 +8,7 @@ import type { DomainHandlers } from '../domain-services';
 import type { ApprovalMethod } from './approvals/handlers';
 import { createApprovalHandlers } from './approvals/handlers';
 import { delegationStatuses } from './feed';
+import { readHistory } from './history';
 import type { QuestionMethod } from './questions/handlers';
 import { createQuestionHandlers } from './questions/handlers';
 import type { AgentDelegationService } from './service';
@@ -35,6 +37,8 @@ type DelegationMethod =
     | 'agent.delegation.resultInternal'
     | 'agent.delegation.transcript'
     | 'agent.delegation.transcriptInternal'
+    | 'agent.delegation.history'
+    | 'agent.delegation.historyInternal'
     | ApprovalMethod
     | QuestionMethod;
 
@@ -98,9 +102,10 @@ export function createDelegationHandlers(
     sources: {
         pullRequests?: DelegationPullRequestSource;
         transcripts?: DelegationTranscriptSource;
+        logger?: StructuredLogger;
     } = {},
 ): Pick<DomainHandlers, DelegationMethod> {
-    const { pullRequests, transcripts = NO_TRANSCRIPTS } = sources;
+    const { pullRequests, transcripts = NO_TRANSCRIPTS, logger } = sources;
     return {
         ...createQuestionHandlers(service.questions),
         ...createApprovalHandlers(service.approvals),
@@ -170,6 +175,12 @@ export function createDelegationHandlers(
                 pullRequests,
                 claimed(database, await service.result(delegationId, authority)),
             ),
+        'agent.delegation.history': () => coreRouted('agent.delegation.history'),
+        /**
+         * Reads settled-task rows only, never an answer, so it is never `claimed`.
+         */
+        'agent.delegation.historyInternal': ({ query, outcome, limit, after, ...authority }) =>
+            readHistory(database, authority, { query, outcome, limit, after }, logger),
         'agent.delegation.transcript': () => coreRouted('agent.delegation.transcript'),
         /**
          * Under the same ownership rule as `result`, but never `claimed`: reading the conversation is not reading the

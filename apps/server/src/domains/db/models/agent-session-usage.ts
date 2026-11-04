@@ -1,5 +1,5 @@
 import type { AgentProvider, UsagePullRequestState } from '@caxri/protocol';
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import {
@@ -129,6 +129,25 @@ export class AgentSessionUsageModel {
             .from(agentSessionUsage)
             .where(eq(agentSessionUsage.sessionId, sessionId))
             .all() as AgentSessionUsageRow[];
+    }
+
+    /**
+     * Conversations first bound to any of `sessionIds`, read in bounded chunks through the `session_id` index. A
+     * deleted Session's rows are still here: the ledger has no foreign key, so its spend stays attributable.
+     */
+    listForSessions(sessionIds: readonly string[]): AgentSessionUsageRow[] {
+        const rows: AgentSessionUsageRow[] = [];
+        for (let start = 0; start < sessionIds.length; start += 500) {
+            const chunk = sessionIds.slice(start, start + 500);
+            rows.push(
+                ...(this.database
+                    .select()
+                    .from(agentSessionUsage)
+                    .where(inArray(agentSessionUsage.sessionId, chunk))
+                    .all() as AgentSessionUsageRow[]),
+            );
+        }
+        return rows;
     }
 
     saveScan(

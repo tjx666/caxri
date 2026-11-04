@@ -13,6 +13,7 @@ export * from './git-remote.js';
 export * from './glob-match.js';
 export * from './grid-burst.js';
 export * from './launch-arguments.js';
+export * from './like-pattern.js';
 export * from './notify-listeners.js';
 export * from './path-basename.js';
 export * from './process-display-name.js';

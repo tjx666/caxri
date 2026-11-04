@@ -12,6 +12,7 @@ export {
     findCliCommand,
     type RemoteCommandDefinition,
 } from './catalog.js';
+export { renderDelegationHistory } from './delegation-history.js';
 export {
     assertMethodOffered,
     resolveGenericRequest,

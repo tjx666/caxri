@@ -80,6 +80,8 @@ export async function launchDelegatingChat(
                 executableSource: fakeCodexChatExecutableSource({
                     stateDirectory: join(directory, 'codex-threads'),
                     nativeUsageHome: join(userData, 'e2e-agents', 'codex'),
+                    // Thread ids become UUIDv7, which is how the ledger finds a thread's rollout.
+                    shouldWriteRollouts: true,
                     scriptPath,
                     controlDirectory,
                 }),

@@ -29,6 +29,7 @@ export type CoreHandledMethod = Extract<
     | 'agent.delegation.askWait'
     | 'agent.delegation.create'
     | 'agent.delegation.list'
+    | 'agent.delegation.history'
     | 'agent.delegation.presets'
     | 'agent.delegation.questions'
     | 'agent.delegation.result'

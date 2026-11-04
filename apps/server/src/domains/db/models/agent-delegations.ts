@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDelegations } from '../schema';
+import { DelegationHistoryModel } from './delegation-history';
 import { DelegationQuestionsModel } from './delegation-questions';
 
 const activeStatuses = [
@@ -218,8 +219,15 @@ export class AgentDelegationsModel {
      */
     readonly questions: DelegationQuestionsModel;
 
+    /**
+     * Settled-task history and the provenance edges of delegated Sessions. Unlike the questions it has no foreign key
+     * to a task record, so pruning a task or deleting its Session leaves it in place.
+     */
+    readonly history: DelegationHistoryModel;
+
     constructor(private readonly database: CaxriDrizzleDatabase) {
         this.questions = new DelegationQuestionsModel(database);
+        this.history = new DelegationHistoryModel(database);
     }
 
     get(id: string): StoredAgentDelegation | undefined {

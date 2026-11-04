@@ -125,8 +125,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     let stopPromise: Promise<void> | undefined;
     const commandStopFallbackReference: CommandStopFallbackReference = { current: undefined };
     const mutationAdmission = new MutationAdmission();
-    const stoppedGate = Promise.withResolvers<void>();
-    const stopped = stoppedGate.promise;
+    const { promise: stopped, ...stoppedGate } = Promise.withResolvers<void>();
     // eslint-disable-next-line unicorn/prefer-await -- host.stop and idle exit never await `stopped`; avoid an unhandled rejection
     stopped.catch(() => {});
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
@@ -262,6 +261,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.result':
                 case 'agent.delegation.transcript':
                 case 'agent.delegation.list':
+                case 'agent.delegation.history':
                 case 'agent.delegation.ask':
                 case 'agent.delegation.askCancel':
                 case 'agent.delegation.questions':

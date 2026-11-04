@@ -13,6 +13,7 @@ import {
 } from './agent-delegation-approval-contract.js';
 import { agentDelegationQuestionInternalMethods } from './agent-delegation-question-contract.js';
 import {
+    agentDelegationFailureSchema,
     delegationEffortSchema,
     delegationModelSchema,
     delegationPresetNameSchema,
@@ -25,6 +26,10 @@ import {
     delegationTranscriptParametersSchema as delegationTranscriptParametersSchema,
 } from './agent-delegation-transcript.js';
 import { agentDelegationUsageSchema } from './agent-delegation-usage.js';
+import {
+    agentDelegationHistoryInternalMethods,
+    agentDelegationHistoryMethods,
+} from './history/contract.js';
 
 export const agentDelegationStatusSchema = z.enum([
     'requested',
@@ -39,39 +44,6 @@ export const agentDelegationStatusSchema = z.enum([
     'interrupted',
     'failed',
     'answer_unavailable',
-]);
-
-export const agentDelegationFailureSchema = z.enum([
-    'rate_limited',
-    'authentication_failed',
-    'output_limit',
-    'startup_not_ready',
-    /**
-     * With status `blocked`: the Agent process is alive but has not started its turn after the startup deadline,
-     * usually because a first-run prompt (folder trust, sign-in, an update notice) waits for the user in its Terminal.
-     * The task resumes on its own once the Agent starts; the prompt's content is never read.
-     */
-    'startup_waiting',
-    'submission_unconfirmed',
-    'provider_failed',
-    'permission_required',
-    'target_changed',
-    'session_changed',
-    'human_input',
-    'host_reset',
-    'result_missing',
-    'payload_overflow',
-    'launch_failed',
-    /**
-     * A visible child that runs in a Terminal needs its provider's lifecycle hooks to report the task, and they are off
-     * (`agents.providers.<provider>.hooks.enabled`). Nothing was launched.
-     */
-    'hooks_required',
-    'correlation_missing',
-    'quota_exhausted',
-    'caller_stopped',
-    'target_not_ready',
-    'target_busy',
 ]);
 
 /**
@@ -408,6 +380,7 @@ const waitResultSchema = delegationWaitResultSchema(resultSchema);
 const statusResultSchema = delegationStatusResultSchema(agentDelegationReceiptSchema);
 
 export const agentDelegationMethods = {
+    ...agentDelegationHistoryMethods,
     'agent.delegation.presets': {
         ...commandPolicy('server', 'read', ['agents.delegate']),
         params: rosterParameters,
@@ -463,6 +436,7 @@ const authoritySchema = z.strictObject({
 });
 
 export const agentDelegationInternalMethods = {
+    ...agentDelegationHistoryInternalMethods,
     ...agentDelegationQuestionInternalMethods,
     ...agentDelegationApprovalInternalMethods,
     'agent.delegation.presetsInternal': {

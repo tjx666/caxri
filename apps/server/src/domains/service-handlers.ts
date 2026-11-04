@@ -470,6 +470,7 @@ export function createServiceHandlers(services: {
         'usage.dismissNotice': ({ provider, notice }) => usage.dismissNotice(provider, notice),
         'usage.report': (parameters) => usage.report(parameters),
         'usage.sessionCost': ({ sessionId }) => usage.sessionCost(sessionId),
+        'usage.delegationSummary': ({ sessionId }) => usage.delegationSummary(sessionId),
         'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
         'terminal.agentTaskUsage': ({ terminalId, taskId }) =>
             usage.readTerminalTask(terminalId, taskId),
