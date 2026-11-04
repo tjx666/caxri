@@ -8,9 +8,9 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import type { CaxriDatabase, StoredAgentDelegation } from '../db';
-import type { DelegationResumeRejection } from './rejection';
-import type { DelegationWorktree } from './service-options';
+import type { CaxriDatabase, StoredAgentDelegation } from '../../db';
+import type { DelegationResumeRejection } from '../rejection';
+import type { DelegationWorktree } from '../service-options';
 
 export type Reason = DelegationRetryUnavailableReason;
 

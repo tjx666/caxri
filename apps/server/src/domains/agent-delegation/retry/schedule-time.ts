@@ -5,7 +5,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import { RetryRefused } from './retry-support';
+import { RetryRefused } from './support';
 
 /**
  * Added to the provider's reset time before a scheduled retry runs, so the provider has actually reset: Chats that wait

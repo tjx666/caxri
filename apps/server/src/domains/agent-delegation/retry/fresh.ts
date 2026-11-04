@@ -1,11 +1,11 @@
 import type { AgentDelegationCreate, AgentDelegationReceipt } from '@caxri/protocol';
 
-import type { StoredAgentDelegation } from '../db';
-import type { DelegationAuthority } from './admission';
-import type { DelegationRetryHost } from './retry';
-import type { RetryAdmission } from './retry-support';
-import { RetryRefused } from './retry-support';
-import type { DelegationWorktree } from './service-options';
+import type { StoredAgentDelegation } from '../../db';
+import type { DelegationAuthority } from '../admission';
+import type { DelegationWorktree } from '../service-options';
+import type { DelegationRetryHost } from './service';
+import type { RetryAdmission } from './support';
+import { RetryRefused } from './support';
 
 /**
  * The creation input of a fresh retry. A switch to another Agent (`retryProvider`) names only that provider, so the

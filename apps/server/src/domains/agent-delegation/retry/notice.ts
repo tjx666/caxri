@@ -2,8 +2,8 @@ import type { DelegationRetryScheduleOutcome } from '@caxri/protocol';
 import { formatDelegationRetryNotice, formatDelegationRetryRefusedNotice } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import type { StoredAgentDelegation } from '../db';
-import type { AgentDelegationServiceOptions } from './service-options';
+import type { StoredAgentDelegation } from '../../db';
+import type { AgentDelegationServiceOptions } from '../service-options';
 
 /**
  * How a retry notice ended, as a closed enum for the log.

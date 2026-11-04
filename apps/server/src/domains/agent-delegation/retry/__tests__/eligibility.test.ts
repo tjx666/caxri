@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { retryDelegationId } from '../retry-support';
-import { fixture, reasonOf } from './retry.fixture';
+import { retryDelegationId } from '../support';
+import { fixture, reasonOf } from './fixture';
 
 describe('retry now: eligibility', () => {
     it.each([

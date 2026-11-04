@@ -4,17 +4,17 @@ import type {
     DelegationRetryScheduleOutcome,
 } from '@caxri/protocol';
 
-import type { StoredAgentDelegation } from '../db';
-import type { WatchHandle, WatchHub } from '../watch';
-import type { RetryScheduleLogOutcome } from './diagnostics';
-import { logDelegationRetrySchedule } from './diagnostics';
+import type { StoredAgentDelegation } from '../../db';
+import type { WatchHandle, WatchHub } from '../../watch';
+import type { RetryScheduleLogOutcome } from '../diagnostics';
+import { logDelegationRetrySchedule } from '../diagnostics';
+import type { AgentDelegationServiceOptions } from '../service-options';
 import {
     RETRY_SCHEDULE_MISSED_AFTER_MS,
     RETRY_SCHEDULE_POLL_MS,
     scheduleOutcomeOf,
-} from './retry-schedule-time';
-import { retryDelegationId } from './retry-support';
-import type { AgentDelegationServiceOptions } from './service-options';
+} from './schedule-time';
+import { retryDelegationId } from './support';
 
 /**
  * What the schedules borrow from `DelegationRetries`, which owns the claim, the checks, and the admission.

@@ -725,7 +725,7 @@ Renderer calls `agent.delegation.retryOptions` (`{ delegationId }`, returns the 
 `available` and a closed `unavailableReason`) and `agent.delegation.retry` (`{ delegationId, mode }`
 with `mode` of `fresh` or `resume`, no provider). An Agent Endpoint, a delegation client, Caxri Bot,
 and Benchmark are refused, and mobile role methods do not list either method. Code:
-`apps/server/src/domains/agent-delegation/retry.ts`.
+`apps/server/src/domains/agent-delegation/retry/service.ts`.
 
 - **Eligible.** A task with `status: "failed"` whose failure is one of `rate_limited`,
   `authentication_failed`, `output_limit`, `startup_not_ready`, `provider_failed`, `launch_failed`,
@@ -769,7 +769,7 @@ beside the two modes; `agent.delegation.retry` accepts `scheduleAt: 'reset'` and
 discriminated `{ status: 'started', delegationId, sessionId }` or
 `{ status: 'scheduled', delegationId, scheduledFor }`.
 `agent.delegation.cancelScheduledRetry` (`{ delegationId }`, returns `{ cancelled }`) releases a
-pending schedule. Code: `retry-schedule.ts`, `retry-schedule-time.ts`, `retry-claims.ts`.
+pending schedule. Code: `retry/schedule.ts`, `retry/schedule-time.ts`, `retry/claims.ts`.
 
 - **A pending schedule is the retry claim plus a time.** The failed task holds `retriedAs` (the
   deterministic successor ID) and its stored `retryMode`, and its receipt adds `retryScheduledFor`

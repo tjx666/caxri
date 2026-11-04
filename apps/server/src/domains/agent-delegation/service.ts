@@ -51,9 +51,8 @@ import {
     handoverTarget,
     resumeTask,
 } from './resume';
-import { DelegationRetries } from './retry';
-import type { RetryAdmission } from './retry-support';
-import { assertRetryProvider } from './retry-support';
+import type { RetryAdmission } from './retry';
+import { assertRetryProvider, DelegationRetries } from './retry';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { stopDelegation } from './stop';

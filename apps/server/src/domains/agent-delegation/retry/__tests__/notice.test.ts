@@ -1,8 +1,8 @@
 import { formatDelegationRetryNotice } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { StoredAgentDelegation } from '../../db';
-import { createRetryNotice } from '../retry-notice';
+import type { StoredAgentDelegation } from '../../../db';
+import { createRetryNotice } from '../notice';
 
 const failed = {
     receipt: { delegationId: 'failed-1', callerTerminalId: 'terminal-1' },

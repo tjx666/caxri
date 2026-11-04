@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { agentDelegationSettingsSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { retryDelegationId } from '../retry-support';
-import { RETRY_PREFACE } from '../task-body';
-import { fixture, reasonOf, started } from './retry.fixture';
+import { RETRY_PREFACE } from '../../task-body';
+import { retryDelegationId } from '../support';
+import { fixture, reasonOf, started } from './fixture';
 
 describe('retry now: fresh', () => {
     it('starts over in a new Session as the delegating Agent, who can read the result', async () => {

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { RETRY_SCHEDULE_MARGIN_MS, RETRY_SCHEDULE_MISSED_AFTER_MS } from '../retry-schedule-time';
-import { retryDelegationId } from '../retry-support';
-import { fixture, reasonOf } from './retry.fixture';
+import { RETRY_SCHEDULE_MARGIN_MS, RETRY_SCHEDULE_MISSED_AFTER_MS } from '../schedule-time';
+import { retryDelegationId } from '../support';
+import { fixture, reasonOf } from './fixture';
 
 const T0 = 1_000_000_000_000;
 const RESET_IN_MS = 10 * 60_000;
