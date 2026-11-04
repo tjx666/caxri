@@ -219,10 +219,9 @@ export const settingsCatalog = {
 
     'settings.files.autoSave.title': 'Auto save',
     'settings.files.autoSave.description':
-        'Save a changed file automatically instead of waiting for Save',
+        'Save a changed file when you leave it, switch tabs, or close it; closing a changed tab then never asks',
     'settings.files.autoSave.option.off': 'Off',
-    'settings.files.autoSave.option.onFocusChange':
-        'Saves when you leave the file, switch tabs, or close it. Closing a changed tab no longer asks.',
+    'settings.files.autoSave.option.onFocusChange': 'When leaving the file',
 
     'settings.editor.fontSize.title': 'Font size',
     'settings.editor.fontSize.description': 'Code and diff editor font size',

@@ -9,14 +9,15 @@ export const editorSettingsSpec = [
         kind: 'enum',
         key: 'files.autoSave',
         title: 'Auto save',
-        description: 'Save a changed file automatically instead of waiting for Save',
+        description:
+            'Save a changed file when you leave it, switch tabs, or close it; closing a changed tab then never asks',
         category: 'editor',
         keywords: ['save', 'auto save', 'autosave', 'focus', 'blur', 'dirty', 'unsaved'],
         options: [
             { value: 'off', label: 'Off' },
             {
                 value: 'onFocusChange',
-                label: 'Saves when you leave the file, switch tabs, or close it. Closing a changed tab no longer asks.',
+                label: 'When leaving the file',
             },
         ],
         /*

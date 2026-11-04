@@ -6,7 +6,12 @@ import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { useTranslation } from '../../i18n';
 import { textClipboard } from '../../lib/clipboard';
 import { cn } from '../../lib/utilities';
-import { skillScopeHealth, skillScopeSummary, skillScopeTone } from './provider-health';
+import {
+    skillScopeAction,
+    skillScopeHealth,
+    skillScopeSummary,
+    skillScopeTone,
+} from './provider-health';
 
 const scopeToneClassName = {
     danger: 'text-danger',
@@ -75,7 +80,9 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                             {skillScopeSummary(t, agentSkillHealth, installation, scope)}
                         </span>
                         {installation && (
-                            <span className="mt-0.5 block">{installation.action}</span>
+                            <span className="mt-0.5 block">
+                                {skillScopeAction(t, installation)}
+                            </span>
                         )}
                         {installation?.repairCommand && (
                             <span className="mt-1 flex min-w-0 items-center gap-1">

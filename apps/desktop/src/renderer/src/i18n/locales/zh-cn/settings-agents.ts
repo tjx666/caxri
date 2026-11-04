@@ -19,6 +19,27 @@ export const settingsAgents: TranslatedNamespace<typeof source> = {
     'settings.providerHealth.skill.scope.local': '项目本地',
     'settings.providerHealth.skill.scope.global': '全局',
     'settings.providerHealth.skill.checking': '{{scope}} · 正在检查安装…',
+    'settings.providerHealth.skill.action.foreign-entry':
+        '请保留此项；Caxri 不会覆盖或删除不是它安装的 Skill。',
+    'settings.providerHealth.skill.action.invalid-installed-version':
+        '请使用匹配的 Caxri CLI，或手动检查此安装。',
+    'settings.providerHealth.skill.action.invalid-marker':
+        '请保留此项，并手动检查它的 Caxri 标记。',
+    'settings.providerHealth.skill.action.matches-bundle': '无需操作。',
+    'settings.providerHealth.skill.action.modified-or-foreign-files':
+        '此副本已被修改。请先备份并手动删除，再重新安装。',
+    'settings.providerHealth.skill.action.newer-version':
+        '请使用 Caxri CLI {{version}} 或更新版本；当前版本不会降级它。',
+    'settings.providerHealth.skill.action.not-installed': '在此处安装内置 Skill。',
+    'settings.providerHealth.skill.action.older-version': '将它更新到内置版本。',
+    'settings.providerHealth.skill.action.same-version-contract-mismatch':
+        '版本相同但内容不同。请先手动检查，再重新安装。',
+    'settings.providerHealth.skill.action.unknown-schema':
+        '请使用支持标记格式 {{schema}} 的 Caxri CLI；当前版本不会覆盖它。',
+    'settings.providerHealth.skill.action.unreadable-installation':
+        '请保留此项，并手动检查它的文件。',
+    'settings.providerHealth.skill.action.unsafe-parent':
+        'Provider 文件夹是一个链接。请选择安全的项目根目录或全局范围。',
     'settings.providerHealth.skill.selectProject': '{{scope}} · 选择一个项目以检查',
     'settings.providerHealth.skill.uninspectable': '{{scope}} · 无法检查此位置',
     'settings.providerHealth.skill.notInstalled': '{{scope}} · 未安装',
@@ -45,6 +66,16 @@ export const settingsAgents: TranslatedNamespace<typeof source> = {
     'settings.providerRecovery.delayAriaLabel': '{{provider}} {{label}}',
     'settings.agentActionsEditor.listLabel': '{{provider}} Agent 命令和 Skill',
     'settings.agentActionsEditor.builtIn': '内置',
+    'settings.agentActionsEditor.builtInDescription.claude./model': '选择当前模型',
+    'settings.agentActionsEditor.builtInDescription.claude./compact': '总结对话以释放上下文',
+    'settings.agentActionsEditor.builtInDescription.claude./diff': '查看未提交的改动和每轮改动',
+    'settings.agentActionsEditor.builtInDescription.claude./review': '审查当前 diff',
+    'settings.agentActionsEditor.builtInDescription.claude./context': '查看当前上下文用量',
+    'settings.agentActionsEditor.builtInDescription.codex./model': '选择当前模型和推理强度',
+    'settings.agentActionsEditor.builtInDescription.codex./compact': '总结对话以释放上下文',
+    'settings.agentActionsEditor.builtInDescription.codex./diff': '显示当前 Git diff',
+    'settings.agentActionsEditor.builtInDescription.codex./review': '审查当前工作区',
+    'settings.agentActionsEditor.builtInDescription.codex./status': '显示会话配置和 token 用量',
     'settings.agentActionsEditor.show': '显示 {{invocation}}',
     'settings.agentActionsEditor.descriptionFor': '{{invocation}} 的描述',
     'settings.agentActionsEditor.optionalDescription': '描述（可选）',
