@@ -99,6 +99,7 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
         case 'host-names':
         case 'claude-windows':
         case 'agent-secrets':
+        case 'delegation-presets':
         case 'provider-skill-health':
             return false;
     }
@@ -115,6 +116,7 @@ export function isRowResettable(binding: SettingRowBinding): boolean {
         'host-names',
         'claude-windows',
         'agent-secrets',
+        'delegation-presets',
         'provider-skill-health',
     ].includes(binding.type);
 }
@@ -243,6 +245,7 @@ export function rowResetAction(
         case 'host-names':
         case 'claude-windows':
         case 'agent-secrets':
+        case 'delegation-presets':
         case 'provider-skill-health':
             return undefined;
     }

@@ -550,9 +550,14 @@ export async function runCli(
                 writeStdout: (text) => io.writeStdout(text),
             });
         }
-        const result = parsed.requestId
-            ? await client.requestWithId(parsed.requestId, command.method, parameters)
-            : await client.request(command.method, parameters);
+        let result: unknown;
+        try {
+            result = await (parsed.requestId
+                ? client.requestWithId(parsed.requestId, command.method, parameters)
+                : client.request(command.method, parameters));
+        } catch (error) {
+            throw command.describeError?.(error) ?? error;
+        }
         if (options.signal?.aborted) return 130;
         writeSuccess(
             io,

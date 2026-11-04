@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import type { AgentDelegationProgress } from '@caxri/protocol';
-import { serverEventSchema } from '@caxri/protocol';
+import { agentDelegationSettingsSchema, serverEventSchema } from '@caxri/protocol';
+import { omit } from 'es-toolkit';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBackgroundSession } from '../../../session';
@@ -25,6 +26,7 @@ describe('agent.delegation.sessions', () => {
             relation: 'consult',
             delegationId: consulted.id,
             provider: 'claude',
+            selection: { provider: 'claude' },
             status: 'running',
             createdAt: expect.any(Number) as number,
         });
@@ -40,6 +42,37 @@ describe('agent.delegation.sessions', () => {
                     source: 'authored',
                     delegationId: delegated.id,
                     completedAt,
+                },
+            }),
+        );
+    });
+
+    it('keeps the frozen preset selection on the entry after the preset leaves Settings', async () => {
+        let settings = agentDelegationSettingsSchema.parse({
+            presets: [
+                {
+                    name: 'review',
+                    provider: 'codex',
+                    model: 'gpt-5.5',
+                    effort: 'high',
+                    useWhen: 'Review',
+                },
+            ],
+        });
+        const f = await delegatedFixture({ delegationSettings: () => settings });
+        const id = randomUUID();
+        const request = omit(f.request, ['provider']);
+        const receipt = await f.service.create(id, f.authority, { ...request, preset: 'review' });
+        settings = agentDelegationSettingsSchema.parse({});
+
+        expect(await f.sessions([f.callerSessionId])).toContainEqual(
+            expect.objectContaining({
+                sessionId: receipt.sessionId,
+                selection: {
+                    provider: 'codex',
+                    model: 'gpt-5.5',
+                    effort: 'high',
+                    preset: 'review',
                 },
             }),
         );

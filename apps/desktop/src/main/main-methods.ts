@@ -67,6 +67,7 @@ import { handleWindowRequest, isWindowRequest } from './main-window-methods';
 import {
     diagnosticsExportDialogOptions,
     exportProjectsAndSessions,
+    pickDelegationImportFile,
     projectTransferImportDialogOptions,
     themeImportDialogOptions,
 } from './native-file-dialogs';
@@ -466,6 +467,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     ? null
                     : supervisor.request('theme.importPath', { path });
             }
+            case 'delegationImport.pick':
+                return pickDelegationImportFile({ dialog, window: mainWindow });
             case 'git.discard': {
                 const preflight = await supervisor.request('git.discard.preflight', {
                     repositoryId: request.params.repositoryId,

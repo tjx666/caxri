@@ -30,6 +30,7 @@ export function isShortStringSetting(key: string): boolean {
 const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['type']> = new Set([
     'agent-secrets',
     'claude-windows',
+    'delegation-presets',
     'files-exclude',
     'ignored-checks',
     'long-running-commands',

@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import { botRunStateSchema } from '../agent/bot/caxri-bot-contract.js';
 import { agentDelegationReceiptSchema } from '../agent/delegation/agent-delegation-contract.js';
-import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
+import {
+    delegationImportParametersSchema,
+    delegationImportResultSchema,
+} from '../agent/delegation/import/agent-delegation-import.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { lastDatabaseRebuildSchema } from '../registry/database-rebuild.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
@@ -460,16 +463,8 @@ export const businessMethods = {
     },
     'settings.delegation.import': {
         ...commandPolicy('server', 'write', ['settings.delegation.write']),
-        params: z.strictObject({
-            settings: agentDelegationSettingsSchema,
-            dryRun: z.boolean().default(true),
-        }),
-        result: z.strictObject({
-            dryRun: z.boolean(),
-            changed: z.boolean(),
-            presetNames: z.array(z.string()),
-            maxDepth: z.number().int(),
-        }),
+        params: delegationImportParametersSchema,
+        result: delegationImportResultSchema,
     },
     'logs.query': {
         ...commandPolicy('server', 'read', ['diagnostics.read']),

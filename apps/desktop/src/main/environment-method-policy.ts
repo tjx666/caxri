@@ -161,6 +161,11 @@ const environmentMethodScopes = {
      */
     'theme.import': 'local-only',
     /**
+     * Reads a file the user picks on this Mac and hands its text to the Renderer, which sends it to whichever Server
+     * the window is connected to, so an SSH Host window can import too and no local path ever reaches a remote Server.
+     */
+    'delegationImport.pick': 'any',
+    /**
      * Server Core writes and reads the file the native dialog chose on this Mac.
      */
     'projectTransfer.export': 'local-only',

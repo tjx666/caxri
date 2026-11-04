@@ -44,6 +44,20 @@ export function importThemeFile(): Promise<MethodResult<'theme.import'>> {
     return caxri.request('theme.import');
 }
 
+/**
+ * Native file picker for a dianjiang `delegation.jsonc`. Main only reads the file; the text goes to the Server through
+ * {@link importDelegationPresets}.
+ */
+export function pickDelegationImportFile(): Promise<MethodResult<'delegationImport.pick'>> {
+    return caxri.request('delegationImport.pick');
+}
+
+export function importDelegationPresets(
+    ...arguments_: ParametersArgument<'settings.delegation.import'>
+): Promise<MethodResult<'settings.delegation.import'>> {
+    return caxri.request('settings.delegation.import', ...arguments_);
+}
+
 export function getAgentHookHealth(): Promise<MethodResult<'agentHooks.get'>> {
     return caxri.request('agentHooks.get');
 }

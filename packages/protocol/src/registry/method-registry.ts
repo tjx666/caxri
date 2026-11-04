@@ -46,6 +46,7 @@ import { benchmarkShareMethods } from '../desktop/benchmark-share-contract.js';
 import { clipboardMethods } from '../desktop/clipboard-contract.js';
 import { codexGlobalResetDesktopMethods } from '../desktop/codex-global-reset-contract.js';
 import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
+import { delegationImportDesktopMethods } from '../desktop/delegation-import-contract.js';
 import {
     desktopHostMethods,
     desktopRootIdentitySchema,
@@ -177,6 +178,7 @@ export const methods = {
     ...benchmarkMethods,
     ...benchmarkShareMethods,
     ...projectTransfer.projectTransferDesktopMethods,
+    ...delegationImportDesktopMethods,
     ...clipboardMethods,
     ...bugReportMethods,
     ...mobileMethods,

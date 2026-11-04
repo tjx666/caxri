@@ -28,6 +28,7 @@ type DelegationOriginTask = Pick<
     | 'provider'
     | 'retriedAs'
     | 'retryScheduledFor'
+    | 'selection'
     | 'status'
     | 'takenOverAt'
     | 'waitingOn'
@@ -89,6 +90,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                         provider: entry.provider,
                         retriedAs: entry.retriedAs,
                         retryScheduledFor: entry.retryScheduledFor,
+                        selection: entry.selection,
                         status: entry.status,
                         takenOverAt: entry.takenOverAt,
                         waitingOn: entry.waitingOn,

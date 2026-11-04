@@ -4,9 +4,9 @@ import { basename, dirname, join, relative } from 'node:path';
 
 import type {
     AgentActionRecentSettings,
-    AgentDelegationSettings,
     AgentProvider,
     AppSettings,
+    DelegationImportParameters,
     Keybinding,
     KeybindingConflict,
     ServerEvent,
@@ -16,7 +16,6 @@ import type {
     ThemeTokens,
 } from '@caxri/protocol';
 import {
-    agentDelegationSettingsSchema,
     appSettingsFileSchema,
     CaxriError,
     configurationSourceSchema as configSourceSchema,
@@ -39,6 +38,7 @@ import { atomicWrite } from '../atomic-file';
 import { draculaTheme, importTheme, serializeTheme } from '../theme';
 import type { WatchHandle } from '../watch';
 import { WatchHub } from '../watch';
+import { planDelegationImport } from './delegation-import';
 import { ImportedThemeCatalog, releaseThemeSlots } from './imported-themes';
 import { ObservedConfigSources } from './observed-sources';
 import { preserveRecentAgentActions } from './recent-agent-actions';
@@ -533,20 +533,17 @@ export class ConfigService {
     /**
      * Owner-only import preserves unrelated JSONC; Agent settings patches cannot reach private instructions.
      */
-    importDelegationSettings(settings: AgentDelegationSettings, isDryRun: boolean) {
+    importDelegationSettings(parameters: DelegationImportParameters) {
         return this.mutateSettings(async () => {
-            const value = agentDelegationSettingsSchema.parse(settings);
-            const isChanged =
-                JSON.stringify(this.settings['agents.delegation']) !== JSON.stringify(value);
-            const source = setJsoncValue(this.settingsSource, ['agents.delegation'], value);
-            this.prepare('settings', source);
-            if (!isDryRun && isChanged) await this.update('settings', source);
-            return {
-                dryRun: isDryRun,
-                changed: isChanged,
-                presetNames: value.presets.map(({ name }) => name),
-                maxDepth: value.maxDepth,
-            };
+            const plan = planDelegationImport(
+                this.settings['agents.delegation'],
+                this.settingsSource,
+                parameters,
+            );
+            this.prepare('settings', plan.nextSource);
+            if (!parameters.dryRun && plan.result.changed)
+                await this.update('settings', plan.nextSource);
+            return plan.result;
         });
     }
 

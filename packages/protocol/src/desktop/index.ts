@@ -4,6 +4,7 @@ export * from './clipboard-contract.js';
 export * from './codex-global-reset-contract.js';
 export * from './context-menu-contract.js';
 export * from './debug-launch.js';
+export * from './delegation-import-contract.js';
 export * from './desktop-contract.js';
 export * from './desktop-launch.js';
 export * from './desktop-path-errors.js';

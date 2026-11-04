@@ -20,7 +20,10 @@ import {
     agentDelegationQuestionMethods,
     agentDelegationQuestionOwnerMethods,
 } from './agent-delegation-question-contract.js';
-import { delegationProviderSchema } from './agent-delegation-settings.js';
+import {
+    delegationProviderSchema,
+    delegationSelectionSchema,
+} from './agent-delegation-settings.js';
 
 /**
  * Most creating Sessions one `agent.delegation.sessions` read names; the sidebar asks for the Sessions it lists.
@@ -81,6 +84,11 @@ const agentDelegationSessionSchema = z.strictObject({
     relation: sessionRelationSchema,
     delegationId: identifierSchema.optional(),
     provider: delegationProviderSchema.optional(),
+    /**
+     * The provider, model, effort and preset the task was admitted with, frozen at admission. It stays the label of a
+     * preset removed from Settings since, and it is absent for a task started without a preset.
+     */
+    selection: delegationSelectionSchema.optional(),
     status: agentDelegationStatusSchema.optional(),
     failure: agentDelegationFailureSchema.optional(),
     failureResetsAt: z.number().int().positive().optional(),
