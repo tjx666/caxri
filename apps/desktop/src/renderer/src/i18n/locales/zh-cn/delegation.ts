@@ -81,6 +81,7 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.origin.handBackFailed': '无法交还此会话',
     'delegation.origin.handBackReason.not_taken_over': '此会话不在你的控制之下',
     'delegation.origin.handBackReason.child_busy': '此会话仍在工作，请等回复结束',
+    'delegation.origin.handBackReason.draft_active': '终端输入框里有未发送的文字，请先发送或清空',
     'delegation.origin.handBackReason.child_changed': '此会话已发生变化，无法再交还',
     'delegation.origin.handBackReason.parent_gone': '发起委派的 Agent 已不在运行',
     'delegation.origin.handBackReason.parent_changed': '发起委派的 Agent 已重新启动',

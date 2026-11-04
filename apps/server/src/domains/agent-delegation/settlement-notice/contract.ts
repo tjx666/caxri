@@ -69,10 +69,10 @@ export type NoticeReason =
  */
 export interface SettlementNoticeSources {
     /**
-     * Whether the delegating Agent may decide a permission request of the task now: covered, and not yet shown to the
-     * user.
+     * Whether the delegating Agent may decide the permission request `requestId` of the task now: it is the request the
+     * task waits on, covered, and not yet shown to the user.
      */
-    isApprovalDecidable(delegationId: string): boolean;
+    isApprovalDecidable(delegationId: string, requestId: string): boolean;
     /**
      * Whether the question is still open and waits on the delegating Agent, not yet shown to the user.
      */

@@ -149,8 +149,7 @@ export class AgentDelegationService {
         };
         this.handBacks = new DelegationHandBacks(options, {
             hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
-            idleTurn: (terminalId, launchId) => this.notices.childIdleTurn(terminalId, launchId),
-            announce: (anchor, grantId) => this.notices.handedBack(anchor, grantId),
+            notices: () => this.notices,
         });
         this.notices = new SettlementNotices(
             options,
@@ -385,7 +384,7 @@ export class AgentDelegationService {
                 'CONFLICT',
                 'Delegation request was already used for another task',
             );
-        return receipt;
+        return this.notices.told(receipt, authority);
     }
 
     /**
@@ -555,7 +554,11 @@ export class AgentDelegationService {
 
     stop(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
         return stopDelegation(
-            { options: this.options, save: (record) => this.save(record) },
+            {
+                options: this.options,
+                save: (record) => this.save(record),
+                told: (receipt) => this.notices.told(receipt, authority),
+            },
             this.owned(id, authority, 'existing'),
         );
     }
@@ -605,9 +608,7 @@ export class AgentDelegationService {
         });
         try {
             const poll = this.waiters.poll(ids, read, () => this.isClosed, timeoutMs, signal);
-            const outcome = await poll;
-            this.notices.readOutcome(outcome, authority);
-            return outcome;
+            return this.notices.readOutcome(await poll, authority);
         } finally {
             release();
         }

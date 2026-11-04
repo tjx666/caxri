@@ -230,6 +230,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.handoff.fromEarlier': '接续自之前的会话',
     'chat.handoff.noNote': '把下一个任务交给新会话',
     'chat.handoff.openTargetHint': '打开接手下一个任务的会话。',
+    'chat.independent.startedBy': '创建自',
+    'chat.independent.task': '由另一个会话创建',
     'chat.handoff.startIssue': '在新会话中开始 {{reference}}',
     'chat.handoff.unavailable': '无法交接：这个对话的会话或 Agent 未知',
     'chat.history.loadFailed': '无法加载更早的消息。',

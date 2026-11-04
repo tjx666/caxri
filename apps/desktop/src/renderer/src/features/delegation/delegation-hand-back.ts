@@ -5,6 +5,7 @@ import type { Translate } from '../../i18n';
 const REASON_KEYS = {
     not_taken_over: 'delegation.origin.handBackReason.not_taken_over',
     child_busy: 'delegation.origin.handBackReason.child_busy',
+    draft_active: 'delegation.origin.handBackReason.draft_active',
     child_changed: 'delegation.origin.handBackReason.child_changed',
     parent_gone: 'delegation.origin.handBackReason.parent_gone',
     parent_changed: 'delegation.origin.handBackReason.parent_changed',

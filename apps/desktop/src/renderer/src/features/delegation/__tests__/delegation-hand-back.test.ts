@@ -9,6 +9,7 @@ describe('handBackRefusalText', () => {
         for (const reason of [
             'not_taken_over',
             'child_busy',
+            'draft_active',
             'child_changed',
             'parent_gone',
             'parent_changed',

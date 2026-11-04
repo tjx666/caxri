@@ -101,7 +101,7 @@ export function AgentChatDelegationOriginRow({
     const isEscalated = !origin.isTakenOver && task?.waitingOn === 'user';
     return (
         <div
-            className="flex min-w-0 flex-col gap-0.5 border-0 border-b border-solid border-border px-3 py-1.5 text-[12px] leading-5 text-muted"
+            className="flex min-w-0 flex-col gap-0.5 border-0 border-b border-solid border-border px-3 py-1.5 text-xs leading-5 text-muted"
             data-agent-chat-composer-strip-row=""
             data-agent-chat-delegation-origin={origin.isTakenOver ? 'taken-over' : 'delegated'}
         >
@@ -126,7 +126,7 @@ export function AgentChatDelegationOriginRow({
                         title={title}
                     />
                 )}
-                <span className="ml-auto flex max-w-[60%] shrink-0 items-center gap-3">
+                <span className="ml-auto flex max-w-3/5 shrink-0 items-center gap-3">
                     {origin.isTakenOver && (
                         <AgentChatHandBackButton
                             delegationId={task?.delegationId}
@@ -138,7 +138,7 @@ export function AgentChatDelegationOriginRow({
                     )}
                     {!origin.isParentArchived && (
                         <button
-                            className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                            className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-xs text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                             type="button"
                             onClick={() => openSession(origin.parent.id)}
                         >

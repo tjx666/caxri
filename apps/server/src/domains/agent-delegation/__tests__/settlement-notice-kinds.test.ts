@@ -105,6 +105,26 @@ describe('SettlementNotices: questions and approvals', () => {
         expect(t.stateOf(`approval:${id}:request-2`)).toBe('skipped');
     });
 
+    it('binds an approval notice to its request, so an answered request is not announced', async () => {
+        const t = await setup();
+        const id = await t.create();
+        const change = {
+            sessionId: t.stored(id).receipt.sessionId,
+            delegationId: id,
+            state: 'pending' as const,
+        };
+        t.state.isDecidable = true;
+        t.state.openRequestId = 'request-2';
+
+        t.notices.approvalChanged({ ...change, requestId: 'request-1' });
+        t.notices.approvalChanged({ ...change, requestId: 'request-2' });
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+        expect(t.deliverNotice).toHaveBeenCalledTimes(1);
+        expect(t.stateOf(`approval:${id}:request-1`)).toBe('skipped');
+        expect(t.stateOf(`approval:${id}:request-2`)).toBe('unknown');
+    });
+
     it('registers a question once however many times it is reported', async () => {
         const t = await setup();
         const id = await t.create();

@@ -367,13 +367,15 @@ const cancelScheduledRetry: CancelScheduledRetrySpec = {
 /**
  * Why the Server refused a hand-back (`agent.delegation.handBack`), carried as `details.reason` of the error so a
  * Client words it itself. `not_taken_over`: the Session is not under the user's control. `child_busy`: the Session's
- * Agent is in a turn, waits on a request, or has queued input. `child_changed`: its Terminal, launch, or conversation
- * is gone or moved. `parent_gone`: the Agent that delegated it is no longer running. `parent_changed`: that Agent is
- * another launch or Endpoint generation than the one that delegated.
+ * Agent is in a turn, waits on a request, or has queued input. `draft_active`: a Terminal Agent's prompt holds text the
+ * user typed and did not submit. `child_changed`: its Terminal, launch, or conversation is gone or moved.
+ * `parent_gone`: the Agent that delegated it is no longer running. `parent_changed`: that Agent is another launch or
+ * Endpoint generation than the one that delegated.
  */
 export const delegationHandBackRefusalSchema = z.enum([
     'not_taken_over',
     'child_busy',
+    'draft_active',
     'child_changed',
     'parent_gone',
     'parent_changed',

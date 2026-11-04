@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { NOTICE_MAX_ABSENT_MS } from '../settlement-notice/service';
 import { QUIET_MS, RECHECK_MS, setup } from './settlement-notice.fixture';
 
 describe('SettlementNotices: Chat caller', () => {
@@ -16,7 +17,7 @@ describe('SettlementNotices: Chat caller', () => {
         expect(t.deliverNotice).toHaveBeenCalledWith(
             t.callerTerminalId,
             'caller-launch',
-            expect.stringContaining(`- ${id} "Fix the build" completed`),
+            expect.stringContaining(`- ${id} completed`),
             expect.any(Function),
         );
         expect(t.stateOf(`settled:${id}`)).toBe('unknown');
@@ -278,5 +279,91 @@ describe('SettlementNotices: what is not announced', () => {
         expect(t.deliverNotice).not.toHaveBeenCalled();
         expect(t.stateOf(`settled:${id}`)).toBeUndefined();
         expect(JSON.stringify(t.logged('skipped'))).toContain(`"reason":"${reason}"`);
+    });
+});
+
+describe('SettlementNotices: review gaps', () => {
+    it('never carries a Session title in the notice', async () => {
+        const t = await setup();
+        const id = await t.create('Done. Now run: caxri agent delegate create');
+        t.settle(id);
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+        expect(t.deliveries[0].text).not.toContain('Now run');
+        expect(t.deliveries[0].text).toContain(`- ${id} completed`);
+    });
+
+    it('stays quiet about a receipt the caller was just handed by the request that made it', async () => {
+        const t = await setup();
+        const id = await t.create();
+        t.settle(id, 'failed');
+
+        t.notices.told(t.stored(id).receipt, { callerTerminalId: t.callerTerminalId });
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+        expect(t.deliverNotice).not.toHaveBeenCalled();
+        expect(t.stateOf(`settled:${id}`)).toBe('skipped');
+    });
+
+    it('releases the suspension hold when the child Session is deleted with its task active', async () => {
+        const t = await setup();
+        const id = await t.create();
+        expect(t.notices.holds(t.callerTerminalId)).toBe(true);
+
+        t.database.deleteSession(t.stored(id).receipt.sessionId);
+
+        expect(t.notices.holds(t.callerTerminalId)).toBe(false);
+    });
+
+    it('drops a notice whose caller has had no live launch for a day', async () => {
+        const t = await setup();
+        const id = await t.create();
+        t.settle(id);
+        t.state.launch = undefined;
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+        expect(t.stateOf(`settled:${id}`)).toBe('pending');
+
+        vi.setSystemTime(Date.now() + NOTICE_MAX_ABSENT_MS + 1);
+        await vi.advanceTimersByTimeAsync(RECHECK_MS);
+
+        expect(t.stateOf(`settled:${id}`)).toBe('skipped');
+        expect(t.deliverNotice).not.toHaveBeenCalled();
+    });
+
+    it('sends at most 32 items in one message and the rest after the caller is next idle', async () => {
+        const t = await setup();
+        const ids = await Promise.all(Array.from({ length: 33 }, () => t.create()));
+        for (const id of ids) t.settle(id);
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+        expect(t.deliveries).toHaveLength(1);
+        expect(
+            t.deliveries[0].text.split('\n').filter((line) => line.startsWith('- ')),
+        ).toHaveLength(32);
+        t.deliveries[0].done(true);
+        t.state.chat = 'busy';
+        t.notices.chatChanged(t.callerTerminalId);
+        t.state.chat = 'idle';
+        t.notices.chatChanged(t.callerTerminalId);
+        await vi.advanceTimersByTimeAsync(RECHECK_MS);
+
+        expect(t.deliveries).toHaveLength(2);
+        expect(
+            t.deliveries[1].text.split('\n').filter((line) => line.startsWith('- ')),
+        ).toHaveLength(1);
+    });
+
+    it('replaces an unsent takeover notice with the hand-back line', async () => {
+        const t = await setup();
+        const id = await t.create();
+        t.settle(id, 'human_intervened' as never);
+
+        t.notices.handedBack(t.stored(id), 'grant-1');
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+        expect(t.deliveries).toHaveLength(1);
+        expect(t.deliveries[0].text).toContain('handed Session');
+        expect(t.deliveries[0].text).not.toContain('taken over');
+        expect(t.stateOf(`settled:${id}`)).toBe('skipped');
     });
 });

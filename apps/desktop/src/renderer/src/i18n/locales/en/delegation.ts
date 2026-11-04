@@ -93,6 +93,8 @@ export const delegation = {
     'delegation.origin.handBackReason.not_taken_over': 'This Session is not under your control',
     'delegation.origin.handBackReason.child_busy':
         'This Session is still working. Wait for the reply to finish',
+    'delegation.origin.handBackReason.draft_active':
+        'The Terminal prompt holds unsent text. Send or clear it before handing back',
     'delegation.origin.handBackReason.child_changed':
         'This Session changed and can no longer be handed back',
     'delegation.origin.handBackReason.parent_gone':

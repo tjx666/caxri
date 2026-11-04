@@ -273,6 +273,7 @@ describe('delegated Session hand-back', () => {
         expect(delegationHandBackRefusalSchema.options).toEqual([
             'not_taken_over',
             'child_busy',
+            'draft_active',
             'child_changed',
             'parent_gone',
             'parent_changed',

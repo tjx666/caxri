@@ -244,6 +244,8 @@ export const chat = {
     'chat.handoff.fromEarlier': 'Continued from an earlier Session',
     'chat.handoff.noNote': 'Hand off the next task to a new Session',
     'chat.handoff.openTargetHint': 'Opens the Session the next task was handed to.',
+    'chat.independent.startedBy': 'Started by',
+    'chat.independent.task': 'Started by another Session',
     'chat.handoff.startIssue': 'Start {{reference}} in a new Session',
     'chat.handoff.unavailable': 'This Chat cannot hand off: its Session or Agent is unknown',
     'chat.history.loadFailed': 'Unable to load earlier messages.',

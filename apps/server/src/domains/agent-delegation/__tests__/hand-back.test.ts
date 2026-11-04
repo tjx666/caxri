@@ -269,3 +269,74 @@ describe('fresh create into a taken-over Session', () => {
         expect(await reasonOf(fresh(f))).not.toBe('session_taken_over');
     });
 });
+
+describe('hand-back review gaps', () => {
+    it('refuses a Terminal child whose prompt holds text the user typed and did not submit', async () => {
+        const f = await takenOverSession();
+        f.service.observe(f.signal('turnStarted'));
+        f.service.observe(f.signal('turnFinished'));
+        f.state.epoch += 3;
+        f.service.notices.observeInput(f.terminal.id, 'abc');
+
+        expect(refusalOf(() => f.service.handBacks.handBack(f.id))).toBe('draft_active');
+        expect(f.grants()).toHaveLength(0);
+    });
+
+    it('grants a Terminal child whose prompt is empty after its turn', async () => {
+        const f = await takenOverSession();
+        f.service.observe(f.signal('turnStarted'));
+        f.service.observe(f.signal('turnFinished'));
+
+        expect(f.service.handBacks.handBack(f.id)).toMatchObject({ status: 'granted' });
+    });
+
+    it('refuses a fresh create from an outside client and from any Agent while the grant is pending', async () => {
+        const f = await takenOverSession();
+        const client = { principal: { kind: 'delegation-client', id: 'external-one-1' } } as never;
+        expect(
+            refusalOf(() => f.service.handBacks.assertFreshCreateAllowed(client, f.sessionId)),
+        ).toBe('session_taken_over');
+
+        f.service.handBacks.handBack(f.id);
+        const fresh = f.service.create(randomUUID(), f.authority, {
+            projectId: f.project.id,
+            sessionId: f.sessionId,
+            provider: 'claude',
+            prompt: 'Synthetic fresh task',
+        });
+
+        expect(await reasonOf(fresh)).toBe('session_taken_over');
+        expect(
+            refusalOf(() => f.service.handBacks.assertFreshCreateAllowed(client, f.sessionId)),
+        ).toBe('session_taken_over');
+    });
+
+    it('does not wake the caller about a follow-up that its own create refused', async () => {
+        const f = await takenOverSession();
+        const refusedId = randomUUID();
+
+        expect(await f.followUp(refusedId)).toMatchObject({ status: 'failed' });
+        await new Promise((resolve) => setTimeout(resolve, 60));
+
+        expect(f.deliveries).toHaveLength(0);
+        expect(f.database.agentDelegations.notices.get(`settled:${refusedId}`)).toMatchObject({
+            state: 'skipped',
+        });
+    });
+
+    it('does not wake the caller about a task it stopped itself', async () => {
+        const f = await takenOverSession();
+        f.service.handBacks.handBack(f.id);
+        await vi.waitFor(() => expect(f.deliveries).toHaveLength(1));
+        const followUpId = randomUUID();
+        await f.followUp(followUpId);
+
+        expect(f.service.stop(followUpId, f.authority)).toMatchObject({ status: 'interrupted' });
+        await new Promise((resolve) => setTimeout(resolve, 60));
+
+        expect(f.deliveries).toHaveLength(1);
+        expect(f.database.agentDelegations.notices.get(`settled:${followUpId}`)).toMatchObject({
+            state: 'skipped',
+        });
+    });
+});

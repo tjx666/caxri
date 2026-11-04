@@ -3,11 +3,6 @@ import type { AgentDelegationReceipt } from '@caxri/protocol';
 import type { DelegationNoticeKind } from '../../db';
 
 /**
- * Most characters of a Session title a notice carries.
- */
-const MAX_TITLE_LENGTH = 80;
-
-/**
  * Most items one notice message lists; the rest are sent after the caller's next idle.
  */
 export const MAX_NOTICE_ITEMS = 32;
@@ -23,26 +18,9 @@ export interface NoticeItem {
      */
     status?: AgentDelegationReceipt['status'];
     /**
-     * The child Session's title, the caller's own data.
-     */
-    title?: string;
-    /**
      * The Session a hand-back gives back; absent for every other kind.
      */
     sessionId?: string;
-}
-
-/**
- * A title as one line the caller can quote: control characters and newlines become spaces, quotes become apostrophes so
- * the title cannot close its own quotation, runs of whitespace collapse, and the length is capped.
- */
-export function sanitizeNoticeTitle(title: string | undefined): string {
-    const line = (title ?? '')
-        .replaceAll(/\p{Cc}/gu, ' ')
-        .replaceAll('"', "'")
-        .replaceAll(/\s+/gu, ' ')
-        .trim();
-    return line.length > MAX_TITLE_LENGTH ? `${line.slice(0, MAX_TITLE_LENGTH - 1)}…` : line;
 }
 
 const SETTLED_PHRASES: Partial<Record<AgentDelegationReceipt['status'], string>> = {
@@ -60,10 +38,11 @@ function phrase(item: NoticeItem): string {
 }
 
 /**
- * The fixed message that wakes a delegating Agent: task IDs, the child Session's title, a closed phrase per event, and
- * the commands that read each outcome. It carries no answer, summary, question, or request text; the Agent reads those
- * through its own authenticated commands. Server text only, so it can never carry a permission, a setting change, or an
- * instruction another Agent wrote (`docs/agent-delegation.md`, Settlement notices).
+ * The fixed message that wakes a delegating Agent: task IDs, a closed phrase per event, and the commands that read each
+ * outcome. It carries no answer, summary, question, request text, or Session title (the child Agent can rename its
+ * Session to any text); the Agent reads those through its own authenticated commands. Server text only, so it can never
+ * carry a permission, a setting change, or an instruction another Agent wrote (`docs/agent-delegation.md`, Settlement
+ * notices).
  */
 export function formatSettlementNotice(items: readonly NoticeItem[]): string {
     const handBacks = items.filter((item) => item.kind === 'handback');
@@ -75,8 +54,7 @@ export function formatSettlementNotice(items: readonly NoticeItem[]): string {
     if (items.length === 0) return lines.join('\n');
     lines.push('[Caxri] Delegated task update:');
     for (const item of items) {
-        const title = sanitizeNoticeTitle(item.title);
-        lines.push(`- ${item.delegationId}${title ? ` "${title}"` : ''} ${phrase(item)}`);
+        lines.push(`- ${item.delegationId} ${phrase(item)}`);
     }
     for (const item of items)
         if (item.status === 'human_intervened')

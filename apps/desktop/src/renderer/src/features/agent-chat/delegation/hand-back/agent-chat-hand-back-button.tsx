@@ -27,7 +27,7 @@ export function AgentChatHandBackButton({
     return (
         <button
             aria-disabled={view.block !== undefined || isPending}
-            className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent aria-disabled:cursor-default aria-disabled:text-muted aria-disabled:no-underline"
+            className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-xs text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent aria-disabled:cursor-default aria-disabled:text-muted aria-disabled:no-underline"
             type="button"
             onClick={() => {
                 if (!delegationId || isPending || view.block) return;

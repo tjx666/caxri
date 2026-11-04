@@ -255,10 +255,11 @@ Caxri does not attribute files to one task, so no answer reports a task-scoped f
 
 A delegating Agent does not have to sit in `wait`. When a task it delegated settles, asks it a
 question, or holds a permission request it may decide, Server Core writes one fixed notice to that
-Agent's own Terminal, which wakes it. The notice carries task IDs, the child Session's title
-(control characters stripped, capped at 80 characters), a closed phrase per event, and the commands
-that read each outcome. It never carries an answer, a summary, question text, or request text: the
-Agent reads those through its own authenticated commands. Several events in one 1500 ms quiet window
+Agent's own Terminal, which wakes it. The notice carries task IDs, a closed phrase per event, and the commands that read each outcome. It
+never carries the child Session's title, which the child Agent can rename to any text. It never carries an answer, a summary, question text, or request text: the
+Agent reads those through its own authenticated commands. A request that already handed the caller a settled receipt (a refused `create --follow-up`, or its
+own `stop`) is not announced again. A notice whose caller has had no live launch for 24 hours is
+dropped. Several events in one 1500 ms quiet window
 go out as one message of at most 32 items; the rest follow after the caller's next idle.
 
 ```json
@@ -336,7 +337,9 @@ the Session once.
 ...`), and marks the Session `handback_pending` in the feed.
 - **Guards, in order.** `not_taken_over` (the Session is not the user's); `child_busy` (a task or
   Chat turn is running, a Chat has queued input, or no finished turn is proven idle);
-  `child_changed` (the Terminal, launch, native conversation, or input epoch is gone or moved);
+  `draft_active` (a Terminal Agent's prompt holds text typed and not submitted, which the pasted
+  follow-up would otherwise submit with it); `child_changed` (the Terminal, launch, native
+  conversation, or input epoch is gone or moved);
   `parent_gone` (the delegating Agent's Terminal or launch is gone, or its Session is archived);
   `parent_changed` (it is another launch or Endpoint generation than the one that delegated). The
   Desktop button also stays disabled while the composer holds an unsent draft: the Server never sees
@@ -355,10 +358,11 @@ the Session once.
 - **After use.** The follow-up is a new task in the same Terminal and conversation. The old tasks
   keep their takeover mark, history, and cost. The feed's `control` is `delegated` again until the
   user takes the Session over again.
-- **Fresh creates.** While `control` is `human`, an Agent's fresh `create` into the Session (not
-  `--follow-up`, `--resume`, or `--continue-handover`) is refused with reason `session_taken_over`,
-  because it would start a second Agent beside the user's conversation. The owner's own creates and
-  Caxri Bot are not refused.
+- **Fresh creates.** While `control` is `human` or `handback_pending`, a fresh `create` into the
+  Session (not `--follow-up`, `--resume`, or `--continue-handover`) from a managed Agent or an
+  outside delegation client is refused with reason `session_taken_over`, because it would start a
+  second Agent beside the user's conversation or move the pins of the pending grant. The owner's own
+  creates and Caxri Bot are not refused.
 - **Not offered.** Revoking a pending grant, a confirmation dialog, and handing back a suspended Chat
   (its launch is gone, so the pinned launch cannot be proven).
 - **Logs.** `agent_delegation.hand_back` records `outcome` (`granted`, `duplicate`, `consumed`,

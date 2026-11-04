@@ -5,6 +5,7 @@ import { logEventCatalog } from '@caxri/system';
 import type { AgentLifecycleSignal } from '../../agents';
 import type { DelegationNoticeKind, StoredAgentDelegation, StoredDelegationNotice } from '../../db';
 import type { AgentDelegationServiceOptions } from '../service-options';
+import { acknowledgeRead } from './acknowledge';
 import type { NoticeOutcome, NoticeReason, SettlementNoticeSources } from './contract';
 import { noticeCallerOf } from './eligibility';
 import { PtyIdleProof } from './pty-proof';
@@ -37,6 +38,12 @@ const CHAT_RESEND_GUARD_MS = 10_000;
  * lifecycle signal.
  */
 const PTY_IDLE_RECHECK_MS = 1000;
+
+/**
+ * How long a notice may wait for a caller that has no live launch. A caller that was stopped or whose Chat was not
+ * reopened after a restart may come back, but a notice that old no longer wakes anyone usefully, so it is dropped.
+ */
+export const NOTICE_MAX_ABSENT_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_TIMING = { quietMs: 1500, recheckMs: 10_000 };
 
@@ -144,30 +151,6 @@ export class SettlementNotices {
         this.schedule(SettlementNotices.key(group), this.timing.quietMs, true);
     }
 
-    private acknowledge(delegationId: string, kind: DelegationNoticeKind, terminalId: string) {
-        const now = this.now();
-        const stored = this.store.forDelegation(delegationId, kind);
-        for (const notice of stored)
-            if (notice.callerTerminalId === terminalId) this.store.acknowledge(notice.id, now);
-        if (kind !== 'settled' || stored.length > 0) return;
-        // Read before it was registered (a retry plan held it back): record that it was read so a cancelled plan does
-        // not announce it again.
-        const record = this.options.database.agentDelegations.get(delegationId);
-        const caller = record && noticeCallerOf(this.options.database, record);
-        if (!caller || !('terminalId' in caller) || caller.terminalId !== terminalId) return;
-        const id = `settled:${delegationId}`;
-        this.store.register({
-            id,
-            delegationId,
-            kind,
-            callerTerminalId: caller.terminalId,
-            callerLaunchId: caller.launchId,
-            now,
-        });
-        this.store.claim([id], 'skipped', now);
-        this.store.acknowledge(id, now);
-    }
-
     private hasGroup(terminalId: string): boolean {
         for (const group of this.groups.values()) if (group.terminalId === terminalId) return true;
         return false;
@@ -219,7 +202,7 @@ export class SettlementNotices {
             isDelegationActive(receipt) &&
             (notice.kind === 'question'
                 ? this.sources.isQuestionWithParent(notice.delegationId, notice.subjectId!)
-                : this.sources.isApprovalDecidable(notice.delegationId));
+                : this.sources.isApprovalDecidable(notice.delegationId, notice.subjectId!));
         if (!isOpen) return { kind: 'skip', reason: 'resolved' };
         return this.waiters.isWaitingForQuestions(notice.callerTerminalId, notice.delegationId)
             ? { kind: 'defer', reason: 'waiter' }
@@ -282,7 +265,11 @@ export class SettlementNotices {
         const ready: StoredDelegationNotice[] = [];
         let heldBack = 0;
         for (const row of rows) {
-            const verdict = this.judge(row);
+            const isAbsentTooLong =
+                liveLaunchId === undefined && this.now() - row.createdAt > NOTICE_MAX_ABSENT_MS;
+            const verdict = isAbsentTooLong
+                ? ({ kind: 'skip', reason: 'caller_gone' } as const)
+                : this.judge(row);
             if (verdict.kind === 'send') ready.push(row);
             else if (verdict.kind === 'defer') {
                 heldBack += 1;
@@ -324,7 +311,6 @@ export class SettlementNotices {
                 kind: notice.kind,
                 ...(notice.kind === 'settled' && { status: record.receipt.status }),
                 ...(notice.kind === 'handback' && { sessionId: record.receipt.sessionId }),
-                title: this.options.database.getSession(record.receipt.sessionId)?.title,
             };
         });
         const kinds = new Set(rows.map((notice) => notice.kind));
@@ -439,6 +425,13 @@ export class SettlementNotices {
         return this.proof.idleTurn(terminalId, launchId);
     }
 
+    /**
+     * Whether a Terminal Agent's prompt holds text that was typed after its turn started and not submitted.
+     */
+    hasDraft(terminalId: string, launchId: string): boolean {
+        return this.proof.check(terminalId, launchId) === 'draft';
+    }
+
     questionChanged(change: DelegationQuestionChanged): void {
         if (!this.isEnabled || change.state !== 'open' || change.escalated) return;
         const record = this.options.database.agentDelegations.get(change.delegationId);
@@ -479,18 +472,24 @@ export class SettlementNotices {
      * The caller read what a notice would report, through `wait` or `result`. Only the Agent that the notice is owed to
      * counts: another caller reading the task does not tell the delegating Agent anything.
      */
-    readOutcome(
-        read: { receipt: StoredAgentDelegation['receipt']; outcome?: string },
+    readOutcome<T extends { receipt: StoredAgentDelegation['receipt']; outcome?: string }>(
+        read: T,
         { callerTerminalId }: { callerTerminalId?: string },
-    ): void {
-        if (!callerTerminalId || !this.isEnabled) return;
-        const { delegationId } = read.receipt;
-        if (!isDelegationActive(read.receipt))
-            this.acknowledge(delegationId, 'settled', callerTerminalId);
-        else if (read.outcome === 'question')
-            this.acknowledge(delegationId, 'question', callerTerminalId);
-        else if (read.outcome === 'approval')
-            this.acknowledge(delegationId, 'approval', callerTerminalId);
+    ): T {
+        if (callerTerminalId && this.isEnabled)
+            acknowledgeRead(this.options.database, this.now(), read, callerTerminalId);
+        return read;
+    }
+
+    /**
+     * The caller was just handed the task's receipt by the request that created or stopped it, so a settled receipt
+     * needs no notice: it would wake the Agent about an outcome it has already read. Returns `receipt` for chaining.
+     */
+    told<T extends StoredAgentDelegation['receipt']>(
+        receipt: T,
+        authority: { callerTerminalId?: string },
+    ): T {
+        return this.readOutcome({ receipt }, authority).receipt;
     }
 
     /**
@@ -536,7 +535,13 @@ export class SettlementNotices {
         const launchId = this.options.currentLaunchId?.(terminalId);
         if (!launchId) return false;
         const mine = this.active.get(terminalId);
-        if (mine?.values().toArray().includes(launchId) === true) return true;
+        if (mine) {
+            // A deleted Session takes its tasks with it by cascade, without a save that would end the hold.
+            for (const id of mine.keys())
+                if (!this.options.database.agentDelegations.get(id)) mine.delete(id);
+            if (mine.size === 0) this.active.delete(terminalId);
+            if (mine.values().toArray().includes(launchId)) return true;
+        }
         return this.store.hasPendingFor(terminalId, launchId);
     }
 

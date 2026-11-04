@@ -11,6 +11,7 @@ import type { DelegationFollowUpRejection } from '../rejection';
 import { handBackRejection } from '../rejection';
 import type { AgentDelegationServiceOptions } from '../service-options';
 import { noticeCallerOf } from '../settlement-notice/eligibility';
+import type { SettlementNotices } from '../settlement-notice/service';
 import { handBackAnchor, sessionControls } from './control';
 
 type HandBackOptions = Pick<
@@ -35,13 +36,10 @@ interface HandBackHost {
      */
     hasActiveTask(terminalId: string): boolean;
     /**
-     * The turn whose finish proves the Agent in `terminalId` idle at `launchId`, or `undefined` without that proof.
+     * The settlement notices: they prove a Terminal Agent idle and its prompt free of unsent text, and tell the
+     * delegating Agent that a grant exists.
      */
-    idleTurn(terminalId: string, launchId: string): string | undefined;
-    /**
-     * Tells the delegating Agent that the grant exists.
-     */
-    announce(anchor: StoredAgentDelegation, grantId: string): void;
+    notices(): SettlementNotices;
 }
 
 /**
@@ -53,6 +51,7 @@ type InvalidationReason = 'child_changed' | 'parent_changed' | 'restart';
 const REFUSAL_MESSAGES: Record<DelegationHandBackRefusal, string> = {
     not_taken_over: 'This Session is not under your control',
     child_busy: 'Wait for the current reply to finish before handing back',
+    draft_active: 'Send or clear the text typed in the Terminal prompt before handing back',
     child_changed: 'This Session changed and can no longer be handed back',
     parent_gone: 'The delegating Agent is no longer running',
     parent_changed: 'The delegating Agent is no longer the one that delegated this Session',
@@ -142,8 +141,14 @@ export class DelegationHandBacks {
             this.options.chatCallerState?.(terminalId) !== 'idle'
         )
             return this.refuse('child_busy');
-        const turnId = this.host.idleTurn(terminalId, launchId);
+        const turnId = this.host.notices().childIdleTurn(terminalId, launchId);
         if (!turnId) return this.refuse('child_busy');
+        // A pasted follow-up ends in Enter, so it would submit the user's half-typed line with it.
+        if (
+            !this.options.isChatTerminal?.(terminalId) &&
+            this.host.notices().hasDraft(terminalId, launchId)
+        )
+            return this.refuse('draft_active');
         return {
             terminalId,
             launchId,
@@ -218,7 +223,7 @@ export class DelegationHandBacks {
             return { grantId: grant.id, delegationId: grant.delegationId, status: 'duplicate' };
         }
         this.log('granted');
-        this.host.announce(anchor, grant.id);
+        this.host.notices().handedBack(anchor, grant.id);
         return { grantId: grant.id, delegationId: grant.delegationId, status: 'granted' };
     }
 
@@ -291,14 +296,21 @@ export class DelegationHandBacks {
     }
 
     /**
-     * An Agent-originated fresh `create` into a Session the user took over would start a second Agent beside the user's
-     * conversation. Refused with `session_taken_over`; the owner's own creates and Caxri Bot are not Agent-originated
-     * in this sense.
+     * An Agent-originated (managed or external) fresh `create` into a Session the user took over, or handed back and
+     * not yet continued, would start a second Agent beside the user's conversation. Refused with `session_taken_over`;
+     * the owner's own creates and Caxri Bot are not Agent-originated in this sense.
      */
     assertFreshCreateAllowed(authority: DelegationAuthority, sessionId: string): void {
         const { database } = this.options;
-        if (authority.principal.kind !== 'agent' || isCaxriBotCaller(database, authority)) return;
-        if (sessionControls(database, [sessionId]).get(sessionId) !== 'human') return;
+        const { kind } = authority.principal;
+        if (
+            (kind !== 'agent' && kind !== 'delegation-client') ||
+            isCaxriBotCaller(database, authority)
+        )
+            return;
+        // While a grant is pending only the follow-up that uses it may start work; a fresh task would move its pins.
+        const control = sessionControls(database, [sessionId]).get(sessionId);
+        if (control !== 'human' && control !== 'handback_pending') return;
         throw new CaxriError(
             'CONFLICT',
             'The user took over this Session; it takes new work only after they hand it back',

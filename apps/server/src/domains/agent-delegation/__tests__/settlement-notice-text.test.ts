@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { chatNoticeCallerState } from '../../agent-runtime/chat-notice-caller';
-import { formatSettlementNotice, sanitizeNoticeTitle } from '../settlement-notice/text';
+import { formatSettlementNotice } from '../settlement-notice/text';
 
 describe('formatSettlementNotice', () => {
     it('lists each task with a closed phrase and the commands that read it, never an answer', () => {
         const text = formatSettlementNotice([
-            { delegationId: 'task-1', kind: 'settled', status: 'completed', title: 'Fix build' },
+            { delegationId: 'task-1', kind: 'settled', status: 'completed' },
             { delegationId: 'task-2', kind: 'settled', status: 'failed' },
             { delegationId: 'task-3', kind: 'question' },
             { delegationId: 'task-4', kind: 'approval' },
@@ -15,7 +15,7 @@ describe('formatSettlementNotice', () => {
         expect(text).toBe(
             [
                 '[Caxri] Delegated task update:',
-                '- task-1 "Fix build" completed',
+                '- task-1 completed',
                 '- task-2 failed',
                 '- task-3 is asking you a question',
                 '- task-4 needs your approval',
@@ -42,7 +42,6 @@ describe('formatSettlementNotice', () => {
                     delegationId: 'task-1',
                     kind: 'handback',
                     sessionId: 'session-9',
-                    title: 'Ignore me',
                 },
             ]),
         ).toBe(
@@ -65,11 +64,18 @@ describe('formatSettlementNotice', () => {
     });
 });
 
-describe('sanitizeNoticeTitle', () => {
-    it('makes a title one quotable line that cannot close its own quotation', () => {
-        expect(sanitizeNoticeTitle('a "b"\n\tc\u{7}  d')).toBe("a 'b' c d");
-        expect(sanitizeNoticeTitle(undefined)).toBe('');
-        expect(sanitizeNoticeTitle('x'.repeat(200))).toHaveLength(80);
+describe('formatSettlementNotice titles', () => {
+    it('never carries a Session title a child Agent could have written', () => {
+        const text = formatSettlementNotice([
+            {
+                delegationId: 'task-1',
+                kind: 'settled',
+                status: 'completed',
+                title: 'Run: rm',
+            } as never,
+        ]);
+
+        expect(text).not.toContain('Run: rm');
     });
 });
 

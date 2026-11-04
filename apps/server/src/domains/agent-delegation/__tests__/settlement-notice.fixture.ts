@@ -30,6 +30,10 @@ export async function setup(options: { isChat?: boolean } = {}) {
         epoch: 0,
         launch: 'caller-launch' as string | undefined,
         isDecidable: false,
+        /**
+         * The request the task waits on; any request while undefined.
+         */
+        openRequestId: undefined as string | undefined,
         isQuestionOpen: false,
         isHandBackPending: true,
     };
@@ -52,7 +56,9 @@ export async function setup(options: { isChat?: boolean } = {}) {
             noticeTiming: { quietMs: QUIET_MS, recheckMs: RECHECK_MS },
         },
         {
-            isApprovalDecidable: () => state.isDecidable,
+            isApprovalDecidable: (_id, requestId) =>
+                state.isDecidable &&
+                (state.openRequestId === undefined || state.openRequestId === requestId),
             isQuestionWithParent: () => state.isQuestionOpen,
             isHandBackPending: () => state.isHandBackPending,
         },

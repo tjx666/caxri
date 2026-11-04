@@ -17,9 +17,13 @@ export function noticeSources(
     },
 ): SettlementNoticeSources {
     return {
-        isApprovalDecidable: (delegationId) => {
+        isApprovalDecidable: (delegationId, requestId) => {
             const approval = services().approvals.viewFor(delegationId);
-            return approval?.covered === true && !approval.escalated;
+            return (
+                approval?.requestId === requestId &&
+                approval.covered === true &&
+                !approval.escalated
+            );
         },
         isQuestionWithParent: (delegationId, questionId) =>
             services().questions.isWithParent(delegationId, questionId),
