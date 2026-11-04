@@ -64,9 +64,10 @@ export const agentChatPane = {
     'agentChat.history.loading': 'Loading earlier messages…',
     'agentChat.history.unavailable':
         'Earlier messages are not available in Chat. {{provider}} still has all of them.',
-    'agentChat.portal.label': 'Portal',
+    'agentChat.portal.label': 'Side View',
+    'agentChat.portal.tabs': 'Side View items',
     'agentChat.portal.openInSplit': 'Open in Split',
-    'agentChat.portal.close': 'Close Portal',
+    'agentChat.portal.close': 'Close Side View',
     'agentChat.portal.closeItem': 'Close {{label}}',
-    'agentChat.portal.resize': 'Resize Portal',
+    'agentChat.portal.resize': 'Resize Side View',
 } as const;

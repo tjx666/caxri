@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 import type { AgentChatItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../../../i18n';
+import type { AgentChatComposerInput } from '../../composer/agent-chat-composer-view';
 import {
     AgentChatExpansionContext,
     useAgentChatExpansionHost,
@@ -14,6 +15,7 @@ import {
     useAgentChatRevealFile,
 } from '../../hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from '../../hooks/use-agent-chat-scroll';
+import { useAgentChatEdgeKeys } from '../../keyboard/use-agent-chat-edge-keys';
 import { AgentChatSelectionToolbar } from '../../messages/agent-chat-selection-toolbar';
 import { AgentChatHistoryHead } from '../../transcript/agent-chat-history-head';
 import { AgentChatJumpToLatest } from '../../transcript/agent-chat-jump-to-latest';
@@ -62,6 +64,14 @@ export function AgentChatTaskTimeline({
         taskId,
     );
     const olderItems = history.history.items;
+    // No composer here: Home/End and Cmd+Up/Down scroll the transcript like the main Chat's, from the focused log.
+    const noInputReference = useRef<AgentChatComposerInput | null>(null);
+    const onEdgeKeyDown = useAgentChatEdgeKeys({
+        inputReference: noInputReference,
+        jumpToLatest,
+        scrollReference,
+        stopFollowing,
+    });
     const settledChunks = useMemo(() => agentChatSettledChunks(olderItems, []), [olderItems]);
     const timeline = useMemo(() => buildAgentChatTimeline(items, [], undefined), [items]);
     /**
@@ -77,9 +87,13 @@ export function AgentChatTaskTimeline({
     return (
         <div className="relative h-full min-h-0">
             <div
-                className="absolute inset-0 overflow-y-auto outline-none"
+                aria-label={t('agentChat.timeline.transcriptLabel')}
+                aria-live="off"
+                className="absolute inset-0 overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                 ref={scrollReference}
-                tabIndex={-1}
+                role="log"
+                tabIndex={0}
+                onKeyDown={onEdgeKeyDown}
                 onScroll={onScroll}
             >
                 <div

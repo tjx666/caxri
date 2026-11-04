@@ -1,9 +1,11 @@
 import type { RefObject } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { AgentSecretRequest } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { KeyRound, Minus, SquareArrowOutUpRight } from 'lucide-react';
+
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -11,6 +13,7 @@ import { Input } from '../../components/ui/input';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { motionDurationMs, motionEasing } from '../../lib/motion';
 import { useCaxriQuery } from '../../queries/client';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
 import {
@@ -20,7 +23,11 @@ import {
 import { openAgentChatWaiting } from '../agent-chat/waiting/agent-chat-waiting-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { answerAgentSecretRequest } from './agent-secrets-client';
-import { secretAnswerFailure, secretRequestAnswer } from './agent-secrets-summary';
+import {
+    nextSecretChipPulse,
+    secretAnswerFailure,
+    secretRequestAnswer,
+} from './agent-secrets-summary';
 
 /**
  * Asks the user for a secret an Agent requested with `caxri secret request`, from anywhere in the window and for Chat
@@ -37,34 +44,29 @@ import { secretAnswerFailure, secretRequestAnswer } from './agent-secrets-summar
  * empties, so a request arriving while minimized raises the count instead of reopening the card.
  */
 export function SecretRequestCards() {
-    const { t } = useTranslation();
     const query = useCaxriQuery('secrets.requests.list', {});
     const requests = query.data?.requests ?? [];
     const current = requests.toSorted((left, right) => left.createdAt - right.createdAt).at(0);
     const [isMinimized, setIsMinimized] = useState(false);
     const valueFieldReference = useRef<HTMLInputElement>(null);
+    const [chipPulse, setChipPulse] = useState({ count: 0, pulses: 0 });
     // Adjusting state while rendering: an emptied queue resets the choice without an effect's extra frame.
     if (!current && isMinimized) setIsMinimized(false);
+    const pulse = nextSecretChipPulse(chipPulse, requests.length);
+    if (pulse !== chipPulse) setChipPulse(pulse);
     if (!current) return null;
     return (
         <div className="pointer-events-none fixed top-10 right-4 z-40 flex w-[min(400px,92vw)] flex-col items-end">
             {isMinimized && (
-                <Button
-                    // Focus follows the user's own minimize, so the keyboard keeps its place instead of falling to the page.
-                    autoFocus
-                    aria-label={t('agentSecrets.request.chipLabel', { count: requests.length })}
-                    className="pointer-events-auto shadow-[0_12px_32px_var(--shadow)]"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
+                <SecretRequestChip
+                    count={requests.length}
+                    pulses={pulse.pulses}
+                    onShow={() => {
                         setIsMinimized(false);
                         // The card is still hidden in this event; focus lands once React commits the expansion.
                         requestAnimationFrame(() => valueFieldReference.current?.focus());
                     }}
-                >
-                    <KeyRound aria-hidden="true" className="size-3.5" />
-                    {t('agentSecrets.request.chip', { count: requests.length })}
-                </Button>
+                />
             )}
             <SecretRequestCard
                 key={current.id}
@@ -74,6 +76,54 @@ export function SecretRequestCards() {
                 valueFieldRef={valueFieldReference}
                 onMinimize={() => setIsMinimized(true)}
             />
+        </div>
+    );
+}
+
+/**
+ * The minimized chip. A request arriving while it shows gives it one quick swell on the overlay tokens (a change of
+ * `pulses` plays it), so the count going up is noticed without a sound or a toast; reduced motion skips the swell.
+ */
+function SecretRequestChip({
+    count,
+    pulses,
+    onShow,
+}: {
+    count: number;
+    pulses: number;
+    onShow: () => void;
+}) {
+    const { t } = useTranslation();
+    const shouldReduceMotion = useShouldReduceMotion();
+    const swellReference = useRef<HTMLDivElement>(null);
+    // A Web Animation rather than a keyed remount: remounting would re-run the button's autoFocus and pull focus from
+    // wherever the user is typing when a request arrives.
+    useEffect(() => {
+        if (pulses === 0 || shouldReduceMotion) return;
+        const [x1, y1, x2, y2] = motionEasing('--motion-ease-enter');
+        const animation = swellReference.current?.animate(
+            [{ transform: 'scale(1.08)' }, { transform: 'scale(1)' }],
+            {
+                duration: motionDurationMs('--motion-overlay-enter'),
+                easing: `cubic-bezier(${x1}, ${y1}, ${x2}, ${y2})`,
+            },
+        );
+        return () => animation?.cancel();
+    }, [pulses, shouldReduceMotion]);
+    return (
+        <div ref={swellReference}>
+            <Button
+                // Focus follows the user's own minimize, so the keyboard keeps its place instead of falling to the page.
+                autoFocus
+                aria-label={t('agentSecrets.request.chipLabel', { count })}
+                className="pointer-events-auto shadow-[0_12px_32px_var(--shadow)]"
+                size="sm"
+                variant="secondary"
+                onClick={onShow}
+            >
+                <KeyRound aria-hidden="true" className="size-3.5" />
+                {t('agentSecrets.request.chip', { count })}
+            </Button>
         </div>
     );
 }
@@ -180,7 +230,7 @@ function SecretRequestCard({
                         {t('agentSecrets.request.openSession')}
                     </Button>
                 )}
-                <Tooltip content={t('agentSecrets.request.minimize')}>
+                <Tooltip content={t('agentSecrets.request.minimize')} shortcut="escape">
                     <Button
                         aria-label={t('agentSecrets.request.minimize')}
                         size="icon"

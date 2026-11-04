@@ -116,6 +116,9 @@ export const agentChatChanges = {
     'agentChat.tasks.endedCount': 'Ended {{count}}',
     'agentChat.tasks.failedCount': '{{count}} failed',
     'agentChat.tasks.dismissFailures': 'Dismiss failures',
+    'agentChat.tasks.dismissFailuresDetail': 'Dismiss failures and move them to Ended',
+    'agentChat.tasks.showEnded': 'Show ended tasks',
+    'agentChat.tasks.hideEnded': 'Hide ended tasks',
     'agentChat.tasks.endedList': 'Ended background work',
     'agentChat.tasks.earlierHidden':
         'Earlier messages are not shown: Chat keeps only the recent part of a long subagent conversation.',
@@ -141,7 +144,11 @@ export const agentChatChanges = {
     'agentChat.workflow.scriptError': 'The workflow script failed',
     'agentChat.workflow.copyError': 'Copy error',
     'agentChat.workflow.errorCopied': 'Error copied',
-    'agentChat.workflow.interrupted': 'Interrupted when its Claude Code process exited.',
+    'agentChat.workflow.copyResult': 'Copy result',
+    'agentChat.workflow.resultCopied': 'Result copied',
+    'agentChat.workflow.position': '{{index}}/{{total}}',
+    'agentChat.workflow.openWithStatus': 'Open {{title}}, {{status}}',
+    'agentChat.workflow.interrupted': 'Claude Code closed, so the workflow stopped.',
     'agentChat.workflow.resume': 'Ask the Agent to continue',
     'agentChat.workflow.resumeHint':
         'Puts a request to resume this run in the message box; nothing is sent until you send it.',

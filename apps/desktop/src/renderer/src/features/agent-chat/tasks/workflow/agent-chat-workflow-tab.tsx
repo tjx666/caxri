@@ -19,12 +19,14 @@ import { useAgentChatTask } from '../../hooks/use-agent-chat-task';
 import { AgentChatStatusGlyph } from '../../tools/agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from '../agent-chat-task-glyph';
 import { AgentChatTaskHeaderStopButton } from '../tab/agent-chat-task-header-stop-button';
+import { AgentChatTaskLoadFailed } from '../tab/agent-chat-task-load-failed';
 import { AgentChatTaskTimeline } from '../tab/agent-chat-task-timeline';
 import {
     agentChatWorkflowBilled,
     agentChatWorkflowHeaderStats,
     agentChatWorkflowMemberGlyphStatus,
     agentChatWorkflowMemberType,
+    agentChatWorkflowPosition,
 } from './agent-chat-workflow';
 import { AgentChatWorkflowMemberGlyph } from './agent-chat-workflow-member-glyph';
 import { AgentChatWorkflowOverview } from './agent-chat-workflow-overview';
@@ -93,6 +95,7 @@ function WorkflowMemberView({
     const next = agentChatWorkflowSibling(workflow, taskId, 1);
     const snapshot = projection.data;
     const cost = billed.get(taskId);
+    const position = agentChatWorkflowPosition(workflow, taskId);
     return (
         <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1">
@@ -150,6 +153,11 @@ function WorkflowMemberView({
                         <ChevronUp className="size-3.5" />
                     </Button>
                 </Tooltip>
+                {position && (
+                    <span className="text-[11px] leading-4 text-muted tabular-nums">
+                        {t('agentChat.workflow.position', position)}
+                    </span>
+                )}
                 <Tooltip content={t('agentChat.workflow.next')}>
                     <Button
                         aria-label={t('agentChat.workflow.next')}
@@ -177,9 +185,11 @@ function WorkflowMemberView({
                         truncated={snapshot.truncated}
                     />
                 ) : projection.isError ? (
-                    <p className="m-0 p-6 text-center text-[13px] text-muted" role="alert">
-                        {t('agentChat.tasks.loadFailed')}
-                    </p>
+                    <AgentChatTaskLoadFailed
+                        onRetry={() => {
+                            void projection.refetch();
+                        }}
+                    />
                 ) : (
                     <LoadingSkeleton variant="document" label={t('agentChat.tasks.loading')} />
                 )}

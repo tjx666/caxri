@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     defaultSecretScope,
     isValidSecretName,
+    nextSecretChipPulse,
     scopeFromValue,
     scopeValue,
     secretScopeProjects,
@@ -57,5 +58,15 @@ describe('agent secret presentation', () => {
         expect(isValidSecretName('9TOKEN')).toBe(false);
         expect(isValidSecretName('CAXRI_TOKEN')).toBe(false);
         expect(isValidSecretName('PATH')).toBe(false);
+    });
+});
+
+describe('nextSecretChipPulse', () => {
+    it('pulses only when a waiting queue grows', () => {
+        expect(nextSecretChipPulse({ count: 0, pulses: 0 }, 1)).toEqual({ count: 1, pulses: 0 });
+        expect(nextSecretChipPulse({ count: 1, pulses: 0 }, 2)).toEqual({ count: 2, pulses: 1 });
+        expect(nextSecretChipPulse({ count: 2, pulses: 1 }, 1)).toEqual({ count: 1, pulses: 1 });
+        const same = { count: 1, pulses: 1 };
+        expect(nextSecretChipPulse(same, 1)).toBe(same);
     });
 });

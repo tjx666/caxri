@@ -1,5 +1,6 @@
 import type { AgentChatWorkflowMember, AgentUsageReadout } from '@caxri/protocol';
 import {
+    agentChatItemStatusLabel,
     agentChatTaskUsageSummary,
     agentChatWorkflowAgentKind,
     agentUsageCostLabel,
@@ -10,6 +11,7 @@ import { ChevronRight } from 'lucide-react';
 import { useClockTick } from '@/hooks/use-clock-tick';
 
 import { Tooltip } from '../../../../components/ui/tooltip';
+import type { Translate } from '../../../../i18n';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { AgentChatStatusGlyph } from '../../tools/agent-chat-status-glyph';
@@ -55,6 +57,14 @@ function RunningMemberClock({
 }
 
 /**
+ * The member's status in words, for the row's accessible name; a queued member reads as waiting like its visible cell.
+ */
+function memberStatusLabel(member: AgentChatWorkflowMember, t: Translate): string {
+    if (member.status === 'queued') return t('agentChat.workflow.waiting');
+    return agentChatItemStatusLabel(agentChatWorkflowMemberGlyphStatus(member.status), t);
+}
+
+/**
  * One member of a workflow: its agent-kind glyph and label, its cost and elapsed time in fixed columns, its status, and
  * a second line saying one thing (what it is doing, its result, or its error). A queued member is dimmed and cannot be
  * opened yet; the whole row's tooltip carries its type, model, tokens, tool uses, and the opening of its task.
@@ -83,6 +93,7 @@ export function AgentChatWorkflowMemberRow({
     ]
         .filter(Boolean)
         .join(' · ');
+    const statusLabel = memberStatusLabel(member, t);
     const detail = isRunning ? undefined : agentChatWorkflowMemberDetail(member, t);
     const body = (
         <>
@@ -152,7 +163,10 @@ export function AgentChatWorkflowMemberRow({
             >
                 {taskId ? (
                     <button
-                        aria-label={t('agentChat.workflow.open', { title: member.label })}
+                        aria-label={t('agentChat.workflow.openWithStatus', {
+                            title: member.label,
+                            status: statusLabel,
+                        })}
                         className={cn(
                             className,
                             'cursor-pointer hover:bg-list-hover-background focus-visible:outline focus-visible:outline-accent',

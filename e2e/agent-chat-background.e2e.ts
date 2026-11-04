@@ -329,7 +329,7 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(subagent.getByText(/66\.9k tokens · \$0\.\d\d · 1 tool use/u)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-subagent-tab.png') });
         // The Portal overlays the Chat's right edge, where the next row's Stop button sits.
-        await page.getByRole('button', { name: 'Close Portal' }).click();
+        await page.getByRole('button', { name: 'Close Side View' }).click();
         await expect(subagent).toHaveCount(0);
 
         // A background subagent's call returns as soon as it launches, yet its row reads as running until it ends.

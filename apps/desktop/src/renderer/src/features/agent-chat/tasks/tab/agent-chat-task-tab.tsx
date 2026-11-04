@@ -10,7 +10,7 @@ import {
     canStopAgentChatTask,
     isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
@@ -30,6 +30,7 @@ import {
 } from '../agent-chat-tasks';
 import { AgentChatWorkflowTab } from '../workflow/agent-chat-workflow-tab';
 import { AgentChatTaskHeaderStopButton } from './agent-chat-task-header-stop-button';
+import { AgentChatTaskLoadFailed } from './agent-chat-task-load-failed';
 import { AgentChatTaskOutput } from './agent-chat-task-output';
 import { AgentChatTaskTimeline } from './agent-chat-task-timeline';
 
@@ -140,19 +141,11 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
             </Button>
         </div>
     ) : projection.isError ? (
-        <div className={STATE_CLASS_NAME} role="alert">
-            <p className="m-0 text-foreground">{t('agentChat.tasks.loadFailed')}</p>
-            <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                    void projection.refetch();
-                }}
-            >
-                <RotateCcw className="size-3.5" />
-                {t('common.retry')}
-            </Button>
-        </div>
+        <AgentChatTaskLoadFailed
+            onRetry={() => {
+                void projection.refetch();
+            }}
+        />
     ) : snapshot ? (
         kind === 'shell' ? (
             <AgentChatTaskOutput

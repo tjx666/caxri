@@ -1,12 +1,15 @@
 import type { KeyboardEvent } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
-import { Columns2, X } from 'lucide-react';
+import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
+import * as m from 'motion/react-m';
 
-import { Button } from '../../../components/ui/button';
-import { Tooltip } from '../../../components/ui/tooltip';
+import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
+
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
+import { isEditableEventTarget } from '../../../lib/keybindings';
+import { motionDurationMs, motionEasing } from '../../../lib/motion';
 import { cn } from '../../../lib/utilities';
 import {
     isPrimarySidebarShown,
@@ -18,12 +21,11 @@ import {
 import { useDialogStore } from '../../../stores/dialogs';
 import { useSelectedSessionId, useTerminals } from '../../../stores/selectors';
 import { EditorSurface } from '../../editor/editor-surface';
-import { useDocumentTabPresentation } from '../../editor/hooks/use-document-tab-presentation';
-import { WorkTabIcon } from '../../tabs/work-tab';
 import { PaneViewSessionProvider } from '../../workbench/pane-view-session';
 import { PanelDivider } from '../../workbench/panel-divider';
-import { openPortalItemInSplit } from '../tasks/agent-chat-task-opener';
 import { besideChatTabTerminalId } from '../tasks/beside-chat-layout';
+import { PortalHeader } from './portal-header';
+import { portalTabId, shouldFocusPortalOnOpen } from './portal-keys';
 import { usePortalItems, usePortalStore } from './portal-store';
 
 /**
@@ -32,12 +34,16 @@ import { usePortalItems, usePortalStore } from './portal-store';
 const PORTAL_SURFACE_PANE_ID = 'agent-chat-portal';
 
 /**
- * The Portal: a flyout over the window's right edge that shows a Chat's subagent and background shell tasks, turn
- * reviews, Context breakdown, and side chat without splitting the Workbench (issue #2370). It covers the
- * SecondarySidebar when that is on screen, and the Chat's right edge otherwise, so opening one never reflows the Chat.
+ * The Portal (the user sees it as "Side View"): a flyout over the window's right edge that shows a Chat's subagent and
+ * background shell tasks, turn reviews, Context breakdown, and side chat without splitting the Workbench (issue #2370).
+ * It covers the SecondarySidebar when that is on screen, and the Chat's right edge otherwise, so opening one never
+ * reflows the Chat.
  *
  * Clicking back into the Chat leaves it open, so the user can read a subagent while typing to the main Agent. Escape
  * inside it, its X, or "Open in Split" (which turns the item into an ordinary pane tab) closes it.
+ *
+ * It slides and fades in and out on the overlay tokens (reduced motion skips both), and opening it from the keyboard
+ * moves focus to its active tab so the user lands inside what they opened.
  */
 export function AgentChatPortal() {
     const sessionId = useSelectedSessionId();
@@ -50,44 +56,101 @@ export function AgentChatPortal() {
     }, [width]);
     useRetainLivePortalItems(sessionId);
     const { activePath } = items;
-    if (!sessionId || !activePath || isSettingsPageOpen) return null;
+    const { t } = useTranslation();
+    const idBase = useId();
+    const panelId = `${idBase}-panel`;
+    const portalReference = useRef<HTMLElement>(null);
+    const shouldReduceMotion = useShouldReduceMotion();
+    const isOpen = Boolean(sessionId && activePath && !isSettingsPageOpen);
+    // A keyboard-opened (or keyboard-replaced) item takes focus into the Side View; a pointer open leaves it alone.
+    useEffect(() => {
+        const portal = portalReference.current;
+        if (!isOpen || !portal) return;
+        const trigger = document.activeElement;
+        if (
+            !shouldFocusPortalOnOpen({
+                isEditable: isEditableEventTarget(trigger),
+                isFocusVisible: Boolean(trigger?.matches(':focus-visible')),
+                isInsidePortal: Boolean(trigger && portal.contains(trigger)),
+            })
+        )
+            return;
+        (portal.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? portal).focus();
+    }, [isOpen, activePath]);
+    const enter = shouldReduceMotion
+        ? { duration: 0 }
+        : {
+              duration: motionDurationMs('--motion-overlay-enter') / 1000,
+              ease: motionEasing('--motion-ease-enter'),
+          };
+    const exit = shouldReduceMotion
+        ? { duration: 0 }
+        : {
+              duration: motionDurationMs('--motion-overlay-exit') / 1000,
+              ease: motionEasing('--motion-ease-exit'),
+          };
     const closeOnEscape = (event: KeyboardEvent<HTMLElement>): void => {
         // A key the content already handled (a menu's or picker's own Escape) is not a request to close.
         if (event.key !== 'Escape' || event.defaultPrevented || isImeComposing(event)) return;
         event.preventDefault();
-        usePortalStore.getState().closeAll(sessionId);
+        if (sessionId) usePortalStore.getState().closeAll(sessionId);
     };
+    const hasChoices = items.paths.length > 1;
     return (
-        <PaneViewSessionProvider value={sessionId}>
-            <aside
-                data-agent-chat-portal=""
-                className={cn(
-                    'agent-chat-portal absolute top-0 right-0 bottom-0 z-20 flex',
-                    'w-(--agent-chat-portal-width,480px) max-w-[calc(100%-320px)] min-w-0',
-                    'border-l border-border bg-surface shadow-[0_8px_24px_var(--shadow)]',
-                    // Settings covers the same grid area and hides the Portal; see `SettingsPageHost` in `app.tsx`.
-                    '[grid-row:1/2]',
-                    isPrimarySidebarVisible ? '[grid-column:3/-1]' : '[grid-column:1/-1]',
+        <LazyMotion strict features={domAnimation}>
+            <AnimatePresence initial={false}>
+                {isOpen && sessionId && activePath && (
+                    <m.aside
+                        key="portal"
+                        animate={{ opacity: 1, x: 0, transition: enter }}
+                        aria-label={t('agentChat.portal.label')}
+                        data-agent-chat-portal=""
+                        exit={{ opacity: 0, x: 12, transition: exit }}
+                        initial={{ opacity: 0, x: 12 }}
+                        ref={portalReference}
+                        tabIndex={-1}
+                        className={cn(
+                            'agent-chat-portal absolute top-0 right-0 bottom-0 z-20 flex outline-none',
+                            'w-(--agent-chat-portal-width,480px) max-w-[calc(100%-320px)] min-w-0',
+                            'border-l border-border bg-surface shadow-[0_8px_24px_var(--shadow)]',
+                            // Settings covers the same grid area and hides the Portal; see `SettingsPageHost` in `app.tsx`.
+                            '[grid-row:1/2]',
+                            isPrimarySidebarVisible ? '[grid-column:3/-1]' : '[grid-column:1/-1]',
+                        )}
+                        onKeyDown={closeOnEscape}
+                    >
+                        <PaneViewSessionProvider value={sessionId}>
+                            <PortalResizeEdge width={width} />
+                            <div className="flex min-w-0 flex-1 flex-col">
+                                <PortalHeader
+                                    activePath={activePath}
+                                    idBase={idBase}
+                                    panelId={panelId}
+                                    paths={items.paths}
+                                    sessionId={sessionId}
+                                />
+                                <div
+                                    aria-labelledby={
+                                        hasChoices
+                                            ? portalTabId(idBase, items.paths.indexOf(activePath))
+                                            : undefined
+                                    }
+                                    className="relative min-h-0 flex-1"
+                                    id={panelId}
+                                    role={hasChoices ? 'tabpanel' : undefined}
+                                >
+                                    <EditorSurface
+                                        key={activePath}
+                                        paneId={PORTAL_SURFACE_PANE_ID}
+                                        path={activePath}
+                                    />
+                                </div>
+                            </div>
+                        </PaneViewSessionProvider>
+                    </m.aside>
                 )}
-                onKeyDown={closeOnEscape}
-            >
-                <PortalResizeEdge width={width} />
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <PortalHeader
-                        activePath={activePath}
-                        paths={items.paths}
-                        sessionId={sessionId}
-                    />
-                    <div className="relative min-h-0 flex-1">
-                        <EditorSurface
-                            key={activePath}
-                            paneId={PORTAL_SURFACE_PANE_ID}
-                            path={activePath}
-                        />
-                    </div>
-                </div>
-            </aside>
-        </PaneViewSessionProvider>
+            </AnimatePresence>
+        </LazyMotion>
     );
 }
 
@@ -106,120 +169,6 @@ function PortalResizeEdge({ width }: { width: number }) {
                 orientation="vertical"
                 onCommit={(next) => useChromeLayoutStore.getState().setPortalWidth(next)}
             />
-        </div>
-    );
-}
-
-function PortalHeader({
-    activePath,
-    paths,
-    sessionId,
-}: {
-    activePath: string;
-    paths: readonly string[];
-    sessionId: string;
-}) {
-    const { t } = useTranslation();
-    const hasChoices = paths.length > 1;
-    return (
-        <div className="flex h-9 flex-none items-center gap-1 border-b border-border pr-1 pl-2">
-            <div
-                role={hasChoices ? 'tablist' : undefined}
-                aria-label={t('agentChat.portal.label')}
-                className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
-            >
-                {paths.map((path) => (
-                    <PortalTab
-                        key={path}
-                        hasChoices={hasChoices}
-                        isActive={path === activePath}
-                        path={path}
-                        sessionId={sessionId}
-                    />
-                ))}
-            </div>
-            <Tooltip content={t('agentChat.portal.openInSplit')}>
-                <Button
-                    aria-label={t('agentChat.portal.openInSplit')}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => openPortalItemInSplit(sessionId, activePath)}
-                >
-                    <Columns2 aria-hidden="true" size={14} />
-                </Button>
-            </Tooltip>
-            <Tooltip content={t('agentChat.portal.close')} shortcut="escape">
-                <Button
-                    aria-label={t('agentChat.portal.close')}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => usePortalStore.getState().closeAll(sessionId)}
-                >
-                    <X aria-hidden="true" size={14} />
-                </Button>
-            </Tooltip>
-        </div>
-    );
-}
-
-/**
- * One item in the Portal header. A lone item is a plain title: there is nothing to switch to, so it draws no selection
- * and no close button of its own (the header's X closes it). Two or more become tabs.
- */
-function PortalTab({
-    hasChoices,
-    isActive,
-    path,
-    sessionId,
-}: {
-    hasChoices: boolean;
-    isActive: boolean;
-    path: string;
-    sessionId: string;
-}) {
-    const { t } = useTranslation();
-    const presentation = useDocumentTabPresentation(path, undefined);
-    const content = (
-        <>
-            <WorkTabIcon {...presentation} />
-            <span className="truncate">{presentation.label}</span>
-        </>
-    );
-    if (!hasChoices)
-        return (
-            <div className="flex min-w-0 items-center gap-1.5 text-[12px] font-medium">
-                {content}
-            </div>
-        );
-    return (
-        <div
-            className={cn(
-                'group flex h-7 min-w-0 flex-none items-center rounded-md text-[12px]',
-                isActive
-                    ? 'bg-[var(--selection)] text-foreground'
-                    : 'text-muted hover:bg-[var(--selection)] hover:text-foreground',
-            )}
-        >
-            <button
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className="flex min-w-0 items-center gap-1.5 py-1 pl-2"
-                onClick={() => usePortalStore.getState().select(sessionId, path)}
-            >
-                {content}
-            </button>
-            <button
-                type="button"
-                aria-label={t('agentChat.portal.closeItem', { label: presentation.label })}
-                className={cn(
-                    'mx-0.5 flex size-5 flex-none items-center justify-center rounded-sm hover:bg-[var(--selection)]',
-                    !isActive && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-                )}
-                onClick={() => usePortalStore.getState().close(sessionId, path)}
-            >
-                <X aria-hidden="true" size={12} />
-            </button>
         </div>
     );
 }
