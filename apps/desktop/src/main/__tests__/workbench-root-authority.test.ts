@@ -487,7 +487,7 @@ describe('openBotFileLink', () => {
     it('cancels an untrusted external open without picking a Session', async () => {
         const externalFile = '/outside/notes.md';
         const focusWindow = vi.fn(() => Promise.resolve());
-        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 2 });
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 3 });
         const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')
                 return Promise.resolve({

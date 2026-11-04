@@ -379,6 +379,7 @@ export const effectfulCommandRecovery = {
     'terminal.switchSurface': 'durable',
     'terminal.suspend': 'durable',
     'terminal.openFileLink': 'memory',
+    'terminal.revealFileLink': 'none',
     'files.create': 'durable',
     'files.copy': 'durable',
     'files.rename': 'durable',

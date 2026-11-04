@@ -325,6 +325,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.workbenchRootAuthority.cancelProjectCreate(request.params);
             case 'terminal.openFileLink':
                 return options.workbenchRootAuthority.openTerminalFileLink(request.params);
+            case 'terminal.revealFileLink':
+                return options.workbenchRootAuthority.revealTerminalFileLink(request.params);
             case 'caxriBot.openFileLink':
                 return options.workbenchRootAuthority.openBotFileLink(request.params);
             case 'caxriBot.clearData': {

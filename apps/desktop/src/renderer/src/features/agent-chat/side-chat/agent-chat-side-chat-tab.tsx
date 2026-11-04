@@ -8,7 +8,11 @@ import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { useTerminal } from '../../../stores/selectors';
-import { useAgentChatOpenFile } from '../hooks/use-agent-chat-open-file';
+import {
+    AgentChatRevealFileContext,
+    useAgentChatOpenFile,
+    useAgentChatRevealFile,
+} from '../hooks/use-agent-chat-open-file';
 import {
     askAgentChatSideQuestion,
     convertAgentChatSideChatToSession,
@@ -136,6 +140,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
     const { t } = useTranslation();
     const terminal = useTerminal(terminalId);
     const openFile = useAgentChatOpenFile(terminalId);
+    const revealFile = useAgentChatRevealFile(terminalId);
     const exchanges = useAgentChatSideChatStore(
         (state) => state.threads[terminalId] ?? NO_EXCHANGES,
     );
@@ -164,19 +169,21 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
                         {t('agentChat.sideChat.hint')}
                     </p>
                 ) : (
-                    <ul className="m-0 mx-auto flex w-full max-w-3xl list-none flex-col gap-5 p-4">
-                        {exchanges.map((exchange) => (
-                            <AgentChatSideExchange
-                                canRetry={!isBusy}
-                                exchange={exchange}
-                                key={exchange.id}
-                                onOpenFile={openFile}
-                                onRetry={() => {
-                                    void retryAgentChatSideQuestion(terminalId, exchange.id);
-                                }}
-                            />
-                        ))}
-                    </ul>
+                    <AgentChatRevealFileContext value={revealFile}>
+                        <ul className="m-0 mx-auto flex w-full max-w-3xl list-none flex-col gap-5 p-4">
+                            {exchanges.map((exchange) => (
+                                <AgentChatSideExchange
+                                    canRetry={!isBusy}
+                                    exchange={exchange}
+                                    key={exchange.id}
+                                    onOpenFile={openFile}
+                                    onRetry={() => {
+                                        void retryAgentChatSideQuestion(terminalId, exchange.id);
+                                    }}
+                                />
+                            ))}
+                        </ul>
+                    </AgentChatRevealFileContext>
                 )}
             </div>
             <SideChatComposer isBusy={isBusy} terminalId={terminalId} />

@@ -72,6 +72,11 @@ export interface MarkdownRenderContext {
      */
     onOpenFile?: (target: string) => void;
     /**
+     * Shows a cited local file in Finder, offered in the path's right-click menu. Without it the menu has no Reveal in
+     * Finder entry, as in a host whose files do not live on this Mac.
+     */
+    onRevealFile?: (target: string) => void;
+    /**
      * The Terminal GitHub lookups for links are routed through, so a pull request link can show its state.
      */
     referenceTerminalId?: string;

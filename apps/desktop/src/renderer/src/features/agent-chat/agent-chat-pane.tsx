@@ -34,7 +34,11 @@ import {
 } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
-import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
+import {
+    AgentChatRevealFileContext,
+    useAgentChatOpenFile,
+    useAgentChatRevealFile,
+} from './hooks/use-agent-chat-open-file';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import {
     useAgentChatReturnHint,
@@ -226,6 +230,7 @@ function AgentChatPaneContent({
     });
     const olderItems = history.history.items;
     const openFile = useAgentChatOpenFile(terminalId, [olderItems, snapshot?.items ?? []]);
+    const revealFile = useAgentChatRevealFile(terminalId, [olderItems, snapshot?.items ?? []]);
     const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
         versionView.snapshot,
         history.history,
@@ -344,23 +349,28 @@ function AgentChatPaneContent({
                             }) && <ConversationLoading />}
                             <AgentChatExpansionContext value={expansion}>
                                 <AgentChatTaskLinksContext value={taskLinks}>
-                                    <AgentChatTimelineBody
-                                        dayBreaks={dayBreaks}
-                                        isAwaitingReply={
-                                            pending.timeline.length === 0 &&
-                                            isAgentChatAwaitingReplyInTimeline(snapshot, timeline)
-                                        }
-                                        isHistoryComplete={!history.hasEarlier}
-                                        mcpServers={snapshot?.mcpServers}
-                                        mountedFrom={mountedFrom}
-                                        pending={pending}
-                                        canFork={canFork}
-                                        settledChunks={settledChunks}
-                                        terminalId={terminalId}
-                                        timeline={timeline}
-                                        versionView={versionView}
-                                        onOpenFile={openFile}
-                                    />
+                                    <AgentChatRevealFileContext value={revealFile}>
+                                        <AgentChatTimelineBody
+                                            dayBreaks={dayBreaks}
+                                            isAwaitingReply={
+                                                pending.timeline.length === 0 &&
+                                                isAgentChatAwaitingReplyInTimeline(
+                                                    snapshot,
+                                                    timeline,
+                                                )
+                                            }
+                                            isHistoryComplete={!history.hasEarlier}
+                                            mcpServers={snapshot?.mcpServers}
+                                            mountedFrom={mountedFrom}
+                                            pending={pending}
+                                            canFork={canFork}
+                                            settledChunks={settledChunks}
+                                            terminalId={terminalId}
+                                            timeline={timeline}
+                                            versionView={versionView}
+                                            onOpenFile={openFile}
+                                        />
+                                    </AgentChatRevealFileContext>
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>
                             <AgentChatAwayRecap

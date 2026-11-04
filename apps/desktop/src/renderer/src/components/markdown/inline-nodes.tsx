@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n';
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { Tooltip } from '../ui/tooltip';
+import { FileLink } from './file-link';
 import { InlineButton } from './inline-button';
 import { MarkdownContext, useMarkdownContext } from './markdown-context';
 import { referenceMentionSegments } from './reference-mentions';
@@ -23,7 +24,7 @@ export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
 
 function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> }) {
     const { t } = useTranslation();
-    const { onOpenFile, skills, variant } = useMarkdownContext();
+    const { onOpenFile, onRevealFile, skills, variant } = useMarkdownContext();
     /**
      * A transcript sits on the pane background, where a `--surface` chip reads as a hole; the lifted `--elevated` chip
      * matches how the Codex app sets code apart in its Dracula transcript. Compact hover cards already sit on
@@ -47,30 +48,49 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
      * accent color.
      */
     return (
-        <Tooltip content={t('core.markdown.openFile', { file })}>
-            <InlineButton
-                className={cn(
-                    className,
-                    'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
-                )}
-                onClick={() => onOpenFile(file)}
-            >
-                {node.value}
-            </InlineButton>
-        </Tooltip>
+        <FileLink
+            className={cn(
+                className,
+                'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
+            )}
+            file={file}
+            tooltip={t('core.markdown.openFile', { file })}
+            onOpen={onOpenFile}
+            onReveal={onRevealFile}
+        >
+            {node.value}
+        </FileLink>
     );
 }
 
 function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> }) {
+    const { t } = useTranslation();
     const context = useMarkdownContext();
-    const { onOpenFile, onOpenUrl, referenceTerminalId, variant } = context;
+    const { onOpenFile, onOpenUrl, onRevealFile, referenceTerminalId, variant } = context;
     // A `#123` inside a link's own text already opens that link; it must not nest a second one.
     const labelContext = useMemo(() => ({ ...context, references: undefined }), [context]);
     const { file, href } = node;
-    const open = href ? () => onOpenUrl(href) : file && onOpenFile && (() => onOpenFile(file));
-    if (!open) return <InlineNodes nodes={node.children} />;
-    const summary = href && variant === 'transcript' ? linkSummary(href) : undefined;
-    if (href && summary)
+    const label = (
+        <MarkdownContext value={labelContext}>
+            <InlineNodes nodes={node.children} />
+        </MarkdownContext>
+    );
+    if (!href) {
+        if (!file || !onOpenFile) return <InlineNodes nodes={node.children} />;
+        return (
+            <FileLink
+                className={LINK_CLASS_NAME}
+                file={file}
+                tooltip={t('core.markdown.openFile', { file })}
+                onOpen={onOpenFile}
+                onReveal={onRevealFile}
+            >
+                {label}
+            </FileLink>
+        );
+    }
+    const summary = variant === 'transcript' ? linkSummary(href) : undefined;
+    if (summary)
         return (
             <WebLink
                 // No underline, as in the Codex app: the color and the site icon already mark the link.
@@ -80,17 +100,13 @@ function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> 
                 summary={summary}
                 onOpen={onOpenUrl}
             >
-                <MarkdownContext value={labelContext}>
-                    <InlineNodes nodes={node.children} />
-                </MarkdownContext>
+                {label}
             </WebLink>
         );
     return (
-        <Tooltip content={href ?? `Open ${file}`}>
-            <InlineButton className={LINK_CLASS_NAME} onClick={open}>
-                <MarkdownContext value={labelContext}>
-                    <InlineNodes nodes={node.children} />
-                </MarkdownContext>
+        <Tooltip content={href}>
+            <InlineButton className={LINK_CLASS_NAME} onClick={() => onOpenUrl(href)}>
+                {label}
             </InlineButton>
         </Tooltip>
     );

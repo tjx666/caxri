@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +15,7 @@ import {
     VISIBLE_SESSION,
     waitForCreatedSession,
 } from './support/helpers.ts';
+import { chooseContextMenuItem, contextMenuLabels } from './support/native-context-menu.ts';
 import { setOpenAgentsIn } from './support/open-agents-in.ts';
 import { openProjectNewSessionMenu } from './support/project-new-session-menu.ts';
 import { runningWork } from './support/running-work.ts';
@@ -224,6 +225,28 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await chat.getByText('Ship it').hover();
         await expect(chat.getByRole('button', { name: 'Copy message' }).last()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-table.png') });
+        // A cited file's own right-click menu reveals it in Finder, resolved like a click, with no confirmation.
+        await running.app.evaluate(({ shell }) => {
+            const revealed: string[] = [];
+            Object.assign(globalThis, { caxriE2ERevealedPaths: revealed });
+            shell.showItemInFolder = (path) => {
+                revealed.push(path);
+            };
+        });
+        await chat.getByRole('button', { name: 'app.ts', exact: true }).click({ button: 'right' });
+        await expect
+            .poll(() => contextMenuLabels(running.app))
+            .toEqual(['Open File', 'Reveal in Finder', 'Copy Path']);
+        await chooseContextMenuItem(running.app, 'Reveal in Finder');
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () =>
+                        (globalThis as typeof globalThis & { caxriE2ERevealedPaths: string[] })
+                            .caxriE2ERevealedPaths,
+                ),
+            )
+            .toEqual([await realpath(join(root, 'src', 'app.ts'))]);
         // A cited file opens in the editor at the cited line.
         await chat.getByRole('button', { name: 'app.ts', exact: true }).click();
         await expect(page.getByRole('tab', { name: 'app.ts' })).toBeVisible();
