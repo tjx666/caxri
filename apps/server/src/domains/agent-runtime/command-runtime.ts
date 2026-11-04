@@ -1,6 +1,7 @@
 import type { AgentDelegationReceipt, AppSettings, FullStateChangeReason } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
+import type { DelegationPullRequestSource } from '../agent-delegation';
 import {
     AgentDelegationService,
     createDelegationHandlers,
@@ -55,6 +56,11 @@ export function createAgentCommandRuntime(
          * #2580). Optional so a unit test can construct this runtime without one.
          */
         usageGuards?: Pick<AgentUsageGuards, 'assertAdmitted' | 'current'>;
+        /**
+         * The Session pull request cache a settled task's `result` and `wait` answers carry. Optional so a unit test
+         * can construct this runtime without one.
+         */
+        pullRequests?: DelegationPullRequestSource;
         /**
          * Feeds every announced delegation receipt change to Caxri Bot's completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
@@ -230,7 +236,7 @@ export function createAgentCommandRuntime(
         dispatchService,
         delegationService,
         handlers: {
-            ...createDelegationHandlers(delegationService, options.database),
+            ...createDelegationHandlers(delegationService, options.database, options.pullRequests),
             ...createAgentCommandHandlers({
                 ...options,
                 dispatch: dispatchService,

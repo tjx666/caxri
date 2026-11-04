@@ -270,7 +270,9 @@ Then write the task to a file and run
   Every managed Agent holds `agents.delegate`; an external caller needs an owner-issued delegation
   identity. Pass `--project` with `--session` or `--new-session --title <text>`.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
-  to retrieve the exact saved answer. With several tasks running, `agent delegate wait <id> <id>...`
+  to retrieve the exact saved answer. A settled answer may carry `pullRequest` (`url`, `state`,
+  `changedFileCount`): the pull request Caxri found for that Session, so its file count covers the
+  whole pull request, not only this task. With several tasks running, `agent delegate wait <id> <id>...`
   returns the first one that settled or blocked. Its `--timeout` accepts up to 300000 milliseconds;
   other commands cap `--timeout` at 120000. A wait timeout never authorizes resubmitting the task.
   Reuse a stable `--request-id` when recovering a disconnected create request.

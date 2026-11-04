@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { identifierSchema } from '../../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../../domain/session.js';
+import { sessionPullRequestStateSchema } from '../../domain/session-pull-request.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { commandPolicy } from '../../transport/method-spec.js';
 import { principalSchema } from '../../transport/principal.js';
@@ -365,9 +366,24 @@ const listResultSchema = z.strictObject({
      */
     truncated: z.boolean(),
 });
+/**
+ * The pull request Server Core last resolved for the settled task's Session, the same one its sidebar row shows. It is
+ * read from that cache and never triggers a GitHub lookup, so a slow or failed lookup cannot delay a result; it is
+ * absent while no lookup has seen one yet. It belongs to the Session, not the task: `changedFileCount` counts every
+ * file the whole pull request changes (absent when GitHub reported none), not what this one task produced.
+ */
+const agentDelegationPullRequestSchema = z.strictObject({
+    url: z.url(),
+    number: z.number().int().positive(),
+    state: sessionPullRequestStateSchema,
+    changedFileCount: z.number().int().positive().optional(),
+});
+export type AgentDelegationPullRequest = z.infer<typeof agentDelegationPullRequestSchema>;
+
 const resultSchema = z.strictObject({
     receipt: agentDelegationReceiptResultSchema,
     answer: agentDelegationAnswerSchema.optional(),
+    pullRequest: agentDelegationPullRequestSchema.optional(),
 });
 
 export const agentDelegationMethods = {

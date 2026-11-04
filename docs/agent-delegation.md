@@ -180,6 +180,14 @@ of its own, which would fire first and turn that timeout result into an error. S
 wait when its caller disconnects, and a transcript read that outlives the deadline by five seconds
 fails the wait with `TIMEOUT` instead of holding it open.
 
+A settled task's `result` and `wait` answers also carry `pullRequest` (`url`, `number`, `state`,
+and `changedFileCount`) when Server Core has already found a pull request for the task's Session,
+the same one its sidebar row shows. It is read from that cache (`PullRequestSettlementWiring`) and
+never starts a GitHub lookup, so a slow or failed lookup cannot delay or fail the answer; it is
+absent until a lookup has seen one. It describes the Session, not the task: `changedFileCount`
+counts every file the whole pull request changes, and is absent when GitHub reported no count.
+Caxri does not attribute files to one task, so no answer reports a task-scoped file count.
+
 ## Presets and caller policy
 
 Configure `agents.delegation` in the profile's Settings JSON. No preset or model preference is

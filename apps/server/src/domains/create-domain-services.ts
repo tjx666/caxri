@@ -30,6 +30,7 @@ import {
     createProjectHidingHandlers,
     resolveOwnerProjectRoot,
 } from './project';
+import { createDomainTerminalManager } from './pty-manager-creation';
 import { PullRequestSettlementWiring } from './pull-request';
 import { createRestoreServices } from './restore-services-creation';
 import { createRootServices } from './root-services';
@@ -47,22 +48,18 @@ import { createStatusServices } from './status-service-creation';
 import { createTerminalSupervision } from './supervision-services-creation';
 import type { TerminalSuspensionService } from './terminal';
 import {
-    createLifecycleEnvironment,
     createRelaunchHandlers,
-    createShellIntegration,
     createTerminalCreation,
     createTerminalInputHandlers,
     createTerminalLifecycleHandlers,
     createTerminalMoveHandler,
     terminalDirectoryIdentity,
-    TerminalManager,
     TerminalRestoreSupervisor,
 } from './terminal';
 import { SystemAppearance } from './theme';
 import { pushUsageGuardToPtyTerminals } from './usage';
 import { createPresenceEffects, WindowPresence } from './window-presence';
 import { createWindowStateHandlers } from './window-state-handlers';
-import * as provenance from './workbench';
 import {
     createLiveTerminalRecord,
     createWorkbenchRootHandlers,
@@ -124,68 +121,27 @@ export async function createDomainServices(
         agentEnvironment,
         agentHooks,
         agentLaunchSettings,
-        agentOutputRecoverySettings,
         agentThroughput,
         coordinator,
         dispatchState,
-        hookLaunchEnvironment,
         sessionRenames,
     } = agentRuntime;
     pushUsageGuardToPtyTerminals({ guards: agentRuntime.usageGuards, database, send });
-    const shellIntegration = await createShellIntegration(userDataPath, logger);
     const mobileTerminalMutations = new MobileTerminalMutationQueue();
     const systemAppearance = new SystemAppearance(configuration);
-    const terminals = new TerminalManager(database, send, logger, {
-        ...dependencies.terminal,
-        execution: dependencies.terminalExecution,
-        agentLaunchArguments: botHooks.launchArguments,
-        agentLaunchPrompt: botHooks.launchPrompt,
-        agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
-        agentOutputRecoverySettings:
-            dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
-        shellEnvironment: (terminal) => hookLaunchEnvironment.shellEnvironment(terminal.id),
-        onShellRetired: (terminalId) => agentHooks.endShellLaunch(terminalId),
-        lifecycleEnvironment: createLifecycleEnvironment({
-            agentHooks: hookLaunchEnvironment,
-            configuration,
-            database,
-            delegationState,
-            endpoints: dependencies.agentEndpoints,
-            workbenchRoots,
-        }),
-        onLaunched: (terminal) => {
-            botHooks.launched(terminal.id, terminals.agentLaunchId(terminal.id));
-            return suspensionState.service?.parkLaunch(terminal);
-        },
-        onLifecycleStarted: (terminal) => {
-            suspensionState.service?.observeLaunch(terminal.id);
-            return dependencies.agentEndpoints?.activate(terminal.id);
-        },
-        onLifecycleRetired: async (terminalId, launchId) => {
-            compactionReadiness.forget(terminalId);
-            delegationState.service?.interruptTerminal(terminalId, false, launchId);
-            suspensionState.service?.forgetTerminal(terminalId);
-            agentHooks.endTerminalLaunch(terminalId, launchId);
-            await provenance.retireAgentWorkbenchProvenance({
-                endpoints: dependencies.agentEndpoints,
-                logger,
-                terminalId,
-                workbenchRoots,
-            });
-        },
-        onOutputActivity: (terminalId, processId) =>
-            coordinator.observeOutput(terminalId, processId),
-        onInput: (terminalId, data, origin) => {
-            compactionReadiness.input(terminalId, data);
-            suspensionState.service?.observeInput(terminalId, data);
-            if (origin === 'human') botHooks.input(terminalId, data);
-            if (origin === 'human') coordinator.maintenanceTurns.end(terminalId, 'humanInput');
-            delegationState.service?.interruptTerminal(terminalId, true);
-        },
-        onAgentStateChanged: dispatchState.observe,
-        shellIntegration: (executable, environment) =>
-            shellIntegration?.resolve(executable, environment),
-        terminalColors: dependencies.terminal?.terminalColors ?? systemAppearance.terminalColors,
+    const terminals = await createDomainTerminalManager({
+        agentRuntime,
+        botHooks,
+        compactionReadiness,
+        configuration,
+        database,
+        delegationState,
+        dependencies,
+        logger,
+        send,
+        suspensionState,
+        systemAppearance,
+        workbenchRoots,
     });
     const longPastes = await createLongPasteService({
         userDataPath,
@@ -362,6 +318,7 @@ export async function createDomainServices(
         emit: send,
         endpoints: dependencies.agentEndpoints,
         launchSettings: agentLaunchSettings,
+        pullRequests: settlementWiring,
         terminalDirectoryIdentity,
         terminalWorkingDirectory,
         terminals,
