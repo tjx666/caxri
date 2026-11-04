@@ -9,6 +9,7 @@ import type { StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 import { canChatCorrelateTask } from './chat-child';
+import type { DelegationHandBacks } from './handback/service';
 import { delegationResumeLaunch, prepareDelegationFollowUp } from './launch';
 import type { DelegationFollowUpRejection, DelegationResumeRejection } from './rejection';
 import {
@@ -42,6 +43,10 @@ export interface ExactResumeHost {
      * Agent is gone; see `RetryAdmission.guard`.
      */
     beforeStart?(): void;
+    /**
+     * The user's hand-back grants. A follow-up of a taken-over task needs a pending one; see {@link followUpTask}.
+     */
+    handBacks?: Pick<DelegationHandBacks, 'consume' | 'pendingFor' | 'rejection' | 'release'>;
 }
 
 /**
@@ -135,15 +140,19 @@ export async function followUpTask(
         host.fail(id, reportFollowUpRejection(options.logger, id, reason));
         return host.owned(id).receipt;
     };
-    const rejection = followUpRejection(
-        parent,
-        options,
-        (terminalId) => host.hasActiveTask(terminalId),
-        id,
-    );
+    const isBusy = (terminalId: string) => host.hasActiveTask(terminalId);
+    // A taken-over task continues only on the user's single-use hand-back, which is measured against what it pinned.
+    const grant = parent.hasHumanIntervention
+        ? host.handBacks?.pendingFor(parent.receipt.delegationId)
+        : undefined;
+    const rejection = grant
+        ? host.handBacks!.rejection(grant, parent, isBusy, id)
+        : followUpRejection(parent, options, isBusy, id);
     if (rejection) return reject(rejection);
+    // Single use: a request that lost the race to the grant is refused like a follow-up that lost the chain claim.
+    if (grant && !host.handBacks!.consume(grant, id)) return reject('parent_chained');
     const terminalId = parent.receipt.terminalId!;
-    const launchId = parent.launchId!;
+    const launchId = grant?.launchId ?? parent.launchId!;
     /**
      * No await may split admission, the durable chain claim and exact-generation write. Human input must either
      * invalidate the preceding epoch or arrive after the new task owns the Terminal.
@@ -152,12 +161,13 @@ export async function followUpTask(
     host.save({
         ...record,
         launchId,
-        inputEpoch: parent.inputEpoch,
+        inputEpoch: grant?.inputEpoch ?? parent.inputEpoch,
         promptDigest: prepared.promptDigest,
         receipt: { ...record.receipt, terminalId, status: 'submitting' },
     });
     if (!host.submit(id, terminalId, launchId, prepared.pointer)) {
         releaseRefusedFollowUp(host, id, parent.receipt.delegationId);
+        if (grant) host.handBacks!.release(grant, id);
         return reject('write_refused');
     }
     return host.owned(id).receipt;

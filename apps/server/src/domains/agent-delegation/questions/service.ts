@@ -12,6 +12,7 @@ import { CaxriError, MAX_LISTED_QUESTIONS } from '@caxri/protocol';
 
 import type { StoredAgentDelegation, StoredDelegationQuestion } from '../../db';
 import type { DelegationAccess, DelegationAuthority } from '../admission';
+import { isIndependentTask } from '../independent';
 import { listOwnedDelegations } from '../ownership';
 import type { ParentPresence } from '../parent-presence';
 import type { AgentDelegationServiceOptions } from '../service-options';
@@ -124,6 +125,14 @@ export class DelegationQuestions {
     }
 
     /**
+     * Whether the question is still open and waits on the delegating Agent, not yet shown to the user.
+     */
+    isWithParent(delegationId: string, questionId: string): boolean {
+        const question = this.store.openFor(delegationId);
+        return question?.id === questionId && question.escalatedAt === undefined;
+    }
+
+    /**
      * Opens a question for the delegating Agent, as the delegated Agent running in the caller's Terminal. The question
      * is bound to that Agent's launch and Endpoint generation.
      */
@@ -151,7 +160,16 @@ export class DelegationQuestions {
                 terminalId: task.receipt.callerTerminalId,
                 launchId: task.callerLaunchId,
             });
-            if (this.host.presence.isGone(task.receipt.callerTerminalId, task.callerLaunchId))
+            /**
+             * An external parent is a process outside Caxri with no Terminal or launch to watch, so it is never proven
+             * present: its question goes to the user at once instead of waiting out the grace period. So does the
+             * question of an independent Session, whose creator does not wait for it.
+             */
+            if (
+                task.principal.kind === 'delegation-client' ||
+                isIndependentTask(this.host.options.database, task) ||
+                this.host.presence.isGone(task.receipt.callerTerminalId, task.callerLaunchId)
+            )
                 this.store.escalate(opened.id, 'parent_gone');
         }
         return result;

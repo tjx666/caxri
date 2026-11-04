@@ -176,6 +176,7 @@ export async function createDomainServices(
         configuration,
         coordinator,
         database,
+        delegationState,
         dependencies,
         presence,
         settlementWiring,

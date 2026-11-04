@@ -12,6 +12,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentDispatchService } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
+import type { ProjectAddOutcome } from '../project';
 import type { DelegationApprovalEnvironment } from './approvals/entry';
 import type { DelegationTranscriptReader } from './collection';
 import type { DelegationLimitFailure } from './receipt-timing';
@@ -46,6 +47,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * `delegationChildLaunch`.
      */
     opensAgentsInChat?(): boolean;
+    /**
+     * Whether Agent Chat is available at all, regardless of `session.openAgentsInChat`. A caller's forced `chat`
+     * surface needs only this; `opensAgentsInChat` stays the default resolver for a child that forces nothing.
+     */
+    hasAgentChat?(): boolean;
     /**
      * Whether the user turned `provider`'s lifecycle hooks on in settings. A visible PTY child needs them to correlate
      * its task, so a child whose provider has them off fails as `hooks_required` before anything launches. This reads
@@ -105,6 +111,40 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         data: string,
         onDelivered?: (wasAccepted: boolean) => void,
     ): boolean;
+    /**
+     * Where a Chat caller stands, for the notices owed to the Agent that delegated a task: `idle` (ready, no turn,
+     * nothing queued), `busy`, or `paused` (waiting on an approval, stopped, or waiting for a usage limit). Absent when
+     * the Server holds no projection for it.
+     */
+    chatCallerState?(terminalId: string): 'idle' | 'busy' | 'paused' | undefined;
+    /**
+     * Writes one settlement notice to one exact launch of a delegating Agent and reports whether the write was
+     * admitted. A Chat takes it as a non-human message that starts a turn, so it never counts as the user taking the
+     * Chat over; a PTY takes a paste and then Enter. `onDelivered` reports what the Chat or Terminal Host then did.
+     * Absent in a unit test, which turns notices off.
+     */
+    deliverNotice?(
+        terminalId: string,
+        launchId: string,
+        text: string,
+        onDelivered: (wasAccepted: boolean) => void,
+    ): boolean;
+    /**
+     * Quiet window before a batch of notices goes out, and how often notices held back are checked again when no event
+     * announced a change. Production uses 1500 and 10000 milliseconds; a test may shorten them.
+     */
+    noticeTiming?: { quietMs: number; recheckMs: number };
+    /**
+     * Steers one exact running turn of a Chat child with a redirect message, strictly: it rejects, never queues and
+     * never starts a turn, when the launch, the input epoch, or the turn is not the one given. A rejection whose
+     * `details.steerRefusal` names a reason means nothing reached the Agent; any other rejection leaves the delivery in
+     * doubt. Absent when there is no Chat service, so no task can be redirected.
+     */
+    steer?(
+        terminalId: string,
+        launchId: string,
+        steer: { turnId: string; inputEpoch: number | undefined; text: string },
+    ): Promise<void>;
     /**
      * Called after a task is created or its `status` or `failure` changes. Many of those transitions come from this
      * service alone (a startup deadline, an asynchronous result collection, a rejected follow-up) with no Session or
@@ -172,6 +212,12 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
          * omit it.
          */
         prepareWorktree?(projectId: string, branch: string): Promise<DelegationWorktree>;
+        /**
+         * Adds an absolute folder as a visible top-level Project the way `project.add` does (canonical root,
+         * idempotent, un-hides a hidden Project) and returns its ID with what happened. Rejects a path that is not an
+         * existing directory. Optional so a unit test can omit it; a request with a `projectPath` is then refused.
+         */
+        addProject?(absolutePath: string): Promise<{ id: string; outcome: ProjectAddOutcome }>;
         /**
          * Removes a Session the delegation just created but never used. Metadata only.
          */

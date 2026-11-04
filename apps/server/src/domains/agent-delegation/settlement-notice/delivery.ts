@@ -1,0 +1,58 @@
+import { createHash } from 'node:crypto';
+
+import type { AgentChatDelegationNotice, DelegationNoticeEvent } from '@caxri/protocol';
+
+import type { NoticeItem } from './text';
+
+/**
+ * The closed event a Client turns into a status word for one item of a notice.
+ */
+export function noticeEvent(item: NoticeItem): DelegationNoticeEvent {
+    if (item.kind === 'question' || item.kind === 'approval') return item.kind;
+    if (item.kind === 'handback') return 'handed_back';
+    switch (item.status) {
+        case 'completed':
+        case 'failed':
+        case 'interrupted':
+        case 'answer_unavailable': {
+            return item.status;
+        }
+        case 'human_intervened': {
+            return 'taken_over';
+        }
+        default: {
+            return 'settled';
+        }
+    }
+}
+
+/**
+ * What a Chat stamps on a delivered notice message: each task, the Session it runs in, and the event. IDs and closed
+ * values only, so the Client joins titles from its own Session data and never reads the message text.
+ */
+export function noticeDelivery(items: readonly NoticeItem[]): AgentChatDelegationNotice {
+    const seen = new Set<string>();
+    return {
+        items: items
+            .map((item) => ({
+                delegationId: item.delegationId,
+                sessionId: item.sessionId,
+                event: noticeEvent(item),
+            }))
+            // Two questions of one task read as one row: the stamp does not tell them apart, and neither does a row.
+            .filter(({ delegationId, event }) => {
+                const key = `${delegationId}\0${event}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            }),
+    };
+}
+
+/**
+ * The digest a Chat matches a message against: the exact text Caxri delivered, trimmed as the Chat trims it. The Chat
+ * domain hashes a message the same way (`chatTextDigest` of the trimmed text) to look the notice up.
+ */
+export function noticeTextDigest(text: string): string {
+    return createHash('sha256').update(text.trim()).digest('hex');
+}

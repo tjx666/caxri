@@ -18,6 +18,7 @@ type AgentCommandRequest = Extract<
             | 'agent.delegation.presets'
             | 'agent.delegation.create'
             | 'agent.delegation.stop'
+            | 'agent.delegation.redirect'
             | 'agent.delegation.status'
             | 'agent.delegation.result'
             | 'agent.delegation.transcript'
@@ -38,12 +39,30 @@ type AgentCommandRequest = Extract<
 /**
  * An Agent delegates into Sessions it creates in any Project the user added, so its own Project scope cannot decide the
  * target. Core defers that check to the delegation domain, which admits the caller's own Session and Sessions it
- * created in a visible top-level Project (`authorizeDelegationSession`). An external delegation identity stays bound to
- * its Project here.
+ * created in a visible top-level Project (`authorizeDelegationSession`). An external delegation client is held to the
+ * same rule by the domain, anchored on its dedicated Session, but never adds a Project (`projectPath`).
  */
-function assertDelegationTargetScope(context: CommandExecutionContext, projectId: string): void {
-    if (context.principal.kind === 'agent') return;
-    assertProjectScope(context, projectId);
+function assertDelegationTargetScope(
+    context: CommandExecutionContext,
+    target: { projectId?: string; projectPath?: string },
+): void {
+    const { kind } = context.principal;
+    if (target.projectPath !== undefined) {
+        /**
+         * A path adds a Project, the authority of `project.add`: only an Agent, the owner's CLI, or the Desktop holds
+         * it. A scoped identity (an external delegation client, a paired device) must never mint Projects.
+         */
+        if (kind !== 'agent' && kind !== 'human-cli' && kind !== 'desktop')
+            throw new CaxriError('FORBIDDEN', 'This caller cannot add a Project');
+        return;
+    }
+    if (kind === 'agent') return;
+    /**
+     * An external delegation client delegates from its anchor Session into any visible top-level Project, like an
+     * Agent. The domain decides the target (`authorizeDelegationSession`), so its one bound Project must not.
+     */
+    if (kind === 'delegation-client') return;
+    assertProjectScope(context, target.projectId!);
 }
 
 /**
@@ -94,7 +113,7 @@ export function agentCommandRequest(
                 : undefined,
     };
     if (request.method === 'agent.delegation.create') {
-        assertDelegationTargetScope(context, request.params.projectId);
+        assertDelegationTargetScope(context, request.params);
         return {
             method: 'agent.delegation.createInternal',
             params: {
@@ -105,7 +124,7 @@ export function agentCommandRequest(
         };
     }
     if (request.method === 'agent.delegation.presets') {
-        assertDelegationTargetScope(context, request.params.projectId);
+        assertDelegationTargetScope(context, request.params);
         return {
             method: 'agent.delegation.presetsInternal',
             params: { ...authority, ...request.params },
@@ -114,6 +133,11 @@ export function agentCommandRequest(
     if (request.method === 'agent.delegation.stop')
         return {
             method: 'agent.delegation.stopInternal',
+            params: { ...authority, ...request.params },
+        };
+    if (request.method === 'agent.delegation.redirect')
+        return {
+            method: 'agent.delegation.redirectInternal',
             params: { ...authority, ...request.params },
         };
     if (request.method === 'agent.delegation.list')

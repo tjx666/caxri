@@ -524,6 +524,8 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     ): Promise<void> {
         if (message.images && message.images.length > 0)
             throw new CaxriError('VALIDATION', `${this.dialect.label} Chat does not accept images`);
+        if (options?.exactTurnId !== undefined)
+            throw turnNotSteerableError(`${this.dialect.label} cannot steer an exact turn`);
         const connection = this.requireConnection();
         const turn = this.activeTurn;
         // A turn that ended while the message was in flight cannot take it; the message starts the next turn instead.

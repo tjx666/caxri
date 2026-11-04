@@ -5,14 +5,13 @@ import { join } from 'node:path';
 import type { SessionRelation } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { CaxriDatabase } from '../../db';
 import {
-    delegatedCost,
     delegatedDescendants,
     MAX_ROLLUP_DEPTH,
     MAX_ROLLUP_DESCENDANTS,
-    sessionCostWithDelegated,
-} from '../delegated-cost';
+} from '../../agent-delegation/tree';
+import { CaxriDatabase } from '../../db';
+import { delegatedCost, sessionCostWithDelegated } from '../delegated-cost';
 import type { ModelPrice } from '../pricing';
 import type { UsageRecord } from '../record';
 
@@ -235,10 +234,10 @@ describe('delegatedCost', () => {
         });
     });
 
-    it('rolls up delegated and consult Sessions but not a hand-off', async () => {
+    it('rolls up delegated and consult Sessions but not a hand-off or an independent Session', async () => {
         const { database, create, spend } = await setup();
         const root = create();
-        for (const relation of ['delegated', 'consult', 'handoff'] as const)
+        for (const relation of ['delegated', 'consult', 'handoff', 'independent'] as const)
             spend(create(root, relation));
 
         const cost = delegatedCost(database, root, priceOf);

@@ -33,9 +33,11 @@ describe('mobile role capabilities', () => {
             for (const method of [
                 'agent.delegation.sessions',
                 'agent.delegation.statuses',
+                'agent.delegation.attention',
                 'agent.delegation.retryOptions',
                 'agent.delegation.retry',
                 'agent.delegation.cancelScheduledRetry',
+                'agent.delegation.handBack',
                 'agent.delegation.questionAnswer',
                 'agent.delegation.questionDetail',
                 'agent.delegation.history',

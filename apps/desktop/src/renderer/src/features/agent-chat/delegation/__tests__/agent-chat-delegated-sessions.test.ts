@@ -7,6 +7,7 @@ import {
     delegatedSessionsHeaderParts,
     delegatedSessionsSummary,
     delegationPrFilesLabel,
+    mergeDeeperAttention,
     sortDelegatedSessions,
 } from '../agent-chat-delegated-sessions';
 
@@ -34,6 +35,65 @@ describe('delegatedSessionsSummary', () => {
                 entry({ status: 'blocked' }),
             ]),
         ).toEqual({ approvals: 0, asking: 0, failed: 1, needsInput: 2, total: 6, waiting: 0 });
+    });
+});
+
+describe('mergeDeeperAttention', () => {
+    const deeper = {
+        branchSessionId: 'child',
+        createdBySessionId: 'child',
+        relation: 'delegated' as const,
+        sessionId: 'grandchild',
+        status: 'blocked' as const,
+        failure: 'permission_required' as const,
+    };
+
+    it('ranks a deeper item that needs the user above a running direct child and names its branch', () => {
+        const rows = mergeDeeperAttention([entry({ status: 'running' })], {
+            items: [deeper],
+            isPartial: false,
+        });
+
+        expect(rows.entries.map((row) => row.sessionId)).toEqual(['grandchild', 'child']);
+        expect(rows.entries[0]).not.toHaveProperty('branchSessionId');
+        expect(rows.viaBySessionId.get('grandchild')).toBe('child');
+        expect(rows.viaBySessionId.has('child')).toBe(false);
+        expect(rows.isPartial).toBe(false);
+    });
+
+    it('keeps the direct row when the roll-up also lists that Session, and passes isPartial through', () => {
+        const rows = mergeDeeperAttention([entry({ sessionId: 'grandchild', status: 'running' })], {
+            items: [deeper],
+            isPartial: true,
+        });
+
+        expect(rows.entries).toHaveLength(1);
+        expect(rows.entries[0]).toMatchObject({ status: 'running' });
+        expect(rows.viaBySessionId.size).toBe(0);
+        expect(rows.isPartial).toBe(true);
+    });
+
+    it('is the direct children alone before the roll-up has answered', () => {
+        const rows = mergeDeeperAttention([entry({ status: 'running' })], undefined);
+
+        expect(rows.entries).toHaveLength(1);
+        expect(rows.isPartial).toBe(false);
+    });
+
+    it('counts deeper items as attention while the header keeps the direct total', () => {
+        const rows = mergeDeeperAttention([entry({ status: 'running' })], {
+            items: [deeper],
+            isPartial: false,
+        });
+
+        expect(delegatedSessionsSummary(rows.entries, 1)).toEqual({
+            approvals: 0,
+            asking: 0,
+            failed: 0,
+            needsInput: 1,
+            total: 1,
+            waiting: 0,
+        });
     });
 });
 

@@ -69,7 +69,7 @@ import {
 } from './models';
 import { ClaudePermissions } from './permissions';
 import { ClaudePlanLimits } from './plan-limits';
-import { ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
+import { claudeExactTurnRefusal, ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
 import { ClaudeRequestBroker } from './requests';
 import { reportClaudeSessionEnd } from './session-end';
 import { claudeQueryOptions, claudeStartError, spawnClaudeProcess } from './session-open';
@@ -466,6 +466,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
         { text, images = [] }: Omit<AgentChatMessageInput, 'delivery'>,
         options?: ChatInputOptions,
     ): Promise<void> {
+        if (options?.exactTurnId !== undefined)
+            return Promise.reject(
+                claudeExactTurnRefusal(this.options.read().activeTurnId, options.exactTurnId),
+            );
         this.submit(text, images, options);
         return Promise.resolve();
     }

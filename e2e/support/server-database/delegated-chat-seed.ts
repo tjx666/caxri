@@ -8,9 +8,11 @@ interface Input {
     /**
      * `children` (app closed) creates the child Sessions and their settled records. `blocked` (app running) adds the
      * blocked record to `blockedSessionId`: the Server turns every task still active at startup into an interrupted
-     * one, so a task that needs input can only be recorded after the Server has started.
+     * one, so a task that needs input can only be recorded after the Server has started. `deep` (app closed) creates
+     * one direct child with a grandchild whose settled task failed, the case the parent strip rolls up "via" its
+     * branch.
      */
-    phase: 'blocked' | 'children';
+    phase: 'blocked' | 'children' | 'deep';
     blockedSessionId?: string;
     /**
      * The profile directory that holds `caxri.db`. The app must not be running on it.
@@ -48,6 +50,14 @@ export interface DelegatedChatSeed {
     consult: string;
 }
 
+/**
+ * The `deep` phase's Sessions: a direct child of the host and the grandchild below it that failed.
+ */
+export interface DeepDelegatedChatSeed {
+    branch: string;
+    leaf: string;
+}
+
 const HOUR = 3_600_000;
 
 /**
@@ -55,23 +65,27 @@ const HOUR = 3_600_000;
  * create a delegated Session, so a profile is seeded while the app is closed; the children have no Terminal, so nothing
  * starts an Agent.
  */
-export function run(input: Input): DelegatedChatSeed | null {
+export function run(input: Input): DeepDelegatedChatSeed | DelegatedChatSeed | null {
     const database = new CaxriDatabase(join(input.userData, 'caxri.db'));
     try {
         const now = Date.now();
         // The blocked phase runs on a database the children phase already filled, so its IDs start elsewhere.
         let sequence = input.phase === 'blocked' ? 100 : 0;
-        const create = (title: string, relation: SessionRelation) =>
+        const create = (
+            title: string,
+            relation: SessionRelation,
+            createdBySessionId = input.hostSessionId,
+        ) =>
             database.createSession(input.projectId, null, undefined, {
                 selection: 'preserve',
                 title,
-                createdBySessionId: input.hostSessionId,
+                createdBySessionId,
                 createdByRelation: relation,
             }).session.id;
         const record = (
             sessionId: string,
             receipt: {
-                status: 'answer_unavailable' | 'blocked' | 'failed';
+                status: 'answer_unavailable' | 'blocked' | 'completed' | 'failed';
                 failure?: AgentDelegationReceipt['failure'];
                 failureResetsAt?: number;
                 provider: 'claude' | 'codex';
@@ -112,6 +126,19 @@ export function run(input: Input): DelegatedChatSeed | null {
                 isSettled: false,
             });
             return null;
+        }
+        if (input.phase === 'deep') {
+            const branch = create('Coordinate the migration', 'delegated');
+            const leaf = create('Port the billing exports', 'delegated', branch);
+            record(branch, { status: 'completed', provider: 'codex', isSettled: true });
+            record(leaf, {
+                status: 'failed',
+                failure: 'quota_exhausted',
+                failureResetsAt: now + 5 * 24 * HOUR,
+                provider: 'claude',
+                isSettled: true,
+            });
+            return { branch, leaf };
         }
         const quota = create('Port the billing exports', 'delegated');
         record(quota, {

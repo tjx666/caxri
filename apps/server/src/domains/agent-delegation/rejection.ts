@@ -2,7 +2,7 @@ import type { AgentDelegationReceipt } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { StoredAgentDelegation } from '../db';
+import type { StoredAgentDelegation, StoredDelegationHandBack } from '../db';
 import type { AgentDelegationServiceOptions } from './service-options';
 
 type DelegationFailure = NonNullable<AgentDelegationReceipt['failure']>;
@@ -235,5 +235,33 @@ export function resumeRejection(
     if (parent.receipt.status === 'human_intervened' || parent.receipt.failure === 'human_input')
         return 'parent_human_intervened';
     if (!target.dispatch.resume) return 'resume_unsupported';
+    return undefined;
+}
+
+/**
+ * The first condition that keeps a follow-up from using a hand-back `grant` on `parent`, in admission order. Unlike
+ * {@link followUpRejection} it measures the Terminal against what the grant pinned when the user handed the Session
+ * back, not against the parent task: the parent carries a takeover mark and the input epoch of before the takeover.
+ */
+export function handBackRejection(
+    grant: StoredDelegationHandBack,
+    parent: StoredAgentDelegation,
+    target: Pick<
+        AgentDelegationServiceOptions,
+        'currentLaunchId' | 'database' | 'inputEpoch' | 'isIdle'
+    >,
+    isBusy: (terminalId: string) => boolean,
+    successorId: string,
+): DelegationFollowUpRejection | undefined {
+    const { terminalId } = parent.receipt;
+    if (parent.nextDelegationId || isClaimedByRetry(parent, successorId)) return 'parent_chained';
+    if (!terminalId || terminalId !== grant.terminalId) return 'no_terminal';
+    if (isBusy(terminalId)) return 'terminal_busy';
+    if (parent.hasLostTarget) return 'target_lost';
+    if (target.currentLaunchId?.(terminalId) !== grant.launchId) return 'launch_replaced';
+    if (target.database.getTerminal(terminalId)?.agentSessionId !== grant.providerSessionId)
+        return 'launch_replaced';
+    if (target.inputEpoch?.(terminalId) !== grant.inputEpoch) return 'input_epoch_moved';
+    if (!target.isIdle?.(terminalId, grant.launchId, grant.turnId)) return 'target_not_idle';
     return undefined;
 }

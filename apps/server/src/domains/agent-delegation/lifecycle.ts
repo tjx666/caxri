@@ -31,7 +31,8 @@ export function canFailDelegation(
  * Whether a save changes what observers of the receipt see. Revision-only saves (transcript offsets, input epochs,
  * fencing marks) do not, and announcing them would reset Caxri Bot's board refresh debounce on every collector poll. A
  * retry claim (`retriedAs`) or its release does: the feed's Retry action and chain collapse follow it. So do a
- * scheduled retry's time and its refusal outcome, which the failed row shows.
+ * scheduled retry's time and its refusal outcome, which the failed row shows. So does a confirmed redirect
+ * (`redirectCount`), which the feed and Caxri Bot's board show.
  */
 export function isReceiptTransition(
     before: AgentDelegationReceipt | undefined,
@@ -42,7 +43,8 @@ export function isReceiptTransition(
         before.failure !== after.failure ||
         before.retriedAs !== after.retriedAs ||
         before.retryScheduledFor !== after.retryScheduledFor ||
-        before.retryScheduleOutcome !== after.retryScheduleOutcome
+        before.retryScheduleOutcome !== after.retryScheduleOutcome ||
+        before.redirectCount !== after.redirectCount
     );
 }
 

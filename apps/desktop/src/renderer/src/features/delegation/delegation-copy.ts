@@ -7,11 +7,10 @@ import type {
     DelegationRetryScheduleOutcome,
     DelegationWaitingOn,
 } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, isDelegationRetryPending } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { localizedLimitReset } from '../../lib/usage-format';
-import { isDelegationRetryPending } from './delegation-feed';
 import { formatRetryTime } from './delegation-retry-time';
 
 type AgentDelegationFailure = NonNullable<AgentDelegationReceipt['failure']>;

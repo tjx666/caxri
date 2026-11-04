@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
@@ -22,6 +24,7 @@ import {
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
+import { resolveChildSurface } from './chat-child';
 import { validateDelegationLaunch } from './launch';
 
 export interface DelegationAuthority {
@@ -65,6 +68,55 @@ export function delegationPaneCaller(
 export type DelegationAccess = 'create' | 'existing';
 
 /**
+ * Whether two principals are the same caller: the exact Endpoint or delegation generation, never a shared client or a
+ * sibling that merely names the same Project. The one comparison ownership, proof of creation and the task cap share.
+ */
+export function isSamePrincipal(a: Principal, b: Principal): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * A delegation client works from its anchor Session, the shared dedicated Session of its Project and provider (titled
+ * `External <Provider>`), and from the Sessions it created from there for a task, in any Project the user can still
+ * see. The anchor is shared by every client of that Project and provider, so a Session whose creator is the anchor is
+ * not enough: an earlier or concurrent client created it too. A new task is admitted only where this exact principal,
+ * generation included, already has a recorded task, or in the Session this very request just created. Once that record
+ * is pruned the Session is refused rather than guessed at. Reading or stopping an existing task needs only its creator
+ * edge here, because `isDelegationOwner` already holds the caller to its own tasks.
+ */
+function authorizeExternalSession(
+    database: CaxriDatabase,
+    principal: Extract<Principal, { kind: 'delegation-client' }>,
+    session: NonNullable<ReturnType<CaxriDatabase['getSession']>>,
+    input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
+    access: DelegationAccess,
+    isNewSession: boolean,
+): void {
+    if (principal.projectIds[0] === input.projectId && principal.sessionId === input.sessionId)
+        return;
+    const isCreated = session.createdBySessionId === principal.sessionId;
+    if (access === 'existing' && isCreated) return;
+    const project = database
+        .listVisibleProjects()
+        .find((candidate) => candidate.id === input.projectId);
+    if (
+        isCreated &&
+        project &&
+        isTopLevelProject(project) &&
+        session.archivedAt === undefined &&
+        (isNewSession ||
+            database.agentDelegations
+                .principalsForSession(input.sessionId)
+                .some((recorded) => isSamePrincipal(recorded, principal)))
+    )
+        return;
+    throw new CaxriError(
+        'FORBIDDEN',
+        'Delegation must remain in the authorized external Session or a Session it created',
+    );
+}
+
+/**
  * Admits a caller to a delegation Session. For Caxri Bot, `existing` access skips the create-only limits below, which
  * decide where new work may go: the task's owner was proven when it was created and `owned` re-checks the caller
  * Terminal, so archiving the Session or hiding its Project must not cut Caxri Bot off from a result it is still waiting
@@ -106,14 +158,14 @@ export function authorizeDelegationSession(
         return;
     }
     if (authority.principal.kind === 'delegation-client') {
-        if (
-            authority.principal.projectIds[0] !== input.projectId ||
-            authority.principal.sessionId !== input.sessionId
-        )
-            throw new CaxriError(
-                'FORBIDDEN',
-                'Delegation must remain in the authorized external Session',
-            );
+        authorizeExternalSession(
+            database,
+            authority.principal,
+            session,
+            input,
+            access,
+            isNewSession,
+        );
         return;
     }
     if (authority.principal.kind !== 'agent')
@@ -222,6 +274,11 @@ export function resolveDelegationAdmission(options: {
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     currentLaunchId?(terminalId: string): string | undefined;
     /**
+     * Inputs of the child's surface; see `resolveChildSurface`.
+     */
+    hasAgentChat?(): boolean;
+    opensAgentsInChat?(): boolean;
+    /**
      * The turn an Agent Chat caller is in, recorded on the task; see `AgentDelegationServiceOptions.callerTurnId`.
      */
     callerTurnId?(terminalId: string): string | undefined;
@@ -303,6 +360,11 @@ export function resolveDelegationAdmission(options: {
         selection,
         frozenLaunch,
         frozenInstructions: instructions,
+        surface: previous
+            ? previous.receipt.surface
+            : input.continueFromHandover
+              ? undefined
+              : resolveChildSurface(options, selection.provider, input.surface),
         depth,
         parentDelegationId: inherited
             ? inherited.parentDelegationId
@@ -312,6 +374,27 @@ export function resolveDelegationAdmission(options: {
             : authority.callerTerminalId && options.callerTurnId?.(authority.callerTerminalId),
         callerLaunchId: inherited ? inherited.callerLaunchId : (callerLaunch ?? undefined),
     };
+}
+
+/**
+ * The digest that makes a request ID name one task. `projectPath` is the folder the original request named instead of a
+ * Project ID: the stored input only holds the Project it resolved to, so without it in the digest a replay naming
+ * another folder would pass as the same request. Only the digest is stored, never the path.
+ */
+export function delegationFingerprint(
+    authority: DelegationAuthority,
+    input: AgentDelegationCreate,
+    projectPath?: string,
+): string {
+    return createHash('sha256')
+        .update(
+            JSON.stringify(
+                projectPath === undefined
+                    ? { authority, input }
+                    : { authority, input, projectPath },
+            ),
+        )
+        .digest('hex');
 }
 
 /**
@@ -348,6 +431,7 @@ export function admittedDelegation(options: {
             ...(options.retryOf && { retryOf: options.retryOf }),
             provider,
             selection: admission.selection,
+            ...(admission.surface && { surface: admission.surface }),
             depth: admission.depth,
             parentDelegationId: admission.parentDelegationId,
             status: 'requested',

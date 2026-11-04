@@ -479,6 +479,38 @@ describe('who may decide', () => {
         },
     );
 
+    /**
+     * Caxri cannot see the permission an external parent's own provider holds, so it never decides for it: the request
+     * is the user's, and the parent's own `approve` is refused like any caller that is not the delegating Agent.
+     */
+    it("hands an external parent's request to the user and refuses its own decision", async () => {
+        const f = await approvalFixture();
+        const principal = {
+            kind: 'delegation-client' as const,
+            id: 'external',
+            clientId: 'external-client',
+            generation: 1,
+            projectIds: [f.project.id] as [string],
+            sessionId: f.callerSessionId,
+            callerProvider: 'claude' as const,
+        };
+        const record = f.database.agentDelegations.get(f.task.id)!;
+        f.database.agentDelegations.save({
+            ...record,
+            principal,
+            callerLaunchId: undefined,
+            receipt: { ...record.receipt, callerTerminalId: undefined },
+        });
+
+        expect(f.ask(command())).toBe('alert');
+        expect(f.approvals.viewFor(f.task.id)).toMatchObject({ escalated: true });
+        const error = refusal(() => f.decide('req-1', 'accept', { principal }));
+
+        expect(error.code).toBe('NOT_FOUND');
+        expect(f.provider.responses).toEqual([]);
+        expect(f.provider.requests.map((request) => request.id)).toEqual(['req-1']);
+    });
+
     it('answers the same for the delegated child itself', async () => {
         const f = await approvalFixture();
         f.ask(command());

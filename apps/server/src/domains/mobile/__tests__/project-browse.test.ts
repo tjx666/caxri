@@ -91,7 +91,8 @@ describe('createMobileProjectAddHandler', () => {
         const { home } = await createSandbox();
         const createProject = vi.fn().mockReturnValue({ id: 'project-1', title: 'Demo' });
         const emit = vi.fn();
-        const database = { createProject } as unknown as CaxriDatabase;
+        const findProjectByRootPath = vi.fn().mockReturnValue(undefined);
+        const database = { createProject, findProjectByRootPath } as unknown as CaxriDatabase;
         const add = createMobileProjectAddHandler({
             database,
             emit,

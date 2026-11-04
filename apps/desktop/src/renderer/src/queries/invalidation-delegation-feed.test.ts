@@ -26,6 +26,8 @@ import { subscribeRuntimeQueryInvalidation } from './invalidation';
 import {
     applyDelegationProgress,
     createDelegationFeedInvalidation,
+    invalidateDelegationApproval,
+    invalidateDelegationQuestion,
 } from './invalidation-delegation-feed';
 
 type Feed = MethodResult<'agent.delegation.sessions'>;
@@ -94,6 +96,36 @@ describe('createDelegationFeedInvalidation', () => {
         vi.advanceTimersByTime(1600);
         expect(client.getQueryState(costKey)?.isInvalidated).toBe(true);
         invalidation.dispose();
+    });
+
+    it('refreshes the tree-wide attention read like the cost read, and not for an ordinary Session', () => {
+        const client = new QueryClient();
+        const attentionKey = caxriQueryKey('agent.delegation.attention', { sessionId: 'host-a' });
+        client.setQueryData(attentionKey, { items: [], isPartial: false });
+        const invalidation = createDelegationFeedInvalidation(client, () => sessions);
+
+        invalidation.invalidate(['host-b']);
+        vi.advanceTimersByTime(1600);
+        expect(client.getQueryState(attentionKey)?.isInvalidated).toBe(false);
+
+        // A deep descendant's push does not name the Chat, so any delegated Session refreshes the roll-up.
+        invalidation.invalidate(['child-b']);
+        vi.advanceTimersByTime(1600);
+        expect(client.getQueryState(attentionKey)?.isInvalidated).toBe(true);
+        invalidation.dispose();
+    });
+
+    it('refreshes the attention read when an approval or a question moves between the Agent and the user', () => {
+        const client = new QueryClient();
+        const attentionKey = caxriQueryKey('agent.delegation.attention', { sessionId: 'host-a' });
+        client.setQueryData(attentionKey, { items: [], isPartial: false });
+
+        invalidateDelegationApproval(client);
+        expect(client.getQueryState(attentionKey)?.isInvalidated).toBe(true);
+
+        client.setQueryData(attentionKey, { items: [], isPartial: false });
+        invalidateDelegationQuestion(client, { delegationId: 'task-1' });
+        expect(client.getQueryState(attentionKey)?.isInvalidated).toBe(true);
     });
 
     it('does nothing for a known Session that was not created by another Session', () => {

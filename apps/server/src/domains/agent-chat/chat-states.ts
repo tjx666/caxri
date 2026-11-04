@@ -25,6 +25,7 @@ import type { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits'
 import type { ProjectionUsageLimitWaits } from './continuation/usage-continuation-stamp';
 import { forgetParsedTranscript } from './history/read';
 import { ChatFollowUpQueue } from './queue/follow-up-queue';
+import { deliveredNoticeOf } from './stamps/delegation-notices';
 import { forgetTaskRevisions } from './tasks/projections';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
@@ -240,8 +241,9 @@ export class ChatStates {
                 send: (event) => this.options.send(event),
                 onChange: () => state.followUps.dispatch(),
                 onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
-                delegatedTask: (delegationId) =>
-                    delegatedTaskDetails(this.options.database, delegationId),
+                delegatedTask: (delegationId, redirect) =>
+                    delegatedTaskDetails(this.options.database, delegationId, redirect),
+                delegationNotice: deliveredNoticeOf(this.options.database, terminalId),
                 commandDelegations: {
                     owned: (delegationId) => {
                         const record = this.options.database.agentDelegations.get(delegationId);

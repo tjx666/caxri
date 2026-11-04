@@ -149,9 +149,9 @@ export const agentDelegationLogEvents = {
     /**
      * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, or resume; `newSession`),
      * whether Caxri Bot sent it, and the request's correlation ID, so a delegation can be traced back to the CLI call
-     * that created it. `fields.relation` is how the Session was started (`delegated`, `handoff`, `consult`, or `none`
-     * for a Session with no creator relation: the owner's, or one Caxri Bot dispatched to), which decides whether the
-     * task reports a result. Never the prompt.
+     * that created it. `fields.relation` is how the Session was started (`delegated`, `handoff`, `consult`,
+     * `independent`, or `none` for a Session with no creator relation: the owner's, or one Caxri Bot dispatched to),
+     * which decides whether the task reports a result. Never the prompt.
      */
     requested: 'agent_delegation.requested',
     /**
@@ -184,6 +184,28 @@ export const agentDelegationLogEvents = {
      */
     retryNotice: 'agent_delegation.retry_notice',
     /**
+     * The Agent that delegated a task was, or was not, told that the task settled, asked it a question, or needs its
+     * decision on a permission request. `fields.outcome` is a closed enum: `pending` (the notice is owed), `deferred`
+     * (held back, with the `reason` that holds it; logged once per change of reason and counted, never per check),
+     * `delivered`, `skipped`, `unknown` (written without proof it arrived; never sent again), or `failed` (the write
+     * threw). `fields.reason` is `busy`, `waiter`, `acknowledged`, `draft`, `no_idle_proof`, `launch_changed`,
+     * `caller_gone`, `external`, `handoff`, `independent`, `bot`, `retry_pending`, `paused`, or `resolved` (the
+     * question was answered or the request decided or shown to the user first); `fields.kind` is `settled`, `question`,
+     * `approval`, `handback`, or `mixed` for a batch of several. `batchSize` and `waitMs` (since the oldest item was
+     * owed) describe a send, `deferrals` how many checks a deferred notice waited through. IDs, enums, and numbers
+     * only, never the notice text, a title, or an answer.
+     */
+    settlementNotice: 'agent_delegation.settlement_notice',
+    /**
+     * The user handed a taken-over Session back to the Agent that delegated it, or a hand-back grant was used or
+     * dropped. `fields.outcome` is a closed enum: `granted`, `consumed` (the delegating Agent's follow-up used the
+     * grant), `duplicate` (a grant was already pending), `invalidated` (something the grant was pinned to moved first),
+     * or a refusal: `not_taken_over`, `child_busy`, `draft_active`, `child_changed`, `parent_gone`, or
+     * `parent_changed`. `fields.reason` repeats the closed pin or guard that fired for `invalidated` and for a refusal
+     * at use time. IDs and enums only, never a title, a prompt, or an answer.
+     */
+    handBack: 'agent_delegation.hand_back',
+    /**
      * A scheduled retry changed state. `fields.outcome` is a closed enum: `scheduled`, `cancelled`, `fired` (the retry
      * started), `refused_at_fire` (with `fields.reason`, a `DelegationRetryScheduleOutcome`), `missed_window`,
      * `restored` (logged once per start with `fields.pending` and `fields.overdue` counts), `session_gone`,
@@ -206,6 +228,20 @@ export const agentDelegationLogEvents = {
      * title, a summary, or an entry's IDs.
      */
     historyRead: 'agent_delegation.history_read',
+    /**
+     * A `newSession` delegation named a folder (`projectPath`) instead of a Project ID, and the Server resolved it to a
+     * Project. Fields: `outcome`, a closed enum: `created` (a new visible Project), `existing` (the folder was already
+     * a visible top-level Project), `unhidden` (a hidden Project came back), or `adopted_worktree` (a registered
+     * worktree Project was promoted to top level), plus `principalKind` (closed) and `durationMs`. Never the path.
+     */
+    projectAdded: 'agent_delegation.project_added',
+    /**
+     * A redirect of a running task was decided. Fields: `delegationId`, `outcome` (`delivered`, `replayed`, `refused`,
+     * or `unknown`), `reason` (a `DelegationRedirectRefusal` value, or `null` when delivered), `principalKind`
+     * (closed), `textLength` (a count), `redirectCount` (confirmed redirects after this one), and `durationMs`. Never
+     * the text, the operation ID, or a path.
+     */
+    redirected: 'agent_delegation.redirected',
     /**
      * A settled task's history row was written or refused. Fields: `delegationId`, `outcome`, `failure` (closed),
      * `isInsert`, `compactedCount`, `durationMs`, and `result` (`ok` or `failed` with a closed `reason`: `constraint`,

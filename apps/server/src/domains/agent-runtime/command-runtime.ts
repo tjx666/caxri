@@ -29,8 +29,11 @@ import {
 } from '../agents';
 import { botHandoverAccess, createBotSession, discardBotSession } from '../bot';
 import { coreRouted } from '../core-routed';
+import { addProjectFolderWithOutcome } from '../project';
 import { createBackgroundSession, discardEmptySession } from '../session';
+import { didPasteAndSubmitAgentText } from '../terminal';
 import type { AgentUsageGuards } from '../usage';
+import { chatNoticeCallerState } from './chat-notice-caller';
 import { prepareDelegatedWorktree } from './delegated-worktree';
 import type { DelegationChats } from './delegation-chats';
 import { delegationChatFor, didAcceptDelegationChatWrite } from './delegation-chats';
@@ -98,6 +101,7 @@ export function createAgentCommandRuntime(
         delegationSettings: () => options.settings()['agents.delegation'],
         opensAgentsInChat: () =>
             options.agentChat !== undefined && options.settings()['session.openAgentsInChat'],
+        hasAgentChat: () => options.agentChat !== undefined,
         hasLifecycleHooks: (provider) =>
             options.settings()['agents.providers'][provider].hooks.enabled,
         isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
@@ -127,6 +131,29 @@ export function createAgentCommandRuntime(
             ),
         onProgress: (progress) =>
             options.emit({ event: 'agent.delegation.progress', payload: progress }),
+        chatCallerState: (terminalId) =>
+            chatNoticeCallerState(
+                chatOf(terminalId)?.delegation.snapshot(terminalId),
+                options.agentChat?.states?.usageLimitWaits?.waitingAt?.(terminalId) !== undefined,
+            ),
+        deliverNotice: (terminalId, launchId, text, onDelivered) => {
+            const chats = chatOf(terminalId);
+            return chats
+                ? didAcceptDelegationChatWrite(
+                      chats,
+                      terminalId,
+                      launchId,
+                      `\u{1B}[200~${text}\u{1B}[201~\r`,
+                      onDelivered,
+                  )
+                : didPasteAndSubmitAgentText(
+                      options.terminals,
+                      terminalId,
+                      text,
+                      launchId,
+                      onDelivered,
+                  );
+        },
         pendingChatRequests: (terminalId) =>
             chatOf(terminalId)?.delegation.snapshot(terminalId)?.requests.length ?? 0,
         approvals: approvals && {
@@ -179,6 +206,14 @@ export function createAgentCommandRuntime(
                 announce('session.create');
                 return sessionId;
             },
+            addProject: async (absolutePath) => {
+                const { project, outcome } = await addProjectFolderWithOutcome(
+                    options.database,
+                    (event) => options.emit(event),
+                    absolutePath,
+                );
+                return { id: project.id, outcome };
+            },
             prepareWorktree: (projectId, branch) => {
                 const project = options.database
                     .listVisibleProjects()
@@ -221,6 +256,9 @@ export function createAgentCommandRuntime(
                 }
             );
         },
+        steer: (terminalId, launchId, steer) =>
+            chatOf(terminalId)?.delegation.steerToLaunch(terminalId, launchId, steer) ??
+            Promise.reject(new CaxriError('CONFLICT', 'The task is not a Chat child')),
         write: (terminalId, launchId, data, onDelivered) => {
             const chats = chatOf(terminalId);
             if (chats)

@@ -1,4 +1,4 @@
-import type { AgentDelegationReceipt } from '@caxri/protocol';
+import type { AgentDelegationReceipt, Principal } from '@caxri/protocol';
 import {
     agentDelegationAnswerSchema,
     agentDelegationCreateSchema,
@@ -6,7 +6,9 @@ import {
     agentLaunchSettingsSchema,
     CaxriError,
     delegationProviderSchema,
+    delegationRedirectStateSchema,
     delegationRetryModeSchema,
+    MAX_DELEGATION_REDIRECT_OPERATIONS,
     principalSchema,
 } from '@caxri/protocol';
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -14,7 +16,10 @@ import { z } from 'zod';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDelegations } from '../schema';
+import { DelegationHandBacksModel } from './delegation-handbacks';
 import { DelegationHistoryModel } from './delegation-history';
+import { DelegationNoticeDeliveriesModel } from './delegation-notice-deliveries';
+import { DelegationNoticesModel } from './delegation-notices';
 import { DelegationQuestionsModel } from './delegation-questions';
 
 const activeStatuses = [
@@ -57,6 +62,13 @@ function isRetryScheduleConsistent(record: {
         return false;
     return retryScheduleOutcome === undefined || retriedAs === undefined;
 }
+
+const redirectClaimSchema = z.strictObject({
+    operationId: z.string().min(1).max(64),
+    digest: z.string().regex(/^[\da-f]{64}$/u),
+    state: delegationRedirectStateSchema,
+    at: z.number().int().positive(),
+});
 
 const storedDelegationSchema = z
     .strictObject({
@@ -115,6 +127,13 @@ const storedDelegationSchema = z
          */
         callerLaunchId: z.string().min(1).max(256).optional(),
         hasLostTarget: z.boolean().optional(),
+        /**
+         * The redirects (`agent.delegation.redirect`) this task has been asked to deliver, one claim per operation ID.
+         * A claim is written before the message is sent and settled after, so a repeated request is answered from it
+         * and a message whose delivery is in doubt (`pending` or `unknown`) is never sent a second time. Holds a digest
+         * of the text, never the text. At most `MAX_DELEGATION_REDIRECT_OPERATIONS`; never evicted.
+         */
+        redirects: z.array(redirectClaimSchema).max(MAX_DELEGATION_REDIRECT_OPERATIONS).optional(),
         continuationPromptDigests: z
             .array(z.string().regex(/^[\da-f]{64}$/u))
             .max(64)
@@ -225,9 +244,29 @@ export class AgentDelegationsModel {
      */
     readonly history: DelegationHistoryModel;
 
+    /**
+     * The notices owed to the Agents that delegated tasks. Like the questions, they cascade from a task record.
+     */
+    readonly notices: DelegationNoticesModel;
+
+    /**
+     * The notice messages actually written into a Chat, by text digest, so the Chat recognizes them. Unlike the notices
+     * it has no foreign key to a task record, so it survives pruning the task.
+     */
+    readonly noticeDeliveries: DelegationNoticeDeliveriesModel;
+
+    /**
+     * The single-use grants the user gives when handing a taken-over Session back. Like the notices, they cascade from
+     * a task record.
+     */
+    readonly handBacks: DelegationHandBacksModel;
+
     constructor(private readonly database: CaxriDrizzleDatabase) {
         this.questions = new DelegationQuestionsModel(database);
         this.history = new DelegationHistoryModel(database);
+        this.notices = new DelegationNoticesModel(database);
+        this.noticeDeliveries = new DelegationNoticeDeliveriesModel(database);
+        this.handBacks = new DelegationHandBacksModel(database);
     }
 
     get(id: string): StoredAgentDelegation | undefined {
@@ -270,6 +309,19 @@ export class AgentDelegationsModel {
             .where(inArray(agentDelegations.sessionId, [...sessionIds]))
             .all()
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).receipt);
+    }
+
+    /**
+     * The principals that recorded a task in `sessionId`: the proof a delegation client created work there, which
+     * disappears with a pruned record.
+     */
+    principalsForSession(sessionId: string): Principal[] {
+        return this.database
+            .select({ recordJson: agentDelegations.recordJson })
+            .from(agentDelegations)
+            .where(eq(agentDelegations.sessionId, sessionId))
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).principal);
     }
 
     /**
@@ -320,6 +372,18 @@ export class AgentDelegationsModel {
             .where(
                 sql`json_extract(${agentDelegations.recordJson}, '$.receipt.callerTerminalId') = ${callerTerminalId} and json_extract(${agentDelegations.recordJson}, '$.callerTurnId') = ${turnId}`,
             )
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
+    }
+
+    /**
+     * Every task that ran in one Session, in no particular order.
+     */
+    forSession(sessionId: string): StoredAgentDelegation[] {
+        return this.database
+            .select()
+            .from(agentDelegations)
+            .where(eq(agentDelegations.sessionId, sessionId))
             .all()
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
     }

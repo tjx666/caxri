@@ -1541,7 +1541,7 @@ and the Chat's own spend beside it (left out when unknown, never `$0`). `~` befo
 a task below it still runs, so the figure may grow; `+` after it means a floor (a model without a
 price); both show together as `~$1.20+`; a floor of nothing is hidden. The header cost stays out of
 the live region. Rows sort needs-input, then failed, then the rest; each is a 12px row with the
-Agent icon, the title, the child's Project in `--muted`, a second line (the live step with the
+Agent icon, the title, the child's Project in `--muted`, a muted `via <direct child title>` part on a deeper Session (a grandchild or below that needs the user or failed; the header counts it, and `and more` follows the counts when the Server could not list every one), a second line (the live step with the
 activity shimmer, the result summary with an `Excerpt` chip when it is the first paragraph rather
 than the Agent's `Summary:` line, or the status copy), the child's estimated cost (with the same
 `~` and `+` markers, shown only once it has usage and summing the Sessions of a collapsed retry
@@ -1554,7 +1554,10 @@ command row of a command that delegated: `Delegated to <title> · <Project>` wit
 row** tops the composer strip as a non-collapsible 12px `--muted` row: `Delegated from <title>`, the
 automatic-return line, an `--accent` `Back to <title>` button, and a hint that acting here takes
 the Session over. After takeover it reads `You took over this Session · its replies no longer go
-back to <title>` with no hint or button. The **takeover divider** is a hairline with `You took over`
+back to <title>` with no hint, and an `--accent` `Hand back to <title>` button beside `Back to <title>`
+that stays visible but muted and inert while it cannot work, with the reason on a second muted line (parent
+archived, Chat busy or queued, unsent draft). After a hand-back the detail reads `Handed back to <title> ·
+waiting for it to continue` without the button, until the delegating Agent uses it. The **takeover divider** is a hairline with `You took over`
 centered on it, `role="separator"`, placed before the first entry at or after the takeover; when
 that position cannot be known it is a standalone marker above the composer.
 

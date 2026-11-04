@@ -63,15 +63,26 @@ export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
  * - `handoff`: the creator's work continues there (the Chat `/new-session` command, "continue in another Agent"; both
  *   start it in the creator's Project).
  * - `consult`: a question or review the creator asks, which changes no files.
+ * - `independent`: a sibling Session for its own task that the creator does not wait on. No notice, no roll-up, and its
+ *   questions go to the user; the creator still manages it as the Session it created.
  *
  * The Session records the relation and `session.query` returns it. The PrimarySidebar (issue #3572) lists a `delegated`
  * Session under the Session that created it and gives a `consult` Session no row of its own while a Session above it is
- * listed; a `handoff` keeps an ordinary row.
+ * listed; a `handoff` or `independent` Session keeps an ordinary row.
  *
  * The relation kinds follow the thread relations of T3 Code (see `competitors/references/feature-references.md`).
  */
-export const sessionRelationSchema = z.enum(['delegated', 'handoff', 'consult']);
-export type SessionRelation = z.infer<typeof sessionRelationSchema>;
+export type SessionRelation = 'consult' | 'delegated' | 'handoff' | 'independent';
+/**
+ * Annotated rather than inferred: the relation is embedded in many method results, and the method registry's inferred
+ * type is at the compiler's serialization limit.
+ */
+export const sessionRelationSchema: z.ZodType<SessionRelation> = z.enum([
+    'delegated',
+    'handoff',
+    'consult',
+    'independent',
+]);
 
 export const projectRecordSchema = z.object({
     id: identifierSchema,

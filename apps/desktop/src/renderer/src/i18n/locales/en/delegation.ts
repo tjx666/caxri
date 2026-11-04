@@ -51,6 +51,8 @@ export const delegation = {
     'delegation.strip.needsInputOther': '{{count}} need input',
     'delegation.strip.failed': '{{count}} failed',
     'delegation.strip.unavailable': 'Session unavailable',
+    'delegation.strip.via': 'via {{title}}',
+    'delegation.strip.more': 'and more',
     'delegation.strip.excerpt': 'Excerpt',
     'delegation.strip.prFilesOne': '{{count}} PR file',
     'delegation.strip.prFilesOther': '{{count}} PR files',
@@ -70,13 +72,48 @@ export const delegation = {
     'delegation.record.openAria': 'Open {{title}}: {{status}}',
     'delegation.record.openAriaUnknown': 'Open {{title}}',
     'delegation.record.unavailable': 'Delegated to a Session that is no longer available',
+    'delegation.notice.completed': 'completed',
+    'delegation.notice.failed': 'failed',
+    'delegation.notice.interrupted': 'interrupted',
+    'delegation.notice.taken_over': 'taken over',
+    'delegation.notice.handed_back': 'handed back',
+    'delegation.notice.question': 'asking a question',
+    'delegation.notice.approval': 'needs approval',
+    'delegation.notice.answer_unavailable': 'finished, answer unavailable',
+    'delegation.notice.settled': 'finished',
+    'delegation.notice.openAria': 'Open {{title}}: {{status}}',
+    'delegation.notice.unavailable': 'A Session that is no longer available',
     'delegation.origin.from': 'Delegated by {{title}}',
-    'delegation.origin.autoReturn': 'The result goes back automatically',
+    'delegation.origin.autoReturn':
+        'The Agent that delegated this is notified when it finishes, while it is still running.',
     'delegation.origin.back': 'Back to {{title}}',
+    'delegation.origin.startedFrom': 'Started from {{title}}',
     'delegation.origin.hint':
         'Sending a message, Stop or Rewind here takes over this Session from {{title}}',
     'delegation.origin.takenOver': 'You took over this Session',
     'delegation.origin.takenOverDetail': 'its replies no longer go back to {{title}}',
+    'delegation.origin.handBack': 'Hand back',
+    'delegation.origin.handBackAria': 'Hand back to {{title}}',
+    'delegation.origin.handBackTooltip': 'Let {{title}} continue driving this Session',
+    'delegation.origin.handBackPending': 'Handed back to {{title}} · waiting for it to continue',
+    'delegation.origin.handBackBlocked.busy':
+        'Wait for the current reply to finish before handing back',
+    'delegation.origin.handBackBlocked.draft':
+        'Send or clear the message you are typing before handing back',
+    'delegation.origin.handBackBlocked.parent_archived':
+        '{{title}} is archived and cannot continue this Session',
+    'delegation.origin.handBackFailed': 'Could not hand the Session back',
+    'delegation.origin.handBackReason.not_taken_over': 'This Session is not under your control',
+    'delegation.origin.handBackReason.child_busy':
+        'This Session is still working. Wait for the reply to finish',
+    'delegation.origin.handBackReason.draft_active':
+        'The Terminal prompt holds unsent text. Send or clear it before handing back',
+    'delegation.origin.handBackReason.child_changed':
+        'This Session changed and can no longer be handed back',
+    'delegation.origin.handBackReason.parent_gone':
+        'The Agent that delegated this Session is no longer running',
+    'delegation.origin.handBackReason.parent_changed':
+        'The Agent that delegated this Session has been restarted',
     'delegation.divider.takenOver': 'You took over',
     'delegation.nextStep.signIn': 'Sign in',
     'delegation.nextStep.signInAria': 'Sign in to {{provider}} for the failed task in {{title}}',

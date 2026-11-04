@@ -6,6 +6,7 @@ import { ConversationEntry } from '../conversation/conversation-entry';
 import { AgentChatAnsweredQuestions } from './agent-chat-answered-questions';
 import { AgentChatAwayRecap } from './agent-chat-away-recap';
 import { AgentChatDelegatedMessage } from './agent-chat-delegated-message';
+import { AgentChatDelegationNoticeRows } from './agent-chat-delegation-notice-rows';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatHandoffTarget } from './agent-chat-handoff-target';
 import { AgentChatPathChips } from './agent-chat-path-chips';
@@ -97,6 +98,15 @@ export const AgentChatTimelineEntry = memo(
                         onToggle={toggle}
                         task={entry.task}
                         text={entry.text}
+                        theme={theme}
+                    />
+                );
+            }
+            case 'delegationNotice': {
+                return (
+                    <AgentChatDelegationNoticeRows
+                        id={entry.id}
+                        notice={entry.notice}
                         theme={theme}
                     />
                 );

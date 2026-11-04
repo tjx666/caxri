@@ -37,8 +37,14 @@ action. Never substitute an arbitrary shell command.
 If context instead reports `principal.kind: delegation-client`, use its `projectIds[0]`, `sessionId`,
 `callerProvider`, capabilities and negotiated commands. This external identity grants only
 `agents.delegate`; skip the managed-Endpoint status, messaging and Project-query workflows below.
-The human owner must first authorize its exact root with `agent delegate access create` and provide
-the private credential through process configuration. Never issue access yourself, read a profile's
+The human owner starts you with `caxri agent delegate access launch -- <agent>` (or authorizes the root
+with `agent delegate access create` and provides the private credential through process
+configuration). `CAXRI_DELEGATION_PROJECT_ID` and `CAXRI_DELEGATION_SESSION_ID` then default
+`--project` and `--session` for `agent delegate create`. To work in another visible Project, pass
+`--project <id> --new-session`: the new Session nests under your `External <Provider>` Session, at
+most four tasks may be active per credential, a child's question goes straight to the user, and
+permission requests are the user's to approve. Without a credential, delegation commands are
+refused; do not retry as the owner. Never issue access yourself, read a profile's
 owner credential, or loosen the provider sandbox. A missing or unreachable Server requires the
 owner's startup or transport action, not an implicit privilege fallback.
 
@@ -231,6 +237,12 @@ Then write the task to a file and run
   or to add one the user has not opened yet, run `project add <path>`: it returns the existing
   Project for an added folder and shows a hidden one again, so tell the user when you add or
   unhide one.
+- `--project-path <dir>` in place of `--project <id>` does the `project add` step inside the same
+  request (only with `--new-session`): `agent delegate create --project-path ../other-repo
+--new-session --title <subject> --provider <provider> --prompt-file <path> --request-id <id>
+--json`. The folder must exist; the same reuse and unhide rules apply, so tell the user when it
+  adds a Project. Replaying the request ID with another folder fails, and a refusal after the add
+  keeps the Project.
 - `--new-session --title <subject>` creates the Session together with its task. Name it after the
   task's concrete subject, in the language the user speaks with you even when the task file is in
   English, and without a generic prefix such as `Delegated task:`; the user reads it in the
@@ -244,8 +256,13 @@ Then write the task to a file and run
 - Add `--consult` (only with `--new-session`, never with `--handoff`) for a question or review that
   changes no files, whose answer you read back. Caxri records that Session as a consult of yours
   rather than as delegated work, and its Session takes no sidebar row while yours is listed. A task
-  that is neither a hand-off nor a consult, such as one that changes files and that you wait on,
-  takes neither flag.
+  that is none of these, such as one that changes files and that you wait on, takes no flag.
+- Add `--independent` (only with `--new-session`, never with `--handoff` or `--consult`) when the user
+  asks for a separate, parallel, or sibling Session for its own task that you will not wait on, for
+  example "open another Session to write the release notes". It gets its own top-level sidebar row
+  with a "Started from" line. Caxri sends you no update when it settles and asks you none of its
+  questions; they go to the user. Report the new Session and move on. `wait` and `result` still work
+  if you call them. Use the default only when you wait on the task and read its result.
 - Add `--worktree <new-branch>` (only with `--new-session`) to work on the same repository in
   parallel: Caxri creates a Git worktree on that new branch beside the Project folder
   (`<project>.worktrees/<branch>`) and runs the Session there, listed under the original Project.
@@ -261,6 +278,11 @@ Then write the task to a file and run
   outcome. It lists finished work and never marks an answer read; read one with `agent delegate result <id>`. A
   title can echo the first words of the prompt and an `excerpt` summary can hold answer text, so do
   not forward history output to others.
+- Change the direction of a running Chat task with `caxri agent delegate redirect <id> --text <direction> --json`
+  (or `--prompt-file`). It is steered into the task's current turn or refused with a closed `reason`
+  (`waiting`, `human_intervened`, `not_running`, `not_chat`, `turn_changed`, `not_steerable`, ...); it is
+  never queued. On `turn_changed` use `--follow-up`. On `delivery_unknown` read the transcript before
+  sending again; reuse the same `--operation-id` only to repeat the same text safely.
 - The user sees which Session created the new one. Keep what you created tidy:
   `caxri agent session rename <session-id> --title <title> --json` when its subject changes, and
   `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).
@@ -271,12 +293,19 @@ Then write the task to a file and run
 - `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex, Grok, or Antigravity child Terminal.
   Use `agent delegate presets --project <id> --session <id>` to discover caller-specific presets,
   then select `--preset <name>` or explicit `--provider` with optional `--model` and `--effort`.
+  Add `--surface chat|terminal` to choose the child's surface for a new task: `chat` when you need
+  `agent delegate transcript`, `approve`, or the child's questions (it works even if the user turned
+  Open Agents in Chat off, and fails with `forced_chat_unavailable` for Grok or Antigravity); `terminal` for
+  TUI-only work (no transcript, no parent approval). Omit it to follow the user's setting. The receipt's
+  `surface` is what the child actually got. Not with `--follow-up`, `--resume`, or `--continue-handover`.
   The Server enforces preset exclusions and nesting depth. Follow-up and resume keep their saved
   selection and instructions; do not resend a different model or try to override caller identity.
   Every managed Agent holds `agents.delegate`; an external caller needs an owner-issued delegation
   identity. Pass `--project` with `--session` or `--new-session --title <text>`.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
-  to retrieve the exact saved answer. A settled answer may carry `pullRequest` (`url`, `state`,
+  to retrieve the exact saved answer. You need not wait: when the task settles, asks you a question,
+  or needs your approval while you are running, Caxri sends you a short `[Caxri] Delegated task update`
+  message naming the task IDs; read each with the command it lists. It carries no answer text. A settled answer may carry `pullRequest` (`url`, `state`,
   `changedFileCount`): the pull request Caxri found for that Session, so its file count covers the
   whole pull request, not only this task. To check a Chat task's progress without interrupting it,
   `agent delegate transcript <id>` returns its conversation as typed rows; pass the returned `next`
@@ -315,7 +344,10 @@ Then write the task to a file and run
   without it. `agent delegate ask-cancel <question-id>` withdraws a question you no longer need.
   Reuse a stable `--request-id` when recovering a disconnected create request.
   Use `agent delegate create --follow-up <id>` with a fresh prompt file for the next task in the
-  same idle Terminal. Use `agent delegate stop <id>` to interrupt your active task.
+  same idle Terminal. If the user took the Session over, `--follow-up` and any new `create` into it
+  are refused (`human_intervened`, `session_taken_over`) and you must not retry; the user may hand
+  it back, which wakes you with `[Caxri] The user handed Session <id> back to you`, and you then
+  follow up once with `agent delegate create --follow-up <task>`. Use `agent delegate stop <id>` to interrupt your active task.
   `agent delegate create --resume <id>` explicitly starts a new task in the exact saved native
   conversation with frozen settings; it never replays the old prompt.
   The owner may retry a failed task from Caxri, and the receipt then carries `retriedAs`: the task

@@ -15,6 +15,20 @@ import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { useOpenSession } from './use-open-session';
 
 /**
+ * The words that name where a task came from: a redirect, a continued hand-off, a Session another Agent started on its
+ * own, or an ordinary delegation. `unknown` is used when the source Session cannot be found.
+ */
+function sourceWords(task: AgentChatDelegatedTask) {
+    if (task.redirect)
+        return { by: 'chat.delegated.redirectedBy', unknown: 'chat.delegated.redirect' } as const;
+    if (task.handoff)
+        return { by: 'chat.handoff.continuedFrom', unknown: 'chat.handoff.fromEarlier' } as const;
+    if (task.independent)
+        return { by: 'chat.independent.startedBy', unknown: 'chat.independent.task' } as const;
+    return { by: 'chat.delegated.by', unknown: 'chat.delegated.task' } as const;
+}
+
+/**
  * "Delegated by" and who: a link to a Session the phone lists, or Caxri Bot. A source the phone cannot open (archived,
  * deleted, or never recorded) reads as a plain delegated task. A hand-off (`/new-session`) reads "Continued from" its
  * Session instead, since this Session carries that one's work on.
@@ -31,9 +45,7 @@ function DelegatedTaskSource({
     const openSession = useOpenSession();
     const { source } = task;
     const by = (
-        <Text style={[styles.sourceText, { color: theme.muted }]}>
-            {t(task.handoff ? 'chat.handoff.continuedFrom' : 'chat.delegated.by')}
-        </Text>
+        <Text style={[styles.sourceText, { color: theme.muted }]}>{t(sourceWords(task).by)}</Text>
     );
     if (source?.kind === 'bot')
         return (
@@ -47,7 +59,7 @@ function DelegatedTaskSource({
     if (!session)
         return (
             <Text style={[styles.sourceText, { color: theme.text }]}>
-                {t(task.handoff ? 'chat.handoff.fromEarlier' : 'chat.delegated.task')}
+                {t(sourceWords(task).unknown)}
             </Text>
         );
     const title = sessionTitleForDisplay(session.title, t);
@@ -74,8 +86,9 @@ function DelegatedTaskSource({
  * A delegated task in place of the user's bubble, as Desktop draws it. Its text is only the pointer to a private task
  * file that the user never typed, so the bubble names who delegated it and shows the task the caller wrote, clamped to
  * six lines with Show more like Desktop's. Only a task whose delegation record is gone falls back to the pointer behind
- * Show instruction. The list owns `isExpanded`, so a recycled row never carries another message's state and grows when
- * it unfolds.
+ * Show instruction. A redirect of a running task (`task.redirect`) reads "Updated direction from" instead of "Delegated
+ * by" and shows the new direction. The list owns `isExpanded`, so a recycled row never carries another message's state
+ * and grows when it unfolds.
  */
 export const AgentChatDelegatedMessage = ({
     body,

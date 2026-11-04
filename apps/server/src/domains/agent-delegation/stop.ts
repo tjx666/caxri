@@ -10,6 +10,10 @@ import type { AgentDelegationServiceOptions } from './service-options';
 export interface DelegationStopHost {
     options: Pick<AgentDelegationServiceOptions, 'database' | 'write'>;
     save(record: StoredAgentDelegation): StoredAgentDelegation;
+    /**
+     * Tells the delegating Agent's notices that the caller was handed this receipt, so it is not announced again.
+     */
+    told(receipt: AgentDelegationReceipt): AgentDelegationReceipt;
 }
 
 /**
@@ -44,12 +48,13 @@ export function stopDelegation(
         host.options.write?.(terminalId, record.launchId, '\u{1B}', (wasDelivered) =>
             settleStop(host, delegationId, wasDelivered),
         );
-    return host.save({
+    const { receipt } = host.save({
         ...record,
         receipt: {
             ...record.receipt,
             status: 'interrupted',
             failure: accepted ? 'caller_stopped' : 'target_changed',
         },
-    }).receipt;
+    });
+    return host.told(receipt);
 }

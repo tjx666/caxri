@@ -23,6 +23,7 @@ const TAKEOVER_STALE_TIME_MS = 60_000;
 type DelegationOriginTask = Pick<
     AgentDelegationSession,
     | 'approval'
+    | 'control'
     | 'delegationId'
     | 'failure'
     | 'provider'
@@ -85,6 +86,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                 return (
                     entry && {
                         approval: entry.approval,
+                        control: entry.control,
                         delegationId: entry.delegationId,
                         failure: entry.failure,
                         provider: entry.provider,
@@ -103,7 +105,13 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
     const takenOverAt = task?.takenOverAt;
     return useMemo(() => {
         if (!canShow || !session) return NONE;
-        const origin = delegationOrigin(session, parent, takenOverAt, task?.waitingOn);
+        const origin = delegationOrigin(
+            session,
+            parent,
+            takenOverAt,
+            task?.waitingOn,
+            task?.control,
+        );
         return origin ? { origin, task, takenOverAt } : NONE;
     }, [canShow, session, parent, task, takenOverAt]);
 }

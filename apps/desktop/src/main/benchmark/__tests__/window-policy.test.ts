@@ -23,9 +23,11 @@ describe('Benchmark window policy', () => {
             'app.records',
             'agent.delegation.sessions',
             'agent.delegation.statuses',
+            'agent.delegation.attention',
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
             'agent.delegation.cancelScheduledRetry',
+            'agent.delegation.handBack',
             'agent.delegation.questionAnswer',
             'agent.delegation.questionDetail',
         ])
@@ -39,9 +41,11 @@ describe('Benchmark window policy', () => {
             ['app.records'],
             ['agent.delegation.sessions'],
             ['agent.delegation.statuses'],
+            ['agent.delegation.attention'],
             ['agent.delegation.retryOptions'],
             ['agent.delegation.retry'],
             ['agent.delegation.cancelScheduledRetry'],
+            ['agent.delegation.handBack'],
             ['agent.delegation.questionAnswer'],
             ['agent.delegation.questionDetail'],
         ]);

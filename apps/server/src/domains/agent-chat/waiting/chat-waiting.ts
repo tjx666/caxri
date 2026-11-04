@@ -30,7 +30,7 @@ export interface WaitingChatSource {
 function latestPrompt(items: AgentChatSnapshot['items']): string | undefined {
     for (let index = items.length - 1; index >= 0; index -= 1) {
         const item = items[index];
-        if (item.type !== 'userMessage' || item.delegatedTask) continue;
+        if (item.type !== 'userMessage' || item.delegatedTask || item.delegationNotice) continue;
         const text = item.text.trim();
         if (text) return clip(text, AGENT_CHAT_WAITING_PROMPT_MAX_LENGTH);
     }

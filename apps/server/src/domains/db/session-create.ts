@@ -26,8 +26,8 @@ export interface CreateSessionOptions {
      */
     createdBySessionId?: string;
     /**
-     * How the creator started it (`delegated`, `handoff`, or `consult`). Stored only with `createdBySessionId`; Caxri
-     * Bot's Sessions name their creator without one.
+     * How the creator started it (`delegated`, `handoff`, `consult`, or `independent`). Stored only with
+     * `createdBySessionId`; Caxri Bot's Sessions name their creator without one.
      */
     createdByRelation?: SessionRelation;
     /**

@@ -35,7 +35,8 @@ interface DelegatedSessionRowsProperties {
      */
     failedSessionIds: ReadonlySet<string>;
     /**
-     * The nested Chat Sessions whose permission request waits on the user (`DelegationFeed.approvalSessionIds`).
+     * The nested Sessions whose permission request or escalated question waits on the user
+     * (`DelegationFeed.approvalSessionIds`).
      */
     approvalSessionIds: ReadonlySet<string>;
     /**

@@ -1,11 +1,11 @@
 import type { AgentDelegationSession, AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, isDelegationRetryPending } from '@caxri/protocol';
 
 import { useClockTick } from '@/hooks/use-clock-tick';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { isDelegationRetryPending, isRetryCandidate } from './delegation-feed';
+import { isRetryCandidate } from './delegation-feed';
 import { DELEGATION_LINK_CLASS_NAME } from './delegation-link-class-name';
 import { DelegationNextStepActions } from './delegation-next-step-actions';
 import { DelegationRetryAction } from './delegation-retry-action';

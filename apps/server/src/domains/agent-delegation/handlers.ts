@@ -7,7 +7,7 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { ApprovalMethod } from './approvals/handlers';
 import { createApprovalHandlers } from './approvals/handlers';
-import { delegationStatuses } from './feed';
+import { delegationAttention, delegationStatuses } from './feed';
 import { readHistory } from './history';
 import type { QuestionMethod } from './questions/handlers';
 import { createQuestionHandlers } from './questions/handlers';
@@ -20,11 +20,15 @@ type DelegationMethod =
     | 'agent.delegation.presetsInternal'
     | 'agent.delegation.stop'
     | 'agent.delegation.stopInternal'
+    | 'agent.delegation.redirect'
+    | 'agent.delegation.redirectInternal'
     | 'agent.delegation.sessions'
     | 'agent.delegation.statuses'
+    | 'agent.delegation.attention'
     | 'agent.delegation.retryOptions'
     | 'agent.delegation.retry'
     | 'agent.delegation.cancelScheduledRetry'
+    | 'agent.delegation.handBack'
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
@@ -117,6 +121,12 @@ export function createDelegationHandlers(
             sessions: service.sessions(createdBySessionIds),
         }),
         /**
+         * Owner-only and never `claimed`: the tree-wide roll-up of what needs the user below the direct children; see
+         * `delegationAttention`.
+         */
+        'agent.delegation.attention': ({ sessionId }) =>
+            delegationAttention({ database, approvals: service.approvals }, sessionId),
+        /**
          * Owner-only and never `claimed`, like the feed: it reads states, not answers.
          */
         'agent.delegation.statuses': ({ delegationIds }) => ({
@@ -132,6 +142,7 @@ export function createDelegationHandlers(
             service.retries.retry(delegationId, mode, scheduleAt, provider),
         'agent.delegation.cancelScheduledRetry': ({ delegationId }) =>
             service.retries.cancelScheduled(delegationId),
+        'agent.delegation.handBack': ({ delegationId }) => service.handBacks.handBack(delegationId),
         'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({
             projectId,
@@ -142,6 +153,9 @@ export function createDelegationHandlers(
         'agent.delegation.stop': () => coreRouted('agent.delegation.stop'),
         'agent.delegation.stopInternal': ({ delegationId, ...authority }) =>
             service.stop(delegationId, authority),
+        'agent.delegation.redirect': () => coreRouted('agent.delegation.redirect'),
+        'agent.delegation.redirectInternal': ({ delegationId, operationId, text, ...authority }) =>
+            service.redirects.redirect(authority, { delegationId, operationId, text }),
         'agent.delegation.create': () => coreRouted('agent.delegation.create'),
         'agent.delegation.status': () => coreRouted('agent.delegation.status'),
         'agent.delegation.result': () => coreRouted('agent.delegation.result'),
@@ -170,11 +184,11 @@ export function createDelegationHandlers(
             service.create(delegationId, authority, input),
         'agent.delegation.statusInternal': ({ delegationId, ...authority }) =>
             service.status(delegationId, authority),
-        'agent.delegation.resultInternal': async ({ delegationId, ...authority }) =>
-            withPullRequest(
-                pullRequests,
-                claimed(database, await service.result(delegationId, authority)),
-            ),
+        'agent.delegation.resultInternal': async ({ delegationId, ...authority }) => {
+            const read = await service.result(delegationId, authority);
+            service.notices.readOutcome(read, authority);
+            return withPullRequest(pullRequests, claimed(database, read));
+        },
         'agent.delegation.history': () => coreRouted('agent.delegation.history'),
         /**
          * Reads settled-task rows only, never an answer, so it is never `claimed`.

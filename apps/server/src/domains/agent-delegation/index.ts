@@ -11,3 +11,4 @@ export { delegationResumeLaunch } from './launch';
 export { laterResetTime } from './receipt-timing';
 export { AgentDelegationService } from './service';
 export type { DelegationWorktree } from './service-options';
+export { delegatedDescendants } from './tree';

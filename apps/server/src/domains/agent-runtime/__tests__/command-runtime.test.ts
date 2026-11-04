@@ -58,6 +58,8 @@ function createRuntime(
                 active: () => [],
                 all: () => [],
                 questions: { cancelAllOpen: () => [] },
+                handBacks: { pending: () => [] },
+                notices: { pending: () => [] },
             },
             getTerminal: (id: string) =>
                 [CHAT_TERMINAL, PTY_TERMINAL].find((terminal) => terminal.id === id),

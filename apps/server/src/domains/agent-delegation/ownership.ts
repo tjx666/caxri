@@ -3,7 +3,7 @@ import { isDelegationActive } from '@caxri/protocol';
 
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
-import { isCaxriBotCaller } from './admission';
+import { isCaxriBotCaller, isSamePrincipal } from './admission';
 
 /**
  * Whether a principal reads every task: all kinds except an Agent and a delegation client, which are held to the tasks
@@ -26,7 +26,7 @@ export function isDelegationOwner(
     if (isDelegationOwnerPrincipal(authority.principal)) return true;
     return (
         authority.callerTerminalId === record.receipt.callerTerminalId &&
-        (JSON.stringify(authority.principal) === JSON.stringify(record.principal) ||
+        (isSamePrincipal(authority.principal, record.principal) ||
             isCaxriBotCaller(database, authority))
     );
 }

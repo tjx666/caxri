@@ -65,6 +65,7 @@ function DelegatedSessionRowContent({
     isPresetDetailVisible,
     projectTitle,
     title,
+    viaTitle,
 }: {
     attempt?: number;
     cost?: DelegatedCostLabel;
@@ -75,6 +76,10 @@ function DelegatedSessionRowContent({
     isPresetDetailVisible: boolean;
     projectTitle?: string;
     title: string;
+    /**
+     * The direct child a deeper row sits under, titled; absent for a direct child.
+     */
+    viaTitle?: string;
 }) {
     const { t } = useTranslation();
     const copyInput = delegationCopyInput(entry);
@@ -105,6 +110,11 @@ function DelegatedSessionRowContent({
                     {attempt !== undefined && (
                         <span className="shrink-0">
                             {t('delegation.retry.attempt', { number: attempt })}
+                        </span>
+                    )}
+                    {viaTitle !== undefined && (
+                        <span className="min-w-0 shrink truncate">
+                            {t('delegation.strip.via', { title: viaTitle })}
                         </span>
                     )}
                 </span>
@@ -147,6 +157,7 @@ export function AgentChatDelegatedSessionRow({
     attempt,
     cost,
     entry,
+    viaSessionId,
 }: {
     /**
      * Which attempt this task is when it retries a failed one (2 or more); `undefined` for a first attempt.
@@ -157,9 +168,14 @@ export function AgentChatDelegatedSessionRow({
      */
     cost?: DelegatedCostLabel;
     entry: AgentDelegationSession;
+    /**
+     * The direct child this row sits under, for a deeper Session the roll-up lists; absent for a direct child.
+     */
+    viaSessionId?: string;
 }) {
     const { t } = useTranslation();
     const session = useSessionById(entry.sessionId);
+    const viaSession = useSessionById(viaSessionId);
     const project = useProjectById(session?.projectId);
     const title = session
         ? sessionTitleForDisplay(session.title, t)
@@ -173,6 +189,13 @@ export function AgentChatDelegatedSessionRow({
             isPresetDetailVisible={!session}
             projectTitle={project?.title}
             title={title}
+            viaTitle={
+                viaSessionId === undefined
+                    ? undefined
+                    : viaSession
+                      ? sessionTitleForDisplay(viaSession.title, t)
+                      : t('delegation.strip.unavailable')
+            }
         />
     );
     return (

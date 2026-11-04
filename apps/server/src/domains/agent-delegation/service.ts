@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type {
     AgentDelegationCreate,
     AgentDelegationCreateRequest,
@@ -17,6 +15,7 @@ import {
     admittedDelegation,
     authorizeDelegationSession,
     delegationCaller,
+    delegationFingerprint,
     delegationRoster,
     isCaxriBotCaller,
     resolveDelegationAdmission,
@@ -25,23 +24,28 @@ import { DelegationApprovals } from './approvals/service';
 import { assertTerminalChildHooks, childLaunchFailure } from './chat-child';
 import type { DelegationCollectionHost } from './collection';
 import { collectDelegationResult } from './collection';
+import { CollectionTimers } from './collection-timers';
+import { SessionDeletionFence } from './deletion-fence';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
+import { ExternalCapacity } from './external-capacity';
 import { DelegationProgress, delegationSessions } from './feed';
 import { startFreshTask } from './fresh-start';
+import { DelegationHandBacks } from './handback/service';
 import { recordSettlement } from './history';
+import { interruptDelegationTerminal } from './interrupt';
 import { fenceTerminalLaunch } from './launch-fence';
 import {
     applyDelegationLifecycle,
     canFailDelegation,
     isReceiptTransition,
     recoveredDelegation,
-    withHumanIntervention,
 } from './lifecycle';
 import { admitDelegationRequest } from './new-session';
 import { isDelegationOwner, listOwnedDelegations } from './ownership';
 import { ParentPresence } from './parent-presence';
 import { DelegationQuestions } from './questions/service';
 import { stampedReceipt } from './receipt-timing';
+import { DelegationRedirects } from './redirect';
 import { collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
 import {
@@ -54,9 +58,10 @@ import {
 import type { RetryAdmission } from './retry';
 import { assertRetryProvider, DelegationRetries } from './retry';
 import type { AgentDelegationServiceOptions } from './service-options';
-import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
+import { SettlementNotices } from './settlement-notice/service';
+import { noticeSources, withNoticeHooks } from './settlement-notice/wiring';
 import { stopDelegation } from './stop';
-import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
+import { reclaimPrunedDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
 import { DelegationWaiters } from './wait';
 
@@ -66,7 +71,11 @@ import { DelegationWaiters } from './wait';
 export class AgentDelegationService {
     private readonly requests = new SingleFlight<string, AgentDelegationReceipt>();
     private readonly now: () => number;
-    private readonly collectors = new Map<string, NodeJS.Timeout>();
+    private readonly collectors = new CollectionTimers({
+        isClosed: () => this.isClosed,
+        result: (id, authority) => this.result(id, authority),
+        fail: (id, failure) => this.fail(id, failure),
+    });
     private readonly activeTerminals = new Map<string, string>();
     private readonly nextCollections = new Map<string, number>();
     private readonly collections = new SingleFlight<
@@ -75,8 +84,8 @@ export class AgentDelegationService {
     >();
     private isClosed = false;
     private readonly waiters = new DelegationWaiters();
-    private readonly deletingSessions = new Set<string>();
-    private readonly pendingCreations = new Map<string, Set<Promise<AgentDelegationReceipt>>>();
+    private readonly sessionFence = new SessionDeletionFence();
+    private readonly capacity: ExternalCapacity;
 
     private readonly submissions: DelegationSubmissions;
     private readonly progress?: DelegationProgress;
@@ -95,10 +104,28 @@ export class AgentDelegationService {
      */
     readonly approvals: DelegationApprovals;
 
+    /**
+     * Strict redirects of running Chat tasks; handlers call it directly.
+     */
+    readonly redirects: DelegationRedirects;
+
+    /**
+     * Wakes the Agent that delegated a task; the idle-suspension policy, the PTY input hook and handlers call it.
+     */
+    readonly notices: SettlementNotices;
+
+    /**
+     * The user's single-use grants to continue a Session they took over; handlers call it directly.
+     */
+    readonly handBacks: DelegationHandBacks;
+
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
-        this.submissions = new DelegationSubmissions(options, (id, failure) =>
-            this.fail(id, failure),
+        this.capacity = new ExternalCapacity(options.database);
+        this.submissions = new DelegationSubmissions(
+            options,
+            (id, failure) => this.fail(id, failure),
+            (record) => this.save(record),
         );
         this.retries = new DelegationRetries({
             options,
@@ -120,8 +147,23 @@ export class AgentDelegationService {
             owned: (id: string, authority: DelegationAuthority, access: DelegationAccess) =>
                 this.owned(id, authority, access),
         };
-        this.questions = new DelegationQuestions(host);
-        this.approvals = new DelegationApprovals(host);
+        this.handBacks = new DelegationHandBacks(options, {
+            hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
+            notices: () => this.notices,
+        });
+        this.notices = new SettlementNotices(
+            options,
+            noticeSources(() => this),
+        );
+        const hooked = { ...host, options: withNoticeHooks(options, this.notices) };
+        this.questions = new DelegationQuestions(hooked);
+        this.approvals = new DelegationApprovals(hooked);
+        this.redirects = new DelegationRedirects({
+            ...host,
+            questions: this.questions,
+            approvals: this.approvals,
+            save: (record) => this.save(record),
+        });
         this.collection = {
             reader: options,
             owned: (id, authority) => this.owned(id, authority, 'existing'),
@@ -167,6 +209,7 @@ export class AgentDelegationService {
             this.approvals.taskEnded(delegationId);
         }
         recordSettlement(this.options.database, saved, before, this.options.logger);
+        this.notices.recorded(saved, before?.receipt);
         if (isReceiptTransition(before?.receipt, saved.receipt)) {
             logDelegationTransition(
                 this.options.logger,
@@ -194,7 +237,7 @@ export class AgentDelegationService {
         access: DelegationAccess,
         isNewSession = false,
     ): void {
-        if (this.deletingSessions.has(input.sessionId))
+        if (this.sessionFence.has(input.sessionId))
             throw new CaxriError('CONFLICT', 'Delegation Session is being deleted');
         authorizeDelegationSession(this.options.database, authority, input, access, isNewSession);
     }
@@ -205,26 +248,6 @@ export class AgentDelegationService {
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
     }
 
-    private scheduleCollection(record: StoredAgentDelegation): void {
-        const id = record.receipt.delegationId;
-        if (this.isClosed || this.collectors.has(id)) return;
-        const timer = setTimeout(async () => {
-            this.collectors.delete(id);
-            try {
-                const result = await this.result(id, {
-                    principal: record.principal,
-                    callerTerminalId: record.receipt.callerTerminalId,
-                });
-                if (isDelegationActive(result.receipt)) this.scheduleCollection(record);
-            } catch {
-                // Session deletion or shutdown ends ownership; never copy provider content into diagnostics.
-                if (!this.isClosed) this.fail(id, 'result_missing');
-            }
-        }, collectionIntervalMs(record.receipt.provider));
-        timer.unref();
-        this.collectors.set(id, timer);
-    }
-
     private exactResumeHost(
         authority: DelegationAuthority,
         retry?: RetryAdmission,
@@ -232,26 +255,14 @@ export class AgentDelegationService {
         return {
             beforeStart: retry && (() => retry.guard()),
             hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
+            handBacks: this.handBacks,
             options: this.options,
             owned: (id) => this.owned(id, authority),
             save: (record) => this.save(record),
             fail: (id, failure) => this.fail(id, failure),
-            isDeleting: (sessionId) => this.deletingSessions.has(sessionId),
+            isDeleting: (sessionId) => this.sessionFence.has(sessionId),
             submit: (...submission) => this.submissions.submit(...submission),
         };
-    }
-
-    /**
-     * Settles a launch that has not started its turn by the deadline; see `startupDeadlineOutcome`.
-     */
-    private armStartupDeadline(id: string, terminalId: string, launchId: string): void {
-        this.submissions.arm(id, () => {
-            const current = this.options.database.agentDelegations.get(id);
-            const isAlive = this.options.currentLaunchId?.(terminalId) === launchId;
-            const outcome = current && startupDeadlineOutcome(current, isAlive);
-            if (outcome === 'startup_not_ready') this.fail(id, outcome);
-            else if (outcome) this.save(outcome);
-        });
     }
 
     private async createInSession(
@@ -260,11 +271,10 @@ export class AgentDelegationService {
         input: AgentDelegationCreate,
         isNewSession: boolean,
         retry?: RetryAdmission,
+        projectPath?: string,
     ): Promise<AgentDelegationReceipt> {
         this.authorize(authority, input, 'create', isNewSession);
-        const fingerprint = createHash('sha256')
-            .update(JSON.stringify({ authority, input }))
-            .digest('hex');
+        const fingerprint = delegationFingerprint(authority, input, projectPath);
         const pending = this.requests.run(id, async () => {
             const existing = this.options.database.agentDelegations.get(id);
             if (existing) {
@@ -277,16 +287,9 @@ export class AgentDelegationService {
                 return existing.receipt;
             }
             const previousId = input.followUpOf ?? input.resumeFrom;
-            if (authority.principal.kind === 'delegation-client') {
-                const active = this.options.database.agentDelegations
-                    .active()
-                    .filter((record) => record.input.sessionId === input.sessionId).length;
-                if (active + (this.pendingCreations.get(input.sessionId)?.size ?? 0) >= 4)
-                    throw new CaxriError(
-                        'CAPACITY',
-                        'External delegation Session already has four active or pending tasks',
-                    );
-            }
+            if (!isNewSession && !previousId && !input.continueFromHandover)
+                this.handBacks.assertFreshCreateAllowed(authority, input.sessionId);
+            this.capacity.assertRoom(authority);
             const previous = previousId ? this.owned(previousId, authority) : undefined;
             const { continueFromHandover } = input;
             const handoverRequest = continueFromHandover
@@ -367,25 +370,21 @@ export class AgentDelegationService {
             }
             return this.owned(id, authority).receipt;
         });
-        let creations = this.pendingCreations.get(input.sessionId);
-        if (!creations) {
-            creations = new Set();
-            this.pendingCreations.set(input.sessionId, creations);
-        }
-        creations.add(pending);
+        const untrack = this.sessionFence.track(input.sessionId, pending);
+        const release = this.capacity.reserve(authority, id);
         let receipt: AgentDelegationReceipt;
         try {
             receipt = await pending;
         } finally {
-            creations.delete(pending);
-            if (creations.size === 0) this.pendingCreations.delete(input.sessionId);
+            release();
+            untrack();
         }
         if (this.owned(id, authority).fingerprint !== fingerprint)
             throw new CaxriError(
                 'CONFLICT',
                 'Delegation request was already used for another task',
             );
-        return receipt;
+        return this.notices.told(receipt, authority);
     }
 
     /**
@@ -398,11 +397,7 @@ export class AgentDelegationService {
             throw new CaxriError('CANCELLED', 'Delegation no longer owns this launch');
         if (delegationId && this.bindLaunch(terminalId, launchId)) return true;
         fenceTerminalLaunch(
-            {
-                database: this.options.database,
-                inputEpoch: (id) => this.options.inputEpoch?.(id),
-                save: (record) => this.save(record),
-            },
+            { options: this.options, save: (record) => this.save(record) },
             terminalId,
             launchId,
         );
@@ -459,33 +454,28 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         request: AgentDelegationCreateRequest,
     ): Promise<AgentDelegationReceipt> {
-        return admitDelegationRequest(this.options, id, authority, request, (input, isNewSession) =>
-            this.createInSession(id, authority, input, isNewSession),
+        return admitDelegationRequest(this.options, id, authority, request, (input, isNew, path) =>
+            this.createInSession(id, authority, input, isNew, undefined, path),
         );
     }
 
     /**
-     * Fences creation and cleans private files before deleting metadata; failed cleanup retains the records.
+     * Fences creation and cleans private files before deleting metadata; see {@link SessionDeletionFence}.
      */
-    async deleteSessions<T>(ids: readonly string[], remove: () => T | Promise<T>): Promise<T> {
-        if (ids.some((id) => this.deletingSessions.has(id)))
-            throw new CaxriError('CONFLICT', 'Delegation Session is already being deleted');
-        for (const id of ids) this.deletingSessions.add(id);
-        try {
-            await Promise.allSettled(
-                ids.flatMap((id) => [...(this.pendingCreations.get(id) ?? [])]),
-            );
-            await removeDelegationFiles(
-                this.options.userDataPath,
-                this.options.database.agentDelegations.storageRootsForSessions(ids),
-            );
-            const removed = await remove();
-            this.questions.forget(ids);
-            this.approvals.forget(ids);
-            return removed;
-        } finally {
-            for (const id of ids) this.deletingSessions.delete(id);
-        }
+    deleteSessions<T>(ids: readonly string[], remove: () => T | Promise<T>): Promise<T> {
+        return this.sessionFence.delete(
+            ids,
+            {
+                userDataPath: this.options.userDataPath,
+                storageRoots: (sessionIds) =>
+                    this.options.database.agentDelegations.storageRootsForSessions(sessionIds),
+                forget: (sessionIds) => {
+                    this.questions.forget(sessionIds);
+                    this.approvals.forget(sessionIds);
+                },
+            },
+            remove,
+        );
     }
 
     bindLaunch(terminalId: string, launchId: string): boolean {
@@ -497,7 +487,7 @@ export class AgentDelegationService {
             inputEpoch: this.options.inputEpoch?.(terminalId),
             receipt: { ...record.receipt, status: 'awaiting_ready' },
         });
-        this.armStartupDeadline(record.receipt.delegationId, terminalId, launchId);
+        this.submissions.armStartup(record.receipt.delegationId, terminalId, launchId);
         return true;
     }
 
@@ -522,6 +512,11 @@ export class AgentDelegationService {
     }
 
     observe(signal: AgentLifecycleSignal, source: 'lifecycle' | 'evidence' = 'lifecycle'): void {
+        if (source === 'lifecycle') {
+            this.notices.observe(signal);
+            if (signal.phase === 'turnStarted' && !signal.agentId)
+                this.handBacks.invalidateTerminal(signal.terminalId);
+        }
         const record = this.activeForTerminal(signal.terminalId);
         if (!record) return;
         const next = applyDelegationLifecycle(record, signal, source, this.options);
@@ -529,14 +524,14 @@ export class AgentDelegationService {
             const saved = this.save(next);
             // A session that starts past the deadline gets a fresh one, so a turn that never follows still settles.
             if (record.receipt.status === 'blocked' && saved.receipt.status === 'awaiting_ready')
-                this.armStartupDeadline(
+                this.submissions.armStartup(
                     saved.receipt.delegationId,
                     signal.terminalId,
                     saved.launchId!,
                 );
             if (saved.turnId || !isDelegationActive(saved.receipt))
                 this.submissions.clear(saved.receipt.delegationId);
-            if (shouldCollectDelegation(saved)) this.scheduleCollection(saved);
+            if (shouldCollectDelegation(saved)) this.collectors.schedule(saved);
         }
     }
 
@@ -548,6 +543,7 @@ export class AgentDelegationService {
         const delegationId = this.activeTerminals.get(terminalId);
         if (delegationId) this.progress?.observe(delegationId, this.options.chatStep?.(terminalId));
         this.approvals.observe(terminalId);
+        this.notices.chatChanged(terminalId);
     }
 
     status(id: string, authority: DelegationAuthority): AgentDelegationStatusResult {
@@ -557,79 +553,83 @@ export class AgentDelegationService {
     }
 
     stop(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
-        const host = {
-            options: this.options,
-            save: (record: StoredAgentDelegation) => this.save(record),
-        };
-        return stopDelegation(host, this.owned(id, authority, 'existing'));
+        return stopDelegation(
+            {
+                options: this.options,
+                save: (record) => this.save(record),
+                told: (receipt) => this.notices.told(receipt, authority),
+            },
+            this.owned(id, authority, 'existing'),
+        );
     }
 
     initialize(): void {
         this.questions.reset();
         this.approvals.reset();
         this.retries.recoverClaims();
+        this.notices.initialize();
+        this.handBacks.initialize();
+        this.redirects.recover();
         for (const record of this.options.database.agentDelegations.active()) {
             const { next, shouldCollect } = recoveredDelegation(
                 record,
                 this.options.isChatTerminal,
             );
             const saved = this.save(next, false);
-            if (shouldCollect) this.scheduleCollection(saved);
+            if (shouldCollect) this.collectors.schedule(saved);
         }
     }
 
     close(): void {
         this.isClosed = true;
         void this.retries.closeSchedules();
-        for (const timer of this.collectors.values()) clearTimeout(timer);
+        this.collectors.close();
         this.submissions.close();
         this.progress?.close();
+        this.notices.close();
         this.questions.close();
         this.approvals.close();
-        this.collectors.clear();
         this.activeTerminals.clear();
         this.nextCollections.clear();
     }
 
-    wait(
+    async wait(
         ids: readonly [string, ...string[]],
         authority: DelegationAuthority,
         timeoutMs: number,
         signal?: AbortSignal,
         shouldIgnoreQuestions = false,
     ) {
+        const release = this.notices.waiting(authority, ids, shouldIgnoreQuestions);
         const read = async (id: string) => ({
             ...(await this.result(id, authority)),
             ...(!shouldIgnoreQuestions && { questionId: this.questions.openId(id) }),
             approval: this.approvals.viewFor(id),
         });
-        return this.waiters.poll(ids, read, () => this.isClosed, timeoutMs, signal);
+        try {
+            const poll = this.waiters.poll(ids, read, () => this.isClosed, timeoutMs, signal);
+            return this.notices.readOutcome(await poll, authority);
+        } finally {
+            release();
+        }
     }
 
     interruptTerminal(terminalId: string, isHumanInput = false, retiredLaunchId?: string): void {
-        const starting = this.activeForTerminal(terminalId);
-        if (isHumanInput && starting && isStartupPromptInput(starting)) {
-            this.save({ ...starting, inputEpoch: this.options.inputEpoch?.(terminalId) });
-            return;
-        }
-        this.questions.interrupted(
+        if (retiredLaunchId) this.notices.retired(terminalId);
+        interruptDelegationTerminal(
+            {
+                options: this.options,
+                questions: this.questions,
+                approvals: this.approvals,
+                handBacks: this.handBacks,
+                now: this.now,
+                activeForTerminal: (id) => this.activeForTerminal(id),
+                save: (record) => this.save(record),
+            },
             terminalId,
-            starting?.receipt.delegationId,
             isHumanInput,
             retiredLaunchId,
         );
-        this.approvals.interrupted(terminalId, isHumanInput, retiredLaunchId);
-        // A completed answer stays readable, but takeover revokes its continuation authority for good. Persisted on
-        // each task that still lacks the mark (the input epoch alone is lost on restart), dated for the feed's
-        // `takenOverAt`. Deliberately not guarded per Terminal: a task delegated into a Terminal the user already
-        // typed in must still be marked by the next input.
-        if (isHumanInput)
-            for (const task of this.options.database.agentDelegations.forTerminal(terminalId))
-                if (!task.hasHumanIntervention) this.save(withHumanIntervention(task, this.now()));
-        // Re-read: the takeover mark above may have just rewritten the active task.
-        const record = this.activeForTerminal(terminalId);
-        const next = record && interruptedDelegation(record, isHumanInput, retiredLaunchId);
-        if (next) this.save(next);
     }
 
     async result(id: string, authority: DelegationAuthority) {

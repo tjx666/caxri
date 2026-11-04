@@ -22,11 +22,16 @@ not make their authority, origin, retry, or audit semantics interchangeable.
 environments for this command and `terminal send`. These checks distinguish authenticated connection
 roles; they do not isolate mutually untrusted processes sharing the same OS user.
 
-`agent delegate access create|list|revoke` requires the owner CLI's `agents.delegation.access`
-capability. It issues a separate `delegation-client` principal, bound to one Project, dedicated
-Session and caller provider, with only `agents.delegate`. It is not a managed Endpoint and cannot
+`agent delegate access create|list|revoke|launch` requires the owner CLI's `agents.delegation.access`
+capability. It issues a separate `delegation-client` principal, anchored on one Project, dedicated
+Session and caller provider, with only `agents.delegate`. Its `create --new-session` reaches any
+visible top-level Project and nests the new Session under the anchor; it never adds a Project or
+worktree and never approves for its child. It is not a managed Endpoint and cannot
 use messaging, dispatch control, settings import or Terminal steering. Expiry and revocation are
-checked before each command, including cached replies. See the
+checked before each command, including cached replies. `launch` issues a fresh credential for one
+launched command and revokes it on exit. An Agent-recognized CLI without an Endpoint or delegation
+credential is refused for every `agent.delegation.*` and `agent.dispatch.*` method instead of
+falling through to the owner. See the
 [external caller workflow](agent-delegation.md#external-callers-and-directory-authorization).
 
 For task submission and final answers, use [visible delegation](agent-delegation.md). Dispatch

@@ -155,6 +155,10 @@ the caller's earlier settled tasks by Session title or summary, newest first, a 
 Agent sees only its own, the owner sees all, and it never marks an answer read. See
 [delegation history](agent-delegation.md#delegation-history-and-cost).
 
+`agent delegate redirect <delegation-id> (--text <text> | --prompt-file <path>) [--operation-id <id>]`
+steers the caller's own running Chat task in its current turn, or is refused with a closed reason; it is
+never queued and never starts a turn. See [redirect](agent-delegation.md#redirect-a-running-task).
+
 `agent delegate ask|ask-wait|ask-cancel` lets a delegated Agent put one question to the Agent that
 delegated it, and `agent delegate questions|answer` plus `wait --ignore-questions` are the
 delegating Agent's side. `ask-wait --timeout` accepts up to 300000 milliseconds; question and
@@ -167,9 +171,13 @@ within its own applied permission; `wait` reports it as the outcome `approval`, 
 why a request is not covered. `--revision` echoes the `revision` of the approval you read, and
 exactly one decision flag is required; the decision never outlives the request. See [parent approval](agent-delegation.md#parent-approval).
 
-`agent delegate access create|list|revoke` manages owner-authorized external callers with
-`agents.delegation.access`. The resulting `delegation-client` credential is limited to one Project,
-Session and caller provider; it grants only delegation and does not start a Server implicitly.
+`agent delegate access launch [--root <dir>] [--provider <id>] [--ttl-ms <ms>] -- <command>` runs an Agent
+outside Caxri with a fresh credential and revokes it when the command exits; an Agent without any
+credential is refused for delegation and dispatch methods. `agent delegate access create|list|revoke` manages owner-authorized external callers with
+`agents.delegation.access`. The resulting `delegation-client` credential is anchored on one Project,
+Session and caller provider (the shared `External <Provider>` Session) and grants only delegation. It
+may `create --new-session` into any visible Project, with at most four active or pending tasks per
+client, but never adds a Project or worktree, and it does not start a Server implicitly.
 See [external callers](agent-delegation.md#external-callers-and-directory-authorization).
 
 `bot board`, `bot session create --project <id>`, `bot session archive <session-id>`,
@@ -183,6 +191,15 @@ may pass it. Hand-over and take-back are owner-only, since Caxri Bot's Endpoint 
 `agents.control`; `--continue-handover <id>` on `agent delegate create` is Caxri Bot's side
 ([Hand-over](caxri-bot.md#hand-over)). Replying to, dismissing, and merging an [Inbox](caxri-bot.md#bot-inbox) item
 are owner-only Desktop and mobile actions with no CLI command.
+
+`agent delegate create --surface chat|terminal` forces the new child's surface instead of following
+Open Agents in Chat; the receipt's `surface` reports what the child got. It applies to a new task, not
+to `--follow-up`, `--resume`, or `--continue-handover`; see [Agent delegation](agent-delegation.md#agent-chat-children).
+
+`agent delegate create --project-path <dir> --new-session` adds the folder as a Project and delegates
+into it in one request, in place of `project add` and `--project <id>`. The CLI resolves the path
+against its working directory. Only a managed Agent, the owner's CLI, and the Desktop may use it; see
+[Agent delegation](agent-delegation.md#start-work-in-a-new-session).
 
 `secret list`, `secret request <NAME> --reason <text>`, and `secret exec <NAME>... -- <command>`
 let an Agent use a secret the user saved in Caxri without the value entering the conversation.

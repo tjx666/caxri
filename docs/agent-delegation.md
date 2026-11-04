@@ -33,6 +33,7 @@ caxri agent delegate result <delegation-id> --json
 caxri agent delegate transcript <delegation-id> [--after <cursor>] --json
 caxri agent delegate ask --text <question> --json   # more under "Questions from a delegated task"
 caxri agent delegate stop <delegation-id> --json
+caxri agent delegate redirect <delegation-id> --text <direction> --json   # more under "Redirect a running task"
 caxri agent delegate list [--active] [--limit <count>] --json
 caxri agent delegate history [--query <text>] [--outcome <outcome>] [--limit <1-50>] [--after <cursor>] --json
 caxri agent delegate create --project <project-id> --session <session-id> \
@@ -43,7 +44,7 @@ caxri agent delegate create --project <project-id> --session <session-id> \
 
 Human mutations additionally require an explicit `--profile <path>` and confirmation (`--yes`
 for unattended use). Every managed Agent Endpoint, in a Terminal or an Agent Chat, holds
-`agents.delegate`; it does not provide dispatch, general Agent control, or human Terminal steer.
+`agents.delegate`; it does not provide dispatch, general Agent control, or human Terminal steer. A delegated Chat task alone can be steered by its delegator through `agent delegate redirect`.
 Server Core derives the caller Terminal from its authenticated Endpoint; a caller cannot supply a
 different principal or Terminal. An Agent may start work in its own Session and in Sessions it
 created, and may read, wait on, follow up, or stop only its own delegations; `list` returns them
@@ -68,6 +69,31 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   root paths. `project add <path>` registers a folder the user has not opened yet, or returns the
   Project that already owns it; it shows a hidden Project again, and adopts an auto-registered
   worktree Project as a top-level one.
+- `--project-path <dir>` replaces `--project <id>` and `project add` with one request (only with
+  `--new-session`, so a `--handoff` or `--consult` still passes it too). The CLI resolves the folder
+  against its working directory; the Server adds it exactly as `project add` does, so the Project is
+  visible, an existing Project is reused, a hidden one comes back, and an auto-registered worktree
+  Project becomes top-level. Only a managed Agent, the owner's CLI, and the Desktop may use it: it is
+  the `project.add` authority, so an external delegation client, a paired device, and Caxri Bot are
+  refused with `FORBIDDEN` before anything is added. The stored task and the Session still reference
+  the Project by ID and never carry the path.
+
+  ```sh
+  caxri agent delegate create --project-path ../other-repo --new-session --title "Fix login retry" \
+    --provider codex --prompt-file ./task.md --request-id <stable-request-id> --json
+  ```
+
+  The request ID covers the folder too: replaying it returns the recorded task without adding
+  anything, and replaying it with another folder or a Project ID is a `CONFLICT`. Two requests with
+  one ID run one after the other. Everything that can be refused without a side effect (the
+  caller, the title language, a forced Chat the provider cannot carry) is refused before the folder
+  is added; the folder must exist (`PATH_DENIED` otherwise). A refusal after the add, such as an
+  unknown preset or a failed `--worktree` branch, keeps the Project: it may already have existed or
+  been opened since, and removing a Project never touches the folder. The Server logs
+  `agent_delegation.project_added` with a closed outcome (`created`, `existing`, `unhidden`,
+  `adopted_worktree`), the caller kind, and a duration, never the path. `project add` stays the way
+  to register a folder without delegating.
+
 - `--new-session --title` creates a plain Session, named manually, without moving the Workbench
   selection, right before its Agent Terminal, so the Session never sits empty. A retry with the same
   request ID reuses it; a request refused before its task was recorded removes it again (metadata
@@ -87,19 +113,21 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   restore it. The column references `sessions.id` with `ON DELETE SET NULL`, so deleting the creating
   Session or its Project clears it.
 - Beside the creator, the Session records how it was started (`createdByRelation`, closed values
-  `delegated`, `handoff`, `consult`; `CHECK`-constrained). The kinds follow T3 Code's thread
+  `delegated`, `handoff`, `consult`, `independent`; `CHECK`-constrained). The kinds follow T3 Code's thread
   relations. `delegated` is a task the creating Session waits on. `handoff` is the creator's work
   continuing in a new Session (`--handoff`, below; the Chat `/new-session` command and continuing
   in another Agent both start it in the creator's Project, though the flag itself does not require
   that). `consult` is a question or review that is not meant to change files (`--consult`, below).
+  `independent` is a separate Session the creator starts for its own task and does not wait on
+  (`--independent`, below).
   Server Core computes the relation from the request flags and writes it with the creator, only for
   an Agent or Client caller that has a Session: a Caxri Bot Session records its creator without a
   relation, and an owner CLI call records neither. The column outlives the creator's deletion
   (`ON DELETE SET NULL` clears only the creator), so the read model reports the relation only while
   `createdBySessionId` is present. `session.query` and `agent.delegation.sessions` (see
   [Delegated Session feed](#delegated-session-feed)) return both. The sidebar lists a `delegated`
-  Session under its creator and gives a `consult` Session no row of its own while a Session above it
-  is listed ([issue #3572](https://github.com/tjx666/caxri/issues/3572); see
+  Session under its creator, gives a `consult` Session no row of its own while a Session above it
+  is listed, and gives `handoff` and `independent` Sessions ordinary rows ([issue #3572](https://github.com/tjx666/caxri/issues/3572); see
   [Sidebar rows](#sidebar-rows)).
 - The creating Agent can keep the sidebar tidy without Caxri Bot's board:
   `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
@@ -125,7 +153,38 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
 - `--consult` (only with `--new-session`, never together with `--handoff`) marks the task as a
   question or review the caller asks another Agent, which is not meant to change files; nothing
   enforces that. It is stored in the delegation record's input like `--handoff`, and the new
-  Session's relation is `consult`. Without either flag the relation is `delegated`.
+  Session's relation is `consult`. Without a relation flag the relation is `delegated`.
+- `--independent` (only with `--new-session`, never together with `--handoff` or `--consult`) starts
+  an [independent Session](#independent-sessions). It is stored in the delegation record's input like
+  `--handoff`, and the new Session's relation is `independent`.
+
+### Independent Sessions
+
+When the user asks an Agent to "open another Session for X", the new Session is a sibling, not a
+child the Agent waits on. `agent delegate create --new-session --independent` runs the task from the
+prompt file and returns a receipt like any other task, but the creator is out of the loop:
+
+```json
+{ "createdBySessionId": "<creator>", "createdByRelation": "independent" }
+```
+
+- **No notice.** A task in an `independent` Session never produces a settlement, question, or
+  approval notice for the creator (`noticeCallerOf` returns the `independent` reason, logged as the
+  closed `reason` of `agent_delegation.settlement_notice`).
+- **No roll-up.** The Session is not a `delegated` or `consult` edge, so the creator's Delegated
+  Sessions strip, delegated cost, and needs-input roll-up leave it out.
+- **No question or approval routing.** A question the child asks goes to the user at once
+  (escalation reason `parent_gone`), and a permission request raises its alert immediately instead
+  of being held for the creator's decision, as in a Session the user started.
+- **Rights kept.** The creator may still `rename` and `archive` the Session it created, and
+  `wait` and `result` work if it calls them. Neither a Summary instruction nor a stored result is
+  written, and the Session has no hand-back: the user owns it from the start.
+- **Sidebar.** An ordinary top-level row in its own Project. In its Chat the first composer-strip
+  row reads `Started from <title>` (zh-CN `由 <title> 创建`) with a `Back to <title>` link, and says
+  nothing about results or takeover.
+- **Choosing the flag.** The `caxri-cli` skill tells Agents to use `--independent` when the user
+  asks for a separate, parallel, or sibling Session that the creator will not wait on, and the
+  default only when the creator waits on and reads the result.
 
 ### Hand off with /new-session
 
@@ -191,6 +250,138 @@ never starts a GitHub lookup, so a slow or failed lookup cannot delay or fail th
 absent until a lookup has seen one. It describes the Session, not the task: `changedFileCount`
 counts every file the whole pull request changes, and is absent when GitHub reported no count.
 Caxri does not attribute files to one task, so no answer reports a task-scoped file count.
+
+### Settlement notices
+
+A delegating Agent does not have to sit in `wait`. When a task it delegated settles, asks it a
+question, or holds a permission request it may decide, Server Core writes one fixed notice to that
+Agent's own Terminal, which wakes it. The notice carries task IDs, a closed phrase per event, and the commands that read each outcome. It
+never carries the child Session's title, which the child Agent can rename to any text. It never carries an answer, a summary, question text, or request text: the
+Agent reads those through its own authenticated commands. A request that already handed the caller a settled receipt (a refused `create --follow-up`, or its
+own `stop`) is not announced again. A notice whose caller has had no live launch for 24 hours is
+dropped. Several events in one 1500 ms quiet window
+go out as one message of at most 32 items; the rest follow after the caller's next idle.
+
+```json
+{
+  "id": "settled:<task>",
+  "kind": "settled | question | approval | handback",
+  "state": "pending | delivered | skipped | unknown",
+  "callerTerminalId": "...",
+  "callerLaunchId": "...",
+  "acknowledgedAt": 1760000000000
+}
+```
+
+- **Storage.** One `delegation_notices` row per event, keyed `settled:<task>`,
+  `question:<question>`, `approval:<task>:<request>`, or `handback:<grant>` (see
+  [Hand a taken-over Session back](#hand-a-taken-over-session-back)), so an event notifies once across
+  restarts.
+  Rows cascade with their task and hold identifiers and closed values only.
+- **How the Chat draws it.** The notice reaches the delegating Agent as plain user text, but the
+  Chat shows compact rows instead of a user bubble: one line per task with an icon, the child
+  Session's title, and a status word (`completed`, `failed`, `interrupted`, `taken over`, `handed
+back`, `asking a question`, `needs approval`), stacked when one message lists several; each row
+  opens that Session. Before the write, Server Core records the SHA-256 digest of the exact text for
+  that Terminal with its items (task ID, child Session ID, closed event) in
+  `delegation_notice_deliveries`, and the Chat stamps `delegationNotice` on a user message only when
+  its trimmed text matches a digest delivered to that same Terminal, so a person who types the same
+  words keeps a plain bubble. Clients read the title from their own Session data by ID, never from
+  the message. Unlike `delegation_notices` the delivery row does not cascade from the task, so a
+  notice stays recognizable after its task is pruned (the row then reads `A Session that is no
+longer available` and does not open); it cascades with the Terminal and keeps the newest 256 per
+  Terminal. A refused write forgets its row. The only gap is a notice older than that cap, which
+  replays as a plain message. Desktop and the phone draw the same rows with the same terms.
+- **Who is notified.** Only the managed Agent launch that delegated the task (a Chat or a PTY, with a
+  known Terminal and launch). Not an external delegation client, the owner's CLI, Desktop, Caxri
+  Bot (which keeps its own notifier), or the creator of a `handoff` Session. A notice is pinned to
+  the launch that delegated: if the caller restarted, the notice is skipped, never moved.
+- **Re-read at send time.** A notice is dropped when the caller already read the outcome through
+  `wait` or `result` (`acknowledgedAt`), when the question was answered or shown to the user, when
+  the request was decided or shown to the user, or when a retry of the failed task is planned or
+  running (its successor reports instead; cancelling the plan notices the failure after all). A
+  notice is held while the caller has an open `wait` that would report the event itself, and sent
+  when that wait ends.
+- **Caller gate.** A Chat caller takes the notice as a non-human message, only when its projection
+  is ready with no turn, queue, operation, pending request, or usage limit. A PTY caller takes a
+  bracketed paste followed by Enter, only when a finished turn is proven idle and the input epoch is
+  unchanged since that turn started (or the last input submitted its line), the same fence Caxri
+  Bot's completion notices use. The proof is spent by each write. Held notices are re-checked on
+  caller events and every 10 seconds.
+- **Never twice.** A notice is claimed as `unknown` before the write. A write refused before anything
+  was sent returns to `pending`; a write whose result is in doubt stays `unknown` and is never
+  resent, because a duplicate wake costs more than a missed one the caller finds with `list`.
+- **Idle suspension.** A caller with an active delegated task, or a pending notice, is not
+  suspended for being idle, a PTY or a Chat, because suspending it ends the launch the notice is
+  pinned to.
+- **Logs.** `agent_delegation.settlement_notice` records `outcome` (`pending`, `deferred`,
+  `delivered`, `skipped`, `unknown`, `failed`), a closed `reason` for a hold or a drop, `kind`,
+  `batchSize`, `waitMs`, and `deferrals`. IDs, enums, and numbers only.
+
+### Hand a taken-over Session back
+
+Once the user acts in a delegated Session (types, Stop, Rewind), the Session is theirs: every task in it
+carries the takeover mark, and the Agent that delegated it may not continue it
+(`human_intervened`). The user can give it back with one explicit action, which lets that Agent continue
+the Session once.
+
+```json
+{
+  "id": "<grant>",
+  "delegationId": "<newest task that ran in the Session>",
+  "state": "pending | consumed | invalidated",
+  "launchId": "<child launch>",
+  "providerSessionId": "<native conversation>",
+  "turnId": "<finished turn>",
+  "inputEpoch": 12,
+  "callerTerminalId": "<delegating Agent's Terminal>",
+  "callerLaunchId": "<delegating Agent's launch>",
+  "consumedBy": "<follow-up task, only when consumed>"
+}
+```
+
+- **Who can hand back.** Owner only: `agent.delegation.handBack` (`caxri agent delegate hand-back
+<task-id> --json`, or the origin row's button in the Session's Chat). An Agent grant cannot
+  hand back for itself. The task ID names any task of the Session; the grant continues the newest task
+  that ran, and the reply says which (`delegationId`).
+- **What it does.** It sends nothing to the child. It stores one grant (`delegation_hand_backs`, at
+  most one pending per task, so a repeated request answers `duplicate` with the same grant), tells
+  the delegating Agent once through the notice queue (`handback:<grant>`: `The user handed Session
+<id> back to you (task <id>). Continue with: caxri agent delegate create --follow-up <task>
+...`), and marks the Session `handback_pending` in the feed.
+- **Guards, in order.** `not_taken_over` (the Session is not the user's); `child_busy` (a task or
+  Chat turn is running, a Chat has queued input, or no finished turn is proven idle);
+  `draft_active` (a Terminal Agent's prompt holds text typed and not submitted, which the pasted
+  follow-up would otherwise submit with it); `child_changed` (the Terminal, launch, native
+  conversation, or input epoch is gone or moved);
+  `parent_gone` (the delegating Agent's Terminal or launch is gone, or its Session is archived);
+  `parent_changed` (it is another launch or Endpoint generation than the one that delegated). The
+  Desktop button also stays disabled while the composer holds an unsent draft: the Server never sees
+  the composer, so that reason exists only in the Renderer.
+- **Single use.** `create --follow-up` on a taken-over task needs a pending grant. It is measured
+  against what the grant pinned, not against the task (whose input epoch predates the takeover): the
+  child's launch, native conversation, input epoch, and finished idle turn, and the caller's launch.
+  The grant is claimed with one conditional update before the chain claim, so two requests cannot
+  both use it. A follow-up refused by the Host before any input was taken gives the grant back. A
+  moved pin (`launch_replaced`, `input_epoch_moved`, `target_not_idle`, `target_lost`,
+  `no_terminal`) drops the grant; a clash with another request (`parent_chained`,
+  `terminal_busy`) keeps it. Without a grant the follow-up is refused as before.
+- **Dropped grants.** Human input, an interrupt or a retired launch in the child's Terminal, a turn
+  started by the child, or a Server restart (no pin can be proven afterwards) drops every pending
+  grant, and the user hands back again. A notice for a dropped grant is skipped, never sent.
+- **After use.** The follow-up is a new task in the same Terminal and conversation. The old tasks
+  keep their takeover mark, history, and cost. The feed's `control` is `delegated` again until the
+  user takes the Session over again.
+- **Fresh creates.** While `control` is `human` or `handback_pending`, a fresh `create` into the
+  Session (not `--follow-up`, `--resume`, or `--continue-handover`) from a managed Agent or an
+  outside delegation client is refused with reason `session_taken_over`, because it would start a
+  second Agent beside the user's conversation or move the pins of the pending grant. The owner's own
+  creates and Caxri Bot are not refused.
+- **Not offered.** Revoking a pending grant, a confirmation dialog, and handing back a suspended Chat
+  (its launch is gone, so the pinned launch cannot be proven).
+- **Logs.** `agent_delegation.hand_back` records `outcome` (`granted`, `duplicate`, `consumed`,
+  `invalidated`, or a refusal reason), a closed invalidation `reason` (`child_changed`,
+  `parent_changed`, `restart`), and a `count`. IDs and enums only.
 
 ### Reading a delegated Chat
 
@@ -288,8 +479,10 @@ a pending question does not make the task blocked:
   when the delegating Agent's original launch is gone: the launch that created the delegation
   retired for good (including an idle suspension, because a resumed parent is a new generation
   without authority) or its Terminal was deleted. A launch that is only starting, suspending, or
-  has no launch ID yet does not count. Escalation is an inline mark in the Session view only; it
-  raises no notification, attention state, or sidebar change, and it never answers or cancels. The
+  has no launch ID yet does not count. Escalation is an inline mark in the Session view, plus the
+  static amber sidebar glyph of a [pending approval](#sidebar-rows) (it clears when the question is answered or
+  cancelled, and shows for an external parent's immediate escalation too); it raises no
+  notification or attention state, and it never answers or cancels. The
   user answers with the owner-only `agent.delegation.questionAnswer`, which an Agent credential,
   the Bot, Benchmark windows, and Mobile cannot call; `agent.delegation.questionDetail` is the
   owner-only read of the open question's text. The answer then reaches the asker as
@@ -545,6 +738,82 @@ restore as adding its folder manually) and Server Core emits `state.changed`, so
 the delegated Session runs. Project, Session and binding creation share one database
 transaction. This owner CLI operation is separate from the Renderer's native folder grants.
 
+### One step: `access launch`
+
+Starting an Agent in a normal terminal (for example iTerm) does not need the manual flow below:
+
+```sh
+cd /absolute/project
+caxri agent delegate access launch -- claude
+```
+
+The owner CLI issues a fresh credential for that run, starts the command with structured argv, and
+revokes that exact generation when the command ends. It never prints the token; the credential reaches
+only the launched process's environment.
+
+- **Root**: `--root <dir>` if given. Otherwise the root of the top-level Project that contains the
+  working directory, or the working directory itself when it is outside every Project. The folder is
+  added as a Project if needed, as with `--register-project`; the confirmation says so. A worktree
+  Project is refused, as with `access create`.
+- **Provider**: derived only when the executable's basename is exactly `claude`, `codex`, `grok` or
+  `antigravity`. Any other command (a wrapper script, a renamed binary) needs `--provider`.
+- **TTL**: `--ttl-ms` as for `create`; the default is 12 hours.
+- **Environment**: the four credential variables below, plus the non-secret `CAXRI_DELEGATION_PROJECT_ID`
+  and `CAXRI_DELEGATION_SESSION_ID`. With these set, `agent delegate create` and `presets` use them as
+  the default `--project` and `--session`. An explicit `--project`, `--project-path`, `--session` or
+  `--new-session` always wins, and a default never adds a Session next to `--new-session`.
+  Credential and hint variables inherited from an earlier launch or a managed Endpoint are dropped.
+- **Cleanup**: the generation is revoked after a normal exit, a non-zero exit, a spawn failure,
+  SIGTERM or SIGHUP, or an interrupt before the command started. The revocation is sent before the
+  owner connection closes. The launcher swallows SIGINT because Ctrl-C already reaches the command
+  through the terminal's process group. SIGKILL cannot be handled, so that credential lives until its
+  TTL; if the revocation request itself fails, the launcher prints the exact `access revoke` command
+  (client ID and generation, never the token).
+- Every launch creates a fresh client, so two concurrent launches never share a credential.
+
+A credential-less Agent no longer falls through to the profile owner. When the environment identifies
+the caller as an Agent (Claude Code, Codex or Grok variables) and it carries neither a managed
+Endpoint nor a delegation credential, every `agent.delegation.*` and `agent.dispatch.*` method is
+refused with FORBIDDEN and a hint to use `access launch`. This covers the generic `request` entry
+point. A human in a plain shell and CI keep owner authority.
+
+### External lineage
+
+A client does not stay inside its one Project. `agent delegate create --new-session --project <id>`
+starts the task in a new Session of any Project the user can see, as a managed Agent does, and that
+Session nests under the client's **anchor Session** in the sidebar as a `delegated` child (the same
+creator edge, parent strip and cost roll-up as an in-Caxri delegation).
+
+```text
+Session "External Claude"            Project api   (anchor, shared)
+  +- Session "Fix flow"              Project web   (created by the anchor, relation delegated)
+```
+
+- **Anchor**: one visible Session per Project and caller provider, titled `External <Provider>` (for
+  example `External Claude`). Every client of that Project and provider shares it, and a fresh
+  credential from `access launch` reuses it instead of adding another row. It is the nesting parent,
+  not an ownership boundary.
+- **Ownership**: a child Session belongs to the exact principal that created it, client ID and
+  generation included. The anchor's creator edge is not proof of ownership, because many clients share
+  the anchor. A client may start more work in a child Session only while a task of that exact principal
+  is recorded there, or in the Session the same request just created. Once that record is pruned the
+  Session is refused rather than guessed at. Reading, waiting on or stopping a task stays limited to
+  the principal that started it.
+- **Targets**: only a visible, non-archived, top-level Project. A hidden Project, a worktree Project,
+  `--project-path` (adding a Project) and `--worktree` are refused with FORBIDDEN, so an external
+  caller reaches only folders the user already added.
+- **Concurrency**: at most four active or pending tasks per client, counted across all its Projects
+  and Sessions, not per anchor and not per target Session.
+- **Questions**: a child's `ask` addressed to an external client goes to the user at once
+  (`parent_gone`) instead of waiting out the grace period, because the client has no Terminal or
+  launch Caxri could watch. The question appears like any other escalated question.
+- **Approvals**: an external client never approves for its child. Caxri cannot see the permission its
+  own provider holds, so a permission request from the child is handed to the user, and the client's
+  `approve` is refused like any caller that is not the delegating Agent. Use a managed Agent when the
+  parent must approve.
+
+### Manual credentials
+
 The private response contains `clientId`, `generation`, `token`, `projectId` and `sessionId`.
 Deliver it only to the intended caller through private process configuration; do not paste it into
 prompts, issue comments, logs or shared artifacts. Configure that caller with:
@@ -559,10 +828,13 @@ The usual `agent delegate presets|create|status|wait|result|stop` commands then 
 Pass its Project and Session IDs to `create`; any `--caller` must match its bound provider. A client
 cannot read another client's answers even when both use the same dedicated Session. Reissuing access
 reuses that Session but creates a distinct identity; the owner can still recover earlier results.
+`create --new-session` starts a task in its own Session of any visible Project; see
+[External lineage](#external-lineage).
 
 The credential grants only `agents.delegate`. It cannot steer arbitrary Terminals, change settings,
-register another root, issue credentials or use managed-Endpoint messaging. Each dedicated Session
-admits at most four active or pending tasks. The private Server registry stores only token digests,
+register another root, issue credentials or use managed-Endpoint messaging. Each client (client ID and
+generation) may have at most four active or pending tasks in total, across every Project and Session
+it delegates into. The private Server registry stores only token digests,
 survives restart and holds at most 128 live authorizations. Authorization lasts 12 hours by default;
 `--ttl-ms` accepts one minute through seven days. Every request rechecks expiry and revocation before
 returning even a cached receipt.
@@ -679,6 +951,8 @@ taking any input never reached the Agent: it returns that claim, so a new follow
 continue the parent, and it can never be continued itself. A child the Host reported undelivered
 only later, or whose submission was never confirmed, keeps the claim, because a lost
 acknowledgement looks the same and its prompt may still have arrived.
+
+`redirect` steers a running Chat task in place; see [Redirect a running task](#redirect-a-running-task).
 
 `stop` interrupts only the owned active task and preserves its visible Terminal. Late completion
 cannot replace the interrupted receipt. `--resume` explicitly starts a fresh task on the exact saved
@@ -812,12 +1086,80 @@ and a `Record` over the protocol's failure enum, so a new failure value fails th
 
 Both the strip row and the child's origin row render these through `DelegationRetryControls`.
 
+## Redirect a running task
+
+`agent delegate redirect <delegation-id> (--text <text> | --prompt-file <path>) [--operation-id <id>]`
+changes the direction of a task that is running now, inside the turn it is already in. It is
+strict: one message steered into that exact turn of that exact launch, or a closed refusal. It is
+never queued behind the turn, never starts a new turn (use `--follow-up` for new work), and never
+counts as human input, so the task is not taken over. The task keeps its identity, result, cost,
+and the return of its answer to the delegating Agent. Only the Agent that delegated the task (or the
+owner) can redirect it, with `agents.delegate`.
+
+Admission is checked in this fixed order, then again at the head of the Chat's send chain where the
+active turn and input epoch are exact. A refusal carries a closed `reason`:
+
+| Reason                | Meaning                                                                       |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `waiting`             | The task is blocked on a question or a permission request; answer that first. |
+| `human_intervened`    | A person typed in the Chat or took the task over, before or during delivery.  |
+| `not_running`         | The task is not running, so there is no turn to redirect.                     |
+| `not_chat`            | Only a Chat child can be redirected; a Terminal child cannot.                 |
+| `launch_replaced`     | The child's Agent is no longer the launch the task started on.                |
+| `turn_changed`        | The task's turn ended or changed; the message was not sent.                   |
+| `not_steerable`       | The provider takes no steered input in this turn (for example Grok).          |
+| `operation_reused`    | The operation ID was already used for different text.                         |
+| `too_many_operations` | The task already recorded 64 redirects, the most it keeps.                    |
+| `delivery_unknown`    | The provider did not confirm; the message may have arrived.                   |
+
+- **Operation claim.** Every redirect has an operation ID (generated by the CLI unless
+  `--operation-id` is passed). A claim `{operationId, digest, state}` is written to the task before
+  the message is sent, where `digest` is the SHA-256 of the text, never the text. Repeating the same
+  operation with the same text returns the recorded receipt and sends nothing; different text is
+  `operation_reused`. A refusal that proves nothing reached the provider drops the claim, so the
+  caller may retry. A claim the provider never confirmed stays `unknown`; so does one that was
+  `pending` when the Server restarted. Such an operation is never sent again: read the transcript,
+  then redirect again under a new operation ID only if the direction is missing.
+- **Receipt.** `redirectCount` (confirmed redirects) and `redirectedAt` are added to the receipt.
+- **Transcript.** A redirect that sits in the conversation appears as a `direction` row in
+  `agent delegate transcript`, including one whose claim is still `pending` or `unknown`, so the
+  reader of a `delivery_unknown` refusal can see whether it arrived. The slice crosses a user
+  message only when it is this task's own redirect: the message envelope must name this delegation,
+  a claim must exist for its operation ID, and the text digest must match. Any other user message
+  or a message still held as awaiting the Agent ends the slice, as a person's input always did.
+- **Chat.** Desktop and Mobile label the message "Updated direction from" the delegating Agent, as
+  they label the task pointer, and only when the same claim proves it; typing the envelope by hand
+  shows an ordinary message.
+- **Logs.** `agent_delegation.redirected` records the outcome, the closed reason, the redirect
+  count, the text length, and the duration. It never carries the text or the operation ID.
+- **Providers.** Codex steers the active turn. Claude Code and Grok Build answer `not_steerable`:
+  Claude Code holds a steered prompt until its next model request and may run it as the next turn
+  when the current one ends first, and its echo can arrive after the turn is over, so delivery into
+  the exact turn can never be confirmed. A redirect to a Claude child is refused before anything
+  reaches it; use a follow-up for new work.
+
 ## Agent Chat children
 
 With `session.openAgentsInChat` on, a new Claude Code or Codex child opens as an
 [Agent Chat](agent-chat.md) instead of a PTY Terminal (`delegationChildLaunch` in
 `apps/server/src/domains/agent-delegation/chat-child.ts`). Grok Build children, and every child
 while the setting is off, keep the PTY. The setting is read when the task is admitted.
+
+**Forcing the surface.** `agent delegate create --surface chat|terminal` overrides the setting for one
+new task (`terminal` is the product term; the protocol value is `pty`). Choose `chat` when the parent
+needs `transcript`, `approve`, or the child's questions; choose `terminal` for TUI-only work, knowing a
+Terminal child has no `transcript` (`not_chat`) and no parent approval, though it can still ask
+questions through the CLI. A forced `chat` works with the setting off. It is refused at admission with
+`UNAVAILABLE` and reason `forced_chat_unavailable`, never downgraded, when the provider's Chat cannot
+carry the task (Grok Build, Antigravity) or this Server has no Agent Chat; the check runs before the
+Session or worktree of `--new-session` exists. A forced `terminal` takes the unchanged PTY branch and
+still fails as `hooks_required` while the provider's hooks are off. `--surface` is a new-task option:
+`--follow-up`, `--resume`, and `--continue-handover` keep the surface of the Terminal they continue and
+refuse it. The surface is part of the request fingerprint, so a replay of a request ID with another
+surface is a `CONFLICT`, and a fresh retry carries the forced surface to its successor. The receipt's
+`surface` (`chat` or `pty`) is the surface resolved at admission, not the requested value; it is absent
+for a hand-over, and a follow-up or resume repeats the task it continues. A preset does not carry a
+default surface.
 
 - **Launch.** The Chat starts with the task's frozen launch settings, translated like any Chat
   launch (Claude Code's read access to the task directory becomes an additional directory), and a
@@ -875,8 +1217,9 @@ while the setting is off, keep the PTY. The setting is read when the task is adm
 ## Delegated Session feed
 
 A `newSession` task that an Agent or Client makes from its own Session starts a Session of one of
-three kinds, told apart by `createdByRelation`: a [Delegated Session](../GLOSSARY.md) (`delegated`),
-a Hand-off (`handoff`), or a Consult (`consult`); the glossary keeps the three apart. A Session
+four kinds, told apart by `createdByRelation`: a [Delegated Session](../GLOSSARY.md) (`delegated`),
+a Hand-off (`handoff`), a Consult (`consult`), or an Independent Session (`independent`); the
+glossary keeps them apart. A Session
 Caxri Bot dispatches a task to and a Session the owner creates from the CLI record no relation, so
 none of what follows applies to them: no Summary instruction, no stored result, no feed row. The
 sidebar's delegated rows need each Session's state, step and result without opening it, so Server
@@ -949,6 +1292,24 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   the feed cannot make a caller's answer evictable before the caller reads it. An Agent Endpoint
   principal is refused even though it can read its own delegations: other Sessions' results are not
   its to read. Caxri Bot and Benchmark windows deny it.
+- **`agent.delegation.attention`.** An owner-only, non-claiming read for the parent strip:
+  `{ sessionId }` returns `{ items, isPartial }`. It walks the `delegated` and `consult` edges below
+  the Session (the walk `usage.delegationSummary` uses: depth 8, 1000 Sessions; a `handoff` Session is
+  the user's own continuation and is neither walked nor listed), keeps depth two and deeper (direct
+  children are the feed's rows), and picks each Session's representative task the way the feed does.
+  The order of the steps is the contract: it folds retry chains first (`collapseRetryChains`; a failure
+  with a started retry, a scheduled retry, or a pruned successor is not a to-do), then keeps the entries
+  with a `delegationAttentionKind` (`approval`, `question`, `input`, or a real `failed`), then drops
+  deleted and archived Sessions, ranks by kind and recency, and cuts to 64. `isPartial` is true when the
+  walk hit a bound or the cut dropped an item, so a header never claims a complete count. An item is
+  the feed entry without `step` and `result`, plus `branchSessionId` (the direct child it sits under);
+  it carries IDs and closed values only. The held-for-the-delegating-Agent requests
+  (`waitingOn: parent`) are not attention. The predicates are shared with the Renderer
+  (`delegation/attention/predicates.ts` in the protocol), so the Server and the strip cannot disagree about
+  what counts. Caxri Bot and Benchmark windows deny it, an Agent Endpoint principal is refused, and
+  mobile role methods do not list it. The Renderer refreshes it on any delegated or unknown Session
+  push and on approval and question changes, coalesced like the feed. No CLI aggregates the tree:
+  `wait` covers only the caller's own tasks.
 - **`agent.delegation.statuses`.** An owner-only, non-claiming read like the feed:
   `{ delegationIds }` (1 to 64 IDs) returns `{ statuses }`, one `{ delegationId, sessionId,
 provider, status, failure?, failureResetsAt?, retryOf?, retriedAs?, retryScheduledFor?, retryScheduleOutcome?, settledAt? }` per task the Server still has. It
@@ -979,8 +1340,8 @@ that decide which Sessions take which place.
 - **Host.** A `delegated` Session nests under the nearest Session up its creator chain that has a
   top-level row, so a chain of delegations flattens to one level. Archiving or deleting a creator
   ends the chain, and the Sessions it created return to their own Project groups. A pinned
-  `delegated` Session keeps a flat Pinned row, and a `handoff` or an ownerless Session keeps an
-  ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
+  `delegated` Session keeps a flat Pinned row, and a `handoff`, an `independent`, or an ownerless
+  Session keeps an ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
 - **Consult.** A `consult` Session takes no row while a Session above it is listed. It shows
   nested only while it is the selected Session, and the command palette still finds it.
 - **Grouping.** The Session keeps its own `projectId`. Only the sidebar's grouping moves: a nested
@@ -997,10 +1358,12 @@ that decide which Sessions take which place.
   `retriedAs` is not failed either: the retry stands for it, and a pending scheduled retry reads
   as waiting. An interrupted,
   human-intervened, or answer-unavailable task is not a failure of the Agent and shows none.
-- **Pending approval.** A nested Chat Session whose request waits on the user (the feed entry
-  carries an `approval` and `waitingOn: user`) keeps a static amber waiting glyph after the user
-  has read the Session, because reading does not decide the request. The glyph does not animate,
-  and clears when the request leaves the feed (decided, withdrawn, or the task ended). It is gated
+- **Pending approval or question.** A nested Session whose request or question waits on the user
+  (the feed entry carries an `approval` or a `question`, and `waitingOn: user`) keeps a static
+  amber waiting glyph after the user has read the Session, because reading does not decide it. An
+  escalated question qualifies (`isDelegationUserPending`), including the immediate escalation of
+  an external parent's question; it still raises no notification. The glyph does not animate,
+  and clears when the request or question leaves the feed (decided, answered, withdrawn, or the task ended). It is gated
   on the feed entry, never on the Session record's activity state alone: a Terminal (PTY) Session
   with a stale `waiting` state still clears once read. A request still held for the delegating
   Agent shows the muted asking glyph and no amber
@@ -1020,7 +1383,13 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
 - **Parent strip.** The Chat of the Session that delegated has a collapsible Delegated Sessions
   section in the composer strip, one row per Session it created (`delegation/` in the Agent Chat
   feature). Its data is the `agent.delegation.sessions` feed for that one Session ID, so a progress
-  or state push refreshes the rows without re-rendering the transcript. The section mounts only
+  or state push refreshes the rows without re-rendering the transcript. The strip also lists the deeper Sessions that need the user
+  (`agent.delegation.attention`: an approval, an escalated question, a blocked prompt, or a real
+  failure at depth two and deeper), sorted with the direct rows, each with a muted `via <direct
+child title>` part. The header counts them in its needs-input and failed parts but keeps
+  `delegated` as the direct-child count; when the Server could not read or list every deeper item
+  it appends `and more`. Nothing was added to act on them: the rows are the existing rows (click
+  opens the Session), with no "next item" action, and a handoff subtree is not rolled up. The section mounts only
   while the Chat is shown, so a hidden Chat does not subscribe. A hidden kept-alive Chat also
   reads no record statuses, ticks no record clock, and follows no change of its origin row's
   takeover time (`DelegationLiveContext`); showing it reads the cached values again. A completed row also shows the
@@ -1074,9 +1443,14 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
 - **Child Chat.** A Delegated Session's own Chat keeps the `Delegated by <title> · <parent Project>`
   bubble and adds an origin row at the top of the composer strip: the origin, that the result goes
   back automatically, and `Back to <parent>`, plus a hint that acting here takes the Session over.
-  Once `takenOverAt` is set the row says `You took over this Session` and drops the hint but keeps
-  `Back to <parent>`, and the timeline carries a `You took over` divider at the first entry at or after
-  `takenOverAt`. When the position is uncertain (an earlier entry has no time, earlier history is
+  Once the user holds the Session (`control` is `human`; `takenOverAt` alone for an older Server) the
+  row says `You took over this Session` and drops the hint but keeps `Back to <parent>`, and adds
+  a small `Hand back` button (tooltip `Let <parent> continue driving this Session`; the navigation
+  link stays `Back to <parent>`): disabled with its reason while the parent is archived, the Chat is busy
+  or has queued messages, or the composer holds a draft. After a hand-back the row says `Handed back
+to <parent> · waiting for it to continue` until the Agent uses the grant, and returns to the
+  delegated wording after that. The timeline carries a `You took over` divider at the first entry at or
+  after `takenOverAt`, which a hand-back does not clear. When the position is uncertain (an earlier entry has no time, earlier history is
   not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
   composer instead of a guessed position.
   While a request waits, the origin row says `Waiting for <parent> to approve` (muted) or, once
@@ -1161,8 +1535,8 @@ caxri agent delegate history --query "login retry" --outcome completed --after <
 
 ### Provenance edges and delegated cost
 
-`delegation_edges` records, for every Session a Session created as `delegated`, `consult`, or
-`handoff`, its creator and relation. It is written when the child Session is created, so a
+`delegation_edges` records, for every Session a Session created as `delegated`, `consult`,
+`handoff`, or `independent`, its creator and relation. It is written when the child Session is created, so a
 delegation that never settled (a running or deleted one) still has its edge; migration 0008
 backfilled the edges of Sessions that already existed. Edges outlive Session deletion on purpose,
 so a deleted middle Session does not hide its descendants' spend.
@@ -1170,8 +1544,8 @@ so a deleted middle Session does not hide its descendants' spend.
 The Delegated Sessions strip uses the edges to state spend:
 
 - `usage.delegationSummary` (owner-only) walks the edges breadth-first from the Chat's Session over
-  `delegated` and `consult` children (a `handoff` moves the user's own continuation and is not
-  rolled up), visits each Session once, and prices the Usage ledger rows of every visited Session.
+  `delegated` and `consult` children (a `handoff` moves the user's own continuation, and an
+  `independent` Session is the creator's separate task; neither is rolled up), visits each Session once, and prices the Usage ledger rows of every visited Session.
   The walk is bounded: at most 1000 descendants (the root does not count) and depth 8. A larger or
   deeper tree sets `isPartial`, so the figure reads as a floor.
 - A row shows its child's cost together with the cost of every attempt in its retry chain; the

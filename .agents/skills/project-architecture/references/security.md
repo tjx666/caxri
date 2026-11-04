@@ -39,7 +39,8 @@ Every path that registers a Project is one of these authorities; a new one belon
 - Caxri Bot's system Project, which Server Core registers for its own `caxri-bot`
   workspace inside the profile; no Client supplies that path.
 - The external-caller delegation bootstrap: the profile owner's confirmed
-  `caxri agent delegate access create --root <path> --register-project`. Server Core
+  `caxri agent delegate access create --root <path> --register-project`, or the same grant issued by
+  `agent delegate access launch`, which revokes it when the launched command exits. Server Core
   (`agent.delegation.access.bootstrap`, `apps/server/src/domains/db/delegation-context.ts`)
   canonicalizes the root, reuses an existing Project for that exact root (un-hiding it if the user
   hid it, so the delegated Session is visible) or creates an ordinary,
@@ -62,6 +63,14 @@ Every path that registers a Project is one of these authorities; a new one belon
   the home-directory restriction: an Agent already runs as the user, and the user chose to let Agents
   open repositories they have not added yet. It is idempotent by root and shows a hidden Project
   again; see [visible delegation](../../../../docs/agent-delegation.md#start-work-in-a-new-session).
+  `agent delegate create --project-path <dir> --new-session` is the same authority in one request:
+  the Server runs the same add (canonical root, idempotent, un-hide) and continues with the Project
+  ID, so a Session still references its Project by ID and never submits a root path. Only an Agent,
+  the human CLI, and the Desktop may send it (Server Core refuses every other principal and
+  admission refuses Caxri Bot); an external delegation client or paired device never mints Projects.
+  An external delegation client may still start Sessions with `--new-session`, but only in a visible
+  top-level Project, nested under its anchor Session and owned by its exact principal and generation
+  (`authorizeDelegationSession`); it never creates a worktree and never decides a parent approval.
 
 ## Main outbound requests
 

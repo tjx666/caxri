@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-import { identifierSchema } from '../../domain/identifiers.js';
+import { identifierSchema, pathSchema } from '../../domain/identifiers.js';
 import { sessionRenameTitleSchema } from '../../domain/session.js';
 import { sessionPullRequestStateSchema } from '../../domain/session-pull-request.js';
+import { terminalSurfaceSchema } from '../../domain/terminal-surface.js';
 import type { MethodSpec } from '../../transport/method-spec.js';
 import { commandPolicy } from '../../transport/method-spec.js';
 import { principalSchema } from '../../transport/principal.js';
@@ -30,6 +31,16 @@ import {
     agentDelegationHistoryInternalMethods,
     agentDelegationHistoryMethods,
 } from './history/contract.js';
+import {
+    hasLaunchSource,
+    isHandoverSelectionFree,
+    isOneContinuation,
+    isOneRelation,
+    isPresetExclusive,
+    isRelationForNewSession,
+    isSurfaceForNewTask,
+} from './request/create-rules.js';
+import { delegationRedirectParametersSchema } from './request/redirect.js';
 
 export const agentDelegationStatusSchema = z.enum([
     'requested',
@@ -118,8 +129,21 @@ export const agentDelegationReceiptSchema = z.strictObject({
      * and never present together with `retriedAs`.
      */
     retryScheduleOutcome: delegationRetryScheduleOutcomeSchema.optional(),
+    /**
+     * The surface the child Terminal opened on, resolved when the task was admitted: the caller's forced `surface`,
+     * else `session.openAgentsInChat` and the provider's Chat support. A caller that needs `transcript` or parent
+     * approval reads it instead of guessing. Absent for a hand-over, which continues the user's own Session surface. A
+     * follow-up or resume keeps the surface of the task it continues.
+     */
+    surface: terminalSurfaceSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
+    /**
+     * How many redirects (`agent.delegation.redirect`) the child's Agent has confirmed taking in, and when the last one
+     * arrived (same unit as `createdAt`). Both appear after the first confirmed redirect and never before delivery.
+     */
+    redirectCount: z.number().int().positive().max(64).optional(),
+    redirectedAt: z.number().int().positive().optional(),
     correlationFailure: z
         .enum([
             'native_session_missing',
@@ -200,39 +224,19 @@ const agentDelegationCreateFields = {
      * `handoff`.
      */
     consult: z.literal(true).optional(),
+    /**
+     * The caller starts a separate Session for its own task and does not wait on it (`independent`): no notice, no
+     * roll-up, and its questions go to the user. Only with `newSession`, and not with `handoff` or `consult`.
+     */
+    independent: z.literal(true).optional(),
+    /**
+     * Forces the surface the new child Terminal opens on instead of following `session.openAgentsInChat`: `chat` for a
+     * child the parent reads with `transcript`, approves, or is asked questions by; `pty` for TUI-only work. A forced
+     * `chat` the provider or Server cannot satisfy is refused at admission, never downgraded. Only a new task: a
+     * follow-up, resume, or hand-over continues an existing Terminal and keeps its surface.
+     */
+    surface: terminalSurfaceSchema.optional(),
 };
-
-type DelegationCreateShape = Partial<
-    Record<
-        | 'continueFromHandover'
-        | 'effort'
-        | 'followUpOf'
-        | 'model'
-        | 'preset'
-        | 'provider'
-        | 'resumeFrom',
-        unknown
-    >
->;
-
-const isOneContinuation = (value: DelegationCreateShape) =>
-    [value.followUpOf, value.resumeFrom, value.continueFromHandover].filter(Boolean).length <= 1;
-const isPresetExclusive = (value: DelegationCreateShape) =>
-    !value.preset || (!value.provider && !value.model && !value.effort);
-const hasLaunchSource = (value: DelegationCreateShape) =>
-    Boolean(
-        value.provider ??
-        value.preset ??
-        value.followUpOf ??
-        value.resumeFrom ??
-        value.continueFromHandover,
-    );
-/**
- * A hand-over continues an existing conversation, whose provider and launch are already fixed.
- */
-const isHandoverSelectionFree = (value: DelegationCreateShape) =>
-    !value.continueFromHandover ||
-    (!value.provider && !value.preset && !value.model && !value.effort);
 
 /**
  * A task admitted into one exact Session. This is what the delegation domain stores and authorizes.
@@ -241,7 +245,8 @@ export const agentDelegationCreateSchema = z
     .strictObject(agentDelegationCreateFields)
     .refine(isOneContinuation, 'Choose follow-up or exact resume')
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
-    .refine(hasLaunchSource, 'Choose a provider, preset or saved task');
+    .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
+    .refine(isSurfaceForNewTask, 'A surface applies to a new task, not a continuation');
 
 /**
  * What a caller sends. `newSession` asks Caxri Bot's own delegation to create the Session it runs in, so the Session
@@ -255,6 +260,17 @@ export const agentDelegationCreateSchema = z
 export const agentDelegationCreateRequestSchema = z
     .strictObject({
         ...agentDelegationCreateFields,
+        /**
+         * The Project the new Session joins, as an ID. Exactly one of this and `projectPath`.
+         */
+        projectId: identifierSchema.optional(),
+        /**
+         * An absolute folder to add as a visible Project, the way `project.add` does, and delegate into in the same
+         * request. Only with `newSession`. Resolved to a Project ID before the Session exists, so the stored task and
+         * the Session reference the Project by ID and never carry a root path. The request fingerprint keeps the path,
+         * so a replay of the request ID with another folder is a conflict.
+         */
+        projectPath: pathSchema.optional(),
         sessionId: identifierSchema.optional(),
         newSession: z.literal(true).optional(),
         title: sessionRenameTitleSchema.optional(),
@@ -268,6 +284,7 @@ export const agentDelegationCreateRequestSchema = z
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
     .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
     .refine(isHandoverSelectionFree, 'A hand-over keeps its conversation provider and launch')
+    .refine(isSurfaceForNewTask, 'A surface applies to a new task, not a continuation')
     .refine(
         (value) => Boolean(value.sessionId) !== Boolean(value.newSession),
         'Choose one Session or a new Session',
@@ -278,15 +295,16 @@ export const agentDelegationCreateRequestSchema = z
             (!value.followUpOf && !value.resumeFrom && !value.continueFromHandover),
         'A new Session starts a new task',
     )
+    .refine(isRelationForNewSession, 'A hand-off, consult or independent Session is a new Session')
     .refine(
-        (value) => !value.handoff || Boolean(value.newSession),
-        'A hand-off continues in a new Session',
+        (value) => Boolean(value.projectId) !== Boolean(value.projectPath),
+        'Choose a Project ID or a Project path',
     )
     .refine(
-        (value) => !value.consult || Boolean(value.newSession),
-        'A consult asks in a new Session',
+        (value) => !value.projectPath || Boolean(value.newSession),
+        'A Project path adds a Project for a new Session',
     )
-    .refine((value) => !value.consult || !value.handoff, 'A consult is not a hand-off; choose one')
+    .refine(isOneRelation, 'Choose one of hand-off, consult or independent')
     .refine(
         (value) => !value.worktreeBranch || Boolean(value.newSession),
         'A worktree is created for a new Session',
@@ -391,6 +409,16 @@ export const agentDelegationMethods = {
         params: identitySchema,
         result: agentDelegationReceiptResultSchema,
     },
+    /**
+     * Steers the child's running turn with new direction, as one message in that same turn. Not human input, so it
+     * never takes the child over; refused, never queued, when the turn cannot take it now. See
+     * `DelegationRedirectRefusal`.
+     */
+    'agent.delegation.redirect': {
+        ...commandPolicy('server', 'control', ['agents.delegate']),
+        params: delegationRedirectParametersSchema,
+        result: agentDelegationReceiptResultSchema,
+    },
     'agent.delegation.create': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
         params: agentDelegationCreateRequestSchema,
@@ -447,6 +475,11 @@ export const agentDelegationInternalMethods = {
     'agent.delegation.stopInternal': {
         ...commandPolicy('server', 'control'),
         params: authoritySchema.extend(identitySchema.shape),
+        result: agentDelegationReceiptResultSchema,
+    },
+    'agent.delegation.redirectInternal': {
+        ...commandPolicy('server', 'control'),
+        params: authoritySchema.extend(delegationRedirectParametersSchema.shape),
         result: agentDelegationReceiptResultSchema,
     },
     'agent.delegation.waitInternal': {

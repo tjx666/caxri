@@ -32,6 +32,7 @@ export type CoreHandledMethod = Extract<
     | 'agent.delegation.history'
     | 'agent.delegation.presets'
     | 'agent.delegation.questions'
+    | 'agent.delegation.redirect'
     | 'agent.delegation.result'
     | 'agent.delegation.status'
     | 'agent.delegation.stop'

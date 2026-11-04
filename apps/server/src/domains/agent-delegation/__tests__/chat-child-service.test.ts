@@ -14,7 +14,10 @@ import type { AgentDelegationServiceOptions } from '../service-options';
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 const owner = { principal: { kind: 'human-cli', id: 'owner' } } as const;
 
-async function fixture(overrides: Partial<AgentDelegationServiceOptions> = {}) {
+async function fixture(
+    overrides: Partial<AgentDelegationServiceOptions> = {},
+    request: { surface?: 'chat' | 'pty'; provider?: 'claude' | 'grok' } = {},
+) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-chat-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(async () => {
@@ -39,6 +42,7 @@ async function fixture(overrides: Partial<AgentDelegationServiceOptions> = {}) {
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn<AgentDelegationServiceOptions['readTranscript']>(),
         opensAgentsInChat: () => true,
+        hasAgentChat: () => true,
         isChatTerminal: () => true,
         readChatTurn: () => turn,
         ...overrides,
@@ -50,6 +54,7 @@ async function fixture(overrides: Partial<AgentDelegationServiceOptions> = {}) {
         sessionId: session.id,
         provider: 'claude',
         prompt: 'Synthetic private task',
+        ...request,
     });
     return {
         database,
@@ -210,5 +215,58 @@ describe('AgentDelegationService with a Terminal child', () => {
                 f.id,
             ),
         ).toThrow(/requires active lifecycle hooks/u);
+    });
+});
+
+describe('AgentDelegationService with a forced surface', () => {
+    it('opens a forced Terminal child on the PTY while Chat is on and reports it on the receipt', async () => {
+        const f = await fixture({}, { surface: 'pty' });
+        expect(f.start.mock.lastCall?.[3]).not.toHaveProperty('surface');
+        expect(f.service.status(f.id, owner)).toMatchObject({ surface: 'pty' });
+    });
+
+    it('opens a forced Chat child with the setting off and reports it on the receipt', async () => {
+        const f = await fixture({ opensAgentsInChat: () => false }, { surface: 'chat' });
+        expect(f.start.mock.lastCall?.[3]).toMatchObject({ surface: 'chat' });
+        expect(f.service.status(f.id, owner)).toMatchObject({ surface: 'chat' });
+    });
+
+    it('reports the surface a defaulted child resolved to, not the request', async () => {
+        const chat = await fixture();
+        expect(chat.service.status(chat.id, owner).surface).toBe('chat');
+        const terminal = await fixture({ opensAgentsInChat: () => false });
+        expect(terminal.service.status(terminal.id, owner).surface).toBe('pty');
+    });
+
+    it('fails a forced Terminal child as hooks_required when its hooks are off', async () => {
+        const f = await fixture({ hasLifecycleHooks: () => false }, { surface: 'pty' });
+        expect(f.service.status(f.id, owner)).toMatchObject({
+            status: 'failed',
+            failure: 'hooks_required',
+        });
+    });
+
+    it('refuses a forced Chat the provider cannot carry before any task is recorded', async () => {
+        await expect(fixture({}, { provider: 'grok', surface: 'chat' })).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+            details: { reason: 'forced_chat_unavailable' },
+        });
+    });
+
+    it('refuses a forced Chat without an Agent Chat service', async () => {
+        await expect(
+            fixture({ hasAgentChat: () => false }, { surface: 'chat' }),
+        ).rejects.toMatchObject({ details: { reason: 'forced_chat_unavailable' } });
+    });
+
+    it('treats a replay with a different surface as another request', async () => {
+        const f = await fixture({}, { surface: 'pty' });
+        await expect(
+            f.service.create(f.id, owner, {
+                ...f.input,
+                prompt: 'Synthetic private task',
+                surface: 'chat',
+            }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
     });
 });

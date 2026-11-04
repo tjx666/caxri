@@ -141,7 +141,7 @@ export class CaxriDatabase {
             rootPath,
             provider,
             isRegisterProject,
-            (projectId) => this.createSession(projectId, null).session,
+            (projectId, title) => this.createSession(projectId, null, undefined, { title }).session,
         );
     }
 

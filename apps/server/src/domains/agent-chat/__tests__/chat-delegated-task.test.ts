@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto';
+
 import type { AgentChatPatchOperation } from '@caxri/protocol';
-import { delegatedTaskPointer, parseDelegatedTaskPointer } from '@caxri/protocol';
+import {
+    delegatedRedirectMessage,
+    delegatedTaskPointer,
+    parseDelegatedTaskPointer,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { delegatedTaskDetails, stampDelegatedTasks } from '../chat-delegated-task';
@@ -14,8 +20,13 @@ function database(
     callerSessionId: string | undefined,
     botSessionId = 'bot-session',
     isHandoff = false,
+    isIndependent = false,
 ) {
-    const input = { prompt: 'Fix the flaky login test', ...(isHandoff && { handoff: true }) };
+    const input = {
+        prompt: 'Fix the flaky login test',
+        ...(isHandoff && { handoff: true }),
+        ...(isIndependent && { independent: true }),
+    };
     return {
         agentDelegations: {
             get: (id: string) =>
@@ -65,6 +76,16 @@ describe('delegatedTaskDetails', () => {
             handoff: true,
         });
     });
+
+    it('marks a task that started an independent Session', () => {
+        expect(
+            delegatedTaskDetails(database('session-a', 'bot-session', false, true), DELEGATION_ID),
+        ).toEqual({
+            prompt: 'Fix the flaky login test',
+            source: { kind: 'session', sessionId: 'session-a' },
+            independent: true,
+        });
+    });
 });
 
 describe('stampDelegatedTasks', () => {
@@ -99,5 +120,72 @@ describe('stampDelegatedTasks', () => {
             item: { delegatedTask: { delegationId: DELEGATION_ID } },
         });
         expect(operation).not.toHaveProperty('item.delegatedTask.source');
+    });
+});
+
+describe('delegated redirect', () => {
+    const text = 'Use the synthetic fixtures';
+    const forgedDigest = 'f'.repeat(64);
+    const digest = createHash('sha256').update(text).digest('hex');
+    const withClaims = (redirects: Array<{ operationId: string; digest: string }>) =>
+        ({
+            agentDelegations: {
+                get: () => ({
+                    receipt: { callerTerminalId: 'caller-terminal' },
+                    input: { prompt: 'Fix the flaky login test' },
+                    redirects,
+                }),
+            },
+            getTerminal: () => ({ sessionId: 'session-a' }),
+            caxriBotRows: () => ({ sessionId: 'bot-session' }),
+        }) as unknown as Parameters<typeof delegatedTaskDetails>[0];
+
+    it('shows the direction as the message only when the task recorded this operation with this text', () => {
+        const redirect = { operationId: 'op-12345', text };
+
+        expect(
+            delegatedTaskDetails(
+                withClaims([{ operationId: 'op-12345', digest }]),
+                DELEGATION_ID,
+                redirect,
+            ),
+        ).toEqual({
+            prompt: text,
+            source: { kind: 'session', sessionId: 'session-a' },
+            redirect: true,
+        });
+        expect(delegatedTaskDetails(withClaims([]), DELEGATION_ID, redirect)).toEqual({});
+        expect(
+            delegatedTaskDetails(
+                withClaims([{ operationId: 'op-12345', digest: forgedDigest }]),
+                DELEGATION_ID,
+                redirect,
+            ),
+        ).toEqual({});
+    });
+
+    it('falls back to a generic direction card once the task record is gone', () => {
+        const gone = {
+            agentDelegations: { get: () => {} },
+        } as unknown as Parameters<typeof delegatedTaskDetails>[0];
+
+        expect(
+            delegatedTaskDetails(gone, DELEGATION_ID, { operationId: 'op-12345', text }),
+        ).toEqual({ prompt: text, redirect: true });
+        expect(delegatedTaskDetails(gone, DELEGATION_ID)).toEqual({});
+    });
+
+    it('stamps a redirect envelope with the redirect flag', () => {
+        const message = delegatedRedirectMessage(DELEGATION_ID, 'op-12345', text);
+        const operations: AgentChatPatchOperation[] = [
+            { op: 'upsertItem', item: { id: 'a', type: 'userMessage', text: message } },
+        ];
+        const stamped = stampDelegatedTasks(operations, (_id, redirect) =>
+            redirect ? { prompt: redirect.text, redirect: true } : {},
+        );
+
+        expect(stamped[0]).toMatchObject({
+            item: { delegatedTask: { delegationId: DELEGATION_ID, prompt: text, redirect: true } },
+        });
     });
 });

@@ -59,6 +59,7 @@ async function fixture(pullRequest?: SessionPullRequest) {
     const owned = vi.fn((id: string) => database.agentDelegations.get(id));
     const service = {
         result: read,
+        notices: { readOutcome: () => {} },
         owned,
         wait: async (ids: readonly string[]) => ({ ...(await read(ids[0])), outcome: 'settled' }),
     } as unknown as AgentDelegationService;

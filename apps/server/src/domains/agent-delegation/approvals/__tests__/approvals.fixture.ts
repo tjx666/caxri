@@ -47,9 +47,11 @@ export async function approvalFixture(
     {
         pathResolver,
         chain = false,
+        flags = {},
     }: {
         pathResolver?: DelegationApprovalEnvironment['resolveWorkspacePath'];
         chain?: boolean;
+        flags?: { independent?: true };
     } = {},
 ) {
     const launches = new Map<string, string>();
@@ -121,7 +123,7 @@ export async function approvalFixture(
     const root = f.authority.callerTerminalId;
     f.database.terminalSurfaces.switch(root, 'chat');
     launches.set(root, 'parent-launch');
-    let task = await f.delegate();
+    let task = await f.delegate(flags);
     let base = f.start(task);
     launches.set(task.terminalId, base.launchId);
     let authority: DelegationAuthority = f.authority;

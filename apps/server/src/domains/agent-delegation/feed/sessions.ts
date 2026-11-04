@@ -8,6 +8,7 @@ import type {
 import { isDelegationActive, MAX_DELEGATION_SESSIONS } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../../db';
+import { sessionControls } from '../handback/control';
 import { questionSummaries } from '../questions/summary';
 
 /**
@@ -74,12 +75,31 @@ export function delegationSessions(
     source: DelegationSessionsSource,
     createdBySessionIds: readonly string[],
 ): AgentDelegationSession[] {
+    return delegationEntries(
+        source,
+        source.database.createdSessions.list(createdBySessionIds, MAX_DELEGATION_SESSIONS),
+    );
+}
+
+/**
+ * The feed entry of each named Session, in the order given: the same entry {@link delegationSessions} builds, for
+ * Sessions the caller already found by another route (the tree-wide attention read walks edges, not creators).
+ * `isSummary: false` leaves out the `step` and the stored `result`, which a reader that only classifies the Session
+ * does not draw, so it skips their lookups.
+ */
+export function delegationEntries(
+    source: DelegationSessionsSource,
+    created: ReadonlyArray<
+        Pick<AgentDelegationSession, 'createdBySessionId' | 'relation' | 'sessionId'>
+    >,
+    { isSummary = true }: { isSummary?: boolean } = {},
+): AgentDelegationSession[] {
     const { database } = source;
-    const created = database.createdSessions.list(createdBySessionIds, MAX_DELEGATION_SESSIONS);
     const sessionIds = created.map((session) => session.sessionId);
     const receipts = stateReceipts(database.agentDelegations.receiptsForSessions(sessionIds));
-    const results = database.createdSessions.results(sessionIds);
+    const results = isSummary ? database.createdSessions.results(sessionIds) : undefined;
     const takeovers = database.agentDelegations.takeoversForSessions(sessionIds);
+    const controls = sessionControls(database, sessionIds);
     const delegationIds = receipts
         .values()
         .map((receipt) => receipt.delegationId)
@@ -88,12 +108,12 @@ export function delegationSessions(
     const approvals = source.approvals?.feed(delegationIds);
     return created.map(({ sessionId, createdBySessionId, relation }) => {
         const receipt = receipts.get(sessionId);
-        const result = results.get(sessionId);
+        const result = results?.get(sessionId);
         const takenOverAt = takeovers.get(sessionId);
         const question = receipt && questions.get(receipt.delegationId);
         const approval = receipt && approvals?.get(receipt.delegationId);
         const step =
-            receipt?.terminalId && isDelegationActive(receipt)
+            isSummary && receipt?.terminalId && isDelegationActive(receipt)
                 ? source.chatStep?.(receipt.terminalId)
                 : undefined;
         return {
@@ -121,6 +141,7 @@ export function delegationSessions(
                 }),
             }),
             ...(takenOverAt !== undefined && { takenOverAt }),
+            ...(controls.has(sessionId) && { control: controls.get(sessionId) }),
             ...(approval && { approval: approval.approval, waitingOn: approval.waitingOn }),
             ...question,
             ...(step && { step }),

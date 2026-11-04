@@ -106,7 +106,7 @@ export async function delegatedFixture(overrides: Partial<AgentDelegationService
     /**
      * Delegates a task into a new Session, advancing the clock so each task has its own creation time.
      */
-    const delegate = async (flags: { consult?: true; handoff?: true } = {}) => {
+    const delegate = async (flags: { consult?: true; handoff?: true; independent?: true } = {}) => {
         state.clock += 1000;
         const id = randomUUID();
         const receipt = await service.create(id, authority, { ...request, ...flags });

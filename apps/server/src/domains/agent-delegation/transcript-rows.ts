@@ -29,8 +29,17 @@ function truncated(...fields: Clipped[]): { truncated?: true } {
 }
 
 /**
+ * The row for a redirect of this task that the Agent took in: the new direction, clipped like prose.
+ */
+export function delegationDirectionRow(id: string, text: string): DelegationTranscriptRow {
+    const clipped = clip(text, 'head');
+    return { id, kind: 'direction', text: clipped.text, ...truncated(clipped) };
+}
+
+/**
  * The transcript row of one Chat item of a delegated task, or `undefined` for an item the delegating Agent has no use
- * for. `userMessage` items never reach this: the reader ends the task's conversation at the first one after its start.
+ * for. `userMessage` items never reach this: the reader ends the task's conversation at the first one after its start,
+ * except this task's own confirmed redirects, which it turns into `direction` rows.
  */
 export function delegationTranscriptRow(item: AgentChatItem): DelegationTranscriptRow | undefined {
     switch (item.type) {
@@ -114,6 +123,7 @@ export function isDelegationTranscriptRowFinished(row: DelegationTranscriptRow):
             return row.status !== 'running';
         case 'notice':
         case 'task':
+        case 'direction':
             return true;
     }
 }
@@ -125,6 +135,7 @@ export function delegationTranscriptRowLength(row: DelegationTranscriptRow): num
     switch (row.kind) {
         case 'agentMessage':
         case 'reasoning':
+        case 'direction':
             return row.text.length;
         case 'command':
             return row.command.length + row.output.length;

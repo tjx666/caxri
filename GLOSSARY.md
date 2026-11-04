@@ -150,9 +150,15 @@ _Avoid_: transferred Session, adopted Session, imported Session
 
 **Delegated Session**:
 A Session an Agent creates for a task it then waits on and reads the result of. The Session records
-the Session that created it, and the sidebar lists it under that Session. A Hand-off or a Consult is
-not one, and neither is a Session Caxri Bot dispatches a task to.
+the Session that created it, and the sidebar lists it under that Session. A Hand-off, a Consult, or an Independent
+Session is not one, and neither is a Session Caxri Bot dispatches a task to.
 _Avoid_: Child Session, sub-Session, subagent
+
+**Redirect**:
+A Delegated Session's delegator changing the direction of a task that is running now, as one message
+steered into the task's current turn or refused. It is never queued and never starts a turn, and it
+is not the user taking the Chat over.
+_Avoid_: Interrupt, steer (as a noun), mid-task follow-up
 
 **Parent approval**:
 An Agent's one-shot decision (accept or decline) on a permission request of a Session it delegated a
@@ -173,6 +179,15 @@ A question or review an Agent asks another Agent in a new Session, not meant to 
 The Session records the Session that asked, and the sidebar gives it no row while the Session that
 asked is listed. It is neither a Delegated Session nor a Hand-off.
 _Avoid_: Side Session, review Session, Delegated Session
+
+**Independent Session**:
+A sibling Session an Agent starts because the user asked for a separate, parallel Session for its
+own task, which the Agent does not wait on. The Session records the Agent's Session as its creator,
+which may still rename and archive it, but the creator is sent no notice when it settles, is rolled
+up none of its cost or attention, and is not asked its questions or approvals: they go to the user.
+The sidebar gives it an ordinary row with a "Started from" line. It is not a Delegated Session, and
+unlike a Hand-off the creator's own work does not move there.
+_Avoid_: Sibling Session, detached Session, spin-off
 
 **Delegation history**:
 The durable record of tasks that settled: who created them, how they ended, a title and summary to

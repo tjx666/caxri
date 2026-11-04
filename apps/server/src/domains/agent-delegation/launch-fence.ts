@@ -1,7 +1,8 @@
 import { isDelegationActive } from '@caxri/protocol';
 
-import type { CaxriDatabase, StoredAgentDelegation } from '../db';
+import type { StoredAgentDelegation } from '../db';
 import { restoredDelegationFor } from './restored-task';
+import type { AgentDelegationServiceOptions } from './service-options';
 
 /**
  * Fences a Terminal's earlier tasks before a launch that belongs to none of them, PTY or Chat.
@@ -16,17 +17,18 @@ import { restoredDelegationFor } from './restored-task';
  */
 export function fenceTerminalLaunch(
     host: {
-        database: CaxriDatabase;
-        inputEpoch(terminalId: string): number | undefined;
+        options: Pick<AgentDelegationServiceOptions, 'database' | 'inputEpoch'>;
         save(record: StoredAgentDelegation): StoredAgentDelegation;
     },
     terminalId: string,
     launchId: string,
 ): void {
-    const adopted = restoredDelegationFor(host.database, terminalId);
-    if (adopted) host.save({ ...adopted, launchId, inputEpoch: host.inputEpoch(terminalId) });
+    const { database } = host.options;
+    const adopted = restoredDelegationFor(database, terminalId);
+    if (adopted)
+        host.save({ ...adopted, launchId, inputEpoch: host.options.inputEpoch?.(terminalId) });
     // Re-read: the adopted task now carries this launch, so the fence skips it.
-    for (const task of host.database.agentDelegations.forTerminal(terminalId))
+    for (const task of database.agentDelegations.forTerminal(terminalId))
         if (task.launchId !== launchId && !task.hasLostTarget)
             host.save({
                 ...task,

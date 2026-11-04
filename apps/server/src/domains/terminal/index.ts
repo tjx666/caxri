@@ -1,3 +1,4 @@
+export { didPasteAndSubmitAgentText } from './agent-paste-submit';
 export { createTerminalCreation } from './creation';
 export type {
     TerminalExecutionEvent,

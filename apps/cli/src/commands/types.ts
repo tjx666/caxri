@@ -65,6 +65,11 @@ export interface RemoteCommandDefinition {
      * returns the process exit code. `method` still declares the first request, its capability, and its effect.
      */
     run?(context: RemoteCommandRunContext): Promise<number>;
+    /**
+     * Keeps the owner connection open when the CLI is interrupted, so `run` can finish its cleanup (such as revoking a
+     * credential it issued) before the connection closes. The command owns every signal it needs to react to.
+     */
+    settlesBeforeClose?: boolean;
     usage?: string;
 }
 
@@ -76,6 +81,10 @@ export interface RemoteCommandRunContext {
     environment: NodeJS.ProcessEnv;
     json: boolean;
     parameters: unknown;
+    /**
+     * The resolved profile directory this invocation talks to.
+     */
+    profilePath: string;
     request(method: CaxriMethod, parameters: unknown): Promise<unknown>;
     signal?: AbortSignal;
     writeStderr(text: string): void;

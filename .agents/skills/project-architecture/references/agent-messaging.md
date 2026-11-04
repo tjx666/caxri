@@ -42,8 +42,14 @@ long-lived Shell root. A client disconnect explicitly cancels its dispatch long 
 has no child process to signal: `terminal.sendInternal`, interrupt, stop, and dispatch `resume`/`wake` drive it
 through `AgentChatService` (`agent-dispatch/chat-target.ts`, `chat-launch.ts`), and its process state reaches
 receipts through `AgentChatServiceOptions.onAgentStateChanged`. Dispatch `start` creates a PTY, except a visible
-delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex Chat (`agent-delegation/chat-child.ts`;
-see `docs/agent-delegation.md`).
+delegation child that `session.openAgentsInChat` opens as a Claude Code or Codex Chat, or that the caller forces with
+`--surface chat|terminal` (`agent-delegation/chat-child.ts`, resolved once at admission onto `receipt.surface`; see
+`docs/agent-delegation.md`).
+
+`agent.delegation.redirect` is the one Agent-originated input into a running Chat turn. It is exact-turn
+only (`exactTurnId`, no queue, no new-turn fallback), claims its operation ID in the delegation record
+before sending, and is recognized as a redirect (transcript `direction` row, Desktop and Mobile label)
+only through a delivered claim whose digest matches the text; see `docs/agent-delegation.md`.
 
 The Caxri Bot Endpoint is the one fixed exception to grant-only delegation. Domain services begin
 it with `role: 'bot'`, which adds `bot` and `agents.delegate` while its Project scope stays
@@ -66,6 +72,15 @@ composing defers it the same way a follow-up defers. Undelivered notices persist
 `bot_pending_notices`; a relaunched Caxri Bot, which has no finished turn to prove idle, receives
 them (and a marker for a turn a restart cut off) as its launch prompt instead. See "Completion
 notices" in `docs/caxri-bot.md`.
+
+A delegation settlement notice (`SettlementNotices`, `apps/server/src/domains/agent-delegation/settlement-notice/`)
+is a third, narrow exception of the same kind, aimed at the managed Agent that delegated a task instead of Caxri
+Bot. It has no sender Endpoint and no Peer Inbox, carries only Server-generated fields (task IDs, a closed phrase, and
+the child Session title with control characters stripped), and reaches an idle Chat through the non-human
+delegation send path, never `agentChat.send`, so it is never human input or a takeover; a PTY caller gets it only with
+Bot's idle proof and an unchanged input epoch. It goes to the exact caller launch, never to another Agent. A task
+in a `handoff` or `independent` Session, a task of Caxri Bot, and a task of an external client produce none.
+See "Settlement notices" in `docs/agent-delegation.md`.
 
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
@@ -92,7 +107,7 @@ Owner-only methods. A method spec may declare `principal: 'owner'` (`ownerOnlyCo
 refuses it for every principal except Desktop and the human CLI (`assertOwnerOnlyMethod`), because an
 `agent:control` grant gives an Agent Endpoint the same capabilities. Caxri Bot hand-over
 (`bot.session.handOver`, `bot.session.takeBack`, `bot.conversations`) and the Desktop-only
-reads `bot.managedSessions`, `session.permissionAutoAllowStatus`, and `agent.delegation.sessions`
+reads `bot.managedSessions`, `session.permissionAutoAllowStatus`, `agent.delegation.sessions`, and `agent.delegation.attention`
 ([Delegated Session feed](../../../../docs/agent-delegation.md#delegated-session-feed)) use it: they span every
 Project and the default Agent capabilities (`agents.read`, `sessions.read`) would otherwise expose them without
 Project scope.

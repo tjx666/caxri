@@ -51,6 +51,7 @@ interface Scenario {
     chatReadLeaseAt?: number;
     isChatSuspendable?: boolean;
     isChatMaintenancePending?: boolean;
+    isSuspensionHeld?: boolean;
     isObservedRemotely?: boolean;
     sample?: TerminalActivitySample;
     selectedSessionId?: string;
@@ -67,6 +68,7 @@ function decide(scenario: Scenario = {}) {
         deselectedAt: () => scenario.deselectedAt,
         isChatSuspendable: () => scenario.isChatSuspendable ?? false,
         isChatMaintenancePending: () => scenario.isChatMaintenancePending ?? false,
+        isSuspensionHeld: () => scenario.isSuspensionHeld ?? false,
         isObservedRemotely: () => scenario.isObservedRemotely ?? false,
         now: NOW,
         sample: () => scenario.sample,
@@ -257,6 +259,27 @@ describe('decideTerminalSuspensions: idle rule', () => {
                 sample: untouchedSample,
                 terminal: chat('codex'),
                 isChatSuspendable: true,
+            }),
+        ).toEqual([]);
+    });
+
+    it('keeps an Agent that delegated work running, Chat or PTY, and parks it once released', () => {
+        const chat = terminal({ kind: 'claude', provider: 'claude', surface: 'chat' });
+        const idle = { deselectedAt: NOW - halfHour, sample: idleSample, settings: idleOn };
+
+        expect(decide({ ...idle, terminal: chat, isChatSuspendable: true })).toEqual([
+            { reason: 'idle', terminalId: 'terminal-1' },
+        ]);
+        expect(
+            decide({ ...idle, terminal: chat, isChatSuspendable: true, isSuspensionHeld: true }),
+        ).toEqual([]);
+        expect(decide({ ...idle, isSuspensionHeld: true })).toEqual([]);
+        expect(
+            decide({
+                terminal: chat,
+                isChatSuspendable: true,
+                chatReadLeaseAt: NOW - 24 * 60 * 60_000,
+                isSuspensionHeld: true,
             }),
         ).toEqual([]);
     });

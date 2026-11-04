@@ -4,9 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { StoredAgentDelegation } from '../../db';
 import type { DelegationChatTurn } from '../chat-child';
-import { chatDelegationCompletion, delegationChildLaunch } from '../chat-child';
+import {
+    assertChatChildAvailable,
+    chatDelegationCompletion,
+    delegationChildLaunch,
+    resolveChildSurface,
+} from '../chat-child';
 import { readDelegationCompletion } from '../collection';
 import { recoveredDelegation } from '../lifecycle';
+import type { AgentDelegationServiceOptions } from '../service-options';
 
 const POINTER =
     'Read the delegated task from "/data/d-1/task.md" and carry it out. Delegation ID: d-1.';
@@ -18,6 +24,7 @@ function record(
 ): StoredAgentDelegation {
     return {
         receipt: { delegationId: 'd-1', provider, terminalId: 'terminal-1', status: 'running' },
+        input: {},
         frozenLaunch: { executable: provider, args: ['--model', 'frozen'] },
         providerSessionId: provider === 'claude' ? 'session-1' : undefined,
         launchId: 'launch-1',
@@ -78,6 +85,80 @@ describe('delegationChildLaunch', () => {
             expect(launch.launch.args.slice(0, 2)).toEqual(['--model', 'frozen']);
         },
     );
+});
+
+describe('forced child surface', () => {
+    type SurfaceOptions = Pick<AgentDelegationServiceOptions, 'hasAgentChat' | 'opensAgentsInChat'>;
+    const on: SurfaceOptions = { hasAgentChat: () => true, opensAgentsInChat: () => true };
+    const off: SurfaceOptions = { hasAgentChat: () => true, opensAgentsInChat: () => false };
+    const noChat: SurfaceOptions = { hasAgentChat: () => false, opensAgentsInChat: () => false };
+
+    it.each([
+        ['setting on', on, undefined, 'chat'],
+        ['setting off', off, undefined, 'pty'],
+        ['setting on, forced pty', on, 'pty', 'pty'],
+        ['setting off, forced chat', off, 'chat', 'chat'],
+        ['setting on, forced chat', on, 'chat', 'chat'],
+        ['setting off, forced pty', off, 'pty', 'pty'],
+    ] as const)('resolves %s', (_label, options, requested, expected) => {
+        expect(resolveChildSurface(options, 'claude', requested)).toBe(expected);
+    });
+
+    it('keeps a defaulted child on the PTY for a provider without Chat', () => {
+        expect(resolveChildSurface(on, 'grok', undefined)).toBe('pty');
+        expect(resolveChildSurface(on, 'grok', 'pty')).toBe('pty');
+    });
+
+    it.each([
+        ['a provider whose Chat cannot carry the task', 'grok', on],
+        ['an Agent without Chat support', 'antigravity', on],
+        ['a Server without Agent Chat', 'claude', noChat],
+    ] as const)(
+        'refuses a forced Chat for %s instead of downgrading',
+        (_label, provider, options) => {
+            const attempt = () => resolveChildSurface(options, provider, 'chat');
+            expect(attempt).toThrow(/Chat child is unavailable/u);
+            expect(() => assertChatChildAvailable(options, provider)).toThrow(
+                expect.objectContaining({ details: { reason: 'forced_chat_unavailable' } }),
+            );
+        },
+    );
+
+    it('launches a forced Terminal child on the PTY while the setting is on', () => {
+        const launch = delegationChildLaunch(
+            { ...on, userDataPath: '/data' },
+            record('claude', {
+                input: { surface: 'pty' },
+                receipt: { ...record('claude').receipt, surface: 'pty' },
+            } as Partial<StoredAgentDelegation>),
+            PREPARED,
+        );
+        expect(launch).not.toHaveProperty('surface');
+        expect(launch.launch).toBe(PREPARED.launch);
+    });
+
+    it('still requires lifecycle hooks for a forced Terminal child', () => {
+        expect(() =>
+            delegationChildLaunch(
+                { ...on, hasLifecycleHooks: () => false, userDataPath: '/data' },
+                record('claude', {
+                    receipt: { ...record('claude').receipt, surface: 'pty' },
+                }),
+                PREPARED,
+            ),
+        ).toThrow(/lifecycle hooks/u);
+    });
+
+    it('launches a forced Chat child with the setting off and without hooks', () => {
+        const launch = delegationChildLaunch(
+            { ...off, hasLifecycleHooks: () => false, userDataPath: '/data' },
+            record('codex', {
+                receipt: { ...record('codex').receipt, surface: 'chat' },
+            }),
+            PREPARED,
+        );
+        expect(launch).toMatchObject({ surface: 'chat', initialPrompt: POINTER });
+    });
 });
 
 describe('chatDelegationCompletion', () => {

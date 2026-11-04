@@ -4,6 +4,7 @@ import { memo } from 'react';
 import type { AgentChatTurnArtifacts, AgentChatTurnMetrics } from '@caxri/protocol';
 
 import { SurfaceErrorBoundary } from '../../../../components/surface-error-boundary';
+import { AgentChatDelegationNoticeRows } from '../../delegation/notice/agent-chat-delegation-notice-rows';
 import { AgentChatNotice, AgentChatReply } from '../../messages/agent-chat-message';
 import { AgentChatUserMessage } from '../../messages/agent-chat-user-message';
 import { AgentChatWorkGroup } from '../../tools/agent-chat-work-group';
@@ -35,6 +36,8 @@ const AgentChatMessageItem = memo(
     }) => {
         switch (item.type) {
             case 'userMessage': {
+                if (item.delegationNotice)
+                    return <AgentChatDelegationNoticeRows notice={item.delegationNotice} />;
                 return (
                     <AgentChatUserMessage
                         createdAt={item.createdAt}

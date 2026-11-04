@@ -5,10 +5,12 @@ import type {
     AgentChatPermissionMode,
     AgentChatSnapshot,
     AgentLaunchSettings,
+    DelegationRedirectRefusal,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { assertE2EAgentChatInput, readE2EAgentPolicy } from '@caxri/system';
 
+import { isTurnEnded, isTurnNotSteerable } from './chat-provider';
 import type { ChatState } from './chat-states';
 import type { ChatTurnAnswer } from './chat-turn-answer';
 import { chatTurnAnswer } from './chat-turn-answer';
@@ -74,6 +76,61 @@ export class ChatDelegationLinks {
     ) {}
 
     /**
+     * Runs `deliver` on the Chat's send chain against one exact launch, so it keeps its order with other input. It is
+     * not human input and never starts a provider: when it reaches the head of the chain it rejects unless `launchId`
+     * is still live with an open session, so a launch that was suspended, retired, or replaced meanwhile reports the
+     * message as not delivered.
+     */
+    private async onLaunchChain(
+        terminalId: string,
+        launchId: string,
+        deliver: (host: {
+            session: NonNullable<ChatState['session']>;
+            state: ChatState;
+        }) => Promise<void>,
+    ): Promise<void> {
+        const state = this.options.state(terminalId);
+        /**
+         * Returns the open session of `launchId` while `state` is still the Terminal's current, admissible Chat.
+         */
+        const admitLaunch = () => {
+            const session = state?.session;
+            if (
+                !state ||
+                this.options.state(terminalId) !== state ||
+                this.liveLaunchId(terminalId) !== launchId ||
+                !session?.isOpen
+            )
+                throw new CaxriError(
+                    'CONFLICT',
+                    'The delegated Chat changed before the message reached it',
+                    { steerRefusal: 'launch_replaced' satisfies DelegationRedirectRefusal },
+                );
+            try {
+                this.options.admit(terminalId, state);
+            } catch (error) {
+                // The Chat stopped, was archived or detached: nothing reached the provider, so it is a refusal and
+                // not a message of unknown fate.
+                throw error instanceof CaxriError
+                    ? new CaxriError(error.code, error.message, {
+                          ...error.details,
+                          steerRefusal: 'launch_replaced' satisfies DelegationRedirectRefusal,
+                      })
+                    : error;
+            }
+            return { session, state };
+        };
+        admitLaunch();
+        const previous = state!.sendQueue;
+        const run = (async () => {
+            await previous;
+            await deliver(admitLaunch());
+        })();
+        state!.sendQueue = Promise.allSettled([run]);
+        await run;
+    }
+
+    /**
      * Called before the start that launches a delegated child (or relaunches one for its task).
      */
     prepareStart(terminalId: string, start: ChatDelegatedStart): void {
@@ -126,43 +183,63 @@ export class ChatDelegationLinks {
     }
 
     /**
-     * Delivers a delegation message (a follow-up's task pointer) to one exact launch, on the Chat's send chain so it
-     * keeps its order with other input. Unlike `AgentChatService.send` it is not human input and never starts a
-     * provider: when it reaches the head of the chain it rejects unless `launchId` is still live with an open session,
-     * so a launch that was suspended, retired, or replaced meanwhile reports the message as not delivered.
+     * Delivers a delegation message (a follow-up's task pointer) to one exact launch; see {@link onLaunchChain}. It
+     * waits behind a running turn in the follow-up queue.
      */
     async sendToLaunch(terminalId: string, launchId: string, text: string): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), text);
-        const state = this.options.state(terminalId);
-        /**
-         * Returns the open session of `launchId` while `state` is still the Terminal's current, admissible Chat.
-         */
-        const admitLaunch = () => {
-            const session = state?.session;
-            if (
-                !state ||
-                this.options.state(terminalId) !== state ||
-                this.liveLaunchId(terminalId) !== launchId ||
-                !session?.isOpen
-            )
-                throw new CaxriError(
-                    'CONFLICT',
-                    'The delegated Chat changed before the message reached it',
-                );
-            this.options.admit(terminalId, state);
-            return { session, followUps: state.followUps };
-        };
-        admitLaunch();
-        const previous = state!.sendQueue;
-        const run = (async () => {
-            await previous;
-            const { session, followUps } = admitLaunch();
+        await this.onLaunchChain(terminalId, launchId, async ({ session, state }) => {
             const message = { text };
-            if (followUps.mustWait()) followUps.add({ id: randomUUID(), kind: 'message', message });
+            if (state.followUps.mustWait())
+                state.followUps.add({ id: randomUUID(), kind: 'message', message });
             else await session.send(message);
-        })();
-        state!.sendQueue = Promise.allSettled([run]);
-        await run;
+        });
+    }
+
+    /**
+     * Steers one exact running turn of one exact launch with a delegation message (a redirect), or refuses. At the head
+     * of the send chain it checks again that the launch is live, no person has typed since `inputEpoch`, and `turnId`
+     * is still the active turn; it never queues the message, never starts a turn with it, and never counts as human
+     * input, so the task is not taken over. A refusal is a {@link CaxriError} whose `details.steerRefusal` is a
+     * `DelegationRedirectRefusal` and means nothing reached the provider. Any other rejection (an unconfirmed delivery
+     * above all) leaves it unknown whether the message arrived.
+     */
+    async steerToLaunch(
+        terminalId: string,
+        launchId: string,
+        steer: { turnId: string; inputEpoch: number | undefined; text: string },
+    ): Promise<void> {
+        try {
+            assertE2EAgentChatInput(readE2EAgentPolicy(), steer.text);
+        } catch (error) {
+            // Refused before anything reached the provider, so the operation ID stays retryable.
+            throw error instanceof CaxriError
+                ? new CaxriError(error.code, error.message, {
+                      ...error.details,
+                      steerRefusal: 'not_steerable' satisfies DelegationRedirectRefusal,
+                  })
+                : error;
+        }
+        const refuse = (reason: DelegationRedirectRefusal) =>
+            new CaxriError('CONFLICT', 'The delegated Chat cannot take this direction now', {
+                steerRefusal: reason,
+            });
+        await this.onLaunchChain(terminalId, launchId, async ({ session, state }) => {
+            if (steer.inputEpoch !== undefined && this.inputEpoch(terminalId) !== steer.inputEpoch)
+                throw refuse('human_intervened');
+            if (state.projection.snapshot.activeTurnId !== steer.turnId)
+                throw refuse('turn_changed');
+            try {
+                await session.send(
+                    { text: steer.text },
+                    { delivery: 'steered', exactTurnId: steer.turnId },
+                );
+            } catch (error) {
+                if (isTurnEnded(error)) throw refuse('turn_changed');
+                if (isTurnNotSteerable(error)) throw refuse('not_steerable');
+                throw error;
+            }
+        });
     }
 
     /**

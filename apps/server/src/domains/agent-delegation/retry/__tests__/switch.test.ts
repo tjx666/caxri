@@ -61,6 +61,26 @@ describe('retry with another Agent', () => {
         });
     });
 
+    it('carries the forced surface into the successor instead of re-resolving the setting', async () => {
+        const { database, failedTask, service, stored } = await fixture({
+            hasAgentChat: () => true,
+            opensAgentsInChat: () => true,
+        });
+        const failed = await failedTask();
+        const record = stored(failed.id);
+        database.agentDelegations.save({
+            ...record,
+            input: { ...record.input, surface: 'pty' },
+        });
+
+        await service.retries.retry(failed.id, 'fresh');
+
+        // The setting is on, so a successor that dropped `surface` would have opened as a Chat.
+        const successor = stored(retryDelegationId(failed.id));
+        expect(successor.input.surface).toBe('pty');
+        expect(successor.receipt.surface).toBe('pty');
+    });
+
     it('shares only an identical request and refuses a different mode or Agent', async () => {
         const { failedTask, service, start } = await fixture({
             isProviderInstalled: installed(['claude', 'codex', 'grok']),
