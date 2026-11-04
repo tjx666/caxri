@@ -29,6 +29,28 @@ describe('readSeedConfig', () => {
         });
     });
 
+    it('leaves the Mihomo Controller secret on this Mac and keeps every other setting and comment', async () => {
+        await writeFile(
+            join(fixture.directory, 'settings.jsonc'),
+            [
+                '{',
+                '    // Shown on every Host',
+                '    "workbench.colorTheme": "Dark+",',
+                '    "environmentMonitor.mihomoRoutes": { "endpoint": "http://127.0.0.1:9090", "secret": "local-only" },',
+                '    "git.diffExclude": []',
+                '}',
+            ].join('\n'),
+        );
+        const { settings } = await readSeedConfig(fixture.directory);
+        expect(settings).not.toContain('local-only');
+        expect(settings).not.toContain('environmentMonitor.mihomoRoutes');
+        expect(settings).toContain('// Shown on every Host');
+        expect(JSON.parse(settings!.replace(/\/\/.*$/m, ''))).toEqual({
+            'git.diffExclude': [],
+            'workbench.colorTheme': 'Dark+',
+        });
+    });
+
     it('reads a source exactly at the shared cap', async () => {
         const atCap = 'x'.repeat(MAX_CONFIGURATION_SOURCE_BYTES);
         await writeFile(join(fixture.directory, 'keybindings.jsonc'), atCap);

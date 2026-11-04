@@ -61,7 +61,8 @@ behave as they do on this machine. [ADR 0014](adr/0014-ssh-remote-server.md) rec
   Terminal and Agent on that machine and disconnects it. Reconnect on Launch connects every SSH Host
   that was connected before, one at a time, when Desktop starts.
 - **Settings**: on the first connect to an SSH Host, the local `settings.jsonc`, `keybindings.jsonc`,
-  and `theme.json` are copied into the remote profile when it has none. After that the SSH Host's
+  and `theme.json` are copied into the remote profile when it has none. The copy leaves out
+  `environmentMonitor.mihomoRoutes`, whose Controller secret only this Mac uses. After that the SSH Host's
   configuration is its own; Desktop never overwrites an existing remote file.
 
 ### What an SSH Host's Session cannot do
