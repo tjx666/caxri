@@ -78,6 +78,31 @@ function useRevealSessionRow({
     );
 }
 
+/**
+ * Group expand and collapse. A group animates only after the user toggles it, so the ids that did are remembered.
+ */
+function useGroupToggles(
+    pinnedCollapse: { toggle: () => void },
+    projectCollapse: { toggleProject: (projectId: string) => void },
+) {
+    const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
+    const togglePinnedGroup = (): void => {
+        setAnimatedProjectIds((current) => new Set(current).add(PINNED_GROUP_ROW_ID));
+        pinnedCollapse.toggle();
+    };
+    const toggleProject = (projectId: string): void => {
+        // The Pinned heading is a Project row to the tree's key handling but has no Project behind it, so the one key
+        // path that resolves a heading to a toggle is redirected here rather than into the Project collapse record.
+        if (projectId === PINNED_GROUP_ROW_ID) {
+            togglePinnedGroup();
+            return;
+        }
+        setAnimatedProjectIds((current) => new Set(current).add(projectId));
+        projectCollapse.toggleProject(projectId);
+    };
+    return { animatedProjectIds, togglePinnedGroup, toggleProject };
+}
+
 export function PrimarySidebarProjectTree() {
     const { t } = useTranslation();
     const allProjects = useProjects();
@@ -113,7 +138,6 @@ export function PrimarySidebarProjectTree() {
         selectedSessionId,
         sessions,
     });
-    const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
     const orderedSessions = useMemo(
@@ -210,21 +234,10 @@ export function PrimarySidebarProjectTree() {
         treeReference,
     });
 
-    const togglePinnedGroup = (): void => {
-        setAnimatedProjectIds((current) => new Set(current).add(PINNED_GROUP_ROW_ID));
-        pinnedCollapse.toggle();
-    };
-
-    const toggleProject = (projectId: string): void => {
-        // The Pinned heading is a Project row to the tree's key handling but has no Project behind it, so the one key
-        // path that resolves a heading to a toggle is redirected here rather than into the Project collapse record.
-        if (projectId === PINNED_GROUP_ROW_ID) {
-            togglePinnedGroup();
-            return;
-        }
-        setAnimatedProjectIds((current) => new Set(current).add(projectId));
-        projectCollapse.toggleProject(projectId);
-    };
+    const { animatedProjectIds, togglePinnedGroup, toggleProject } = useGroupToggles(
+        pinnedCollapse,
+        projectCollapse,
+    );
 
     /**
      * The final reveal unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
