@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
+import type { AgentDelegationReceipt } from '@caxri/protocol';
 import { onTestFinished, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
+import { fixture } from '../retry/__tests__/fixture';
 import { SettlementNotices } from '../settlement-notice/service';
-import { fixture } from './retry.fixture';
 
 type DeliverNotice = NonNullable<
     ConstructorParameters<typeof SettlementNotices>[0]['deliverNotice']
@@ -81,7 +82,11 @@ export async function setup(options: { isChat?: boolean } = {}) {
         notices.recorded(record, undefined);
         return id;
     };
-    const settle = (id: string, status: 'completed' | 'failed' = 'completed', extra = {}) => {
+    const settle = (
+        id: string,
+        status: AgentDelegationReceipt['status'] = 'completed',
+        extra = {},
+    ) => {
         const before = f.database.agentDelegations.get(id)!;
         const saved = f.database.agentDelegations.save({
             ...before,

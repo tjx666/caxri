@@ -356,7 +356,7 @@ describe('SettlementNotices: review gaps', () => {
     it('replaces an unsent takeover notice with the hand-back line', async () => {
         const t = await setup();
         const id = await t.create();
-        t.settle(id, 'human_intervened' as never);
+        t.settle(id, 'human_intervened');
 
         t.notices.handedBack(t.stored(id), 'grant-1');
         await vi.advanceTimersByTimeAsync(QUIET_MS);

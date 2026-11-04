@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import { fixture } from '../retry/__tests__/fixture';
 import { SettlementNotices } from '../settlement-notice/service';
-import { fixture } from './retry.fixture';
 import { passSignal, QUIET_MS, RECHECK_MS, setup } from './settlement-notice.fixture';
 
 describe('SettlementNotices: questions and approvals', () => {

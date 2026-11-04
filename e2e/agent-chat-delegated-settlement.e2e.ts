@@ -303,7 +303,7 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         await selectSession(page, childId);
         await expect(
             session.locator('[data-agent-chat-delegation-origin="delegated"]'),
-        ).toContainText(`Delegated from ${parent.title}`);
+        ).toContainText(`Delegated by ${parent.title}`);
         await page.screenshot({ path: testInfo.outputPath('handback-continued.png') });
     } finally {
         await chat.cleanup();

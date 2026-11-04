@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { reasonOf } from '../retry/__tests__/fixture';
 import { takenOverSession } from './hand-back.fixture';
-import { reasonOf } from './retry.fixture';
 
 /**
  * The closed reason a synchronous call was refused with, or `undefined` when it succeeded.

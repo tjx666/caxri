@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
-import { fixture } from './retry.fixture';
+import { fixture } from '../retry/__tests__/fixture';
 
 type NoticeSink = (
     terminalId: string,
@@ -46,7 +46,9 @@ export async function takenOverSession() {
     const terminal = f.database.listTerminals(sessionId)[0];
     f.service.bindLaunch(terminal.id, 'child-launch');
     const started = f.stored(id);
-    f.database.rebindAgentSession(terminal.id, 'claude', started.providerSessionId!);
+    const providerSessionId = started.providerSessionId;
+    if (!providerSessionId) throw new Error('Started delegation has no provider Session id');
+    f.database.rebindAgentSession(terminal.id, 'claude', providerSessionId);
     f.database.agentDelegations.save({
         ...started,
         turnId: 'turn-1',
@@ -57,7 +59,7 @@ export async function takenOverSession() {
             terminalId: terminal.id,
             launchId: 'child-launch',
             provider: 'claude',
-            agentSessionId: started.providerSessionId,
+            agentSessionId: providerSessionId,
             agentTurnId: turn,
             phase,
         }) as unknown as AgentLifecycleSignal;
