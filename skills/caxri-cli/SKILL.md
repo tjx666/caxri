@@ -274,8 +274,9 @@ Then write the task to a file and run
   `changedFileCount`): the pull request Caxri found for that Session, so its file count covers the
   whole pull request, not only this task. To check a Chat task's progress without interrupting it,
   `agent delegate transcript <id>` returns its conversation as typed rows; pass the returned `next`
-  as `--after <cursor>` to read only newer rows; a row still `streaming` or `running` comes back
-  again, so keep the latest copy of each row `id`. It never marks the answer read; an `unavailable`
+  as `--after <cursor>` to read only newer rows; a row still `streaming` or `running` usually comes back
+  again, so keep the latest copy of each row `id`, and once `settled` is true read again without
+  `--after` to see every step's final state. It never marks the answer read; an `unavailable`
   `reason` such as `not_chat` means read the answer with `result` instead. With several tasks running, `agent delegate wait <id> <id>...`
   returns the first one that settled or blocked. Its `--timeout` accepts up to 300000 milliseconds;
   other commands cap `--timeout` at 120000. A wait timeout never authorizes resubmitting the task.
