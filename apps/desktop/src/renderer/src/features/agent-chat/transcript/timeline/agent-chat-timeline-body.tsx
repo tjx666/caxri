@@ -10,6 +10,8 @@ import {
     AgentChatMcpServersContext,
     useAgentChatMcpServers,
 } from '../../hooks/use-agent-chat-mcp-server';
+import type { AgentChatFileLinks } from '../../hooks/use-agent-chat-open-file';
+import { AgentChatRevealFileContext } from '../../hooks/use-agent-chat-open-file';
 import { AgentChatReadBackHistoryContext } from '../../hooks/use-agent-chat-read-back-history';
 import { useAgentChatSkillHost } from '../../hooks/use-agent-chat-skill-host';
 import { AgentChatSkillsContext } from '../../hooks/use-agent-chat-skills';
@@ -89,8 +91,8 @@ export function AgentChatTimelineBody({
     isAwaitingReply,
     isHistoryComplete,
     mcpServers,
+    fileLinks,
     mountedFrom,
-    onOpenFile,
     pending,
     canFork,
     settledChunks,
@@ -104,12 +106,15 @@ export function AgentChatTimelineBody({
      * Whether the whole conversation is on screen: nothing earlier is unread or read back above the live timeline.
      */
     isHistoryComplete: boolean;
+    /**
+     * Opens and, where the window can, reveals a file a reply cites.
+     */
+    fileLinks: AgentChatFileLinks;
     mcpServers: AgentChatSnapshot['mcpServers'];
     /**
      * Index of the first live entry to mount; earlier ones are added by the idle backfill.
      */
     mountedFrom: number;
-    onOpenFile: (reference: string) => void;
     pending: ComponentProps<typeof AgentChatPendingTimeline>['pending'];
     canFork: boolean;
     settledChunks: ComponentProps<typeof AgentChatSettledTimeline>['chunks'];
@@ -122,6 +127,7 @@ export function AgentChatTimelineBody({
     versionView: AgentChatVersionView;
 }) {
     const { editActions, isViewingEarlier, snapshot, versions } = versionView;
+    const onOpenFile = fileLinks.open;
     const readBackHistory = useMemo(() => ({ canFork }), [canFork]);
     const servers = useAgentChatMcpServers(mcpServers);
     const skills = useAgentChatSkillHost(terminalId);
@@ -136,50 +142,59 @@ export function AgentChatTimelineBody({
     return (
         <AgentChatMcpServersContext value={servers}>
             <AgentChatTerminalContext value={terminalId}>
-                <AgentChatSkillsContext value={skills}>
-                    <AgentChatReferencesContext value={references}>
-                        {/*
-                         * History read back is not in the projection, so it never offers Edit, Fork, or Restore; keeping it
-                         * outside the actions, which change with every patch, lets a patch skip it. Its menus list Edit and
-                         * Fork disabled with why.
-                         */}
-                        <AgentChatReadBackHistoryContext value={readBackHistory}>
-                            <AgentChatSettledTimeline
-                                chunks={settledChunks}
-                                onOpenFile={onOpenFile}
-                            />
-                        </AgentChatReadBackHistoryContext>
-                        <AgentChatEditContext value={editActions}>
-                            <AgentChatVersionsContext value={versions}>
-                                <LiveTimelineEntries
-                                    dayBreaks={dayBreaks}
-                                    mountedFrom={mountedFrom}
-                                    takeoverBeforeKey={
-                                        takeover?.kind === 'before' ? takeover.entryKey : undefined
-                                    }
-                                    timeline={timeline}
+                <AgentChatRevealFileContext value={fileLinks.reveal}>
+                    <AgentChatSkillsContext value={skills}>
+                        <AgentChatReferencesContext value={references}>
+                            {/*
+                             * History read back is not in the projection, so it never offers Edit, Fork, or Restore; keeping it
+                             * outside the actions, which change with every patch, lets a patch skip it. Its menus list Edit and
+                             * Fork disabled with why.
+                             */}
+                            <AgentChatReadBackHistoryContext value={readBackHistory}>
+                                <AgentChatSettledTimeline
+                                    chunks={settledChunks}
                                     onOpenFile={onOpenFile}
                                 />
-                                {takeover?.kind === 'standalone' && <AgentChatTakeoverDividerRow />}
-                            </AgentChatVersionsContext>
-                            {isAwaitingReply && !isViewingEarlier && (
-                                <AgentChatReplyPlaceholder turnId={snapshot?.activeTurnId} />
-                            )}
-                            {compaction && !isViewingEarlier && (
-                                <AgentChatCompactingNotice
-                                    isAfterUserMessage={compaction.isAfterUserMessage}
-                                    startedAt={compaction.startedAt}
+                            </AgentChatReadBackHistoryContext>
+                            <AgentChatEditContext value={editActions}>
+                                <AgentChatVersionsContext value={versions}>
+                                    <LiveTimelineEntries
+                                        dayBreaks={dayBreaks}
+                                        mountedFrom={mountedFrom}
+                                        takeoverBeforeKey={
+                                            takeover?.kind === 'before'
+                                                ? takeover.entryKey
+                                                : undefined
+                                        }
+                                        timeline={timeline}
+                                        onOpenFile={onOpenFile}
+                                    />
+                                    {takeover?.kind === 'standalone' && (
+                                        <AgentChatTakeoverDividerRow />
+                                    )}
+                                </AgentChatVersionsContext>
+                                {isAwaitingReply && !isViewingEarlier && (
+                                    <AgentChatReplyPlaceholder turnId={snapshot?.activeTurnId} />
+                                )}
+                                {compaction && !isViewingEarlier && (
+                                    <AgentChatCompactingNotice
+                                        isAfterUserMessage={compaction.isAfterUserMessage}
+                                        startedAt={compaction.startedAt}
+                                    />
+                                )}
+                                <AgentChatPendingTimeline
+                                    pending={pending}
+                                    onOpenFile={onOpenFile}
+                                />
+                            </AgentChatEditContext>
+                            {isViewingEarlier && (
+                                <AgentChatEarlierVersionNotice
+                                    onShowCurrent={versionView.showCurrent}
                                 />
                             )}
-                            <AgentChatPendingTimeline pending={pending} onOpenFile={onOpenFile} />
-                        </AgentChatEditContext>
-                        {isViewingEarlier && (
-                            <AgentChatEarlierVersionNotice
-                                onShowCurrent={versionView.showCurrent}
-                            />
-                        )}
-                    </AgentChatReferencesContext>
-                </AgentChatSkillsContext>
+                        </AgentChatReferencesContext>
+                    </AgentChatSkillsContext>
+                </AgentChatRevealFileContext>
             </AgentChatTerminalContext>
         </AgentChatMcpServersContext>
     );

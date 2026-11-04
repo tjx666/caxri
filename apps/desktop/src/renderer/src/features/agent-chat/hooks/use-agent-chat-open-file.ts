@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext } from 'react';
+import { createContext, useCallback, useContext, useMemo } from 'react';
 
 import type { AgentChatItem } from '@caxri/protocol';
 import { parseFileLocation } from '@caxri/protocol';
@@ -83,4 +83,24 @@ export const AgentChatRevealFileContext = createContext<((reference: string) => 
 
 export function useAgentChatRevealFileAction(): ((reference: string) => void) | undefined {
     return useContext(AgentChatRevealFileContext);
+}
+
+/**
+ * What a Chat timeline does with a cited file: `open` it in the editor, and `reveal` it in Finder where this Mac can.
+ */
+export interface AgentChatFileLinks {
+    open: (reference: string) => void;
+    reveal: ((reference: string) => void) | undefined;
+}
+
+/**
+ * {@link useAgentChatOpenFile} and {@link useAgentChatRevealFile} together, for a timeline that hands both down.
+ */
+export function useAgentChatFileLinks(
+    terminalId: string,
+    itemSources: ReadonlyArray<readonly AgentChatItem[]>,
+): AgentChatFileLinks {
+    const open = useAgentChatOpenFile(terminalId, itemSources);
+    const reveal = useAgentChatRevealFile(terminalId, itemSources);
+    return useMemo(() => ({ open, reveal }), [open, reveal]);
 }
