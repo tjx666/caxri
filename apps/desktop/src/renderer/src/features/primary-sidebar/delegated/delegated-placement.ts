@@ -88,10 +88,10 @@ function shouldNest(session: SessionRecord): boolean {
  *
  * The walk climbs only through Sessions that themselves nest (a nested delegated Session, a hidden consult), so a chain
  * flattens onto one host. It ends at the first creator that is missing (deleted, or the link was cleared) or archived,
- * at one that takes an ordinary row (handoff, no relation, a pinned delegated Session, a delegated Session whose own
- * chain is broken), and at a cycle or the depth cap; the last two leave the Session ordinary so no row can disappear.
- * An archived creator breaks the chain on purpose, like a deleted one: archiving a Session returns what it created to
- * their own Projects.
+ * at one that takes an ordinary row (handoff, independent, no relation, a pinned delegated Session, a delegated Session
+ * whose own chain is broken), and at a cycle or the depth cap; the last two leave the Session ordinary so no row can
+ * disappear. An archived creator breaks the chain on purpose, like a deleted one: archiving a Session returns what it
+ * created to their own Projects.
  */
 function resolveHostId(
     session: SessionRecord,
@@ -144,7 +144,7 @@ function sessionRowGroupId(session: Pick<SessionRecord, 'pinnedAt' | 'projectId'
  * hidden consult. It never reads the delegation feed: a row must not move because a task failed.
  *
  * - `delegated` nests under its host; `consult` takes no row while it has a host, except the selected one, which nests so
- *   the selection stays visible; `handoff` and Sessions with no relation are ordinary rows.
+ *   the selection stays visible; `handoff`, `independent` and Sessions with no relation are ordinary rows.
  * - A host must hold a row itself: a Session whose Project is not shown and which is not pinned is not listed, so what it
  *   created stays an ordinary row in its own Project and nothing becomes unreachable.
  * - Consult hiding applies before pin placement, so a pinned hidden consult stays hidden.

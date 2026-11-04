@@ -58,14 +58,16 @@ const providerUsage = delegationProviderSchema.options.join('|');
 
 async function createParameters(tokens: readonly string[]) {
     const values = new Map<string, string>();
-    // `--new-session`, `--handoff`, and `--consult` are the valueless flags; everything else is `--flag value`.
-    const switches = new Set(['--new-session', '--handoff', '--consult']);
+    // `--new-session`, `--handoff`, `--consult`, and `--independent` are the valueless flags; everything else is
+    // `--flag value`.
+    const switches = new Set(['--new-session', '--handoff', '--consult', '--independent']);
     for (const flag of switches)
         if (tokens.filter((token) => token === flag).length > 1)
             throw new CaxriError('VALIDATION', `Pass ${flag} at most once`);
     const isNewSession = tokens.includes('--new-session');
     const isHandoff = tokens.includes('--handoff');
     const isConsult = tokens.includes('--consult');
+    const isIndependent = tokens.includes('--independent');
     const valueTokens = tokens.filter((token) => !switches.has(token));
     for (let index = 0; index < valueTokens.length; index += 2) {
         const flag = valueTokens[index];
@@ -101,8 +103,13 @@ async function createParameters(tokens: readonly string[]) {
         throw new CaxriError('VALIDATION', '--handoff applies only with --new-session');
     if (isConsult && !isNewSession)
         throw new CaxriError('VALIDATION', '--consult applies only with --new-session');
-    if (isConsult && isHandoff)
-        throw new CaxriError('VALIDATION', 'Pass --consult or --handoff, not both');
+    if (isIndependent && !isNewSession)
+        throw new CaxriError('VALIDATION', '--independent applies only with --new-session');
+    if ([isHandoff, isConsult, isIndependent].filter(Boolean).length > 1)
+        throw new CaxriError(
+            'VALIDATION',
+            'Pass only one of --handoff, --consult or --independent',
+        );
     const continuation = (['--follow-up', '--resume', '--continue-handover'] as const).find(
         (flag) => values.has(flag),
     );
@@ -115,6 +122,7 @@ async function createParameters(tokens: readonly string[]) {
         ...(isNewSession && { newSession: true }),
         ...(isHandoff && { handoff: true }),
         ...(isConsult && { consult: true }),
+        ...(isIndependent && { independent: true }),
         ...(values.has('--title') && { title: values.get('--title') }),
         ...(values.has('--worktree') && { worktreeBranch: values.get('--worktree') }),
         provider: values.get('--provider'),
@@ -237,7 +245,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `(--project <id> | --project-path <dir>) (--session <id> | --new-session --title <text> [--handoff | --consult] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
+        usage: `(--project <id> | --project-path <dir>) (--session <id> | --new-session --title <text> [--handoff | --consult | --independent] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation:
             'Create this visible Agent delegation, adding its folder as a Project if needed?',
         parseParams: createParameters,

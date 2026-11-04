@@ -149,9 +149,9 @@ export const agentDelegationLogEvents = {
     /**
      * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, or resume; `newSession`),
      * whether Caxri Bot sent it, and the request's correlation ID, so a delegation can be traced back to the CLI call
-     * that created it. `fields.relation` is how the Session was started (`delegated`, `handoff`, `consult`, or `none`
-     * for a Session with no creator relation: the owner's, or one Caxri Bot dispatched to), which decides whether the
-     * task reports a result. Never the prompt.
+     * that created it. `fields.relation` is how the Session was started (`delegated`, `handoff`, `consult`,
+     * `independent`, or `none` for a Session with no creator relation: the owner's, or one Caxri Bot dispatched to),
+     * which decides whether the task reports a result. Never the prompt.
      */
     requested: 'agent_delegation.requested',
     /**

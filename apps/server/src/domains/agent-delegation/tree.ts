@@ -14,7 +14,8 @@ export const MAX_ROLLUP_DEPTH = 8;
 
 /**
  * Relations whose Sessions bill as delegated work: a delegated task and a consult (an Agent asked another to look into
- * something). A hand-off moves the user's own continuation to another Session, so it is not delegated spend.
+ * something). A hand-off moves the user's own continuation to another Session, and an independent Session is the
+ * creator's separate task that it does not wait on, so neither is delegated spend or attention of the creator.
  */
 const ROLLED_UP_RELATIONS: readonly SessionRelation[] = ['delegated', 'consult'];
 

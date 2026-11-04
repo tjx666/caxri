@@ -20,13 +20,14 @@ import type { AgentDelegationServiceOptions } from './service-options';
 
 /**
  * How the caller's Session started the Session this request creates: a hand-off continues the caller's work, a consult
- * asks a question that changes no files, and anything else is a task the caller waits on. Recorded only with a creator,
- * so an owner or Caxri Bot caller gets none.
+ * asks a question that changes no files, an independent one is the caller's own separate task, and anything else is a
+ * task the caller waits on. Recorded only with a creator, so an owner or Caxri Bot caller gets none.
  */
 function newSessionRelation(
-    fields: Pick<AgentDelegationCreate, 'consult' | 'handoff'>,
+    fields: Pick<AgentDelegationCreate, 'consult' | 'handoff' | 'independent'>,
 ): SessionRelation {
     if (fields.handoff) return 'handoff';
+    if (fields.independent) return 'independent';
     return fields.consult ? 'consult' : 'delegated';
 }
 

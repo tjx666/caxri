@@ -34,6 +34,7 @@ function freshRetryInput(failed: StoredAgentDelegation): Omit<AgentDelegationCre
         ...(failed.input.surface && { surface: failed.input.surface }),
         ...(failed.input.handoff && { handoff: true as const }),
         ...(failed.input.consult && { consult: true as const }),
+        ...(failed.input.independent && { independent: true as const }),
     };
 }
 

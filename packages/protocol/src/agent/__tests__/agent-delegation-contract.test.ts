@@ -38,8 +38,30 @@ describe('agentDelegationCreateRequestSchema consult', () => {
 
         expect(parsed.success).toBe(false);
         expect(parsed.error?.issues.map(({ message }) => message)).toContain(
-            'A consult is not a hand-off; choose one',
+            'Choose one of hand-off, consult or independent',
         );
+    });
+
+    it('accepts an independent new Session and refuses it elsewhere', () => {
+        expect(
+            agentDelegationCreateRequestSchema.parse({ ...newSession, independent: true })
+                .independent,
+        ).toBe(true);
+        for (const other of [{ consult: true }, { handoff: true }])
+            expect(
+                agentDelegationCreateRequestSchema.safeParse({
+                    ...newSession,
+                    independent: true,
+                    ...other,
+                }).success,
+            ).toBe(false);
+        expect(
+            agentDelegationCreateRequestSchema.safeParse({
+                ...request,
+                sessionId: 'session-1',
+                independent: true,
+            }).success,
+        ).toBe(false);
     });
 
     it('accepts only the literal true', () => {

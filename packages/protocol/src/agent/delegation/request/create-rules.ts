@@ -36,3 +36,15 @@ export const hasLaunchSource = (value: DelegationCreateShape) =>
 export const isHandoverSelectionFree = (value: DelegationCreateShape) =>
     !value.continueFromHandover ||
     (!value.provider && !value.preset && !value.model && !value.effort);
+
+/**
+ * The fields the Session relation rules read; a request names at most one relation and only with a new Session.
+ */
+type DelegationRelationShape = Partial<
+    Record<'consult' | 'handoff' | 'independent' | 'newSession', unknown>
+>;
+
+export const isOneRelation = (value: DelegationRelationShape) =>
+    [value.handoff, value.consult, value.independent].filter(Boolean).length <= 1;
+export const isRelationForNewSession = (value: DelegationRelationShape) =>
+    ![value.handoff, value.consult, value.independent].some(Boolean) || Boolean(value.newSession);

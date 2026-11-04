@@ -170,6 +170,11 @@ describe('Delegation into a new Session from an ordinary Agent', () => {
         { name: 'a task the caller waits on', flags: {}, relation: 'delegated' },
         { name: 'a hand-off', flags: { handoff: true as const }, relation: 'handoff' },
         { name: 'a consult', flags: { consult: true as const }, relation: 'consult' },
+        {
+            name: 'an independent Session',
+            flags: { independent: true as const },
+            relation: 'independent',
+        },
     ])(
         'records $name as the $relation relation of the new Session',
         async ({ flags, relation }) => {

@@ -79,6 +79,42 @@ describe('delegation CLI', () => {
         await expect(
             command.parseParams([...base, '--session', 'session', '--consult']),
         ).rejects.toThrow(/--consult applies only with --new-session/u);
+        expect(
+            await command.parseParams([
+                ...base,
+                '--new-session',
+                '--independent',
+                '--title',
+                'Write the release notes',
+            ]),
+        ).toMatchObject({ newSession: true, independent: true });
+        await expect(
+            command.parseParams([...base, '--session', 'session', '--independent']),
+        ).rejects.toThrow(/--independent applies only with --new-session/u);
+        await Promise.all(
+            ['--consult', '--handoff'].map((other) =>
+                expect(
+                    command.parseParams([
+                        ...base,
+                        '--new-session',
+                        '--independent',
+                        other,
+                        '--title',
+                        'Write the release notes',
+                    ]),
+                ).rejects.toThrow(/Pass only one of --handoff, --consult or --independent/u),
+            ),
+        );
+        await expect(
+            command.parseParams([
+                ...base,
+                '--new-session',
+                '--independent',
+                '--independent',
+                '--title',
+                'Write the release notes',
+            ]),
+        ).rejects.toThrow(/--independent at most once/u);
         await expect(
             command.parseParams([
                 ...base,
@@ -88,7 +124,7 @@ describe('delegation CLI', () => {
                 '--title',
                 'Fix login retry',
             ]),
-        ).rejects.toThrow(/--consult or --handoff, not both/u);
+        ).rejects.toThrow(/Pass only one of --handoff, --consult or --independent/u);
         await expect(
             command.parseParams([
                 ...base,

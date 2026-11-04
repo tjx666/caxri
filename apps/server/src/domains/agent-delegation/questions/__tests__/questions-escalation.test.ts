@@ -224,4 +224,16 @@ describe('escalation when the delegating Agent is gone', () => {
         });
         expect(f.changes.map((change) => change.escalated)).toEqual([false, true]);
     });
+
+    it('hands a question to the user at once when the task runs in an independent Session', async () => {
+        const f = await questionFixture({}, { flags: { independent: true } });
+
+        const { questionId } = f.ask();
+
+        expect(escalatedOf(f, questionId)).toMatchObject({
+            state: 'open',
+            escalationReason: 'parent_gone',
+        });
+        expect(f.changes.map((change) => change.escalated)).toEqual([false, true]);
+    });
 });

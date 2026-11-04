@@ -35,7 +35,9 @@ import {
     hasLaunchSource,
     isHandoverSelectionFree,
     isOneContinuation,
+    isOneRelation,
     isPresetExclusive,
+    isRelationForNewSession,
     isSurfaceForNewTask,
 } from './request/create-rules.js';
 import { delegationRedirectParametersSchema } from './request/redirect.js';
@@ -223,6 +225,11 @@ const agentDelegationCreateFields = {
      */
     consult: z.literal(true).optional(),
     /**
+     * The caller starts a separate Session for its own task and does not wait on it (`independent`): no notice, no
+     * roll-up, and its questions go to the user. Only with `newSession`, and not with `handoff` or `consult`.
+     */
+    independent: z.literal(true).optional(),
+    /**
      * Forces the surface the new child Terminal opens on instead of following `session.openAgentsInChat`: `chat` for a
      * child the parent reads with `transcript`, approves, or is asked questions by; `pty` for TUI-only work. A forced
      * `chat` the provider or Server cannot satisfy is refused at admission, never downgraded. Only a new task: a
@@ -288,14 +295,7 @@ export const agentDelegationCreateRequestSchema = z
             (!value.followUpOf && !value.resumeFrom && !value.continueFromHandover),
         'A new Session starts a new task',
     )
-    .refine(
-        (value) => !value.handoff || Boolean(value.newSession),
-        'A hand-off continues in a new Session',
-    )
-    .refine(
-        (value) => !value.consult || Boolean(value.newSession),
-        'A consult asks in a new Session',
-    )
+    .refine(isRelationForNewSession, 'A hand-off, consult or independent Session is a new Session')
     .refine(
         (value) => Boolean(value.projectId) !== Boolean(value.projectPath),
         'Choose a Project ID or a Project path',
@@ -304,7 +304,7 @@ export const agentDelegationCreateRequestSchema = z
         (value) => !value.projectPath || Boolean(value.newSession),
         'A Project path adds a Project for a new Session',
     )
-    .refine((value) => !value.consult || !value.handoff, 'A consult is not a hand-off; choose one')
+    .refine(isOneRelation, 'Choose one of hand-off, consult or independent')
     .refine(
         (value) => !value.worktreeBranch || Boolean(value.newSession),
         'A worktree is created for a new Session',

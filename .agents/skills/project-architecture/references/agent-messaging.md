@@ -73,6 +73,15 @@ composing defers it the same way a follow-up defers. Undelivered notices persist
 them (and a marker for a turn a restart cut off) as its launch prompt instead. See "Completion
 notices" in `docs/caxri-bot.md`.
 
+A delegation settlement notice (`SettlementNotices`, `apps/server/src/domains/agent-delegation/settlement-notice/`)
+is a third, narrow exception of the same kind, aimed at the managed Agent that delegated a task instead of Caxri
+Bot. It has no sender Endpoint and no Peer Inbox, carries only Server-generated fields (task IDs, a closed phrase, and
+the child Session title with control characters stripped), and reaches an idle Chat through the non-human
+delegation send path, never `agentChat.send`, so it is never human input or a takeover; a PTY caller gets it only with
+Bot's idle proof and an unchanged input epoch. It goes to the exact caller launch, never to another Agent. A task
+in a `handoff` or `independent` Session, a task of Caxri Bot, and a task of an external client produce none.
+See "Settlement notices" in `docs/agent-delegation.md`.
+
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
 

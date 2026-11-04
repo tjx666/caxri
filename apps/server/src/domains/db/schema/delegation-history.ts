@@ -39,7 +39,12 @@ const historyFailures = closedValues<NonNullable<AgentDelegationReceipt['failure
     'target_not_ready',
     'target_busy',
 ]);
-const edgeRelations = closedValues<SessionRelation>()(['delegated', 'handoff', 'consult']);
+const edgeRelations = closedValues<SessionRelation>()([
+    'delegated',
+    'handoff',
+    'consult',
+    'independent',
+]);
 const summarySources = closedValues<DelegationResultSource>()(['authored', 'excerpt']);
 const usageScopes = closedValues<'main-thread' | 'provider-task'>()([
     'main-thread',

@@ -234,10 +234,10 @@ describe('delegatedCost', () => {
         });
     });
 
-    it('rolls up delegated and consult Sessions but not a hand-off', async () => {
+    it('rolls up delegated and consult Sessions but not a hand-off or an independent Session', async () => {
         const { database, create, spend } = await setup();
         const root = create();
-        for (const relation of ['delegated', 'consult', 'handoff'] as const)
+        for (const relation of ['delegated', 'consult', 'handoff', 'independent'] as const)
             spend(create(root, relation));
 
         const cost = delegatedCost(database, root, priceOf);

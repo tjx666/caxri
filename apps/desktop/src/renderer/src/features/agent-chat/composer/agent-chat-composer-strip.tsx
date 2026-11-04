@@ -8,6 +8,7 @@ import type { AgentChatWorkingActivity } from '../activity/agent-chat-goal-row';
 import { AgentChatDelegatedSessionsSection } from '../delegation/agent-chat-delegated-sessions-section';
 import { AgentChatDelegationOriginRow } from '../delegation/agent-chat-delegation-origin-row';
 import { useCanShowDelegatedSessions } from '../delegation/hooks/use-can-show-delegated-sessions';
+import { AgentChatIndependentOriginRow } from '../delegation/independent/agent-chat-independent-origin-row';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatBackgroundWorkSection } from './strip/agent-chat-background-work-section';
@@ -103,6 +104,7 @@ export function AgentChatComposerStrip({
                     isBusy={isTurnRunning || pendingQueue.length > 0 || (queue?.length ?? 0) > 0}
                     terminalId={terminalId}
                 />
+                <AgentChatIndependentOriginRow terminalId={terminalId} />
                 <AgentChatGoalBar
                     goal={snapshot?.goal}
                     goalUsage={snapshot?.goalUsage}

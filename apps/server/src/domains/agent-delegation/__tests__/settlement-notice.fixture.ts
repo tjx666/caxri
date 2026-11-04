@@ -58,7 +58,10 @@ export async function setup(options: { isChat?: boolean } = {}) {
         },
     );
     onTestFinished(() => notices.close());
-    const create = async (title = 'Child work') => {
+    const create = async (
+        title = 'Child work',
+        flags: { handoff?: true; independent?: true } = {},
+    ) => {
         const id = randomUUID();
         await f.service.create(id, f.authority, {
             projectId: f.project.id,
@@ -66,6 +69,7 @@ export async function setup(options: { isChat?: boolean } = {}) {
             prompt: 'Synthetic task',
             newSession: true,
             title,
+            ...flags,
         });
         const record = f.database.agentDelegations.get(id)!;
         notices.recorded(record, undefined);

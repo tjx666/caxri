@@ -69,6 +69,7 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.origin.from': '委派自 {{title}}',
     'delegation.origin.autoReturn': '发起委派的 Agent 仍在运行时，任务完成会通知它。',
     'delegation.origin.back': '返回 {{title}}',
+    'delegation.origin.startedFrom': '由 {{title}} 创建',
     'delegation.origin.hint': '在此发送消息、停止或回退会从 {{title}} 接管此会话',
     'delegation.origin.takenOver': '你已接管此会话',
     'delegation.origin.takenOverDetail': '它的回复不再回传给 {{title}}',

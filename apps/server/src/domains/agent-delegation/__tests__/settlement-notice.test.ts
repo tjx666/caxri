@@ -264,4 +264,19 @@ describe('SettlementNotices: what is not announced', () => {
         expect(t.deliverNotice).not.toHaveBeenCalled();
         expect(t.stateOf(`settled:${id}`)).toBeUndefined();
     });
+
+    it.each([
+        ['handoff', { handoff: true as const }],
+        ['independent', { independent: true as const }],
+    ])('does not notify the creator of a %s Session', async (reason, flags) => {
+        const t = await setup();
+        const id = await t.create('Own task', flags);
+
+        t.settle(id);
+        await vi.advanceTimersByTimeAsync(QUIET_MS);
+
+        expect(t.deliverNotice).not.toHaveBeenCalled();
+        expect(t.stateOf(`settled:${id}`)).toBeUndefined();
+        expect(JSON.stringify(t.logged('skipped'))).toContain(`"reason":"${reason}"`);
+    });
 });

@@ -113,19 +113,21 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   restore it. The column references `sessions.id` with `ON DELETE SET NULL`, so deleting the creating
   Session or its Project clears it.
 - Beside the creator, the Session records how it was started (`createdByRelation`, closed values
-  `delegated`, `handoff`, `consult`; `CHECK`-constrained). The kinds follow T3 Code's thread
+  `delegated`, `handoff`, `consult`, `independent`; `CHECK`-constrained). The kinds follow T3 Code's thread
   relations. `delegated` is a task the creating Session waits on. `handoff` is the creator's work
   continuing in a new Session (`--handoff`, below; the Chat `/new-session` command and continuing
   in another Agent both start it in the creator's Project, though the flag itself does not require
   that). `consult` is a question or review that is not meant to change files (`--consult`, below).
+  `independent` is a separate Session the creator starts for its own task and does not wait on
+  (`--independent`, below).
   Server Core computes the relation from the request flags and writes it with the creator, only for
   an Agent or Client caller that has a Session: a Caxri Bot Session records its creator without a
   relation, and an owner CLI call records neither. The column outlives the creator's deletion
   (`ON DELETE SET NULL` clears only the creator), so the read model reports the relation only while
   `createdBySessionId` is present. `session.query` and `agent.delegation.sessions` (see
   [Delegated Session feed](#delegated-session-feed)) return both. The sidebar lists a `delegated`
-  Session under its creator and gives a `consult` Session no row of its own while a Session above it
-  is listed ([issue #3572](https://github.com/tjx666/caxri/issues/3572); see
+  Session under its creator, gives a `consult` Session no row of its own while a Session above it
+  is listed, and gives `handoff` and `independent` Sessions ordinary rows ([issue #3572](https://github.com/tjx666/caxri/issues/3572); see
   [Sidebar rows](#sidebar-rows)).
 - The creating Agent can keep the sidebar tidy without Caxri Bot's board:
   `caxri agent session rename <session-id> --title <title>`, `agent session archive <session-id>`,
@@ -151,7 +153,38 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
 - `--consult` (only with `--new-session`, never together with `--handoff`) marks the task as a
   question or review the caller asks another Agent, which is not meant to change files; nothing
   enforces that. It is stored in the delegation record's input like `--handoff`, and the new
-  Session's relation is `consult`. Without either flag the relation is `delegated`.
+  Session's relation is `consult`. Without a relation flag the relation is `delegated`.
+- `--independent` (only with `--new-session`, never together with `--handoff` or `--consult`) starts
+  an [independent Session](#independent-sessions). It is stored in the delegation record's input like
+  `--handoff`, and the new Session's relation is `independent`.
+
+### Independent Sessions
+
+When the user asks an Agent to "open another Session for X", the new Session is a sibling, not a
+child the Agent waits on. `agent delegate create --new-session --independent` runs the task from the
+prompt file and returns a receipt like any other task, but the creator is out of the loop:
+
+```json
+{ "createdBySessionId": "<creator>", "createdByRelation": "independent" }
+```
+
+- **No notice.** A task in an `independent` Session never produces a settlement, question, or
+  approval notice for the creator (`noticeCallerOf` returns the `independent` reason, logged as the
+  closed `reason` of `agent_delegation.settlement_notice`).
+- **No roll-up.** The Session is not a `delegated` or `consult` edge, so the creator's Delegated
+  Sessions strip, delegated cost, and needs-input roll-up leave it out.
+- **No question or approval routing.** A question the child asks goes to the user at once
+  (escalation reason `parent_gone`), and a permission request raises its alert immediately instead
+  of being held for the creator's decision, as in a Session the user started.
+- **Rights kept.** The creator may still `rename` and `archive` the Session it created, and
+  `wait` and `result` work if it calls them. Neither a Summary instruction nor a stored result is
+  written, and the Session has no hand-back: the user owns it from the start.
+- **Sidebar.** An ordinary top-level row in its own Project. In its Chat the first composer-strip
+  row reads `Started from <title>` (zh-CN `由 <title> 创建`) with a `Back to <title>` link, and says
+  nothing about results or takeover.
+- **Choosing the flag.** The `caxri-cli` skill tells Agents to use `--independent` when the user
+  asks for a separate, parallel, or sibling Session that the creator will not wait on, and the
+  default only when the creator waits on and reads the result.
 
 ### Hand off with /new-session
 
@@ -1166,8 +1199,9 @@ default surface.
 ## Delegated Session feed
 
 A `newSession` task that an Agent or Client makes from its own Session starts a Session of one of
-three kinds, told apart by `createdByRelation`: a [Delegated Session](../GLOSSARY.md) (`delegated`),
-a Hand-off (`handoff`), or a Consult (`consult`); the glossary keeps the three apart. A Session
+four kinds, told apart by `createdByRelation`: a [Delegated Session](../GLOSSARY.md) (`delegated`),
+a Hand-off (`handoff`), a Consult (`consult`), or an Independent Session (`independent`); the
+glossary keeps them apart. A Session
 Caxri Bot dispatches a task to and a Session the owner creates from the CLI record no relation, so
 none of what follows applies to them: no Summary instruction, no stored result, no feed row. The
 sidebar's delegated rows need each Session's state, step and result without opening it, so Server
@@ -1288,8 +1322,8 @@ that decide which Sessions take which place.
 - **Host.** A `delegated` Session nests under the nearest Session up its creator chain that has a
   top-level row, so a chain of delegations flattens to one level. Archiving or deleting a creator
   ends the chain, and the Sessions it created return to their own Project groups. A pinned
-  `delegated` Session keeps a flat Pinned row, and a `handoff` or an ownerless Session keeps an
-  ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
+  `delegated` Session keeps a flat Pinned row, and a `handoff`, an `independent`, or an ownerless
+  Session keeps an ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
 - **Consult.** A `consult` Session takes no row while a Session above it is listed. It shows
   nested only while it is the selected Session, and the command palette still finds it.
 - **Grouping.** The Session keeps its own `projectId`. Only the sidebar's grouping moves: a nested
@@ -1482,8 +1516,8 @@ caxri agent delegate history --query "login retry" --outcome completed --after <
 
 ### Provenance edges and delegated cost
 
-`delegation_edges` records, for every Session a Session created as `delegated`, `consult`, or
-`handoff`, its creator and relation. It is written when the child Session is created, so a
+`delegation_edges` records, for every Session a Session created as `delegated`, `consult`,
+`handoff`, or `independent`, its creator and relation. It is written when the child Session is created, so a
 delegation that never settled (a running or deleted one) still has its edge; migration 0008
 backfilled the edges of Sessions that already existed. Edges outlive Session deletion on purpose,
 so a deleted middle Session does not hide its descendants' spend.
@@ -1491,8 +1525,8 @@ so a deleted middle Session does not hide its descendants' spend.
 The Delegated Sessions strip uses the edges to state spend:
 
 - `usage.delegationSummary` (owner-only) walks the edges breadth-first from the Chat's Session over
-  `delegated` and `consult` children (a `handoff` moves the user's own continuation and is not
-  rolled up), visits each Session once, and prices the Usage ledger rows of every visited Session.
+  `delegated` and `consult` children (a `handoff` moves the user's own continuation, and an
+  `independent` Session is the creator's separate task; neither is rolled up), visits each Session once, and prices the Usage ledger rows of every visited Session.
   The walk is bounded: at most 1000 descendants (the root does not count) and depth 8. A larger or
   deeper tree sets `isPartial`, so the figure reads as a floor.
 - A row shows its child's cost together with the cost of every attempt in its retry chain; the

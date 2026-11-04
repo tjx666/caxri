@@ -42,6 +42,19 @@ describe('placeDelegatedSessions', () => {
         expect(placement.hiddenByHost.size).toBe(0);
     });
 
+    it('gives an independent Session its own row, in its own Project, beside its creator', () => {
+        const placement = place([
+            session('creator', 'alpha'),
+            createdBy('sibling', 'beta', 'creator', 'independent'),
+            createdBy('child', 'alpha', 'sibling', 'delegated'),
+        ]);
+        expect(placement.byId.get('sibling')).toEqual({ kind: 'row' });
+        expect(ids(placement.rows)).toEqual(['creator', 'sibling']);
+        // It starts a new nesting level, like a hand-off: what it delegates nests under it, not under its creator.
+        expect(placement.byId.get('child')).toEqual({ hostId: 'sibling', kind: 'nested' });
+        expect(placement.nestedByHost.has('creator')).toBe(false);
+    });
+
     it('nests a delegated Session under its creator, whatever Project it lives in', () => {
         const placement = place([
             session('host', 'alpha'),

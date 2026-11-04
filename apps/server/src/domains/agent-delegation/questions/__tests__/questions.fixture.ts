@@ -13,7 +13,7 @@ import type { AgentDelegationServiceOptions } from '../../service-options';
  */
 export async function questionFixture(
     overrides: Partial<AgentDelegationServiceOptions> = {},
-    { isStarted = true } = {},
+    { isStarted = true, flags = {} }: { isStarted?: boolean; flags?: { independent?: true } } = {},
 ) {
     const launches = new Map<string, string>();
     const changes: DelegationQuestionChanged[] = [];
@@ -26,7 +26,7 @@ export async function questionFixture(
     });
     const parentTerminalId = f.authority.callerTerminalId;
     launches.set(parentTerminalId, 'parent-launch');
-    const task = await f.delegate();
+    const task = await f.delegate(flags);
     /**
      * `isStarted: false` leaves the child in its startup, launch bound but its first turn not begun, where the user's
      * input answers a startup prompt instead of taking the task over.

@@ -13,6 +13,7 @@ import { APPROVAL_REQUEST_CHANGED, CaxriError, logEventCatalog } from '@caxri/pr
 import type { AgentLifecycleSignal } from '../../agents';
 import type { StoredAgentDelegation } from '../../db';
 import type { DelegationAccess, DelegationAuthority } from '../admission';
+import { isIndependentTask } from '../independent';
 import type { ParentPresence } from '../parent-presence';
 import type { AgentDelegationServiceOptions } from '../service-options';
 import type { Coverage } from './coverage';
@@ -385,6 +386,7 @@ export class DelegationApprovals {
         if (signal.phase !== 'attentionRequested' || !signal.agentToolUseId) return 'alert';
         const task = this.host.activeForTerminal(signal.terminalId);
         if (!task?.launchId || task.launchId !== signal.launchId) return 'alert';
+        if (isIndependentTask(this.host.options.database, task)) return 'alert';
         const request = environment
             .chat(signal.terminalId)
             ?.requests.find((candidate) => candidate.id === signal.agentToolUseId);
