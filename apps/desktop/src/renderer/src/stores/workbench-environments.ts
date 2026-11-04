@@ -163,8 +163,10 @@ export function composeSnapshots(
 
 /**
  * The Workbench's full snapshot: this Mac's `app.bootstrap` plus every SSH Host's, read again only when that Host
- * reported a change. A Host that is reconnecting, or whose read failed, keeps its last snapshot rather than dropping
- * out of the side bar or failing the whole Workbench; only a disconnected Host's records go.
+ * reported a change. Every Host Main still lists keeps its last snapshot, whatever its phase (reconnecting, failed, or
+ * taken over by another Desktop), so its Projects stay in the side bar and their headings keep the connection row with
+ * Reconnect (`HostConnectionRows`); a failed read never fails the whole Workbench. Only a Host the user disconnected,
+ * which leaves Main's list, takes its records with it.
  */
 export async function readComposedSnapshot(): Promise<BootstrapState> {
     const { connected, listed } = listedHosts();
