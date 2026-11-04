@@ -413,6 +413,28 @@ const handBack: HandBackSpec = {
     }),
 };
 
+/**
+ * `agent.delegation.statuses` as a named type; annotated for the same reason as {@link CancelScheduledRetrySpec}.
+ *
+ * @public
+ */
+export interface DelegationStatusesSpec extends ReturnType<
+    typeof ownerOnlyCommandPolicy<'server', 'read'>
+> {
+    params: z.ZodType<{ delegationIds: string[] }>;
+    result: z.ZodType<{ statuses: Array<z.infer<typeof agentDelegationStatusEntrySchema>> }>;
+}
+
+const delegationStatuses: DelegationStatusesSpec = {
+    ...ownerOnlyCommandPolicy('server', 'read'),
+    params: z.strictObject({
+        delegationIds: z.array(identifierSchema).min(1).max(MAX_DELEGATION_STATUS_IDS),
+    }),
+    result: z.strictObject({
+        statuses: z.array(agentDelegationStatusEntrySchema).max(MAX_DELEGATION_STATUS_IDS),
+    }),
+};
+
 export const agentDelegationSessionsMethods = {
     ...agentDelegationQuestionMethods,
     ...agentDelegationApprovalMethods,
@@ -446,15 +468,7 @@ export const agentDelegationSessionsMethods = {
      * record keeps showing the outcome of the task it stands for after a follow-up replaced the Session's newest.
      * Owner-only and non-claiming like the feed; a pruned or unknown ID is absent from the result.
      */
-    'agent.delegation.statuses': {
-        ...ownerOnlyCommandPolicy('server', 'read'),
-        params: z.strictObject({
-            delegationIds: z.array(identifierSchema).min(1).max(MAX_DELEGATION_STATUS_IDS),
-        }),
-        result: z.strictObject({
-            statuses: z.array(agentDelegationStatusEntrySchema).max(MAX_DELEGATION_STATUS_IDS),
-        }),
-    },
+    'agent.delegation.statuses': delegationStatuses,
     /**
      * Which retry modes the owner may use for one failed task now, for the Retry action's menu. Owner-only and
      * read-only: it changes nothing and claims nothing.
