@@ -147,6 +147,10 @@ const environmentMethodScopes = {
     'session.deleteMany': 'any',
     'terminal.openFileLink': 'remote-override',
     /**
+     * Finder shows a path on this Mac; an SSH Host's link names a file on the remote machine.
+     */
+    'terminal.revealFileLink': 'local-only',
+    /**
      * Electron's Trash API moves a local path, so an SSH Host window asks its Server to move the entry into the remote
      * host's own Trash instead.
      */

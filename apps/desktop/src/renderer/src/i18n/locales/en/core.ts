@@ -58,6 +58,9 @@ export const core = {
     'core.codeView.expand': 'Expand ({{count}} lines)',
     'core.codeView.collapse': 'Collapse',
     'core.markdown.openFile': 'Open {{file}}',
+    'core.markdown.fileMenu.open': 'Open File',
+    'core.markdown.fileMenu.revealInFinder': 'Reveal in Finder',
+    'core.markdown.fileMenu.copyPath': 'Copy Path',
     'core.markdown.taskDone': 'Done: ',
     'core.markdown.taskTodo': 'To do: ',
 

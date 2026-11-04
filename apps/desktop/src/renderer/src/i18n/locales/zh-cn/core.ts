@@ -49,6 +49,9 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.codeView.expand': '展开（{{count}} 行）',
     'core.codeView.collapse': '收起',
     'core.markdown.openFile': '打开 {{file}}',
+    'core.markdown.fileMenu.open': '打开文件',
+    'core.markdown.fileMenu.revealInFinder': '在 Finder 中显示',
+    'core.markdown.fileMenu.copyPath': '复制路径',
     'core.markdown.taskDone': '已完成：',
     'core.markdown.taskTodo': '待办：',
 

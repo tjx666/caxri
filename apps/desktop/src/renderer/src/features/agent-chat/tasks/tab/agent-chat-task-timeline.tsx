@@ -8,7 +8,11 @@ import {
     useAgentChatExpansionHost,
 } from '../../hooks/use-agent-chat-expansion';
 import { useAgentChatHistory } from '../../hooks/use-agent-chat-history';
-import { useAgentChatOpenFile } from '../../hooks/use-agent-chat-open-file';
+import {
+    AgentChatRevealFileContext,
+    useAgentChatOpenFile,
+    useAgentChatRevealFile,
+} from '../../hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from '../../hooks/use-agent-chat-scroll';
 import { AgentChatSelectionToolbar } from '../../messages/agent-chat-selection-toolbar';
 import { AgentChatHistoryHead } from '../../transcript/agent-chat-history-head';
@@ -69,6 +73,7 @@ export function AgentChatTaskTimeline({
     // Rows the user expanded stay open and hold in place, exactly as in the parent Chat.
     const expansion = useAgentChatExpansionHost(anchor);
     const openFile = useAgentChatOpenFile(terminalId, [olderItems, items]);
+    const revealFile = useAgentChatRevealFile(terminalId, [olderItems, items]);
     return (
         <div className="relative h-full min-h-0">
             <div
@@ -98,14 +103,19 @@ export function AgentChatTaskTimeline({
                         </p>
                     )}
                     <AgentChatExpansionContext value={expansion}>
-                        <AgentChatSettledTimeline chunks={settledChunks} onOpenFile={openFile} />
-                        {timeline.map((entry) => (
-                            <AgentChatTimelineEntryView
-                                entry={entry}
-                                key={entry.kind === 'item' ? entry.item.id : entry.id}
+                        <AgentChatRevealFileContext value={revealFile}>
+                            <AgentChatSettledTimeline
+                                chunks={settledChunks}
                                 onOpenFile={openFile}
                             />
-                        ))}
+                            {timeline.map((entry) => (
+                                <AgentChatTimelineEntryView
+                                    entry={entry}
+                                    key={entry.kind === 'item' ? entry.item.id : entry.id}
+                                    onOpenFile={openFile}
+                                />
+                            ))}
+                        </AgentChatRevealFileContext>
                     </AgentChatExpansionContext>
                     {timeline.length === 0 && (
                         <p className="m-0 py-8 text-center text-[13px] text-muted">

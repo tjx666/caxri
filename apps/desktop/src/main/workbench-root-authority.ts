@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
-import { dialog } from 'electron';
+import { clipboard, dialog, shell } from 'electron';
 
 import type { DesktopServerConnection } from './connection/server-connection';
 import { readExternalFileSnapshot } from './external-documents/snapshot';
@@ -37,7 +37,11 @@ type OpenBotFileLinkParameters = Extract<
     MainRequest,
     { method: 'caxriBot.openFileLink' }
 >['params'];
-type ExternalOpenDecision = 'cancel' | 'open' | 'trust';
+type RevealTerminalFileLinkParameters = Extract<
+    MainRequest,
+    { method: 'terminal.revealFileLink' }
+>['params'];
+type ExternalOpenDecision = 'cancel' | 'copy' | 'open' | 'trust';
 
 interface WorkbenchRootAuthorityOptions {
     /**
@@ -210,7 +214,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
                 const decision = await confirmExternalOpen(resolved.path);
-                if (decision === 'cancel') return { canceled: true as const };
+                if (decision === 'cancel' || decision === 'copy')
+                    return { canceled: true as const };
                 if (decision === 'trust')
                     await server.request('settings.trustFolder', { path: dirname(resolved.path) });
             }
@@ -338,7 +343,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
                 const decision = await confirmExternalOpen(resolved.path);
-                if (decision === 'cancel') return { canceled: true as const };
+                if (decision === 'cancel' || decision === 'copy')
+                    return { canceled: true as const };
                 if (decision === 'trust')
                     await server.request('settings.trustFolder', { path: dirname(resolved.path) });
             }
@@ -371,8 +377,14 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         return { opened: true as const };
     }
 
+    /**
+     * Asks before reading a file outside every Project. Copy Path answers the click that only wanted the address, to
+     * paste into a Terminal or another tool: it puts the absolute path on the clipboard and opens nothing, like
+     * Cancel.
+     */
     async function confirmExternalOpen(path: string): Promise<ExternalOpenDecision> {
         const folder = dirname(path);
+        const decisions: readonly ExternalOpenDecision[] = ['open', 'trust', 'copy', 'cancel'];
         const result = await showMessageBox(options.getWindow(), {
             type: 'question',
             title: translateMain('desktop.externalFile.title'),
@@ -381,13 +393,33 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             buttons: [
                 translateMain('desktop.dialog.open'),
                 translateMain('desktop.externalFile.trustFolder'),
+                translateMain('desktop.externalFile.copyPath'),
                 translateMain('desktop.dialog.cancel'),
             ],
             defaultId: 0,
-            cancelId: 2,
+            cancelId: 3,
             noLink: true,
         });
-        return result.response === 2 ? 'cancel' : result.response === 1 ? 'trust' : 'open';
+        const decision = decisions[result.response] ?? 'cancel';
+        if (decision === 'copy') await clipboard.writeText(path);
+        return decision;
+    }
+
+    /**
+     * Shows a Terminal or Agent Chat file link in Finder, resolved by the same Server Core lookup an open uses. Both a
+     * Project file and a path outside every Project are revealed without the external-file confirmation, because Finder
+     * only selects the entry and nothing is read.
+     */
+    async function revealTerminalFileLink(parameters: RevealTerminalFileLinkParameters) {
+        const resolved = await options.getServer().request('terminal.fileLink.resolve', parameters);
+        if (resolved.status === 'ambiguous')
+            return {
+                status: resolved.status,
+                candidates: resolved.candidates,
+                truncated: resolved.truncated,
+            };
+        shell.showItemInFolder(resolved.path);
+        return { revealed: true as const };
     }
 
     async function openPathBrowserFile(target: PathBrowserOpenTarget) {
@@ -474,6 +506,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         },
 
         openTerminalFileLink,
+
+        revealTerminalFileLink,
 
         openBotFileLink,
 

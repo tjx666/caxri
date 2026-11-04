@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
+    clipboard: { writeText: vi.fn() },
     dialog: { showMessageBox: vi.fn(), showOpenDialog: vi.fn() },
+    shell: { showItemInFolder: vi.fn() },
 }));
-vi.mock('electron', () => ({ dialog: electronMock.dialog }));
+vi.mock('electron', () => electronMock);
 
 import { workbenchRootHarness } from './support/workbench-root-harness';
 
@@ -267,7 +269,9 @@ describe('openTerminalFileLink', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledTimes(1);
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             window,
-            expect.objectContaining({ buttons: ['Open', 'Trust Folder and Open', 'Cancel'] }),
+            expect.objectContaining({
+                buttons: ['Open', 'Trust Folder and Open', 'Copy Path', 'Cancel'],
+            }),
         );
         expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
     });
@@ -304,11 +308,35 @@ describe('openTerminalFileLink', () => {
         expect(calls).toEqual(['terminal.fileLink.resolve', 'settings.trustFolder']);
     });
 
+    it('copies the absolute path without reading the file when the user chooses Copy Path', async () => {
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 2 });
+        const request = vi.fn((method: string) => {
+            if (method === 'terminal.fileLink.resolve')
+                return Promise.resolve({
+                    status: 'external',
+                    path: '/outside/notes.ts',
+                    sourceSessionId: 'source-session',
+                    trusted: false,
+                });
+            return Promise.reject(new Error(`Unexpected method: ${method}`));
+        });
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.openTerminalFileLink({
+                terminalId: 'terminal-1',
+                target: '~/outside/notes.ts',
+            }),
+        ).resolves.toEqual({ canceled: true });
+        expect(electronMock.clipboard.writeText).toHaveBeenCalledWith('/outside/notes.ts');
+        expect(request.mock.calls.map(([method]) => method)).toEqual(['terminal.fileLink.resolve']);
+    });
+
     it('cancels without reading the file or trusting the folder when the user chooses Cancel', async () => {
         const externalRoot = await temporaryDirectory('caxri-external-');
         const externalFile = join(externalRoot, 'notes.ts');
         await writeFile(externalFile, 'export const outside = true;\n');
-        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 2 });
+        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 3 });
         const request = vi.fn((method: string) => {
             if (method === 'terminal.fileLink.resolve')
                 return Promise.resolve({
@@ -471,5 +499,66 @@ describe('openTerminalFileLink', () => {
             'desktop.openFile',
             expect.objectContaining({ sessionId: 'session-2' }),
         );
+    });
+});
+
+describe('revealTerminalFileLink', () => {
+    it.each([
+        {
+            status: 'external',
+            path: '/outside/notes.ts',
+            sourceSessionId: 'source-session',
+            trusted: false,
+        },
+        {
+            status: 'authorized',
+            kind: 'file',
+            identity: {
+                device: '2',
+                inode: '20',
+                root: { path: '/project', device: '1', inode: '10' },
+            },
+            path: '/project/file.ts',
+            projectId: 'project-1',
+            sourceSessionId: 'source-session',
+        },
+    ])('reveals a $status link in Finder without prompting', async (resolution) => {
+        electronMock.dialog.showMessageBox.mockClear();
+        const request = vi.fn((method: string) =>
+            method === 'terminal.fileLink.resolve'
+                ? Promise.resolve(resolution)
+                : Promise.reject(new Error(`Unexpected method: ${method}`)),
+        );
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.revealTerminalFileLink({ terminalId: 'terminal-1', target: 'notes.ts' }),
+        ).resolves.toEqual({ revealed: true });
+        expect(electronMock.shell.showItemInFolder).toHaveBeenLastCalledWith(resolution.path);
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    it('returns ambiguous candidates instead of revealing one of them', async () => {
+        electronMock.shell.showItemInFolder.mockClear();
+        const ambiguous = {
+            status: 'ambiguous',
+            candidates: [
+                { path: '/a/x.ts', relativePath: 'x.ts', projectId: 'a', projectTitle: 'A' },
+                { path: '/b/x.ts', relativePath: 'x.ts', projectId: 'b', projectTitle: 'B' },
+            ],
+            truncated: false,
+            sourceSessionId: 'source-session',
+        };
+        const request = vi.fn(() => Promise.resolve(ambiguous));
+        const { instance } = authority({ getServer: server(request) });
+
+        await expect(
+            instance.revealTerminalFileLink({ terminalId: 'terminal-1', target: 'x.ts' }),
+        ).resolves.toEqual({
+            status: 'ambiguous',
+            candidates: ambiguous.candidates,
+            truncated: false,
+        });
+        expect(electronMock.shell.showItemInFolder).not.toHaveBeenCalled();
     });
 });

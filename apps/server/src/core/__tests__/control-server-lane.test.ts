@@ -341,6 +341,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'terminal.inputBinary': 'ordered',
     'terminal.moveToNewSession': 'ordered',
     'terminal.openFileLink': 'ordered',
+    'terminal.revealFileLink': 'ordered',
     'terminal.resize': 'ordered',
     'terminal.restart': 'ordered',
     'terminal.send': 'ordered',

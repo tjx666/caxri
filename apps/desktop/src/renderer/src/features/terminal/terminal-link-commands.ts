@@ -23,6 +23,17 @@ export async function openTerminalFileLink(
 }
 
 /**
+ * Shows a file path a Terminal printed, or an Agent Chat reply cited, in Finder. Main resolves it exactly like
+ * {@link openTerminalFileLink}; several matching Projects come back as candidates instead of a guess.
+ */
+export async function revealTerminalFileLink(
+    terminalId: string,
+    target: string,
+): Promise<MethodResult<'terminal.revealFileLink'>> {
+    return caxri.request('terminal.revealFileLink', { terminalId, target });
+}
+
+/**
  * Caxri Bot's counterpart to {@link openTerminalFileLink}: same resolution, but Main hands the opened file to a real,
  * visible Session instead of Caxri Bot's own hidden one. Only the Caxri Bot Terminal pane calls this (see
  * `hasWorkbenchLinks` in `terminal-pane-host.ts`); Main independently validates that `terminalId` names Caxri Bot's own

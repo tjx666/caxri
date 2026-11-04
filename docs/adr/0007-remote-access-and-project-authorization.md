@@ -40,8 +40,9 @@ workflows continue to use native selection and single-use Main grants.
 
 Terminal file links outside every Project reuse the same external snapshot instead of forcing a Project
 to be added. Server Core reports the explicit target as `external` without reading it; Main confirms
-with Open, Trust Folder and Open, or Cancel, and skips the prompt when the `security.trustedFolders`
-Setting already contains the file's folder. A trusted folder is a persisted prompt-skip preference, not
+with Open, Trust Folder and Open, Copy Path (which only copies the absolute path), or Cancel, and skips
+the prompt when the `security.trustedFolders` Setting already contains the file's folder. Reveal in
+Finder on such a link asks nothing, because it reads no file contents. A trusted folder is a persisted prompt-skip preference, not
 a root grant: it never creates a Project, never widens Files, Search, Git, Terminal cwd, or save
 authority, and the resulting tab stays read-only and ephemeral.
 

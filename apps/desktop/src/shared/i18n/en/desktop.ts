@@ -258,6 +258,7 @@ export const desktop = {
     'desktop.externalFile.detail':
         '{{path}}\n\nThis file is outside every added Project. Caxri opens it in the editor without adding a Project, and saving writes back to this file. Trusting the folder skips this prompt for files under {{folder}}.',
     'desktop.externalFile.trustFolder': 'Trust Folder and Open',
+    'desktop.externalFile.copyPath': 'Copy Path',
     'desktop.themeImport.title': 'Import Theme',
     'desktop.themeImport.themeFiles': 'Theme Files',
     'desktop.fileFilter.allFiles': 'All Files',

@@ -131,6 +131,7 @@ export const terminal = {
         "Several files are named {{name}}, so Caxri can't tell which one to open.",
     'terminal.links.fileNotFound': 'Could not find {{path}}',
     'terminal.links.fileLinkFailed': 'Terminal file link failed',
+    'terminal.links.fileRevealFailed': 'Unable to reveal the file in Finder',
     'terminal.linkPicker.repository.title': 'Choose Git Repository',
     'terminal.linkPicker.repository.placeholder': 'Search matching repositories…',
     'terminal.linkPicker.repository.empty': 'No matching repositories.',

@@ -34,7 +34,7 @@ import {
 } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHistory } from './hooks/use-agent-chat-history';
-import { useAgentChatOpenFile } from './hooks/use-agent-chat-open-file';
+import { useAgentChatFileLinks } from './hooks/use-agent-chat-open-file';
 import { useAgentChatPending } from './hooks/use-agent-chat-pending';
 import {
     useAgentChatReturnHint,
@@ -225,7 +225,7 @@ function AgentChatPaneContent({
         stopFollowing,
     });
     const olderItems = history.history.items;
-    const openFile = useAgentChatOpenFile(terminalId, [olderItems, snapshot?.items ?? []]);
+    const fileLinks = useAgentChatFileLinks(terminalId, [olderItems, snapshot?.items ?? []]);
     const { settledChunks, timeline, dayBreaks, railMarks } = useAgentChatTimelines(
         versionView.snapshot,
         history.history,
@@ -359,7 +359,7 @@ function AgentChatPaneContent({
                                         terminalId={terminalId}
                                         timeline={timeline}
                                         versionView={versionView}
-                                        onOpenFile={openFile}
+                                        fileLinks={fileLinks}
                                     />
                                 </AgentChatTaskLinksContext>
                             </AgentChatExpansionContext>

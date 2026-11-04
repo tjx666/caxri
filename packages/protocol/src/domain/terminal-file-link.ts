@@ -97,6 +97,23 @@ export const terminalFileLinkMethods = {
         }),
         result: terminalFileLinkOpenResultSchema,
     },
+    /**
+     * Shows a Terminal or Agent Chat file link in Finder. It resolves exactly like `terminal.openFileLink`, so a path
+     * outside every Project is revealed too: revealing reads no file contents, so it skips the external-file
+     * confirmation an open asks for. Several matching Projects return the candidates instead, and the caller says why
+     * nothing was revealed.
+     */
+    'terminal.revealFileLink': {
+        ...desktopControl,
+        params: z.object({
+            terminalId: identifierSchema,
+            target: z.string().min(3).max(4_096),
+        }),
+        result: z.union([
+            z.object({ revealed: z.literal(true) }),
+            terminalFileLinkAmbiguousResultSchema,
+        ]),
+    },
 } as const satisfies Record<string, MethodSpec>;
 
 /**

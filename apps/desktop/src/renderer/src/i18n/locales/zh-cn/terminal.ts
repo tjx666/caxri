@@ -125,6 +125,7 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.links.fileAmbiguous': '有多个名为 {{name}} 的文件，无法确定要打开哪一个。',
     'terminal.links.fileNotFound': '找不到文件 {{path}}',
     'terminal.links.fileLinkFailed': '无法打开终端文件链接',
+    'terminal.links.fileRevealFailed': '无法在 Finder 中显示该文件',
     'terminal.linkPicker.repository.title': '选择 Git 仓库',
     'terminal.linkPicker.repository.placeholder': '搜索匹配的仓库…',
     'terminal.linkPicker.repository.empty': '没有匹配的仓库。',
