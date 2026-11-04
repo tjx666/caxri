@@ -151,7 +151,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    failed: the watcher prints `UNVERIFIED` and exits 2; watch the next `main` run that contains it. Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
-   new one after `gh run rerun`. Failed jobs raise an immediate macOS notification. Polling
+   new one after `gh run rerun`. Failed jobs print an immediate console line; only a successful `Release macOS` run
+   raises a macOS notification. Polling
    survives offline windows with capped backoff. The command exits 0 only when every watched run
    succeeded.
    In Claude Code, execute the watcher in a background shell with `timeout: 7200000`: the 30-minute

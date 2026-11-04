@@ -15,9 +15,11 @@
  *   started right after `gh run rerun` would exit on the previous attempt's terminal state. A watcher reports the
  *   attempt it was watching: one already running when the rerun starts still exits with that attempt's conclusion, so
  *   watch the new attempt with a new watcher.
- * - Immediate failure notification: the first time any job concludes failed/timed_out/cancelled a macOS notification
- *   fires, without waiting for the whole run to complete. Notified jobs are recorded in the shared state so reruns and
- *   follower sessions do not re-notify.
+ * - Immediate failure line: the first time any job concludes failed/timed_out/cancelled the watcher prints it, without
+ *   waiting for the whole run to complete. Reported jobs are recorded in the shared state so reruns and follower
+ *   sessions do not repeat it.
+ * - Desktop notifications: only a successful `Release macOS` run raises a macOS notification. Every other outcome is
+ *   console-only, because the Agent driving the watcher acts on it and the operator asked not to be interrupted.
  * - Offline resilience: polling errors are treated as transient and retried forever with capped exponential backoff; the
  *   watcher only exits when the run reaches a terminal status.
  *
@@ -40,13 +42,18 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
 
 import { writeJsonAtomic } from './atomic-json';
 import { execFileAsync } from './exec';
 import type { CliOptions } from './watch-ci-arguments';
 import { parseArguments } from './watch-ci-arguments';
 import { printE2EFailures } from './watch-ci-e2e-failures';
+import {
+    FAILURE_CONCLUSIONS,
+    formatCiNotification,
+    notify,
+    shouldDeliverDesktopNotification,
+} from './watch-ci-notification';
 import { didPrRunsSucceed, resolvePrRuns } from './watch-ci-pr';
 import { followAndReport, isSuccessfulConclusion } from './watch-ci-sha';
 
@@ -114,11 +121,6 @@ export interface WatchState {
     url?: string;
     workflowName?: string;
 }
-
-/**
- * Job conclusions that warrant an immediate notification while the run is still in progress.
- */
-const FAILURE_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled']);
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
 export function isHeartbeatStale(heartbeatAt: string | undefined, nowMs: number): boolean {
@@ -222,68 +224,6 @@ export function formatRunSummary(
     return lines.join('\n');
 }
 
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
-export interface CiNotification {
-    message: string;
-    subtitle?: string;
-    title: string;
-}
-
-/**
- * Notification copy for a failed job or a finished run. The bare `run <id>: failure` it replaces named neither the
- * branch nor the failing job, so the operator had to open the run to learn which session broke and where.
- */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
-export function formatCiNotification(
-    state: Pick<
-        WatchState,
-        'branch' | 'conclusion' | 'displayTitle' | 'jobs' | 'runId' | 'status' | 'workflowName'
-    >,
-    newlyFailed: string[] = [],
-): CiNotification {
-    const target = state.branch ?? `run ${state.runId}`;
-    const subtitle = state.displayTitle;
-    const workflow = state.workflowName ?? 'CI';
-    const failedJobs =
-        newlyFailed.length > 0
-            ? newlyFailed
-            : state.jobs
-                  .filter((job) => FAILURE_CONCLUSIONS.has(job.conclusion))
-                  .map((job) => job.name);
-    const withSubtitle = (notification: CiNotification): CiNotification =>
-        subtitle ? { ...notification, subtitle } : notification;
-    if (
-        newlyFailed.length === 0 &&
-        state.status === 'completed' &&
-        isSuccessfulConclusion(state.conclusion)
-    ) {
-        return withSubtitle({
-            title: `CI passed · ${target}`,
-            message: `${workflow} ${state.conclusion === 'skipped' ? 'skipped' : 'succeeded'}`,
-        });
-    }
-    // A cancelled run or job is usually superseded by a newer run, which `--pr` and `--sha` then follow; it is not a
-    // failure. An early job notification used to say `Guards failed: guards` for a job a newer run had cancelled.
-    const isCancelled =
-        newlyFailed.length > 0
-            ? newlyFailed.every(
-                  (name) => state.jobs.find((job) => job.name === name)?.conclusion === 'cancelled',
-              )
-            : state.conclusion === 'cancelled';
-    const outcome = isCancelled
-        ? 'cancelled'
-        : newlyFailed.length > 0
-          ? 'failed'
-          : (state.conclusion || 'failed').replaceAll('_', ' ');
-    return withSubtitle({
-        title: `${isCancelled ? 'CI cancelled' : 'CI failed'} · ${target}`,
-        message:
-            failedJobs.length > 0
-                ? `${workflow} ${outcome}: ${failedJobs.join(', ')}`
-                : `${workflow} ${outcome}`,
-    });
-}
-
 function statePath(runId: string): string {
     return join(STATE_DIRECTORY, `${runId}.json`);
 }
@@ -301,61 +241,6 @@ async function readState(runId: string): Promise<WatchState | undefined> {
  */
 async function writeState(state: WatchState): Promise<void> {
     await writeJsonAtomic(statePath(state.runId), state, { ensureParent: true });
-}
-
-/**
- * Repository icon shown on alerter notifications; resolved from the script location so worktrees work too. alerter
- * draws the image as-is, so it must be the variant with the rounded macOS plate baked in, not the full-bleed
- * `icon.png`.
- */
-const APP_ICON_PATH = fileURLToPath(new URL('../build/notification-icon.png', import.meta.url));
-
-/**
- * How long an alerter notification stays up (and the poller blocks) waiting for a click before auto-closing. Failure
- * notifications are rare, so pausing the 20s poll cadence for up to this long is an acceptable trade for
- * click-to-open.
- */
-const NOTIFICATION_TIMEOUT_SECONDS = 30;
-
-/**
- * Best-effort macOS notification. Prefers `alerter` (brew) over `osascript` because AppleScript notifications are
- * permanently branded with the Script Editor icon and cannot react to clicks; alerter shows the repository icon and
- * clicking the notification opens the run page. Falls back to `osascript` only when alerter is not installed.
- */
-async function notify({ message, subtitle, title }: CiNotification, url?: string): Promise<void> {
-    console.log(`${title}: ${message}`);
-    if (process.platform !== 'darwin') return;
-    try {
-        const { stdout } = await execFileAsync('alerter', [
-            '--title',
-            title,
-            ...(subtitle ? ['--subtitle', subtitle] : []),
-            '--message',
-            message,
-            '--app-icon',
-            APP_ICON_PATH,
-            '--sound',
-            'Basso',
-            '--timeout',
-            String(NOTIFICATION_TIMEOUT_SECONDS),
-            '--json',
-        ]);
-        const activation = JSON.parse(stdout) as { activationType?: string };
-        if (url && /clicked/iu.test(activation.activationType ?? '')) {
-            await execFileAsync('open', [url]);
-        }
-        return;
-    } catch (error) {
-        // Any failure other than "alerter is not installed" still counts as attempted delivery; the console line
-        // above already carries the signal.
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return;
-    }
-    try {
-        const script = `display notification ${JSON.stringify(message)} with title ${JSON.stringify(title)} sound name "Basso"`;
-        await execFileAsync('osascript', ['-e', script]);
-    } catch {
-        // Notification delivery is best-effort; the console line above already carries the signal.
-    }
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
@@ -477,7 +362,10 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
     const failedJobs = newlyFailedJobs(state.notifiedFailedJobs, state.jobs);
     if (failedJobs.length > 0) {
         state.notifiedFailedJobs = [...state.notifiedFailedJobs, ...failedJobs];
-        await notify(formatCiNotification(state, failedJobs), state.url);
+        await notify(formatCiNotification(state, failedJobs), {
+            isDesktop: shouldDeliverDesktopNotification(state, failedJobs),
+            url: state.url,
+        });
     }
     await writeState(state);
     return state;
@@ -525,7 +413,10 @@ async function didRunSucceed(
         }
         if (isRunSettled(state)) {
             // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
-            await notify(formatCiNotification(state), state.url);
+            await notify(formatCiNotification(state), {
+                isDesktop: shouldDeliverDesktopNotification(state),
+                url: state.url,
+            });
             if (hasFailedE2EJob(state.jobs))
                 // eslint-disable-next-line no-await-in-loop -- terminal summary; the loop exits right after
                 await printE2EFailures(runId);
