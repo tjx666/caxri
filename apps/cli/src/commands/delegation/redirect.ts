@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { CaxriError, delegationRedirectParametersSchema } from '@caxri/protocol';
 
-import { readBoundedTextFile } from './text-file';
-import type { RemoteCommandDefinition } from './types';
+import { readBoundedTextFile } from '../text-file';
+import type { RemoteCommandDefinition } from '../types';
 
 /**
  * A character is at most four UTF-8 bytes, so the file read is bounded by bytes and the schema then bounds characters.

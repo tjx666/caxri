@@ -1,8 +1,8 @@
 import type { DelegationHistoryEntry } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { DELEGATION_COMMANDS } from '../delegation';
-import { renderDelegationHistory } from '../delegation-history';
+import { DELEGATION_COMMANDS } from '../commands';
+import { renderDelegationHistory } from '../history';
 
 const command = DELEGATION_COMMANDS.find((item) => item.method === 'agent.delegation.history')!;
 const NOW = 1_700_000_000_000;

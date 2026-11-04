@@ -2,9 +2,11 @@ import { agentProviderIds, CaxriError } from '@caxri/protocol';
 
 import { booleanFlag } from './boolean-flag';
 import { BOT_COMMANDS } from './bot';
-import { DELEGATION_COMMANDS } from './delegation';
-import { DELEGATION_ACCESS_COMMANDS } from './delegation-access';
-import { DELEGATION_IMPORT_COMMAND } from './delegation-import';
+import {
+    DELEGATION_ACCESS_COMMANDS,
+    DELEGATION_COMMANDS,
+    DELEGATION_IMPORT_COMMAND,
+} from './delegation';
 import { DEVICE_COMMANDS } from './device';
 import { HOST_COMMANDS } from './host';
 import {

@@ -1,6 +1,6 @@
 import { CaxriError } from '@caxri/protocol';
 
-import type { RemoteCommandDefinition } from './types';
+import type { RemoteCommandDefinition } from '../types';
 
 /**
  * Reads `<task-id>`: any task of the Session the user took over.

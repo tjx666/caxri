@@ -6,8 +6,8 @@ import {
     MAX_CONFIGURATION_SOURCE_BYTES,
 } from '@caxri/protocol';
 
-import { readBoundedTextFile } from './text-file';
-import type { RemoteCommandDefinition } from './types';
+import { readBoundedTextFile } from '../text-file';
+import type { RemoteCommandDefinition } from '../types';
 
 /**
  * The Server parses and merges the file, so the CLI only reads it (bounded) and sends the text.

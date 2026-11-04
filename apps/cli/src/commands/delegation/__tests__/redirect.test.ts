@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DELEGATION_COMMANDS } from '../delegation';
+import { DELEGATION_COMMANDS } from '../commands';
 
 const command = DELEGATION_COMMANDS.find((item) => item.method === 'agent.delegation.redirect')!;
 

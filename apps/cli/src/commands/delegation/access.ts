@@ -1,7 +1,7 @@
 import { CaxriError, delegationAccessParametersSchema } from '@caxri/protocol';
 
-import { launchParameters, runDelegationLaunch } from './delegation-launch';
-import type { RemoteCommandDefinition } from './types';
+import type { RemoteCommandDefinition } from '../types';
+import { launchParameters, runDelegationLaunch } from './launch';
 
 function options(tokens: readonly string[]) {
     const values: Record<string, string | boolean> = {};

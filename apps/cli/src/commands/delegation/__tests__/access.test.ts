@@ -2,8 +2,8 @@ import type { ProtocolWelcome } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { expect, it, vi } from 'vitest';
 
-import type { CliConnectOptions, CliServerClient } from '../../application';
-import { runCli } from '../../application';
+import type { CliConnectOptions, CliServerClient } from '../../../application';
+import { runCli } from '../../../application';
 
 it('requires explicit owner authorization and sends a bounded bootstrap request', async () => {
     const request = vi.fn(() => Promise.resolve({}));

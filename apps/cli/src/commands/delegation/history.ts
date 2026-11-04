@@ -6,8 +6,8 @@ import {
     MAX_DELEGATION_HISTORY_QUERY,
 } from '@caxri/protocol';
 
-import { formatRelativeTime } from '../records-output';
-import type { RemoteCommandDefinition } from './types';
+import { formatRelativeTime } from '../../records-output';
+import type { RemoteCommandDefinition } from '../types';
 
 const outcomeUsage = delegationHistoryOutcomeSchema.options.join('|');
 const valueFlags = new Set(['--query', '--outcome', '--limit', '--after']);

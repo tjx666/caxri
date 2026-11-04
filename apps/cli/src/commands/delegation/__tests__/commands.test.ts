@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { DELEGATION_COMMANDS } from '../delegation';
+import { DELEGATION_COMMANDS } from '../commands';
 
 describe('delegation CLI', () => {
     it.each(['claude', 'codex'])(

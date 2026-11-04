@@ -1,6 +1,6 @@
 import { CaxriError, delegationApproveParametersSchema } from '@caxri/protocol';
 
-import type { RemoteCommandDefinition } from './types';
+import type { RemoteCommandDefinition } from '../types';
 
 function identifierArgument(token: string | undefined, label: string): string {
     if (!token || token.startsWith('-'))

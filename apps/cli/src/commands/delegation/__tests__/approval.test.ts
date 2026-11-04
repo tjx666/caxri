@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DELEGATION_APPROVAL_COMMANDS } from '../delegation-approval';
+import { DELEGATION_APPROVAL_COMMANDS } from '../approval';
 
 const approve = DELEGATION_APPROVAL_COMMANDS[0];
 

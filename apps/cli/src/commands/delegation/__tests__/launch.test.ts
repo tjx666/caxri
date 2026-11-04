@@ -7,9 +7,9 @@ import type { CaxriMethod, ProtocolWelcome } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CliConnectOptions, CliServerClient } from '../../application';
-import { runCli } from '../../application';
-import { launchParameters } from '../delegation-launch';
+import type { CliConnectOptions, CliServerClient } from '../../../application';
+import { runCli } from '../../../application';
+import { launchParameters } from '../launch';
 
 const grant = {
     clientId: 'd1decb80-7644-44fd-b821-a7d6678fb0eb',

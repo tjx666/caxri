@@ -10,8 +10,8 @@ import { agentProviderIds, CaxriError, delegationProviderSchema } from '@caxri/p
 import {
     DELEGATION_PROJECT_ENVIRONMENT,
     DELEGATION_SESSION_ENVIRONMENT,
-} from '../delegation-environment';
-import type { RemoteCommandRunContext } from './types';
+} from '../../delegation-environment';
+import type { RemoteCommandRunContext } from '../types';
 
 export interface DelegationLaunchParameters {
     command: [string, ...string[]];

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { DELEGATION_QUESTION_COMMANDS } from '../delegation-question';
+import { DELEGATION_QUESTION_COMMANDS } from '../question';
 
 const command = (method: string) =>
     DELEGATION_QUESTION_COMMANDS.find((item) => item.method === method)!;

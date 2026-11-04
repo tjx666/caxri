@@ -7,14 +7,14 @@ import {
     MAX_DELEGATION_WAIT_TASKS,
 } from '@caxri/protocol';
 
-import { AGENT_SESSION_COMMANDS } from './agent-session';
-import { DELEGATION_APPROVAL_COMMANDS } from './delegation-approval';
-import { DELEGATION_HAND_BACK_COMMANDS } from './delegation-hand-back';
-import { DELEGATION_HISTORY_COMMANDS } from './delegation-history';
-import { DELEGATION_QUESTION_COMMANDS } from './delegation-question';
-import { DELEGATION_REDIRECT_COMMANDS } from './delegation-redirect';
-import { readBoundedTextFile } from './text-file';
-import type { RemoteCommandDefinition } from './types';
+import { AGENT_SESSION_COMMANDS } from '../agent-session';
+import { readBoundedTextFile } from '../text-file';
+import type { RemoteCommandDefinition } from '../types';
+import { DELEGATION_APPROVAL_COMMANDS } from './approval';
+import { DELEGATION_HAND_BACK_COMMANDS } from './hand-back';
+import { DELEGATION_HISTORY_COMMANDS } from './history';
+import { DELEGATION_QUESTION_COMMANDS } from './question';
+import { DELEGATION_REDIRECT_COMMANDS } from './redirect';
 
 const createFlags = new Set([
     '--project',

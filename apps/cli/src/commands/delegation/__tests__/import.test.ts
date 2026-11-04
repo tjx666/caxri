@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { CaxriError } from '@caxri/protocol';
 import { expect, it, onTestFinished, vi } from 'vitest';
 
-import { runCli } from '../application';
-import { DELEGATION_IMPORT_COMMAND } from '../commands/delegation-import';
+import { runCli } from '../../../application';
+import { DELEGATION_IMPORT_COMMAND } from '../import';
 
 const config = {
     maxDepth: 2,
