@@ -45,4 +45,10 @@ describe('sessionCardMetrics', () => {
         ]);
         expect(sessionCardMetrics(null, { costUsd: 0, isPartial: true }, t)).toEqual([]);
     });
+
+    it('shows no spend for a Session whose own usage is unknown, even when its delegated Sessions spent', () => {
+        expect(sessionCardMetrics(null, { delegatedCostUsd: 2, delegatedSessions: 1 }, t)).toEqual(
+            [],
+        );
+    });
 });

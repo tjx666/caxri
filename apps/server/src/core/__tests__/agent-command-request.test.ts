@@ -102,6 +102,11 @@ describe('agentCommandRequest for the questions of a delegated Agent', () => {
             'agent.delegation.approveInternal',
             { delegationId: 'task-1', requestId: 'request-1', decision: 'accept' },
         ],
+        [
+            'agent.delegation.history',
+            'agent.delegation.historyInternal',
+            { query: 'retry', outcome: 'completed', limit: 5 },
+        ],
     ] as const)('routes %s to %s with the caller authority', (method, internal, parameters) => {
         expect(
             agentCommandRequest(
@@ -111,5 +116,22 @@ describe('agentCommandRequest for the questions of a delegated Agent', () => {
                 endpoints,
             ),
         ).toEqual({ method: internal, params: { ...authority, ...parameters } });
+    });
+
+    it('refuses a history read from an Agent whose Endpoint expired before any handler runs', () => {
+        const expired = {
+            context: () => {
+                throw new Error('Agent Endpoint expired');
+            },
+        } as unknown as AgentEndpointRegistry;
+
+        expect(() =>
+            agentCommandRequest(
+                { method: 'agent.delegation.history', params: { limit: 20 } } as never,
+                context,
+                'request-1',
+                expired,
+            ),
+        ).toThrow(/expired/u);
     });
 });

@@ -6,6 +6,14 @@ import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 
 /**
+ * Whether a principal reads every task: all kinds except an Agent and a delegation client, which are held to the tasks
+ * they created. The one place that kind test lives, shared by task reads and history reads.
+ */
+export function isDelegationOwnerPrincipal(principal: DelegationAuthority['principal']): boolean {
+    return principal.kind !== 'agent' && principal.kind !== 'delegation-client';
+}
+
+/**
  * A task belongs to the exact Endpoint generation that created it, so a relaunched Agent cannot settle work its
  * predecessor started. Caxri Bot is the exception: a Caxri restart or Codex relaunch starts a new generation of the
  * same system Terminal, and its ledger of earlier tasks must keep resolving. The owner's own clients see every task.
@@ -15,8 +23,7 @@ export function isDelegationOwner(
     record: StoredAgentDelegation,
     authority: DelegationAuthority,
 ): boolean {
-    if (authority.principal.kind !== 'agent' && authority.principal.kind !== 'delegation-client')
-        return true;
+    if (isDelegationOwnerPrincipal(authority.principal)) return true;
     return (
         authority.callerTerminalId === record.receipt.callerTerminalId &&
         (JSON.stringify(authority.principal) === JSON.stringify(record.principal) ||

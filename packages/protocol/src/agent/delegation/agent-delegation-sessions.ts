@@ -8,7 +8,6 @@ import { agentProviderIds } from '../agents.js';
 import { delegationApprovalSummarySchema } from './agent-delegation-approval.js';
 import { agentDelegationApprovalMethods } from './agent-delegation-approval-contract.js';
 import {
-    agentDelegationFailureSchema,
     agentDelegationStatusSchema,
     delegationRetryScheduleOutcomeSchema,
 } from './agent-delegation-contract.js';
@@ -21,6 +20,7 @@ import {
     agentDelegationQuestionOwnerMethods,
 } from './agent-delegation-question-contract.js';
 import {
+    agentDelegationFailureSchema,
     delegationProviderSchema,
     delegationSelectionSchema,
 } from './agent-delegation-settings.js';

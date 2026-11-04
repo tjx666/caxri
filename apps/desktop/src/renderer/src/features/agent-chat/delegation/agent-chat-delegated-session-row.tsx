@@ -19,6 +19,7 @@ import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { delegatedSessionLine, delegationPrFilesLabel } from './agent-chat-delegated-sessions';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
+import type { DelegatedCostLabel } from './cost/agent-chat-delegated-cost';
 
 /**
  * A finished task's pull request, with the whole pull request's file count. Mounted only for a completed row, so a row
@@ -53,6 +54,7 @@ function DelegatedResultMeta({ sessionId }: { sessionId: string }) {
  */
 function DelegatedSessionRowContent({
     attempt,
+    cost,
     entry,
     isPresetDetailVisible,
     now,
@@ -60,6 +62,7 @@ function DelegatedSessionRowContent({
     title,
 }: {
     attempt?: number;
+    cost?: DelegatedCostLabel;
     entry: AgentDelegationSession;
     /**
      * Prints the preset's provider, model and effort in the row, for a row with no tooltip to carry them.
@@ -106,6 +109,12 @@ function DelegatedSessionRowContent({
                     {line.kind === 'status' && line.detail && ` · ${line.detail}`}
                 </span>
             </span>
+            {cost && (
+                <span className="shrink-0 tabular-nums">
+                    <span aria-hidden="true">{cost.text}</span>
+                    <span className="sr-only">{cost.description}</span>
+                </span>
+            )}
             {elapsed && <span className="shrink-0 tabular-nums">{elapsed}</span>}
             <AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />
         </>
@@ -125,6 +134,7 @@ const ROW_CLASS_NAME =
  */
 export function AgentChatDelegatedSessionRow({
     attempt,
+    cost,
     entry,
     now,
 }: {
@@ -132,6 +142,10 @@ export function AgentChatDelegatedSessionRow({
      * Which attempt this task is when it retries a failed one (2 or more); `undefined` for a first attempt.
      */
     attempt?: number;
+    /**
+     * What the child's work cost, as an estimate (`delegatedCostLabel`); absent when it has no usage yet.
+     */
+    cost?: DelegatedCostLabel;
     entry: AgentDelegationSession;
     now: number;
 }) {
@@ -145,6 +159,7 @@ export function AgentChatDelegatedSessionRow({
     const content = (
         <DelegatedSessionRowContent
             attempt={attempt}
+            cost={cost}
             entry={entry}
             isPresetDetailVisible={!session}
             now={now}

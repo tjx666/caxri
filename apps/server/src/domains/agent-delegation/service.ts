@@ -26,13 +26,9 @@ import { assertTerminalChildHooks, childLaunchFailure } from './chat-child';
 import type { DelegationCollectionHost } from './collection';
 import { collectDelegationResult } from './collection';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
-import {
-    DelegationProgress,
-    delegationSessions,
-    isNewlyCompleted,
-    recordDelegationResult,
-} from './feed';
+import { DelegationProgress, delegationSessions } from './feed';
 import { startFreshTask } from './fresh-start';
+import { recordSettlement } from './history';
 import { fenceTerminalLaunch } from './launch-fence';
 import {
     applyDelegationLifecycle,
@@ -171,8 +167,7 @@ export class AgentDelegationService {
             this.questions.taskEnded(delegationId);
             this.approvals.taskEnded(delegationId);
         }
-        if (isNewlyCompleted(saved, before))
-            recordDelegationResult(this.options.database, saved, this.options.logger);
+        recordSettlement(this.options.database, saved, before, this.options.logger);
         if (isReceiptTransition(before?.receipt, saved.receipt)) {
             logDelegationTransition(
                 this.options.logger,

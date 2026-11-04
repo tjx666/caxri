@@ -174,6 +174,14 @@ The Session records the Session that asked, and the sidebar gives it no row whil
 asked is listed. It is neither a Delegated Session nor a Hand-off.
 _Avoid_: Side Session, review Session, Delegated Session
 
+**Delegation history**:
+The durable record of tasks that settled: who created them, how they ended, a title and summary to
+search, and provider token counters. It outlives the pruning of task records and the deletion of
+their Sessions, and an Agent reads only its own. It also keeps the Session that created each
+delegated, consulted, or handed-off Session, which is how a Chat states the estimated cost of
+everything below it.
+_Avoid_: delegation log, task archive
+
 **Peer Inbox**:
 The Server-mediated, text-only channel through which managed Agents send, wait for, and reply to
 short Peer Messages (`caxri agent message`). A message the user must approve is held, and the user

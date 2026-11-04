@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { agentProviderIds } from '../agent/agents.js';
-import { commandPolicy } from '../transport/method-spec.js';
+import { commandPolicy, ownerOnlyCommandPolicy } from '../transport/method-spec.js';
 import { identifierSchema } from './identifiers.js';
 
 /**
@@ -391,12 +391,62 @@ export const usageReportSchema = z.object({
 export type UsageReport = z.infer<typeof usageReportSchema>;
 
 const sessionCostSchema = z.object({
-    costUsd: usd,
+    /**
+     * What the Session's own Agent work cost. Absent, together with `isPartial`, when the ledger holds no usage for the
+     * Session itself (it is unknown, not free); a Session whose only usage is its delegated Sessions' carries just the
+     * `delegated*` fields.
+     */
+    costUsd: usd.optional(),
     /**
      * True when a model the Session used has no known price, so `costUsd` undercounts.
      */
-    isPartial: z.boolean(),
+    isPartial: z.boolean().optional(),
+    /**
+     * An estimate of what the Sessions this one delegated or consulted cost (transitively), present only when at least
+     * one of them has ledger usage. Never a charge: it mixes provider-reported cost with API list-price estimates.
+     */
+    delegatedCostUsd: usd.optional(),
+    delegatedSessions: count.optional(),
+    delegatedIsPartial: z.boolean().optional(),
 });
+/**
+ * Most direct children one summary lists; the same bound as the Delegated Sessions feed.
+ */
+const MAX_DELEGATION_COST_CHILDREN = 1000;
+
+const delegationCostChildSchema = z.strictObject({
+    sessionId: identifierSchema,
+    /**
+     * The child's whole subtree (itself and its delegated descendants), an estimate.
+     */
+    costUsd: usd,
+    isPartial: z.boolean(),
+    /**
+     * True while any task in the subtree is still running, so the figure may grow.
+     */
+    isActive: z.boolean(),
+    sessionCount: count,
+});
+
+const delegationCostSummarySchema = z.strictObject({
+    delegatedCostUsd: usd,
+    delegatedSessions: count,
+    /**
+     * True when a model has no price, the walk hit its Session or depth bound, so the total is a lower bound.
+     */
+    isPartial: z.boolean(),
+    /**
+     * True while any descendant task is running, so the total may grow.
+     */
+    isActive: z.boolean(),
+    /**
+     * True while the ledger scan was still running when this answered, so ledger rows may be missing; ask again.
+     */
+    isScanPending: z.boolean(),
+    children: z.array(delegationCostChildSchema).max(MAX_DELEGATION_COST_CHILDREN),
+});
+export type DelegationCostSummary = z.infer<typeof delegationCostSummarySchema>;
+
 export type SessionCost = z.infer<typeof sessionCostSchema>;
 
 export const usageMethods = {
@@ -414,6 +464,16 @@ export const usageMethods = {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({ sessionId: identifierSchema }),
         result: sessionCostSchema.nullable(),
+    },
+    /**
+     * What the Sessions one Session delegated to or consulted (transitively) have cost, for its Delegated Sessions
+     * strip. Owner-only. Figures are estimates unless a provider reported its own cost; never a charge.
+     * `delegatedSessions` is 0 and `children` empty when no descendant has ledger usage.
+     */
+    'usage.delegationSummary': {
+        ...ownerOnlyCommandPolicy('server', 'read'),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: delegationCostSummarySchema,
     },
     /**
      * The newest plan rate-limit reading of every provider Server Core has seen, from the usage ledger and running

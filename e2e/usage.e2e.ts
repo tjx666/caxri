@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { writeCodexUsageRollout } from './support/codex-usage-rollout.ts';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, VISIBLE_SESSION } from './support/helpers.ts';
@@ -9,33 +10,15 @@ import { createProjectSession, launchCaxri, VISIBLE_SESSION } from './support/he
 const CODEX_THREAD_ID = '01a1169a-d6bd-7b81-9ad9-6a6b432c3892';
 
 /**
- * A content-free Codex rollout in the isolated E2E `CODEX_HOME`, as if run in a plain terminal outside any Project.
+ * A content-free Codex rollout as if run in a plain terminal outside any Project.
  */
-async function writeOutsideCodexRollout(userDataDirectory: string): Promise<void> {
-    const day = join(userDataDirectory, 'e2e-agents', 'codex', 'sessions', '2026', '10', '07');
-    await mkdir(day, { recursive: true });
-    const timestamp = new Date().toISOString();
-    const records = [
-        {
-            timestamp,
-            type: 'session_meta',
-            payload: { id: CODEX_THREAD_ID, cwd: '/tmp/elsewhere' },
-        },
-        { timestamp, type: 'turn_context', payload: { model: 'gpt-5' } },
-        {
-            timestamp,
-            type: 'event_msg',
-            payload: {
-                type: 'token_count',
-                info: { total_token_usage: { input_tokens: 1_200, output_tokens: 300 } },
-            },
-        },
-    ];
-    await writeFile(
-        join(day, `rollout-2026-10-07T21-43-28-${CODEX_THREAD_ID}.jsonl`),
-        `${records.map((record) => JSON.stringify(record)).join('\n')}\n`,
-    );
-}
+const writeOutsideCodexRollout = (userDataDirectory: string): Promise<void> =>
+    writeCodexUsageRollout(userDataDirectory, {
+        cwd: '/tmp/elsewhere',
+        inputTokens: 1_200,
+        outputTokens: 300,
+        threadId: CODEX_THREAD_ID,
+    });
 
 async function runOpenUsage(page: Page): Promise<void> {
     await page.keyboard.press('Meta+Shift+P');

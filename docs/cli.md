@@ -150,6 +150,11 @@ planned time. It needs no `--yes`, sends at most one request per window, and ref
 the selected profile's delegation configuration (`--replace` replaces it instead; `--merge` is the default). It requires owner capability
 `settings.delegation.write`, never an Agent grant. See [preset import](agent-delegation.md#import-dianjiang-presets).
 
+`agent delegate history [--query <text>] [--outcome <outcome>] [--limit <1-50>] [--after <cursor>]` finds
+the caller's earlier settled tasks by Session title or summary, newest first, a page at a time; an
+Agent sees only its own, the owner sees all, and it never marks an answer read. See
+[delegation history](agent-delegation.md#delegation-history-and-cost).
+
 `agent delegate ask|ask-wait|ask-cancel` lets a delegated Agent put one question to the Agent that
 delegated it, and `agent delegate questions|answer` plus `wait --ignore-questions` are the
 delegating Agent's side. `ask-wait --timeout` accepts up to 300000 milliseconds; question and

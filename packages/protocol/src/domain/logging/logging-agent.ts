@@ -200,6 +200,19 @@ export const agentDelegationLogEvents = {
      */
     transcriptRead: 'agent_delegation.transcript_read',
     /**
+     * A caller read a page of its settled tasks (`agent.delegation.history`). Fields: `principalKind` (closed),
+     * `outcomeFilter` (an outcome or `none`), `hasQuery`, `queryLength` (a bucket: `0`, `1-8`, `9-32`, `33+`),
+     * `entryCount`, `hasMore`, `durationMs`, and `result` (`ok` or `cursor_invalid`). Never the query, the cursor, a
+     * title, a summary, or an entry's IDs.
+     */
+    historyRead: 'agent_delegation.history_read',
+    /**
+     * A settled task's history row was written or refused. Fields: `delegationId`, `outcome`, `failure` (closed),
+     * `isInsert`, `compactedCount`, `durationMs`, and `result` (`ok` or `failed` with a closed `reason`: `constraint`,
+     * `database`, or `unknown`). A failed write is retried by the task's next save. IDs and enums only.
+     */
+    historyRecorded: 'agent_delegation.history_recorded',
+    /**
      * A delegated Agent opened a question for the Agent that delegated it. Fields: `delegationId`, `questionId`,
      * `optionCount`. Never the question text or its length.
      */

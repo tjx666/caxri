@@ -34,6 +34,7 @@ caxri agent delegate transcript <delegation-id> [--after <cursor>] --json
 caxri agent delegate ask --text <question> --json   # more under "Questions from a delegated task"
 caxri agent delegate stop <delegation-id> --json
 caxri agent delegate list [--active] [--limit <count>] --json
+caxri agent delegate history [--query <text>] [--outcome <outcome>] [--limit <1-50>] [--after <cursor>] --json
 caxri agent delegate create --project <project-id> --session <session-id> \
   --provider claude --prompt-file ./next-task.md --follow-up <delegation-id> --json
 caxri agent delegate create --project <project-id> --session <session-id> \
@@ -46,8 +47,9 @@ for unattended use). Every managed Agent Endpoint, in a Terminal or an Agent Cha
 Server Core derives the caller Terminal from its authenticated Endpoint; a caller cannot supply a
 different principal or Terminal. An Agent may start work in its own Session and in Sessions it
 created, and may read, wait on, follow up, or stop only its own delegations; `list` returns them
-newest first so an Agent that lost its context can recover their IDs. The authenticated human owner
-can inspect tasks in the selected profile.
+newest first so an Agent that lost its context can recover their IDs, and `history` searches the
+settled ones it created long ago ([Delegation history and cost](#delegation-history-and-cost)). The
+authenticated human owner can inspect tasks in the selected profile.
 
 ## Start work in a new Session
 
@@ -1116,6 +1118,75 @@ inclusive counters as parent-only accounting.
 The task's revision is checked after all asynchronous evidence reads, so human takeover, stop or
 relaunch invalidates accounting and answer collection together. Saved usage survives Server restart
 with its answer and is not recomputed on later result reads.
+
+## Delegation history and cost
+
+`list` returns the newest tasks that are still stored, and the store prunes settled tasks that
+carry no answer. `caxri agent delegate history` (`agent.delegation.history`) is the durable
+counterpart: it finds a task an Agent delegated earlier by words from its Session title or its
+summary, newest first.
+
+```sh
+caxri agent delegate history --query "login retry" --outcome completed --limit 10 --json
+caxri agent delegate history --query "login retry" --outcome completed --after <nextCursor> --json
+```
+
+- **Scope.** An Agent sees only the rows its own Terminal and exact Endpoint generation created,
+  the same rule as `list` (`isDelegationOwnerPrincipal`, with the Caxri Bot exception for its own
+  Terminal). A delegation client sees only its own client and generation. The human owner, Desktop,
+  an Extension, and a paired device see every row. The request takes no Session, Project, creator,
+  Terminal, or principal; the Internal twin `agent.delegation.historyInternal` carries the
+  authenticated authority and lives in the Internal method map, never in the public one.
+- **Rows are finished work.** A row is written when a task settles (`completed`,
+  `human_intervened`, `interrupted`, `failed`, `answer_unavailable`), inside `save()` but isolated
+  from it: a failed history write is logged with a closed reason and the next save of that task
+  retries it, so a settle never fails because history did. `blocked` and other active states have no
+  row. `history` never claims an answer, so reading it cannot consume a result.
+- **Search.** `--query` is 1 to 100 characters, case-insensitive and literal (`%`, `_`, and `\`
+  match themselves), and matches only the Session title at settle time (clipped to 200 characters)
+  and the stored summary. It never matches a prompt or an answer. A title can echo the first words
+  of a prompt, and an `excerpt` summary is the first paragraph of the answer, so both can contain
+  answer-derived words; the entry says which with `summarySource`.
+- **Paging.** Keyset order is `(created_at, delegation_id)` descending. `nextCursor` is opaque and
+  bound to the query, outcome filter, and caller; reusing it with anything else is refused with
+  `history_cursor_invalid`. A limit is 1 to 50 (default 20).
+- **Retention.** No row is ever deleted by the cap. Beyond the newest 5000 rows by settle time,
+  only the searchable text (`title`, `summary`, `summarySource`) is cleared and `compacted` is true;
+  identifiers, outcome, failure, provider, times, and counters stay so cost attribution and ID
+  recovery keep working. A compacted entry cannot match `--query`. Deleting a Session or pruning the
+  task record leaves the row in place (no foreign key).
+- **Tokens.** Provider counters only, copied from the receipt; an unreported counter is absent,
+  never `0`, and the human output omits the whole tokens line when none was reported. History
+  prints no price.
+
+### Provenance edges and delegated cost
+
+`delegation_edges` records, for every Session a Session created as `delegated`, `consult`, or
+`handoff`, its creator and relation. It is written when the child Session is created, so a
+delegation that never settled (a running or deleted one) still has its edge; migration 0008
+backfilled the edges of Sessions that already existed. Edges outlive Session deletion on purpose,
+so a deleted middle Session does not hide its descendants' spend.
+
+The Delegated Sessions strip uses the edges to state spend:
+
+- `usage.delegationSummary` (owner-only) walks the edges breadth-first from the Chat's Session over
+  `delegated` and `consult` children (a `handoff` moves the user's own continuation and is not
+  rolled up), visits each Session once, and prices the Usage ledger rows of every visited Session.
+  The walk is bounded: at most 1000 descendants (the root does not count) and depth 8. A larger or
+  deeper tree sets `isPartial`, so the figure reads as a floor.
+- A row shows its child's cost together with the cost of every attempt in its retry chain; the
+  header shows the total. `~` means a task below it still runs (the figure may grow), `+` means a
+  floor (a model without a list price, or a truncated walk). Unknown is never `$0`: a Session whose
+  own usage is unknown has no `costUsd` in `usage.sessionCost`, which then carries only the
+  `delegated*` fields.
+- Figures are estimates at API list prices, not a charge; a subscription plan bills differently.
+- The summary reports `isScanPending` while the Usage ledger is still scanning, and the Renderer
+  re-reads on a short bounded interval until it lands. A settle also refreshes it through the
+  Delegated Sessions feed invalidation.
+
+Privacy: `agent_delegation.history_read` and `agent_delegation.history_recorded` log identifiers,
+counts, durations, and closed reasons only. The query text, titles, summaries, and cursors appear in
+the reply to the authorized caller and nowhere else.
 
 ## Current launch boundary
 

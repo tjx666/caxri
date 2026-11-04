@@ -1,8 +1,13 @@
-import type { AgentContextResult, AgentEndpointSummary, CaxriMethod } from '@caxri/protocol';
+import type {
+    AgentContextResult,
+    AgentEndpointSummary,
+    CaxriMethod,
+    DelegationHistoryResult,
+} from '@caxri/protocol';
 import { describeCaxriMethod, methods } from '@caxri/protocol';
 
 import type { CliCommandDefinition, RemoteCommandDefinition } from './commands';
-import { CLI_COMMANDS, CLI_GROUPS, describeCliCommand } from './commands';
+import { CLI_COMMANDS, CLI_GROUPS, describeCliCommand, renderDelegationHistory } from './commands';
 import type { CliAutomation } from './environment';
 import type { CliOutputMode } from './output';
 import { formatEndpointReference, renderHumanValue } from './output';
@@ -110,6 +115,8 @@ function humanAgentContext(value: AgentContextResult): string {
 
 export function humanRemote(command: RemoteCommandDefinition, value: unknown): string | undefined {
     if (command.path[0] === 'request') return undefined;
+    if (command.method === 'agent.delegation.history')
+        return renderDelegationHistory(value as DelegationHistoryResult, Date.now());
     const records = renderHumanRecords(command.method, command.path.at(-1), value, Date.now());
     if (records !== undefined) return records;
     if (value === null || typeof value !== 'object' || command.method !== 'agent.list')

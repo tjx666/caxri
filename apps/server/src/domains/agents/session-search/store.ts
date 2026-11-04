@@ -1,6 +1,7 @@
 import { rm } from 'node:fs/promises';
 
 import type { AgentProvider } from '@caxri/protocol';
+import { likeSubstringPattern } from '@caxri/utils';
 import Database from 'better-sqlite3';
 
 /**
@@ -180,13 +181,6 @@ const COMPACT_MESSAGE_TEXT =
     "REPLACE(REPLACE(REPLACE(REPLACE(m.text, ' ', ''), char(10), ''), char(9), ''), char(13), '')";
 
 /**
- * Escapes `%`, `_`, and the escape character itself for a `LIKE ... ESCAPE '\'` substring pattern.
- */
-function likePattern(term: string): string {
-    return `%${term.replaceAll(/[%_\\]/gu, (character) => `\\${character}`)}%`;
-}
-
-/**
  * The messages that hold every query term in a searchable transcript: an FTS5 match for the indexed terms, `LIKE` for
  * the short ones.
  */
@@ -208,7 +202,7 @@ function contentFilter(
         parameters: [
             ...(ftsQuery ? [ftsQuery] : []),
             ...(providers ?? []),
-            ...substrings.map(likePattern),
+            ...substrings.map(likeSubstringPattern),
         ],
     };
 }
@@ -397,7 +391,7 @@ export class SessionSearchStore {
                 String.raw`SELECT m.transcript AS transcript, MAX(m.id) AS messageId
                 ${from} WHERE ${where} AND ${COMPACT_MESSAGE_TEXT} LIKE ? ESCAPE '\' GROUP BY m.transcript`,
             )
-            .all(...parameters, likePattern(phrase)) as Array<{
+            .all(...parameters, likeSubstringPattern(phrase)) as Array<{
             transcript: number;
             messageId: number;
         }>;
@@ -465,7 +459,9 @@ export class SessionSearchStore {
                     ${conditions.map((condition) => `AND ${condition}`).join(' ')}
                     ORDER BY m.id`,
                 )
-                .all(provider, agentSessionId, ...terms.map(likePattern)) as Array<{ id: number }>
+                .all(provider, agentSessionId, ...terms.map(likeSubstringPattern)) as Array<{
+                id: number;
+            }>
         ).map((row) => row.id);
     }
 

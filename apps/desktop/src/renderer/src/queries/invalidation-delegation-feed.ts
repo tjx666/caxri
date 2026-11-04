@@ -27,6 +27,12 @@ const DELEGATION_STATUSES_METHOD = 'agent.delegation.statuses' satisfies CaxriMe
  */
 const DELEGATION_QUESTION_DETAIL_METHOD = 'agent.delegation.questionDetail' satisfies CaxriMethod;
 
+/**
+ * What a Chat's delegated Sessions have cost, behind the Delegated Sessions strip's figures. It changes whenever a task
+ * below the Chat settles, however deep, so it refreshes with the feed.
+ */
+const DELEGATION_COST_METHOD = 'usage.delegationSummary' satisfies CaxriMethod;
+
 type DelegationFeed = MethodResult<'agent.delegation.sessions'>;
 type DelegationStatuses = MethodResult<'agent.delegation.statuses'>;
 
@@ -56,10 +62,13 @@ function invalidateDelegationFeedForSessions(
         isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD);
     const isStatusesQuery = (query: { queryKey: readonly unknown[] }): boolean =>
         isQueryMethod(query.queryKey, DELEGATION_STATUSES_METHOD);
+    const isCostQuery = (query: { queryKey: readonly unknown[] }): boolean =>
+        isQueryMethod(query.queryKey, DELEGATION_COST_METHOD);
     // Nearly every record push arrives while no nested row is mounted; skip the lookup then.
     if (
         queryClient.getQueryCache().findAll({
-            predicate: (query) => isFeedQuery(query) || isStatusesQuery(query),
+            predicate: (query) =>
+                isFeedQuery(query) || isStatusesQuery(query) || isCostQuery(query),
         }).length === 0
     )
         return;
@@ -80,6 +89,9 @@ function invalidateDelegationFeedForSessions(
                 return (
                     isAnyUnknown || feedCreatorIds(query.queryKey).some((id) => creatorIds.has(id))
                 );
+            // The cost read is keyed by the Chat's own Session, which a deep descendant's push does not name, so any
+            // delegated or not-yet-known Session refreshes it.
+            if (isCostQuery(query)) return isAnyUnknown || creatorIds.size > 0;
             if (!isStatusesQuery(query)) return false;
             const answer = query.state.data as DelegationStatuses | undefined;
             return (

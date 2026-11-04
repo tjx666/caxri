@@ -63,6 +63,17 @@ export function createSession(
             ...(options.createdByRelation && { createdByRelation: options.createdByRelation }),
         }),
     });
+    /**
+     * The creator edge is persisted now, before any task exists, so the cost of the work this Session delegates stays
+     * attributed to its creator even if either Session is deleted before a task settles.
+     */
+    if (session.createdBySessionId && session.createdByRelation)
+        database.agentDelegations.history.recordEdge({
+            sessionId: session.id,
+            parentSessionId: session.createdBySessionId,
+            relation: session.createdByRelation,
+            createdAt: session.createdAt,
+        });
     let terminal: TerminalRecord | null = null;
     if (kind) {
         assertTerminalCapacity(database.terminals);

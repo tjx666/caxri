@@ -277,6 +277,7 @@ export function createAgentCommandRuntime(
         handlers: {
             ...createDelegationHandlers(delegationService, options.database, {
                 pullRequests: options.pullRequests,
+                logger: options.logger,
                 transcripts: {
                     readChildChat: () => options.settings()['agents.delegation'].readChildChat,
                     isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,

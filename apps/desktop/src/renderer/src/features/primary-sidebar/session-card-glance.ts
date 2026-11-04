@@ -50,8 +50,9 @@ export function sessionCardMetrics(
             },
         );
     }
-    // Nothing but unpriced models adds up to a meaningless `$0+`, so that spend is left out like an unknown one.
-    if (cost && !(cost.isPartial && cost.costUsd === 0)) {
+    // A Session whose own usage is unknown (only its delegated Sessions spent) has no `costUsd`, and unknown is never
+    // shown as $0. Nothing but unpriced models adds up to a meaningless `$0+`, so that spend is left out the same way.
+    if (cost?.costUsd !== undefined && !(cost.isPartial && cost.costUsd === 0)) {
         // An unpriced model makes the sum a floor, so the figure says "at least" instead of passing for the total.
         const value = cost.isPartial ? `${formatUsd(cost.costUsd)}+` : formatUsd(cost.costUsd);
         metrics.push({
