@@ -8,6 +8,7 @@ import type {
 import { isDelegationActive, MAX_DELEGATION_SESSIONS } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../../db';
+import { sessionControls } from '../handback/control';
 import { questionSummaries } from '../questions/summary';
 
 /**
@@ -98,6 +99,7 @@ export function delegationEntries(
     const receipts = stateReceipts(database.agentDelegations.receiptsForSessions(sessionIds));
     const results = isSummary ? database.createdSessions.results(sessionIds) : undefined;
     const takeovers = database.agentDelegations.takeoversForSessions(sessionIds);
+    const controls = sessionControls(database, sessionIds);
     const delegationIds = receipts
         .values()
         .map((receipt) => receipt.delegationId)
@@ -139,6 +141,7 @@ export function delegationEntries(
                 }),
             }),
             ...(takenOverAt !== undefined && { takenOverAt }),
+            ...(controls.has(sessionId) && { control: controls.get(sessionId) }),
             ...(approval && { approval: approval.approval, waitingOn: approval.waitingOn }),
             ...question,
             ...(step && { step }),

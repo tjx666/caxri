@@ -21,6 +21,7 @@ describe('assertOwnerOnlyMethod', () => {
             'agent.delegation.retryOptions',
             'agent.delegation.retry',
             'agent.delegation.cancelScheduledRetry',
+            'agent.delegation.handBack',
             // The user answers a delegated Session's question; its text must not reach an Agent grant.
             'agent.delegation.questionAnswer',
             'agent.delegation.questionDetail',

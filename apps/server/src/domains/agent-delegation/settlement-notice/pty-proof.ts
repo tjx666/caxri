@@ -113,6 +113,18 @@ export class PtyIdleProof {
     }
 
     /**
+     * The newest finished turn of `launchId` when the Terminal has been idle since it, else `undefined`. The input
+     * epoch is not consulted: a hand-back pins the epoch itself.
+     */
+    idleTurn(terminalId: string, launchId: string): string | undefined {
+        const finished = this.terminals.get(terminalId)?.finished;
+        return finished?.launchId === launchId &&
+            this.host.isIdle?.(terminalId, launchId, finished.turnId) === true
+            ? finished.turnId
+            : undefined;
+    }
+
+    /**
      * Spends the finished-turn proof a write just used. The write never bumps the input epoch and does not invalidate
      * the idle proof, so without this a second flush a moment later would write into a Terminal that can no longer be
      * proven idle: every later write waits for its own fresh turn.

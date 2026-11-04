@@ -5,17 +5,22 @@ import { closedValues, isOneOf } from './constraints';
 import { agentDelegations } from './core';
 
 /**
- * What a notice tells the Agent that delegated a task: that the task settled, that it asks that Agent a question, or
- * that a permission request of it waits for that Agent's decision.
+ * What a notice tells the Agent that delegated a task: that the task settled, that it asks that Agent a question, that
+ * a permission request of it waits for that Agent's decision, or that the user handed the taken-over Session back.
  */
-export type DelegationNoticeKind = 'settled' | 'question' | 'approval';
+export type DelegationNoticeKind = 'settled' | 'question' | 'approval' | 'handback';
 
 /**
  * Where a notice stands. `unknown` is a notice written to the caller without proof it arrived; it is never sent again.
  */
 export type DelegationNoticeState = 'pending' | 'delivered' | 'skipped' | 'unknown';
 
-const noticeKinds = closedValues<DelegationNoticeKind>()(['settled', 'question', 'approval']);
+const noticeKinds = closedValues<DelegationNoticeKind>()([
+    'settled',
+    'question',
+    'approval',
+    'handback',
+]);
 const noticeStates = closedValues<DelegationNoticeState>()([
     'pending',
     'delivered',
@@ -25,9 +30,9 @@ const noticeStates = closedValues<DelegationNoticeState>()([
 
 /**
  * The notices owed to the Agents that delegated tasks, one row per event: a settled task (`id` is `settled:<task>`), an
- * opened question (`question:<question>`), or a decidable approval (`approval:<task>:<request>`). The key makes every
- * event notify once, across restarts. A row holds identifiers and closed values only: the text of a notice is built
- * from the task when it is sent, never stored.
+ * opened question (`question:<question>`), a decidable approval (`approval:<task>:<request>`), or a hand-back
+ * (`handback:<grant>`, whose `subject_id` is the grant). The key makes every event notify once, across restarts. A row
+ * holds identifiers and closed values only: the text of a notice is built from the task when it is sent, never stored.
  *
  * - `delegation_id` cascades from `agent_delegations`, so pruning a task removes its notices.
  * - `caller_terminal_id` and `caller_launch_id` pin the notice to the exact launch that delegated the task; a notice

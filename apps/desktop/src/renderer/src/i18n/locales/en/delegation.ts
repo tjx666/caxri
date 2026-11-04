@@ -80,6 +80,24 @@ export const delegation = {
         'Sending a message, Stop or Rewind here takes over this Session from {{title}}',
     'delegation.origin.takenOver': 'You took over this Session',
     'delegation.origin.takenOverDetail': 'its replies no longer go back to {{title}}',
+    'delegation.origin.handBack': 'Hand back to {{title}}',
+    'delegation.origin.handBackPending': 'Handed back to {{title}} · waiting for it to continue',
+    'delegation.origin.handBackBlocked.busy':
+        'Wait for the current reply to finish before handing back',
+    'delegation.origin.handBackBlocked.draft':
+        'Send or clear the message you are typing before handing back',
+    'delegation.origin.handBackBlocked.parent_archived':
+        '{{title}} is archived and cannot continue this Session',
+    'delegation.origin.handBackFailed': 'Could not hand the Session back',
+    'delegation.origin.handBackReason.not_taken_over': 'This Session is not under your control',
+    'delegation.origin.handBackReason.child_busy':
+        'This Session is still working. Wait for the reply to finish',
+    'delegation.origin.handBackReason.child_changed':
+        'This Session changed and can no longer be handed back',
+    'delegation.origin.handBackReason.parent_gone':
+        'The Agent that delegated this Session is no longer running',
+    'delegation.origin.handBackReason.parent_changed':
+        'The Agent that delegated this Session has been restarted',
     'delegation.divider.takenOver': 'You took over',
     'delegation.nextStep.signIn': 'Sign in',
     'delegation.nextStep.signInAria': 'Sign in to {{provider}} for the failed task in {{title}}',

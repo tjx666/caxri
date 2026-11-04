@@ -18,6 +18,7 @@ export type {
 } from './models/bot-pending-notices';
 export type { ClaudeWindowSchedule } from './models/claude-window-schedules';
 export { ClaudeWindowSchedulesModel } from './models/claude-window-schedules';
+export type { StoredDelegationHandBack } from './models/delegation-handbacks';
 export type {
     DelegationHistoryInsert,
     DelegationHistoryRow,

@@ -339,7 +339,10 @@ Then write the task to a file and run
   without it. `agent delegate ask-cancel <question-id>` withdraws a question you no longer need.
   Reuse a stable `--request-id` when recovering a disconnected create request.
   Use `agent delegate create --follow-up <id>` with a fresh prompt file for the next task in the
-  same idle Terminal. Use `agent delegate stop <id>` to interrupt your active task.
+  same idle Terminal. If the user took the Session over, `--follow-up` and any new `create` into it
+  are refused (`human_intervened`, `session_taken_over`) and you must not retry; the user may hand
+  it back, which wakes you with `[Caxri] The user handed Session <id> back to you`, and you then
+  follow up once with `agent delegate create --follow-up <task>`. Use `agent delegate stop <id>` to interrupt your active task.
   `agent delegate create --resume <id>` explicitly starts a new task in the exact saved native
   conversation with frozen settings; it never replays the old prompt.
   The owner may retry a failed task from Caxri, and the receipt then carries `retriedAs`: the task

@@ -25,10 +25,12 @@ import { assertTerminalChildHooks, childLaunchFailure } from './chat-child';
 import type { DelegationCollectionHost } from './collection';
 import { collectDelegationResult } from './collection';
 import { CollectionTimers } from './collection-timers';
+import { SessionDeletionFence } from './deletion-fence';
 import { logDelegationRequested, logDelegationTransition } from './diagnostics';
 import { ExternalCapacity } from './external-capacity';
 import { DelegationProgress, delegationSessions } from './feed';
 import { startFreshTask } from './fresh-start';
+import { DelegationHandBacks } from './handback/service';
 import { recordSettlement } from './history';
 import { interruptDelegationTerminal } from './interrupt';
 import { fenceTerminalLaunch } from './launch-fence';
@@ -59,7 +61,7 @@ import type { AgentDelegationServiceOptions } from './service-options';
 import { SettlementNotices } from './settlement-notice/service';
 import { noticeSources, withNoticeHooks } from './settlement-notice/wiring';
 import { stopDelegation } from './stop';
-import { reclaimPrunedDelegationFiles, removeDelegationFiles } from './storage';
+import { reclaimPrunedDelegationFiles } from './storage';
 import { DelegationSubmissions } from './submission';
 import { DelegationWaiters } from './wait';
 
@@ -82,8 +84,7 @@ export class AgentDelegationService {
     >();
     private isClosed = false;
     private readonly waiters = new DelegationWaiters();
-    private readonly deletingSessions = new Set<string>();
-    private readonly pendingCreations = new Map<string, Set<Promise<AgentDelegationReceipt>>>();
+    private readonly sessionFence = new SessionDeletionFence();
     private readonly capacity: ExternalCapacity;
 
     private readonly submissions: DelegationSubmissions;
@@ -113,6 +114,11 @@ export class AgentDelegationService {
      */
     readonly notices: SettlementNotices;
 
+    /**
+     * The user's single-use grants to continue a Session they took over; handlers call it directly.
+     */
+    readonly handBacks: DelegationHandBacks;
+
     constructor(private readonly options: AgentDelegationServiceOptions) {
         this.now = options.now ?? Date.now;
         this.capacity = new ExternalCapacity(options.database);
@@ -141,6 +147,11 @@ export class AgentDelegationService {
             owned: (id: string, authority: DelegationAuthority, access: DelegationAccess) =>
                 this.owned(id, authority, access),
         };
+        this.handBacks = new DelegationHandBacks(options, {
+            hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
+            idleTurn: (terminalId, launchId) => this.notices.childIdleTurn(terminalId, launchId),
+            announce: (anchor, grantId) => this.notices.handedBack(anchor, grantId),
+        });
         this.notices = new SettlementNotices(
             options,
             noticeSources(() => this),
@@ -227,7 +238,7 @@ export class AgentDelegationService {
         access: DelegationAccess,
         isNewSession = false,
     ): void {
-        if (this.deletingSessions.has(input.sessionId))
+        if (this.sessionFence.has(input.sessionId))
             throw new CaxriError('CONFLICT', 'Delegation Session is being deleted');
         authorizeDelegationSession(this.options.database, authority, input, access, isNewSession);
     }
@@ -245,11 +256,12 @@ export class AgentDelegationService {
         return {
             beforeStart: retry && (() => retry.guard()),
             hasActiveTask: (terminalId) => Boolean(this.activeForTerminal(terminalId)),
+            handBacks: this.handBacks,
             options: this.options,
             owned: (id) => this.owned(id, authority),
             save: (record) => this.save(record),
             fail: (id, failure) => this.fail(id, failure),
-            isDeleting: (sessionId) => this.deletingSessions.has(sessionId),
+            isDeleting: (sessionId) => this.sessionFence.has(sessionId),
             submit: (...submission) => this.submissions.submit(...submission),
         };
     }
@@ -276,6 +288,8 @@ export class AgentDelegationService {
                 return existing.receipt;
             }
             const previousId = input.followUpOf ?? input.resumeFrom;
+            if (!isNewSession && !previousId && !input.continueFromHandover)
+                this.handBacks.assertFreshCreateAllowed(authority, input.sessionId);
             this.capacity.assertRoom(authority);
             const previous = previousId ? this.owned(previousId, authority) : undefined;
             const { continueFromHandover } = input;
@@ -357,16 +371,14 @@ export class AgentDelegationService {
             }
             return this.owned(id, authority).receipt;
         });
-        const creations = this.pendingCreations.get(input.sessionId) ?? new Set();
-        this.pendingCreations.set(input.sessionId, creations.add(pending));
+        const untrack = this.sessionFence.track(input.sessionId, pending);
         const release = this.capacity.reserve(authority, id);
         let receipt: AgentDelegationReceipt;
         try {
             receipt = await pending;
         } finally {
             release();
-            creations.delete(pending);
-            if (creations.size === 0) this.pendingCreations.delete(input.sessionId);
+            untrack();
         }
         if (this.owned(id, authority).fingerprint !== fingerprint)
             throw new CaxriError(
@@ -386,11 +398,7 @@ export class AgentDelegationService {
             throw new CaxriError('CANCELLED', 'Delegation no longer owns this launch');
         if (delegationId && this.bindLaunch(terminalId, launchId)) return true;
         fenceTerminalLaunch(
-            {
-                database: this.options.database,
-                inputEpoch: (id) => this.options.inputEpoch?.(id),
-                save: (record) => this.save(record),
-            },
+            { options: this.options, save: (record) => this.save(record) },
             terminalId,
             launchId,
         );
@@ -453,27 +461,22 @@ export class AgentDelegationService {
     }
 
     /**
-     * Fences creation and cleans private files before deleting metadata; failed cleanup retains the records.
+     * Fences creation and cleans private files before deleting metadata; see {@link SessionDeletionFence}.
      */
-    async deleteSessions<T>(ids: readonly string[], remove: () => T | Promise<T>): Promise<T> {
-        if (ids.some((id) => this.deletingSessions.has(id)))
-            throw new CaxriError('CONFLICT', 'Delegation Session is already being deleted');
-        for (const id of ids) this.deletingSessions.add(id);
-        try {
-            await Promise.allSettled(
-                ids.flatMap((id) => [...(this.pendingCreations.get(id) ?? [])]),
-            );
-            await removeDelegationFiles(
-                this.options.userDataPath,
-                this.options.database.agentDelegations.storageRootsForSessions(ids),
-            );
-            const removed = await remove();
-            this.questions.forget(ids);
-            this.approvals.forget(ids);
-            return removed;
-        } finally {
-            for (const id of ids) this.deletingSessions.delete(id);
-        }
+    deleteSessions<T>(ids: readonly string[], remove: () => T | Promise<T>): Promise<T> {
+        return this.sessionFence.delete(
+            ids,
+            {
+                userDataPath: this.options.userDataPath,
+                storageRoots: (sessionIds) =>
+                    this.options.database.agentDelegations.storageRootsForSessions(sessionIds),
+                forget: (sessionIds) => {
+                    this.questions.forget(sessionIds);
+                    this.approvals.forget(sessionIds);
+                },
+            },
+            remove,
+        );
     }
 
     bindLaunch(terminalId: string, launchId: string): boolean {
@@ -510,7 +513,11 @@ export class AgentDelegationService {
     }
 
     observe(signal: AgentLifecycleSignal, source: 'lifecycle' | 'evidence' = 'lifecycle'): void {
-        if (source === 'lifecycle') this.notices.observe(signal);
+        if (source === 'lifecycle') {
+            this.notices.observe(signal);
+            if (signal.phase === 'turnStarted' && !signal.agentId)
+                this.handBacks.invalidateTerminal(signal.terminalId);
+        }
         const record = this.activeForTerminal(signal.terminalId);
         if (!record) return;
         const next = applyDelegationLifecycle(record, signal, source, this.options);
@@ -558,6 +565,7 @@ export class AgentDelegationService {
         this.approvals.reset();
         this.retries.recoverClaims();
         this.notices.initialize();
+        this.handBacks.initialize();
         this.redirects.recover();
         for (const record of this.options.database.agentDelegations.active()) {
             const { next, shouldCollect } = recoveredDelegation(
@@ -612,6 +620,7 @@ export class AgentDelegationService {
                 options: this.options,
                 questions: this.questions,
                 approvals: this.approvals,
+                handBacks: this.handBacks,
                 now: this.now,
                 activeForTerminal: (id) => this.activeForTerminal(id),
                 save: (record) => this.save(record),

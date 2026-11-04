@@ -9,6 +9,7 @@ import {
 
 import { AGENT_SESSION_COMMANDS } from './agent-session';
 import { DELEGATION_APPROVAL_COMMANDS } from './delegation-approval';
+import { DELEGATION_HAND_BACK_COMMANDS } from './delegation-hand-back';
 import { DELEGATION_HISTORY_COMMANDS } from './delegation-history';
 import { DELEGATION_QUESTION_COMMANDS } from './delegation-question';
 import { DELEGATION_REDIRECT_COMMANDS } from './delegation-redirect';
@@ -278,6 +279,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         parseParams: listParameters,
     },
     ...DELEGATION_REDIRECT_COMMANDS,
+    ...DELEGATION_HAND_BACK_COMMANDS,
     ...DELEGATION_HISTORY_COMMANDS,
     ...DELEGATION_QUESTION_COMMANDS,
     ...DELEGATION_APPROVAL_COMMANDS,

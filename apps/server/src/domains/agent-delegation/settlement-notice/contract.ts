@@ -77,4 +77,8 @@ export interface SettlementNoticeSources {
      * Whether the question is still open and waits on the delegating Agent, not yet shown to the user.
      */
     isQuestionWithParent(delegationId: string, questionId: string): boolean;
+    /**
+     * Whether the user's hand-back grant still stands: not yet used by the follow-up and not dropped.
+     */
+    isHandBackPending(grantId: string): boolean;
 }

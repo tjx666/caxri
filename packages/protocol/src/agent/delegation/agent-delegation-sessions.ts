@@ -59,6 +59,15 @@ export type DelegationResultSource = z.infer<typeof delegationResultSourceSchema
  */
 const stepSchema = z.string().max(MAX_DELEGATION_STEP_LENGTH * 2);
 
+/**
+ * Who a delegated or consult Session answers to now: `delegated` while the Agent that delegated it can follow it up,
+ * `human` after the user took it over (it stays so until the user hands it back), and `handback_pending` from the
+ * user's hand-back until that Agent's next follow-up uses it or something the hand-back was pinned to moves. Derived
+ * from the newest task and the hand-back grants, never stored; `takenOverAt` keeps the history.
+ */
+const delegationControlSchema = z.enum(['human', 'handback_pending', 'delegated']);
+export type DelegationControl = z.infer<typeof delegationControlSchema>;
+
 const agentDelegationResultSummarySchema = z.strictObject({
     summary: z.string().max(MAX_DELEGATION_RESULT_SUMMARY_LENGTH * 2),
     source: delegationResultSourceSchema,
@@ -112,6 +121,12 @@ const agentDelegationSessionSchema = z.strictObject({
      * a takeover.
      */
     takenOverAt: z.number().int().positive().optional(),
+    /**
+     * Who the Session answers to now; see {@link delegationControlSchema}. Present for a `delegated` or `consult`
+     * Session that has a task. A Client words the takeover state from it, not from `takenOverAt`, which stays set after
+     * a hand-back.
+     */
+    control: delegationControlSchema.optional(),
     /**
      * What an active Agent Chat Session is doing now, as one short label. Absent for a Terminal Session, a settled
      * task, and a Chat that is between steps.
@@ -349,6 +364,55 @@ const cancelScheduledRetry: CancelScheduledRetrySpec = {
     result: z.strictObject({ cancelled: z.boolean() }),
 };
 
+/**
+ * Why the Server refused a hand-back (`agent.delegation.handBack`), carried as `details.reason` of the error so a
+ * Client words it itself. `not_taken_over`: the Session is not under the user's control. `child_busy`: the Session's
+ * Agent is in a turn, waits on a request, or has queued input. `child_changed`: its Terminal, launch, or conversation
+ * is gone or moved. `parent_gone`: the Agent that delegated it is no longer running. `parent_changed`: that Agent is
+ * another launch or Endpoint generation than the one that delegated.
+ */
+export const delegationHandBackRefusalSchema = z.enum([
+    'not_taken_over',
+    'child_busy',
+    'child_changed',
+    'parent_gone',
+    'parent_changed',
+]);
+export type DelegationHandBackRefusal = z.infer<typeof delegationHandBackRefusalSchema>;
+
+/**
+ * The reply of `agent.delegation.handBack`. `delegationId` is the task the delegating Agent continues with `create
+ * --follow-up`: the Session's newest task that ran, which can differ from the one named. `duplicate` means a hand-back
+ * was already pending and nothing changed.
+ */
+export interface DelegationHandBackReply {
+    grantId: string;
+    delegationId: string;
+    status: 'granted' | 'duplicate';
+}
+
+/**
+ * `agent.delegation.handBack` as a named type; annotated for the same reason as {@link CancelScheduledRetrySpec}.
+ *
+ * @public
+ */
+export interface HandBackSpec extends ReturnType<
+    typeof ownerOnlyCommandPolicy<'server', 'control'>
+> {
+    params: z.ZodType<{ delegationId: string }>;
+    result: z.ZodType<DelegationHandBackReply>;
+}
+
+const handBack: HandBackSpec = {
+    ...ownerOnlyCommandPolicy('server', 'control'),
+    params: z.strictObject({ delegationId: identifierSchema }),
+    result: z.strictObject({
+        grantId: identifierSchema,
+        delegationId: identifierSchema,
+        status: z.enum(['granted', 'duplicate']),
+    }),
+};
+
 export const agentDelegationSessionsMethods = {
     ...agentDelegationQuestionMethods,
     ...agentDelegationApprovalMethods,
@@ -441,4 +505,15 @@ export const agentDelegationSessionsMethods = {
      * pending, including a retry that already started.
      */
     'agent.delegation.cancelScheduledRetry': cancelScheduledRetry,
+    /**
+     * Gives a taken-over delegated or consult Session back to the Agent that delegated it: the user's explicit "you may
+     * continue this". Owner-only, so an Agent can never hand a Session back to itself. It sends nothing to the
+     * Session's Agent and restores nothing on the old tasks, whose takeover mark and history stay. It stores one
+     * single-use grant pinned to the Session's Agent (launch, conversation, finished turn, input epoch) and to the
+     * delegating Agent (Terminal, launch), and notifies the delegating Agent, whose next `create --follow-up` of the
+     * named task uses the grant and gets a new task in the same Terminal and conversation. Any new input, turn, launch,
+     * or conversation change in the Session first drops the grant. Idempotent: while a grant is pending the same
+     * request answers `duplicate`. Refused with a {@link delegationHandBackRefusalSchema} reason in `details.reason`.
+     */
+    'agent.delegation.handBack': handBack,
 } as const satisfies Record<string, MethodSpec>;

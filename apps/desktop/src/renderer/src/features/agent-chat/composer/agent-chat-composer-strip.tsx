@@ -99,7 +99,10 @@ export function AgentChatComposerStrip({
                 {work && agentChatBackgroundWorkCounts(work, t).join(', ')}
             </span>
             <div className="max-h-64 overflow-y-auto">
-                <AgentChatDelegationOriginRow terminalId={terminalId} />
+                <AgentChatDelegationOriginRow
+                    isBusy={isTurnRunning || pendingQueue.length > 0 || (queue?.length ?? 0) > 0}
+                    terminalId={terminalId}
+                />
                 <AgentChatGoalBar
                     goal={snapshot?.goal}
                     goalUsage={snapshot?.goalUsage}

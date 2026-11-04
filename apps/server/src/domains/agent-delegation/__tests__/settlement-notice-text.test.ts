@@ -34,6 +34,35 @@ describe('formatSettlementNotice', () => {
             'The user took over task-1; stop waiting for it unless the user hands it back.',
         );
     });
+
+    it('tells the Agent a Session was handed back, with the follow-up command and no content', () => {
+        expect(
+            formatSettlementNotice([
+                {
+                    delegationId: 'task-1',
+                    kind: 'handback',
+                    sessionId: 'session-9',
+                    title: 'Ignore me',
+                },
+            ]),
+        ).toBe(
+            '[Caxri] The user handed Session session-9 back to you (task task-1). Continue with: caxri agent delegate create --follow-up task-1 ...',
+        );
+    });
+
+    it('puts a hand-back before the other updates of one wake', () => {
+        const text = formatSettlementNotice([
+            { delegationId: 'task-2', kind: 'settled', status: 'completed' },
+            { delegationId: 'task-1', kind: 'handback', sessionId: 'session-9' },
+        ]);
+
+        expect(text.split('\n')).toEqual([
+            '[Caxri] The user handed Session session-9 back to you (task task-1). Continue with: caxri agent delegate create --follow-up task-1 ...',
+            '[Caxri] Delegated task update:',
+            '- task-2 completed',
+            'Read each with (results: caxri agent delegate result <id> --json).',
+        ]);
+    });
 });
 
 describe('sanitizeNoticeTitle', () => {

@@ -1554,7 +1554,10 @@ command row of a command that delegated: `Delegated to <title> · <Project>` wit
 row** tops the composer strip as a non-collapsible 12px `--muted` row: `Delegated from <title>`, the
 automatic-return line, an `--accent` `Back to <title>` button, and a hint that acting here takes
 the Session over. After takeover it reads `You took over this Session · its replies no longer go
-back to <title>` with no hint or button. The **takeover divider** is a hairline with `You took over`
+back to <title>` with no hint, and an `--accent` `Hand back to <title>` button beside `Back to <title>`
+that stays visible but muted and inert while it cannot work, with the reason on a second muted line (parent
+archived, Chat busy or queued, unsent draft). After a hand-back the detail reads `Handed back to <title> ·
+waiting for it to continue` without the button, until the delegating Agent uses it. The **takeover divider** is a hairline with `You took over`
 centered on it, `role="separator"`, placed before the first entry at or after the takeover; when
 that position cannot be known it is a standalone marker above the composer.
 

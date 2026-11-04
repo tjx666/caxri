@@ -26,6 +26,10 @@ export interface NoticeItem {
      * The child Session's title, the caller's own data.
      */
     title?: string;
+    /**
+     * The Session a hand-back gives back; absent for every other kind.
+     */
+    sessionId?: string;
 }
 
 /**
@@ -62,7 +66,14 @@ function phrase(item: NoticeItem): string {
  * instruction another Agent wrote (`docs/agent-delegation.md`, Settlement notices).
  */
 export function formatSettlementNotice(items: readonly NoticeItem[]): string {
-    const lines = ['[Caxri] Delegated task update:'];
+    const handBacks = items.filter((item) => item.kind === 'handback');
+    const lines = handBacks.map(
+        (item) =>
+            `[Caxri] The user handed Session ${item.sessionId} back to you (task ${item.delegationId}). Continue with: caxri agent delegate create --follow-up ${item.delegationId} ...`,
+    );
+    items = items.filter((item) => item.kind !== 'handback');
+    if (items.length === 0) return lines.join('\n');
+    lines.push('[Caxri] Delegated task update:');
     for (const item of items) {
         const title = sanitizeNoticeTitle(item.title);
         lines.push(`- ${item.delegationId}${title ? ` "${title}"` : ''} ${phrase(item)}`);

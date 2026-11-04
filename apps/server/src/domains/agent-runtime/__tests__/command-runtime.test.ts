@@ -58,6 +58,7 @@ function createRuntime(
                 active: () => [],
                 all: () => [],
                 questions: { cancelAllOpen: () => [] },
+                handBacks: { pending: () => [] },
                 notices: { pending: () => [] },
             },
             getTerminal: (id: string) =>

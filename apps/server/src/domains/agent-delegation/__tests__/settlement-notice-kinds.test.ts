@@ -210,7 +210,11 @@ describe('SettlementNotices: restart and suspension hold', () => {
                 deliverNotice: t.deliverNotice,
                 noticeTiming: { quietMs: QUIET_MS, recheckMs: RECHECK_MS },
             },
-            { isApprovalDecidable: () => false, isQuestionWithParent: () => false },
+            {
+                isApprovalDecidable: () => false,
+                isHandBackPending: () => false,
+                isQuestionWithParent: () => false,
+            },
         );
         onTestFinished(() => restarted.close());
 

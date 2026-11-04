@@ -231,7 +231,7 @@ go out as one message of at most 32 items; the rest follow after the caller's ne
 ```json
 {
   "id": "settled:<task>",
-  "kind": "settled | question | approval",
+  "kind": "settled | question | approval | handback",
   "state": "pending | delivered | skipped | unknown",
   "callerTerminalId": "...",
   "callerLaunchId": "...",
@@ -240,7 +240,9 @@ go out as one message of at most 32 items; the rest follow after the caller's ne
 ```
 
 - **Storage.** One `delegation_notices` row per event, keyed `settled:<task>`,
-  `question:<question>`, or `approval:<task>:<request>`, so an event notifies once across restarts.
+  `question:<question>`, `approval:<task>:<request>`, or `handback:<grant>` (see
+  [Hand a taken-over Session back](#hand-a-taken-over-session-back)), so an event notifies once across
+  restarts.
   Rows cascade with their task and hold identifiers and closed values only.
 - **Who is notified.** Only the managed Agent launch that delegated the task (a Chat or a PTY, with a
   known Terminal and launch). Not an external delegation client, the owner's CLI, Desktop, Caxri
@@ -267,6 +269,68 @@ go out as one message of at most 32 items; the rest follow after the caller's ne
 - **Logs.** `agent_delegation.settlement_notice` records `outcome` (`pending`, `deferred`,
   `delivered`, `skipped`, `unknown`, `failed`), a closed `reason` for a hold or a drop, `kind`,
   `batchSize`, `waitMs`, and `deferrals`. IDs, enums, and numbers only.
+
+### Hand a taken-over Session back
+
+Once the user acts in a delegated Session (types, Stop, Rewind), the Session is theirs: every task in it
+carries the takeover mark, and the Agent that delegated it may not continue it
+(`human_intervened`). The user can give it back with one explicit action, which lets that Agent continue
+the Session once.
+
+```json
+{
+  "id": "<grant>",
+  "delegationId": "<newest task that ran in the Session>",
+  "state": "pending | consumed | invalidated",
+  "launchId": "<child launch>",
+  "providerSessionId": "<native conversation>",
+  "turnId": "<finished turn>",
+  "inputEpoch": 12,
+  "callerTerminalId": "<delegating Agent's Terminal>",
+  "callerLaunchId": "<delegating Agent's launch>",
+  "consumedBy": "<follow-up task, only when consumed>"
+}
+```
+
+- **Who can hand back.** Owner only: `agent.delegation.handBack` (`caxri agent delegate hand-back
+<task-id> --json`, or the origin row's button in the Session's Chat). An Agent grant cannot
+  hand back for itself. The task ID names any task of the Session; the grant continues the newest task
+  that ran, and the reply says which (`delegationId`).
+- **What it does.** It sends nothing to the child. It stores one grant (`delegation_hand_backs`, at
+  most one pending per task, so a repeated request answers `duplicate` with the same grant), tells
+  the delegating Agent once through the notice queue (`handback:<grant>`: `The user handed Session
+<id> back to you (task <id>). Continue with: caxri agent delegate create --follow-up <task>
+...`), and marks the Session `handback_pending` in the feed.
+- **Guards, in order.** `not_taken_over` (the Session is not the user's); `child_busy` (a task or
+  Chat turn is running, a Chat has queued input, or no finished turn is proven idle);
+  `child_changed` (the Terminal, launch, native conversation, or input epoch is gone or moved);
+  `parent_gone` (the delegating Agent's Terminal or launch is gone, or its Session is archived);
+  `parent_changed` (it is another launch or Endpoint generation than the one that delegated). The
+  Desktop button also stays disabled while the composer holds an unsent draft: the Server never sees
+  the composer, so that reason exists only in the Renderer.
+- **Single use.** `create --follow-up` on a taken-over task needs a pending grant. It is measured
+  against what the grant pinned, not against the task (whose input epoch predates the takeover): the
+  child's launch, native conversation, input epoch, and finished idle turn, and the caller's launch.
+  The grant is claimed with one conditional update before the chain claim, so two requests cannot
+  both use it. A follow-up refused by the Host before any input was taken gives the grant back. A
+  moved pin (`launch_replaced`, `input_epoch_moved`, `target_not_idle`, `target_lost`,
+  `no_terminal`) drops the grant; a clash with another request (`parent_chained`,
+  `terminal_busy`) keeps it. Without a grant the follow-up is refused as before.
+- **Dropped grants.** Human input, an interrupt or a retired launch in the child's Terminal, a turn
+  started by the child, or a Server restart (no pin can be proven afterwards) drops every pending
+  grant, and the user hands back again. A notice for a dropped grant is skipped, never sent.
+- **After use.** The follow-up is a new task in the same Terminal and conversation. The old tasks
+  keep their takeover mark, history, and cost. The feed's `control` is `delegated` again until the
+  user takes the Session over again.
+- **Fresh creates.** While `control` is `human`, an Agent's fresh `create` into the Session (not
+  `--follow-up`, `--resume`, or `--continue-handover`) is refused with reason `session_taken_over`,
+  because it would start a second Agent beside the user's conversation. The owner's own creates and
+  Caxri Bot are not refused.
+- **Not offered.** Revoking a pending grant, a confirmation dialog, and handing back a suspended Chat
+  (its launch is gone, so the pinned launch cannot be proven).
+- **Logs.** `agent_delegation.hand_back` records `outcome` (`granted`, `duplicate`, `consumed`,
+  `invalidated`, or a refusal reason), a closed invalidation `reason` (`child_changed`,
+  `parent_changed`, `restart`), and a `count`. IDs and enums only.
 
 ### Reading a delegated Chat
 
@@ -1327,9 +1391,13 @@ child title>` part. The header counts them in its needs-input and failed parts b
 - **Child Chat.** A Delegated Session's own Chat keeps the `Delegated by <title> · <parent Project>`
   bubble and adds an origin row at the top of the composer strip: the origin, that the result goes
   back automatically, and `Back to <parent>`, plus a hint that acting here takes the Session over.
-  Once `takenOverAt` is set the row says `You took over this Session` and drops the hint but keeps
-  `Back to <parent>`, and the timeline carries a `You took over` divider at the first entry at or after
-  `takenOverAt`. When the position is uncertain (an earlier entry has no time, earlier history is
+  Once the user holds the Session (`control` is `human`; `takenOverAt` alone for an older Server) the
+  row says `You took over this Session` and drops the hint but keeps `Back to <parent>`, and adds
+  `Hand back to <parent>`: disabled with its reason while the parent is archived, the Chat is busy
+  or has queued messages, or the composer holds a draft. After a hand-back the row says `Handed back
+to <parent> · waiting for it to continue` until the Agent uses the grant, and returns to the
+  delegated wording after that. The timeline carries a `You took over` divider at the first entry at or
+  after `takenOverAt`, which a hand-back does not clear. When the position is uncertain (an earlier entry has no time, earlier history is
   not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
   composer instead of a guessed position.
   While a request waits, the origin row says `Waiting for <parent> to approve` (muted) or, once

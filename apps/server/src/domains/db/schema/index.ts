@@ -10,6 +10,7 @@ export * from './bot';
 export * from './claude-windows';
 export * from './core';
 export * from './credentials';
+export * from './delegation-handbacks';
 export * from './delegation-history';
 export * from './delegation-notices';
 export * from './delegation-questions';

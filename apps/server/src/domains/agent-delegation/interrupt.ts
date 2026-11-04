@@ -1,5 +1,6 @@
 import type { StoredAgentDelegation } from '../db';
 import type { DelegationApprovals } from './approvals/service';
+import type { DelegationHandBacks } from './handback/service';
 import { withHumanIntervention } from './lifecycle';
 import type { DelegationQuestions } from './questions/service';
 import type { AgentDelegationServiceOptions } from './service-options';
@@ -12,6 +13,7 @@ export interface InterruptHost {
     options: Pick<AgentDelegationServiceOptions, 'database' | 'inputEpoch'>;
     questions: DelegationQuestions;
     approvals: DelegationApprovals;
+    handBacks: Pick<DelegationHandBacks, 'invalidateTerminal'>;
     now(): number;
     activeForTerminal(terminalId: string): StoredAgentDelegation | undefined;
     save(record: StoredAgentDelegation): StoredAgentDelegation;
@@ -26,6 +28,8 @@ export function interruptDelegationTerminal(
     isHumanInput: boolean,
     retiredLaunchId?: string,
 ): void {
+    // Input, an interrupt or a retired launch in the child's Terminal moves what a pending hand-back was pinned to.
+    host.handBacks.invalidateTerminal(terminalId);
     const starting = host.activeForTerminal(terminalId);
     if (isHumanInput && starting && isStartupPromptInput(starting)) {
         host.save({ ...starting, inputEpoch: host.options.inputEpoch?.(terminalId) });

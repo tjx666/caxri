@@ -6,7 +6,10 @@ import {
     formatDelegationRetryNotice,
     isRetryableDelegationFailure,
 } from '../delegation/agent-delegation-contract';
-import { agentDelegationSessionsMethods } from '../delegation/agent-delegation-sessions';
+import {
+    agentDelegationSessionsMethods,
+    delegationHandBackRefusalSchema,
+} from '../delegation/agent-delegation-sessions';
 import { agentDelegationFailureSchema } from '../delegation/agent-delegation-settings';
 
 const request = { projectId: 'project-1', provider: 'claude', prompt: 'Review the design' };
@@ -218,5 +221,39 @@ describe('delegated task retry', () => {
             expect(agentDelegationSessionsMethods[name]).toMatchObject({
                 principal: 'owner',
             });
+    });
+});
+
+describe('delegated Session hand-back', () => {
+    const spec = agentDelegationSessionsMethods['agent.delegation.handBack'];
+
+    it('is an owner-only control command that takes exactly one task ID', () => {
+        expect(spec).toMatchObject({ principal: 'owner', effect: 'control' });
+        expect(spec.params.safeParse({ delegationId: 'task-1' }).success).toBe(true);
+        expect(spec.params.safeParse({}).success).toBe(false);
+        expect(spec.params.safeParse({ delegationId: 'task-1', sessionId: 's' }).success).toBe(
+            false,
+        );
+    });
+
+    it('replies with the grant and the task the Agent continues with', () => {
+        expect(
+            spec.result.safeParse({ grantId: 'grant-1', delegationId: 'task-1', status: 'granted' })
+                .success,
+        ).toBe(true);
+        expect(
+            spec.result.safeParse({ grantId: 'grant-1', delegationId: 'task-1', status: 'other' })
+                .success,
+        ).toBe(false);
+    });
+
+    it('names each refusal from a closed list', () => {
+        expect(delegationHandBackRefusalSchema.options).toEqual([
+            'not_taken_over',
+            'child_busy',
+            'child_changed',
+            'parent_gone',
+            'parent_changed',
+        ]);
     });
 });

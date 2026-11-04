@@ -203,6 +203,11 @@ export class SettlementNotices {
         if (!record) return { kind: 'skip', reason: 'resolved' };
         if (notice.acknowledgedAt !== undefined) return { kind: 'skip', reason: 'acknowledged' };
         const { receipt } = record;
+        // A hand-back is owed while the user's grant stands, whatever state the task is in and whoever waits.
+        if (notice.kind === 'handback')
+            return this.sources.isHandBackPending(notice.subjectId!)
+                ? { kind: 'send' }
+                : { kind: 'skip', reason: 'resolved' };
         if (notice.kind === 'settled') {
             if (isDelegationActive(receipt)) return { kind: 'skip', reason: 'resolved' };
             if (receipt.retriedAs) return { kind: 'discard', reason: 'retry_pending' };
@@ -318,6 +323,7 @@ export class SettlementNotices {
                 delegationId: notice.delegationId,
                 kind: notice.kind,
                 ...(notice.kind === 'settled' && { status: record.receipt.status }),
+                ...(notice.kind === 'handback' && { sessionId: record.receipt.sessionId }),
                 title: this.options.database.getSession(record.receipt.sessionId)?.title,
             };
         });
@@ -400,6 +406,37 @@ export class SettlementNotices {
             return;
         }
         this.register(saved, `settled:${delegationId}`, 'settled');
+    }
+
+    /**
+     * The user handed a taken-over Session back: the delegating Agent is told once, and any settlement notice of the
+     * Session's taken-over tasks that is still waiting is dropped, since "the user took over" is no longer the news.
+     */
+    handedBack(anchor: StoredAgentDelegation, grantId: string): void {
+        if (!this.isEnabled) return;
+        const now = this.now();
+        for (const task of this.options.database.agentDelegations.forSession(
+            anchor.receipt.sessionId,
+        ))
+            if (task.receipt.status === 'human_intervened') {
+                const stale = this.store
+                    .forDelegation(task.receipt.delegationId, 'settled')
+                    .filter((notice) => notice.state === 'pending');
+                this.store.claim(
+                    stale.map((notice) => notice.id),
+                    'skipped',
+                    now,
+                );
+            }
+        this.register(anchor, `handback:${grantId}`, 'handback', grantId);
+    }
+
+    /**
+     * The turn whose finish proves the Agent in `terminalId` idle at `launchId`, or `undefined` without that proof. A
+     * grant pins it, so a turn that starts afterwards drops the grant.
+     */
+    childIdleTurn(terminalId: string, launchId: string): string | undefined {
+        return this.proof.idleTurn(terminalId, launchId);
     }
 
     questionChanged(change: DelegationQuestionChanged): void {

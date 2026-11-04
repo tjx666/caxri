@@ -16,6 +16,7 @@ import { z } from 'zod';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDelegations } from '../schema';
+import { DelegationHandBacksModel } from './delegation-handbacks';
 import { DelegationHistoryModel } from './delegation-history';
 import { DelegationNoticesModel } from './delegation-notices';
 import { DelegationQuestionsModel } from './delegation-questions';
@@ -247,10 +248,17 @@ export class AgentDelegationsModel {
      */
     readonly notices: DelegationNoticesModel;
 
+    /**
+     * The single-use grants the user gives when handing a taken-over Session back. Like the notices, they cascade from
+     * a task record.
+     */
+    readonly handBacks: DelegationHandBacksModel;
+
     constructor(private readonly database: CaxriDrizzleDatabase) {
         this.questions = new DelegationQuestionsModel(database);
         this.history = new DelegationHistoryModel(database);
         this.notices = new DelegationNoticesModel(database);
+        this.handBacks = new DelegationHandBacksModel(database);
     }
 
     get(id: string): StoredAgentDelegation | undefined {
@@ -356,6 +364,18 @@ export class AgentDelegationsModel {
             .where(
                 sql`json_extract(${agentDelegations.recordJson}, '$.receipt.callerTerminalId') = ${callerTerminalId} and json_extract(${agentDelegations.recordJson}, '$.callerTurnId') = ${turnId}`,
             )
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
+    }
+
+    /**
+     * Every task that ran in one Session, in no particular order.
+     */
+    forSession(sessionId: string): StoredAgentDelegation[] {
+        return this.database
+            .select()
+            .from(agentDelegations)
+            .where(eq(agentDelegations.sessionId, sessionId))
             .all()
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
     }

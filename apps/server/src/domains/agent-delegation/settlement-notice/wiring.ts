@@ -1,4 +1,5 @@
 import type { DelegationApprovals } from '../approvals/service';
+import type { DelegationHandBacks } from '../handback/service';
 import type { DelegationQuestions } from '../questions/service';
 import type { AgentDelegationServiceOptions } from '../service-options';
 import type { SettlementNoticeSources } from './contract';
@@ -9,7 +10,11 @@ import type { SettlementNotices } from './service';
  * the notices. Read lazily for that reason.
  */
 export function noticeSources(
-    services: () => { approvals: DelegationApprovals; questions: DelegationQuestions },
+    services: () => {
+        approvals: DelegationApprovals;
+        handBacks: DelegationHandBacks;
+        questions: DelegationQuestions;
+    },
 ): SettlementNoticeSources {
     return {
         isApprovalDecidable: (delegationId) => {
@@ -18,6 +23,7 @@ export function noticeSources(
         },
         isQuestionWithParent: (delegationId, questionId) =>
             services().questions.isWithParent(delegationId, questionId),
+        isHandBackPending: (grantId) => services().handBacks.isPending(grantId),
     };
 }
 

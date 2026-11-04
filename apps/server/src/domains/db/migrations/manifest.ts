@@ -12,6 +12,7 @@ import sessionResultsMigrationSql from './0006_session_results.sql?raw';
 import delegationQuestionsMigrationSql from './0007_delegation_questions.sql?raw';
 import delegationHistoryMigrationSql from './0008_delegation_history.sql?raw';
 import delegationNoticesMigrationSql from './0009_delegation_notices.sql?raw';
+import delegationHandBacksMigrationSql from './0010_delegation_hand_backs.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -61,6 +62,7 @@ export const migrationManifest = [
     { tag: '0007_delegation_questions', sql: delegationQuestionsMigrationSql },
     { tag: '0008_delegation_history', sql: delegationHistoryMigrationSql },
     { tag: '0009_delegation_notices', sql: delegationNoticesMigrationSql },
+    { tag: '0010_delegation_hand_backs', sql: delegationHandBacksMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

@@ -31,6 +31,7 @@ export async function setup(options: { isChat?: boolean } = {}) {
         launch: 'caller-launch' as string | undefined,
         isDecidable: false,
         isQuestionOpen: false,
+        isHandBackPending: true,
     };
     const deliveries: Array<{ text: string; done: (isAccepted: boolean) => void }> = [];
     const deliverNotice = vi.fn<DeliverNotice>((_terminalId, _launchId, text, done) => {
@@ -53,6 +54,7 @@ export async function setup(options: { isChat?: boolean } = {}) {
         {
             isApprovalDecidable: () => state.isDecidable,
             isQuestionWithParent: () => state.isQuestionOpen,
+            isHandBackPending: () => state.isHandBackPending,
         },
     );
     onTestFinished(() => notices.close());

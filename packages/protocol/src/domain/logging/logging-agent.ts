@@ -191,11 +191,20 @@ export const agentDelegationLogEvents = {
      * threw). `fields.reason` is `busy`, `waiter`, `acknowledged`, `draft`, `no_idle_proof`, `launch_changed`,
      * `caller_gone`, `external`, `handoff`, `independent`, `bot`, `retry_pending`, `paused`, or `resolved` (the
      * question was answered or the request decided or shown to the user first); `fields.kind` is `settled`, `question`,
-     * or `approval`. `batchSize` and `waitMs` (since the oldest item was owed) describe a send, `deferrals` how many
-     * checks a deferred notice waited through. IDs, enums, and numbers only, never the notice text, a title, or an
-     * answer.
+     * `approval`, `handback`, or `mixed` for a batch of several. `batchSize` and `waitMs` (since the oldest item was
+     * owed) describe a send, `deferrals` how many checks a deferred notice waited through. IDs, enums, and numbers
+     * only, never the notice text, a title, or an answer.
      */
     settlementNotice: 'agent_delegation.settlement_notice',
+    /**
+     * The user handed a taken-over Session back to the Agent that delegated it, or a hand-back grant was used or
+     * dropped. `fields.outcome` is a closed enum: `granted`, `consumed` (the delegating Agent's follow-up used the
+     * grant), `duplicate` (a grant was already pending), `invalidated` (something the grant was pinned to moved first),
+     * or a refusal: `not_taken_over`, `child_busy`, `draft_active`, `child_changed`, `parent_gone`, or
+     * `parent_changed`. `fields.reason` repeats the closed pin or guard that fired for `invalidated` and for a refusal
+     * at use time. IDs and enums only, never a title, a prompt, or an answer.
+     */
+    handBack: 'agent_delegation.hand_back',
     /**
      * A scheduled retry changed state. `fields.outcome` is a closed enum: `scheduled`, `cancelled`, `fired` (the retry
      * started), `refused_at_fire` (with `fields.reason`, a `DelegationRetryScheduleOutcome`), `missed_window`,

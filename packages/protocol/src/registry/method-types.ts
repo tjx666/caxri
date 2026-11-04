@@ -104,6 +104,7 @@ export const effectfulCommandRecovery = {
     'agent.delegation.create': 'durable',
     'agent.delegation.retry': 'durable',
     'agent.delegation.cancelScheduledRetry': 'durable',
+    'agent.delegation.handBack': 'durable',
     'agent.delegation.ask': 'durable',
     'agent.delegation.askCancel': 'durable',
     'agent.delegation.answer': 'durable',

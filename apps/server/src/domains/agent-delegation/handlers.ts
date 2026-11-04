@@ -28,6 +28,7 @@ type DelegationMethod =
     | 'agent.delegation.retryOptions'
     | 'agent.delegation.retry'
     | 'agent.delegation.cancelScheduledRetry'
+    | 'agent.delegation.handBack'
     | 'agent.delegation.create'
     | 'agent.delegation.status'
     | 'agent.delegation.result'
@@ -141,6 +142,7 @@ export function createDelegationHandlers(
             service.retries.retry(delegationId, mode, scheduleAt, provider),
         'agent.delegation.cancelScheduledRetry': ({ delegationId }) =>
             service.retries.cancelScheduled(delegationId),
+        'agent.delegation.handBack': ({ delegationId }) => service.handBacks.handBack(delegationId),
         'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({
             projectId,

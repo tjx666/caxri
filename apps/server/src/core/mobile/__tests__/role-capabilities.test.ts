@@ -37,6 +37,7 @@ describe('mobile role capabilities', () => {
                 'agent.delegation.retryOptions',
                 'agent.delegation.retry',
                 'agent.delegation.cancelScheduledRetry',
+                'agent.delegation.handBack',
                 'agent.delegation.questionAnswer',
                 'agent.delegation.questionDetail',
                 'agent.delegation.history',

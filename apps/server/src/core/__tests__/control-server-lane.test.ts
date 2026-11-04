@@ -42,6 +42,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'agent.delegation.createInternal': 'ordered',
     'agent.delegation.retry': 'ordered',
     'agent.delegation.cancelScheduledRetry': 'ordered',
+    'agent.delegation.handBack': 'ordered',
     'agent.delegation.questionAnswer': 'ordered',
     'agent.delegation.redirect': 'ordered',
     'agent.delegation.redirectInternal': 'ordered',
