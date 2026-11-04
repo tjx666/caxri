@@ -29,6 +29,14 @@ describe('rowFocusRequest', () => {
         });
         expect(rowFocusRequest({ id: 3, view: 'ui' })).toBeUndefined();
     });
+
+    it('maps the hooks view to the named provider lifecycle hooks row', () => {
+        expect(rowFocusRequest({ id: 4, view: 'agent-hooks', provider: 'grok' })).toEqual({
+            id: 4,
+            rowId: 'agents.grok.hooks',
+        });
+        expect(rowFocusRequest({ id: 4, view: 'agent-hooks' })).toBeUndefined();
+    });
 });
 
 describe('revealedSettingRowIds', () => {

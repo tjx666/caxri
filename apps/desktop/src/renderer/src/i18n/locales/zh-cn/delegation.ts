@@ -58,6 +58,11 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.origin.takenOver': '你已接管此会话',
     'delegation.origin.takenOverDetail': '它的回复不再回传给 {{title}}',
     'delegation.divider.takenOver': '你已接管',
+    'delegation.nextStep.signIn': '登录',
+    'delegation.nextStep.signInAria': '为 {{title}} 中失败的任务登录 {{provider}}',
+    'delegation.nextStep.enableHooks': '启用 hooks',
+    'delegation.nextStep.enableHooksAria':
+        '打开设置，为 {{title}} 中失败的任务启用 {{provider}} 生命周期 hooks',
     'delegation.retry.action': '重试',
     'delegation.retry.actionAria': '重试 {{title}} 中失败的任务',
     'delegation.retry.checking': '正在检查可重试的方式',

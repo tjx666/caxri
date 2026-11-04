@@ -6,6 +6,7 @@ import { useClockTick } from '@/hooks/use-clock-tick';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { isDelegationRetryPending, isRetryCandidate } from './delegation-feed';
+import { DelegationNextStepActions } from './delegation-next-step-actions';
 import { DelegationRetryAction } from './delegation-retry-action';
 import { formatRetryTime } from './delegation-retry-time';
 import {
@@ -174,17 +175,23 @@ function CancelScheduledRetry({
 
 /**
  * Everything a failed delegated task offers under its row, as siblings of the row's open button: Cancel while a
- * scheduled retry is pending, otherwise the Retry menu plus, for a usage-limit failure, the direct "Retry with <Agent>"
- * and "Retry after <time>" actions. Renders nothing for a task that cannot be retried.
+ * scheduled retry is pending, otherwise the failure's own fix ("Sign in", "Enable hooks"; see `delegationNextSteps`),
+ * the Retry menu plus, for a usage-limit failure, the direct "Retry with <Agent>" and "Retry after <time>" actions.
+ * Renders nothing for a task that cannot be retried.
  */
 export function DelegationRetryControls({
     className,
     entry,
+    projectId,
     projectTitle,
     sessionTitle,
 }: {
     className?: string;
     entry: RetryControlsEntry;
+    /**
+     * The child Session's Project, where "Sign in" opens its Shell Session.
+     */
+    projectId: string | undefined;
     projectTitle: string;
     sessionTitle: string;
 }) {
@@ -199,6 +206,11 @@ export function DelegationRetryControls({
                 <CancelScheduledRetry delegationId={delegationId} sessionTitle={sessionTitle} />
             ) : (
                 <>
+                    <DelegationNextStepActions
+                        entry={entry}
+                        projectId={projectId}
+                        sessionTitle={sessionTitle}
+                    />
                     <DelegationRetryAction
                         delegationId={delegationId}
                         showSwitchTargets={!isUsageLimit}

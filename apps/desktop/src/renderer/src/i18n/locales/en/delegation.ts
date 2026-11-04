@@ -63,6 +63,11 @@ export const delegation = {
     'delegation.origin.takenOver': 'You took over this Session',
     'delegation.origin.takenOverDetail': 'its replies no longer go back to {{title}}',
     'delegation.divider.takenOver': 'You took over',
+    'delegation.nextStep.signIn': 'Sign in',
+    'delegation.nextStep.signInAria': 'Sign in to {{provider}} for the failed task in {{title}}',
+    'delegation.nextStep.enableHooks': 'Enable hooks',
+    'delegation.nextStep.enableHooksAria':
+        'Open Settings to turn on {{provider}} lifecycle hooks for the failed task in {{title}}',
     'delegation.retry.action': 'Retry',
     'delegation.retry.actionAria': 'Retry the failed task in {{title}}',
     'delegation.retry.checking': 'Checking what can be retried',

@@ -550,6 +550,24 @@ pending schedule. Code: `retry-schedule.ts`, `retry-schedule-time.ts`, `retry-cl
   a receipt transition. The caller gets one best-effort fixed-text notice. Creating or cancelling a
   schedule sends no notice; a started retry sends the usual "retried" notice.
 
+### Failure next steps
+
+Every failure value has copy and a next step in the Desktop Renderer. The next step is a closed kind
+(`DelegationNextStepKind` in `apps/desktop/src/renderer/src/features/delegation/delegation-next-step.ts`),
+and a `Record` over the protocol's failure enum, so a new failure value fails the type check and
+`delegation-next-step.test.ts` until it has both:
+
+- `retry`: exactly the failures `isRetryableDelegationFailure` allows.
+- `signIn` (`authentication_failed`, before `Retry`): `Sign in` runs the New Session menu's own
+  sign-in (`chooseSessionSignIn`): a Shell Session in the child Session's Project with the Agent's
+  sign-in command typed at its prompt, not run. Shown only where Caxri knows that command.
+- `enableHooks` (`hooks_required`, before `Retry`): `Enable hooks` opens Settings on that provider's
+  lifecycle hooks row (`openSettings('agent-hooks', provider)`).
+- `openSession`: every other failure, including `submission_unconfirmed`. Its effects are unknown,
+  so it is never retried; the user opens the Session to check.
+
+Both the strip row and the child's origin row render these through `DelegationRetryControls`.
+
 ## Agent Chat children
 
 With `session.openAgentsInChat` on, a new Claude Code or Codex child opens as an
@@ -795,13 +813,14 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
 - **Child Chat.** A Delegated Session's own Chat keeps the `Delegated by <title> · <parent Project>`
   bubble and adds an origin row at the top of the composer strip: the origin, that the result goes
   back automatically, and `Back to <parent>`, plus a hint that acting here takes the Session over.
-  Once `takenOverAt` is set the row says `You took over this Session` and drops the hint and the
-  button, and the timeline carries a `You took over` divider at the first entry at or after
+  Once `takenOverAt` is set the row says `You took over this Session` and drops the hint but keeps
+  `Back to <parent>`, and the timeline carries a `You took over` divider at the first entry at or after
   `takenOverAt`. When the position is uncertain (an earlier entry has no time, earlier history is
   not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
   composer instead of a guessed position.
   An archived parent stays named but cannot be opened. When the Session's newest task failed with
-  a retryable failure, the row offers the same `Retry` action as the strip.
+  a retryable failure, the row offers the same failure actions as the strip (see
+  [Failure next steps](#failure-next-steps)).
 
 Privacy: projection metadata, logs, and diagnostics carry IDs and closed enums only. Summaries,
 steps, and answer text reach the Renderer through the owner-only reads above and nowhere else.
