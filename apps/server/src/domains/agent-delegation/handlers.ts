@@ -5,6 +5,8 @@ import { coreRouted } from '../core-routed';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import { delegationStatuses } from './feed';
+import type { QuestionMethod } from './questions/handlers';
+import { createQuestionHandlers } from './questions/handlers';
 import type { AgentDelegationService } from './service';
 import type { DelegationTranscriptSource } from './transcript';
 import { readDelegationChatPage } from './transcript';
@@ -30,7 +32,8 @@ type DelegationMethod =
     | 'agent.delegation.statusInternal'
     | 'agent.delegation.resultInternal'
     | 'agent.delegation.transcript'
-    | 'agent.delegation.transcriptInternal';
+    | 'agent.delegation.transcriptInternal'
+    | QuestionMethod;
 
 /**
  * Stands in when no Chat service is wired (a unit test): every task reads as not loaded.
@@ -96,6 +99,7 @@ export function createDelegationHandlers(
 ): Pick<DomainHandlers, DelegationMethod> {
     const { pullRequests, transcripts = NO_TRANSCRIPTS } = sources;
     return {
+        ...createQuestionHandlers(service.questions),
         /**
          * Owner-only (enforced from the method spec before this runs) and never `claimed`: the feed reads summaries,
          * and an answer still unread by the Agent that delegated the task must stay unread.
@@ -137,7 +141,7 @@ export function createDelegationHandlers(
             service.list(authority, { active, limit }),
         'agent.delegation.wait': () => coreRouted('agent.delegation.wait'),
         'agent.delegation.waitInternal': async (
-            { delegationId, otherDelegationIds = [], timeoutMs, ...authority },
+            { delegationId, otherDelegationIds = [], timeoutMs, ignoreQuestions, ...authority },
             signal,
         ) =>
             withPullRequest(
@@ -149,6 +153,7 @@ export function createDelegationHandlers(
                         authority,
                         timeoutMs,
                         signal,
+                        ignoreQuestions,
                     ),
                 ),
             ),

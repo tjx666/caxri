@@ -162,6 +162,25 @@ describe('delegation CLI', () => {
         ).toThrow(/delegation IDs/u);
     });
 
+    it('lets a wait skip questions and rejects the flag twice', () => {
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.wait',
+        )!;
+        expect(command.parseParams(['task-1', '--ignore-questions'])).toEqual({
+            delegationId: 'task-1',
+            ignoreQuestions: true,
+        });
+        expect(command.parseParams(['--ignore-questions', 'task-1', 'task-2'])).toEqual({
+            delegationId: 'task-1',
+            otherDelegationIds: ['task-2'],
+            ignoreQuestions: true,
+        });
+        expect(() =>
+            command.parseParams(['task-1', '--ignore-questions', '--ignore-questions']),
+        ).toThrow(/at most once/u);
+        expect(() => command.parseParams(['--ignore-questions'])).toThrow(/delegation IDs/u);
+    });
+
     it('lists the caller own tasks with an optional active filter and bounded limit', () => {
         const command = DELEGATION_COMMANDS.find(
             (item) => item.method === 'agent.delegation.list',

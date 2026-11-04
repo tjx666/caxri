@@ -1,13 +1,14 @@
 import { CircleQuestionMark, CircleX, Clock } from 'lucide-react';
 
 import type { DelegationGlyph } from '../../delegation/delegation-copy';
-import { RunningArc } from '../../primary-sidebar/running-arc';
+import { BackgroundArc, RunningArc } from '../../primary-sidebar/running-arc';
 
 /**
- * A delegated task's state in the sidebar's shapes: the running arc, an amber question mark for a task that needs the
- * user, and a red cross for a failure, and a muted clock for a failure whose scheduled retry is pending. Every other
- * state (completed, stopped, taken over) draws nothing, as a settled sidebar row does, but keeps the 14px slot so the
- * rows' right edges line up. `label` is the accessible name.
+ * A delegated task's state in the sidebar's shapes: the running arc, the slow dotted ring for a task asking the Agent
+ * that delegated it, an amber question mark for a task that needs the user, and a red cross for a failure, and a muted
+ * clock for a failure whose scheduled retry is pending. Every other state (completed, stopped, taken over) draws
+ * nothing, as a settled sidebar row does, but keeps the 14px slot so the rows' right edges line up. `label` is the
+ * accessible name.
  */
 export function AgentChatDelegationGlyph({
     glyph,
@@ -25,6 +26,11 @@ export function AgentChatDelegationGlyph({
             data-agent-chat-delegation-glyph={glyph}
         >
             {glyph === 'running' && <RunningArc />}
+            {glyph === 'asking' && (
+                <span className="text-muted">
+                    <BackgroundArc />
+                </span>
+            )}
             {glyph === 'needsInput' && (
                 <CircleQuestionMark aria-hidden="true" className="size-3.5 text-warning" />
             )}

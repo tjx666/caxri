@@ -13,6 +13,10 @@ import {
  * them need the user, failed, or wait for a scheduled retry.
  */
 export interface DelegatedSessionsSummary {
+    /**
+     * Tasks asking the Agent that delegated them, still inside the grace period. Not attention.
+     */
+    asking: number;
     failed: number;
     needsInput: number;
     total: number;
@@ -22,23 +26,32 @@ export interface DelegatedSessionsSummary {
 export function delegatedSessionsSummary(
     entries: ReadonlyArray<
         Pick<AgentDelegationSession, 'failure' | 'status'> &
-            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor'>>
+            Partial<Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor' | 'waitingOn'>>
     >,
 ): DelegatedSessionsSummary {
     return { ...delegationAttentionCounts(entries), total: entries.length };
 }
 
 /**
- * The header's parts, `3 delegated`, then `1 needs input`, `1 failed`, and `1 retry waiting` only when there are some.
+ * The header's parts, `3 delegated`, then `1 needs input`, `1 failed`, `1 retry waiting`, and `1 asking` only when
+ * there are some. `asking` is muted text and is no attention: the caller leaves it out of the live-region announcement.
  * A task waiting on a question or permission is "needs input", never "approval", because it can be a question; an
  * `answer_unavailable` task is neither needs-input nor failed.
  */
 export function delegatedSessionsHeaderParts(
     summary: DelegatedSessionsSummary,
     t: Translate,
-): { count: string; failed?: string; needsInput?: string; waiting?: string } {
+): { asking?: string; count: string; failed?: string; needsInput?: string; waiting?: string } {
     return {
         count: t('delegation.strip.count', { count: summary.total }),
+        ...(summary.asking > 0 && {
+            asking: t(
+                summary.asking === 1
+                    ? 'delegation.strip.askingOne'
+                    : 'delegation.strip.askingOther',
+                { count: summary.asking },
+            ),
+        }),
         ...(summary.failed > 0 && {
             failed: t('delegation.strip.failed', { count: summary.failed }),
         }),
@@ -62,9 +75,10 @@ export function delegatedSessionsHeaderParts(
 }
 
 /**
- * The rows in the order a person should look at them: tasks that need input, then failures, then everything else, each
- * group keeping the Server's order (newest Session first). The sort is stable, so a row never jumps for a reason other
- * than its own state.
+ * The rows in the order a person should look at them: tasks that need input (an escalated question included), then
+ * failures, then everything else (a task still asking the Agent that delegated it ranks with the waiting ones, because
+ * the user has nothing to do yet), each group keeping the Server's order (newest Session first). The sort is stable, so
+ * a row never jumps for a reason other than its own state.
  */
 export function sortDelegatedSessions(
     entries: readonly AgentDelegationSession[],

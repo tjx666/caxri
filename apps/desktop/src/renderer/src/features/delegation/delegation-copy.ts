@@ -3,6 +3,7 @@ import type {
     AgentDelegationSession,
     AgentProvider,
     DelegationRetryScheduleOutcome,
+    DelegationWaitingOn,
 } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
@@ -37,14 +38,21 @@ export interface DelegationCopyInput {
      */
     retryScheduleOutcome?: DelegationRetryScheduleOutcome;
     status?: AgentDelegationStatus;
+    /**
+     * Who the task's open question waits on, from the feed. Only a running task wears it: a question closes when the
+     * task ends.
+     */
+    waitingOn?: DelegationWaitingOn;
 }
 
 /**
  * Which status glyph a task wears, in the sidebar's shapes: an amber question mark for a task that needs the user, the
- * running arc while it works, a red cross for a failure, a muted clock for a failure whose retry is scheduled, and the
- * ordinary Agent glyph for everything else (completed, stopped, taken over, finished without a readable result).
+ * running arc while it works, the slow dotted ring while it asks the Agent that delegated it, a red cross for a
+ * failure, a muted clock for a failure whose retry is scheduled, and the ordinary Agent glyph for everything else
+ * (completed, stopped, taken over, finished without a readable result).
  */
-export type DelegationGlyph = 'failed' | 'needsInput' | 'ordinary' | 'running' | 'waiting';
+export type DelegationGlyph =
+    'asking' | 'failed' | 'needsInput' | 'ordinary' | 'running' | 'waiting';
 
 /**
  * What the row offers beyond its own click target. The only action is opening the child Session, and only where the
@@ -247,6 +255,18 @@ export function delegationCopy(
             headline: t('delegation.copy.starting', { provider: providerName(input.provider, t) }),
             primaryAction: 'none',
         };
+    if (status === 'running' && input.waitingOn === 'parent')
+        return {
+            glyph: 'asking',
+            headline: t('delegation.copy.askingParent'),
+            primaryAction: 'none',
+        };
+    if (status === 'running' && input.waitingOn === 'user')
+        return {
+            glyph: 'needsInput',
+            headline: t('delegation.copy.askingYou'),
+            primaryAction: 'openSession',
+        };
     if (status === 'running')
         return { glyph: 'running', headline: t('delegation.copy.working'), primaryAction: 'none' };
     if (status === 'collecting')
@@ -324,7 +344,10 @@ function statusCopy(
 export function delegationCopyInput(
     entry: Pick<AgentDelegationSession, 'failure' | 'failureResetsAt' | 'provider' | 'status'> &
         Partial<
-            Pick<AgentDelegationSession, 'retriedAs' | 'retryScheduledFor' | 'retryScheduleOutcome'>
+            Pick<
+                AgentDelegationSession,
+                'retriedAs' | 'retryScheduledFor' | 'retryScheduleOutcome' | 'waitingOn'
+            >
         >,
 ): DelegationCopyInput {
     return {
@@ -337,5 +360,6 @@ export function delegationCopyInput(
         ...(entry.failureResetsAt !== undefined && { failureResetsAt: entry.failureResetsAt }),
         ...(entry.provider && { provider: entry.provider }),
         ...(entry.status && { status: entry.status }),
+        ...(entry.waitingOn && { waitingOn: entry.waitingOn }),
     };
 }

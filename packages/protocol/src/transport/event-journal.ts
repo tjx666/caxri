@@ -21,6 +21,7 @@ export type TransientServerEvent = Extract<
             | 'caxriBot.commandPaletteRequested'
             | 'caxriBot.inboxRequested'
             | 'agent.delegation.progress'
+            | 'agent.delegation.questionChanged'
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
@@ -101,6 +102,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * `agent.delegation.sessions`, so a replay would only repeat a stale label.
      */
     'agent.delegation.progress',
+    /**
+     * Ids and closed values only; a reconnecting client reads open questions again through `agent.delegation.sessions`.
+     */
+    'agent.delegation.questionChanged',
     'agent.message.held',
     'agent.message.receipt',
     /**

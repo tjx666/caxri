@@ -150,6 +150,12 @@ planned time. It needs no `--yes`, sends at most one request per window, and ref
 the selected profile's delegation configuration. It requires owner capability
 `settings.delegation.write`, never an Agent grant. See [preset import](agent-delegation.md#import-dianjiang-presets).
 
+`agent delegate ask|ask-wait|ask-cancel` lets a delegated Agent put one question to the Agent that
+delegated it, and `agent delegate questions|answer` plus `wait --ignore-questions` are the
+delegating Agent's side. `ask-wait --timeout` accepts up to 300000 milliseconds; question and
+answer text goes in `--text` or, for long text, `--file <path>`. See
+[questions from a delegated task](agent-delegation.md#questions-from-a-delegated-task).
+
 `agent delegate access create|list|revoke` manages owner-authorized external callers with
 `agents.delegation.access`. The resulting `delegation-client` credential is limited to one Project,
 Session and caller provider; it grants only delegation and does not start a Server implicitly.

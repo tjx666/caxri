@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDelegations } from '../schema';
+import { DelegationQuestionsModel } from './delegation-questions';
 
 const activeStatuses = [
     'requested',
@@ -105,6 +106,13 @@ const storedDelegationSchema = z
          * never text.
          */
         callerTurnId: z.string().min(1).max(256).optional(),
+        /**
+         * The launch of the caller's Agent that created this task (and, for a retry, of the failed task it retries). A
+         * question the task's Agent asks counts the delegating Agent as gone once this launch retires, because a
+         * resumed Agent is a new launch without authority over the task. Absent for a caller with no Agent launch. An
+         * ID only.
+         */
+        callerLaunchId: z.string().min(1).max(256).optional(),
         hasLostTarget: z.boolean().optional(),
         continuationPromptDigests: z
             .array(z.string().regex(/^[\da-f]{64}$/u))
@@ -204,7 +212,15 @@ function pruneForAdmission(
  * answers or live tasks.
  */
 export class AgentDelegationsModel {
-    constructor(private readonly database: CaxriDrizzleDatabase) {}
+    /**
+     * The questions delegated Agents ask. They belong to a task record: `ON DELETE CASCADE` removes them with it, so
+     * pruning needs no extra step.
+     */
+    readonly questions: DelegationQuestionsModel;
+
+    constructor(private readonly database: CaxriDrizzleDatabase) {
+        this.questions = new DelegationQuestionsModel(database);
+    }
 
     get(id: string): StoredAgentDelegation | undefined {
         const row = this.database

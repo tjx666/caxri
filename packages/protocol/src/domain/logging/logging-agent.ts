@@ -199,6 +199,26 @@ export const agentDelegationLogEvents = {
      * the read's duration. Counts and enums only, never row text, item IDs, or the cursor.
      */
     transcriptRead: 'agent_delegation.transcript_read',
+    /**
+     * A delegated Agent opened a question for the Agent that delegated it. Fields: `delegationId`, `questionId`,
+     * `optionCount`. Never the question text or its length.
+     */
+    questionAsked: 'agent_delegation.question_asked',
+    /**
+     * An open question was answered. Fields: `delegationId`, `questionId`, `answeredBy` (`parent` or `user`),
+     * `latencyMs`. Never the answer text.
+     */
+    questionAnswered: 'agent_delegation.question_answered',
+    /**
+     * An open question closed without an answer. Fields: `delegationId`, `questionId`, `cancelReason`
+     * (`child_cancelled`, `taken_over`, `host_reset`, or `task_ended`), `latencyMs`.
+     */
+    questionCancelled: 'agent_delegation.question_cancelled',
+    /**
+     * An open question became the user's to answer. Fields: `delegationId`, `questionId`, `escalationReason`
+     * (`grace_elapsed` or `parent_gone`), `latencyMs`.
+     */
+    questionEscalated: 'agent_delegation.question_escalated',
 } as const;
 
 export const agentDispatchLogEvents = {

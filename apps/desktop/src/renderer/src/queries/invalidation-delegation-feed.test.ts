@@ -356,3 +356,32 @@ describe('Delegated Sessions feed wiring in subscribeRuntimeQueryInvalidation', 
         expect(client.getQueryState(key)?.isInvalidated).toBe(false);
     });
 });
+
+describe('agent.delegation.questionChanged', () => {
+    it("refreshes the feed and that task's question detail, and leaves another task's detail alone", () => {
+        const client = new QueryClient();
+        const feed = feedKey(['host-a']);
+        const detail = caxriQueryKey('agent.delegation.questionDetail', { delegationId: 'task-1' });
+        const otherDetail = caxriQueryKey('agent.delegation.questionDetail', {
+            delegationId: 'task-2',
+        });
+        client.setQueryData(feed, { sessions: [] } satisfies Feed);
+        client.setQueryData(detail, {});
+        client.setQueryData(otherDetail, {});
+        const unsubscribe = subscribeRuntimeQueryInvalidation(client);
+        mocks.state.handler?.({
+            event: 'agent.delegation.questionChanged',
+            payload: {
+                delegationId: 'task-1',
+                escalated: false,
+                questionId: 'question-1',
+                sessionId: 'child-a',
+                state: 'open',
+            },
+        });
+        unsubscribe();
+        expect(client.getQueryState(feed)?.isInvalidated).toBe(true);
+        expect(client.getQueryState(detail)?.isInvalidated).toBe(true);
+        expect(client.getQueryState(otherDetail)?.isInvalidated).toBe(false);
+    });
+});

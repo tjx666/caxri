@@ -117,6 +117,8 @@ export function createAgentCommandRuntime(
             ),
         onProgress: (progress) =>
             options.emit({ event: 'agent.delegation.progress', payload: progress }),
+        onQuestionChanged: (change) =>
+            options.emit({ event: 'agent.delegation.questionChanged', payload: change }),
         dispatch: dispatchService,
         logger: options.logger,
         userDataPath: options.userDataPath,

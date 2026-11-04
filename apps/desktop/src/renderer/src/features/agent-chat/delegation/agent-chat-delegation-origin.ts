@@ -1,4 +1,4 @@
-import type { SessionRecord } from '@caxri/protocol';
+import type { DelegationWaitingOn, SessionRecord } from '@caxri/protocol';
 
 /**
  * What the composer's first strip row says in a Chat that another Session delegated its work to.
@@ -13,6 +13,11 @@ export interface DelegationOrigin {
      * An archived parent stays named but cannot be opened: navigating to it never restores it.
      */
     isParentArchived: boolean;
+    /**
+     * Whether this Session's open question still waits on the delegating Agent (`waitingOn` is `parent`). Once it
+     * escalates the row says it waits on the user instead, and the question card shows.
+     */
+    isWaitingOnParent: boolean;
     parent: Pick<SessionRecord, 'id' | 'title'>;
 }
 
@@ -25,6 +30,7 @@ export function delegationOrigin(
     session: Pick<SessionRecord, 'createdByRelation'>,
     parent: Pick<SessionRecord, 'archivedAt' | 'id' | 'title'> | undefined,
     takenOverAt: number | undefined,
+    waitingOn?: DelegationWaitingOn,
 ): DelegationOrigin | undefined {
     if (session.createdByRelation !== 'delegated' && session.createdByRelation !== 'consult')
         return undefined;
@@ -32,6 +38,7 @@ export function delegationOrigin(
     return {
         isParentArchived: parent.archivedAt !== undefined,
         isTakenOver: takenOverAt !== undefined,
+        isWaitingOnParent: takenOverAt === undefined && waitingOn === 'parent',
         parent: { id: parent.id, title: parent.title },
     };
 }

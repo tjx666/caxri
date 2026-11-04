@@ -1,6 +1,7 @@
 import type {
     AgentDelegationProgress,
     CaxriMethod,
+    DelegationQuestionChanged,
     MethodResult,
     SessionRecord,
 } from '@caxri/protocol';
@@ -20,6 +21,11 @@ const DELEGATION_FEED_METHOD = 'agent.delegation.sessions' satisfies CaxriMethod
  * The per-task states behind the records of a Chat timeline. They change with the same record pushes as the feed.
  */
 const DELEGATION_STATUSES_METHOD = 'agent.delegation.statuses' satisfies CaxriMethod;
+
+/**
+ * The open question's text read behind the Session view's question card.
+ */
+const DELEGATION_QUESTION_DETAIL_METHOD = 'agent.delegation.questionDetail' satisfies CaxriMethod;
 
 type DelegationFeed = MethodResult<'agent.delegation.sessions'>;
 type DelegationStatuses = MethodResult<'agent.delegation.statuses'>;
@@ -165,4 +171,23 @@ export function applyDelegationProgress(
             };
         },
     );
+}
+
+/**
+ * Re-reads what a question's change moved: every Delegated Sessions feed read (the row asks, escalates, or stops
+ * asking) and the question's detail read of that task. The event carries ids and closed values only, so nothing is
+ * patched in: the text arrives through the owner-only `questionDetail` read, and only when a question card asks.
+ */
+export function invalidateDelegationQuestion(
+    queryClient: QueryClient,
+    change: Pick<DelegationQuestionChanged, 'delegationId'>,
+): void {
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            if (isQueryMethod(query.queryKey, DELEGATION_FEED_METHOD)) return true;
+            if (!isQueryMethod(query.queryKey, DELEGATION_QUESTION_DETAIL_METHOD)) return false;
+            const parameters = query.queryKey[1] as { delegationId?: string } | undefined;
+            return parameters?.delegationId === change.delegationId;
+        },
+    });
 }

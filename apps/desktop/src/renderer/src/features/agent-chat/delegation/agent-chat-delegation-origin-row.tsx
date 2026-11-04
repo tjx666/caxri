@@ -2,10 +2,32 @@ import { Forward } from 'lucide-react';
 
 import { useTranslation } from '../../../i18n';
 import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
+import { DelegationQuestionCard } from '../../delegation/delegation-question-card';
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { useDelegationOrigin } from './hooks/use-delegation-origin';
+
+/**
+ * What a not-yet-taken-over origin row says after the parent's name: that the result goes back on its own, that the
+ * Agent which delegated this is answering a question, or (amber) that the question is the user's to answer.
+ */
+function OriginReturnNote({
+    isEscalated,
+    isWaitingOnParent,
+    title,
+}: {
+    isEscalated: boolean;
+    isWaitingOnParent: boolean;
+    title: string;
+}) {
+    const { t } = useTranslation();
+    if (isEscalated)
+        return <span className="text-warning">{t('delegation.origin.waitingForYou')}</span>;
+    return isWaitingOnParent
+        ? t('delegation.origin.waitingForParent', { title })
+        : t('delegation.origin.autoReturn');
+}
 
 /**
  * The first row of the composer strip in a Chat another Session delegated its work to: who delegated, that the result
@@ -24,6 +46,7 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
     const project = useProjectById(session?.projectId);
     if (!origin) return null;
     const title = sessionTitleForDisplay(origin.parent.title, t);
+    const isEscalated = !origin.isTakenOver && task?.waitingOn === 'user';
     return (
         <div
             className="flex min-w-0 flex-col gap-0.5 border-0 border-b border-solid border-border px-3 py-1.5 text-[12px] leading-5 text-muted"
@@ -46,7 +69,11 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
                         {!origin.isParentArchived && (
                             <>
                                 {' · '}
-                                {t('delegation.origin.autoReturn')}
+                                <OriginReturnNote
+                                    isEscalated={isEscalated}
+                                    isWaitingOnParent={origin.isWaitingOnParent}
+                                    title={title}
+                                />
                             </>
                         )}
                     </span>
@@ -64,6 +91,7 @@ export function AgentChatDelegationOriginRow({ terminalId }: { terminalId: strin
             {!origin.isTakenOver && !origin.isParentArchived && (
                 <span className="min-w-0 pl-5">{t('delegation.origin.hint', { title })}</span>
             )}
+            {task && <DelegationQuestionCard className="pl-5" entry={task} parentTitle={title} />}
             {task && (
                 <DelegationRetryControls
                     className="pl-5"

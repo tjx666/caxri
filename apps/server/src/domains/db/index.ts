@@ -19,6 +19,10 @@ export type {
 export type { ClaudeWindowSchedule } from './models/claude-window-schedules';
 export { ClaudeWindowSchedulesModel } from './models/claude-window-schedules';
 export type {
+    DelegationQuestionsModel,
+    StoredDelegationQuestion,
+} from './models/delegation-questions';
+export type {
     DelegationClientRow,
     DelegationClientStore,
     MobileDeviceRow,

@@ -31,6 +31,7 @@ caxri agent delegate status <delegation-id> --json
 caxri agent delegate wait <delegation-id> [<delegation-id>...] --timeout 30000 --json
 caxri agent delegate result <delegation-id> --json
 caxri agent delegate transcript <delegation-id> [--after <cursor>] --json
+caxri agent delegate ask --text <question> --json   # more under "Questions from a delegated task"
 caxri agent delegate stop <delegation-id> --json
 caxri agent delegate list [--active] [--limit <count>] --json
 caxri agent delegate create --project <project-id> --session <session-id> \
@@ -225,6 +226,86 @@ answer carries a closed `reason`:
 | `cursor_invalid`    | `--after` came from another task or an earlier version of the conversation; read again without it. |
 
 A task Caxri already pruned reads as `NOT_FOUND`, like `result`.
+
+### Questions from a delegated task
+
+A delegated Agent that needs a decision asks the Agent that delegated it, without stopping its
+work and without guessing. The exchange is flat CLI commands over five methods, all under
+`agents.delegate`:
+
+```sh
+# the delegated Agent
+caxri agent delegate ask --text <question> [--option <choice>...] [--request-id <id>] --json
+caxri agent delegate ask-wait <question-id> [--timeout 30000] --json
+caxri agent delegate ask-cancel <question-id> --json
+# the delegating Agent
+caxri agent delegate wait <delegation-id>... [--ignore-questions] --json
+caxri agent delegate questions [<delegation-id>] --json
+caxri agent delegate answer <delegation-id> <question-id> --text <answer> --json
+```
+
+A question is one `delegation_questions` row (text, options, and answer columns omitted here);
+the receipt's `status` is never touched, so
+a pending question does not make the task blocked:
+
+```json
+{
+  "id": "q-1",
+  "delegationId": "d-1",
+  "sessionId": "child Session",
+  "childLaunchId": "launch-7",
+  "childGeneration": 2,
+  "state": "open | answered | cancelled",
+  "askedAt": 0,
+  "escalatedAt": null,
+  "escalationReason": "grace_elapsed | parent_gone | null",
+  "answeredBy": "parent | user | null",
+  "cancelReason": "child_cancelled | taken_over | host_reset | task_ended | null"
+}
+```
+
+- **Ask.** `ask` returns `{ outcome: "asked", questionId, askedAt }` at once. A delegation holds
+  one open question: a second `ask` returns `already_open` with the existing ID and changes
+  nothing. A stable `--request-id` makes a retried `ask` return the original question in whatever
+  state it reached. Only a delegated Agent may ask (`FORBIDDEN` otherwise), and a delegation stores
+  at most 10 questions in its lifetime; the next `ask` fails with `CAPACITY`.
+- **Wait for the answer.** `ask-wait` is a long poll of up to 300000 milliseconds returning
+  `answered` (with `answer` and `answeredBy`), `cancelled` (with `cancelReason`), or `timeout`.
+  A `timeout` means the question is still open: wait again, never ask it again. The question is
+  bound to the asking child launch and generation, so `ask-wait` and `ask-cancel` re-verify it on
+  every poll; an Agent restarted in the same Terminal cannot read an old answer.
+- **Notice the question.** `wait` returns the outcome `question` with a `questionId` (never text)
+  when a watched task has an open question. `settled` and `blocked` rank before it. It repeats on
+  every wait until the question closes, so a delegating Agent that does not want to answer passes
+  `--ignore-questions` and waits for settlement only. `questions` then returns the text and options
+  of the open questions (at most 64), and `answer` delivers the first answer submitted; a later one
+  returns `already_answered`, or `cancelled` when the question closed first, and its text is not
+  delivered.
+- **The user can answer.** The question shows on the delegated Session as waiting on the
+  delegating Agent. It escalates to waiting on the user after a fixed 600 second grace, or at once
+  when the delegating Agent's original launch is gone: the launch that created the delegation
+  retired for good (including an idle suspension, because a resumed parent is a new generation
+  without authority) or its Terminal was deleted. A launch that is only starting, suspending, or
+  has no launch ID yet does not count. Escalation is an inline mark in the Session view only; it
+  raises no notification, attention state, or sidebar change, and it never answers or cancels. The
+  user answers with the owner-only `agent.delegation.questionAnswer`, which an Agent credential,
+  the Bot, Benchmark windows, and Mobile cannot call; `agent.delegation.questionDetail` is the
+  owner-only read of the open question's text. The answer then reaches the asker as
+  `answeredBy: "user"`.
+- **Cancel.** An open question closes as `cancelled` when the asker withdraws it
+  (`child_cancelled`), when the user types into the delegated Session (`taken_over`), when Server
+  Core restarts (`host_reset`), or when the task settles, stops, or fails (`task_ended`). Deleting
+  a delegation record removes its questions with it (`ON DELETE CASCADE`).
+- **Bounds.** A question holds at most 2000 characters and 6 options of 120 characters each
+  (trimmed, unique); an answer holds at most 4000. Longer text goes through `--file`.
+- **Privacy.** Question and answer text appears only in command replies and the owner-only reads.
+  Logs (`agent_delegation.question_asked|answered|cancelled|escalated`), the transient
+  `agent.delegation.questionChanged` event, bootstrap, and the Delegated Session feed carry IDs,
+  closed enums, counts, and durations only; the feed shows `question` as
+  `{ questionId, askedAt, escalated }` plus a derived `waitingOn` (`parent` or `user`).
+- **Mobile.** Mobile has no scope in this release: no Mobile role can read or answer a question
+  and the event is not bridged to it. The Desktop Session view is the fallback; a question the
+  user needs to answer waits there.
 
 ## Presets and caller policy
 
@@ -725,7 +806,9 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   one. A `handoff` Session stores none. The row
   outlives the 1024-record pruning of `agent_delegations` and the Session's archival, so the feed
   can still show what the Session concluded; deleting the Session deletes it. It is private domain
-  data: it is never part of bootstrap, journal payloads, or logs.
+  data: it is never part of bootstrap, journal payloads, or logs. Its neighbour
+  `delegation_questions` holds the open and closed [questions](#questions-from-a-delegated-task)
+  of a delegation and is removed with the delegation record, unlike `session_results`.
 - **`agent.delegation.sessions`.** An owner-only read: `{ createdBySessionIds }` (1 to 64 IDs)
   returns `{ sessions }`, the Sessions those Sessions created with a relation, newest first (at most
   1000). Each entry carries `sessionId`, `createdBySessionId`, the relation, the newest task's

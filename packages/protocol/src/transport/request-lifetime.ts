@@ -13,6 +13,8 @@ const nonExpiringServerOperations: ReadonlySet<string> = new Set<ServerOperation
     'agent.dispatch.waitInternal',
     'agent.delegation.wait',
     'agent.delegation.waitInternal',
+    'agent.delegation.askWait',
+    'agent.delegation.askWaitInternal',
     'agent.message.wait',
     'agent.secret.wait',
     'agent.secret.waitInternal',

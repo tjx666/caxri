@@ -10,6 +10,14 @@ import {
     agentDelegationStatusSchema,
     delegationRetryScheduleOutcomeSchema,
 } from './agent-delegation-contract.js';
+import {
+    delegationQuestionSummarySchema,
+    delegationWaitingOnSchema,
+} from './agent-delegation-question.js';
+import {
+    agentDelegationQuestionMethods,
+    agentDelegationQuestionOwnerMethods,
+} from './agent-delegation-question-contract.js';
 import { delegationProviderSchema } from './agent-delegation-settings.js';
 
 /**
@@ -105,6 +113,16 @@ const agentDelegationSessionSchema = z.strictObject({
      * runs or after one failed. Absent when the newest completed task yielded no summary.
      */
     result: agentDelegationResultSummarySchema.optional(),
+    /**
+     * The open question this Session's Agent asked the Agent that delegated it, without its text. See
+     * `agent-delegation-question.ts`.
+     */
+    question: delegationQuestionSummarySchema.optional(),
+    /**
+     * Who the open `question` waits on. Derived from the question, never stored: `parent` until it escalates, then
+     * `user`. Absent without an open question.
+     */
+    waitingOn: delegationWaitingOnSchema.optional(),
 });
 
 export type AgentDelegationSession = z.infer<typeof agentDelegationSessionSchema>;
@@ -145,6 +163,11 @@ const agentDelegationStatusEntrySchema = z.strictObject({
      */
     retryScheduledFor: z.number().int().positive().optional(),
     retryScheduleOutcome: delegationRetryScheduleOutcomeSchema.optional(),
+    /**
+     * The open question and who it waits on; see `agentDelegationSessionSchema`.
+     */
+    question: delegationQuestionSummarySchema.optional(),
+    waitingOn: delegationWaitingOnSchema.optional(),
 });
 
 export type AgentDelegationStatusEntry = z.infer<typeof agentDelegationStatusEntrySchema>;
@@ -257,6 +280,8 @@ const cancelScheduledRetry: CancelScheduledRetrySpec = {
 };
 
 export const agentDelegationSessionsMethods = {
+    ...agentDelegationQuestionMethods,
+    ...agentDelegationQuestionOwnerMethods,
     /**
      * The Sessions the named Sessions created, each with its newest delegation's state and stored result, for the
      * Delegated Sessions feed. Owner-only: an Agent Endpoint grant carries the same capability but must not read other

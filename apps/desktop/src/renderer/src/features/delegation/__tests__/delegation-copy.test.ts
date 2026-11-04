@@ -13,6 +13,32 @@ const STATUSES = agentDelegationStatusSchema.options;
 const copyOf = (input: Parameters<typeof delegationCopy>[0], now = NOW) =>
     delegationCopy(input, now, translate);
 
+describe('delegationCopy with an open question', () => {
+    it('shows the dotted asking glyph and no action while the delegating Agent has the question', () => {
+        expect(copyOf({ status: 'running', waitingOn: 'parent' })).toEqual({
+            glyph: 'asking',
+            headline: 'Asking the Agent that delegated it',
+            primaryAction: 'none',
+        });
+    });
+
+    it('turns amber and points at the Session once the question escalated', () => {
+        expect(copyOf({ status: 'running', waitingOn: 'user' })).toEqual({
+            glyph: 'needsInput',
+            headline: 'Waiting for your answer',
+            primaryAction: 'openSession',
+        });
+    });
+
+    it('ignores a question on a task that is not running, and carries waitingOn from a feed entry', () => {
+        expect(copyOf({ status: 'completed', waitingOn: 'parent' }).glyph).toBe('ordinary');
+        expect(delegationCopyInput({ status: 'running', waitingOn: 'user' })).toEqual({
+            status: 'running',
+            waitingOn: 'user',
+        });
+    });
+});
+
 describe('delegationCopy', () => {
     afterEach(() => useLocaleStore.setState({ locale: 'en' }));
 

@@ -9,6 +9,7 @@ import mobileDeviceAllProjectsMigrationSql from './0003_mobile_device_all_projec
 import sessionCreatedByRelationMigrationSql from './0004_session_created_by_relation.sql?raw';
 import sessionCreatedByRelationCheckMigrationSql from './0005_session_created_by_relation_check.sql?raw';
 import sessionResultsMigrationSql from './0006_session_results.sql?raw';
+import delegationQuestionsMigrationSql from './0007_delegation_questions.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -55,6 +56,7 @@ export const migrationManifest = [
         sql: sessionCreatedByRelationCheckMigrationSql,
     },
     { tag: '0006_session_results', sql: sessionResultsMigrationSql },
+    { tag: '0007_delegation_questions', sql: delegationQuestionsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

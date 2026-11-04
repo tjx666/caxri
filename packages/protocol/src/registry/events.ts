@@ -9,6 +9,7 @@ import {
     agentMessageReceiptSchema,
 } from '../agent/agent-inbox-contract.js';
 import { agentProviderSchema } from '../agent/agents.js';
+import { delegationQuestionChangedSchema } from '../agent/delegation/agent-delegation-question.js';
 import { agentDelegationProgressSchema } from '../agent/delegation/agent-delegation-sessions.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
 import {
@@ -353,6 +354,11 @@ export const serverEventPayloads = {
      * `agent.delegation.sessions`.
      */
     'agent.delegation.progress': agentDelegationProgressSchema,
+    /**
+     * An open question of a delegated Session opened, escalated, or closed. Transient and ids-only: no question or
+     * answer text; a Client re-reads `agent.delegation.sessions`.
+     */
+    'agent.delegation.questionChanged': delegationQuestionChangedSchema,
     'keybindings.changed': configChangedSchema,
     'theme.changed': configChangedSchema,
     'updates.state': updateStateSchema,
