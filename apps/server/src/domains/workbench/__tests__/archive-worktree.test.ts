@@ -11,7 +11,11 @@ import { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
-import type { GitWorktreeTopology, LinkedWorktreeRemoval } from '../../git/index';
+import type {
+    GitWorktreeTopology,
+    LinkedWorktreeRemoval,
+    LinkedWorktreeRemovalInput,
+} from '../../git/index';
 import { ArchivedWorktreeCleanup } from '../archive-worktree';
 
 async function fixture(options: { isEnabled?: boolean; state?: SessionPullRequestState } = {}) {
@@ -35,9 +39,9 @@ async function fixture(options: { isEnabled?: boolean; state?: SessionPullReques
     };
     const isEnabled = options.isEnabled ?? true;
     const state = options.state;
-    const removeLinkedWorktree = vi.fn((): Promise<LinkedWorktreeRemoval> =>
-        Promise.resolve({ outcome: 'removed', isBackupCommitted: false }),
-    );
+    const removeLinkedWorktree = vi.fn<
+        (input: LinkedWorktreeRemovalInput) => Promise<LinkedWorktreeRemoval>
+    >(() => Promise.resolve({ outcome: 'removed', isBackupCommitted: false }));
     const stateChanges: FullStateChangeReason[] = [];
     const cleanup = new ArchivedWorktreeCleanup({
         database,
@@ -184,5 +188,76 @@ describe('ArchivedWorktreeCleanup', () => {
         context.cleanup.schedule(context.session.id, target!);
         await context.settle();
         expect(context.removeLinkedWorktree).not.toHaveBeenCalled();
+    });
+
+    it('drops the pending removal when the Session is restored inside the delay', async () => {
+        const context = await fixture({ state: 'merged' });
+        await context.archive();
+        context.database.unarchiveSessions([context.session.id]);
+        context.cleanup.withdraw([context.session.id]);
+        // Archive again choosing Keep: a timer the restore left behind would still remove the worktree.
+        context.database.archiveSession(context.session.id);
+        await context.settle();
+        expect(context.removeLinkedWorktree).not.toHaveBeenCalled();
+    });
+
+    it('keeps the worktree and the binding when the Session is restored while the removal runs', async () => {
+        const context = await fixture({ state: 'merged' });
+        const answers: boolean[] = [];
+        context.removeLinkedWorktree.mockImplementation((input) => {
+            // The user reopens the Session while the removal's Git probes and backup commit run.
+            context.database.unarchiveSessions([context.session.id]);
+            const isWanted = input.isStillWanted?.() ?? true;
+            answers.push(isWanted);
+            return Promise.resolve(
+                isWanted
+                    ? { outcome: 'removed', isBackupCommitted: false }
+                    : { outcome: 'refused', reason: 'withdrawn' },
+            );
+        });
+        await context.archive();
+        await context.settle();
+        expect(answers).toEqual([false]);
+        expect(context.database.getSession(context.session.id)?.workbenchRootProjectId).toBe(
+            context.worktree.id,
+        );
+        expect(context.stateChanges).toEqual([]);
+    });
+
+    it('keeps the worktree when the Session is restored and archived again with Keep while the removal runs', async () => {
+        const context = await fixture({ state: 'merged' });
+        const answers: boolean[] = [];
+        context.removeLinkedWorktree.mockImplementation(async (input) => {
+            context.database.unarchiveSessions([context.session.id]);
+            context.cleanup.withdraw([context.session.id]);
+            await context.archive('keep');
+            const isWanted = input.isStillWanted?.() ?? true;
+            answers.push(isWanted);
+            return isWanted
+                ? { outcome: 'removed', isBackupCommitted: false }
+                : { outcome: 'refused', reason: 'withdrawn' };
+        });
+        await context.archive();
+        await context.settle();
+        expect(answers).toEqual([false]);
+    });
+
+    it('keeps the worktree when another Session adopts it while the removal runs', async () => {
+        const context = await fixture({ state: 'merged' });
+        const answers: boolean[] = [];
+        context.removeLinkedWorktree.mockImplementation((input) => {
+            const { session: other } = context.database.createSession(context.owner.id, 'codex');
+            context.database.selectWorkbenchProject(other.id, context.worktree.id);
+            const isWanted = input.isStillWanted?.() ?? true;
+            answers.push(isWanted);
+            return Promise.resolve(
+                isWanted
+                    ? { outcome: 'removed', isBackupCommitted: false }
+                    : { outcome: 'refused', reason: 'withdrawn' },
+            );
+        });
+        await context.archive();
+        await context.settle();
+        expect(answers).toEqual([false]);
     });
 });

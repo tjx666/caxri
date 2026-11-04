@@ -27,6 +27,12 @@ export interface LinkedWorktreeRemovalInput {
      * Message of the commit that preserves non-ignored uncommitted changes on the worktree's branch.
      */
     backupMessage: string;
+    /**
+     * Re-proves, right before the directory is deleted, that the caller still wants it gone. The removal awaits several
+     * Git commands first, so a caller whose decision can be reversed meanwhile (a restored Session) answers `false` to
+     * keep the worktree; a backup commit already made stays on the branch.
+     */
+    isStillWanted?(): boolean;
 }
 
 export type LinkedWorktreeRemoval =
@@ -36,9 +42,10 @@ export type LinkedWorktreeRemoval =
           /**
            * `detached`: no branch holds HEAD, so commits made there and any backup commit would be reachable only
            * through the reflog. `operation-in-progress`: a merge, cherry-pick, or revert is half done, and a backup
-           * commit would record its conflict state as if it were finished.
+           * commit would record its conflict state as if it were finished. `withdrawn`: `isStillWanted` answered
+           * `false` before the directory was deleted.
            */
-          reason: 'detached' | 'operation-in-progress';
+          reason: 'detached' | 'operation-in-progress' | 'withdrawn';
       };
 
 /**
@@ -80,6 +87,7 @@ export async function removeLinkedWorktree(
         );
         isBackupCommitted = true;
     }
+    if (input.isStillWanted?.() === false) return { outcome: 'refused', reason: 'withdrawn' };
     await git(ownerRoot, ['worktree', 'remove', '--force', '--', rootPath], {
         timeoutMs: WORKTREE_MUTATION_TIMEOUT_MS,
     });

@@ -20,9 +20,10 @@ import type { ArchivedWorktreeCleanup } from './workbench';
 export interface SessionParkingOptions {
     database: CaxriDatabase;
     /**
-     * Removes an archived Session's worktree under `workbench.removeWorktreeOnArchive`; only `session.archive` uses it.
+     * Removes an archived Session's worktree under `workbench.removeWorktreeOnArchive`. `session.archive` schedules the
+     * removal; restoring a Session withdraws it.
      */
-    archivedWorktrees?: Pick<ArchivedWorktreeCleanup, 'plan' | 'prepare' | 'schedule'>;
+    archivedWorktrees?: Pick<ArchivedWorktreeCleanup, 'plan' | 'prepare' | 'schedule' | 'withdraw'>;
     agentChat: Pick<AgentChatService, 'closeSession'>;
     botRestores: Pick<TerminalRestoreSupervisor, 'cancelAll'>;
     mobileTerminalMutations: Pick<MobileTerminalMutationQueue, 'runProject' | 'runSessions'>;
@@ -116,6 +117,7 @@ function createSessionParkingHandlers(
         placement: SessionRestorePlacement,
     ) => {
         const restored = database.unarchiveSessions(sessionIds, placement);
+        options.archivedWorktrees?.withdraw(sessionIds);
         options.sendFullStateChange('session.unarchive');
         return restored;
     };
