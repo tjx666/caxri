@@ -620,10 +620,11 @@ Caller model/effort tuples remain whole replacements; exclusions, descriptions, 
 prepend and append retain their meaning. Import rejects unknown fields, invalid names, unsupported
 provider efforts, excessive depth or lengths, duplicate presets and invalid caller references.
 
-A rejected file reports value-free issues only: a stage, a path whose unknown keys are shown as `*`
-(caller provider ids and preset names already in the file are kept), and a reason from a closed set
-(`invalid_jsonc`, `too_large`, `unknown_field`, `missing`, `wrong_type`, `invalid_value`, `too_long`,
-`too_many`, `duplicate_name`, `unsupported_effort`, `unknown_preset`, `excluded_and_overridden`).
+A rejected file reports value-free issues only: a stage, a path, and a reason from a closed set. An
+unknown field is reported at the object that holds it (`agents.0: unknown_field`), never by its name;
+a record key that is not a provider id or a preset name defined in the file is shown as `*`. The
+reasons are `invalid_jsonc`, `too_large`, `unknown_field`, `missing`, `wrong_type`, `invalid_value`, `too_long`,
+`too_many`, `duplicate_name`, `unsupported_effort`, `unknown_preset` and `excluded_and_overridden`.
 Neither the wire error message, the logs nor the report contain file text or private instructions;
 Desktop and the CLI format the issues themselves. The preview result carries preset names, counts and
 depth, never instructions.
