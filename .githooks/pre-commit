@@ -32,7 +32,7 @@ bun run em-dash-check --staged
 # The same directory-density ratchet the `guards` job runs: it only changes when a file is added, deleted, or renamed
 # (a pure edit cannot move a directory's file count), so gate on those statuses and skip it for ordinary edits.
 if git diff --cached --name-status --diff-filter=ADR | grep -q .; then
-    bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts
+    bunx vitest run scripts/__tests__/directory-density-ratchet.test.ts scripts/__tests__/flat-family-ratchet.test.ts
 fi
 
 # The i18n contracts read the aggregated locale resources, which import discovery cannot trace to a catalog edit; the
