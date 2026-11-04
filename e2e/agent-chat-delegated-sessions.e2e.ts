@@ -76,7 +76,7 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
         // The parent is now a hidden kept-alive Chat: it must not read task states while the child's pushes arrive.
         const hiddenStatusReads = await countRequests(chat.userData, 'agent.delegation.statuses');
         const origin = session.locator('[data-agent-chat-delegation-origin="delegated"]');
-        await expect(origin).toContainText(`Delegated from ${parent.title}`);
+        await expect(origin).toContainText(`Delegated by ${parent.title}`);
         await expect(origin).toContainText('The result goes back automatically');
         await expect(origin).toContainText('takes over this Session');
         const bubble = session.locator('[data-agent-chat-delegated-task]');

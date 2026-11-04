@@ -3,14 +3,12 @@ import { agentProviderCatalog } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
 import { chooseSessionSignIn } from '../session/session-creation-commands';
+import { DELEGATION_LINK_CLASS_NAME } from './delegation-link-class-name';
 import { delegationNextSteps } from './delegation-next-step';
 import {
     delegationSignInCommand,
     openDelegatedAgentHooksSettings,
 } from './delegation-next-step-commands';
-
-const NEXT_STEP_LINK_CLASS_NAME =
-    'cursor-pointer border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-45';
 
 /**
  * The failure-specific actions that come before Retry on a failed delegated task: "Sign in" for a signed-out Agent and
@@ -44,7 +42,7 @@ export function DelegationNextStepActions({
                         provider: providerName,
                         title: sessionTitle,
                     })}
-                    className={NEXT_STEP_LINK_CLASS_NAME}
+                    className={DELEGATION_LINK_CLASS_NAME}
                     data-delegation-sign-in={provider}
                     type="button"
                     onClick={() => chooseSessionSignIn(projectId, signInCommand)}
@@ -58,7 +56,7 @@ export function DelegationNextStepActions({
                         provider: providerName,
                         title: sessionTitle,
                     })}
-                    className={NEXT_STEP_LINK_CLASS_NAME}
+                    className={DELEGATION_LINK_CLASS_NAME}
                     data-delegation-enable-hooks={provider}
                     type="button"
                     onClick={() => openDelegatedAgentHooksSettings(provider)}

@@ -7,7 +7,12 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { translate, useLocaleStore } from '../../../i18n';
-import { approvalCardNote, delegationCopy, delegationCopyInput } from '../delegation-copy';
+import {
+    approvalCardNote,
+    delegationCopy,
+    delegationCopyInput,
+    isDelegationCopyClockDependent,
+} from '../delegation-copy';
 
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
@@ -374,5 +379,13 @@ describe('delegationCopy with a scheduled retry', () => {
                 expect(detail.length).toBeGreaterThan(0);
             }
         }
+    });
+});
+
+describe('isDelegationCopyClockDependent', () => {
+    it('reads the clock only for a reset time or a scheduled retry', () => {
+        expect(isDelegationCopyClockDependent({})).toBe(false);
+        expect(isDelegationCopyClockDependent({ failureResetsAt: 1 })).toBe(true);
+        expect(isDelegationCopyClockDependent({ retryScheduledFor: 1 })).toBe(true);
     });
 });

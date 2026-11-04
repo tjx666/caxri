@@ -6,6 +6,8 @@ import type {
 import { MAX_ANSWER_TEXT_CHARS } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
+import type { ImeKeyboardEventLike } from '../../lib/ime';
+import { isImeComposing } from '../../lib/ime';
 
 /**
  * How the question card of one delegated Session shows:
@@ -55,4 +57,14 @@ export function delegationQuestionOptions(
     question: Pick<DelegationQuestionDetail, 'options'> | undefined,
 ): readonly string[] {
     return question?.options ?? [];
+}
+
+/**
+ * Whether a keydown in the answer field sends it: Cmd/Ctrl+Enter, never while an input method is composing (Enter then
+ * belongs to the candidate window).
+ */
+export function isDelegationAnswerSendKey(
+    event: ImeKeyboardEventLike & { ctrlKey: boolean; key: string; metaKey: boolean },
+): boolean {
+    return event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !isImeComposing(event);
 }

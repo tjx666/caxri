@@ -2,7 +2,7 @@ import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
 import { useCaxriQuery } from '../../../../queries/client';
 import type { DelegatedCostLabel } from './agent-chat-delegated-cost';
-import { formatCostAmount } from './agent-chat-delegated-cost';
+import { delegatedSessionCountLabel, formatCostAmount } from './agent-chat-delegated-cost';
 
 /**
  * The tooltip's body. Mounted only while the tooltip is open, so the Chat's own cost is read when someone asks for it
@@ -21,6 +21,7 @@ function DelegatedCostTooltipBody({
 }) {
     const { t } = useTranslation();
     const { data } = useCaxriQuery('usage.sessionCost', { sessionId }, { staleTime: 30_000 });
+    const sessions = delegatedSessionCountLabel(delegatedSessions, t);
     const delegated = formatCostAmount(delegatedCostUsd, delegatedIsPartial) ?? '';
     const own =
         data?.costUsd === undefined
@@ -32,14 +33,10 @@ function DelegatedCostTooltipBody({
             <span className="tabular-nums">
                 {own === undefined
                     ? t('delegation.strip.cost.parentDelegatedOnly', {
-                          count: delegatedSessions,
                           delegated,
+                          sessions,
                       })
-                    : t('delegation.strip.cost.parent', {
-                          count: delegatedSessions,
-                          delegated,
-                          own,
-                      })}
+                    : t('delegation.strip.cost.parent', { delegated, own, sessions })}
             </span>
         </span>
     );
