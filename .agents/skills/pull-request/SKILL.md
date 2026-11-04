@@ -65,6 +65,19 @@ or cancels the delivery, or a concrete blocker requires their input.
    Create the PR only after that push exits 0 and `git ls-remote origin refs/heads/<branch>` equals
    the local `HEAD`: a push rejected against a stale same-named remote branch, followed by
    `gh pr create` after a `;`, opened a PR showing five unrelated months-old commits.
+   When a fetch, push, or `ls-remote` against `origin` fails with `Permission denied (publickey)`
+   while `gh auth status` succeeds, rerun the same command over HTTPS through `gh`'s credential
+   helper. The URL rewrite keeps the `origin` name, so `origin/*` refs still update:
+
+   ```bash
+   git -c url.https://github.com/.insteadOf=git@github.com: -c credential.helper= \
+     -c 'credential.helper=!gh auth git-credential' push origin HEAD:refs/heads/<branch>
+   ```
+
+   Do not run `git remote set-url` instead: every worktree and the primary checkout share one
+   `.git/config`. `ssh-add -l` printing "The agent has no identities" means the machine's SSH agent
+   has no key loaded, which the owner fixes outside the repository.
+
 5. Create or update the PR with an English title and body that describe observable behavior,
    validation, non-goals, and closing issue links. A ready PR records affected E2E but never starts
    the full suite automatically, and the import graph cannot see which Electron workflows a
