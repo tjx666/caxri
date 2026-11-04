@@ -45,10 +45,19 @@ export type CliFailureKind =
 
 export type FailureReason = CliFailureKind | 'invalid-arguments' | 'no-pull-request';
 
+export interface ExternalStatusRunOptions {
+    /**
+     * Overrides the default 8-second budget sized for status reads. A mutation such as `gh pr merge` waits on GitHub's
+     * own merge work, and killing it mid-flight does not cancel that work: it only loses the answer.
+     */
+    timeoutMs?: number;
+}
+
 export type ExternalStatusRunner = (
     source: ExternalStatusSource,
     arguments_: readonly string[],
     cwd: string,
+    options?: ExternalStatusRunOptions,
 ) => Promise<string>;
 
 export interface ExternalStatusCommandDependencies extends ExternalCommandDependencies {
@@ -249,13 +258,14 @@ async function runCli(
     cwd: string,
     dependencies: ExternalStatusCommandDependencies,
     extraEnvironment: NodeJS.ProcessEnv = {},
+    timeoutMs = CLI_TIMEOUT_MS,
 ): Promise<string> {
     const { stdout } = await runExternalCommand(
         source,
         arguments_,
         {
             cwd,
-            timeout: CLI_TIMEOUT_MS,
+            timeout: timeoutMs,
             maxBuffer: CLI_MAX_BUFFER_BYTES,
             env: {
                 CI: '1',
@@ -302,6 +312,7 @@ async function runGitHubCli(
     arguments_: readonly string[],
     cwd: string,
     dependencies: ExternalStatusCommandDependencies,
+    timeoutMs?: number,
 ): Promise<string> {
     const tokens =
         dependencies.githubToken ??
@@ -311,7 +322,14 @@ async function runGitHubCli(
     const read = await tokens.read();
     if (read.kind === 'parked') throw externalStatusCliError('gh', read.error);
     try {
-        return await runCli('gh', arguments_, cwd, dependencies, { GH_TOKEN: read.token });
+        return await runCli(
+            'gh',
+            arguments_,
+            cwd,
+            dependencies,
+            { GH_TOKEN: read.token },
+            timeoutMs,
+        );
     } catch (error) {
         const failure = externalStatusCliError('gh', error);
         if (failure.kind === 'not-logged-in' || /HTTP 401|Bad credentials/i.test(failure.message))
@@ -324,8 +342,10 @@ export async function runExternalStatusCommand(
     source: ExternalStatusSource,
     arguments_: readonly string[],
     cwd: string,
+    options: ExternalStatusRunOptions = {},
     dependencies: ExternalStatusCommandDependencies = {},
 ): Promise<string> {
+    const timeoutMs = options.timeoutMs ?? CLI_TIMEOUT_MS;
     try {
         if (source === 'git') {
             // `git` ships with macOS, so it skips login-shell resolution and stays on the sanitized
@@ -333,14 +353,14 @@ export async function runExternalStatusCommand(
             const run = dependencies.run ?? execFileInProcessGroup;
             const { stdout } = await run('git', [...arguments_], {
                 cwd,
-                timeout: CLI_TIMEOUT_MS,
+                timeout: timeoutMs,
                 maxBuffer: CLI_MAX_BUFFER_BYTES,
                 env: { ...safeProcessEnvironment(), CI: '1', LC_ALL: 'C' },
             });
             return stdout;
         }
-        if (source === 'gh') return await runGitHubCli(arguments_, cwd, dependencies);
-        return await runCli(source, arguments_, cwd, dependencies);
+        if (source === 'gh') return await runGitHubCli(arguments_, cwd, dependencies, timeoutMs);
+        return await runCli(source, arguments_, cwd, dependencies, {}, timeoutMs);
     } catch (error) {
         throw externalStatusCliError(source, error);
     }

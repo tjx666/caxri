@@ -260,6 +260,7 @@ describe('BotInboxService', () => {
                 VERIFIED_SHA,
             ],
             expect.any(String),
+            { timeoutMs: 60_000 },
         );
         expect(forget).toHaveBeenCalledWith('acme', 'widgets', 7);
         expect(notices).toEqual([[item.id, 'merged']]);
@@ -292,6 +293,7 @@ describe('BotInboxService', () => {
             'gh',
             expect.arrayContaining(['--match-head-commit', VERIFIED_SHA]),
             expect.any(String),
+            { timeoutMs: 60_000 },
         );
     });
 

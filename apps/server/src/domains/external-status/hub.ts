@@ -53,10 +53,10 @@ export class ExternalStatusHub {
      * {@link GitHubPullRequestStore}; the arrow reads `this.base` and `this.limiter` at call time, after the constructor
      * has assigned them.
      */
-    readonly run: ExternalStatusRunner = (source, arguments_, cwd) =>
+    readonly run: ExternalStatusRunner = (source, arguments_, cwd, options) =>
         source === 'git'
-            ? this.scheduleGit(cwd, arguments_, () => this.base(source, arguments_, cwd))
-            : this.limiter.guard(source, () => this.base(source, arguments_, cwd));
+            ? this.scheduleGit(cwd, arguments_, () => this.base(source, arguments_, cwd, options))
+            : this.limiter.guard(source, () => this.base(source, arguments_, cwd, options));
 
     constructor(options: ExternalStatusHubOptions = {}) {
         this.base = options.runner ?? runExternalStatusCommand;

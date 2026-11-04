@@ -18,9 +18,16 @@ function fixedToken(token = 'gho_fixture'): GitHubTokenCache {
 describe('runExternalStatusCommand', () => {
     it('preserves numeric process exit codes for diagnostics', async () => {
         await expect(
-            runExternalStatusCommand('git', ['status'], '/fixture', {
-                run: () => Promise.reject(Object.assign(new Error('fixture failure'), { code: 2 })),
-            }),
+            runExternalStatusCommand(
+                'git',
+                ['status'],
+                '/fixture',
+                {},
+                {
+                    run: () =>
+                        Promise.reject(Object.assign(new Error('fixture failure'), { code: 2 })),
+                },
+            ),
         ).rejects.toMatchObject({ command: 'git', kind: 'other', exitCode: 2 });
     });
 
@@ -35,13 +42,19 @@ describe('runExternalStatusCommand', () => {
             );
 
             await expect(
-                runExternalStatusCommand(command, ['status'], '/repo', {
-                    githubToken: fixedToken(),
-                    resolveExecutable,
-                    environment: () =>
-                        Promise.resolve({ HOME: '/home/user', PATH: '/login/bin:/usr/bin' }),
-                    run,
-                }),
+                runExternalStatusCommand(
+                    command,
+                    ['status'],
+                    '/repo',
+                    {},
+                    {
+                        githubToken: fixedToken(),
+                        resolveExecutable,
+                        environment: () =>
+                            Promise.resolve({ HOME: '/home/user', PATH: '/login/bin:/usr/bin' }),
+                        run,
+                    },
+                ),
             ).resolves.toBe('ok');
             expect(resolveExecutable).toHaveBeenCalledWith(command);
             expect(run).toHaveBeenCalledOnce();
@@ -65,9 +78,15 @@ describe('runExternalStatusCommand', () => {
 
     it('preserves the not-found classification for a genuinely missing CLI', async () => {
         await expect(
-            runExternalStatusCommand('gh', [], '/repo', {
-                resolveExecutable: () => Promise.resolve(undefined),
-            }),
+            runExternalStatusCommand(
+                'gh',
+                [],
+                '/repo',
+                {},
+                {
+                    resolveExecutable: () => Promise.resolve(undefined),
+                },
+            ),
         ).rejects.toMatchObject({ command: 'gh', kind: 'not-found' });
     });
 
@@ -101,31 +120,72 @@ describe('runExternalStatusCommand', () => {
         ['HTTP 403: API rate limit exceeded for user', 'rate-limited'],
     ] as const)('classifies %s for the status UI', async (message, kind) => {
         await expect(
-            runExternalStatusCommand('vc', ['ls'], '/repo', {
-                resolveExecutable: () => Promise.resolve('/login/bin/vc'),
-                run: () => Promise.reject(new Error(message)),
-            }),
+            runExternalStatusCommand(
+                'vc',
+                ['ls'],
+                '/repo',
+                {},
+                {
+                    resolveExecutable: () => Promise.resolve('/login/bin/vc'),
+                    run: () => Promise.reject(new Error(message)),
+                },
+            ),
         ).rejects.toMatchObject({ command: 'vc', kind });
+    });
+
+    it('keeps the default read budget unless a caller asks for a longer one', async () => {
+        const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>(() =>
+            Promise.resolve({ stdout: '', stderr: '' }),
+        );
+        const dependencies = {
+            githubToken: fixedToken(),
+            resolveExecutable: () => Promise.resolve('/bin/gh'),
+            run,
+        };
+
+        await runExternalStatusCommand('gh', ['pr', 'view'], '/repo', {}, dependencies);
+        await runExternalStatusCommand(
+            'gh',
+            ['pr', 'merge'],
+            '/repo',
+            { timeoutMs: 60_000 },
+            dependencies,
+        );
+
+        expect(run.mock.calls.map((call) => call[2].timeout)).toEqual([8000, 60_000]);
     });
 
     it('classifies gh exit code 4 under CI=1 as not-logged-in', async () => {
         await expect(
-            runExternalStatusCommand('gh', ['pr', 'view'], '/repo', {
-                resolveExecutable: () => Promise.resolve('/bin/gh'),
-                run: () =>
-                    Promise.reject(
-                        Object.assign(new Error('Command failed'), {
-                            code: 4,
-                            stderr: 'gh: To use GitHub CLI in automation, set the GH_TOKEN environment variable.',
-                        }),
-                    ),
-            }),
+            runExternalStatusCommand(
+                'gh',
+                ['pr', 'view'],
+                '/repo',
+                {},
+                {
+                    resolveExecutable: () => Promise.resolve('/bin/gh'),
+                    run: () =>
+                        Promise.reject(
+                            Object.assign(new Error('Command failed'), {
+                                code: 4,
+                                stderr: 'gh: To use GitHub CLI in automation, set the GH_TOKEN environment variable.',
+                            }),
+                        ),
+                },
+            ),
         ).rejects.toMatchObject({ command: 'gh', kind: 'not-logged-in' });
         await expect(
-            runExternalStatusCommand('vc', ['ls'], '/repo', {
-                resolveExecutable: () => Promise.resolve('/bin/vc'),
-                run: () => Promise.reject(Object.assign(new Error('x'), { code: 4, stderr: 'x' })),
-            }),
+            runExternalStatusCommand(
+                'vc',
+                ['ls'],
+                '/repo',
+                {},
+                {
+                    resolveExecutable: () => Promise.resolve('/bin/vc'),
+                    run: () =>
+                        Promise.reject(Object.assign(new Error('x'), { code: 4, stderr: 'x' })),
+                },
+            ),
         ).rejects.toMatchObject({ command: 'vc', kind: 'other' });
     });
 
@@ -144,18 +204,30 @@ describe('runExternalStatusCommand', () => {
         };
         const githubToken = new GitHubTokenCache(
             () =>
-                runExternalStatusCommand('gh', ['auth', 'token'], '/home', {
-                    ...dependencies,
-                    githubToken: fixedToken('unused'),
-                }),
+                runExternalStatusCommand(
+                    'gh',
+                    ['auth', 'token'],
+                    '/home',
+                    {},
+                    {
+                        ...dependencies,
+                        githubToken: fixedToken('unused'),
+                    },
+                ),
             () => false,
         );
         await Promise.all(
             ['a', 'b', 'c'].map((repo) =>
-                runExternalStatusCommand('gh', ['pr', 'view', repo], '/repo', {
-                    ...dependencies,
-                    githubToken,
-                }),
+                runExternalStatusCommand(
+                    'gh',
+                    ['pr', 'view', repo],
+                    '/repo',
+                    {},
+                    {
+                        ...dependencies,
+                        githubToken,
+                    },
+                ),
             ),
         );
         const authReads = run.mock.calls.filter(([, arguments_]) => arguments_[0] === 'auth');
@@ -181,10 +253,10 @@ describe('runExternalStatusCommand', () => {
             run,
         };
         await expect(
-            runExternalStatusCommand('gh', ['pr', 'list'], '/repo', dependencies),
+            runExternalStatusCommand('gh', ['pr', 'list'], '/repo', {}, dependencies),
         ).rejects.toMatchObject({ command: 'gh', kind: 'other' });
         await expect(
-            runExternalStatusCommand('gh', ['pr', 'list'], '/repo', dependencies),
+            runExternalStatusCommand('gh', ['pr', 'list'], '/repo', {}, dependencies),
         ).rejects.toMatchObject({ command: 'gh' });
         expect(run).not.toHaveBeenCalled();
     });
@@ -194,16 +266,22 @@ describe('runExternalStatusCommand', () => {
             Promise.resolve({ stdout: 'ok', stderr: '' }),
         );
 
-        await runExternalStatusCommand('linear', ['api', 'query'], '/repo', {
-            resolveExecutable: () => Promise.resolve('/login/bin/linear'),
-            environment: () =>
-                Promise.resolve({
-                    HOME: '/home/user',
-                    LINEAR_API_KEY: 'stale-project-key',
-                    PATH: '/login/bin',
-                }),
-            run,
-        });
+        await runExternalStatusCommand(
+            'linear',
+            ['api', 'query'],
+            '/repo',
+            {},
+            {
+                resolveExecutable: () => Promise.resolve('/login/bin/linear'),
+                environment: () =>
+                    Promise.resolve({
+                        HOME: '/home/user',
+                        LINEAR_API_KEY: 'stale-project-key',
+                        PATH: '/login/bin',
+                    }),
+                run,
+            },
+        );
 
         expect(run.mock.calls[0]?.[2].env).toMatchObject({ LINEAR_API_KEY: '' });
     });
