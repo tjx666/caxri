@@ -4,7 +4,6 @@ import type { WatchedJob, WatchState } from '../watch-ci';
 import {
     buildWatchState,
     canFollowSharedState,
-    formatCiNotification,
     formatRunSummary,
     isHeartbeatStale,
     isRunSettled,
@@ -12,6 +11,7 @@ import {
     nextBackoffMs,
     withDeadline,
 } from '../watch-ci';
+import { formatCiNotification, shouldDeliverDesktopNotification } from '../watch-ci-notification';
 
 const job = (name: string, status: string, conclusion: string): WatchedJob => ({
     conclusion,
@@ -297,5 +297,21 @@ describe('formatCiNotification for a skipped run', () => {
         });
         expect(notification.title).toBe('CI passed · run 5');
         expect(notification.message).toBe('Release macOS skipped');
+    });
+});
+
+describe('shouldDeliverDesktopNotification', () => {
+    const settled = { conclusion: 'success', status: 'completed', workflowName: 'Release macOS' };
+
+    it('delivers only a successful Release macOS run', () => {
+        expect(shouldDeliverDesktopNotification(settled)).toBe(true);
+    });
+
+    it('keeps ordinary CI results, failures, and early job failures console-only', () => {
+        expect(shouldDeliverDesktopNotification({ ...settled, workflowName: 'CI' })).toBe(false);
+        expect(shouldDeliverDesktopNotification({ ...settled, conclusion: 'failure' })).toBe(false);
+        expect(shouldDeliverDesktopNotification({ ...settled, conclusion: 'skipped' })).toBe(false);
+        expect(shouldDeliverDesktopNotification({ ...settled, status: 'in_progress' })).toBe(false);
+        expect(shouldDeliverDesktopNotification(settled, ['package'])).toBe(false);
     });
 });
