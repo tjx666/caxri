@@ -91,7 +91,7 @@ export interface SettingsRegistry {
  * with the `row.accessibleTitle` uses in `setting-row.tsx`.
  */
 export const titleNamedBindings = new Set<SettingRowBinding['type']>([
-    'delegation-depth',
+    'delegation-field',
     'hardware-acceleration',
     'remote-debugging',
     'setting',

@@ -30,6 +30,7 @@ caxri agent delegate create --project <project-id> --session <session-id> \
 caxri agent delegate status <delegation-id> --json
 caxri agent delegate wait <delegation-id> [<delegation-id>...] --timeout 30000 --json
 caxri agent delegate result <delegation-id> --json
+caxri agent delegate transcript <delegation-id> [--after <cursor>] --json
 caxri agent delegate stop <delegation-id> --json
 caxri agent delegate list [--active] [--limit <count>] --json
 caxri agent delegate create --project <project-id> --session <session-id> \
@@ -188,6 +189,43 @@ absent until a lookup has seen one. It describes the Session, not the task: `cha
 counts every file the whole pull request changes, and is absent when GitHub reported no count.
 Caxri does not attribute files to one task, so no answer reports a task-scoped file count.
 
+### Reading a delegated Chat
+
+`agent delegate transcript <id>` (`agent.delegation.transcript`) lets the Agent that delegated a
+task read what the task's Agent Chat did so far, to check its progress without interrupting it. It
+holds the same `agents.delegate` capability and ownership rule as `result`, and it never counts as
+reading the answer: the task stays unread until `result` or `wait` returns it.
+
+The page covers only the task's own conversation: from the message that started the task (shown as
+a `task` row, without repeating the prompt) up to the next message anyone sent that Chat, which is
+a later task or the user's first message after taking it over. Rows are typed (`agentMessage`,
+`reasoning`, `command`, `fileChange`, `toolCall`, `notice`) and leave out diffs, images, and tool
+arguments. A page holds at most 100 rows and 64K characters of text; a longer field is clipped to
+8K characters (command output keeps its tail) and the row is marked `truncated`, and a file change
+lists at most 50 paths. Pass the page's `next` as `--after` to read only newer rows, and `settled`
+says the task's Agent is done. A row that can still change (a message or reasoning still being
+written, marked `streaming: true`, or a step whose `status` is `running`) is never read past: the
+next read returns it and every row after it again, so a reader replaces an earlier row with the
+later copy of the same `id`. While a row is held open, `hasMore` is false: read again later instead
+of at once. Two cases never hold, so every row stays reachable: a settled task (a background command
+may keep `running` after the Agent finished), and a full page that starts at the open row, which
+moves on and reports `hasMore`; read without `--after` once the task settles to see such a step's
+final state.
+
+The read uses the Chat already loaded in Server Core and never starts the Agent. An `unavailable`
+answer carries a closed `reason`:
+
+| Reason              | Meaning                                                                                            |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| `disabled`          | The owner turned `agents.delegation.readChildChat` off.                                            |
+| `not_started`       | The task has no Agent yet.                                                                         |
+| `not_chat`          | The task runs in a Terminal; read its answer with `result` instead.                                |
+| `projection_lost`   | The Chat is not loaded (closed, or Server Core restarted).                                         |
+| `boundary_unproven` | The Chat no longer shows where the task began, so no row can be proven to belong to it.            |
+| `cursor_invalid`    | `--after` came from another task or an earlier version of the conversation; read again without it. |
+
+A task Caxri already pruned reads as `NOT_FOUND`, like `result`.
+
 ## Presets and caller policy
 
 Configure `agents.delegation` in the profile's Settings JSON. No preset or model preference is
@@ -197,6 +235,7 @@ installed automatically. The default maximum depth is two; supported values are 
 {
   "agents.delegation": {
     "maxDepth": 2,
+    "readChildChat": true,
     "presets": [
       {
         "name": "review",

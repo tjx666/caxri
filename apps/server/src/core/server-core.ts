@@ -25,6 +25,7 @@ import {
     agentSessionRequest,
     sessionImportRequest,
 } from './agent-command-request';
+import { agentEndpointRequest } from './agent-endpoint-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
 import { sendAgentMessage } from './agent-message-send';
@@ -247,24 +248,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         ),
                     };
                 case 'agent.context':
-                    return agentEndpoints.context(context);
                 case 'agent.list':
-                    return { agents: agentEndpoints.list(context) };
                 case 'agent.grants':
-                    return { grants: agentEndpoints.grants(request.params.endpoint) };
                 case 'agent.grant':
-                    return agentEndpoints.grant(
-                        request.params.endpoint,
-                        request.params.policy,
-                        request.params.ttlMs,
-                    );
                 case 'agent.revoke':
-                    return {
-                        revoked: agentEndpoints.revoke(
-                            request.params.endpoint,
-                            request.params.grantId,
-                        ),
-                    };
+                    return agentEndpointRequest(request, context, agentEndpoints);
                 case 'agent.dispatch.start':
                 case 'agent.dispatch.resume':
                 case 'agent.delegation.create':
@@ -272,6 +260,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.stop':
                 case 'agent.delegation.status':
                 case 'agent.delegation.result':
+                case 'agent.delegation.transcript':
                 case 'agent.delegation.list':
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),

@@ -6,6 +6,8 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import { delegationStatuses } from './feed';
 import type { AgentDelegationService } from './service';
+import type { DelegationTranscriptSource } from './transcript';
+import { readDelegationChatPage } from './transcript';
 
 type DelegationMethod =
     | 'agent.delegation.presets'
@@ -26,7 +28,18 @@ type DelegationMethod =
     | 'agent.delegation.waitInternal'
     | 'agent.delegation.createInternal'
     | 'agent.delegation.statusInternal'
-    | 'agent.delegation.resultInternal';
+    | 'agent.delegation.resultInternal'
+    | 'agent.delegation.transcript'
+    | 'agent.delegation.transcriptInternal';
+
+/**
+ * Stands in when no Chat service is wired (a unit test): every task reads as not loaded.
+ */
+const NO_TRANSCRIPTS: DelegationTranscriptSource = {
+    readChildChat: () => true,
+    isChatTerminal: () => true,
+    snapshot: () => {},
+};
 
 /**
  * An answer returned to a caller counts as read, which makes its record evictable under capacity pressure. Background
@@ -76,8 +89,12 @@ function withPullRequest<
 export function createDelegationHandlers(
     service: AgentDelegationService,
     database: CaxriDatabase,
-    pullRequests?: DelegationPullRequestSource,
+    sources: {
+        pullRequests?: DelegationPullRequestSource;
+        transcripts?: DelegationTranscriptSource;
+    } = {},
 ): Pick<DomainHandlers, DelegationMethod> {
+    const { pullRequests, transcripts = NO_TRANSCRIPTS } = sources;
     return {
         /**
          * Owner-only (enforced from the method spec before this runs) and never `claimed`: the feed reads summaries,
@@ -143,6 +160,17 @@ export function createDelegationHandlers(
             withPullRequest(
                 pullRequests,
                 claimed(database, await service.result(delegationId, authority)),
+            ),
+        'agent.delegation.transcript': () => coreRouted('agent.delegation.transcript'),
+        /**
+         * Under the same ownership rule as `result`, but never `claimed`: reading the conversation is not reading the
+         * answer, which must stay unread until the delegating Agent asks for it.
+         */
+        'agent.delegation.transcriptInternal': ({ delegationId, after, ...authority }) =>
+            readDelegationChatPage(
+                transcripts,
+                service.owned(delegationId, authority, 'existing'),
+                after,
             ),
     };
 }

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { SessionPullRequest } from '@caxri/protocol';
-import { expect, it, onTestFinished } from 'vitest';
+import { expect, it, onTestFinished, vi } from 'vitest';
 
 import type { StoredAgentDelegation } from '../../db';
 import { CaxriDatabase } from '../../db';
@@ -56,12 +56,33 @@ async function fixture(pullRequest?: SessionPullRequest) {
         const record = database.agentDelegations.get(id)!;
         return Promise.resolve({ receipt: record.receipt, answer: record.answer });
     };
+    const owned = vi.fn((id: string) => database.agentDelegations.get(id));
     const service = {
         result: read,
+        owned,
         wait: async (ids: readonly string[]) => ({ ...(await read(ids[0])), outcome: 'settled' }),
     } as unknown as AgentDelegationService;
     const pullRequests = { pullRequest: () => pullRequest };
-    return { database, make, handlers: createDelegationHandlers(service, database, pullRequests) };
+    const transcripts = {
+        readChildChat: () => true,
+        isChatTerminal: () => true,
+        snapshot: () => ({
+            items: [
+                {
+                    id: 'start',
+                    type: 'userMessage' as const,
+                    text: 'Pointer',
+                    delegatedTask: { delegationId: 'done' },
+                },
+            ],
+        }),
+    };
+    return {
+        database,
+        make,
+        owned,
+        handlers: createDelegationHandlers(service, database, { pullRequests, transcripts }),
+    };
 }
 
 it('claims a completed answer once wait or result returns it', async () => {
@@ -147,4 +168,19 @@ it('omits a file count GitHub did not report, and a pull request the Session has
         state: 'open',
     });
     expect(withoutPullRequest).not.toHaveProperty('pullRequest');
+});
+
+it('reads a delegated Chat under the owner check without marking the answer read', async () => {
+    const { database, make, owned, handlers } = await fixture();
+    const done = make('done', 'completed', true);
+    database.agentDelegations.insert({ ...done, receipt: { ...done.receipt, terminalId: 't' } });
+
+    const page = await handlers['agent.delegation.transcriptInternal'](
+        { delegationId: 'done', ...authority },
+        undefined,
+    );
+
+    expect(owned).toHaveBeenCalledWith('done', authority, 'existing');
+    expect(page).toMatchObject({ status: 'available', settled: true, rows: [{ kind: 'task' }] });
+    expect(database.agentDelegations.get('done')?.collectedAt).toBeUndefined();
 });

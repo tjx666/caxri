@@ -82,12 +82,12 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             );
         case 'files-exclude':
             return !isEqual(settings[binding.key], defaultAppSettings[binding.key]);
-        case 'delegation-depth':
-            // Only the depth belongs to this row; hand-written presets and caller bindings are edited in the source
+        case 'delegation-field':
+            // Only its own field belongs to this row; hand-written presets and caller bindings are edited in the source
             // view and must not light up a row that cannot show them.
             return (
-                settings['agents.delegation'].maxDepth !==
-                defaultAppSettings['agents.delegation'].maxDepth
+                settings['agents.delegation'][binding.field] !==
+                defaultAppSettings['agents.delegation'][binding.field]
             );
         case 'remote-debugging':
             return argvConfig !== undefined && !argvConfig.remoteDebugging;
@@ -222,15 +222,15 @@ export function rowResetAction(
                 key: binding.key,
                 value: structuredClone(defaultAppSettings[binding.key]),
             };
-        case 'delegation-depth':
-            // Restores only the depth; the presets and caller bindings the user wrote survive the reset.
+        case 'delegation-field':
+            // Restores only its own field; the presets and caller bindings the user wrote survive the reset.
             return {
                 kind: 'field',
                 key: 'agents.delegation',
-                member: 'maxDepth',
+                member: binding.field,
                 value: {
                     ...settings['agents.delegation'],
-                    maxDepth: defaultAppSettings['agents.delegation'].maxDepth,
+                    [binding.field]: defaultAppSettings['agents.delegation'][binding.field],
                 },
             };
         case 'remote-debugging':

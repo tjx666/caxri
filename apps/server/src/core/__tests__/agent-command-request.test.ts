@@ -1,7 +1,8 @@
 import type { CommandExecutionContext } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { sessionImportRequest } from '../agent-command-request';
+import { agentCommandRequest, sessionImportRequest } from '../agent-command-request';
+import type { AgentEndpointRegistry } from '../agent-endpoints/registry';
 
 const contextFor = (kind: string, projectIds: string[] = []): CommandExecutionContext =>
     ({ principal: { kind, projectIds } }) as unknown as CommandExecutionContext;
@@ -31,5 +32,30 @@ describe('sessionImportRequest', () => {
             expect(() => sessionImportRequest(request, contextFor(kind, ['project-1']))).toThrow(
                 /owner or an Agent/,
             );
+    });
+});
+
+describe('agentCommandRequest', () => {
+    it('routes a transcript read to its own internal method with the cursor, never to the answer read', () => {
+        const context = contextFor('human-cli');
+        expect(
+            agentCommandRequest(
+                {
+                    method: 'agent.delegation.transcript',
+                    params: { delegationId: 'task-1', after: 'cursor' },
+                },
+                context,
+                'request-1',
+                {} as AgentEndpointRegistry,
+            ),
+        ).toEqual({
+            method: 'agent.delegation.transcriptInternal',
+            params: {
+                principal: context.principal,
+                callerTerminalId: undefined,
+                delegationId: 'task-1',
+                after: 'cursor',
+            },
+        });
     });
 });

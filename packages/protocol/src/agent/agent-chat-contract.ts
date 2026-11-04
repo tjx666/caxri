@@ -49,7 +49,7 @@ const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
  * Lifecycle of one structured tool-like item. `interrupted` is Caxri's own closure for an item the provider left open
  * when its turn ended.
  */
-const agentChatItemStatusSchema = z.enum([
+export const agentChatItemStatusSchema = z.enum([
     'running',
     'completed',
     'failed',

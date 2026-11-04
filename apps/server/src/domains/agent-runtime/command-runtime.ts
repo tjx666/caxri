@@ -236,7 +236,15 @@ export function createAgentCommandRuntime(
         dispatchService,
         delegationService,
         handlers: {
-            ...createDelegationHandlers(delegationService, options.database, options.pullRequests),
+            ...createDelegationHandlers(delegationService, options.database, {
+                pullRequests: options.pullRequests,
+                transcripts: {
+                    readChildChat: () => options.settings()['agents.delegation'].readChildChat,
+                    isChatTerminal: (terminalId) => chatOf(terminalId) !== undefined,
+                    snapshot: (terminalId) => chatOf(terminalId)?.delegation.snapshot(terminalId),
+                    logger: options.logger,
+                },
+            }),
             ...createAgentCommandHandlers({
                 ...options,
                 dispatch: dispatchService,

@@ -14,6 +14,10 @@ import {
     delegationRosterSchema,
     delegationSelectionSchema,
 } from './agent-delegation-settings.js';
+import {
+    agentDelegationTranscriptSchema,
+    delegationTranscriptParametersSchema as delegationTranscriptParametersSchema,
+} from './agent-delegation-transcript.js';
 import { agentDelegationUsageSchema } from './agent-delegation-usage.js';
 
 export const agentDelegationStatusSchema = z.enum([
@@ -413,6 +417,15 @@ export const agentDelegationMethods = {
         result: resultSchema,
     },
     /**
+     * What the caller's own delegated Chat did, page by page; never starts the Agent and never counts as reading the
+     * answer. See `agentDelegationTranscriptSchema`.
+     */
+    'agent.delegation.transcript': {
+        ...commandPolicy('server', 'read', ['agents.delegate']),
+        params: delegationTranscriptParametersSchema,
+        result: agentDelegationTranscriptSchema,
+    },
+    /**
      * Receipts of the caller's own tasks, so an Agent that lost its context can recover the IDs it started.
      */
     'agent.delegation.list': {
@@ -465,6 +478,11 @@ export const agentDelegationInternalMethods = {
         ...commandPolicy('server', 'read'),
         params: authoritySchema.extend({ delegationId: identifierSchema }),
         result: resultSchema,
+    },
+    'agent.delegation.transcriptInternal': {
+        ...commandPolicy('server', 'read'),
+        params: authoritySchema.extend(delegationTranscriptParametersSchema.shape),
+        result: agentDelegationTranscriptSchema,
     },
     'agent.delegation.listInternal': {
         ...commandPolicy('server', 'read'),

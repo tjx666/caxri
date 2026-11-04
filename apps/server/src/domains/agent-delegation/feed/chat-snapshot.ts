@@ -11,7 +11,10 @@ import { clipToLength } from '../../agents';
 /**
  * The part of a Chat's projection snapshot a Delegated Session's progress and failure details read.
  */
-export type DelegationChatSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items'>;
+export type DelegationChatSnapshot = Pick<
+    AgentChatSnapshot,
+    'activeTurnId' | 'items' | 'historyId'
+>;
 
 /**
  * What the active turn of a delegated Chat is doing now, as one short label (`Running pnpm lint`, `Editing config.ts`),

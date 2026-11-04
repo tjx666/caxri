@@ -104,6 +104,7 @@ process.stdout.write('Synthetic caller ready\r\n');
             );
             settings.value['agents.delegation'] = {
                 maxDepth: 2,
+                readChildChat: true,
                 presets: [
                     {
                         name: 'synthetic-review',
@@ -201,6 +202,12 @@ process.stdout.write('Synthetic caller ready\r\n');
             }>(running.page, 'agent.delegation.result', { delegationId: receipt.delegationId });
             expect(result.answer?.text).toBe('Synthetic delegation complete');
             expect(result.answer?.truncated).toBe(false);
+            // A Terminal child has no typed conversation to read.
+            expect(
+                await pageRequest(running.page, 'agent.delegation.transcript', {
+                    delegationId: receipt.delegationId,
+                }),
+            ).toEqual({ status: 'unavailable', reason: 'not_chat' });
             await running.page.screenshot({ path: testInfo.outputPath('visible-delegation.png') });
         } finally {
             await running.app.close();
