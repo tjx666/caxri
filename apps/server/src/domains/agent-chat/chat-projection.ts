@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
     AgentChatContinuation,
+    AgentChatDelegationNotice,
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatSnapshot,
@@ -33,6 +34,7 @@ import { chatHistoryIdentity, isSameChatHistory } from './history/replay-identit
 import { ChatPathTargets } from './path-targets/path-targets';
 import type { CommandDelegationSource } from './stamps/command-delegations';
 import { CommandDelegationStamper } from './stamps/command-delegations';
+import { stampDelegationNotices } from './stamps/delegation-notices';
 import { stampNewItems, stampStoppedTurns } from './stamps/item-stamps';
 import { ChatTaskProjections } from './tasks/projections';
 
@@ -65,6 +67,10 @@ interface ChatProjectionOptions {
      * The Session a delegated task came from and the task it asked; see {@link stampDelegatedTasks}.
      */
     delegatedTask(delegationId: string, redirect?: DelegatedRedirect): DelegatedTaskDetails;
+    /**
+     * The settlement notice Caxri delivered to this Terminal with this text, if any; see {@link stampDelegationNotices}.
+     */
+    delegationNotice?: (text: string) => AgentChatDelegationNotice | undefined;
     /**
      * The tasks this Chat's Terminal created, for the command items that made them; see
      * {@link CommandDelegationStamper}.
@@ -418,6 +424,20 @@ export class ChatProjection {
         return this.commandDelegations?.stamp(targeted) ?? targeted;
     }
 
+    /**
+     * Marks the delegated task pointers and the delivered settlement notices among the user messages in `operations`,
+     * after the path targets and command delegations.
+     */
+    private stampDelegations(
+        operations: readonly AgentChatPatchOperation[],
+    ): readonly AgentChatPatchOperation[] {
+        const tasks = stampDelegatedTasks(this.stampTargets(operations), (delegationId, redirect) =>
+            this.options.delegatedTask(delegationId, redirect),
+        );
+        const { delegationNotice } = this.options;
+        return delegationNotice ? stampDelegationNotices(tasks, delegationNotice) : tasks;
+    }
+
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
@@ -434,9 +454,7 @@ export class ChatProjection {
         );
         observeGuardStops(timed, isHistoryReplay, this.options.usageLimitWaits);
         const stamped = stampUsageContinuations(
-            stampDelegatedTasks(this.stampTargets(timed), (delegationId, redirect) =>
-                this.options.delegatedTask(delegationId, redirect),
-            ),
+            this.stampDelegations(timed),
             (turnId) => this.options.usageContinuedIn?.(turnId),
             (turnId) => this.options.usageLimitWaits?.stateOf(turnId),
         );

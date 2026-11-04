@@ -37,6 +37,7 @@ import {
 import {
     agentChatCommandDelegationsSchema,
     agentChatDelegatedTaskSchema,
+    agentChatDelegationNoticeSchema,
 } from './delegation/agent-delegated-task.js';
 import { agentChatPathTargetSchema } from './path-targets/agent-chat-path-targets.js';
 import { agentChatWebSourcesSchema } from './web-sources/agent-chat-web-source-schema.js';
@@ -141,6 +142,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
          * Set by Server Core when `text` is a delegated task pointer rather than something the user typed.
          */
         delegatedTask: agentChatDelegatedTaskSchema.optional(),
+        /**
+         * Set by Server Core when `text` is a settlement notice it delivered to this Chat's Agent, so Clients draw
+         * compact rows instead of a bubble the user never typed.
+         */
+        delegationNotice: agentChatDelegationNoticeSchema.optional(),
     }),
     z.strictObject({
         ...itemBase,

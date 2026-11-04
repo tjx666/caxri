@@ -1,11 +1,12 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
+import { MAX_DELEGATION_NOTICE_ITEMS } from '@caxri/protocol';
 
 import type { DelegationNoticeKind } from '../../db';
 
 /**
  * Most items one notice message lists; the rest are sent after the caller's next idle.
  */
-export const MAX_NOTICE_ITEMS = 32;
+export const MAX_NOTICE_ITEMS = MAX_DELEGATION_NOTICE_ITEMS;
 
 /**
  * One line of a notice message: a task and what happened to it.
@@ -18,9 +19,9 @@ export interface NoticeItem {
      */
     status?: AgentDelegationReceipt['status'];
     /**
-     * The Session a hand-back gives back; absent for every other kind.
+     * The Session the task runs in; a hand-back names it as the Session given back.
      */
-    sessionId?: string;
+    sessionId: string;
 }
 
 const SETTLED_PHRASES: Partial<Record<AgentDelegationReceipt['status'], string>> = {

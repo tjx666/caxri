@@ -278,6 +278,20 @@ go out as one message of at most 32 items; the rest follow after the caller's ne
   [Hand a taken-over Session back](#hand-a-taken-over-session-back)), so an event notifies once across
   restarts.
   Rows cascade with their task and hold identifiers and closed values only.
+- **How the Chat draws it.** The notice reaches the delegating Agent as plain user text, but the
+  Chat shows compact rows instead of a user bubble: one line per task with an icon, the child
+  Session's title, and a status word (`completed`, `failed`, `interrupted`, `taken over`, `handed
+back`, `asking a question`, `needs approval`), stacked when one message lists several; each row
+  opens that Session. Before the write, Server Core records the SHA-256 digest of the exact text for
+  that Terminal with its items (task ID, child Session ID, closed event) in
+  `delegation_notice_deliveries`, and the Chat stamps `delegationNotice` on a user message only when
+  its trimmed text matches a digest delivered to that same Terminal, so a person who types the same
+  words keeps a plain bubble. Clients read the title from their own Session data by ID, never from
+  the message. Unlike `delegation_notices` the delivery row does not cascade from the task, so a
+  notice stays recognizable after its task is pruned (the row then reads `A Session that is no
+longer available` and does not open); it cascades with the Terminal and keeps the newest 256 per
+  Terminal. A refused write forgets its row. The only gap is a notice older than that cap, which
+  replays as a plain message. Desktop and the phone draw the same rows with the same terms.
 - **Who is notified.** Only the managed Agent launch that delegated the task (a Chat or a PTY, with a
   known Terminal and launch). Not an external delegation client, the owner's CLI, Desktop, Caxri
   Bot (which keeps its own notifier), or the creator of a `handoff` Session. A notice is pinned to
@@ -1431,7 +1445,8 @@ child title>` part. The header counts them in its needs-input and failed parts b
   back automatically, and `Back to <parent>`, plus a hint that acting here takes the Session over.
   Once the user holds the Session (`control` is `human`; `takenOverAt` alone for an older Server) the
   row says `You took over this Session` and drops the hint but keeps `Back to <parent>`, and adds
-  `Hand back to <parent>`: disabled with its reason while the parent is archived, the Chat is busy
+  a small `Hand back` button (tooltip `Let <parent> continue driving this Session`; the navigation
+  link stays `Back to <parent>`): disabled with its reason while the parent is archived, the Chat is busy
   or has queued messages, or the composer holds a draft. After a hand-back the row says `Handed back
 to <parent> · waiting for it to continue` until the Agent uses the grant, and returns to the
   delegated wording after that. The timeline carries a `You took over` divider at the first entry at or

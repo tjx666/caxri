@@ -85,6 +85,13 @@
             "when": 1793819110464,
             "tag": "0011_session_relation_independent",
             "breakpoints": true
+        },
+        {
+            "idx": 12,
+            "version": "6",
+            "when": 1793825600803,
+            "tag": "0012_delegation_notice_deliveries",
+            "breakpoints": true
         }
     ]
 }

@@ -185,7 +185,11 @@ test('a settled delegated task wakes the idle parent Chat, and an active wait su
         // Released after the parent's turn ended: the parent wakes itself and answers the notice.
         await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
         await expect(session.getByText(SETTLEMENT_NOTICE_REPLY)).toBeVisible({ timeout: 30_000 });
-        await expect(session.getByText('[Caxri] Delegated task update:')).toBeVisible();
+        // The delivered notice is a compact row naming the child Session, not a bubble of raw text.
+        await expect(session.locator('[data-agent-chat-delegation-notice]')).toContainText(
+            'completed',
+        );
+        await expect(session.getByText('[Caxri] Delegated task update:')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('settlement-notice-turn.png') });
     } finally {
         await chat.cleanup();
@@ -257,7 +261,7 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         await expect(session.getByText('You said: Let me check one thing')).toBeVisible();
 
         // A draft in the composer disables the hand-back and says why.
-        const handBack = takenOver.getByRole('button', { name: `Hand back to ${parent.title}` });
+        const handBack = takenOver.getByRole('button', { name: 'Hand back', exact: true });
         await expect(handBack).toBeVisible();
         await childMessage.fill('half-typed note');
         await expect(handBack).toHaveAttribute('aria-disabled', 'true');

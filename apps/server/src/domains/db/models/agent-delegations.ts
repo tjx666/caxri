@@ -18,6 +18,7 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { agentDelegations } from '../schema';
 import { DelegationHandBacksModel } from './delegation-handbacks';
 import { DelegationHistoryModel } from './delegation-history';
+import { DelegationNoticeDeliveriesModel } from './delegation-notice-deliveries';
 import { DelegationNoticesModel } from './delegation-notices';
 import { DelegationQuestionsModel } from './delegation-questions';
 
@@ -249,6 +250,12 @@ export class AgentDelegationsModel {
     readonly notices: DelegationNoticesModel;
 
     /**
+     * The notice messages actually written into a Chat, by text digest, so the Chat recognizes them. Unlike the notices
+     * it has no foreign key to a task record, so it survives pruning the task.
+     */
+    readonly noticeDeliveries: DelegationNoticeDeliveriesModel;
+
+    /**
      * The single-use grants the user gives when handing a taken-over Session back. Like the notices, they cascade from
      * a task record.
      */
@@ -258,6 +265,7 @@ export class AgentDelegationsModel {
         this.questions = new DelegationQuestionsModel(database);
         this.history = new DelegationHistoryModel(database);
         this.notices = new DelegationNoticesModel(database);
+        this.noticeDeliveries = new DelegationNoticeDeliveriesModel(database);
         this.handBacks = new DelegationHandBacksModel(database);
     }
 

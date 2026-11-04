@@ -11,6 +11,7 @@ import {
 import { commandPolicy, ownerOnlyCommandPolicy } from '../transport/method-spec.js';
 import { agentChatCommandSchema } from './agent-chat-commands.js';
 import { agentChatContextReportSchema } from './agent-chat-context.js';
+import type { AgentChatSnapshot } from './agent-chat-contract.js';
 import {
     agentChatQueuedMessageSchema,
     agentChatSnapshotSchema,
@@ -86,17 +87,31 @@ const agentChatSendParametersSchema = z
     .refine(hasMessageContent, { message: 'A message needs text or an image' });
 
 /**
+ * `agentChat.read` as a named type. The Chat snapshot embeds every item shape, so inlining it in the method registry's
+ * inferred declaration exceeded the compiler's serialization limit once an item gained a field; naming the result keeps
+ * the registry short, like the annotated delegation method specs.
+ *
+ * @public
+ */
+export interface AgentChatReadSpec extends ReturnType<typeof commandPolicy<'server', 'read'>> {
+    params: z.ZodType<{ terminalId: string }>;
+    result: z.ZodType<AgentChatSnapshot>;
+}
+
+const agentChatRead: AgentChatReadSpec = {
+    ...commandPolicy('server', 'read'),
+    params: z.strictObject(terminalTarget),
+    result: agentChatSnapshotSchema,
+};
+
+/**
  * Agent Chat methods: the structured surface of a Chat Terminal. See `docs/agent-chat.md`.
  */
 export const agentChatMethods = {
     /**
      * Returns the current conversation projection, starting or resuming the provider process when none is running.
      */
-    'agentChat.read': {
-        ...commandPolicy('server', 'read'),
-        params: z.strictObject(terminalTarget),
-        result: agentChatSnapshotSchema,
-    },
+    'agentChat.read': agentChatRead,
     /**
      * Returns the page of history right before `beforeItemId`, the oldest item the Client holds (the projection's first
      * item, or the first item of the last page read). Read from the history Server Core keeps once items leave the

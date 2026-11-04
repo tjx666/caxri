@@ -6,10 +6,20 @@ import { formatSettlementNotice } from '../settlement-notice/text';
 describe('formatSettlementNotice', () => {
     it('lists each task with a closed phrase and the commands that read it, never an answer', () => {
         const text = formatSettlementNotice([
-            { delegationId: 'task-1', kind: 'settled', status: 'completed' },
-            { delegationId: 'task-2', kind: 'settled', status: 'failed' },
-            { delegationId: 'task-3', kind: 'question' },
-            { delegationId: 'task-4', kind: 'approval' },
+            {
+                delegationId: 'task-1',
+                sessionId: 'session-task-1',
+                kind: 'settled',
+                status: 'completed',
+            },
+            {
+                delegationId: 'task-2',
+                sessionId: 'session-task-2',
+                kind: 'settled',
+                status: 'failed',
+            },
+            { delegationId: 'task-3', sessionId: 'session-task-3', kind: 'question' },
+            { delegationId: 'task-4', sessionId: 'session-task-4', kind: 'approval' },
         ]);
 
         expect(text).toBe(
@@ -26,7 +36,12 @@ describe('formatSettlementNotice', () => {
 
     it('tells the Agent to stop waiting for a task the user took over', () => {
         const text = formatSettlementNotice([
-            { delegationId: 'task-1', kind: 'settled', status: 'human_intervened' },
+            {
+                delegationId: 'task-1',
+                sessionId: 'session-task-1',
+                kind: 'settled',
+                status: 'human_intervened',
+            },
         ]);
 
         expect(text).toContain('- task-1 was taken over by the user');
@@ -51,7 +66,12 @@ describe('formatSettlementNotice', () => {
 
     it('puts a hand-back before the other updates of one wake', () => {
         const text = formatSettlementNotice([
-            { delegationId: 'task-2', kind: 'settled', status: 'completed' },
+            {
+                delegationId: 'task-2',
+                sessionId: 'session-task-2',
+                kind: 'settled',
+                status: 'completed',
+            },
             { delegationId: 'task-1', kind: 'handback', sessionId: 'session-9' },
         ]);
 

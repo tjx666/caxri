@@ -96,6 +96,80 @@ export function parseDelegatedTaskPointer(
 }
 
 /**
+ * Most items one delivered settlement notice lists (`SettlementNotices` sends no more per message).
+ */
+export const MAX_DELEGATION_NOTICE_ITEMS = 32;
+
+/**
+ * What a settlement notice reports about one delegated task, as a closed set the Client turns into a status word.
+ */
+export const delegationNoticeEventSchema = z.enum([
+    'completed',
+    'failed',
+    'interrupted',
+    'taken_over',
+    'answer_unavailable',
+    'settled',
+    'handed_back',
+    'question',
+    'approval',
+]);
+
+export type DelegationNoticeEvent = z.infer<typeof delegationNoticeEventSchema>;
+
+/**
+ * How loudly a Client draws an event's icon, the same on Desktop and the phone: a failure is red, what waits on the
+ * user amber, everything else quiet.
+ */
+export function delegationNoticeEventTone(
+    event: DelegationNoticeEvent,
+): 'danger' | 'muted' | 'warning' {
+    switch (event) {
+        case 'failed':
+        case 'answer_unavailable': {
+            return 'danger';
+        }
+        case 'question':
+        case 'approval': {
+            return 'warning';
+        }
+        default: {
+            return 'muted';
+        }
+    }
+}
+
+/**
+ * A user message that is really a settlement notice Caxri delivered to the delegating Agent's Chat (a task settled,
+ * asked a question, needs approval, or was handed back). Server Core stamps it only when the text matches a notice it
+ * delivered to this Terminal, so a person who types the same words keeps a plain bubble. The items hold IDs and a
+ * closed event only: the Client joins the child Session's title from its own Session data, never from the message.
+ */
+export interface AgentChatDelegationNotice {
+    items: Array<{ delegationId: string; sessionId: string; event: DelegationNoticeEvent }>;
+}
+
+/**
+ * Annotated with {@link AgentChatDelegationNotice} rather than inferred: the Chat item schema is embedded in many method
+ * specs, and the inferred object type pushed the method registry's declaration past the compiler's serialization
+ * limit.
+ */
+export const agentChatDelegationNoticeSchema: z.ZodType<AgentChatDelegationNotice> = z.strictObject(
+    {
+        items: z
+            .array(
+                z.strictObject({
+                    delegationId: identifierSchema,
+                    sessionId: identifierSchema,
+                    event: delegationNoticeEventSchema,
+                }),
+            )
+            .min(1)
+            .max(MAX_DELEGATION_NOTICE_ITEMS),
+    },
+);
+
+/**
  * Most delegations one command item records.
  */
 export const MAX_COMMAND_DELEGATIONS = 8;

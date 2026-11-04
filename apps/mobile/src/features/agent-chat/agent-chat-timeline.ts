@@ -1,5 +1,6 @@
 import type {
     AgentChatDelegatedTask,
+    AgentChatDelegationNotice,
     AgentChatItem,
     AgentChatPathReference,
     AgentChatSkillReference,
@@ -29,6 +30,7 @@ import {
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { AgentChatAwayRecapEntry } from './agent-chat-away-recap-entry';
+import { delegationEntry } from './agent-chat-delegation-entries';
 import type { AgentChatWorkEntry } from './agent-chat-timeline-work';
 import { agentChatWorkEntry } from './agent-chat-timeline-work';
 
@@ -78,6 +80,15 @@ export type AgentChatTimelineEntry =
           id: string;
           isExpanded: boolean;
           answers: ReadonlyArray<{ question: string; answer: string }>;
+      }
+    | {
+          /**
+           * A settlement notice Caxri delivered to this Chat's Agent, drawn as one compact row per task instead of a
+           * user bubble, as Desktop does. It starts the turn the notice wakes.
+           */
+          kind: 'delegationNotice';
+          id: string;
+          notice: AgentChatDelegationNotice;
       }
     | {
           /**
@@ -248,23 +259,14 @@ function groupEntries(
         }
         flush();
         const answered = answeredEntry(item);
+        const delegation = delegationEntry(item);
         if (answered) entries.push(answered);
         else if (
             item.type === 'notice' &&
             (item.heading || item.kind === 'warning' || item.usageLimit)
         )
             entries.push({ kind: 'feedback', id: item.id, notice: item });
-        else if (item.type === 'userMessage' && item.delegatedTask)
-            entries.push({
-                kind: 'delegated',
-                id: item.id,
-                body: item.delegatedTask.prompt
-                    ? { kind: 'prompt', prompt: item.delegatedTask.prompt }
-                    : { kind: 'pointer' },
-                isExpanded: false,
-                text: item.text,
-                task: item.delegatedTask,
-            });
+        else if (delegation) entries.push(delegation);
         else entries.push(messageEntry(item, t));
     }
     flush(isRunning);
@@ -571,6 +573,7 @@ export function withAgentChatAwaitingReply(
     const last = entries.at(-1);
     const isAfterUserMessage =
         last?.kind === 'delegated' ||
+        last?.kind === 'delegationNotice' ||
         (last?.kind === 'message' && last.message.type === 'userMessage');
     return isAgentChatAwaitingReply(snapshot, isAfterUserMessage)
         ? [...entries, { kind: 'awaiting', id: 'awaiting-reply' }]
@@ -585,6 +588,7 @@ export function isAgentChatTurnStart(entry: AgentChatTimelineEntry): boolean {
     return (
         entry.kind === 'pending' ||
         entry.kind === 'delegated' ||
+        entry.kind === 'delegationNotice' ||
         (entry.kind === 'message' && entry.message.type === 'userMessage')
     );
 }

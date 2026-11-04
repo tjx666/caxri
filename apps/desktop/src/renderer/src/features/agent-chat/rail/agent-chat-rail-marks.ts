@@ -156,7 +156,13 @@ export function agentChatRailMarks(
 ): AgentChatRailMark[] {
     const marks: AgentChatRailMark[] = [];
     for (const entry of timeline) {
-        if (entry.kind !== 'item' || entry.item.type !== 'userMessage') continue;
+        // A delivered settlement notice is a compact row, not a message of the conversation worth a rail mark.
+        if (
+            entry.kind !== 'item' ||
+            entry.item.type !== 'userMessage' ||
+            entry.item.delegationNotice
+        )
+            continue;
         const { id, text, images, delivery, delegatedTask, createdAt } = entry.item;
         const imageCount = images?.length ?? 0;
         const words = delegatedTask

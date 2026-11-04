@@ -7,6 +7,7 @@ import type { DelegationNoticeKind, StoredAgentDelegation, StoredDelegationNotic
 import type { AgentDelegationServiceOptions } from '../service-options';
 import { acknowledgeRead } from './acknowledge';
 import type { NoticeOutcome, NoticeReason, SettlementNoticeSources } from './contract';
+import { noticeDelivery, noticeTextDigest } from './delivery';
 import { noticeCallerOf } from './eligibility';
 import { PtyIdleProof } from './pty-proof';
 import type { NoticeItem } from './text';
@@ -310,7 +311,7 @@ export class SettlementNotices {
                 delegationId: notice.delegationId,
                 kind: notice.kind,
                 ...(notice.kind === 'settled' && { status: record.receipt.status }),
-                ...(notice.kind === 'handback' && { sessionId: record.receipt.sessionId }),
+                sessionId: record.receipt.sessionId,
             };
         });
         const kinds = new Set(rows.map((notice) => notice.kind));
@@ -338,11 +339,16 @@ export class SettlementNotices {
             } else this.log('unknown', summary);
         };
         let isAdmitted = false;
+        const text = formatSettlementNotice(items);
+        const digest = noticeTextDigest(text);
+        // Recorded before the write: the Chat may show the message before the write returns, and must recognize it.
+        const deliveries = this.options.database.agentDelegations.noticeDeliveries;
+        const isRecorded = deliveries.record(group.terminalId, digest, noticeDelivery(items), now);
         try {
             isAdmitted = this.options.deliverNotice!(
                 group.terminalId,
                 group.launchId,
-                formatSettlementNotice(items),
+                text,
                 (isAccepted) => {
                     if (hasReturned) finish(isAccepted);
                     else early = isAccepted;
@@ -354,6 +360,7 @@ export class SettlementNotices {
         hasReturned = true;
         if (!isAdmitted) {
             // Refused before anything was written: safe to try again.
+            if (isRecorded) deliveries.remove(group.terminalId, digest);
             settle('pending');
             return false;
         }

@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import { closedValues, isOneOf } from './constraints';
-import { agentDelegations } from './core';
+import { agentDelegations, terminals } from './core';
 
 /**
  * What a notice tells the Agent that delegated a task: that the task settled, that it asks that Agent a question, that
@@ -65,5 +65,29 @@ export const delegationNotices = sqliteTable(
             'delegation_notices_subject',
             sql`(${table.kind} = 'settled') = (${table.subjectId} IS NULL)`,
         ),
+    ],
+);
+
+/**
+ * The settlement notices Caxri actually wrote into a delegating Agent's Chat, one row per delivered message: the
+ * SHA-256 digest of the exact text and the items it listed (`items_json`: task ID, child Session ID, and a closed
+ * event, never text). A Chat recognizes a notice message only by matching this digest on its own Terminal, so a person
+ * who types the same words keeps a plain bubble. Unlike `delegation_notices` it does not cascade from the task, so the
+ * row keeps a delivered notice recognizable after the task record is pruned; it cascades with the Terminal and is
+ * capped per Terminal by the model.
+ */
+export const delegationNoticeDeliveries = sqliteTable(
+    'delegation_notice_deliveries',
+    {
+        terminalId: text('terminal_id')
+            .notNull()
+            .references(() => terminals.id, { onDelete: 'cascade' }),
+        digest: text('digest').notNull(),
+        itemsJson: text('items_json').notNull(),
+        createdAt: integer('created_at').notNull(),
+    },
+    (table) => [
+        primaryKey({ columns: [table.terminalId, table.digest] }),
+        index('delegation_notice_deliveries_terminal').on(table.terminalId, table.createdAt),
     ],
 );
