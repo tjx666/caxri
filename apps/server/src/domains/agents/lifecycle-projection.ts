@@ -45,7 +45,7 @@ export class AgentLifecycleProjection {
         return JSON.stringify([event.terminalId, event.agentId ?? '', event.agentToolUseId ?? '']);
     }
 
-    private write(event: AgentLifecycleSignal, source: SessionActivitySource): void {
+    private writeRecord(event: AgentLifecycleSignal, source: SessionActivitySource): void {
         if (
             this.recordActivity({
                 applyWrite: () => this.database.updateAgentLifecycle(event),
@@ -102,9 +102,9 @@ export class AgentLifecycleProjection {
             event.phase === 'attentionRequested' &&
             event.alert === 'quiet' &&
             this.earlyReleases.delete(this.requestKey(event));
-        if (releasedEarly) this.write({ ...event, alert: 'raise' }, source);
+        if (releasedEarly) this.writeRecord({ ...event, alert: 'raise' }, source);
         else if (event.phase !== 'attentionRequested' || event.alert !== 'quiet')
-            this.write(event, source);
+            this.writeRecord(event, source);
         this.options.onApplied?.(event);
     }
 
@@ -118,7 +118,7 @@ export class AgentLifecycleProjection {
             this.earlyReleases.add(this.requestKey(event));
             return false;
         }
-        this.write({ ...event, alert: 'raise' }, 'hook');
+        this.writeRecord({ ...event, alert: 'raise' }, 'hook');
         return true;
     }
 }
