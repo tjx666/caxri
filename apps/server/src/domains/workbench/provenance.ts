@@ -299,14 +299,17 @@ export class AgentWorktreeAttribution {
          */
         const isBatchAmbiguous =
             live.length !== 1 && live.some(({ pending }) => !pending.declaredPath);
-        for (const entry of live) {
-            if (isBatchAmbiguous && !entry.pending.declaredPath)
-                this.logUnavailable('concurrent_creations', entry.baseline.terminalId);
-            else
-                // Serialized on purpose: each follow mutates a Session binding that the next entry's authority reads.
-                // eslint-disable-next-line no-await-in-loop
-                await this.attributeEntry(topology, entry, initiatingBindings);
-        }
+        /* eslint-disable unicorn/prefer-await -- serial on purpose: each follow mutates a binding the next entry reads. */
+        await live.reduce<Promise<void>>(
+            (previous, entry) =>
+                previous.then(() =>
+                    isBatchAmbiguous && !entry.pending.declaredPath
+                        ? this.logUnavailable('concurrent_creations', entry.baseline.terminalId)
+                        : this.attributeEntry(topology, entry, initiatingBindings),
+                ),
+            Promise.resolve(),
+        );
+        /* eslint-enable unicorn/prefer-await */
     }
 
     /**
