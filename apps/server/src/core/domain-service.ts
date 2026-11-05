@@ -46,7 +46,7 @@ interface DomainEventDelivery {
     persistedEnvelope?: ProtocolEventEnvelope;
 }
 
-export type ServerDomainDependencies = Omit<DomainDependencies, 'send'>;
+export type ServerDomainDependencies = Omit<DomainDependencies, 'send' | 'systemLanguages'>;
 export type CreateDomainServices = (dependencies: DomainDependencies) => Promise<DomainServices>;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
@@ -66,6 +66,10 @@ export class ServerDomainService extends EventTarget {
     private services?: DomainServices;
     private startPromise?: Promise<void>;
     private stopped = false;
+    /**
+     * The system languages Desktop Main last reported; memory only, like the Extension Host's copy.
+     */
+    private systemLanguages: readonly string[] = [];
 
     constructor(
         private readonly dependencies: ServerDomainDependencies,
@@ -248,6 +252,13 @@ export class ServerDomainService extends EventTarget {
         }
     }
 
+    /**
+     * Records the system languages a Desktop reported, which `Follow system` resolves Caxri's interface language from.
+     */
+    updateSystemLanguages(languages: readonly string[]): void {
+        this.systemLanguages = languages;
+    }
+
     start(): Promise<void> {
         if (this.services) return Promise.resolve();
         if (this.stopped)
@@ -262,6 +273,7 @@ export class ServerDomainService extends EventTarget {
                 ...this.dependencies,
                 onDatabaseOpened: runningOrder.attach,
                 send: runningOrder.send,
+                systemLanguages: () => this.systemLanguages,
             });
             if (this.stopped) {
                 await services.close();

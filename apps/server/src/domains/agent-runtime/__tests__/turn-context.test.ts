@@ -1,5 +1,8 @@
-import type { TerminalRecord } from '@caxri/protocol';
-import { DEFAULT_AGENT_SESSION_INSTRUCTIONS } from '@caxri/protocol';
+import type { AppLocale, TerminalRecord } from '@caxri/protocol';
+import {
+    agentDisplayLanguageInstruction,
+    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
@@ -54,6 +57,26 @@ describe('AgentTurnContext', () => {
 
     it('adds nothing when the user cleared the instructions', () => {
         expect(new AgentTurnContext(database(), () => ' \n ').for(signal())).toBeUndefined();
+        expect(
+            new AgentTurnContext(
+                database(),
+                () => '',
+                () => 'zh-CN',
+            ).for(signal()),
+        ).toBeUndefined();
+    });
+
+    it("names Caxri's interface language as it is at each launch", () => {
+        let locale: AppLocale = 'zh-CN';
+        const context = new AgentTurnContext(database(), preset, () => locale);
+
+        expect(context.for(signal())).toBe(
+            `${DEFAULT_AGENT_SESSION_INSTRUCTIONS}\n\n${agentDisplayLanguageInstruction('zh-CN')}`,
+        );
+        locale = 'en';
+        expect(context.for(signal({ launchId: 'launch-2' }))).toContain(
+            "Caxri's interface language is English.",
+        );
     });
 
     it('adds the context to the first turn of each launch', () => {

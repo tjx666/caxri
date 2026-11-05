@@ -2,6 +2,7 @@ import type {
     AgentLaunchSettings,
     AgentProvider,
     AgentThroughput,
+    AppLocale,
     ProcessState,
     ServerEvent,
     TerminalRecord,
@@ -44,6 +45,10 @@ export interface AgentChatServiceOptions {
      * The current `agents.sessionInstructions`, read when each Chat starts. Omitted, a Chat adds no instructions.
      */
     sessionInstructions?: () => string | null;
+    /**
+     * Caxri's interface language, named after the session instructions so a delegated task file reads in it.
+     */
+    displayLocale?: () => AppLocale;
     /**
      * Runs once a Chat's provider is ready, after its state is persisted as running. Caxri Bot uses it to send what a
      * restart cut off, the Chat equivalent of a PTY launch prompt.

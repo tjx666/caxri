@@ -65,14 +65,15 @@ export function createExtensionEventRouter(options: ExtensionEventRouterOptions)
             routing.catch(logFailure);
         },
         /**
-         * Applies the Desktop's system-language report, which only the Extension Host reads, and hands every other
-         * Desktop operation to `forward`.
+         * Applies the Desktop's system-language report, which the Extension Host and the Agent instructions read, and
+         * hands every other Desktop operation to `forward`.
          */
         routeDesktopOperation: async (
             request: ServerOperationRequest,
             forward: (request: ServerOperationRequest) => Promise<unknown>,
         ): Promise<unknown> => {
             if (request.method !== 'app.systemLanguages.update') return forward(request);
+            domainService.updateSystemLanguages(request.params.languages);
             await options
                 .extensionService()
                 ?.updateLanguage({ systemLanguages: request.params.languages });

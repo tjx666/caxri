@@ -77,6 +77,11 @@ export interface DomainDependencies {
     agentHooksPath?: string;
     hookExecutable?: string;
     agentEndpoints?: AgentEndpointLifecycle;
+    /**
+     * The system languages Desktop Main last reported, which `Follow system` resolves Caxri's interface language from.
+     * Memory only: empty until a Desktop attaches.
+     */
+    systemLanguages?: () => readonly string[];
 }
 
 /**

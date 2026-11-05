@@ -18,6 +18,7 @@ import type { createAgentRuntime } from './agent-runtime';
 import type { BotTerminalHooks } from './bot';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
+import { displayLocaleReader } from './display-locale';
 import type { DomainDependencies } from './domain-services';
 import { reapGroup } from './process-group';
 import { discardEmptySession, isAirplaneModeHolding } from './session';
@@ -54,7 +55,7 @@ export function createAgentChatService({
      * Late-bound: the delegation service is composed after the Chat service.
      */
     delegationState: { service?: AgentDelegationService };
-    dependencies: Pick<DomainDependencies, 'agentEndpoints' | 'terminal'>;
+    dependencies: Pick<DomainDependencies, 'agentEndpoints' | 'systemLanguages' | 'terminal'>;
     logger: StructuredLogger;
     /**
      * Runs when a provider that a read alone started becomes ready, so the suspension sweep can enforce
@@ -125,6 +126,7 @@ export function createAgentChatService({
         longRunningShellCommands: () =>
             configuration.getSettings().value['agents.longRunningShellCommands'],
         sessionInstructions: () => configuration.getSettings().value['agents.sessionInstructions'],
+        displayLocale: displayLocaleReader(configuration, dependencies),
         onReady: (terminalId) => {
             botHooks.chatReady(terminalId);
             if (service.readLeaseAt(terminalId) !== undefined) onObservationLeaseReady();

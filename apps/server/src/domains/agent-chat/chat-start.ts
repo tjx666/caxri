@@ -140,7 +140,7 @@ async function startChat(
             options.sessionInstructions &&
             environment.CAXRI_CLI &&
             database.caxriBotRows()?.terminalId !== terminalId
-                ? agentSessionInstructions(options.sessionInstructions())
+                ? agentSessionInstructions(options.sessionInstructions(), options.displayLocale?.())
                 : undefined;
         const logCallbacks = chatSessionLogCallbacks(options, terminalId, state);
         const runContext = agentRunContext(terminal, launchId);

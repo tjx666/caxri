@@ -231,6 +231,12 @@ Claude Agent Chat appends it to Claude Code's system prompt; a Codex Agent Chat 
 user's own `developer_instructions`, read with `config/read`, and adds nothing when Codex cannot
 report them. Grok is not covered yet, and Caxri Bot keeps its own workspace instructions.
 
+Unless the setting is cleared, Caxri appends one line naming its interface language (the
+`workbench.language` setting, or the system language Desktop last reported for "Follow system") and
+asks the Agent to write the task file and title of every Session it creates in that language. The
+task file is the new Session's first message, and Agents otherwise wrote it in English, the
+language of their code and agent files, while the rest of the page spoke the user's language.
+
 The request ID is scoped to the authenticated principal and generation. Reusing it with the same
 input returns the existing task; different input conflicts. Wait timeout reports the current receipt
 without interrupting, restarting, or resubmitting the task. A disconnected caller can later fetch

@@ -1,3 +1,5 @@
+import type { AppLocale } from './language-settings-spec.js';
+
 /**
  * Caxri's preset for `agents.sessionInstructions`: what an ordinary Agent needs to know to start work in another
  * Session, added to its context once per launch: through the `UserPromptSubmit` hook in a Terminal, and through the
@@ -20,10 +22,34 @@ export const DEFAULT_AGENT_SESSION_INSTRUCTIONS = `You are running inside Caxri,
 export const MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH = 4_000;
 
 /**
- * The instructions to add to an Agent's context for an `agents.sessionInstructions` value: `null` is Caxri's preset,
- * and `undefined` means the user cleared the setting to add nothing.
+ * English names of each {@link AppLocale}, for an Agent that reads its instructions in English.
  */
-export function agentSessionInstructions(value: string | null): string | undefined {
+const AGENT_LOCALE_NAMES: Record<AppLocale, string> = {
+    'en': 'English',
+    'zh-CN': 'Simplified Chinese',
+};
+
+/**
+ * Names Caxri's interface language for the text an Agent writes for the user to read in Caxri. A delegated task file is
+ * the new Session's first message, shown in the user's Chat; without this line an Agent wrote it in English, the
+ * language of its code and agent files, while the rest of the page spoke the user's language.
+ */
+export function agentDisplayLanguageInstruction(locale: AppLocale): string {
+    const name = AGENT_LOCALE_NAMES[locale];
+    return `Caxri's interface language is ${name}. Write the task file and title of every Session you create in ${name}, since the new Session shows the task file as its first message; keep code, identifiers, paths, and commands as they are.`;
+}
+
+/**
+ * The instructions to add to an Agent's context for an `agents.sessionInstructions` value: `null` is Caxri's preset,
+ * and `undefined` means the user cleared the setting to add nothing. A `locale` appends
+ * {@link agentDisplayLanguageInstruction}; a cleared setting adds nothing, since the line only matters to an Agent told
+ * how to start Sessions.
+ */
+export function agentSessionInstructions(
+    value: string | null,
+    locale?: AppLocale,
+): string | undefined {
     const trimmed = (value ?? DEFAULT_AGENT_SESSION_INSTRUCTIONS).trim();
-    return trimmed === '' ? undefined : trimmed;
+    if (trimmed === '') return undefined;
+    return locale ? `${trimmed}\n\n${agentDisplayLanguageInstruction(locale)}` : trimmed;
 }
