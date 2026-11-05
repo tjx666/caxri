@@ -8,14 +8,17 @@ import type { ChatState, ChatStateDelivery, ChatStates } from './chat-states';
 
 /**
  * Whether a live Chat can be stopped without losing anything the user has not seen: its provider is ready, and no turn,
- * approval, operation, background task, side question, or queued message is pending. A Chat bound to an Agent Session
- * resumes it on the next start. A Chat not bound yet has no conversation, so it qualifies only while its read lease
- * holds: any input, including a model switch that only its live provider remembers, ends the lease, and the next start
- * of an untouched Chat is the same fresh provider the user would have had.
+ * approval, operation, background task, side question, or queued message is pending. `isCompaction` drops the
+ * background-task condition for compaction, which summarizes the conversation but leaves the provider and its
+ * background tasks running. A Chat bound to an Agent Session resumes it on the next start. A Chat not bound yet has no
+ * conversation, so it qualifies only while its read lease holds: any input, including a model switch that only its live
+ * provider remembers, ends the lease, and the next start of an untouched Chat is the same fresh provider the user would
+ * have had.
  */
 function isChatIdleForSuspension(
     state: ChatState | undefined,
     terminal: Pick<TerminalRecord, 'agentSessionId'> | undefined,
+    isCompaction = false,
 ): boolean {
     if (!state || !terminal) return false;
     const snapshot = state.projection.snapshot;
@@ -27,7 +30,7 @@ function isChatIdleForSuspension(
         snapshot.activeTurnId === undefined &&
         snapshot.requests.length === 0 &&
         snapshot.operation === undefined &&
-        !snapshot.tasks?.some((task) => task.status === 'running') &&
+        (isCompaction || !snapshot.tasks?.some((task) => task.status === 'running')) &&
         (snapshot.queue?.length ?? 0) === 0 &&
         (snapshot.queueLength ?? 0) === 0 &&
         !state.sideQuestions
@@ -81,13 +84,22 @@ export class ChatIdleMaintenance {
     }
 
     /**
-     * The launch of a bound Chat whose provider is running and idle, or `undefined`. Batch compaction reads it so it
-     * never wakes a stopped Chat, interrupts pending work, or compacts a Chat with no conversation yet.
+     * The launch of a bound Chat whose provider is running and idle, or `undefined`. Batch compaction and away recaps
+     * read it so they never wake a stopped Chat, interrupt pending work, or act on a Chat with no conversation yet.
+     *
+     * `isCompaction` ignores running background tasks: compaction only summarizes the conversation and leaves the
+     * provider and its tasks running, so a long background wait (a delegation poll, a watcher) that outlives the whole
+     * idle-compaction window must not keep the prompt cache from being compacted before it expires. Suspension and away
+     * recaps keep the stricter rule.
      */
-    idleLaunchId(terminalId: string): string | undefined {
-        return this.isSuspendable(terminalId) &&
-            this.host.database.getTerminal(terminalId)?.agentSessionId !== undefined
-            ? this.host.states.get(terminalId)?.launchId
+    idleLaunchId(terminalId: string, isCompaction = false): string | undefined {
+        const { database, states } = this.host;
+        const state = states.get(terminalId);
+        const terminal = database.getTerminal(terminalId);
+        return !this.host.hasStart(terminalId) &&
+            terminal?.agentSessionId !== undefined &&
+            isChatIdleForSuspension(state, terminal, isCompaction)
+            ? state?.launchId
             : undefined;
     }
 
@@ -112,7 +124,7 @@ export class ChatIdleMaintenance {
             throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
         let outcome: 'submitted' | 'usageLimited' = 'submitted';
         await this.host.enqueue(terminalId, state, async (session) => {
-            if (state.launchId !== launchId || this.idleLaunchId(terminalId) !== launchId)
+            if (state.launchId !== launchId || this.idleLaunchId(terminalId, true) !== launchId)
                 throw new CaxriError('CONFLICT', 'This Chat changed before compaction');
             if (!isAgentChatCommandListed(state.projection.snapshot, 'compact'))
                 throw new CaxriError('VALIDATION', '/compact is not available in this Chat');

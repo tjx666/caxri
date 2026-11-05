@@ -175,8 +175,9 @@ export class ChatIdleCompaction {
             return;
         }
         // Busy (a turn, request, queued message, or a batch compaction still waiting for its turn, whose maintenance
-        // window a second `begin` would supersede): look again next sweep while the cache still holds.
-        const launchId = agentChat.idleLaunchId(terminalId);
+        // window a second `begin` would supersede): look again next sweep while the cache still holds. A running
+        // background task does not count: it can outlive the whole window, and compaction leaves it running.
+        const launchId = agentChat.idleLaunchId(terminalId, true);
         if (!launchId || this.options.maintenanceTurns.holds(terminalId)) return;
         this.attempted.set(terminalId, lastResponseAt);
         const { error, outcome } = await this.compact(terminalId, launchId);
