@@ -34,6 +34,10 @@ describe('settings spec and schema agreement', () => {
         expect(appSettingsFileSchema.parse({})['agents.sessionInstructions']).toBeNull();
         expect(agentSessionInstructions(null)).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
         expect(agentSessionInstructions(' \n ')).toBeUndefined();
+        expect(agentSessionInstructions(' \n ', 'zh-CN')).toBeUndefined();
+        expect(agentSessionInstructions(' Mine. ', 'zh-CN')).toBe(
+            "Mine.\n\nCaxri's interface language is Simplified Chinese. Write the task file and title of every Session you create in Simplified Chinese, since the new Session shows the task file as its first message; keep code, identifiers, paths, and commands as they are.",
+        );
         for (const value of ['Line one.\n\nLine two.\n', '']) {
             expect(
                 appSettingsFileSchema.parse({ 'agents.sessionInstructions': value })[

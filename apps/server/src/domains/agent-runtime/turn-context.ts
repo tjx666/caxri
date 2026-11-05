@@ -1,3 +1,4 @@
+import type { AppLocale } from '@caxri/protocol';
 import { agentSessionInstructions, isChatTerminal } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -22,6 +23,10 @@ export class AgentTurnContext {
     constructor(
         private readonly database: CaxriDatabase,
         private readonly instructions: () => string | null,
+        /**
+         * Caxri's interface language, named after the instructions so a delegated task file reads in it.
+         */
+        private readonly displayLocale?: () => AppLocale,
     ) {}
 
     for(signal: AgentLifecycleSignal): string | undefined {
@@ -32,7 +37,7 @@ export class AgentTurnContext {
         if (!terminal || isChatTerminal(terminal)) return undefined;
         if (caxriBotTerminal(this.database)?.terminalId === terminal.id) return undefined;
         this.delivered.set(signal.terminalId, signal.launchId);
-        return agentSessionInstructions(this.instructions());
+        return agentSessionInstructions(this.instructions(), this.displayLocale?.());
     }
 
     forget(terminalId: string): void {

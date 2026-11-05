@@ -243,10 +243,12 @@ Then write the task to a file and run
 --json`. The folder must exist; the same reuse and unhide rules apply, so tell the user when it
   adds a Project. Replaying the request ID with another folder fails, and a refusal after the add
   keeps the Project.
+- Write the task file in Caxri's interface language, which your Caxri context names, or else in the
+  language the user speaks with you: the new Session shows it as its first message. Keep code,
+  identifiers, paths, and commands as they are.
 - `--new-session --title <subject>` creates the Session together with its task. Name it after the
-  task's concrete subject, in the language the user speaks with you even when the task file is in
-  English, and without a generic prefix such as `Delegated task:`; the user reads it in the
-  sidebar. Caxri refuses a title (here and in `agent session rename`) whose script differs from
+  task's concrete subject, in the same language as the task file, and without a generic prefix such
+  as `Delegated task:`; the user reads it in the sidebar. Caxri refuses a title (here and in `agent session rename`) whose script differs from
   your own Session's Chinese, Japanese, or Korean title. Without `--new-session`, `--session`
   accepts only your own Session or a Session you already delegated into.
 - Add `--handoff` when the user is done with your Session and the new one carries its work on (the

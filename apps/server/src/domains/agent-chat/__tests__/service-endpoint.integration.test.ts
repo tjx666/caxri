@@ -1,4 +1,7 @@
-import { DEFAULT_AGENT_SESSION_INSTRUCTIONS } from '@caxri/protocol';
+import {
+    agentDisplayLanguageInstruction,
+    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentChatEndpoint } from '../service-options';
@@ -62,6 +65,23 @@ describe('Agent Chat Endpoint', () => {
 
         expect((await threadOpens()).at(-1)).toMatchObject({
             developerInstructions: 'Reply in haiku.',
+        });
+    });
+
+    it("names Caxri's interface language after the instructions", async () => {
+        const lease = endpoint({
+            environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
+        });
+        const { service, terminal, threadOpens, until } = await fixture({
+            endpoint: lease,
+            sessionInstructions: () => 'Reply in haiku.',
+            displayLocale: () => 'zh-CN',
+        });
+        service.read(terminal.id);
+        await until((snapshot) => snapshot.status === 'ready');
+
+        expect((await threadOpens()).at(-1)).toMatchObject({
+            developerInstructions: `Reply in haiku.\n\n${agentDisplayLanguageInstruction('zh-CN')}`,
         });
     });
 

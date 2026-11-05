@@ -59,6 +59,10 @@ export async function fixture(
          * The `agents.sessionInstructions` value each start reads; Caxri's preset when omitted, as in the Server.
          */
         sessionInstructions?: () => string | null;
+        /**
+         * Caxri's interface language each start reads; omitted, no language line is added.
+         */
+        displayLocale?: AgentChatServiceOptions['displayLocale'];
         onAgentStateChanged?: AgentChatServiceOptions['onAgentStateChanged'];
         delegation?: AgentChatServiceOptions['delegation'];
         isStartFenced?: AgentChatServiceOptions['isStartFenced'];
@@ -154,6 +158,7 @@ export async function fixture(
             }),
             ...(options.endpoint && { endpoint: options.endpoint }),
             sessionInstructions: options.sessionInstructions ?? (() => null),
+            displayLocale: options.displayLocale,
             onAgentStateChanged: options.onAgentStateChanged,
             delegation: options.delegation,
             isStartFenced: options.isStartFenced,

@@ -1,4 +1,4 @@
-import type { ServerEvent } from '@caxri/protocol';
+import type { ServerEvent, ServerOperationRequest } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -18,8 +18,11 @@ const gitChangedEvent: ServerEvent = {
 const setup = (visible: ReadonlySet<string> | undefined, isStopping = false) => {
     const gitChanged = vi.fn();
     const write = vi.fn();
+    const updateSystemLanguages = vi.fn();
+    const updateLanguage = vi.fn(() => Promise.resolve());
     const router = createExtensionEventRouter({
         domainService: {
+            updateSystemLanguages,
             visibleSessionIds: () => visible,
             request: (_method: string, parameters: { sessionId: string }) =>
                 Promise.resolve({
@@ -29,12 +32,12 @@ const setup = (visible: ReadonlySet<string> | undefined, isStopping = false) => 
                     workbenchRootProjectId: 'root-1',
                 }),
         } as unknown as ServerDomainService,
-        extensionService: () => ({ gitChanged }) as unknown as ExtensionService,
+        extensionService: () => ({ gitChanged, updateLanguage }) as unknown as ExtensionService,
         isStopping: () => isStopping,
         logger: { write } as unknown as StructuredLogger,
         watchesExtensionViews: (sessionId) => sessionId === 'session-phone',
     });
-    return { gitChanged, router, write };
+    return { gitChanged, router, updateLanguage, updateSystemLanguages, write };
 };
 
 const refreshedSessions = (gitChanged: ReturnType<typeof vi.fn>): string[] =>
@@ -71,5 +74,22 @@ describe('extension event router', () => {
 
         expect(gitChanged).not.toHaveBeenCalled();
         expect(write).not.toHaveBeenCalled();
+    });
+
+    it('hands a system-language report to both the domains and the Extension Host', async () => {
+        const { router, updateLanguage, updateSystemLanguages } = setup(undefined);
+        const forward = vi.fn();
+
+        await router.routeDesktopOperation(
+            {
+                method: 'app.systemLanguages.update',
+                params: { languages: ['zh-Hans-CN'] },
+            } as unknown as ServerOperationRequest,
+            forward,
+        );
+
+        expect(updateSystemLanguages).toHaveBeenCalledWith(['zh-Hans-CN']);
+        expect(updateLanguage).toHaveBeenCalledWith({ systemLanguages: ['zh-Hans-CN'] });
+        expect(forward).not.toHaveBeenCalled();
     });
 });

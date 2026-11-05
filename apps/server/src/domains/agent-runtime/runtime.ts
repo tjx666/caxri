@@ -33,6 +33,7 @@ import {
 } from '../agents';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
+import { displayLocaleReader } from '../display-locale';
 import type { DomainDependencies } from '../domain-services';
 import { SessionAutoNamingService, SessionRenameService } from '../session';
 import { AgentUsageGuards } from '../usage';
@@ -56,6 +57,7 @@ interface CreateAgentRuntimeOptions {
         | 'hookExecutable'
         | 'hasMobileAttentionRecipient'
         | 'searchWorkers'
+        | 'systemLanguages'
     >;
     logger: StructuredLogger;
     /**
@@ -164,6 +166,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     const turnContext = new AgentTurnContext(
         database,
         () => configuration.getSettings().value['agents.sessionInstructions'],
+        displayLocaleReader(configuration, dependencies),
     );
     const agentHooks = new AgentHookManager({
         discoverExecutable,
