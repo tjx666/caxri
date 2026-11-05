@@ -55,7 +55,9 @@ function fixture({
                     },
                 }) as never,
         },
-        idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'launch'),
+        idleLaunchId: vi.fn<(terminalId: string, isCompaction?: boolean) => string | undefined>(
+            () => 'launch',
+        ),
         compactIdle: vi.fn<
             (
                 terminalId: string,

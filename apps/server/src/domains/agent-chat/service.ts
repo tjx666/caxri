@@ -555,8 +555,8 @@ export class AgentChatService {
         return this.maintenance.readLeaseAt(terminalId);
     }
 
-    idleLaunchId(terminalId: string): string | undefined {
-        return this.maintenance.idleLaunchId(terminalId);
+    idleLaunchId(terminalId: string, isCompaction?: boolean): string | undefined {
+        return this.maintenance.idleLaunchId(terminalId, isCompaction);
     }
 
     compactIdle(

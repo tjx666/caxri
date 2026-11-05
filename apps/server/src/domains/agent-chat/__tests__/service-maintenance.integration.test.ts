@@ -72,4 +72,39 @@ describe('Agent Chat idle maintenance', () => {
         );
         expect(compacted.turns.at(-1)?.status).toBe('completed');
     });
+
+    it('compacts, but never suspends, an idle Chat whose background task is still running', async () => {
+        const { service, terminal, until } = await fixture();
+        await until((snapshot) => snapshot.status === 'ready');
+        await service.send(terminal.id, { text: 'hi there' });
+        await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+        );
+        service.states.apply(terminal.id, [
+            {
+                op: 'state',
+                state: {
+                    tasks: [
+                        {
+                            id: 'wait',
+                            kind: 'shell',
+                            title: 'Wait for a follow-up',
+                            status: 'running',
+                            isBackground: true,
+                            canStop: true,
+                        },
+                    ],
+                },
+            },
+        ]);
+
+        expect(service.isSuspendable(terminal.id)).toBe(false);
+        expect(service.idleLaunchId(terminal.id)).toBeUndefined();
+        const launchId = service.idleLaunchId(terminal.id, true)!;
+        expect(launchId).toBeTruthy();
+        await service.compactIdle(terminal.id, launchId, 'idle');
+        await until((snapshot) =>
+            snapshot.items.some((item) => 'kind' in item && item.kind === 'compacted'),
+        );
+    });
 });
