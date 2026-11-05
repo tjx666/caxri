@@ -4,6 +4,7 @@ import { bootstrapStateSchema } from '../../domain/bootstrap.js';
 import { sessionRecordSchema } from '../../domain/domain.js';
 import { editorNavigationTargetSchema } from '../../domain/editor.js';
 import { identifierSchema, pathSchema } from '../../domain/identifiers.js';
+import { SESSION_ACTIVITY_GROUP_ORDER } from '../../domain/session/session-activity-group.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestSchema,
@@ -47,17 +48,10 @@ export const botSnapshotSchema = z.strictObject({
 });
 
 /**
- * Board groups in display order. `attention` outranks live work for the same reason the Workbench Activity view ranks
- * it first: unread means the user (or Caxri Bot) has something to look at.
+ * Board groups in display order, the same order as the Workbench Activity view so a Session ranks the same for the user
+ * and for Caxri Bot.
  */
-export const botBoardGroupIds = [
-    'attention',
-    'working',
-    'waiting',
-    'failed',
-    'finished',
-    'idle',
-] as const;
+export const botBoardGroupIds = SESSION_ACTIVITY_GROUP_ORDER;
 const botBoardGroupSchema = z.enum(botBoardGroupIds);
 
 const botBoardRowSchema = z.strictObject({

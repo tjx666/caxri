@@ -173,8 +173,8 @@ describe('buildMobileDashboard', () => {
         expect(result.sessions.map((session) => session.id)).toEqual([
             'pinned',
             'unread',
-            'working',
             'waiting',
+            'working',
             'idle-new',
         ]);
         expect(result.sessions[0]).toMatchObject({ pinnedAt: 5, sessionActivityAt: 1 });

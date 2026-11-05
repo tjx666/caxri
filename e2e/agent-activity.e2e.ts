@@ -62,6 +62,15 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             },
         );
         sessions.set('stale', stale.session.id);
+        const busy = await pageRequest<{ session: { id: string } }>(
+            running.page,
+            'session.create',
+            {
+                defaultAgent: null,
+                projectId: initial.projects[0].id,
+            },
+        );
+        sessions.set('busy', busy.session.id);
 
         for (const [index, name] of PROJECT_NAMES.slice(1).entries()) {
             // Test folder grants are consumed in the order supplied through CAXRI_TEST_ROOT_PATHS.
@@ -135,6 +144,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                  WHERE id = ?`,
             )
             .run(activityAt - 20 * 60_000, sessions.get('stale'));
+        // Newer than every other row, so only the group order, not recency, can put it below a read result.
+        database
+            .prepare(
+                "UPDATE sessions SET agent_activity_state = 'running', session_activity_at = ? WHERE id = ?",
+            )
+            .run(activityAt + 60_000, sessions.get('busy'));
         database.close();
 
         running = await launchCaxri(launchOptions);
@@ -186,7 +201,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                         headings.map((heading) => heading.dataset.activityGroup),
                     ),
             )
-            .toEqual(['attention', 'idle']);
+            .toEqual(['attention', 'working', 'idle']);
         await expect
             .poll(() =>
                 tree
@@ -371,6 +386,24 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await markAlphaRead.click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');
         expect(await selectedSessionId(page)).toBe(sessions.get('gamma'));
+        /*
+         * Reading a result is not answering it, so the read finished turn stays above the running Agent instead of
+         * sinking below a Working group the user does not need to act on.
+         */
+        await expect
+            .poll(() =>
+                tree
+                    .locator('.agent-activity-heading')
+                    .evaluateAll((headings) =>
+                        headings.map((heading) => heading.dataset.activityGroup),
+                    ),
+            )
+            .toEqual(['attention', 'finished', 'working', 'idle']);
+        await page.mouse.move(800, 700);
+        await page.screenshot({
+            path: test.info().outputPath('activity-finished-above-working.png'),
+            mask: [page.locator('.xterm')],
+        });
 
         const betaTopBeforeSelection = await betaRow.evaluate(
             (row) => row.getBoundingClientRect().top,

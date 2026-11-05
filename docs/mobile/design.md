@@ -170,8 +170,8 @@ no background of its own keeps its default dark text readable.
 └───────────────────────────────┘
 ```
 
-- Groups match Desktop's Activity view: `PINNED`, `NEEDS ATTENTION`, `WORKING`, `WAITING`,
-  `FAILED`, `RECENTLY FINISHED`, `IDLE`, each with the same heading glyph. The rules and order
+- Groups match Desktop's Activity view: `PINNED`, `NEEDS ATTENTION`, `WAITING`, `FAILED`,
+  `RECENTLY FINISHED`, `WORKING`, `IDLE`, each with the same heading glyph. The rules and order
   come from `packages/protocol/src/domain/session/session-activity-group.ts`, shared with Desktop (see
   [Activity view](../activity-view.md)). Pinned Sessions keep Desktop's pinned order; a pinned
   Session that needs attention, is working, waiting, or failed is listed again in that group. Rows
