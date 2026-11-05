@@ -1532,8 +1532,8 @@ ends of a hand-off read as one move; an ordinary delegated task keeps the muted 
 `Delegated by <title> · <parent Project>`.
 
 **Delegated work in Agent Chat** (issue #3572) has four surfaces, none in Caxri Bot or Benchmark
-windows. The **Delegated Sessions strip section** sits in the composer strip after Background work
-and before queued messages, with the same 32px foldable header: a `Forward` glyph, `Delegated
+windows. The **Delegated Sessions strip section** sits in the composer strip after the plan and
+above Background work, since a delegated Session is the larger unit the user follows, with the same 32px foldable header: a `Forward` glyph, `Delegated
 Sessions`, then `3 delegated` with `1 needs input` and `1 failed` (the latter in `--danger`) only
 when there are some, then `$1.20 delegated`: the estimated spend of everything below the Chat, in
 `--muted` `tabular-nums` text with a plain Tooltip stating that it is estimated at API list prices
