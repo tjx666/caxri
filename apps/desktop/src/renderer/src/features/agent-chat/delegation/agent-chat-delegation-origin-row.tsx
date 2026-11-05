@@ -5,12 +5,11 @@ import { useProjectById, useSessionById, useTerminal } from '../../../stores/sel
 import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
 import { DelegationQuestionCard } from '../../delegation/delegation-question-card';
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
-import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import type { DelegationOrigin } from './agent-chat-delegation-origin';
 import { originReturnNoteKey } from './agent-chat-delegation-origin';
+import { AgentChatOriginParentLink } from './agent-chat-origin-parent-link';
 import { AgentChatHandBackButton } from './hand-back/agent-chat-hand-back-button';
-import { AgentChatHandBackReason } from './hand-back/agent-chat-hand-back-reason';
 import { AgentChatTakenOverDetail as TakenOverDetail } from './hand-back/agent-chat-taken-over-detail';
 import { useDelegationOrigin } from './hooks/use-delegation-origin';
 
@@ -54,7 +53,12 @@ function DelegatedSummary({
     const { t } = useTranslation();
     return (
         <span className="min-w-0">
-            <span className="text-foreground">{t('delegation.origin.from', { title })}</span>
+            <span className="text-foreground">{t('delegation.origin.from')}</span>{' '}
+            <AgentChatOriginParentLink
+                isArchived={origin.isParentArchived}
+                parentId={origin.parent.id}
+                title={title}
+            />
             {task?.selection?.preset && ' '}
             <DelegationPresetChip isDetailVisible selection={task?.selection} />
             {!origin.isParentArchived && (
@@ -74,10 +78,11 @@ function DelegatedSummary({
 
 /**
  * The first row of the composer strip in a Chat another Session delegated its work to: who delegated, that the result
- * goes back on its own, and a way back to that Session. Until the user takes the Session over it also warns that
- * sending a message, Stop, or Rewind here does so; afterwards it says the replies no longer go back, and the way back
- * stays. An archived parent is named without a way back, because navigating to it never restores it. Renders nothing
- * for a hand-off, an unrelated Session, or a parent that is gone.
+ * goes back on its own. The parent's name, said once, is the way back to that Session. Until the user takes the Session
+ * over it also warns that sending a message, Stop, or Rewind here does so; afterwards it says the replies no longer go
+ * back, with a Hand back button whose tooltip explains when it cannot work. An archived parent is named without a way
+ * back, because navigating to it never restores it. Renders nothing for a hand-off, an unrelated Session, or a parent
+ * that is gone.
  *
  * Not collapsible: it is the Session's standing context, and folding it would hide the warning exactly when it matters.
  */
@@ -108,7 +113,7 @@ export function AgentChatDelegationOriginRow({
             <span className="flex min-w-0 items-center gap-2">
                 <Forward aria-hidden="true" className="size-3.5 shrink-0" />
                 {origin.isTakenOver ? (
-                    <span className="min-w-0 truncate">
+                    <span className="min-w-0 flex-1 truncate">
                         <span className="text-foreground">{t('delegation.origin.takenOver')}</span>
                         {' · '}
                         <TakenOverDetail
@@ -126,37 +131,18 @@ export function AgentChatDelegationOriginRow({
                         title={title}
                     />
                 )}
-                <span className="ml-auto flex max-w-3/5 shrink-0 items-center gap-3">
-                    {origin.isTakenOver && (
-                        <AgentChatHandBackButton
-                            delegationId={task?.delegationId}
-                            isBusy={isBusy}
-                            origin={origin}
-                            terminalId={terminalId}
-                            title={title}
-                        />
-                    )}
-                    {!origin.isParentArchived && (
-                        <button
-                            className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-xs text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                            type="button"
-                            onClick={() => openSession(origin.parent.id)}
-                        >
-                            {t('delegation.origin.back', { title })}
-                        </button>
-                    )}
-                </span>
+                {origin.isTakenOver && (
+                    <AgentChatHandBackButton
+                        delegationId={task?.delegationId}
+                        isBusy={isBusy}
+                        origin={origin}
+                        terminalId={terminalId}
+                        title={title}
+                    />
+                )}
             </span>
-            {origin.isTakenOver && (
-                <AgentChatHandBackReason
-                    isBusy={isBusy}
-                    origin={origin}
-                    terminalId={terminalId}
-                    title={title}
-                />
-            )}
             {!origin.isTakenOver && !origin.isParentArchived && (
-                <span className="min-w-0 pl-5">{t('delegation.origin.hint', { title })}</span>
+                <span className="min-w-0 pl-5">{t('delegation.origin.hint')}</span>
             )}
             {task && <DelegationQuestionCard className="pl-5" entry={task} parentTitle={title} />}
             {task && (

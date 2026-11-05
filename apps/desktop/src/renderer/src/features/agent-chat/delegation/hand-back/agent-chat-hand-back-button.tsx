@@ -3,14 +3,16 @@ import { Tooltip } from '@/components/ui/tooltip';
 
 import { useTranslation } from '../../../../i18n';
 import { useDelegationHandBack } from '../../../delegation/hooks/use-delegation-hand-back';
+import { HAND_BACK_BLOCK_KEYS } from '../agent-chat-delegation-origin';
 import type { HandBackProperties } from './agent-chat-hand-back-properties';
 import { useHandBackView } from './use-hand-back-view';
 
 /**
  * The small "Hand back" button in the origin row of a Session the user took over, with a tooltip naming the Agent that
- * continues. It is a button, not a link, so it reads differently from the "Back to <parent>" navigation link beside it.
- * Always rendered while the user holds the Session, but inert (`aria-disabled`, dimmed) while handing back could not
- * work; the line beneath it says why. Nothing once the Session is delegated again or the hand-back is pending.
+ * continues. It is a button, not a link, so it reads differently from the parent's name, which navigates. Always
+ * rendered while the user holds the Session, but inert (`aria-disabled`, dimmed) while handing back could not work; its
+ * tooltip then says why instead of a second line in the row. Nothing once the Session is delegated again or the
+ * hand-back is pending.
  */
 export function AgentChatHandBackButton({
     delegationId,
@@ -29,7 +31,12 @@ export function AgentChatHandBackButton({
     const { handBack, isPending } = useDelegationHandBack();
     if (view.kind !== 'available') return null;
     return (
-        <Tooltip content={t('delegation.origin.handBackTooltip', { title })}>
+        <Tooltip
+            content={t(
+                view.block ? HAND_BACK_BLOCK_KEYS[view.block] : 'delegation.origin.handBackTooltip',
+                { title },
+            )}
+        >
             <Button
                 aria-disabled={view.block !== undefined || isPending}
                 aria-label={t('delegation.origin.handBackAria', { title })}

@@ -83,19 +83,19 @@ export const delegation = {
     'delegation.notice.settled': 'finished',
     'delegation.notice.openAria': 'Open {{title}}: {{status}}',
     'delegation.notice.unavailable': 'A Session that is no longer available',
-    'delegation.origin.from': 'Delegated by {{title}}',
+    'delegation.origin.from': 'Delegated by',
     'delegation.origin.autoReturn':
         'The Agent that delegated this is notified when it finishes, while it is still running.',
     'delegation.origin.back': 'Back to {{title}}',
-    'delegation.origin.startedFrom': 'Started from {{title}}',
-    'delegation.origin.hint':
-        'Sending a message, Stop or Rewind here takes over this Session from {{title}}',
+    'delegation.origin.startedFrom': 'Started from',
+    'delegation.origin.hint': 'Sending a message, Stop or Rewind here takes over this Session',
     'delegation.origin.takenOver': 'You took over this Session',
-    'delegation.origin.takenOverDetail': 'its replies no longer go back to {{title}}',
+    'delegation.origin.takenOverDetail': 'its replies no longer go back to',
     'delegation.origin.handBack': 'Hand back',
     'delegation.origin.handBackAria': 'Hand back to {{title}}',
     'delegation.origin.handBackTooltip': 'Let {{title}} continue driving this Session',
-    'delegation.origin.handBackPending': 'Handed back to {{title}} · waiting for it to continue',
+    'delegation.origin.handBackPending': 'Handed back to',
+    'delegation.origin.handBackPendingDetail': 'waiting for it to continue',
     'delegation.origin.handBackBlocked.busy':
         'Wait for the current reply to finish before handing back',
     'delegation.origin.handBackBlocked.draft':
