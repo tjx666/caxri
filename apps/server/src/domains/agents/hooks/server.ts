@@ -168,7 +168,8 @@ function parsePacket(
         const cwdReason = validateAgentCwd(signal);
         if (cwdReason) return { reason: cwdReason };
         if (signal.agentToolUseId !== undefined) return { reason: 'invalidAgentToolUseId' };
-        if (signal.worktreeCreateIntent !== undefined) return { reason: 'invalidSignal' };
+        if (signal.worktreeCreateIntent !== undefined || signal.worktreeCreatePath !== undefined)
+            return { reason: 'invalidSignal' };
         if (
             signal.agentPromptDigest !== undefined ||
             signal.agentResponseDigest !== undefined ||

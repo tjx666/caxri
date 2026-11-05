@@ -69,6 +69,10 @@ export interface ChatLifecycleEvent {
      */
     agentCwd?: string;
     worktreeCreateIntent?: true;
+    /**
+     * See `AgentLifecycleSignal.worktreeCreatePath`.
+     */
+    worktreeCreatePath?: string;
 }
 
 /**

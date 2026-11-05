@@ -114,6 +114,10 @@ export interface ShellSignalOptions {
     sessionIndex?: number;
     toolUseId?: string;
     worktreeCreateIntent?: true;
+    /**
+     * The path the `git worktree add` command names; only meaningful with `worktreeCreateIntent`.
+     */
+    worktreeCreatePath?: string;
 }
 
 function shellSignal(
@@ -130,6 +134,7 @@ function shellSignal(
         ...(options.worktreeCreateIntent && {
             agentToolUseId: options.toolUseId ?? 'tool-use-1',
             worktreeCreateIntent: true as const,
+            ...(options.worktreeCreatePath && { worktreeCreatePath: options.worktreeCreatePath }),
         }),
     };
 }

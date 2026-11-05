@@ -1,4 +1,8 @@
-import { commandCreatesWorktree, isOpaqueAgentSessionId } from '../../agents';
+import {
+    commandCreatesWorktree,
+    commandWorktreeAddPath,
+    isOpaqueAgentSessionId,
+} from '../../agents';
 import { stringField } from '../chat-items';
 import type { AgentChatSessionHost } from '../chat-provider';
 
@@ -27,7 +31,7 @@ export class ChatShellToolSignals {
     /**
      * Whether each started command, by its provider id, may create a worktree.
      */
-    private readonly commands = new Map<string, boolean>();
+    private readonly commands = new Map<string, { creates: boolean; path?: string }>();
 
     constructor(private readonly lifecycle: AgentChatSessionHost['lifecycle']) {}
 
@@ -35,10 +39,15 @@ export class ChatShellToolSignals {
         phase: 'shellToolFailed' | 'shellToolFinished' | 'shellToolStarted',
         id: string,
         isWorktreeCreation: boolean,
+        path?: string,
     ): void {
         this.lifecycle({
             phase,
-            ...(isWorktreeCreation && { agentToolUseId: id, worktreeCreateIntent: true }),
+            ...(isWorktreeCreation && {
+                agentToolUseId: id,
+                worktreeCreateIntent: true,
+                ...(path && { worktreeCreatePath: path }),
+            }),
         });
     }
 
@@ -46,7 +55,7 @@ export class ChatShellToolSignals {
      * A command began, or was first reported. Later reports of the same command are ignored, since a repeated start of
      * one creation reads as ambiguous.
      */
-    started(id: string, command: string | undefined): void {
+    started(id: string, command: string | undefined, cwd?: string): void {
         if (this.commands.has(id)) return;
         if (this.commands.size >= MAX_TRACKED_COMMANDS) {
             const oldest = this.commands.keys().next().value;
@@ -58,8 +67,9 @@ export class ChatShellToolSignals {
             commandCreatesWorktree(command) &&
             id.length <= MAX_TOOL_USE_ID_LENGTH &&
             isOpaqueAgentSessionId(id);
-        this.commands.set(id, isWorktreeCreation);
-        this.emit('shellToolStarted', id, isWorktreeCreation);
+        const path = isWorktreeCreation ? commandWorktreeAddPath(command, cwd) : undefined;
+        this.commands.set(id, { creates: isWorktreeCreation, ...(path && { path }) });
+        this.emit('shellToolStarted', id, isWorktreeCreation, path);
     }
 
     /**
@@ -67,13 +77,14 @@ export class ChatShellToolSignals {
      * Codex background terminal) would read as a running turn to every consumer of mid-turn signals.
      */
     ended(id: string, outcome: 'failed' | 'finished'): void {
-        const createsWorktree = this.commands.get(id);
-        if (createsWorktree === undefined) return;
+        const command = this.commands.get(id);
+        if (command === undefined) return;
         this.commands.delete(id);
         this.emit(
             outcome === 'finished' ? 'shellToolFinished' : 'shellToolFailed',
             id,
-            createsWorktree,
+            command.creates,
+            command.path,
         );
     }
 
@@ -96,7 +107,7 @@ export function observeCodexCommand(
     const id = stringField(raw.id);
     if (!id) return;
     if (isStarted) {
-        signals.started(id, stringField(raw.command));
+        signals.started(id, stringField(raw.command), stringField(raw.cwd));
         return;
     }
     // A command that exited non-zero created nothing worth following, even when Codex reports it `completed`.

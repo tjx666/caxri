@@ -2169,7 +2169,9 @@ the same `shellToolStarted`, `shellToolFinished`, and `shellToolFailed` signals 
 bridge reports. The `git worktree add` classifier is
 one shared source (`apps/server/src/domains/agents/hooks/worktree-command.ts`) that the bridge
 embeds, and `PreToolUse` waits (up to the bridge's 2 second budget) until Server Core captured its
-before-snapshot. A Chat Session therefore follows a worktree its Agent creates under
+before-snapshot. The Chat signal also carries the command's resolved target path (`worktreeCreatePath`, from the
+hook `cwd` for Claude and the command item `cwd` for Codex), which lets sibling Sessions creating worktrees at
+the same moment each follow their own. A Chat Session therefore follows a worktree its Agent creates under
 `workbench.newWorktreeBehavior`, exactly as a Terminal Session does. A Chat does not report the
 hook `cwd` as `agentCwd`: its transcript is located through `agentProviderStateRoot`, and a Bash
 `cd` moves the hook cwd without moving the transcript, so Chat resume would break. Claude Code's

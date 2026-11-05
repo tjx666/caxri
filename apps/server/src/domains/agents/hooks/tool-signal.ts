@@ -1,11 +1,23 @@
+import { posix } from 'node:path';
+
 import { isOpaqueAgentSessionId } from '../contract';
 import type { AgentLifecyclePhase } from './contract';
+
+const MAX_WORKTREE_CREATE_PATH_LENGTH = 1_024;
 
 const SHELL_TOOL_PHASES = new Set<AgentLifecyclePhase>([
     'shellToolStarted',
     'shellToolFinished',
     'shellToolFailed',
 ]);
+
+function isNormalizedAbsolutePath(path: unknown): boolean {
+    if (typeof path !== 'string') return false;
+    if (path === '/') return false;
+    if (path.length > MAX_WORKTREE_CREATE_PATH_LENGTH) return false;
+    if (!path.startsWith('/') || path.includes('\0')) return false;
+    return path === posix.normalize(path);
+}
 
 /**
  * Validates opaque tool pairing without allowing question hooks to claim filesystem creation intent.
@@ -26,6 +38,12 @@ export function validateToolSignal(
     if (
         signal.worktreeCreateIntent !== undefined &&
         (!isShell || signal.worktreeCreateIntent !== true)
+    )
+        return 'invalidSignal';
+    if (
+        signal.worktreeCreatePath !== undefined &&
+        (signal.worktreeCreateIntent !== true ||
+            !isNormalizedAbsolutePath(signal.worktreeCreatePath))
     )
         return 'invalidSignal';
     if (isShell && (signal.worktreeCreateIntent === true) !== (signal.agentToolUseId !== undefined))

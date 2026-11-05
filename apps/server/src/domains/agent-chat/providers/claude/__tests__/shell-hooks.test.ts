@@ -68,7 +68,12 @@ describe('withClaudeShellHooks', () => {
 
         expect(events).toEqual(
             (['shellToolStarted', 'shellToolFinished', 'shellToolFailed'] as const).map(
-                (phase) => ({ phase, agentToolUseId: 'toolu_1', worktreeCreateIntent: true }),
+                (phase) => ({
+                    phase,
+                    agentToolUseId: 'toolu_1',
+                    worktreeCreateIntent: true,
+                    worktreeCreatePath: '/repo-worktrees/fix-x',
+                }),
             ),
         );
     });

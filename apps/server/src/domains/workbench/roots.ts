@@ -19,11 +19,8 @@ import type { SessionTranscriptContext } from '../session';
 import { BoundedSerialBatcher } from './bounded-serial-batcher';
 import { ObservedAgentCwds } from './observed-agent-cwds';
 import type { WorktreeProvenanceScope } from './provenance';
-import {
-    AgentWorktreeAttribution,
-    isSameWorkbenchBinding,
-    updateObservedAgentCwd,
-} from './provenance';
+import { AgentWorktreeAttribution } from './provenance';
+import { isSameWorkbenchBinding, updateObservedAgentCwd } from './provenance-support';
 import type { WorkbenchCandidate } from './root-candidates';
 import { addWorkbenchCandidate } from './root-candidates';
 import {

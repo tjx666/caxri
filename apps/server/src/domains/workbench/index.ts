@@ -1,7 +1,10 @@
 export { ArchivedWorktreeCleanup } from './archive-worktree';
 export { handleAgentLifecycleSignal } from './lifecycle-signal';
 export { createLiveTerminalRecord } from './live-terminal-record';
-export { primeAgentWorkbenchProvenance, retireAgentWorkbenchProvenance } from './provenance';
+export {
+    primeAgentWorkbenchProvenance,
+    retireAgentWorkbenchProvenance,
+} from './provenance-support';
 export { validateWorkbenchRequestContext } from './request-context';
 export { isSameWorkbenchRootIdentity } from './root-discovery';
 export { createWorkbenchRootHandlers } from './root-handlers';

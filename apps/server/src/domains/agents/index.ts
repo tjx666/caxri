@@ -42,7 +42,7 @@ export {
     writeLongRunningCommands,
 } from './hooks/long-running-commands';
 export { shellCommandMatchesAny } from './hooks/shell-command-source';
-export { commandCreatesWorktree } from './hooks/worktree-command';
+export { commandCreatesWorktree, commandWorktreeAddPath } from './hooks/worktree-command';
 export {
     isLateMidTurnSignalAfterInterrupt,
     isMidTurnSignal,

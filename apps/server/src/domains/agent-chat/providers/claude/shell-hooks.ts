@@ -1,6 +1,10 @@
 import type { HookCallback, HookCallbackMatcher, HookEvent } from '@anthropic-ai/claude-agent-sdk';
 
-import { commandCreatesWorktree, isOpaqueAgentSessionId } from '../../../agents';
+import {
+    commandCreatesWorktree,
+    commandWorktreeAddPath,
+    isOpaqueAgentSessionId,
+} from '../../../agents';
 import { isRecord } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { withClaudeWorktreeHooks } from '../../worktree/enter-worktree-hooks';
@@ -70,6 +74,9 @@ function shellHook(
             commandCreatesWorktree(command) &&
             toolUseId.length <= 256 &&
             isOpaqueAgentSessionId(toolUseId);
+        const worktreePath = createsWorktree
+            ? commandWorktreeAddPath(command, input.cwd)
+            : undefined;
         try {
             await withTimeout(
                 observe({
@@ -77,6 +84,7 @@ function shellHook(
                     ...(createsWorktree && {
                         agentToolUseId: toolUseId,
                         worktreeCreateIntent: true,
+                        ...(worktreePath && { worktreeCreatePath: worktreePath }),
                     }),
                 }),
                 SHELL_HOOK_DELIVERY_TIMEOUT_MS,
