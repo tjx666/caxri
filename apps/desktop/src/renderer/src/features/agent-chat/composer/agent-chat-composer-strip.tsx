@@ -24,12 +24,13 @@ import {
 /**
  * The strip on the composer card's top edge, inset from its corners like a tab, so the Chat's state reads as separate
  * from the draft. Everything that waits above the input stacks in it as hairline-divided rows rather than separate
- * cards, as LobeHub's input trays and T3 Code's composer drawer do: the goal, the Agent's plan and its background work
- * as collapsible lists (so both are visible without opening anything, the way Claude Code's TUI lists them above its
- * prompt), the Sessions it delegated work to, queued messages, then the composer's own rows (`children`: the status row
- * nearest the input, since it changes most often, the edit bar, and the context notices). Its last row's hairline
- * overlaps the card's top border; with no row it collapses to `contents`, keeping the live regions announced without
- * drawing an empty tab.
+ * cards, as LobeHub's input trays and T3 Code's composer drawer do: the goal, the Agent's plan, the Sessions it
+ * delegated work to (above its background work, since a delegated Session is the larger unit of work the user follows),
+ * its background work as collapsible lists (so they are visible without opening anything, the way Claude Code's TUI
+ * lists them above its prompt), queued messages, then the composer's own rows (`children`: the status row nearest the
+ * input, since it changes most often, the edit bar, and the context notices). Its last row's hairline overlaps the
+ * card's top border; with no row it collapses to `contents`, keeping the live regions announced without drawing an
+ * empty tab.
  */
 export function AgentChatComposerStrip({
     activeTurnId,
@@ -120,15 +121,15 @@ export function AgentChatComposerStrip({
                         terminalId={terminalId}
                     />
                 )}
+                {isShown && canShowDelegated && (
+                    <AgentChatDelegatedSessionsSection terminalId={terminalId} />
+                )}
                 {work && (
                     <AgentChatBackgroundWorkSection
                         terminalId={terminalId}
                         work={work}
                         onOpenTask={onOpenTask}
                     />
-                )}
-                {isShown && canShowDelegated && (
-                    <AgentChatDelegatedSessionsSection terminalId={terminalId} />
                 )}
                 <AgentChatQueueList
                     isTurnRunning={isTurnRunning}

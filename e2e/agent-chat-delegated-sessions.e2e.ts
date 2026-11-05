@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import type { BootstrapState } from '@caxri/protocol';
 
+import { openBackgroundWork } from './support/agent-chat-background-work.ts';
 import { openAgentChat } from './support/agent-chat-fixture.ts';
 import { countRequests } from './support/agent-chat-switch-samples.ts';
 import { openCaxriBot } from './support/caxri-bot.ts';
@@ -134,6 +135,43 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
             text: `Reviewed the retry design.\n\nSummary: ${CHILD_SUMMARY}`,
         });
         expect(JSON.stringify(transcript.rows)).not.toContain('One more question');
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
+ * A delegated Session is the larger unit the user follows, so its section sits above the Agent's own Background work.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the Delegated Sessions section sits above Background work in the strip', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-above-work-');
+    try {
+        const { page } = chat.running;
+        const { projectId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await writeFile(join(chat.controlDirectory, HOLD_CHILD_FILE), '');
+        await openAgentChat(page, 'Codex Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill(DELEGATE_PROMPT);
+        await message.press('Enter');
+        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        await expect(strip).toContainText('1 delegated');
+        await expect(session.getByText('Delegated the review to a new Session.')).toBeVisible();
+
+        await message.fill('run it in the background');
+        await message.press('Enter');
+        const work = await openBackgroundWork(session);
+        const isAbove = await strip.evaluate(
+            (delegated, below) =>
+                Boolean(
+                    delegated.compareDocumentPosition(below) & Node.DOCUMENT_POSITION_FOLLOWING,
+                ),
+            await work.elementHandle(),
+        );
+        expect(isAbove).toBe(true);
+        await page.screenshot({ path: testInfo.outputPath('delegated-above-background-work.png') });
     } finally {
         await chat.cleanup();
     }
