@@ -33,10 +33,10 @@ import {
 
 const CHECK_TIMEOUT_MS = 15_000;
 /**
- * How often a long-running Caxri asks again. Six hours keeps a Mac that stays open for days current while spending a
- * fraction of GitHub's anonymous hourly quota.
+ * How often a long-running Caxri asks again: soon enough to start a fresh release's background download within minutes,
+ * at four requests an hour against GitHub's anonymous 60. A rate-limited tick needs no retry timer of its own.
  */
-const BACKGROUND_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
+const BACKGROUND_CHECK_INTERVAL_MS = 15 * 60 * 1_000;
 /**
  * A wake from sleep re-checks only when the last attempt is at least this old, so closing and opening a lid repeatedly
  * does not turn into a request per wake.
@@ -468,7 +468,7 @@ export class UpdateService {
         }
 
         this.lastCheckAttemptAt = this.now();
-        // A background re-check stays invisible: publishing `checking` would blank an `available` chip every six hours.
+        // A background re-check stays invisible: publishing `checking` would blank an `available` chip on every tick.
         if (!options.background)
             this.publish({ status: 'checking', currentVersion: this.options.currentVersion });
         const settled = options.background ? this.snapshotForBackgroundCheck() : undefined;
