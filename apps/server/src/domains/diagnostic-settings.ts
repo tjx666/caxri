@@ -130,6 +130,7 @@ function projectDelegation(delegation: DelegationSettings) {
         maxDepth: delegation.maxDepth,
         readChildChat: delegation.readChildChat,
         approval: delegation.approval,
+        autoHandBack: delegation.autoHandBack,
         presets: delegation.presets.map(
             (preset) =>
                 ({

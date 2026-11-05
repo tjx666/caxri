@@ -25,10 +25,15 @@ const DELEGATION_DEPTH_SPEC: IntegerSettingSpec = {
 
 type DelegationSettings = AppSettings['agents.delegation'];
 
+/**
+ * The on/off fields of `agents.delegation`, each rendered as one switch.
+ */
+type DelegationSwitchField = 'approval' | 'autoHandBack' | 'readChildChat';
+
 interface DelegationFieldControlProperties {
     id: string;
     label: string;
-    field: 'approval' | 'maxDepth' | 'readChildChat';
+    field: DelegationSwitchField | 'maxDepth';
     value: DelegationSettings;
     /**
      * Receives the whole value with only `field` changed, so the presets and caller bindings the user hand-wrote
@@ -47,26 +52,14 @@ export function DelegationFieldControl({
     value,
     onChange,
 }: DelegationFieldControlProperties) {
-    if (field === 'approval')
+    if (field !== 'maxDepth')
         return (
             <Switch
                 id={id}
                 aria-label={label}
-                checked={value.approval}
+                checked={value[field]}
                 className="mt-0.5"
-                onCheckedChange={(checked) => onChange({ ...value, approval: checked }, 'approval')}
-            />
-        );
-    if (field === 'readChildChat')
-        return (
-            <Switch
-                id={id}
-                aria-label={label}
-                checked={value.readChildChat}
-                className="mt-0.5"
-                onCheckedChange={(checked) =>
-                    onChange({ ...value, readChildChat: checked }, 'readChildChat')
-                }
+                onCheckedChange={(checked) => onChange({ ...value, [field]: checked }, field)}
             />
         );
     return (

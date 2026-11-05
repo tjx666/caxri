@@ -94,6 +94,8 @@ export const delegation = {
     'delegation.origin.handBack': 'Hand back',
     'delegation.origin.handBackAria': 'Hand back to {{title}}',
     'delegation.origin.handBackTooltip': 'Let {{title}} continue driving this Session',
+    'delegation.origin.handBackTooltipAuto':
+        'Let {{title}} continue driving this Session. Leave it alone for 5 minutes and it goes back on its own',
     'delegation.origin.handBackPending': 'Handed back to',
     'delegation.origin.handBackPendingDetail': 'waiting for it to continue',
     'delegation.origin.handBackBlocked.busy':

@@ -340,3 +340,22 @@ describe('hand-back review gaps', () => {
         });
     });
 });
+
+describe('automatic hand-back', () => {
+    it('grants through the same guards as the owner', async () => {
+        const f = await takenOverSession();
+        expect(f.service.handBacks.autoHandBack(f.sessionId)).toBe('granted');
+        expect(f.grants()).toMatchObject([{ state: 'pending', delegationId: f.id }]);
+        expect(f.service.handBacks.autoHandBack(f.sessionId)).toBe('duplicate');
+    });
+
+    it('answers a refusal instead of throwing, and stores no grant', async () => {
+        const f = await takenOverSession();
+        f.idle.value = false;
+        expect(f.service.handBacks.autoHandBack(f.sessionId)).toBe('child_busy');
+        f.idle.value = true;
+        f.state.callerLaunch = undefined;
+        expect(f.service.handBacks.autoHandBack(f.sessionId)).toBe('parent_gone');
+        expect(f.grants()).toHaveLength(0);
+    });
+});

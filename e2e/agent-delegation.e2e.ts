@@ -106,6 +106,7 @@ process.stdout.write('Synthetic caller ready\r\n');
                 maxDepth: 2,
                 readChildChat: true,
                 approval: true,
+                autoHandBack: true,
                 presets: [
                     {
                         name: 'synthetic-review',

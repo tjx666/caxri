@@ -111,6 +111,9 @@ export const settingsPage = {
     'settings.row.delegationReadChildChat.title': 'Let Agents read delegated Chats',
     'settings.row.delegationReadChildChat.description':
         'An Agent that hands a task to another Agent in Chat can read what that Agent did so far, to check its progress without interrupting it.',
+    'settings.row.delegationAutoHandBack.title': 'Hand back Sessions you leave',
+    'settings.row.delegationAutoHandBack.description':
+        'When you take over a delegated Session and then leave it alone for 5 minutes with its Agent idle, give it back to the Agent that delegated it so that Agent can continue.',
     'settings.row.agentSecrets.title': 'Secrets',
     'settings.row.agentSecrets.description':
         'API keys and tokens Agents can use in the commands they run. Values never appear in the conversation.',

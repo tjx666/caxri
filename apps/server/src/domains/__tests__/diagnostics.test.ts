@@ -84,6 +84,7 @@ describe('diagnostics redaction', () => {
             maxDepth: 3,
             readChildChat: true,
             approval: true,
+            autoHandBack: true,
             presets: [
                 {
                     name: 'reviewer',
@@ -125,6 +126,7 @@ describe('diagnostics redaction', () => {
             maxDepth: 3,
             readChildChat: true,
             approval: true,
+            autoHandBack: true,
             presets: [
                 {
                     name: 'reviewer',

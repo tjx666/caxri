@@ -41,8 +41,8 @@ const dianjiangSourceSchema = z.strictObject({
 });
 
 /**
- * The part of the delegation settings a dianjiang file owns. `readChildChat` and `approval` are Caxri switches the file
- * has no say in, so an import never resets them.
+ * The part of the delegation settings a dianjiang file owns. `readChildChat`, `approval`, and `autoHandBack` are Caxri
+ * switches the file has no say in, so an import never resets them.
  */
 export type ImportedDelegation = Pick<AgentDelegationSettings, 'callers' | 'maxDepth' | 'presets'>;
 

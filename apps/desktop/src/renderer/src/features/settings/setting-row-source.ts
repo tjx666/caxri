@@ -33,7 +33,10 @@ export type SettingRowBinding =
     | { type: 'claude-windows' }
     | { type: 'agent-secrets' }
     | { type: 'delegation-presets' }
-    | { type: 'delegation-field'; field: 'approval' | 'maxDepth' | 'readChildChat' }
+    | {
+          type: 'delegation-field';
+          field: 'approval' | 'autoHandBack' | 'maxDepth' | 'readChildChat';
+      }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
 
