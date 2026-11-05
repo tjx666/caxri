@@ -5,6 +5,8 @@ export type { DelegationChatTurn } from './chat-child';
 export { canChatCorrelateTask } from './chat-child';
 export type { DelegationChatSnapshot } from './feed';
 export { delegationChatStep, delegationUsageLimitResetsAt } from './feed';
+export { DelegationAutoHandBack } from './handback/auto';
+export { sessionControls } from './handback/control';
 export type { DelegationPullRequestSource } from './handlers';
 export { createDelegationHandlers } from './handlers';
 export { delegationResumeLaunch } from './launch';

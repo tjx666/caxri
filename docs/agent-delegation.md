@@ -379,9 +379,24 @@ the Session once.
   creates and Caxri Bot are not refused.
 - **Not offered.** Revoking a pending grant, a confirmation dialog, and handing back a suspended Chat
   (its launch is gone, so the pinned launch cannot be proven).
+- **Automatic hand-back.** With `agents.delegation.autoHandBack` on (the default), Server Core
+  hands the Session back on the user's behalf once they left it alone
+  (`DelegationAutoHandBack`, after Muxy's take-over release). The wait starts when a Session whose
+  `control` is `human` leaves every visible Desktop window, and only for a departure seen during
+  the current Server lifetime, so a Session taken over long ago and not opened since is never
+  handed back on upgrade or restart. Showing the Session again, or a phone watching its Chat,
+  cancels the wait. After `AUTO_HAND_BACK_AFTER_MS` (5 minutes) it runs the owner's guards above:
+  `child_busy` or `draft_active` restarts the wait, so the child must stay idle for the whole
+  wait; any other refusal ends it until the user leaves the Session again. The Chat composer's
+  unsent draft is Renderer-only and does not block it: the follow-up arrives as a new message and
+  leaves the draft in place. The hand-back button's tooltip says the Session goes back on its own.
+  Idle suspension that stops the child first (`terminal.idleSuspension.afterMinutes` below 5)
+  ends the wait with `child_changed`.
 - **Logs.** `agent_delegation.hand_back` records `outcome` (`granted`, `duplicate`, `consumed`,
   `invalidated`, or a refusal reason), a closed invalidation `reason` (`child_changed`,
-  `parent_changed`, `restart`), and a `count`. IDs and enums only.
+  `parent_changed`, `restart`), a `count`, and `trigger` (`user` or `auto`) on a request's outcome.
+  An automatic attempt logs only its final outcome, not each `child_busy` or `draft_active` retry.
+  IDs and enums only.
 
 ### Reading a delegated Chat
 
@@ -596,6 +611,7 @@ installed automatically. The default maximum depth is two; supported values are 
     "maxDepth": 2,
     "readChildChat": true,
     "approval": true,
+    "autoHandBack": true,
     "presets": [
       {
         "name": "review",
@@ -882,7 +898,7 @@ Both surfaces call `settings.delegation.import` with `sourceText` (at most 256 K
   only in the current settings is kept; new presets are appended. Caller rules are replaced per
   provider. The current `maxDepth` is kept.
 - **Replace**: the file's presets, caller rules and `maxDepth` become the configuration.
-- In both modes `readChildChat` and `approval` stay as currently configured; the dianjiang format
+- In both modes `readChildChat`, `approval`, and `autoHandBack` stay as currently configured; the dianjiang format
   does not carry them. The merged result is validated again, including the 32-preset cap.
 
 Applying rewrites the whole `agents.delegation` node: comments inside that node are lost, comments

@@ -38,6 +38,11 @@ vi.mock('../terminal', () => ({
     TerminalSuspensionService: recorder('suspension'),
 }));
 
+vi.mock('../agent-delegation', () => ({
+    DelegationAutoHandBack: recorder('autoHandBack'),
+    sessionControls: () => new Map(),
+}));
+
 vi.mock('../session', () => ({
     ChatAwayRecap: recorder('awayRecap'),
     ChatIdleCompaction: recorder('idleCompaction'),
@@ -89,11 +94,12 @@ describe('createTerminalSupervision', () => {
         await supervision.close();
 
         // Suspension and the resource monitor keep the order the composition root closed them in before this slice owned
-        // them; idle compaction, the away recap, and the usage-limit waits sit between.
+        // them; idle compaction, the away recap, the automatic hand-back, and the usage-limit waits sit between.
         expect(lifecycle.events).toEqual([
             'suspension.start',
             'idleCompaction.start',
             'awayRecap.start',
+            'autoHandBack.start',
             'usageLimitWaits.start',
             'monitor.start',
             'ptyUsage.start',
@@ -103,6 +109,8 @@ describe('createTerminalSupervision', () => {
             'idleCompaction.close:end',
             'awayRecap.close:begin',
             'awayRecap.close:end',
+            'autoHandBack.close:begin',
+            'autoHandBack.close:end',
             'usageLimitWaits.close:begin',
             'usageLimitWaits.close:end',
             'monitor.close:begin',

@@ -52,6 +52,13 @@ export const MAX_DELEGATION_DEPTH = 8;
 export const DEFAULT_DELEGATION_DEPTH = 2;
 
 /**
+ * How long the user must leave a Session they took over alone (no window shows it, no phone watches it, its Agent is
+ * idle) before `autoHandBack` gives it back. Long enough to step into another Session and return without losing it,
+ * short enough that a forgotten takeover does not stall the delegating Agent's plan.
+ */
+export const AUTO_HAND_BACK_AFTER_MS = 5 * 60_000;
+
+/**
  * Machine reasons the cross-field checks below attach to their issues (`params.reason`).
  */
 export type DelegationCustomIssueReason =
@@ -110,6 +117,12 @@ export const agentDelegationSettingsSchema = z
          * permission always goes to the user.
          */
         approval: z.boolean().default(true),
+        /**
+         * Whether a Session the user took over goes back to the Agent that delegated it once the user has left it
+         * alone: no window shows it and no phone watches it for `AUTO_HAND_BACK_AFTER_MS`, its Agent is idle, and the
+         * delegating Agent still runs. Off leaves every hand-back to the user.
+         */
+        autoHandBack: z.boolean().default(true),
     })
     .superRefine((settings, context) => {
         const names = new Set(settings.presets.map((preset) => preset.name));
@@ -173,6 +186,7 @@ export const agentDelegationSettingsSchema = z
         callers: {},
         readChildChat: true,
         approval: true,
+        autoHandBack: true,
     });
 
 export const delegationRosterSchema = z.strictObject({

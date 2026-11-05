@@ -87,6 +87,8 @@ export const delegation: TranslatedNamespace<typeof source> = {
     'delegation.origin.handBack': '交还',
     'delegation.origin.handBackAria': '交还给 {{title}}',
     'delegation.origin.handBackTooltip': '让 {{title}} 继续驱动此会话',
+    'delegation.origin.handBackTooltipAuto':
+        '让 {{title}} 继续驱动此会话。离开此会话 5 分钟后会自动交还',
     'delegation.origin.handBackPending': '已交还给',
     'delegation.origin.handBackPendingDetail': '等待其继续',
     'delegation.origin.handBackBlocked.busy': '请等当前回复结束后再交还',

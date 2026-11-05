@@ -48,6 +48,33 @@ interface HandBackHost {
  */
 type InvalidationReason = 'child_changed' | 'parent_changed' | 'restart';
 
+/**
+ * Who asked for the hand-back: the owner (`user`: the button or `caxri agent delegate hand-back`), or Server Core after
+ * the user left the taken-over Session alone (`auto`, see `DelegationAutoHandBack`).
+ */
+type HandBackTrigger = 'auto' | 'user';
+
+/**
+ * A refused hand-back, before the caller decides whether to throw it (the owner's request) or keep waiting (automatic).
+ */
+interface Refused {
+    refusal: DelegationHandBackRefusal;
+}
+
+/**
+ * What an automatic hand-back attempt ended with: the grant (`granted`, or `duplicate` when one was already pending),
+ * or the refusal the owner's request would have thrown.
+ */
+export type AutoHandBackOutcome = DelegationHandBackReply['status'] | DelegationHandBackRefusal;
+
+/**
+ * The refusals that only mean "not yet": the child is mid-turn or its Terminal prompt holds unsent text. An automatic
+ * hand-back waits them out; every other refusal ends its wait.
+ */
+export function isRetryableAutoRefusal(refusal: DelegationHandBackRefusal): boolean {
+    return refusal === 'child_busy' || refusal === 'draft_active';
+}
+
 const REFUSAL_MESSAGES: Record<DelegationHandBackRefusal, string> = {
     not_taken_over: 'This Session is not under your control',
     child_busy: 'Wait for the current reply to finish before handing back',
@@ -95,16 +122,15 @@ export class DelegationHandBacks {
 
     private log(
         outcome: 'consumed' | 'duplicate' | 'granted' | 'invalidated' | DelegationHandBackRefusal,
-        extra: { reason?: InvalidationReason; count?: number } = {},
+        extra: { reason?: InvalidationReason; count?: number; trigger?: HandBackTrigger } = {},
     ): void {
         this.options.logger?.write('info', logEventCatalog.agentDelegation.handBack, {
             fields: { outcome, ...extra },
         });
     }
 
-    private refuse(reason: DelegationHandBackRefusal): never {
-        this.log(reason);
-        throw new CaxriError('CONFLICT', REFUSAL_MESSAGES[reason], { reason });
+    private refuse(reason: DelegationHandBackRefusal): Refused {
+        return { refusal: reason };
     }
 
     private invalidate(ids: readonly string[], reason: InvalidationReason): void {
@@ -113,8 +139,8 @@ export class DelegationHandBacks {
     }
 
     /**
-     * Checks the Session's Agent can take a new instruction right now, and returns what the grant pins of it. Throws
-     * the refusal otherwise.
+     * Checks the Session's Agent can take a new instruction right now, and returns what the grant pins of it, or the
+     * refusal.
      */
     private pinsOfChild(anchor: StoredAgentDelegation) {
         const { database } = this.options;
@@ -160,7 +186,7 @@ export class DelegationHandBacks {
 
     /**
      * Checks the Agent that delegated the Session is still the same running launch, and returns what the grant pins of
-     * it. Throws the refusal otherwise.
+     * it, or the refusal.
      */
     private pinsOfParent(anchor: StoredAgentDelegation) {
         const { database } = this.options;
@@ -186,14 +212,11 @@ export class DelegationHandBacks {
     }
 
     /**
-     * `agent.delegation.handBack`. `delegationId` names any task of the Session; the grant continues the Session's
-     * newest task that ran.
+     * Stores a grant for the Session through every guard, or answers the refusal. Shared by the owner's request and the
+     * automatic hand-back, which differ only in how they report a refusal.
      */
-    handBack(delegationId: string): DelegationHandBackReply {
+    private grant(sessionId: string, trigger: HandBackTrigger): DelegationHandBackReply | Refused {
         const { database } = this.options;
-        const named = database.agentDelegations.get(delegationId);
-        if (!named) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
-        const { sessionId } = named.receipt;
         const relation = database.getSession(sessionId)?.createdByRelation;
         if (relation !== 'delegated' && relation !== 'consult')
             return this.refuse('not_taken_over');
@@ -202,14 +225,16 @@ export class DelegationHandBacks {
             const pending = database.agentDelegations.handBacks
                 .forSessions([sessionId])
                 .find((grant) => grant.state === 'pending')!;
-            this.log('duplicate');
+            this.log('duplicate', { trigger });
             return { grantId: pending.id, delegationId: pending.delegationId, status: 'duplicate' };
         }
         const anchor = handBackAnchor(database, sessionId);
         if (control !== 'human' || !anchor?.hasHumanIntervention)
             return this.refuse('not_taken_over');
         const child = this.pinsOfChild(anchor);
+        if ('refusal' in child) return child;
         const parent = this.pinsOfParent(anchor);
+        if ('refusal' in parent) return parent;
         const grant = {
             id: randomUUID(),
             delegationId: anchor.receipt.delegationId,
@@ -219,12 +244,38 @@ export class DelegationHandBacks {
             createdAt: this.now(),
         };
         if (!this.store.insert(grant)) {
-            this.log('duplicate');
+            this.log('duplicate', { trigger });
             return { grantId: grant.id, delegationId: grant.delegationId, status: 'duplicate' };
         }
-        this.log('granted');
+        this.log('granted', { trigger });
         this.host.notices().handedBack(anchor, grant.id);
         return { grantId: grant.id, delegationId: grant.delegationId, status: 'granted' };
+    }
+
+    /**
+     * `agent.delegation.handBack`. `delegationId` names any task of the Session; the grant continues the Session's
+     * newest task that ran.
+     */
+    handBack(delegationId: string): DelegationHandBackReply {
+        const named = this.options.database.agentDelegations.get(delegationId);
+        if (!named) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
+        const result = this.grant(named.receipt.sessionId, 'user');
+        if (!('refusal' in result)) return result;
+        const reason = result.refusal;
+        this.log(reason, { trigger: 'user' });
+        throw new CaxriError('CONFLICT', REFUSAL_MESSAGES[reason], { reason });
+    }
+
+    /**
+     * Hands `sessionId` back on the user's behalf after they left it alone (`DelegationAutoHandBack`), through the same
+     * guards as their own request. Never throws: the refusal is the answer. Only a refusal that ends the wait is
+     * logged, so a child that stays busy for an hour does not log one every sweep.
+     */
+    autoHandBack(sessionId: string): AutoHandBackOutcome {
+        const result = this.grant(sessionId, 'auto');
+        if (!('refusal' in result)) return result.status;
+        if (!isRetryableAutoRefusal(result.refusal)) this.log(result.refusal, { trigger: 'auto' });
+        return result.refusal;
     }
 
     /**

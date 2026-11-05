@@ -286,7 +286,13 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         await page.mouse.move(0, 0);
         await childMessage.fill('');
         await expect(handBack).toHaveAttribute('aria-disabled', 'false');
+        // With `agents.delegation.autoHandBack` on by default, the tooltip says the Session goes back on its own.
+        await handBack.hover();
+        await expect(page.locator('.tooltip-popup')).toContainText(
+            'Leave it alone for 5 minutes and it goes back on its own',
+        );
         await page.screenshot({ path: testInfo.outputPath('handback-available.png') });
+        await page.mouse.move(0, 0);
 
         // Hand back while the parent is held mid-turn: the pending line shows.
         await writeFile(join(chat.controlDirectory, HOLD_PARENT_FILE), '');

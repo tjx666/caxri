@@ -108,6 +108,9 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.delegationReadChildChat.title': '允许 Agent 读取委派的对话',
     'settings.row.delegationReadChildChat.description':
         '把任务委派给另一个 Agent 的对话后，委派方可以读取对方目前做了什么，不打断它就能查看进度。',
+    'settings.row.delegationAutoHandBack.title': '自动交还离开的会话',
+    'settings.row.delegationAutoHandBack.description':
+        '你接管委派的会话后，若离开它 5 分钟且其 Agent 空闲，就交还给委派它的 Agent，由它继续。',
     'settings.row.agentSecrets.title': '密钥',
     'settings.row.agentSecrets.description':
         'Agent 运行命令时可使用的 API Key 和 Token，值不会出现在对话中。',

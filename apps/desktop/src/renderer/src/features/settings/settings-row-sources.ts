@@ -318,6 +318,22 @@ export const settingRowSources: SettingRowSource[] = [
             'helper',
         ]),
     },
+    {
+        id: 'agents.delegation.autoHandBack',
+        category: 'agents',
+        titleKey: 'settings.row.delegationAutoHandBack.title',
+        descriptionKey: 'settings.row.delegationAutoHandBack.description',
+        binding: { type: 'delegation-field', field: 'autoHandBack' },
+        searchTerms: lower([
+            'hand back',
+            'take over',
+            'takeover',
+            'delegate',
+            'subagent',
+            'away',
+            'idle',
+        ]),
+    },
     specRow('agents.longRunningShellCommands', {
         advanced: true,
         binding: { type: 'long-running-commands' },

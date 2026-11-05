@@ -202,7 +202,9 @@ export const agentDelegationLogEvents = {
      * grant), `duplicate` (a grant was already pending), `invalidated` (something the grant was pinned to moved first),
      * or a refusal: `not_taken_over`, `child_busy`, `draft_active`, `child_changed`, `parent_gone`, or
      * `parent_changed`. `fields.reason` repeats the closed pin or guard that fired for `invalidated` and for a refusal
-     * at use time. IDs and enums only, never a title, a prompt, or an answer.
+     * at use time. `fields.trigger` says who asked for a grant or refusal: `user`, or `auto` when Server Core handed
+     * back a Session the user left alone (only its final outcome is logged, never a busy retry). IDs and enums only,
+     * never a title, a prompt, or an answer.
      */
     handBack: 'agent_delegation.hand_back',
     /**
