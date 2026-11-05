@@ -84,8 +84,8 @@ function reportBridgeStarted() {
   socket.on('error', () => {});
 }
 // Providers pipe a JSON payload on stdin. Only opaque session, turn, subagent, and tool identifiers, a bounded
-// worktree-create classification, and the event's own absolute working directory are extracted, so commands, output,
-// prompts, and responses never cross this boundary.
+// worktree-create classification (with the absolute path that the git worktree add names, when resolvable), and the event's
+// own absolute working directory are extracted, so commands, output, prompts, and responses never cross this boundary.
 const MAX_CWD_LENGTH = 1024;
 // The provider's own cwd for this event, not a tool argument. Server Core proves it against Git worktree topology
 // before it becomes durable, so the bridge only enforces a bounded absolute path with no embedded NUL.
@@ -169,6 +169,7 @@ function readIdentifiers(callback) {
     let backgroundWork;
     let failure;
     let worktreeCreateIntent = false;
+    let worktreeCreatePath;
     try {
       const payload = JSON.parse(source);
       const agentValue = payload && (payload.agent_id ?? payload.agentId ?? (provider === 'grok' ? (payload.subagentId ?? (payload.subagentType ? payload.sessionId : undefined)) : undefined));
@@ -216,6 +217,8 @@ function readIdentifiers(callback) {
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
       worktreeCreateIntent = hasWorktreeCreateIntent(payload);
       cwd = readCwd(payload);
+      // The path the command names is a Server-side filter over Git-reported additions, never authority.
+      if (worktreeCreateIntent) worktreeCreatePath = commandWorktreeAddPath(payload.tool_input.command, cwd);
       if (captureDigests && !agentId && !overflow) {
         if (['turnFinished', 'turnFailed'].includes(signal.phase) && payload.hook_event_name === 'StopFailure')
           failure = ['rate_limit', 'billing_error', 'authentication_failed', 'max_output_tokens'].includes(payload.error) ? payload.error : 'provider_failed';
@@ -247,7 +250,7 @@ function readIdentifiers(callback) {
       turnId = prefixString(turnIdKeys);
     }
     const responseStop = captureDigests && provider === 'grok' && signal.phase === 'turnFinished';
-    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, backgroundWork, failure, overflow: captureDigests && overflow });
+    callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, worktreeCreatePath, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, backgroundWork, failure, overflow: captureDigests && overflow });
   };
   // Stdin may be an interactive TTY when a human runs the bridge by hand; never wait on it.
   const timer = setTimeout(finish, ${BRIDGE_STDIN_TIMEOUT_MS});
@@ -350,7 +353,7 @@ if (!hasAnyLaunchContext) {
   readAttention(sendAttention);
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
-readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, backgroundWork, failure, overflow, ignored }) => {
+readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, worktreeCreatePath, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, backgroundWork, failure, overflow, ignored }) => {
   if (ignored) { process.stdin.pause(); return; }
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
@@ -367,6 +370,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
   if (turnContinues) signal.agentTurnContinues = true;
   if (backgroundWork) signal.agentBackgroundWork = true;
   if (worktreeCreateIntent) signal.worktreeCreateIntent = true;
+  if (worktreeCreateIntent && worktreeCreatePath) signal.worktreeCreatePath = worktreeCreatePath;
   const socket = net.createConnection(socketPath);
   let response = '';
   let settled = false;
@@ -413,7 +417,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
  * Bump on every bridge script change, including a behavior-preserving one: same-version builds sharing the staged
  * bridge would otherwise keep rewriting each other's copy.
  */
-const BRIDGE_VERSION = 27;
+const BRIDGE_VERSION = 28;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

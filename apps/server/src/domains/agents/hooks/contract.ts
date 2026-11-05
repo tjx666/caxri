@@ -171,6 +171,13 @@ export interface AgentLifecycleSignal {
      * the hook boundary; Server Core must pair its before/after hooks and prove one unique structured Git addition.
      */
     worktreeCreateIntent?: true;
+    /**
+     * The normalized absolute path the classified `git worktree add` names, resolved by the sender only when the
+     * command itself pins it down. Server Core uses it strictly as a filter over the additions Git reports for this
+     * creation, so it can neither introduce nor authorize a Workbench Root. Requires `worktreeCreateIntent`; never
+     * logged.
+     */
+    worktreeCreatePath?: string;
 }
 
 export interface AgentHookBinding {

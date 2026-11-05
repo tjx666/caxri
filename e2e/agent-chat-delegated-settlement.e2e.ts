@@ -268,13 +268,22 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         await expect(takenOver).toContainText('You took over this Session');
         await expect(session.getByText('You said: Let me check one thing')).toBeVisible();
 
-        // A draft in the composer disables the hand-back and says why.
+        // The row names the parent once, as the way back, with no separate "Back to" link.
+        await expect(
+            takenOver.getByRole('button', { name: `Back to ${parent.title}`, exact: true }),
+        ).toHaveText(parent.title);
+        // A draft in the composer disables the hand-back; its tooltip says why, without a second line in the row.
         const handBack = takenOver.getByRole('button', { name: /^Hand back to / });
         await expect(handBack).toBeVisible();
         await childMessage.fill('half-typed note');
         await expect(handBack).toHaveAttribute('aria-disabled', 'true');
-        await expect(takenOver).toContainText('Send or clear the message you are typing');
+        await expect(takenOver).not.toContainText('Send or clear the message you are typing');
+        await handBack.hover();
+        await expect(page.locator('.tooltip-popup')).toContainText(
+            'Send or clear the message you are typing',
+        );
         await page.screenshot({ path: testInfo.outputPath('handback-disabled-draft.png') });
+        await page.mouse.move(0, 0);
         await childMessage.fill('');
         await expect(handBack).toHaveAttribute('aria-disabled', 'false');
         await page.screenshot({ path: testInfo.outputPath('handback-available.png') });

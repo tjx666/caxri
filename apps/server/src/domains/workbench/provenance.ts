@@ -1,14 +1,20 @@
-import type { AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
-import { CaxriError, errorMessage } from '@caxri/protocol';
+import type { AgentProvider } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { BoundedSerialBatcher } from './bounded-serial-batcher';
-import type { WorkbenchRootService } from './roots';
+import type { ProvenanceUnavailableReason } from './provenance-support';
+import {
+    creationKey,
+    isSameWorkbenchBinding,
+    launchKey,
+    selectAddition,
+    withTimeout,
+} from './provenance-support';
 
 const MAX_PENDING_CREATIONS = 256;
 const MAX_PENDING_CREATION_VALIDATIONS = 256;
@@ -32,6 +38,11 @@ interface WorktreeProvenanceBaseline extends WorktreeProvenanceScope {
 
 interface PendingWorktreeCreation {
     ambiguous: boolean;
+    /**
+     * The normalized absolute path the command named. Only a filter over Git-reported additions: it keeps overlapping
+     * creations in one repository individually attributable, and never introduces or authorizes a root.
+     */
+    declaredPath?: string;
     isCurrentLaunch(): boolean;
     baseline: WorktreeProvenanceBaseline;
     createdAt: number;
@@ -58,51 +69,6 @@ interface AgentWorktreeAttributionOptions {
 }
 
 /**
- * Detects a root selection change across asynchronous worktree attribution and following. Validation can re-anchor the
- * device number after a reboot without changing the selected root, so only Project and inode identity cancel an
- * in-flight decision.
- */
-export function isSameWorkbenchBinding(
-    left: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
-    right: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
-): boolean {
-    return (
-        left?.projectId === right?.projectId &&
-        left?.workbenchRootProjectId === right?.workbenchRootProjectId &&
-        left?.rootInode === right?.rootInode
-    );
-}
-
-function launchKey(reference: { launchId: string; terminalId: string }): string {
-    return JSON.stringify([reference.terminalId, reference.launchId]);
-}
-
-function creationKey(reference: {
-    agentToolUseId?: string;
-    launchId: string;
-    terminalId: string;
-}): string | undefined {
-    return reference.agentToolUseId
-        ? JSON.stringify([reference.terminalId, reference.launchId, reference.agentToolUseId])
-        : undefined;
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
-    let cancelTimeout = () => {};
-    try {
-        return await Promise.race([
-            promise,
-            new Promise<undefined>((resolve) => {
-                const timer = setTimeout(resolve, timeoutMs);
-                cancelTimeout = () => clearTimeout(timer);
-            }),
-        ]);
-    } finally {
-        cancelTimeout();
-    }
-}
-
-/**
  * Pairs one classified Bash PreToolUse hook with its outcome and proves a unique linked-worktree addition without
  * accepting commands, paths, output, or CLI reports as authority.
  */
@@ -126,6 +92,12 @@ export class AgentWorktreeAttribution {
                     fields: { reason: 'creation_capacity' },
                 }),
             run: (keys) => this.options.runQueued(() => this.attribute(keys)),
+        });
+    }
+
+    private logUnavailable(reason: ProvenanceUnavailableReason, terminalId: string): void {
+        this.options.logger.write('info', workbenchRootLogEvents.provenanceUnavailable, {
+            fields: { reason, terminalId },
         });
     }
 
@@ -160,8 +132,10 @@ export class AgentWorktreeAttribution {
 
     /**
      * Reserves capacity before entering the serialized Git queue. Every overlapping PreToolUse window for one
-     * repository stays as an ambiguous tombstone until its own outcome or TTL, so staggered PostToolUse batches cannot
-     * attribute the same addition to different Sessions.
+     * repository stays as a tombstone until its own outcome or TTL. A creation without a declared path becomes
+     * ambiguous (and inert) as soon as another creation overlaps it, so staggered PostToolUse batches cannot attribute
+     * the same addition to different Sessions. Creations that declare a path stay attributable: each is resolved
+     * against its own before-snapshot and its own path, independent of when a sibling's outcome arrives.
      */
     private reservePendingCreation(
         signal: AgentLifecycleSignal,
@@ -172,14 +146,21 @@ export class AgentWorktreeAttribution {
         const key = creationKey(signal);
         if (!key) return undefined;
         const baseline = this.provenanceBaselines.get(launchKey(signal));
-        if (!baseline || baseline.provider !== signal.provider) return undefined;
+        if (!baseline || baseline.provider !== signal.provider) {
+            this.logUnavailable('no_baseline', signal.terminalId);
+            return undefined;
+        }
         const existing = this.pendingCreations.get(key);
         if (existing) {
             existing.ambiguous = true;
+            this.logUnavailable('duplicate_start', signal.terminalId);
             return undefined;
         }
         const now = Date.now();
-        if (now < this.creationOverflowedUntil) return undefined;
+        if (now < this.creationOverflowedUntil) {
+            this.logUnavailable('creation_overflow', signal.terminalId);
+            return undefined;
+        }
         if (this.pendingCreations.size >= MAX_PENDING_CREATIONS) {
             for (const pending of this.pendingCreations.values()) pending.ambiguous = true;
             this.creationOverflowedUntil = now + PENDING_CREATION_TTL_MS;
@@ -193,11 +174,12 @@ export class AgentWorktreeAttribution {
             isCurrentLaunch,
             baseline,
             createdAt,
+            ...(signal.worktreeCreatePath && { declaredPath: signal.worktreeCreatePath }),
         };
         for (const candidate of this.pendingCreations.values())
             if (candidate.baseline.repositoryKey === baseline.repositoryKey) {
-                candidate.ambiguous = true;
-                pending.ambiguous = true;
+                if (!candidate.declaredPath) candidate.ambiguous = true;
+                if (!pending.declaredPath) pending.ambiguous = true;
             }
         this.pendingCreations.set(key, pending);
         return { key, pending };
@@ -290,24 +272,88 @@ export class AgentWorktreeAttribution {
         try {
             topology = await this.options.git.worktreeTopology(entries[0].ownerRoot);
         } catch {
+            for (const { baseline } of entries)
+                this.logUnavailable('topology_unavailable', baseline.terminalId);
             return;
         }
-        if (topology.repositoryKey !== repoKey) return;
-        const live = entries.filter(
-            ({ baseline, key, pending }) =>
-                this.isCurrentPending(key, pending) &&
-                this.provenanceBaselines.get(launchKey(baseline)) === baseline,
+        if (topology.repositoryKey !== repoKey) {
+            for (const { baseline } of entries)
+                this.logUnavailable('repository_mismatch', baseline.terminalId);
+            return;
+        }
+        const live: AttributableWorktreeCreation[] = [];
+        for (const entry of entries) {
+            if (
+                this.isCurrentPending(entry.key, entry.pending) &&
+                this.provenanceBaselines.get(launchKey(entry.baseline)) === entry.baseline
+            )
+                live.push(entry);
+            else
+                this.logUnavailable(
+                    entry.pending.ambiguous ? 'concurrent_creations' : 'stale_pending',
+                    entry.baseline.terminalId,
+                );
+        }
+        /**
+         * Without a declared path the whole repository batch must hold exactly one live creation, as before.
+         */
+        const isBatchAmbiguous =
+            live.length !== 1 && live.some(({ pending }) => !pending.declaredPath);
+        /* eslint-disable unicorn/prefer-await -- serial on purpose: each follow mutates a binding the next entry reads. */
+        await live.reduce<Promise<void>>(
+            (previous, entry) =>
+                previous.then(() =>
+                    isBatchAmbiguous && !entry.pending.declaredPath
+                        ? this.logUnavailable('concurrent_creations', entry.baseline.terminalId)
+                        : this.attributeEntry(topology, entry, initiatingBindings),
+                ),
+            Promise.resolve(),
         );
-        if (live.length !== 1) return;
-        const [{ baseline, key, pending, rootPaths }] = live;
-        const additions = topology.worktrees.filter(({ rootPath }) => !rootPaths.has(rootPath));
-        if (additions.length !== 1) return;
-        const [addition] = additions;
+        /* eslint-enable unicorn/prefer-await */
+    }
+
+    /**
+     * Attributes one creation from the additions Git reports relative to its own before-snapshot. A declared path only
+     * picks among those additions, so a sibling's new worktree can neither hide nor become this one; a path that
+     * another outstanding creation in the repository also declared, or that matches no addition, follows nothing.
+     */
+    private async attributeEntry(
+        topology: GitWorktreeTopology,
+        entry: AttributableWorktreeCreation,
+        initiatingBindings: ReadonlyMap<
+            string,
+            ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>
+        >,
+    ): Promise<void> {
+        const { baseline, key, pending, rootPaths } = entry;
+        const isClaimed = [...this.pendingCreations].some(
+            ([otherKey, other]) =>
+                otherKey !== key &&
+                pending.declaredPath !== undefined &&
+                other.declaredPath === pending.declaredPath &&
+                other.baseline.repositoryKey === baseline.repositoryKey,
+        );
+        const selected = isClaimed
+            ? { reason: 'concurrent_creations' as const }
+            : await selectAddition(topology, rootPaths, pending.declaredPath);
+        if ('reason' in selected) this.logUnavailable(selected.reason, baseline.terminalId);
+        else await this.follow(topology, entry, selected.rootPath, initiatingBindings);
+    }
+
+    private async follow(
+        topology: GitWorktreeTopology,
+        { baseline, key, pending }: AttributableWorktreeCreation,
+        rootPath: string,
+        initiatingBindings: ReadonlyMap<
+            string,
+            ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>
+        >,
+    ): Promise<void> {
         try {
             await this.options.followWorktree(
                 {
                     repositoryKey: topology.repositoryKey,
-                    rootPath: addition.rootPath,
+                    rootPath,
                     sessionId: baseline.sessionId,
                 },
                 () =>
@@ -343,12 +389,23 @@ export class AgentWorktreeAttribution {
                 if (!pending) continue;
                 consumed.set(key, pending);
                 const { baseline, rootPaths } = pending;
+                if (!rootPaths) {
+                    this.logUnavailable(
+                        pending.ambiguous ? 'concurrent_creations' : 'no_snapshot',
+                        baseline.terminalId,
+                    );
+                    continue;
+                }
                 if (
-                    !rootPaths ||
                     !this.isCurrentPending(key, pending) ||
                     this.provenanceBaselines.get(launchKey(baseline)) !== baseline
-                )
+                ) {
+                    this.logUnavailable(
+                        pending.ambiguous ? 'concurrent_creations' : 'stale_pending',
+                        baseline.terminalId,
+                    );
                     continue;
+                }
                 const terminal = this.options.database.getTerminal(baseline.terminalId);
                 const session = this.options.database.getSession(baseline.sessionId);
                 const owner = this.options.database.getProject(baseline.projectId);
@@ -359,8 +416,10 @@ export class AgentWorktreeAttribution {
                     terminal.sessionId !== baseline.sessionId ||
                     terminal.provider !== baseline.provider ||
                     session.projectId !== baseline.projectId
-                )
+                ) {
+                    this.logUnavailable('scope_changed', baseline.terminalId);
                     continue;
+                }
                 const entries = groups.get(baseline.repositoryKey) ?? [];
                 entries.push({ baseline, key, pending, ownerRoot: owner.rootPath, rootPaths });
                 groups.set(baseline.repositoryKey, entries);
@@ -560,63 +619,4 @@ export class AgentWorktreeAttribution {
         this.provenanceBaselines.clear();
         this.creationOverflowedUntil = 0;
     }
-}
-
-export async function retireAgentWorkbenchProvenance(options: {
-    endpoints: AgentEndpointLifecycle | undefined;
-    logger: StructuredLogger;
-    terminalId: string;
-    workbenchRoots: WorkbenchRootService;
-}): Promise<void> {
-    options.workbenchRoots.retireTerminal(options.terminalId);
-    try {
-        await options.endpoints?.retire(options.terminalId);
-    } catch (error: unknown) {
-        options.logger.write('warn', logEventCatalog.agentEndpoint.retireFailed, {
-            fields: {
-                terminalId: options.terminalId,
-                error: error instanceof Error ? error.message : String(error),
-            },
-        });
-    }
-}
-
-/**
- * Records the hook launch's owning Git topology before the Agent can spawn, independently of Agent Endpoint support.
- */
-export async function primeAgentWorkbenchProvenance(options: {
-    launchId: string;
-    projectId: string;
-    terminal: TerminalRecord;
-    workbenchRoots: WorkbenchRootService;
-}): Promise<void> {
-    const { launchId, projectId, terminal, workbenchRoots } = options;
-    if (terminal.kind === 'shell')
-        throw new CaxriError('CONFLICT', 'Shell Terminals cannot establish Agent provenance');
-    await workbenchRoots.primeAgentLaunch({
-        launchId,
-        projectId,
-        provider: terminal.kind,
-        sessionId: terminal.sessionId,
-        terminalId: terminal.id,
-    });
-}
-
-/**
- * Persist only verified observations, and refresh reference consumers even when worktree following is disabled or done.
- */
-export function updateObservedAgentCwd(
-    options: { database: CaxriDatabase; emit(event: ServerEvent): void },
-    terminal: Pick<TerminalRecord, 'id' | 'provider'>,
-    agentCwd: string | undefined,
-): void {
-    if (
-        !terminal.provider ||
-        !options.database.setTerminalAgentCwd(terminal.id, terminal.provider, agentCwd)
-    )
-        return;
-    options.emit({
-        event: 'state.changed',
-        payload: { kind: 'records', terminalIds: [terminal.id], sessionIds: [] },
-    });
 }

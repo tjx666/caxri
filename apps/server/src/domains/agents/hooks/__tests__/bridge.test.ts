@@ -184,7 +184,7 @@ describe('stageAgentHookBridge', () => {
         ]);
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(bridgeScript).toContain("require('node:net')");
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 27 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 28 });
         expect(wrapperStats.mode & 0o777).toBe(0o700);
     });
 
@@ -256,7 +256,7 @@ describe('stageAgentHookBridge', () => {
             readFile(bridgePath, 'utf8'),
             readFile(join(binDirectory, 'bridge.cjs'), 'utf8'),
         ]);
-        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 27 });
+        expect(JSON.parse(manifestSource)).toEqual({ bridgeVersion: 28 });
         expect(wrapperSource).toContain('#!/bin/sh');
         expect(scriptSource).toContain("require('node:net')");
     });
@@ -593,11 +593,11 @@ describe('stageAgentHookBridge', () => {
                 agentSessionId: 'opaque-session',
                 agentToolUseId: 'tool-call-1',
                 worktreeCreateIntent: true,
+                worktreeCreatePath: '/repo-feature',
             });
             expect(packets[0]).not.toHaveProperty('tool_input');
             expect(packets[0]).not.toHaveProperty('tool_response');
-            expect(JSON.stringify(packets[0])).not.toContain('/repo');
-            expect(JSON.stringify(packets[0])).not.toContain('private terminal output');
+            expect(JSON.stringify(packets[0])).not.toMatch(/-C|feature\/test|private terminal/u);
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         }

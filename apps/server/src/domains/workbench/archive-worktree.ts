@@ -11,7 +11,7 @@ import { logEventCatalog } from '@caxri/system';
 import type { CaxriDatabase } from '../db';
 import type { GitService, LinkedWorktreeRemoval, LinkedWorktreeRemovalInput } from '../git';
 import type { SessionPullRequestResolver } from '../project-status';
-import { isSameWorkbenchBinding } from './provenance';
+import { isSameWorkbenchBinding } from './provenance-support';
 
 /**
  * How long a removal waits after the archive. It covers an immediate reversal (Reopen Closed Item), so an accidental
