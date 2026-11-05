@@ -104,7 +104,25 @@ describe('agentActivityGroups', () => {
             session('unread-one', { hasUnread: true, agentActivityState: 'completed' }),
             session('failed-one', { agentActivityState: 'failed' }),
         ]);
-        expect(groups.map((group) => group.id)).toEqual(['attention', 'working', 'failed', 'idle']);
+        expect(groups.map((group) => group.id)).toEqual(['attention', 'failed', 'working', 'idle']);
+    });
+
+    it('keeps a read Session that still waits on the user above running work', () => {
+        const groups = groupsOf([
+            session('running-one', {
+                agentActivityState: 'running',
+                sessionActivityAt: NOW - 1_000,
+            }),
+            session('read-finished', {
+                agentActivityState: 'completed',
+                sessionActivityAt: NOW - 60_000,
+            }),
+            session('read-waiting', {
+                agentActivityState: 'waiting',
+                sessionActivityAt: NOW - 60_000,
+            }),
+        ]);
+        expect(groups.map((group) => group.id)).toEqual(['waiting', 'finished', 'working']);
     });
 
     it('puts an unread Session under attention even while its Agent is still running', () => {

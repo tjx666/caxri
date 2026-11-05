@@ -36,14 +36,22 @@ Rows are grouped, and the groups are ordered:
 | Group             | A Session is here when                                          |
 | ----------------- | --------------------------------------------------------------- |
 | Needs attention   | It has Unread Attention                                         |
-| Working           | Its Agent is running, including compaction and background waits |
 | Waiting           | Its last Agent Activity was `waiting` and has already been read |
 | Failed            | Its last Agent Activity was `failed`                            |
 | Recently finished | It completed within the retention window below                  |
+| Working           | Its Agent is running, including compaction and background waits |
 | Idle              | Everything else, including a detached Agent that did not fail   |
 
-Each heading leads with its own muted glyph: a raised hand, a bolt, an hourglass, a warning
-triangle, a double check, and a moon, so a group is found by shape before its label is read, as in
+Waiting, Failed, and Recently finished rank above Working although their Sessions are already read.
+Reading a result is not answering it: the user often opens a finished Session, has not decided the
+next step yet, and switches away to another one. When these groups sat below Working, that Session
+dropped out of sight behind a long list of running Agents while it was still the user's move. A
+running Agent asks nothing of the user until it stops, and sending the next prompt is what moves a
+Session into Working. Paseo orders its status groups the same way, and Orca's smart order keeps a
+recent Done above Working.
+
+Each heading leads with its own muted glyph: a raised hand, an hourglass, a warning triangle, a
+double check, a bolt, and a moon, so a group is found by shape before its label is read, as in
 Paseo's status list. None of them reuses a row glyph's circle family: the heading names the section,
 and repeating the row glyph above its own rows would say the same thing twice. **Needs attention**
 is a raised hand rather than a bell because the Status Bar's notification center owns the bell.

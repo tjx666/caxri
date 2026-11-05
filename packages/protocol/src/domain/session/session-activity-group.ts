@@ -2,20 +2,26 @@ import type { SessionRecord } from '../domain.js';
 
 /**
  * The status groups Session lists sort into, shared by Desktop's Activity view and the phone's home list so a Session
- * sits under the same heading on both. Attention first, then live work, then everything that is merely history.
+ * sits under the same heading on both. Everything that waits on the user first, then live work, then idle history.
  *
  * `attention` deliberately outranks `working`: Caxri's unread flag means "something happened that you have not looked
  * at", which is a property of the user's queue rather than of the Agent, so it belongs above any turn still in
- * progress, including the Session's own, since a Session can be both unread and running. herdr and Kero rank their
- * rollups the same way; Orca and T3 Code put running work first because their lists describe live work rather than a
- * to-do queue.
+ * progress, including the Session's own, since a Session can be both unread and running.
+ *
+ * `waiting`, `failed`, and `finished` also sit above `working`, although they are already read. Reading a result is not
+ * answering it: the user often opens a finished Session, has not decided the next step yet, and switches away to handle
+ * another one. Below a long Working group that Session dropped out of sight exactly while it was still the user's move,
+ * whereas a running Agent asks nothing of the user until it stops. Sending the next prompt moves the Session to
+ * `working`, which is what takes it off the user's queue. Paseo lists its groups the same way (needs input, failed,
+ * attention, running, done) and Orca's smart order keeps a recent Done above Working; Synara and Jean put running work
+ * first because their lists describe live work rather than a to-do queue.
  */
 export const SESSION_ACTIVITY_GROUP_ORDER = [
     'attention',
-    'working',
     'waiting',
     'failed',
     'finished',
+    'working',
     'idle',
 ] as const;
 
