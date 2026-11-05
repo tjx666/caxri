@@ -11,7 +11,7 @@ shows the state and asks for the next step.
 
 ## Flow
 
-1. **Check.** Main asks GitHub for the latest release at launch, every six hours, and after a wake
+1. **Check.** Main asks GitHub for the latest release at launch, every 15 minutes, and after a wake
    from sleep (`updates.ts`). A rate-limited answer pauses discovery until GitHub's reset time.
 2. **Download in the background.** When a newer release is `available`, the Renderer starts the
    download once per version and app process, unless the user skipped that version or the
