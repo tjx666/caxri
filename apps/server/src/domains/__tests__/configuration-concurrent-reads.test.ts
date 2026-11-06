@@ -1,7 +1,7 @@
 // eslint-disable-next-line unicorn/name-replacements -- referenced by name in vitest.config.ts and scripts/__tests__/vitest-config-contract.test.ts, like its configuration*.test.ts siblings.
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -50,6 +50,35 @@ describe('ConfigurationService concurrent reads', () => {
         await service.updateSettings(JSON.stringify({ ...before, 'terminal.fontSize': 18 }));
         staleRead.resolve(staleSource);
         await externalChange;
+
+        expect(service.getSettings().value).toMatchObject({ 'terminal.fontSize': 18 });
+        expect(events.filter(({ event }) => event === 'settings.changed')).toHaveLength(1);
+        await service.close();
+    });
+
+    it('does not emit a second change when a read lands between the file write and the update bookkeeping (caxri#3490)', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-config-write-window-'));
+        temporaryDirectories.push(directory);
+        const events: ServerEvent[] = [];
+        const hooks: { afterSettingsWrite?: (path: string) => Promise<void> } = {};
+        const service = new ConfigService(directory, (event) => events.push(event), undefined, {
+            // Simulates a watcher or poll read that completes after the new bytes reached disk but before the
+            // Settings update records them as observed.
+            writeConfigSource: async (path, source) => {
+                await mkdir(dirname(path), { recursive: true });
+                await writeFile(path, source);
+                if (path.endsWith('settings.jsonc')) await hooks.afterSettingsWrite?.(path);
+            },
+        });
+        await service.initialize();
+        hooks.afterSettingsWrite = (path) =>
+            (
+                service as unknown as { onExternalChange(path: string): Promise<void> }
+            ).onExternalChange(path);
+        const before = service.getSettings().value;
+        events.length = 0;
+
+        await service.updateSettings(JSON.stringify({ ...before, 'terminal.fontSize': 18 }));
 
         expect(service.getSettings().value).toMatchObject({ 'terminal.fontSize': 18 });
         expect(events.filter(({ event }) => event === 'settings.changed')).toHaveLength(1);

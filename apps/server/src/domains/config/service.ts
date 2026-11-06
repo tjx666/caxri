@@ -324,7 +324,7 @@ export class ConfigService {
         try {
             const revision = this.observedSources.revision(path);
             const source = await this.readConfigSource(path);
-            if (this.isClosed() || this.observedSources.revision(path) !== revision) return;
+            if (this.isClosed() || this.observedSources.isOvertaken(path, revision)) return;
             this.observedSources.forgetRejected(path);
             if (source === this.observedSources.get(path)) return;
             this.observedSources.set(path, source);
@@ -360,9 +360,8 @@ export class ConfigService {
         this.assertOpen();
         const prepared = this.prepare(kind, source);
         const path = this.pathFor(kind);
-        await this.writeConfigSource(path, prepared.source);
+        await this.observedSources.trackWrite(path, prepared.source, this.writeConfigSource);
         this.assertOpen();
-        this.observedSources.set(path, prepared.source);
         this.observedSources.forgetRejected(path);
         prepared.apply();
         this.errors.delete(kind);
