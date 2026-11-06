@@ -80,7 +80,8 @@ directories.
   owning skill. Keep each skill description specific enough for reliable routing.
 - Contributor skill invocation follows [.agents/invocation.md](.agents/invocation.md).
 - When a difficult, ambiguous, or costly decision would benefit from an independent perspective,
-  use `dianjiang` to consult another agent harness. Keep the consultation read-only unless the
+  ask another agent harness with `caxri agent delegate create --type second-opinion` (see the
+  `caxri-cli` skill's "Ask another Agent"). Keep the consultation read-only unless the
   current request explicitly authorizes the same scoped mutation. Treat the result as evidence.
   Final adjudication stays with the primary agent against current repository state.
 - Judge routine product choices yourself by practicality and extensibility. Caxri's security bar is
@@ -100,7 +101,7 @@ directories.
   as removing the Open Sessions tab bar never reads as done.
 - A request to review current local work authorizes the primary agent to repair validated P0/P1
   findings introduced by that work when the fix is unambiguous, local, and inside the requested
-  scope. This applies to direct review, `deep-review`, and `dianjiang` review. Keep delegated
+  scope. This applies to direct review, `deep-review`, and a `--type review` delegation. Keep delegated
   reviewers read-only; the primary agent owns edits and validation. Stop for discussion when
   multiple product choices are reasonable, the fix expands scope, or it requires destructive or
   remote mutation. Honor an explicit read-only or report-only request.

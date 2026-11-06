@@ -1,7 +1,15 @@
 export const settingsDelegation = {
-    'settings.row.delegationPresets.title': '委派预设',
+    'settings.row.delegationPresets.title': '委派类型与预设',
     'settings.row.delegationPresets.description':
-        'Agent 委派任务时可选的命名 Agent、模型和推理强度组合。可从 dianjiang CLI 导出的文件导入。',
+        '参考意见、代码评审和操作电脑分别交给哪个 Agent，以及你自己命名的 Agent、模型和推理强度组合。绑定在设置文件里修改；预设可以从 dianjiang 导入。',
+    'settings.delegationTypes.title': '委派类型',
+    'settings.delegationTypes.default.second-opinion':
+        '另一家厂商：Codex；由 Codex 发起时用 Claude',
+    'settings.delegationTypes.default.review': '另一家厂商：Codex；由 Codex 发起时用 Claude',
+    'settings.delegationTypes.default.computer-use': 'Codex',
+    'settings.delegationTypes.caller': '由 {{caller}} 发起时：{{binding}}',
+    'settings.delegationPresets.label': '委派预设',
+    'settings.delegationPresets.heading': '预设',
     'settings.delegationPresets.empty': '还没有委派预设',
     'settings.delegationPresets.import': '从 dianjiang 导入…',
     'settings.delegationPresets.useWhen': '适用场景：{{text}}',

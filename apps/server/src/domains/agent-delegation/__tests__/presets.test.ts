@@ -147,6 +147,43 @@ describe('delegation presets and caller admission', () => {
         expect(f.start).toHaveBeenCalledOnce();
     });
 
+    it('binds each type through the caller, then the base Settings, then the other vendor', async () => {
+        const f = await fixture();
+        // Nothing configured: a Claude caller asks Codex, with Codex's native model and effort.
+        expect(f.service.presets(f.agent, f.input).types).toEqual([
+            { type: 'second-opinion', provider: 'codex' },
+            { type: 'review', provider: 'codex' },
+            { type: 'computer-use', provider: 'codex' },
+        ]);
+        f.setSettings({
+            types: {
+                'review': { provider: 'claude', model: 'opus', effort: 'high' },
+                'computer-use': { provider: 'codex', model: 'gpt-5.5', effort: 'medium' },
+            },
+            callers: { claude: { types: { review: { provider: 'codex', model: 'gpt-5.5' } } } },
+        });
+        expect(f.service.presets(f.agent, f.input).types).toEqual([
+            { type: 'second-opinion', provider: 'codex' },
+            // The caller's binding replaces the base tuple whole: no effort leaks from it.
+            { type: 'review', provider: 'codex', model: 'gpt-5.5' },
+            { type: 'computer-use', provider: 'codex', model: 'gpt-5.5', effort: 'medium' },
+        ]);
+        const id = randomUUID();
+        const receipt = await f.service.create(id, f.agent, { ...f.input, type: 'review' });
+        expect(receipt.selection).toEqual({ provider: 'codex', model: 'gpt-5.5', type: 'review' });
+        expect(f.database.agentDelegations.get(id)?.frozenLaunch.args).toEqual([
+            '--model',
+            'gpt-5.5',
+        ]);
+        await expect(
+            f.service.create(randomUUID(), f.agent, {
+                ...f.input,
+                type: 'review',
+                preset: 'review',
+            }),
+        ).rejects.toThrow();
+    });
+
     it('rejects forged caller identity before revealing its roster or launching', async () => {
         const f = await fixture();
         expect(() => f.service.presets(f.agent, { ...f.input, callerProvider: 'codex' })).toThrow(

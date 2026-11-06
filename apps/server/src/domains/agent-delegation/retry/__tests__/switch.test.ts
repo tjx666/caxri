@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DELEGATION_TYPE_INSTRUCTIONS } from '../../delegation-types';
 import { retryDelegationId } from '../support';
 import { retrySwitchTargets } from '../switch';
 import { fixture, reasonOf } from './fixture';
@@ -59,6 +60,48 @@ describe('retry with another Agent', () => {
             retryProvider: 'codex',
             receipt: { provider: 'claude', retriedAs: successor.receipt.delegationId },
         });
+    });
+
+    it('keeps a delegation type and its private instructions on the target Agent', async () => {
+        const { database, failedTask, service, stored } = await fixture({
+            isProviderInstalled: installed(['claude', 'codex']),
+        });
+        const failed = await failedTask();
+        const record = stored(failed.id);
+        database.agentDelegations.save({
+            ...record,
+            receipt: {
+                ...record.receipt,
+                selection: { provider: 'claude', model: 'opus', type: 'review' },
+            },
+        });
+
+        await service.retries.retry(failed.id, 'fresh', undefined, 'codex');
+        const switched = stored(retryDelegationId(failed.id));
+        expect(switched.receipt.selection).toEqual({ provider: 'codex', type: 'review' });
+        expect(switched.frozenInstructions).toBe(DELEGATION_TYPE_INSTRUCTIONS.review);
+    });
+
+    it('keeps a delegation type and its binding on a fresh retry on the same Agent', async () => {
+        const { database, failedTask, service, stored } = await fixture();
+        const failed = await failedTask();
+        const record = stored(failed.id);
+        database.agentDelegations.save({
+            ...record,
+            receipt: {
+                ...record.receipt,
+                selection: { provider: 'claude', model: 'opus', type: 'second-opinion' },
+            },
+        });
+
+        await service.retries.retry(failed.id, 'fresh');
+        const successor = stored(retryDelegationId(failed.id));
+        expect(successor.receipt.selection).toEqual({
+            provider: 'claude',
+            model: 'opus',
+            type: 'second-opinion',
+        });
+        expect(successor.frozenInstructions).toBe(DELEGATION_TYPE_INSTRUCTIONS['second-opinion']);
     });
 
     it('carries the forced surface into the successor instead of re-resolving the setting', async () => {

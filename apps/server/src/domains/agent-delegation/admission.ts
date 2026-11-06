@@ -8,11 +8,14 @@ import type {
     AgentProvider,
     DelegationRoster,
     DelegationSelection,
+    DelegationType,
     Principal,
     TerminalRecord,
 } from '@caxri/protocol';
 import {
     CaxriError,
+    defaultDelegationTypeProvider,
+    DELEGATION_TYPES,
     delegationProviderSchema,
     isDelegationEffortSupported,
     isTopLevelProject,
@@ -25,6 +28,7 @@ import {
 import { delegationAdapter } from '../agents';
 import type { CaxriDatabase, StoredAgentDelegation } from '../db';
 import { resolveChildSurface } from './chat-child';
+import { DELEGATION_TYPE_INSTRUCTIONS } from './delegation-types';
 import { validateDelegationLaunch } from './launch';
 
 export interface DelegationAuthority {
@@ -232,6 +236,25 @@ export function delegationCaller(
 }
 
 /**
+ * The Agent a type runs on for a caller: the caller's own binding, else the base binding, else the type's default
+ * provider with its native model and effort. Each step replaces the whole tuple, so a model never leaks across
+ * providers.
+ */
+function delegationTypeBinding(
+    settings: AgentDelegationSettings,
+    type: DelegationType,
+    caller: DelegationSelection['provider'] | undefined,
+): Pick<DelegationSelection, 'effort' | 'model' | 'provider'> {
+    const bound = (caller && settings.callers[caller]?.types?.[type]) ?? settings.types[type];
+    if (!bound) return { provider: defaultDelegationTypeProvider(type, caller) };
+    return {
+        provider: bound.provider,
+        ...(bound.model && { model: bound.model }),
+        ...(bound.effort && { effort: bound.effort }),
+    };
+}
+
+/**
  * A caller binding replaces the complete provider/model/effort tuple; descriptions fall back individually.
  */
 export function delegationRoster(
@@ -244,6 +267,10 @@ export function delegationRoster(
         maxDepth: settings.maxDepth,
         prepend: binding?.prepend,
         append: binding?.append,
+        types: DELEGATION_TYPES.map((type) => ({
+            type,
+            ...delegationTypeBinding(settings, type, caller),
+        })),
         presets: settings.presets.flatMap((preset) => {
             if (excluded.has(preset.name)) return [];
             const overrides = binding?.presets;
@@ -306,6 +333,7 @@ export function resolveDelegationAdmission(options: {
         if (
             (input.provider && input.provider !== selection.provider) ||
             (input.preset && input.preset !== selection.preset) ||
+            (input.type && input.type !== selection.type) ||
             (input.model && input.model !== selection.model) ||
             (input.effort && input.effort !== selection.effort)
         )
@@ -314,6 +342,14 @@ export function resolveDelegationAdmission(options: {
                 'Follow-up must preserve its original delegation selection',
             );
         instructions = previous.frozenInstructions;
+    } else if (input.type) {
+        selection = {
+            ...(input.provider
+                ? { provider: input.provider, model: input.model, effort: input.effort }
+                : delegationTypeBinding(settings, input.type, caller)),
+            type: input.type,
+        };
+        instructions = DELEGATION_TYPE_INSTRUCTIONS[input.type];
     } else if (input.preset) {
         const preset = roster.presets.find((entry) => entry.name === input.preset);
         if (!preset)
@@ -338,7 +374,7 @@ export function resolveDelegationAdmission(options: {
     // Validate before replacement so forbidden launch overrides cannot disappear during normalization.
     validateDelegationLaunch(selection.provider, launch);
     const frozenLaunch =
-        previous || (!input.preset && !input.model && !input.effort)
+        previous || (!input.preset && !input.type && !input.model && !input.effort)
             ? launch
             : delegationAdapter(selection.provider).selectLaunch(launch, selection);
     const callerLaunch =

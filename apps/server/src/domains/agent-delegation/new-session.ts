@@ -4,7 +4,7 @@ import type {
     AgentDelegationReceipt,
     SessionRelation,
 } from '@caxri/protocol';
-import { CaxriError, isTopLevelProject } from '@caxri/protocol';
+import { CaxriError, delegationTypeRelation, isTopLevelProject } from '@caxri/protocol';
 import { KeyedSerialQueue } from '@caxri/system';
 
 /**
@@ -16,7 +16,7 @@ import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
 import { assertChatChildAvailable } from './chat-child';
 import { logDelegationProjectAdded } from './diagnostics';
-import type { AgentDelegationServiceOptions } from './service-options';
+import type { AgentDelegationServiceOptions, DelegationWorktree } from './service-options';
 
 /**
  * How the caller's Session started the Session this request creates: a hand-off continues the caller's work, a consult
@@ -24,11 +24,32 @@ import type { AgentDelegationServiceOptions } from './service-options';
  * task the caller waits on. Recorded only with a creator, so an owner or Caxri Bot caller gets none.
  */
 function newSessionRelation(
-    fields: Pick<AgentDelegationCreate, 'consult' | 'handoff' | 'independent'>,
+    fields: Pick<AgentDelegationCreate, 'consult' | 'handoff' | 'independent' | 'type'>,
 ): SessionRelation {
+    if (fields.type) return delegationTypeRelation(fields.type);
     if (fields.handoff) return 'handoff';
     if (fields.independent) return 'independent';
     return fields.consult ? 'consult' : 'delegated';
+}
+
+/**
+ * The linked worktree the caller's Session works in, or `undefined` when it works in its Project folder.
+ */
+function callerWorktree(
+    database: AgentDelegationServiceOptions['database'],
+    callerSessionId: string | undefined,
+): DelegationWorktree | undefined {
+    const binding = callerSessionId
+        ? database.getSessionWorkbenchBinding(callerSessionId)
+        : undefined;
+    if (!binding || binding.workbenchRootProjectId === binding.projectId) return undefined;
+    return {
+        projectId: binding.workbenchRootProjectId,
+        ...(binding.rootDevice &&
+            binding.rootInode && {
+                identity: { device: binding.rootDevice, inode: binding.rootInode },
+            }),
+    };
 }
 
 /**
@@ -129,13 +150,39 @@ async function admitNewSession(
     if (projectPath !== undefined && (isBot || isExternal || !newSessions.addProject))
         throw new CaxriError('FORBIDDEN', 'This caller cannot add a Project');
     /**
+     * An Agent's own Session, the Chat a Client continues in another Agent (`agentChat.continueInAgent`), or an
+     * external client's anchor Session: the nesting edge the sidebar and the cost roll-up follow.
+     */
+    const callerSessionId =
+        authority.principal.kind === 'delegation-client'
+            ? authority.principal.sessionId
+            : (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
+              ? database.getTerminal(authority.callerTerminalId)?.sessionId
+              : undefined;
+    /**
+     * A type asks about the caller's own work, so without a Project it runs in the Project of the caller's Session,
+     * which for a Session in a linked worktree is that worktree.
+     */
+    const isRunsInCallerProject =
+        !fields.projectId && projectPath === undefined && Boolean(fields.type);
+    const ownProjectId =
+        fields.projectId ??
+        (isRunsInCallerProject && callerSessionId
+            ? database.getSession(callerSessionId)?.projectId
+            : undefined);
+    if (projectPath === undefined && !ownProjectId)
+        throw new CaxriError(
+            'VALIDATION',
+            'Name a Project: this caller has no Session whose Project the task could run in',
+        );
+    /**
      * An external client reaches only a Project the user can still see, checked before the Session exists so a refusal
      * leaves nothing to discard. `authorizeDelegationSession` repeats it for the Session this request creates.
      */
     if (isExternal) {
         const target = database
             .listVisibleProjects()
-            .find((candidate) => candidate.id === fields.projectId);
+            .find((candidate) => candidate.id === ownProjectId);
         if (!target || !isTopLevelProject(target))
             throw new CaxriError(
                 'FORBIDDEN',
@@ -149,22 +196,12 @@ async function admitNewSession(
     if (fields.surface === 'chat' && fields.provider)
         assertChatChildAvailable(options, fields.provider);
     /**
-     * An Agent's own Session, the Chat a Client continues in another Agent (`agentChat.continueInAgent`), or an
-     * external client's anchor Session: the nesting edge the sidebar and the cost roll-up follow.
-     */
-    const callerSessionId =
-        authority.principal.kind === 'delegation-client'
-            ? authority.principal.sessionId
-            : (kind === 'agent' || kind === 'desktop') && authority.callerTerminalId
-              ? database.getTerminal(authority.callerTerminalId)?.sessionId
-              : undefined;
-    /**
      * Checked before the Project and the worktree so a refused title leaves nothing behind. Only an Agent is held to
      * it: the owner's own title, from a Client or the CLI, stands as typed.
      */
     if (kind === 'agent' && !isBot && callerSessionId && title)
         assertAgentTitleLanguage(title, database.getSession(callerSessionId)?.title);
-    let projectId = fields.projectId;
+    let projectId = ownProjectId;
     if (projectPath !== undefined) {
         const startedAt = Date.now();
         const added = await newSessions.addProject!(projectPath);
@@ -176,11 +213,13 @@ async function admitNewSession(
         });
     }
     /**
-     * The worktree comes first: when it is refused, no Session was created and none needs removing.
+     * The worktree comes first: when it is refused, no Session was created and none needs removing. A type that runs in
+     * the caller's own Project follows the caller into its linked worktree, so a review reads the changes the caller is
+     * making rather than the Project folder's checkout.
      */
     const worktree = worktreeBranch
         ? await newSessions.prepareWorktree!(projectId!, worktreeBranch)
-        : undefined;
+        : callerWorktree(database, isRunsInCallerProject ? callerSessionId : undefined);
     const creatorSessionId = isBot ? undefined : callerSessionId;
     const sessionId = newSessions.create(
         projectId!,

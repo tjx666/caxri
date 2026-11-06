@@ -44,7 +44,7 @@ export function DelegationImportPanel({
         <section
             ref={panel}
             tabIndex={-1}
-            aria-label={t('settings.row.delegationPresets.title')}
+            aria-label={t('settings.delegationPresets.label')}
             className="mt-2 flex min-w-0 flex-col gap-2 rounded border border-border bg-elevated p-3 outline-none"
         >
             {state.fileName && (

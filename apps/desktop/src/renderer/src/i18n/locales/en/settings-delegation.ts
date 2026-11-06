@@ -1,7 +1,15 @@
 export const settingsDelegation = {
-    'settings.row.delegationPresets.title': 'Delegation presets',
+    'settings.row.delegationPresets.title': 'Delegation types and presets',
     'settings.row.delegationPresets.description':
-        'Named Agent, model and effort choices an Agent can delegate to. Import them from a file written by the dianjiang CLI.',
+        'Which Agent a second opinion, a review, or computer use runs on, and your own named Agent, model and effort choices. Bindings are edited in the settings file; presets can be imported from dianjiang.',
+    'settings.delegationTypes.title': 'Delegation types',
+    'settings.delegationTypes.default.second-opinion':
+        'The other vendor: Codex, or Claude when Codex asks',
+    'settings.delegationTypes.default.review': 'The other vendor: Codex, or Claude when Codex asks',
+    'settings.delegationTypes.default.computer-use': 'Codex',
+    'settings.delegationTypes.caller': 'When {{caller}} asks: {{binding}}',
+    'settings.delegationPresets.heading': 'Presets',
+    'settings.delegationPresets.label': 'Delegation presets',
     'settings.delegationPresets.empty': 'No delegation presets yet',
     'settings.delegationPresets.import': 'Import from dianjiang…',
     'settings.delegationPresets.useWhen': 'Use when: {{text}}',

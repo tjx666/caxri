@@ -2,9 +2,11 @@ import type {
     AgentChatCommandDelegation,
     AgentChatWorkItem,
     AgentDelegationStatusEntry,
+    DelegationType,
 } from '@caxri/protocol';
-import { isDelegationRetryPending } from '@caxri/protocol';
-import { Forward, RotateCcw } from 'lucide-react';
+import { agentProviderCatalog, isDelegationRetryPending } from '@caxri/protocol';
+import type { LucideIcon } from 'lucide-react';
+import { Forward, MessagesSquare, MousePointerClick, RotateCcw, ScanSearch } from 'lucide-react';
 
 import { Tooltip } from '@/components/ui/tooltip';
 import { useClockTick } from '@/hooks/use-clock-tick';
@@ -26,13 +28,22 @@ import { useIsDelegationLive } from './hooks/use-is-delegation-live';
 
 const NO_IDS: readonly string[] = [];
 
+/**
+ * A typed task's record says what was asked, so a second opinion, a review, and computer use read apart at a glance.
+ */
+const TYPE_ICONS: Record<DelegationType, LucideIcon> = {
+    'second-opinion': MessagesSquare,
+    'review': ScanSearch,
+    'computer-use': MousePointerClick,
+};
+
 const ROW_CLASS_NAME =
     'flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-[12px] leading-5 text-muted';
 
 /**
- * One delegation in the timeline: "Delegated to <child title> · <child Project>", with the state of that task (not of
- * the Session's newest one) as the glyph. The row opens the child. A child the Workbench no longer lists reads as
- * unavailable and does not open.
+ * One delegation in the timeline: "Delegated to <child title> · <child Project>" (for a typed task, what was asked of
+ * which Agent: "Asked Codex for a review: <title>"), with the state of that task (not of the Session's newest one) as
+ * the glyph. The row opens the child. A child the Workbench no longer lists reads as unavailable and does not open.
  */
 function DelegationRecordRow({
     delegation,
@@ -55,17 +66,23 @@ function DelegationRecordRow({
     const title = session ? sessionTitleForDisplay(session.title, t) : undefined;
     // A pending scheduled retry holds `retriedAs` too, but nothing was retried yet: its clock glyph says so instead.
     const isRetried = status?.retriedAs !== undefined && !isDelegationRetryPending(status);
+    const Icon = status?.type ? TYPE_ICONS[status.type] : Forward;
     const content = (
         <>
             <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-                <Forward aria-hidden="true" className="size-3.5" />
+                <Icon aria-hidden="true" className="size-3.5" />
             </span>
             <span className="min-w-0 flex-1 truncate">
                 {title === undefined ? (
                     t('delegation.record.unavailable')
                 ) : (
                     <>
-                        {t('delegation.record.label', { title })}
+                        {status?.type
+                            ? t(`delegation.record.type.${status.type}`, {
+                                  agent: agentProviderCatalog[status.provider].displayName,
+                                  title,
+                              })
+                            : t('delegation.record.label', { title })}
                         {project && ` · ${project.title}`}
                     </>
                 )}

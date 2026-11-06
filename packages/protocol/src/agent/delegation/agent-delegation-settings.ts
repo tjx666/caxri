@@ -73,9 +73,46 @@ const selectionShape = {
     effort: delegationEffortSchema.optional(),
 };
 
+/**
+ * The tasks Caxri knows how to ask another Agent for without any configuration (`agent delegate create --type`). A type
+ * owns its product behavior (the Session relation, the private instructions, how Clients present it); Settings only
+ * choose which Agent runs it. A preset is the user's own named binding for everything else.
+ *
+ * - `second-opinion`: an independent view on a hard decision or hypothesis; changes no files.
+ * - `review`: a review of code changes by another Agent; changes no files.
+ * - `computer-use`: operating a signed-in browser or desktop app; it changes state outside the repository and may need
+ *   the user to sign in, so its Session stays visible.
+ */
+export const DELEGATION_TYPES = ['second-opinion', 'review', 'computer-use'] as const;
+export const delegationTypeSchema = z.enum(DELEGATION_TYPES);
+export type DelegationType = z.infer<typeof delegationTypeSchema>;
+
+/**
+ * The Agent a type runs on when neither the caller's nor the base Settings bind it. A second opinion and a review are
+ * worth most from another vendor, so a Codex caller asks Claude and every other caller asks Codex. Computer use runs on
+ * Codex, whose bundled Computer Use plugin drives Chrome and desktop apps.
+ */
+export function defaultDelegationTypeProvider(
+    type: DelegationType,
+    caller: z.infer<typeof delegationProviderSchema> | undefined,
+): z.infer<typeof delegationProviderSchema> {
+    if (type === 'computer-use') return 'codex';
+    return caller === 'codex' ? 'claude' : 'codex';
+}
+
+/**
+ * The relation a type's new Session has to the Session that asked: a second opinion and a review change no files and
+ * are read back (`consult`, no sidebar row); computer use acts outside the repository and may wait for the user to sign
+ * in, so it stays a visible `delegated` Session.
+ */
+export function delegationTypeRelation(type: DelegationType): 'consult' | 'delegated' {
+    return type === 'computer-use' ? 'delegated' : 'consult';
+}
+
 export const delegationSelectionSchema = z.strictObject({
     ...selectionShape,
     preset: delegationPresetNameSchema.optional(),
+    type: delegationTypeSchema.optional(),
 });
 
 const bindingSchema = z.strictObject({
@@ -90,8 +127,17 @@ const delegationPresetSchema = z.strictObject({
     dontUseWhen: descriptionSchema.optional(),
     instructions: instructionsSchema.optional(),
 });
+/**
+ * Which Agent runs a {@link DelegationType}. Replaces the whole provider/model/effort tuple, like a caller binding.
+ */
+const typeBindingSchema = z.strictObject(selectionShape);
+const typeBindingsSchema = z.partialRecord(delegationTypeSchema, typeBindingSchema);
 const callerSchema = z.strictObject({
     presets: z.record(delegationPresetNameSchema, bindingSchema).optional(),
+    /**
+     * This caller's own binding per type, ahead of the base `types`.
+     */
+    types: typeBindingsSchema.optional(),
     exclude: z.array(delegationPresetNameSchema).max(MAX_DELEGATION_PRESETS).optional(),
     prepend: instructionsSchema.optional(),
     append: instructionsSchema.optional(),
@@ -106,6 +152,11 @@ export const agentDelegationSettingsSchema = z
             .max(MAX_DELEGATION_DEPTH)
             .default(DEFAULT_DELEGATION_DEPTH),
         presets: z.array(delegationPresetSchema).max(MAX_DELEGATION_PRESETS).default([]),
+        /**
+         * The base binding per type; an unbound type runs on {@link defaultDelegationTypeProvider} with its native model
+         * and effort.
+         */
+        types: typeBindingsSchema.default({}),
         callers: z.partialRecord(delegationProviderSchema, callerSchema).default({}),
         /**
          * Whether an Agent may read what the Agent Chats it delegated to did (`agent.delegation.transcript`), so it can
@@ -146,7 +197,22 @@ export const agentDelegationSettingsSchema = z
                     ['presets', index, 'effort'],
                 );
         });
+        const checkTypes = (
+            bindings: z.infer<typeof typeBindingsSchema> | undefined,
+            path: Array<string | number>,
+        ) => {
+            const entries = Object.entries(bindings ?? {});
+            for (const [type, binding] of entries)
+                if (!isDelegationEffortSupported(binding.provider, binding.model, binding.effort))
+                    issue(`Unsupported effort for delegation type ${type}`, 'unsupported_effort', [
+                        ...path,
+                        type,
+                        'effort',
+                    ]);
+        };
+        checkTypes(settings.types, ['types']);
         for (const [provider, caller] of Object.entries(settings.callers)) {
+            checkTypes(caller.types, ['callers', provider, 'types']);
             const excluded = caller.exclude ?? [];
             excluded.forEach((name, index) => {
                 if (!names.has(name))
@@ -184,6 +250,7 @@ export const agentDelegationSettingsSchema = z
     .default({
         maxDepth: DEFAULT_DELEGATION_DEPTH,
         presets: [],
+        types: {},
         callers: {},
         readChildChat: true,
         approval: true,
@@ -195,6 +262,15 @@ export const delegationRosterSchema = z.strictObject({
     presets: z
         .array(delegationPresetSchema.omit({ instructions: true }))
         .max(MAX_DELEGATION_PRESETS),
+    /**
+     * The Agent each {@link DelegationType} runs on for this caller, after the caller's and base bindings.
+     */
+    types: z.array(
+        z.strictObject({
+            ...selectionShape,
+            type: delegationTypeSchema,
+        }),
+    ),
     prepend: instructionsSchema.optional(),
     append: instructionsSchema.optional(),
 });

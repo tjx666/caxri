@@ -609,6 +609,61 @@ Agent that is not makes the reason `ancestor_not_covering`.
 - **Mobile.** No Mobile role can call `approve` and the event is not bridged; during the grace a
   Mobile row shows no waiting, and once escalated the existing waiting state appears as usual.
 
+## Delegation types
+
+Three asks are built in, so an Agent needs no preset and no dispatcher of its own for them
+(they replace the owner's dianjiang `second-opinion`, `review`, and `operate-desktop` presets):
+
+```sh
+caxri agent delegate create --type review --title "Review the retry fix" --prompt-file task.md --json
+```
+
+| Type             | Runs on by default                        | New Session relation | Private instructions                                                        |
+| ---------------- | ----------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
+| `second-opinion` | The other vendor: Codex, Claude for Codex | `consult`            | Independent evaluator: test the caller's conclusion, may disagree, no edits |
+| `review`         | The other vendor: Codex, Claude for Codex | `consult`            | Report findings by severity with file and line, no edits                    |
+| `computer-use`   | Codex (its bundled Computer Use plugin)   | `delegated`          | Stop before irreversible actions, wait on sign-in, no secrets, screenshots  |
+
+- **One flag.** `--type` stands in for `--new-session` and a relation flag, and takes no `--session`,
+  preset, relation flag, worktree, or continuation; the CLI and the request schema
+  (`isTypeForNewSession`, `isPresetExclusive`) both refuse them. `--title` names the new Session as
+  usual. A follow-up (`--follow-up <id>`) keeps the type, binding, and instructions frozen on the
+  task, and a fresh retry keeps the type, so its instructions and relation return even on another
+  Agent.
+- **Where it runs.** Without `--project` or `--project-path`, the Server runs the task in the
+  Project of the caller's own Session, and in that Session's linked worktree when it works in one,
+  so a review reads the changes the caller is making. An owner caller without a Session must name a
+  Project.
+- **Which Agent.** `agents.delegation.types.<type>` binds a type to a provider, model, and effort;
+  `callers.<provider>.types.<type>` overrides it for one caller. Each step replaces the whole tuple,
+  as caller preset bindings do; an unbound type runs on its default provider with that provider's
+  native model and effort (`defaultDelegationTypeProvider`). `agent delegate presets` returns the
+  effective binding per type in `types`. `--provider` (with optional `--model` and `--effort`) runs
+  the type on that Agent instead, for a user who names one.
+- **Relation.** `delegationTypeRelation` decides it: a second opinion and a review change no files
+  and are read back, so they are consults with no sidebar row; computer use changes state outside the
+  repository and may wait for the user to sign in, so it stays a visible `delegated` Session.
+- **Instructions.** The type's fixed text (`delegation-types.ts`) opens the task file ahead of the
+  caller's prompt and is frozen at admission like a preset's instructions.
+- **Surfaces.** The receipt's `selection.type` labels the task: the parent strip row and the child's
+  origin row show the type in the interface language (`Review`), and a timeline record reads
+  `Asked Codex for a review: <title>` with an icon per type (the statuses read carries `type`).
+  Settings, Agents, "Delegation types and presets" lists each type's binding read-only.
+
+```json
+{
+  "agents.delegation": {
+    "types": {
+      "second-opinion": { "provider": "claude", "model": "opus", "effort": "high" },
+      "computer-use": { "provider": "codex", "model": "gpt-5.5", "effort": "medium" }
+    },
+    "callers": {
+      "claude": { "types": { "second-opinion": { "provider": "codex", "effort": "xhigh" } } }
+    }
+  }
+}
+```
+
 ## Presets and caller policy
 
 Configure `agents.delegation` in the profile's Settings JSON. No preset or model preference is
@@ -1366,7 +1421,7 @@ that decide which Sessions take which place.
 
 - **Host.** A `delegated` Session nests under the nearest Session up its creator chain that has a
   top-level row, so a chain of delegations flattens to one level. Archiving or deleting a creator
-  ends the chain, and the Sessions it created return to their own Project groups. A pinned
+  ends the chain, and the Sessions it delegated return to their own Project groups. A pinned
   `delegated` Session keeps a flat Pinned row, and a `handoff`, an `independent`, or an ownerless
   Session keeps an ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
 - **Takeover.** A `delegated` Session whose feed entry has `control: "human"` (the user took it over
@@ -1376,7 +1431,8 @@ that decide which Sessions take which place.
   Session and selecting a Project read the same answer from the cached feed
   (`delegation-feed-cache.ts`); the command palette and share dialog list order from the records
   alone and still list it after its host.
-- **Consult.** A `consult` Session takes no row while a Session above it is listed. It shows
+- **Consult.** A `consult` Session takes no row while a Session above it is listed, and none once its
+  creator is archived: the asking work is done and its answer was read. It shows
   nested only while it is the selected Session, and the command palette still finds it.
 - **Grouping.** The Session keeps its own `projectId`. Only the sidebar's grouping moves: a nested
   Session counts toward its host's group for collapsed-heading rollups and auto-collapse

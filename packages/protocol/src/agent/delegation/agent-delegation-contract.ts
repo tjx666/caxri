@@ -21,6 +21,7 @@ import {
     delegationProviderSchema,
     delegationRosterSchema,
     delegationSelectionSchema,
+    delegationTypeSchema,
 } from './agent-delegation-settings.js';
 import {
     agentDelegationTranscriptSchema,
@@ -39,6 +40,8 @@ import {
     isPresetExclusive,
     isRelationForNewSession,
     isSurfaceForNewTask,
+    isTypeForNewSession,
+    isTypeLaunchNamed,
 } from './request/create-rules.js';
 import { delegationRedirectParametersSchema } from './request/redirect.js';
 
@@ -200,6 +203,13 @@ const agentDelegationCreateFields = {
     sessionId: identifierSchema,
     provider: delegationProviderSchema.optional(),
     preset: delegationPresetNameSchema.optional(),
+    /**
+     * A task Caxri knows without configuration (`DELEGATION_TYPES`): the Server picks its Agent from Settings, adds the
+     * type's private instructions, and records its new Session's relation (`delegationTypeRelation`). Only with
+     * `newSession`, and never with a preset, relation flag, or worktree. A `provider` (with optional model and effort)
+     * runs the type on that Agent instead of its binding.
+     */
+    type: delegationTypeSchema.optional(),
     model: delegationModelSchema.optional(),
     effort: delegationEffortSchema.optional(),
     callerProvider: delegationProviderSchema.optional(),
@@ -245,6 +255,7 @@ export const agentDelegationCreateSchema = z
     .strictObject(agentDelegationCreateFields)
     .refine(isOneContinuation, 'Choose follow-up or exact resume')
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
+    .refine(isTypeLaunchNamed, 'A model or effort for a type needs its provider')
     .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
     .refine(isSurfaceForNewTask, 'A surface applies to a new task, not a continuation');
 
@@ -261,7 +272,8 @@ export const agentDelegationCreateRequestSchema = z
     .strictObject({
         ...agentDelegationCreateFields,
         /**
-         * The Project the new Session joins, as an ID. Exactly one of this and `projectPath`.
+         * The Project the new Session joins, as an ID. Exactly one of this and `projectPath`, except that a `type`
+         * request may name neither and runs in the Project of the caller's own Session.
          */
         projectId: identifierSchema.optional(),
         /**
@@ -297,9 +309,12 @@ export const agentDelegationCreateRequestSchema = z
     )
     .refine(isRelationForNewSession, 'A hand-off, consult or independent Session is a new Session')
     .refine(
-        (value) => Boolean(value.projectId) !== Boolean(value.projectPath),
+        (value) =>
+            !(value.projectId && value.projectPath) &&
+            Boolean(value.type ?? value.projectId ?? value.projectPath),
         'Choose a Project ID or a Project path',
     )
+    .refine(isTypeForNewSession, 'A type starts its own new Session and decides its relation')
     .refine(
         (value) => !value.projectPath || Boolean(value.newSession),
         'A Project path adds a Project for a new Session',
@@ -526,36 +541,6 @@ export const agentDelegationInternalMethods = {
 export interface AgentDelegationReceipt extends z.infer<typeof agentDelegationReceiptSchema> {}
 
 /**
- * The failures an owner may retry: the provider or launch failed for a reason a second attempt can plausibly change. An
- * allowlist on purpose. Everything else (a stop, human input, a busy or not-ready target, an unconfirmed submission, a
- * missing answer) either was the user's own doing or leaves the earlier attempt's effects unknown.
- */
-const RETRYABLE_FAILURES: ReadonlySet<NonNullable<AgentDelegationReceipt['failure']>> = new Set([
-    'rate_limited',
-    'authentication_failed',
-    'output_limit',
-    'startup_not_ready',
-    'provider_failed',
-    'launch_failed',
-    'hooks_required',
-    'quota_exhausted',
-]);
-
-/**
- * Whether a receipt is a failure `agent.delegation.retry` accepts: status `failed` (never `interrupted`) with an
- * allowlisted failure. A missing failure is not retryable.
- */
-export function isRetryableDelegationFailure(
-    receipt: Pick<AgentDelegationReceipt, 'status' | 'failure'>,
-): boolean {
-    return (
-        receipt.status === 'failed' &&
-        receipt.failure !== undefined &&
-        RETRYABLE_FAILURES.has(receipt.failure)
-    );
-}
-
-/**
  * Shared receipt classification without importing a Server domain's service graph.
  */
 export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
@@ -572,22 +557,3 @@ export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
 export type AgentDelegationAnswer = z.infer<typeof agentDelegationAnswerSchema>;
 export type AgentDelegationCreate = z.infer<typeof agentDelegationCreateSchema>;
 export type AgentDelegationCreateRequest = z.infer<typeof agentDelegationCreateRequestSchema>;
-
-/**
- * The notice a delegating Agent receives when its failed task was retried. A wait that already returned `failed` is
- * finished and never learns of the retry, so this fixed text carries only the two task IDs and what to do.
- */
-export function formatDelegationRetryNotice(failedId: string, retryId: string): string {
-    return `Delegated task ${failedId} was retried as ${retryId}. Wait on ${retryId} for the result.`;
-}
-
-/**
- * The notice a delegating Agent receives when a scheduled retry of its failed task did not run. Fixed text: the two
- * values are a task ID and a closed outcome, nothing from the task.
- */
-export function formatDelegationRetryRefusedNotice(
-    failedId: string,
-    outcome: DelegationRetryScheduleOutcome,
-): string {
-    return `The scheduled retry of delegated task ${failedId} did not run (${outcome}). The task stays failed; do not wait for a retry of it.`;
-}

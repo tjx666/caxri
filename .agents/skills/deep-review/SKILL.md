@@ -23,7 +23,7 @@ Apply those repairs before the final response, add regression coverage, rerun af
 and report the findings as resolved. Keep P2 findings as review output unless they are necessary to
 make a P0/P1 repair complete. Stop and ask when product behavior has multiple reasonable answers,
 the fix expands scope, or new destructive/remote authority is required. An explicit read-only or
-report-only request overrides automatic repair. For `dianjiang`, subagent, or other delegated
+report-only request overrides automatic repair. For `--type review`, subagent, or other delegated
 reviews, keep the delegate read-only and apply this policy only in the primary agent.
 An additional review of newly merged changes during the same audit remains a follow-up review:
 report new P2 findings, but do not open a new P2 repair round by treating the merge as a new task.

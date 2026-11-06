@@ -10,7 +10,8 @@ import { RetryRefused } from './support';
 /**
  * The creation input of a fresh retry. A switch to another Agent (`retryProvider`) names only that provider, so the
  * successor launches with the target's current delegation settings; the failed task's model, effort, and preset belong
- * to the Agent it ran on and do not carry over.
+ * to the Agent it ran on and do not carry over. A type always carries over: it is the task's role, and its private
+ * instructions and relation come back with it.
  */
 function freshRetryInput(failed: StoredAgentDelegation): Omit<AgentDelegationCreate, 'sessionId'> {
     const { selection } = failed.receipt;
@@ -31,6 +32,7 @@ function freshRetryInput(failed: StoredAgentDelegation): Omit<AgentDelegationCre
     return {
         ...base,
         ...launch,
+        ...(selection?.type && { type: selection.type }),
         ...(failed.input.surface && { surface: failed.input.surface }),
         ...(failed.input.handoff && { handoff: true as const }),
         ...(failed.input.consult && { consult: true as const }),

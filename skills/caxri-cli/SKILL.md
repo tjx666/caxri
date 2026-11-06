@@ -290,6 +290,46 @@ Then write the task to a file and run
   `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).
   These accept only Sessions created from your own Session; never archive the user's Sessions.
 
+## Ask another Agent: second opinion, review, computer use
+
+Three asks need no preset and no Session flags. Write the task to a file, then run
+`agent delegate create --type review --title <subject> --prompt-file <path> --request-id <id> --json`
+with `--type` set to `second-opinion`, `review`, or `computer-use`.
+
+- **`second-opinion`**: an independent view when you are stuck on a hard debugging hypothesis or an
+  architecture or design decision that is expensive to reverse. It changes no files.
+- **`review`**: an independent review of code changes by another Agent. Name the scope (the
+  uncommitted changes, the branch against its base, or one commit) and the depth you want: a deep
+  comprehensive review, slow on large diffs, or a quick single pass. It reports findings and changes
+  no files. Do not use it for a lint or style pass your own tools already cover.
+- **`computer-use`**: operating the user's signed-in Chrome or another desktop app. Use it only when
+  no CLI, API, or browser tool of your own can do the step, and never to move a secret such as an API
+  key between pages: anything on screen lands in the model's context, so leave that step to the user.
+  In the task, pre-approve each irreversible action the user already authorized by account, target,
+  and exact items (for example "create these two DNS records in zone example.com"); anything unnamed
+  stops for approval. Tell the user it is running and to leave the target app alone except to sign
+  in when notified. Review its final screenshots before you report.
+
+Caxri picks the Agent from Settings: by default a second opinion and a review go to the other vendor
+(Codex, or Claude when you are Codex) and computer use goes to Codex. `agent delegate presets
+--project <id> --session <id>` lists the binding each type has for you in `types`; add `--provider` (with optional `--model` and
+`--effort`) only when the user names the Agent.
+
+- The task runs in a new Session of your own Project, in your linked worktree when you work in one,
+  so it reads the same files you do. Do not pass `--project` unless the task is about another
+  Project. A second opinion and a review take no sidebar row (they are consults); computer use is
+  listed under your Session so the user can watch it and sign in.
+- Write the task self-contained: background, file paths, what you want back. The Agent starts fresh
+  in your folder; it sees your files, not your conversation.
+- For `second-opinion` and `review`, brief the Agent as an independent evaluator: separate the
+  evidence (diffs, logs, measurements) from your interpretation, and state any conclusion you reached
+  as a hypothesis to test. Caxri adds instructions to examine the strongest counterarguments and to
+  disagree plainly; treat its answer as evidence and make the final call yourself.
+- Collect it like any delegated task: `agent delegate wait <id>` (run it in the background when your
+  harness supports that, and keep working), then `agent delegate result <id>`. Use `--follow-up <id>`
+  for a follow-up question to the same Agent, and `agent delegate transcript <id>` to see where a
+  running computer-use task is.
+
 ## Keep dispatch, control, and steer separate
 
 - `agent delegate create` runs a task from `--prompt-file` in a visible Claude, Codex, Grok, or Antigravity child Terminal.

@@ -25,7 +25,11 @@ import type { DelegationLimitFailure } from './receipt-timing';
  * A worktree Project made for a new Session, which `create` binds the Session to.
  */
 export interface DelegationWorktree {
-    identity: { device: string; inode: string };
+    /**
+     * The worktree root's file identity, when known; a type that follows its caller's worktree copies the caller's,
+     * which an older binding may not have recorded.
+     */
+    identity?: { device: string; inode: string };
     projectId: string;
 }
 

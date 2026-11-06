@@ -39,6 +39,50 @@ describe('delegation CLI', () => {
         },
     );
 
+    it('asks for a type with only a title and a task, never with a flag the type decides', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-cli-'));
+        onTestFinished(() => rm(directory, { recursive: true, force: true }));
+        const path = join(directory, 'task.md');
+        await writeFile(path, 'Synthetic task');
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.create',
+        )!;
+        const base = ['--type', 'review', '--title', 'Review the retry fix', '--prompt-file', path];
+        expect(await command.parseParams(base)).toEqual({
+            newSession: true,
+            type: 'review',
+            title: 'Review the retry fix',
+            prompt: 'Synthetic task',
+        });
+        expect(await command.parseParams([...base, '--project', 'project'])).toMatchObject({
+            projectId: 'project',
+            type: 'review',
+        });
+        // A user who names the Agent overrides the type's binding.
+        expect(
+            await command.parseParams([...base, '--provider', 'claude', '--effort', 'high']),
+        ).toMatchObject({ type: 'review', provider: 'claude', effort: 'high' });
+        await expect(
+            command.parseParams(['--type', 'review', '--prompt-file', path]),
+        ).rejects.toThrow(/--title/u);
+        await expect(
+            command.parseParams(['--type', 'lint', '--title', 'Lint', '--prompt-file', path]),
+        ).rejects.toThrow(/--type must be one of second-opinion\|review\|computer-use/u);
+        await Promise.all(
+            [
+                ['--consult'],
+                ['--new-session'],
+                ['--session', 'session'],
+                ['--preset', 'review'],
+                ['--worktree', 'feat/x'],
+            ].map((extra) =>
+                expect(command.parseParams([...base, ...extra])).rejects.toThrow(
+                    new RegExp(`remove ${extra[0]}`, 'u'),
+                ),
+            ),
+        );
+    });
+
     it('asks for a new Session in place of --session, never both or neither', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-cli-'));
         onTestFinished(() => rm(directory, { recursive: true, force: true }));
@@ -166,9 +210,9 @@ describe('delegation CLI', () => {
         ).rejects.toThrow(/--title/u);
         await expect(
             command.parseParams([...base, '--new-session', '--session', 'session']),
-        ).rejects.toThrow(/one of --session or --new-session/u);
+        ).rejects.toThrow(/one of --session, --new-session or --type/u);
         await expect(command.parseParams(base)).rejects.toThrow(
-            /one of --session or --new-session/u,
+            /one of --session, --new-session or --type/u,
         );
         await expect(
             command.parseParams([

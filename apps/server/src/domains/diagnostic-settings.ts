@@ -143,6 +143,10 @@ function projectDelegation(delegation: DelegationSettings) {
                     instructions: redactText(preset.instructions),
                 }) satisfies Projection<DelegationPreset>,
         ),
+        /**
+         * Provider, model and effort only: a type binding carries no free text.
+         */
+        types: delegation.types,
         callers: Object.fromEntries(
             Object.entries(delegation.callers).map(([provider, caller]) => [
                 provider,
@@ -155,6 +159,7 @@ function projectDelegation(delegation: DelegationSettings) {
                                 projectDelegationBinding(binding),
                             ]),
                         ),
+                    types: caller.types,
                     exclude: caller.exclude,
                     prepend: redactText(caller.prepend),
                     append: redactText(caller.append),
