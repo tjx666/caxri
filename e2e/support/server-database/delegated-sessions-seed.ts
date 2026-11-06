@@ -86,6 +86,11 @@ function delegationRecord(input: {
         fingerprint: 'e2e',
         promptDigest: '0'.repeat(64),
         frozenLaunch: { executable: 'codex', args: [] },
+        // A task the user took over carries the takeover mark the feed derives `control: 'human'` from.
+        ...(status === 'human_intervened' && {
+            hasHumanIntervention: true,
+            humanInterventionAt: now,
+        }),
     };
 }
 

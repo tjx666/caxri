@@ -18,6 +18,7 @@ import {
     settlePendingSessionTitle,
 } from '../../stores/workbench-session-titles';
 import { forgetDeletedSessions } from '../closed-items/recording';
+import { cachedHumanControlledSessionIds } from '../delegation/delegation-feed-cache';
 import { recordSessionSwitchLatency } from '../performance-monitor/collector';
 import {
     firstSessionOfProject,
@@ -178,7 +179,12 @@ export function selectProject(projectId: string): void {
     const bootstrap = getBootstrap();
     const session = bootstrap
         ? firstSessionOfProject(
-              sidebarSessionOrder(bootstrap.projects, bootstrap.sessions, getSelectedSession()?.id),
+              sidebarSessionOrder(
+                  bootstrap.projects,
+                  bootstrap.sessions,
+                  getSelectedSession()?.id,
+                  cachedHumanControlledSessionIds(),
+              ),
               projectId,
           )
         : undefined;
@@ -447,6 +453,7 @@ export function selectAdjacentSession(delta: 1 | -1): void {
     if (!bootstrap) return;
     // Steps through the rows the sidebar shows: a consult hidden under its creator is skipped, unless it is selected.
     const activeSessions = activeSessionsInSidebarOrder(bootstrap.projects, bootstrap.sessions, {
+        humanControlledSessionIds: cachedHumanControlledSessionIds(),
         navigableOnly: true,
         selectedSessionId: getSelectedSession()?.id,
     });

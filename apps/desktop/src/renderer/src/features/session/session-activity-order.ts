@@ -9,6 +9,10 @@ interface SidebarSessionOrderOptions {
      */
     navigableOnly?: boolean;
     selectedSessionId?: string;
+    /**
+     * The delegated Sessions the user took over, which take an ordinary row (see `sidebarSessionOrder`).
+     */
+    humanControlledSessionIds?: ReadonlySet<string>;
 }
 
 /**
@@ -22,8 +26,17 @@ interface SidebarSessionOrderOptions {
 export function activeSessionsInSidebarOrder(
     projects: ReadonlyArray<Pick<ProjectRecord, 'id'>>,
     sessions: readonly SessionRecord[],
-    { navigableOnly = false, selectedSessionId }: SidebarSessionOrderOptions = {},
+    {
+        humanControlledSessionIds,
+        navigableOnly = false,
+        selectedSessionId,
+    }: SidebarSessionOrderOptions = {},
 ): SessionRecord[] {
-    const order = sidebarSessionOrder(projects, sessions, selectedSessionId);
+    const order = sidebarSessionOrder(
+        projects,
+        sessions,
+        selectedSessionId,
+        humanControlledSessionIds,
+    );
     return navigableOnly ? order.navigable : order.all;
 }

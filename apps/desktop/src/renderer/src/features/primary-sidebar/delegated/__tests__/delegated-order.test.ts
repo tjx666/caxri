@@ -52,6 +52,21 @@ describe('rowSessionsByProject', () => {
 });
 
 describe('sidebarSessionOrder', () => {
+    it('steps to a taken-over delegated Session in its own Project, not after its host', () => {
+        const sessions = [
+            session('host', 'alpha'),
+            session('other', 'alpha', { sidebarOrder: 1 }),
+            createdBy('taken', 'beta', 'host', 'delegated'),
+        ];
+        expect(ids(sidebarSessionOrder(projects, sessions).navigable)).toEqual([
+            'host',
+            'taken',
+            'other',
+        ]);
+        const takenOver = sidebarSessionOrder(projects, sessions, undefined, new Set(['taken']));
+        expect(ids(takenOver.navigable)).toEqual(['host', 'other', 'taken']);
+    });
+
     const sessions = [
         session('first', 'alpha', { sidebarOrder: 1 }),
         session('second', 'alpha', { sidebarOrder: 2 }),

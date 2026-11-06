@@ -54,7 +54,9 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } })
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('../../../queries/client', () => ({
     caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
-    queryClient: { getQueryData: mocks.getQueryData },
+    isQueryMethod: (queryKey: readonly unknown[], ...methods: string[]) =>
+        methods.includes(queryKey[0] as string),
+    queryClient: { getQueriesData: () => [], getQueryData: mocks.getQueryData },
 }));
 vi.mock('../../../queries/session-queries', () => ({
     removeSessionQueries: mocks.removeSessionQueries,
