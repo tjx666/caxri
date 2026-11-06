@@ -286,6 +286,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.delete': 'ordered',
     'session.deleteMany': 'ordered',
     'session.detach': 'ordered',
+    'session.discardIfEmpty': 'ordered',
     'session.enterAirplaneMode': 'ordered',
     'session.exitAirplaneMode': 'ordered',
     'session.restoreQuitStopped': 'ordered',

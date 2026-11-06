@@ -27,6 +27,8 @@ import { useSelectedProject, useSettings } from '../../stores/selectors';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { newAgentSurface, newSessionActionLabel } from '../terminal/new-terminal-agent';
 import { AgentChoiceMenuItems } from './agent-choice-menu-items';
+import { startActivitySession } from './fresh-chat-commands';
+import { freshChatKind } from './fresh-chat-session';
 import { useLastAgentChoiceStore } from './last-agent-choice-store';
 import { OpenInChatMenuItem } from './open-in-chat-menu-item';
 import { RunOnMenuGroup } from './run-on-menu-group';
@@ -454,12 +456,13 @@ export function EmptyProjectSessionMenu({
  * the only pointer entry to a new Session (the Project heading's pencil) is gone while the queue is showing.
  *
  * The row targets the Project the user last picked here, else the selected Session's, named on its trailing edge so the
- * press never lands somewhere unexpected. It is split like the heading's pencil: the row's press repeats the default
- * Agent or the last pick in that Project, and its trailing chevron opens the list, which is also where the user
- * switches to another Project, so every Project stays one press away. With nothing to repeat the row's press opens the
- * same list. With more than one Project the list leads with a Project choice (T3 Code's sidebar New thread asks for the
- * Project the same way); picking one re-targets the Agent choices below it, keeps the menu open, and stays the row's
- * target after the menu closes.
+ * press never lands somewhere unexpected. It is split like the heading's pencil: while Agents open in Chat the row's
+ * press opens a fresh Chat right away (`startActivitySession`), whose empty state still offers another Project or
+ * Agent; otherwise it repeats the default Agent or the last pick. Its trailing chevron opens the list, which is also
+ * where the user switches to another Project, so every Project stays one press away. With nothing to repeat the row's
+ * press opens the same list. With more than one Project the list leads with a Project choice (T3 Code's sidebar New
+ * thread asks for the Project the same way); picking one re-targets the Agent choices below it, keeps the menu open,
+ * and stays the row's target after the menu closes.
  */
 export function ActivitySessionCreationMenu({
     defaultProject,
@@ -481,7 +484,12 @@ export function ActivitySessionCreationMenu({
     const sessionCreateShortcut = useCommandShortcut('session.create');
     const project =
         projects.find((candidate) => candidate.id === claimedProjectId) ?? defaultProject;
-    const splitKind = defaultAgent ?? lastChoice;
+    /**
+     * The press opens a fresh Chat when an Agent can open in Chat (`startActivitySession`), else it repeats the split
+     * press's kind; the icon and label name whichever Agent the press will start.
+     */
+    const splitKind =
+        freshChatKind(defaultAgent, openInChat, lastChoice) ?? defaultAgent ?? lastChoice;
     const splitLabel = splitKind
         ? newSessionActionLabel(
               { kind: splitKind, surface: newAgentSurface(splitKind, openInChat) },
@@ -513,7 +521,7 @@ export function ActivitySessionCreationMenu({
                       })
                     : t('session.create.newInProject', { project: project.title })
             }
-            onClick={() => pressSplitNewSession(project.id, 'activity')}
+            onClick={() => startActivitySession(project.id)}
         >
             {/* The press repeats an Agent, so its icon says which one will start; with nothing to repeat the press only opens the list. */}
             {splitKind ? (

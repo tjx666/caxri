@@ -1,6 +1,7 @@
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import { takeBackFromBot } from '../features/caxri-bot/bot-handover-commands';
 import { enterAirplaneMode } from '../features/session/airplane-mode/airplane-mode-commands';
+import { didStartFreshChatFromCommand } from '../features/session/fresh-chat-commands';
 import {
     detachSelectedSession,
     resumeSelectedSession,
@@ -36,6 +37,7 @@ import type { CommandContext } from './registry';
  */
 export const sessionCommandContext: CommandContext['session'] = {
     create: () => {
+        if (didStartFreshChatFromCommand()) return;
         const project = selectSelectedProject(getBootstrap());
         if (project) beginSessionCreation(project.id);
         else void addProject();

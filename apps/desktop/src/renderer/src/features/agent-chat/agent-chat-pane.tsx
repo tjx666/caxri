@@ -262,6 +262,8 @@ function AgentChatPaneContent({
     });
     const openAsTerminal = openAsTerminalAction(terminal);
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName, t);
+    const emptyHint = processState !== 'detached' && agentChatEmptyHint(capabilities.chatImages, t);
+    const freshChatTerminal = pending.timeline.length > 0 ? undefined : terminal;
     const recoveryNotice = agentChatRecoveryNotice(
         snapshot,
         { isLoadError: query.isError, processState },
@@ -369,10 +371,8 @@ function AgentChatPaneContent({
                                 onReply={focusComposer}
                             />
                             <AgentChatEmptyState
-                                hint={
-                                    processState !== 'detached' &&
-                                    agentChatEmptyHint(capabilities.chatImages, t)
-                                }
+                                freshChatTerminal={freshChatTerminal}
+                                hint={emptyHint}
                                 message={emptyMessage}
                             />
                         </div>

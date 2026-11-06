@@ -193,7 +193,7 @@ export class AgentChatService {
      * Appends input to the Chat's current send chain, after a pending permission switch (see `ChatPermissionSwitches`).
      */
     private async enqueue(terminalId: string, deliver: ChatStateDelivery): Promise<void> {
-        requireChatTerminal(this.options.database, terminalId);
+        this.states.acceptInput(terminalId);
         await this.permissionSwitches.settled(terminalId);
         return this.enqueueOn(terminalId, this.states.open(terminalId), deliver);
     }
@@ -208,8 +208,7 @@ export class AgentChatService {
         state: ChatState,
         deliver: ChatStateDelivery,
     ): Promise<void> {
-        this.states.admit(terminalId, state);
-        state.readLeaseAt = undefined;
+        this.states.admitInput(terminalId, state);
         const previous = state.sendQueue;
         const run = (async () => {
             await previous;

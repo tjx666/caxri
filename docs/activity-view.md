@@ -85,16 +85,43 @@ trailing edge names the target Project: the one the user last picked in this row
 selected Session's, else the first listed Project. The pick is remembered on this device
 (`activity-session-project-store.ts`), so closing the menu without choosing an Agent, selecting
 another Session, or relaunching keeps it; before that the row reverted to the selected Session's
-Project as soon as the menu closed. `session.create` opens the same menu on the same Project. A press opens the New Session list rather than
-creating directly, because the list is also where another Project is chosen: with more than one
-Project it leads with a **Project** choice that re-targets the Agent options below it and keeps the
-menu open, after T3 Code's sidebar New thread, which asks for the Project the same way. The Agent
-options, Empty Session, and Import Conversation are the Project heading's own list.
+Project as soon as the menu closed.
 
-`Cmd+N` (`session.create`) reaches the same menu: while the side bar shows Activity,
-`openSessionCreationMenu` hands a Project-heading claim to this row's `activity` anchor, since no
-Project heading is mounted to open it. A configured default Agent still creates directly from the
-shortcut.
+### Fresh Chat
+
+While Agents open in Chat (`session.openAgentsInChat`, on by default), a press on the row and
+`Cmd+N` (`session.create`) while the side bar shows Activity open a **fresh Chat** in that Project at
+once, with no menu (`fresh-chat-commands.ts`). Its Agent is `session.defaultAgent`, else the last
+pick from a New Session list, else the first Chat-capable Agent; a default or last pick that cannot
+open in Chat (Shell, a Terminal-only Agent) keeps the press repeating it, as before.
+
+```text
+Start in [beta ▾] with [Claude ▾]          ← empty Chat, until the first message
+```
+
+- Choosing another Project (most recently visited first) or Agent creates a fresh Chat there,
+  remembers the choice like a list pick, and discards the old one quietly.
+- The first message locks both: the line gives way to the conversation.
+- Leaving a fresh Chat while it is still empty calls `session.discardIfEmpty` and shows "Discarded
+  empty Session". Server Core deletes only a Session whose every Terminal is a Chat that never
+  admitted input and has an empty projection (`AgentChatService.isUntouched`), without the native
+  confirmation `session.delete` asks for; anything else answers `discarded: false` and stays.
+- The fresh set is window-local memory: a reload forgets it, and those Sessions simply stay.
+
+Codex's and Claude Code's desktop apps, and T3 Code's draft thread, likewise let a new thread
+choose its Project on its first screen. The Project tree's entries and the Terminal surface keep
+their own flows.
+
+### New Session list
+
+The row's chevron opens the New Session list, which is also where another Project is chosen: with
+more than one Project it leads with a **Project** choice that re-targets the Agent options below it
+and keeps the menu open, after T3 Code's sidebar New thread, which asks for the Project the same
+way. The Agent options, Empty Session, and Import Conversation are the Project heading's own list.
+Without an Agent that opens in Chat, the row's press repeats the default Agent or last pick, or
+opens this list when there is none, and `Cmd+N` reaches the same menu: `openSessionCreationMenu`
+hands a Project-heading claim to this row's `activity` anchor, since no Project heading is mounted
+to open it.
 
 The group rules, their order, the retention window, and the in-group order live in
 `packages/protocol/src/domain/session/session-activity-group.ts`, which the phone's home list also uses, so
