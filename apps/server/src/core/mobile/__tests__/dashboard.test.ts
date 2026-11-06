@@ -457,3 +457,45 @@ describe('buildMobileDashboard background work', () => {
         expect(byId.get('working')?.primaryTerminal).not.toHaveProperty('agentOperation');
     });
 });
+
+describe('buildMobileDashboard compaction', () => {
+    it('orders a compacting Agent with the working group, as Desktop Activity does', () => {
+        const base = {
+            projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
+            title: 'Session',
+            createdAt: 1,
+            lastVisitedAt: 1,
+            attentionGeneration: 0,
+            agentActivityState: 'idle' as const,
+            hasUnread: false,
+            hasPendingAttention: false,
+        };
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'control',
+            projects: [{ id: 'project-1', title: 'Project' }],
+            sessions: [
+                { ...base, id: 'idle-new', sessionActivityAt: 900 },
+                {
+                    ...base,
+                    id: 'compacting',
+                    sessionActivityAt: 1,
+                    primaryAgentTerminalId: 'terminal-compacting',
+                },
+            ],
+            terminals: [
+                {
+                    id: 'terminal-compacting',
+                    sessionId: 'compacting',
+                    kind: 'claude' as const,
+                    provider: 'claude' as const,
+                    title: 'terminal-compacting',
+                    lastProcessState: 'running' as const,
+                    agentOperation: 'compacting' as const,
+                },
+            ],
+        });
+        expect(result.sessions.map((session) => session.id)).toEqual(['compacting', 'idle-new']);
+    });
+});

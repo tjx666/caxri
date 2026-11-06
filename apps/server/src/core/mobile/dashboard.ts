@@ -14,6 +14,7 @@ import {
     compareSessionActivityGroupRows,
     compareSessionPinnedOrder,
     isPinnedSession,
+    isSessionAgentRunning,
     MOBILE_ARCHIVED_SESSIONS_MAX,
     SESSION_ACTIVITY_GROUP_ORDER,
     sessionActivityGroup,
@@ -46,7 +47,7 @@ const sessionGroup = (
     sessionActivityGroup({
         hasPendingAttention: session.hasPendingAttention,
         isDetached: terminal?.lastProcessState === 'detached',
-        isRunning: session.agentActivityState === 'running',
+        isRunning: isSessionAgentRunning(session, terminal),
         // A Chat waiting for a plan limit to reset is idle, as on Desktop and the phone's own list.
         isUsageWaiting: terminal?.usageLimitWaitAt !== undefined,
     });

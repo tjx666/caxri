@@ -1,8 +1,9 @@
 import type { HookCallback, HookCallbackMatcher, HookEvent } from '@anthropic-ai/claude-agent-sdk';
+import { withTimeout } from '@caxri/utils';
 
 import { isRecord } from '../chat-items';
 import type { AgentChatSessionHost } from '../chat-provider';
-import { withTimeout } from '../providers/claude/prompt-queue';
+import { claudeTimeout } from '../providers/claude/prompt-queue';
 
 type ClaudeHooks = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 
@@ -69,6 +70,7 @@ function worktreeHook(observe: AgentChatSessionHost['observeLifecycle']): HookCa
             await withTimeout(
                 observe({ phase: 'shellToolFinished', agentCwd: reported }),
                 WORKTREE_HOOK_DELIVERY_TIMEOUT_MS,
+                claudeTimeout,
             );
         } catch {
             // The tool already succeeded; a late reconciliation still lands, and the next divergent report retries.

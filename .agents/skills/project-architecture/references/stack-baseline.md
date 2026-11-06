@@ -26,7 +26,9 @@ the update bundle's signer check, and two Release runs failed after the upgrade 
 
 Keep these compatibility exceptions:
 
-- `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
+- `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers. xterm.js
+  numbers each package's betas separately, so the versions differ; `scripts/__tests__/workspace-dependency-contract.test.ts`
+  asserts the exact pins and that every installed package reports the same `commit`.
 - `@tensorflow/tfjs-*`: caret ranges held on major 3 (`^3.21.0`). The bundled
   `@vscode/vscode-languagedetection` model was exported for TensorFlow.js 3, as VS Code still ships
   it; 4.x fails to run it. Upgrade only together with a model that 4.x loads.

@@ -1,3 +1,4 @@
+import { withTimeout } from '@caxri/utils';
 import type { WebContents } from 'electron';
 
 /**
@@ -152,18 +153,4 @@ function scriptFileName(url: string): string {
     if (!url) return '-';
     const path = url.split(/[?#]/u, 1)[0] ?? '';
     return path.slice(path.lastIndexOf('/') + 1) || '-';
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-        return await Promise.race([
-            promise,
-            new Promise<undefined>((resolve) => {
-                timer = setTimeout(() => resolve(undefined), timeoutMs);
-            }),
-        ]);
-    } finally {
-        clearTimeout(timer);
-    }
 }

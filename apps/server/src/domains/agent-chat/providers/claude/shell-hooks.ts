@@ -1,4 +1,5 @@
 import type { HookCallback, HookCallbackMatcher, HookEvent } from '@anthropic-ai/claude-agent-sdk';
+import { withTimeout } from '@caxri/utils';
 
 import {
     commandCreatesWorktree,
@@ -8,7 +9,7 @@ import {
 import { isRecord } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { withClaudeWorktreeHooks } from '../../worktree/enter-worktree-hooks';
-import { withTimeout } from './prompt-queue';
+import { claudeTimeout } from './prompt-queue';
 
 type ClaudeHooks = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 type ShellPhase = 'shellToolFailed' | 'shellToolFinished' | 'shellToolStarted';
@@ -88,6 +89,7 @@ function shellHook(
                     }),
                 }),
                 SHELL_HOOK_DELIVERY_TIMEOUT_MS,
+                claudeTimeout,
             );
         } catch {
             // A late snapshot records nothing, so the outcome cannot be attributed; the tool proceeds either way.

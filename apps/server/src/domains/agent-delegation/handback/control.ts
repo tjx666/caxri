@@ -10,10 +10,14 @@ import type { CaxriDatabase, StoredAgentDelegation } from '../../db';
  * - `human` after a takeover, until a hand-back's follow-up created a newer task that the user has not taken over again.
  *   The old tasks keep their takeover mark for good, so the answer comes from the task that used the latest grant: if
  *   it is gone (pruned) or marked, the user is in control.
+ *
+ * `takeovers` is the Sessions' takeovers when the caller already read them (see
+ * `AgentDelegationsModel.receiptsAndTakeoversForSessions`), so the records are not parsed again.
  */
 export function sessionControls(
     database: Pick<CaxriDatabase, 'agentDelegations'>,
     sessionIds: readonly string[],
+    takeovers?: ReadonlyMap<string, number>,
 ): Map<string, DelegationControl> {
     const controls = new Map<string, DelegationControl>();
     if (sessionIds.length === 0) return controls;
@@ -33,10 +37,10 @@ export function sessionControls(
         if (successor && !successor.hasHumanIntervention) controls.set(sessionId, 'delegated');
     }
     // A Session never taken over has no mark on any task, so it is not `human`.
-    const takeovers = agentDelegations.takeoversForSessions(sessionIds);
+    const taken = takeovers ?? agentDelegations.takeoversForSessions(sessionIds);
     for (const sessionId of sessionIds) {
         const known = controls.get(sessionId);
-        if (known === undefined && takeovers.has(sessionId)) controls.set(sessionId, 'human');
+        if (known === undefined && taken.has(sessionId)) controls.set(sessionId, 'human');
     }
     return controls;
 }

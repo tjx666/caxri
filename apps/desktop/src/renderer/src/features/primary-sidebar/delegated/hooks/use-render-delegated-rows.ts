@@ -8,7 +8,7 @@ import { primarySidebarDelegatedRowId } from '../../primary-sidebar-tree';
 import type { RenderDelegatedRows } from '../delegated-session-rows';
 import { DelegatedSessionRows } from '../delegated-session-rows';
 import { useDelegatedRowLookups } from './use-delegated-row-lookups';
-import type { DelegatedSessionsModel } from './use-delegated-sessions';
+import type { DelegatedSessionsModel } from './use-delegated-session-nesting';
 
 /**
  * Binds the nested rows to the tree's state: the record lookups they name Projects and creators from, the failure set

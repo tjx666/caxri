@@ -1,7 +1,8 @@
 import type { McpServerStatus, Query } from '@anthropic-ai/claude-agent-sdk';
+import { withTimeout } from '@caxri/utils';
 
 import type { McpServerReport } from '../../chat-mcp-servers';
-import { withTimeout } from './prompt-queue';
+import { claudeTimeout } from './prompt-queue';
 
 /**
  * An MCP status read only decorates the timeline; one that hangs leaves the row on its generic glyph.
@@ -45,6 +46,10 @@ export async function readClaudeMcpServer(
     query: Query,
     name: string,
 ): Promise<McpServerReport | undefined> {
-    const statuses = await withTimeout(query.mcpServerStatus(), MCP_STATUS_TIMEOUT_MS);
+    const statuses = await withTimeout(
+        query.mcpServerStatus(),
+        MCP_STATUS_TIMEOUT_MS,
+        claudeTimeout,
+    );
     return claudeMcpServerReport(statuses, name);
 }

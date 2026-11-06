@@ -259,6 +259,37 @@ describe('pnpm dependency contract', () => {
         );
     });
 
+    /**
+     * Xterm.js publishes each `@xterm/*` package with its own beta counter, so matching version numbers prove nothing.
+     * The Renderer restores snapshots the Server's headless screen and serialize addon wrote, so every package must
+     * come from the one upstream commit stack-baseline.md names; the installed `commit` field proves it.
+     */
+    it('pins every @xterm package exactly to one upstream commit', () => {
+        const pins = ['apps/desktop', 'apps/server', 'apps/mobile'].flatMap((workspace) => {
+            const manifest = JSON.parse(
+                readFileSync(join(root, workspace, 'package.json'), 'utf8'),
+            ) as {
+                dependencies?: Record<string, string>;
+                devDependencies?: Record<string, string>;
+            };
+            return Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })
+                .filter(([name]) => name.startsWith('@xterm/'))
+                .map(([name, range]) => ({ name, range, workspace }));
+        });
+        expect(pins.length).toBeGreaterThan(0);
+        expect(pins.filter(({ range }) => !/^\d+\.\d+\.\d+-beta\.\d+$/.test(range))).toEqual([]);
+        const commits = new Set(
+            pins.flatMap(({ name, workspace }) => {
+                const installed = join(root, workspace, 'node_modules', name, 'package.json');
+                if (!existsSync(installed)) return [];
+                return [
+                    (JSON.parse(readFileSync(installed, 'utf8')) as { commit?: string }).commit,
+                ];
+            }),
+        );
+        expect(commits.size).toBeLessThanOrEqual(1);
+    });
+
     it('keeps the root private orchestrator free of product runtime dependencies', () => {
         expect(rootManifest.dependencies).toBeUndefined();
         expect(rootManifest.build?.asarUnpack).toBeUndefined();

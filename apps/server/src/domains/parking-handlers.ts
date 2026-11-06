@@ -44,6 +44,12 @@ export interface SessionParkingOptions {
  * suspension looks for processes; a Host start still in flight after that is parked by
  * `TerminalSuspensionService.parkLaunch` once it lands. Live PTYs are suspended (they resume on selection) and live
  * Chats stopped, which is what the close prompt and Server Core's idle exit count.
+ *
+ * `session.unarchive` is atomic and takes no Session lock, so it can land while parking awaits. For `session.archive`
+ * each Session's archived mark is therefore re-read after every await, and a Session the user already took back skips
+ * the remaining steps. What the user sees: a Terminal suspended before the unarchive stays suspended and resumes when
+ * the Session is selected (`restoreInterruptedTerminalsInBackground`); a Chat not yet closed keeps running; a Chat
+ * already closed is forgotten, not detached, so the next read relaunches it on its bound Agent session.
  */
 export async function parkSessions(
     options: SessionParkingOptions,
@@ -51,10 +57,14 @@ export async function parkSessions(
     reason: 'project.hide' | 'session.archive',
 ): Promise<void> {
     for (const sessionId of sessionIds) options.terminalRestores.cancel(sessionId);
+    const isStillParked = (sessionId: string): boolean =>
+        reason !== 'session.archive' || Boolean(options.database.getSession(sessionId)?.archivedAt);
     await Promise.all(
         sessionIds.map(async (sessionId) => {
             await options.terminalRestores.settled(sessionId);
+            if (!isStillParked(sessionId)) return;
             await options.terminalSuspension.suspendSession(sessionId);
+            if (!isStillParked(sessionId)) return;
             await options.agentChat.closeSession(sessionId);
         }),
     );
@@ -62,7 +72,7 @@ export async function parkSessions(
      * A parked Session has no viewer, so its Git trackers, metadata watchers, and snapshots would only hold resources
      * until restart. Unarchiving or adding the root again re-registers them on the next read.
      */
-    options.evictSessions(sessionIds);
+    options.evictSessions(sessionIds.filter(isStillParked));
     options.restoreSelection();
     options.sendFullStateChange(reason);
 }
@@ -130,7 +140,9 @@ function createSessionParkingHandlers(
             const removal = await options.archivedWorktrees?.prepare(sessionId, worktree);
             const session = database.archiveSession(sessionId);
             await parkSessions(options, [sessionId], 'session.archive');
-            if (removal) options.archivedWorktrees?.schedule(sessionId, removal);
+            // Unarchived while parking awaited: the Session is visible again, so its folder must stay.
+            if (removal && database.getSession(sessionId)?.archivedAt)
+                options.archivedWorktrees?.schedule(sessionId, removal);
             return session;
         });
     return {

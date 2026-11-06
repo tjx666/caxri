@@ -96,10 +96,12 @@ export function delegationEntries(
 ): AgentDelegationSession[] {
     const { database } = source;
     const sessionIds = created.map((session) => session.sessionId);
-    const receipts = stateReceipts(database.agentDelegations.receiptsForSessions(sessionIds));
+    // One read and parse of the Sessions' records feeds the receipts, the takeovers and the controls.
+    const { receipts: allReceipts, takeovers } =
+        database.agentDelegations.receiptsAndTakeoversForSessions(sessionIds);
+    const receipts = stateReceipts(allReceipts);
     const results = isSummary ? database.createdSessions.results(sessionIds) : undefined;
-    const takeovers = database.agentDelegations.takeoversForSessions(sessionIds);
-    const controls = sessionControls(database, sessionIds);
+    const controls = sessionControls(database, sessionIds, takeovers);
     const delegationIds = receipts
         .values()
         .map((receipt) => receipt.delegationId)

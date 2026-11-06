@@ -1,12 +1,13 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatSnapshot, AgentChatUsage } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_USAGE_BREAKDOWN } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
 import { clip, isRecord, stringField } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { withCacheRewriteEstimate } from '../../chat-usage';
 import { claudeUsageTokens } from './items';
-import { withTimeout } from './prompt-queue';
+import { claudeTimeout } from './prompt-queue';
 
 const CONTEXT_USAGE_TIMEOUT_MS = 5_000;
 
@@ -175,7 +176,11 @@ export async function refreshClaudeContextDetails(
  * One `get_context_usage` answer, bounded so a stalled process cannot hold the caller.
  */
 export function readClaudeContextUsage(query: Pick<Query, 'getContextUsage'>): Promise<unknown> {
-    return withTimeout(query.getContextUsage({ detail: 'summary' }), CONTEXT_USAGE_TIMEOUT_MS);
+    return withTimeout(
+        query.getContextUsage({ detail: 'summary' }),
+        CONTEXT_USAGE_TIMEOUT_MS,
+        claudeTimeout,
+    );
 }
 
 function isPositive(value: unknown): value is number {

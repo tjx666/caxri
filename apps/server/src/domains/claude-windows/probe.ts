@@ -7,8 +7,9 @@ import type { AccountInfo, Options, Query, SDKUserMessage } from '@anthropic-ai/
 import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { ClaudeWindowUnavailableReason } from '@caxri/protocol';
 import { CLAUDE_WINDOW_MINUTES } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
-import { claudePlanLimits, withTimeout } from '../agent-chat';
+import { claudePlanLimits, claudeTimeout } from '../agent-chat';
 import { CAXRI_CLAUDE_ENTRYPOINT } from '../agents';
 
 const ACCOUNT_TIMEOUT_MS = 20_000;
@@ -173,7 +174,7 @@ export async function openSdkSession(options: SdkSessionOptions): Promise<Claude
         read: async () => {
             let account: AccountInfo | undefined;
             try {
-                account = await withTimeout(query.accountInfo(), ACCOUNT_TIMEOUT_MS);
+                account = await withTimeout(query.accountInfo(), ACCOUNT_TIMEOUT_MS, claudeTimeout);
             } catch {
                 return { ok: false, reason: 'probeFailed' };
             }
@@ -186,6 +187,7 @@ export async function openSdkSession(options: SdkSessionOptions): Promise<Claude
                         skipBehaviors: true,
                     }),
                     USAGE_TIMEOUT_MS,
+                    claudeTimeout,
                 );
             } catch {
                 return { ok: false, reason: 'usageUnavailable' };
@@ -201,7 +203,7 @@ export async function openSdkSession(options: SdkSessionOptions): Promise<Claude
                 parent_tool_use_id: null,
             });
             try {
-                return await withTimeout(turnEnded.next(), TRIGGER_TIMEOUT_MS);
+                return await withTimeout(turnEnded.next(), TRIGGER_TIMEOUT_MS, claudeTimeout);
             } catch {
                 return false;
             }

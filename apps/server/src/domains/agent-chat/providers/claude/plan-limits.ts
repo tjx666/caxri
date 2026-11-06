@@ -2,11 +2,12 @@ import { homedir } from 'node:os';
 
 import type { Query, SDKRateLimitInfo } from '@anthropic-ai/claude-agent-sdk';
 import type { UsageCredits, UsageLimit } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
 import { readClaudeRateLimitTier } from '../../../agents';
 import { isRecord, stringField } from '../../chat-items';
 import { isClaudeOverageAllowed } from '../../continuation/claude-usage-limit';
-import { withTimeout } from './prompt-queue';
+import { claudeTimeout } from './prompt-queue';
 
 const PLAN_LIMITS_TIMEOUT_MS = 5_000;
 
@@ -118,6 +119,7 @@ async function askClaudeUsage(query: PlanLimitsQuery): Promise<unknown> {
                 skipBehaviors: true,
             }),
             PLAN_LIMITS_TIMEOUT_MS,
+            claudeTimeout,
         );
     } catch {
         return undefined;

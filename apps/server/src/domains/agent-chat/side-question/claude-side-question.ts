@@ -1,8 +1,9 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import { CaxriError } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
 import type { ChatSideExchange } from '../chat-provider';
-import { withTimeout } from '../providers/claude/prompt-queue';
+import { claudeTimeout } from '../providers/claude/prompt-queue';
 import { EmptySideAnswerError } from './side-answer-error';
 
 /**
@@ -41,6 +42,7 @@ export async function askClaudeSideQuestion(
         answer = await withTimeout(
             ask.call(query, question, { history, signal: controller.signal }),
             timeoutMs,
+            claudeTimeout,
         );
     } catch (error) {
         // Releases the pending control request when the timeout won the race.

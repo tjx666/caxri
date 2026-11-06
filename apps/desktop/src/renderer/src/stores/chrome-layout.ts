@@ -278,6 +278,11 @@ interface ChromeLayoutState extends ChromeLayout {
      */
     showPrimarySidebarActivity(): void;
     /**
+     * Returns the Primary Side Bar to the Project tree and persists it. The way out when the Activity body cannot
+     * render: a persisted Activity mode would otherwise re-mount the failing body on every reload.
+     */
+    leavePrimarySidebarActivityMode(): void;
+    /**
      * Re-clamps the persisted layout against a new viewport; see {@link clampLayoutToViewport} and
      * {@link clampPanelHeight}.
      */
@@ -433,6 +438,13 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         const isActivityMode = !get().primarySidebarActivityMode;
         const layout = { ...pickLayout(get()), primarySidebarActivityMode: isActivityMode };
         // Before the commit: the body that owns focus right now is the one about to unmount.
+        refocusChromeSurfaceBody('primarySidebar');
+        writePersistedLayout(layout);
+        set(layout);
+    },
+    leavePrimarySidebarActivityMode() {
+        if (!get().primarySidebarActivityMode) return;
+        const layout = { ...pickLayout(get()), primarySidebarActivityMode: false };
         refocusChromeSurfaceBody('primarySidebar');
         writePersistedLayout(layout);
         set(layout);

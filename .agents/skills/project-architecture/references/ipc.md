@@ -83,7 +83,11 @@ in the same change:
   `request` and `requestWithId` (the fixed method union; the latter takes a caller-owned request ID so the Renderer can
   cancel a long Core read without passing an `AbortSignal` across the bridge), `onEvent` (journal-backed event stream),
   `reportError` (content-free classifier), `reportDiagnostic` (strict content-free Renderer lifecycle snapshot), and
-  `pathForFile` (`webUtils.getPathForFile` for a `File` the user dropped; reads no file).
+  `pathForFile` (`webUtils.getPathForFile` for a `File` the user dropped; reads no file), and `environments`
+  (`CaxriEnvironmentBridge`, `apps/desktop/src/preload/environment-bridge.ts`): `attach`, `detach`, and `onEvent` keep
+  one recovering event stream per SSH Host, and `requestWithId` sends a request carrying that Host's environment ID.
+  Main honors it only for the primary Workbench window and routes each method by its exhaustive scope in
+  `apps/desktop/src/main/environment-method-policy.ts`, so a new Main-owned method must be classified there.
 - `performanceMonitorHost`: `isActive`, `onControl`, and `publish` let the Workbench publish its own frame pacing to a
   detached Performance Monitor window through Main. Main drops a publish that does not come from the monitored window,
   so a companion Renderer sharing this preload gains nothing.

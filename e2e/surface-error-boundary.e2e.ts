@@ -19,8 +19,8 @@ const SURFACE_FAULT_KEY = 'caxri.test.surface-fault';
 test('a surface render failure stays local to its surface', async () => {
     // Per fault, React logs the caught render error and the boundary logs it again; Main mirrors both.
     allowE2EErrors([
-        { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 4 },
-        { source: 'desktop', event: 'renderer.console_error', code: 'CONSOLE_ERROR', count: 4 },
+        { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 6 },
+        { source: 'desktop', event: 'renderer.console_error', code: 'CONSOLE_ERROR', count: 6 },
     ]);
     const directory = await mkdtemp(join(tmpdir(), 'caxri-surface-boundary-e2e-'));
     const root = join(directory, 'project');
@@ -68,6 +68,18 @@ test('a surface render failure stays local to its surface', async () => {
         ).toBeVisible();
         await settingsFailure.getByRole('button', { name: 'Retry' }).click();
         await expect(settingsFailure).toBeHidden();
+        await page.keyboard.press('Escape');
+
+        // Activity queue: the sidebar keeps its header and offers the way back to the Project tree.
+        await page.evaluate((key) => sessionStorage.setItem(key, 'activity'), SURFACE_FAULT_KEY);
+        await page.locator('.primary-sidebar-activity-toggle').click();
+        const activityFailure = sidebar
+            .getByRole('alert')
+            .filter({ hasText: 'This part of the window could not be displayed.' });
+        await expect(activityFailure).toBeVisible();
+        await expect(crashHeading).toBeHidden();
+        await activityFailure.getByRole('button', { name: 'Show Projects' }).click();
+        await expect(activityFailure).toBeHidden();
     } finally {
         try {
             await running.app.close();

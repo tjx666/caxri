@@ -69,6 +69,21 @@ describe('mobile session model', () => {
         expect(result.groups.idle.map((item) => item.id)).toEqual(['idle']);
     });
 
+    it('lists a compacting Agent under working, as Desktop Activity does', () => {
+        const result = buildMobileSessionSections({
+            total: 1,
+            truncated: false,
+            sessions: [
+                session({
+                    agentActivityState: 'idle',
+                    primaryTerminal: { ...terminal, agentOperation: 'compacting' },
+                    ...quiet,
+                }),
+            ],
+        });
+        expect(result.groups.working.map((item) => item.id)).toEqual(['session-1']);
+    });
+
     it('keeps a read Session in attention until it is marked done', () => {
         const result = buildMobileSessionSections({
             total: 1,

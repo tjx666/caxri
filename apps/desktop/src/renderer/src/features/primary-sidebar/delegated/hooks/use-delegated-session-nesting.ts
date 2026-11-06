@@ -32,7 +32,7 @@ export interface DelegatedSessionsModel {
  * delegation feed that tells which nested ones failed, and each host's window of nested rows. One hook so the tree
  * component makes a single call at the top and every derived structure reads the same placement.
  */
-export function useDelegatedSessions({
+export function useDelegatedSessionNesting({
     projects,
     selectedSessionId,
     sessions,

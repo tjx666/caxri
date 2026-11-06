@@ -58,24 +58,6 @@ export function creationKey(reference: {
         : undefined;
 }
 
-export async function withTimeout<T>(
-    promise: Promise<T>,
-    timeoutMs: number,
-): Promise<T | undefined> {
-    let cancelTimeout = () => {};
-    try {
-        return await Promise.race([
-            promise,
-            new Promise<undefined>((resolve) => {
-                const timer = setTimeout(resolve, timeoutMs);
-                cancelTimeout = () => clearTimeout(timer);
-            }),
-        ]);
-    } finally {
-        cancelTimeout();
-    }
-}
-
 /**
  * Picks the one Git addition (relative to a creation's own before-snapshot) a creation produced. A declared path is
  * only a filter over what Git reported: topology reports realpaths, while the command may name a path through a symlink
