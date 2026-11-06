@@ -177,7 +177,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         });
         await expect(workGroup).toHaveAttribute('aria-expanded', 'false');
         await workGroup.click();
-        await expect(chat.getByRole('button', { name: 'Search', exact: true })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Search greet', exact: true })).toBeVisible();
         // A long group scrolls, fading the edge that hides rows.
         const workList = chat.locator('[data-scroll-fade-end]');
         await expect(workList).toHaveCount(1);
