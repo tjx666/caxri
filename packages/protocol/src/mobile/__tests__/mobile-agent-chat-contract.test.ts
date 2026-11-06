@@ -56,6 +56,7 @@ describe('mobile Agent Chat projection', () => {
             agentActivityState: 'idle',
             attentionGeneration: 0,
             hasUnread: false,
+            hasPendingAttention: false,
             primaryTerminal: {
                 id: 'terminal-1',
                 sessionId: 'session-1',
