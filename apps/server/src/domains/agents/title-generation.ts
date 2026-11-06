@@ -432,6 +432,20 @@ export function buildAgentTitlePrompt(context: AgentTitleContext, isRetry = fals
  */
 const TITLE_COLON = /[:：]/u;
 
+/**
+ * Sentence-ending punctuation marks a model answer that describes the request instead of naming it. A screenshot plus
+ * `现在是怎么邀请企业客户的` was named `该问题的主题是询问当前邀请企业客户的方式。`, which passed every other check and reached the sidebar. A trailing
+ * `.js`-style identifier ends in a letter, so it is unaffected.
+ */
+const TITLE_SENTENCE_END = /[。．.！!？?]$/u;
+
+/**
+ * A title that opens by talking about the request, the user or the Session is a summary of the conversation, not a name
+ * for its subject.
+ */
+const TITLE_META_DESCRIPTION =
+    /^(?:(?:[该此本]|这个)?(?:问题|请求|会话|对话|任务)(?:的主题)?(?:是|在|主要|讨论|询问|关于)|用户(?:[在想问]|询问|请求|希望|要求)|(?:the |this )?(?:user|request|question|conversation|session|task)\s+(?:is|was|asks|asked|wants|requests|discusses)\b)/iu;
+
 export function normalizeGeneratedAgentTitle(
     value: string,
     context?: AgentTitleContext,
@@ -450,6 +464,8 @@ export function normalizeGeneratedAgentTitle(
                     title.toLowerCase().includes(text.trim().toLowerCase()),
             )) ||
         TITLE_COLON.test(title) ||
+        TITLE_SENTENCE_END.test(title) ||
+        TITLE_META_DESCRIPTION.test(title) ||
         (language === 'Chinese' &&
             (!/\p{Script=Han}/u.test(title) ||
                 /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(title))) ||
@@ -520,6 +536,7 @@ export const AGENT_TITLE_SYSTEM_INSTRUCTIONS = [
     'Prefer at most 12 CJK characters or 6 words; never exceed 80 characters.',
     'Do not use emoji, quotes, Markdown, an explanation or a label such as "Title:".',
     'Never use a colon: write one phrase, not a topic followed by a subtitle.',
+    'Write a noun phrase that names the subject, not a sentence describing the request: no "The user asks", "该问题的主题是" or "用户在询问", and no ending punctuation.',
     'Do not name opening mechanics such as analyzing an image or reading a file.',
     '<opening_request> holds the first user request and the assistant reply that interpreted it; it defines the subject of the Session.',
     'When the opening request is only an image, a link or an issue identifier, take the subject from the assistant reply that resolved it.',
