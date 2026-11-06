@@ -4,8 +4,10 @@ import { caxri } from '../lib/caxri';
 import {
     environmentOfSession,
     forgetEnvironment,
+    forgottenRecordIds,
     indexEnvironmentSnapshot,
     routingGeneration,
+    settleForgottenRecords,
 } from '../lib/environment-routing';
 import { composedReadMeter } from './composed-read-diagnostics';
 import { environmentIdOf, setSelectedEnvironment, useEnvironmentStore } from './environment';
@@ -196,6 +198,7 @@ export async function readComposedSnapshot(): Promise<BootstrapState> {
             snapshots.dirty.delete(id);
             forgetEnvironment(id);
         }
+    const forgottenIds = forgottenRecordIds();
     const startedAt = performance.now();
     const dirtyHostCount = connected.filter((id) => snapshots.dirty.has(id)).length;
     const localRead = caxri.request('app.bootstrap');
@@ -214,7 +217,9 @@ export async function readComposedSnapshot(): Promise<BootstrapState> {
         remoteReadMs: Math.max(0, ...performed),
         totalMs: performance.now() - startedAt,
     });
-    return composeRead(local, listed);
+    const composed = composeRead(local, listed);
+    settleForgottenRecords(forgottenIds);
+    return composed;
 }
 
 function composeRead(local: BootstrapState, listed: ReadonlySet<string>): BootstrapState {
