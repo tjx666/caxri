@@ -2,7 +2,7 @@ import { appendFile, mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentEnvironment } from '../contract';
 import { claudeTranscriptRoot } from '../providers/claude/paths';
@@ -62,6 +62,15 @@ describe('Session search index', () => {
         await mkdir(dirname(path), { recursive: true });
         await writeFile(path, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`);
         await utimes(path, updatedAt / 1000, updatedAt / 1000);
+    }
+
+    /**
+     * `search()` starts a background pass, and `refresh()` joins a pass already running instead of starting another. A
+     * file changed while such a pass is in flight is missed by the report the test then awaits (`changed` or `removed`
+     * of 0), so a test that mutates transcripts first lets the running pass finish.
+     */
+    async function settleBackgroundPass() {
+        await vi.waitFor(() => expect(engine.indexer.progress().isRunning).toBe(false));
     }
 
     async function seed() {
@@ -240,6 +249,7 @@ describe('Session search index', () => {
 
     it('indexes only appended lines on the next pass and drops a deleted transcript', async () => {
         await seed();
+        await settleBackgroundPass();
         const path = transcriptPath(BILLING);
         await appendFile(path, `${JSON.stringify(user(BILLING, 'Now check the refund ledger'))}\n`);
         await utimes(path, NOW / 1000, NOW / 1000);
@@ -250,6 +260,7 @@ describe('Session search index', () => {
         expect(engine.search({ query: 'refund ledger', limit: 10 }).hits).toHaveLength(1);
         expect(engine.search({ query: 'rounding', limit: 10 }).hits).toHaveLength(1);
 
+        await settleBackgroundPass();
         await rm(transcriptPath(ONBOARDING));
         expect((await engine.indexer.refresh()).removed).toBe(1);
         expect(engine.search({ query: 'welcome tour', limit: 10 }).hits).toEqual([]);

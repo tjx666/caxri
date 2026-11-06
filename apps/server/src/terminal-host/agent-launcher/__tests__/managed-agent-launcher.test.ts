@@ -418,7 +418,7 @@ describe('ManagedAgentLauncherServer', () => {
                 executable: process.execPath,
                 args: [
                     '-e',
-                    "require('node:fs').writeFileSync(process.env.READY_PATH, ''); process.on('SIGINT', () => process.exit(23)); setInterval(() => {}, 1000)",
+                    "/* handler before ready file: an earlier SIGINT kills the child by default */ process.on('SIGINT', () => process.exit(23)); require('node:fs').writeFileSync(process.env.READY_PATH, ''); setInterval(() => {}, 1000)",
                 ],
                 environment: { READY_PATH: readyPath },
                 cwd: directory,
