@@ -39,20 +39,33 @@ export function refreshProjectRepositories(projects: readonly ProjectRecord[]): 
             .filter((project) => !(project.id in keys))
             .map((project) => environmentOfProject(project.id)),
     );
-    for (const environmentId of missing) {
-        if (pending.has(environmentId)) continue;
-        pending.add(environmentId);
-        void (async () => {
-            try {
-                const read = await caxri.in(environmentId).request('project.repositoryKeys');
-                useProjectRepositoriesStore.setState((state) => ({
-                    keys: { ...state.keys, ...read },
-                }));
-            } catch {
-                // Best effort: an unread machine's Projects stay unmerged until the next snapshot asks again.
-            } finally {
-                pending.delete(environmentId);
-            }
-        })();
-    }
+    for (const environmentId of missing) readMachineRepoKeys(environmentId);
+}
+
+/**
+ * Reads one machine's repository keys and merges them over what is known.
+ */
+function readMachineRepoKeys(environmentId: string | undefined): void {
+    if (pending.has(environmentId)) return;
+    pending.add(environmentId);
+    void (async () => {
+        try {
+            const read = await caxri.in(environmentId).request('project.repositoryKeys');
+            useProjectRepositoriesStore.setState((state) => ({
+                keys: { ...state.keys, ...read },
+            }));
+        } catch {
+            // Best effort: an unread machine's Projects stay unmerged until the next snapshot asks again.
+        } finally {
+            pending.delete(environmentId);
+        }
+    })();
+}
+
+/**
+ * Re-reads one machine's repository keys after its Server reported that an `origin` moved. A key never changes for a
+ * Project id otherwise, so this is the only path that replaces an already known key.
+ */
+export function reloadProjectRepositories(environmentId: string | undefined): void {
+    readMachineRepoKeys(environmentId);
 }

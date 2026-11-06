@@ -1,4 +1,4 @@
-import { lstat, realpath } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type {
@@ -34,6 +34,7 @@ import { serverGitCommands } from './command-budget';
 import { readCommitDetails, readCommitDiffDocument } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { readGitHubPullRequestView } from './github';
+import { resolveHistoryPath } from './history-path';
 import { IgnoredChangeFilter, readIgnoredEntries } from './ignored-changes';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
@@ -89,7 +90,7 @@ export class GitService {
     private readonly changeTracker: GitChangeTracker;
     private readonly ignoredChanges: IgnoredChangeFilter;
     private readonly metadataWatcher: GitMetadataWatcher;
-    private readonly originFacts = new OriginRemoteFacts((rootPath) => this.originRemote(rootPath));
+    private readonly originFacts: OriginRemoteFacts;
     private readonly externalStatus: ExternalStatusHub;
 
     constructor(
@@ -97,6 +98,7 @@ export class GitService {
         private readonly logger: StructuredLogger,
         options: GitServiceOptions = {},
     ) {
+        this.originFacts = new OriginRemoteFacts((root) => this.originRemote(root), options.emit);
         this.externalStatus = options.externalStatus ?? new ExternalStatusHub({ logger });
         this.topologyRegistry = new RepoTopologyRegistry({
             git: (cwd, arguments_) => this.git(cwd, arguments_),
@@ -122,6 +124,7 @@ export class GitService {
             onTopologyChanged: (repoKey) => {
                 this.ignoredChanges.forgetAll();
                 this.repositoryService.observeMetadataTopology(repoKey);
+                void this.originFacts.revalidate();
             },
             subscribe: options.subscribe,
             watchHub: options.watchHub,
@@ -177,38 +180,6 @@ export class GitService {
 
     private originRemote(rootPath: string): Promise<string> {
         return this.git(rootPath, ['remote', 'get-url', 'origin'], { allowFailure: true });
-    }
-
-    private async resolveHistoryPath(
-        repo: GitRepoSummary,
-        input?: string,
-    ): Promise<string | undefined> {
-        if (!input || input === '.') return undefined;
-        const candidate = isAbsolute(input) ? input : resolve(repo.rootPath, input);
-        try {
-            const stats = await lstat(candidate);
-            if (stats.isSymbolicLink())
-                throw new CaxriError('PATH_DENIED', 'Git history path cannot be a symlink');
-            const canonical = await realpath(candidate);
-            const relativePath = relative(repo.rootPath, canonical);
-            assertInsideRoot(relativePath, 'Git history path is outside the selected repository');
-            return relativePath || undefined;
-        } catch (error) {
-            // The Renderer debounces the history path filter, so partial or nonexistent input is
-            // expected while the user types; surface it as NOT_FOUND rather than a generic INTERNAL
-            // failure that renders as an alarming "Unable to load commits" error.
-            if (isCaxriError(error)) throw error;
-            if (
-                error instanceof Error &&
-                'code' in error &&
-                (error.code === 'ENOENT' || error.code === 'ENOTDIR')
-            )
-                throw new CaxriError(
-                    'NOT_FOUND',
-                    'Git history path does not exist in the repository',
-                );
-            throw error;
-        }
     }
 
     private async resolveDiffTarget(
@@ -533,7 +504,7 @@ export class GitService {
                     parameters.repositoryId,
                 );
                 if (!repo.head) return { commits: [] };
-                const path = await this.resolveHistoryPath(repo, parameters.path);
+                const path = await resolveHistoryPath(repo, parameters.path);
                 const arguments_ = [
                     'log',
                     '-z',
@@ -561,7 +532,7 @@ export class GitService {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
         return readCommitDetails(parameters.sha, {
             git: (arguments_) => this.git(repo.rootPath, arguments_),
-            path: () => this.resolveHistoryPath(repo, parameters.path),
+            path: () => resolveHistoryPath(repo, parameters.path),
         });
     }
 
