@@ -12,6 +12,11 @@ export class ObservedConfigSources {
      * emit a second change (caxri#3492).
      */
     readonly #revisions = new Map<string, number>();
+    /**
+     * Paths with a Settings update writing to disk. An external read that settles while one is pending may have seen
+     * the new bytes before the update recorded them, so it must not apply or announce them a second time (caxri#3490).
+     */
+    readonly #pendingWrites = new Map<string, number>();
     readonly #rejectedRevisions = new Map<string, string>();
 
     get(path: string): string | undefined {
@@ -21,6 +26,35 @@ export class ObservedConfigSources {
     set(path: string, source: string): void {
         this.#sources.set(path, source);
         this.#revisions.set(path, this.revision(path) + 1);
+    }
+
+    /**
+     * Runs an update's disk write and records its source as observed, all while the path is marked as writing. A read
+     * that settles meanwhile is dropped by {@link isOvertaken} instead of applying and announcing the new bytes before
+     * the update does (caxri#3490).
+     */
+    async trackWrite(
+        path: string,
+        source: string,
+        write: (path: string, source: string) => Promise<void>,
+    ): Promise<void> {
+        this.#pendingWrites.set(path, (this.#pendingWrites.get(path) ?? 0) + 1);
+        this.#revisions.set(path, this.revision(path) + 1);
+        try {
+            await write(path, source);
+            this.set(path, source);
+        } finally {
+            const remaining = (this.#pendingWrites.get(path) ?? 1) - 1;
+            if (remaining > 0) this.#pendingWrites.set(path, remaining);
+            else this.#pendingWrites.delete(path);
+        }
+    }
+
+    /**
+     * Whether a read that captured `revision` before awaiting the file was overtaken by a write or a newer state.
+     */
+    isOvertaken(path: string, revision: number): boolean {
+        return this.#pendingWrites.has(path) || this.revision(path) !== revision;
     }
 
     revision(path: string): number {
