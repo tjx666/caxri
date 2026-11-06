@@ -13,12 +13,13 @@ were running and restart each one by hand.
 
 The next launch offers to bring them back: once the Renderer attaches, it reads
 `session.quitStoppedCount`, and when that is above zero it shows a persistent notice, "2 Sessions
-were stopped at the last quit.", with a **Restore** button. The notice stays until the user
+were stopped at the last quit, 3 hours ago.", with a **Restore** button. The notice stays until the user
 handles or closes it, so Zen Mode does not filter it, and it is checked once per Renderer
 launch. Reading the count never consumes the record: closing the notice leaves
 **Session: Restore Sessions Stopped at Last Quit** in the Desktop command palette (also found by
 searching `resume`, `reopen`, or `quit`), which brings them back in one step too. The count leaves
-out Sessions deleted or archived since the quit, since a restore would only skip them.
+out Sessions deleted or archived since the quit, since a restore would only skip them. A quit older than
+three days (`QUIT_RESTORE_NOTICE_MAX_AGE_MS`) gets no notice; the command stays available.
 
 ## What is recorded
 

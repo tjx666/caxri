@@ -186,8 +186,8 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.rename.noConversation': '此会话没有可用于命名的 Agent 对话。',
 
     // Restore what the last quit stopped
-    'session.quitRestore.noticeOne': '上次退出时停止了 {{count}} 个会话。',
-    'session.quitRestore.noticeOther': '上次退出时停止了 {{count}} 个会话。',
+    'session.quitRestore.noticeOne': '上次退出时停止了 {{count}} 个会话（{{when}}）。',
+    'session.quitRestore.noticeOther': '上次退出时停止了 {{count}} 个会话（{{when}}）。',
     'session.quitRestore.progress': '正在恢复上次退出时停止的会话…',
     'session.quitRestore.failed': '恢复上次退出时停止的会话失败',
     'session.quitRestore.none': '没有需要恢复的会话了。',

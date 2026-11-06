@@ -272,7 +272,7 @@ export function createSessionMaintenanceServices(options: {
         'session.exitAirplaneMode': ({ sessionIds }) => airplaneMode.exit(sessionIds),
         'session.airplaneModeStatus': () => airplaneMode.status(),
         'session.restoreQuitStopped': () => quitRestore.restore(),
-        'session.quitStoppedCount': () => ({ count: quitRestore.pendingCount() }),
+        'session.quitStoppedCount': () => quitRestore.pending(),
         /**
          * A quit samples what is still live before stopping it, so `session.restoreQuitStopped` can bring it back.
          */

@@ -33,7 +33,7 @@ import {
     stickyFileTreeRows,
 } from './file-tree-row-style';
 import type { FileTreeEntryRow, FileTreeRow } from './file-tree-rows';
-import { fileTreeNavigationTarget } from './file-tree-rows';
+import { fileTreeNavigationTarget, fileTreeTypeAheadTarget } from './file-tree-rows';
 import { useFileTreeRows } from './hooks/use-file-tree-rows';
 import type { ResourceExplorerController } from './hooks/use-resource-explorer-controller';
 import {
@@ -199,6 +199,17 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                 const from = indexes.get(path);
                 if (from === undefined) return;
                 const target = fileTreeNavigationTarget(current, from, action);
+                if (target !== undefined) focus(target);
+            },
+            typeAhead: (path, query) => {
+                const {
+                    focusRow: focus,
+                    indexByPath: indexes,
+                    rows: current,
+                } = latestNavigation.current;
+                const from = indexes.get(path);
+                if (from === undefined) return;
+                const target = fileTreeTypeAheadTarget(current, from, query);
                 if (target !== undefined) focus(target);
             },
             pathFor: (path, action) => {

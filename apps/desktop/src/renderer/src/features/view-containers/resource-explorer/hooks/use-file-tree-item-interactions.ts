@@ -29,6 +29,7 @@ import {
 import { importOsFiles, moveFiles, pasteIntoDirectory, rememberFiles } from '../file-paste-actions';
 import type { EditRequest } from '../file-tree-item-types';
 import { useFileTreeNavigator } from '../file-tree-navigation-context';
+import { FILE_TREE_TYPE_AHEAD_RESET_MS } from '../file-tree-rows';
 import {
     clickSelection,
     outermostPaths,
@@ -51,6 +52,28 @@ import {
 import { isFileTreeDirectory } from '../resource-explorer-state';
 import { trashFiles, undoLatestTrash } from '../trash/file-trash-actions';
 import { fileTreeDropDirectory } from '../tree-row/file-drop-target';
+
+/**
+ * The type-ahead query being typed. Module-level because focus moves between rows (each its own hook instance) as the
+ * query narrows, and the pause timeout compares timestamps instead of owning a timer.
+ */
+const typeAhead = { at: 0, query: '' };
+
+/**
+ * Extends the type-ahead query with a plain printable key and returns it, or `undefined` for any other key (modified, a
+ * named key, or a Space that starts no query). A pause longer than {@link FILE_TREE_TYPE_AHEAD_RESET_MS} starts over.
+ */
+function nextTypeAheadQuery(
+    event: KeyboardEvent<HTMLButtonElement>,
+    now: number,
+): string | undefined {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.key.length !== 1) return undefined;
+    const isFresh = now - typeAhead.at > FILE_TREE_TYPE_AHEAD_RESET_MS;
+    if (event.key === ' ' && (isFresh || typeAhead.query === '')) return undefined;
+    typeAhead.query = isFresh ? event.key : typeAhead.query + event.key;
+    typeAhead.at = now;
+    return typeAhead.query;
+}
 
 export interface UseFileTreeItemInteractionsOptions {
     depth: number;
@@ -404,6 +427,12 @@ export function useFileTreeItemInteractions({
             event.preventDefault();
             event.stopPropagation();
             setScopeSelectedPath(scope.scopeId, entry.path);
+            return;
+        }
+        const typed = nextTypeAheadQuery(event, Date.now());
+        if (typed !== undefined) {
+            event.preventDefault();
+            navigator.typeAhead(entry.path, typed);
             return;
         }
         if (event.key === 'Home') {

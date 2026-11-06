@@ -156,3 +156,32 @@ export function fileTreeNavigationTarget(
         treeNavigationTarget(rows, from, 'previous', fileTreeRowModel)
     );
 }
+
+/**
+ * How long a pause ends a type-ahead query, matching the native macOS and Finder list behavior.
+ */
+export const FILE_TREE_TYPE_AHEAD_RESET_MS = 700;
+
+/**
+ * Flat index of the entry row a type-ahead `query` jumps to, searching the visible rows from the one after `from` and
+ * wrapping. A query that repeats one letter ("ss") cycles through the rows starting with it, as native lists do, and a
+ * longer query may stay on the current row when it still matches. Names compare case-insensitively.
+ */
+export function fileTreeTypeAheadTarget(
+    rows: readonly FileTreeRow[],
+    from: number,
+    query: string,
+): number | undefined {
+    const needle = query.toLowerCase();
+    if (needle.length === 0 || rows.length === 0) return undefined;
+    const isCycling = [...needle].every((character) => character === needle[0]);
+    const prefix = isCycling ? needle[0] : needle;
+    // A longer query keeps matching from the current row; a repeated letter or a first letter moves past it.
+    const start = isCycling ? from + 1 : from;
+    for (let offset = 0; offset < rows.length; offset += 1) {
+        const index = (((start + offset) % rows.length) + rows.length) % rows.length;
+        const row = rows.at(index);
+        if (row?.kind === 'entry' && row.entry.name.toLowerCase().startsWith(prefix)) return index;
+    }
+    return undefined;
+}

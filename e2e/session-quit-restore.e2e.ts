@@ -39,7 +39,7 @@ test('offers at launch to restore the Terminal a quit with Stop Tasks ended, onc
         try {
             await createShellSession(first.page);
             // Nothing was stopped before this launch, so there is nothing to offer.
-            await expect(first.page.getByText(/stopped at the last quit\./u)).toHaveCount(0);
+            await expect(first.page.getByText(/stopped at the last quit\b/u)).toHaveCount(0);
             const bootstrap = await pageRequest<BootstrapTerminals>(first.page, 'app.bootstrap');
             const terminal = bootstrap.terminals.find(
                 ({ sessionId }) => sessionId === bootstrap.selectedSessionId,
@@ -58,7 +58,7 @@ test('offers at launch to restore the Terminal a quit with Stop Tasks ended, onc
 
             const notice = page
                 .locator('[data-sonner-toast]')
-                .filter({ hasText: '1 Session was stopped at the last quit.' });
+                .filter({ hasText: /1 Session was stopped at the last quit, .+\./ });
             await expect(notice).toBeVisible();
             await notice.getByRole('button', { name: 'Restore', exact: true }).click();
             await expect(page.getByText('Restored 1 Session.')).toBeVisible();

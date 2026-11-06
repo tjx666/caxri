@@ -1,11 +1,11 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { use, useCallback, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import type { HostInstance } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWebSource } from '@caxri/protocol';
 import { useFocusEffect } from 'expo-router';
-import { Copy, Ellipsis, GitFork, RotateCcw, Share2, TextCursor } from 'lucide-react-native';
+import { Check, Copy, Ellipsis, GitFork, RotateCcw, Share2, TextCursor } from 'lucide-react-native';
 
 import { ConfirmSheet } from '../../components/confirm-sheet';
 import { IconButton } from '../../components/icon-button';
@@ -28,6 +28,10 @@ import { AgentChatReplyActionsContext } from './use-agent-chat-reply-actions';
 
 const ICON_SIZE = 18;
 /**
+ * How long Copy shows its check, matching Desktop's `COPY_FEEDBACK_RESET_MS`.
+ */
+const COPY_CONFIRMATION_MS = 2000;
+/**
  * Sites the Sources button stacks before its label, as the ChatGPT app shows three.
  */
 const STACKED_SOURCES = 3;
@@ -41,6 +45,44 @@ interface MoreMenu {
     fork?: AgentChatReplyAction;
     retry?: AgentChatReplyAction;
 }
+
+/**
+ * Copy for a reply. On success the glyph becomes a check for {@link COPY_CONFIRMATION_MS}, like Desktop, instead of a
+ * toast; a failure still raises its own toast from the handler.
+ */
+const ReplyCopyButton = ({
+    replyId,
+    theme,
+    turnId,
+}: {
+    replyId: string;
+    theme: MobileTheme;
+    turnId: string;
+}) => {
+    const { t } = useTranslation();
+    const handlers = use(AgentChatReplyActionsContext);
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const timer = setTimeout(() => setCopied(false), COPY_CONFIRMATION_MS);
+        return () => clearTimeout(timer);
+    }, [copied]);
+    return (
+        <IconButton
+            accessibilityLabel={t(copied ? 'chat.reply.copied' : 'chat.reply.copy')}
+            color={copied ? theme.success : theme.muted}
+            icon={copied ? Check : Copy}
+            onPress={() => {
+                void handlers?.copy(replyId).then((ok) => {
+                    if (ok) setCopied(true);
+                });
+            }}
+            size={ICON_SIZE}
+            testID={`agent-chat-reply-copy-${turnId}${copied ? '-copied' : ''}`}
+            theme={theme}
+        />
+    );
+};
 
 /**
  * The bar under a reply that ends a turn, laid out as the Codex and ChatGPT apps end a reply: Copy, Share, and More on
@@ -110,15 +152,7 @@ export const AgentChatReplyActionBar = ({
             testID={`agent-chat-reply-actions-${turnId}`}
         >
             <View style={styles.buttons}>
-                <IconButton
-                    accessibilityLabel={t('chat.reply.copy')}
-                    color={theme.muted}
-                    icon={Copy}
-                    onPress={() => handlers.copy(replyId)}
-                    size={ICON_SIZE}
-                    testID={`agent-chat-reply-copy-${turnId}`}
-                    theme={theme}
-                />
+                <ReplyCopyButton replyId={replyId} theme={theme} turnId={turnId} />
                 <IconButton
                     accessibilityLabel={t('chat.reply.share')}
                     color={theme.muted}

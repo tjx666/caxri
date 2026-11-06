@@ -112,7 +112,7 @@ export const chat = {
     'chat.notice.usage': 'Usage',
     'chat.reply.actions': 'Reply actions',
     'chat.reply.copy': 'Copy',
-    'chat.reply.copied': 'Reply copied',
+    'chat.reply.copied': 'Copied',
     'chat.reply.shareFailed': 'Unable to share the reply. Try again.',
     'chat.reply.fork': 'Fork from here',
     'chat.reply.forkUnavailable': 'This reply cannot be forked',

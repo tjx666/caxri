@@ -110,7 +110,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.notice.usage': '用量',
     'chat.reply.actions': '回复操作',
     'chat.reply.copy': '复制',
-    'chat.reply.copied': '已复制回复',
+    'chat.reply.copied': '已复制',
     'chat.reply.shareFailed': '无法分享回复，请重试。',
     'chat.reply.fork': '从此处分叉',
     'chat.reply.forkUnavailable': '无法从这条回复分叉',

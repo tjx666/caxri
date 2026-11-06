@@ -87,14 +87,15 @@ export class QuitRestore {
     }
 
     /**
-     * How many recorded Sessions a restore would still relaunch, read without consuming the record so a launch can
-     * offer it. Sessions deleted or archived since the quit are left out, since a restore would only skip them.
+     * How many recorded Sessions a restore would still relaunch, and when the quit stopped them, read without consuming
+     * the record so a launch can offer it. Sessions deleted or archived since the quit are left out, since a restore
+     * would only skip them.
      */
-    pendingCount(): number {
-        if (this.isRestoring) return 0;
+    pending(): { count: number; stoppedAt?: number } {
+        if (this.isRestoring) return { count: 0 };
         const { database } = this.options;
         const stored = database.getAppState('quitStoppedSessions');
-        if (!stored || stored.sessions.length === 0) return 0;
+        if (!stored || stored.sessions.length === 0) return { count: 0 };
         const count = stored.sessions.filter(({ sessionId }) => {
             const session = database.getSession(sessionId);
             return session !== undefined && session.archivedAt === undefined;
@@ -106,7 +107,7 @@ export class QuitRestore {
                 recordedCount: stored.sessions.length,
             },
         });
-        return count;
+        return { count, stoppedAt: stored.stoppedAt };
     }
 
     /**
