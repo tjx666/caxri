@@ -38,6 +38,7 @@ test('a signed-out Agent reads Signed out in the New Terminal menu and offers to
             'Grok BuildNot installed',
             'AntigravityNot installed',
             'Shell',
+            'Open Agents InTerminal',
         ]);
         await terminalMenu.getByRole('menuitem', { name: /^Codex/u }).hover();
         await expect(
