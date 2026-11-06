@@ -58,6 +58,17 @@ type SessionStatusSource = Pick<
 >;
 
 /**
+ * Whether the Agent is doing work right now: a running turn, or a compaction (which has no turn of its own). Unlike
+ * {@link sessionStatus} this is never masked by unread attention, so list grouping reads it directly.
+ */
+export function isSessionAgentRunning(
+    session: Pick<SessionRecord, 'agentActivityState'>,
+    terminal: Pick<SessionStatusTerminal, 'agentOperation'> | undefined,
+): boolean {
+    return terminal?.agentOperation === 'compacting' || session.agentActivityState === 'running';
+}
+
+/**
  * Projects the detailed Agent lifecycle into the single status slot shared by Session lists.
  *
  * A Chat waiting for a plan limit to reset (issue caxri#2220) outranks everything: it asks nothing of the user and
@@ -100,7 +111,7 @@ export function sessionStatus(
         };
     }
 
-    const isLive = agentOperation === 'compacting' || session.agentActivityState === 'running';
+    const isLive = isSessionAgentRunning(session, terminal);
     const failedStatus = (): SessionStatus => ({
         ariaDescription: t('primarySidebar.status.failed.description'),
         ariaLabel: t('primarySidebar.status.failed.label'),
@@ -123,12 +134,11 @@ export function sessionStatus(
             undefined,
             t,
         );
-        const currentStatus =
-            agentOperation === 'compacting' || session.agentActivityState === 'running'
-                ? t('primarySidebar.status.currentStatus', {
-                      status: currentActivity.label,
-                  })
-                : '';
+        const currentStatus = isLive
+            ? t('primarySidebar.status.currentStatus', {
+                  status: currentActivity.label,
+              })
+            : '';
         return {
             ariaDescription: `${attentionActivity.description}${currentStatus}`,
             // `Unread, finished` rather than `Needs attention: Finished`: a finished turn needs nothing, it is unread.

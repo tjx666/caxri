@@ -122,6 +122,10 @@ export const sessions = {
     'sessions.detail.conversationFallback':
         "Conversation view isn't available for this Agent. Showing the Terminal.",
     'sessions.detail.expandTitleHint': 'Shows the full title.',
+    'sessions.detail.markDone': 'Mark as Done',
+    'sessions.detail.markDoneFailed': 'Unable to mark this Session as done.',
+    'sessions.detail.markDoneForbidden':
+        'This device cannot mark Sessions as done. Pair it again on your computer to grant control.',
     'sessions.detail.markRead': 'Mark read',
     'sessions.detail.markReadFailed': 'Unable to mark this Session as read.',
     'sessions.detail.markReadForbidden':
@@ -220,12 +224,9 @@ export const sessions = {
     'sessions.list.expandHint': 'Shows the Sessions in this group.',
     'sessions.list.groupLabel': '{{label}}, {{count}}',
     'sessions.list.showMore': 'Show {{count}} more',
-    'sessions.list.failed': 'Failed',
-    'sessions.list.finished': 'Recently finished',
     'sessions.list.idle': 'Idle',
     'sessions.list.loadFailed': 'Unable to load Sessions.',
     'sessions.list.pinned': 'Pinned',
-    'sessions.list.waiting': 'Waiting',
     'sessions.list.working': 'Working',
     'sessions.manage.archiveFailed': 'Unable to archive this Session',
     'sessions.manage.archived': 'Session archived',
@@ -340,7 +341,7 @@ export const sessions = {
     'sessions.state.usageWait': 'Continues automatically at {{time}}',
     'sessions.state.waiting': 'Waiting for you',
     'sessions.state.working': 'Working',
-    'sessions.state.background': 'In background',
+    'sessions.state.background': 'Waiting on background work',
     'sessions.status.needsAttention': 'Needs attention: {{state}}',
     'sessions.pullRequest.open': 'Pull request #{{number}}, open',
     'sessions.pullRequest.draft': 'Pull request #{{number}}, draft',

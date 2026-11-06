@@ -16,16 +16,16 @@ describe('groupsToAutoExpand', () => {
         ).toEqual(['attention']);
     });
     it('keeps a collapse when the count is flat, fell, or is first observed (a new group after that reopens)', () => {
-        const collapsed = new Set(['attention', 'failed'] as never[]);
+        const collapsed = new Set(['attention', 'working'] as never[]);
         expect(
             groupsToAutoExpand(counts([['attention', 2]]), counts([['attention', 2]]), collapsed),
         ).toEqual([]);
         expect(
             groupsToAutoExpand(counts([['attention', 2]]), counts([['attention', 1]]), collapsed),
         ).toEqual([]);
-        expect(groupsToAutoExpand(undefined, counts([['failed', 3]]), collapsed)).toEqual([]);
-        expect(groupsToAutoExpand(counts([]), counts([['failed', 3]]), collapsed)).toEqual([
-            'failed',
+        expect(groupsToAutoExpand(undefined, counts([['attention', 3]]), collapsed)).toEqual([]);
+        expect(groupsToAutoExpand(counts([]), counts([['attention', 3]]), collapsed)).toEqual([
+            'attention',
         ]);
     });
     it('ignores quiet groups and groups already open', () => {
@@ -37,7 +37,18 @@ describe('groupsToAutoExpand', () => {
             ),
         ).toEqual([]);
         expect(
-            groupsToAutoExpand(counts([['failed', 1]]), counts([['failed', 4]]), new Set<never>()),
+            groupsToAutoExpand(
+                counts([['attention', 1]]),
+                counts([['attention', 4]]),
+                new Set<never>(),
+            ),
+        ).toEqual([]);
+        expect(
+            groupsToAutoExpand(
+                counts([['working', 1]]),
+                counts([['working', 4]]),
+                new Set(['working'] as never[]),
+            ),
         ).toEqual([]);
     });
 });

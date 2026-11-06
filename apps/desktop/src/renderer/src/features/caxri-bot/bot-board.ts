@@ -11,7 +11,6 @@ import { agentProviderCatalog, botBoardGroupIds } from '@caxri/protocol';
 import { isEqual, omit } from 'es-toolkit';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
 import {
     sessionActivityPresentation,
@@ -108,7 +107,22 @@ export function patchBotBoardPullRequests(
 }
 
 /**
- * The same shape per state as the Activity view, so a glyph means one thing everywhere.
+ * The shapes a board row's state glyph can take, one per Agent state plus the background, detached, and usage-wait
+ * variants.
+ */
+export type AgentActivityGlyphId =
+    | 'background'
+    | 'check'
+    | 'clock'
+    | 'dashed'
+    | 'hollow'
+    | 'question'
+    | 'spinner'
+    | 'unplug'
+    | 'x';
+
+/**
+ * One shape per Agent state, the near-universal sign for its own noun.
  */
 const GLYPH_BY_STATE: Record<AgentActivityState, AgentActivityGlyphId> = {
     completed: 'check',

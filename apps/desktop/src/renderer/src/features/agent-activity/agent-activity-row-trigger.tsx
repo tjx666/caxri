@@ -1,73 +1,162 @@
-import type { ComponentType } from 'react';
+import type { KeyboardEvent } from 'react';
 
-import type { AgentExcerpt, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
-import {
-    Circle,
-    CircleCheck,
-    CircleDashed,
-    CircleQuestionMark,
-    CircleX,
-    Clock,
-    FolderTree,
-    Sparkles,
-    Unplug,
-} from 'lucide-react';
+import type {
+    AgentExcerpt,
+    ProjectRecord,
+    SessionAttentionKind,
+    SessionPullRequest,
+} from '@caxri/protocol';
+import { FolderTree, Sparkles } from 'lucide-react';
 
-import { Spinner } from '../../components/ui/spinner';
 import type { Translate } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
-import { BackgroundArc } from '../primary-sidebar/running-arc';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft';
 import { didSelectSession } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
-import type { AgentActivityGlyphId } from './agent-activity-glyph';
-import { agentActivityGlyph } from './agent-activity-glyph';
 import { AgentActivityRowTitle } from './agent-activity-row-title';
 import type { AgentActivityRow } from './agent-activity-rows';
-
-/**
- * The shape that renders each Activity state.
- */
-const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: number }>> = {
-    background: BackgroundArc,
-    check: CircleCheck,
-    clock: Clock,
-    dashed: CircleDashed,
-    hollow: Circle,
-    question: CircleQuestionMark,
-    spinner: Spinner,
-    unplug: Unplug,
-    x: CircleX,
-};
+import type { AgentActivityStatusNote } from './agent-activity-status-note';
+import { agentActivityStatusNote } from './agent-activity-status-note';
 
 /**
  * The row's own keys for `aria-keyshortcuts`: `Shift+Enter` names it with AI when the Session has an Agent to ask, and
- * Delete marks it read where the queue allows that. None while the rename editor replaces the row.
+ * Delete marks it Done where the Session has Pending Attention. None while the rename editor replaces the row.
  */
 function rowKeyShortcuts({
-    canMarkRead,
+    canMarkDone,
     canSuggest,
     isRenaming,
 }: {
-    canMarkRead: boolean;
+    canMarkDone: boolean;
     canSuggest: boolean;
     isRenaming: boolean;
 }): string | undefined {
     if (isRenaming) return undefined;
-    const keys = [canSuggest && 'Shift+Enter', canMarkRead && 'Delete Backspace'].filter(Boolean);
+    const keys = [canSuggest && 'Shift+Enter', canMarkDone && 'Delete Backspace'].filter(Boolean);
     return keys.length > 0 ? keys.join(' ') : undefined;
 }
 
 /**
- * Hover padding that keeps the row's text clear of the one hover chip at `right-1` (mark-read, 20px), shown only on an
- * unread row. A pull request slot (20px plus the row's 8px gap) already clears it.
+ * The shape that leads a waiting or failed row's metadata line (`?` for a question, a cross for a failure), so the
+ * state never rests on color alone and stays visible when the line is too narrow for the phrase.
  */
-function hoverActionPadding(canMarkRead: boolean, hasPullRequest: boolean): string | undefined {
-    return canMarkRead && !hasPullRequest ? 'group-hover/activity-row:pr-7' : undefined;
+function StatusMark({ note }: { note: 'failed' | 'waiting' }) {
+    return (
+        <span
+            aria-hidden="true"
+            className={cn(
+                'agent-activity-mark flex-none font-semibold',
+                note === 'waiting' ? 'text-warning' : 'text-danger',
+            )}
+            data-activity-mark={note}
+        >
+            {note === 'waiting' ? '?' : '✕'}
+        </span>
+    );
+}
+
+/**
+ * The metadata line's state phrase. `background` is plain text: a Session watching background work is not asking
+ * anything.
+ */
+function StatusNote({ note, t }: { note: AgentActivityStatusNote; t: Translate }) {
+    const label = t(
+        note === 'background'
+            ? 'agentActivity.note.background'
+            : `primarySidebar.activity.${note}.label`,
+    );
+    return (
+        <span
+            className={cn(
+                'agent-activity-note whitespace-nowrap',
+                note === 'waiting' && 'text-warning',
+                note === 'failed' && 'text-danger',
+            )}
+            data-activity-note={note}
+        >
+            {label}
+        </span>
+    );
+}
+
+/**
+ * The row's own keys once the rename editor is closed.
+ */
+function handleRowKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    {
+        canMarkDone,
+        canSuggest,
+        onMarkDone,
+        onSelect,
+        onSuggest,
+    }: {
+        canMarkDone: boolean;
+        canSuggest: boolean;
+        onMarkDone: () => void;
+        onSelect: () => void;
+        onSuggest: () => void;
+    },
+): void {
+    // The Project tree's `Shift+Enter`: open the editor and ask for an AI-generated name.
+    if (event.key === 'Enter' && event.shiftKey) {
+        event.preventDefault();
+        if (canSuggest) onSuggest();
+        return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onSelect();
+        return;
+    }
+    /*
+     * Delete resolves the item here rather than archiving the Session, which is what the same key does in the
+     * PrimarySidebar. The two lists answer different questions: that one is "which Sessions exist", this one is "what is
+     * still on my plate", and removing an item from a queue is what Delete means in a queue. `aria-keyshortcuts`
+     * announces it, and the row's own check button offers the same action.
+     */
+    if (canMarkDone && (event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault();
+        onMarkDone();
+    }
+}
+
+/**
+ * The slot is reserved on every Needs attention row so titles align whether or not the row is unread. The unread dot
+ * sits here; `AgentActivityRowItem` overlays the Mark as Done check on the same spot as a sibling of the row, and the
+ * dot yields to it on hover, focus, and selection. It carries no label of its own: the title's weight and the check's
+ * accessible name say the rest.
+ */
+function AttentionLead({
+    attentionKind,
+    isUnread,
+    selected,
+}: {
+    attentionKind: SessionAttentionKind | undefined;
+    isUnread: boolean;
+    selected: boolean;
+}) {
+    return (
+        <span
+            aria-hidden="true"
+            className="agent-activity-lead flex h-4 w-3 flex-none items-center justify-center"
+        >
+            {isUnread && (
+                <span
+                    className={cn(
+                        'agent-activity-unread-dot size-1.5 rounded-full transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
+                        attentionKind === 'failed' ? 'bg-danger' : 'bg-warning',
+                        selected && 'opacity-0',
+                    )}
+                    data-activity-unread={attentionKind ?? 'unknown'}
+                />
+            )}
+        </span>
+    );
 }
 
 /**
@@ -75,26 +164,33 @@ function hoverActionPadding(canMarkRead: boolean, hasPullRequest: boolean): stri
  */
 export function AgentActivityRowTrigger({
     beginRename,
-    canMarkRead,
+    canMarkDone,
     isRenaming,
     onFocusChange,
-    onMarkRead,
+    onMarkDone,
     excerpt,
     relativeTime,
     roving,
     row,
     selected,
     sessionRename,
+    showExcerpts,
     t,
     titleScroll,
     visiblePullRequest,
     worktreeProject,
 }: {
     beginRename: () => void;
-    canMarkRead: boolean;
+    /**
+     * The Session has Pending Attention, so Delete resolves it; see `onMarkDone`.
+     */
+    canMarkDone: boolean;
     isRenaming: boolean;
     onFocusChange: (rowId: string) => void;
-    onMarkRead: () => void;
+    /**
+     * Resolves the row's Pending Attention without opening it.
+     */
+    onMarkDone: () => void;
     relativeTime: string | undefined;
     /**
      * What the Agent last asked or said, clamped to two lines under the metadata. User content: shown locally only.
@@ -104,6 +200,10 @@ export function AgentActivityRowTrigger({
     row: AgentActivityRow;
     selected: boolean;
     sessionRename: SessionRenameController;
+    /**
+     * `agentActivity.showExcerpts`: with excerpts hidden, a waiting or failed row says so on its metadata line instead.
+     */
+    showExcerpts: boolean;
     /**
      * The caller's `useTranslation()` function, passed in for the same reason as `titleScroll`: this cannot call hooks.
      */
@@ -117,36 +217,25 @@ export function AgentActivityRowTrigger({
     worktreeProject: ProjectRecord | undefined;
 }) {
     const { project, session, terminal } = row;
-    const glyph = agentActivityGlyph(row, t);
-    const GlyphIcon = GLYPH_COMPONENTS[glyph.id];
     const canSuggest = canSuggestSessionTitle(session);
     const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
+    const isAttention = row.groupId === 'attention';
+    const note = agentActivityStatusNote(row, showExcerpts);
     return (
         <div
             className={cn(
-                'agent-activity-row relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground',
+                'agent-activity-row relative flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left text-foreground',
                 'hover:bg-state-hover',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
-                /*
-                 * The Project tree's hover-action rule: while the mark-read chip shows on an unread row, the text
-                 * makes room for it and fades before it instead of painting under it. A pull request slot already
-                 * covers that chip, so a row with one does not widen.
-                 */
-                !isRenaming && hoverActionPadding(canMarkRead, visiblePullRequest !== undefined),
             )}
             data-activity-group={row.groupId}
             data-row-id={row.rowId}
             data-session-id={session.id}
             role="treeitem"
             aria-level={2}
-            aria-description={
-                !canMarkRead && row.groupId === 'attention'
-                    ? t('agentActivity.viewedAndRead')
-                    : undefined
-            }
             aria-selected={selected}
-            aria-keyshortcuts={rowKeyShortcuts({ canMarkRead, canSuggest, isRenaming })}
+            aria-keyshortcuts={rowKeyShortcuts({ canMarkDone, canSuggest, isRenaming })}
             tabIndex={isRenaming ? undefined : roving ? 0 : -1}
             onBlur={() => setFocused(false)}
             onFocus={(event) => {
@@ -162,50 +251,31 @@ export function AgentActivityRowTrigger({
             onDoubleClick={beginRename}
             onKeyDown={(event) => {
                 if (isRenaming) return;
-                // The Project tree's `Shift+Enter`: open the editor and ask for an AI-generated name.
-                if (event.key === 'Enter' && event.shiftKey) {
-                    event.preventDefault();
-                    if (canSuggest)
-                        sessionRename.suggestRename(session.id, session.title, row.rowId);
-                    return;
-                }
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    // Fire-and-forget: the selection reports its own failures through a toast.
-                    if (!selected) void didSelectSession(session.id);
-                    return;
-                }
-                /*
-                 * Delete clears the reminder here rather than archiving the Session, which is what the same key does in
-                 * the PrimarySidebar. The two lists answer different questions: that one is "which Sessions exist",
-                 * this one is "what is still on my plate", and removing an item from a queue is what Delete means in a
-                 * queue. `aria-keyshortcuts` above announces it, and the row's own button offers the same action.
-                 */
-                if (canMarkRead && (event.key === 'Delete' || event.key === 'Backspace')) {
-                    event.preventDefault();
-                    onMarkRead();
-                }
+                handleRowKeyDown(event, {
+                    canMarkDone,
+                    canSuggest,
+                    onMarkDone,
+                    onSelect: () => {
+                        // Fire-and-forget: the selection reports its own failures through a toast.
+                        if (!selected) void didSelectSession(session.id);
+                    },
+                    onSuggest: () =>
+                        sessionRename.suggestRename(session.id, session.title, row.rowId),
+                });
             }}
         >
-            {/*
-             * No tooltip of its own: the row's hover card already spells the state out, and a second hover popup on
-             * the same row would compete with it. The accessible name keeps the words for assistive technology.
-             */}
-            <span
-                role="img"
-                aria-label={glyph.label}
-                className={cn(
-                    'agent-activity-glyph flex size-3.5 flex-none items-center justify-center',
-                    glyph.toneClassName,
-                )}
-                data-activity-glyph={glyph.id}
-            >
-                <GlyphIcon size={14} />
-            </span>
+            {isAttention && (
+                <AttentionLead
+                    attentionKind={session.lastAttentionKind}
+                    isUnread={session.hasUnread}
+                    selected={selected}
+                />
+            )}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <AgentActivityRowTitle
                     canSuggest={canSuggest}
                     isRenaming={isRenaming}
+                    isUnread={session.hasUnread}
                     onTitleHoverChange={setHovered}
                     rowId={row.rowId}
                     sessionId={session.id}
@@ -222,32 +292,48 @@ export function AgentActivityRowTrigger({
                      * the unbreakable time wraps below the clipped single line before any of it loses width; inside it
                      * the worktree name truncates first, and a Project wider than the whole line truncates last.
                      */}
-                    <span className="agent-activity-location flex h-4 max-w-full min-w-0 items-center gap-1">
-                        <span className="flex size-3 flex-none items-center justify-center">
-                            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />
-                        </span>
-                        {/*
-                         * `pr-2` reserves the mask's own 8px fade distance as trailing padding, not text: `.overflow-fade`
-                         * fades the box's last 8px unconditionally (see `styles.css`), and this box is `shrink-0` (sized
-                         * to content, not a flex-1 "wider than content" box like the Project tree's), so without the
-                         * padding a short, un-clipped Project name had its own last pixels faded for no reason
-                         * (github.com/tjx666/caxri/issues/1173). The padding is inside `max-w`, so a Project long enough
-                         * to hit the cap still clips at that same edge; this only changes the short-name case.
-                         */}
-                        <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0 pr-2">
-                            {project.title}
-                        </span>
-                        {worktreeProject && (
-                            <span
-                                className="agent-activity-worktree flex min-w-0 shrink items-center gap-0.5"
-                                data-session-worktree={worktreeProject.title}
-                            >
-                                <FolderTree className="flex-none" size={11} />
-                                {/* Same reserved-padding reasoning as `.agent-activity-project` above. */}
-                                <span className="overflow-fade pr-2">{worktreeProject.title}</span>
+                    {/*
+                     * A waiting or failed mark leads the line inside the location's flex item, so it never wraps out of
+                     * the clipped line. The phrase follows the location and the time comes last: on a narrow line the
+                     * time drops first, then the phrase, while the mark and the Project stay.
+                     */}
+                    <span className="agent-activity-lead-group flex h-4 max-w-full min-w-0 items-center gap-1.5">
+                        {(note === 'waiting' || note === 'failed') && <StatusMark note={note} />}
+                        <span className="agent-activity-location flex h-4 max-w-full min-w-0 items-center gap-1">
+                            <span className="flex size-3 flex-none items-center justify-center">
+                                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />
                             </span>
-                        )}
+                            {/*
+                             * `pr-2` reserves the mask's own 8px fade distance as trailing padding, not text: `.overflow-fade`
+                             * fades the box's last 8px unconditionally (see `styles.css`), and this box is `shrink-0` (sized
+                             * to content, not a flex-1 "wider than content" box like the Project tree's), so without the
+                             * padding a short, un-clipped Project name had its own last pixels faded for no reason
+                             * (github.com/tjx666/caxri/issues/1173). The padding is inside `max-w`, so a Project long enough
+                             * to hit the cap still clips at that same edge; this only changes the short-name case.
+                             */}
+                            <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0 pr-2">
+                                {project.title}
+                            </span>
+                            {worktreeProject && (
+                                <span
+                                    className="agent-activity-worktree flex min-w-0 shrink items-center gap-0.5"
+                                    data-session-worktree={worktreeProject.title}
+                                >
+                                    <FolderTree className="flex-none" size={11} />
+                                    {/* Same reserved-padding reasoning as `.agent-activity-project` above. */}
+                                    <span className="overflow-fade pr-2">
+                                        {worktreeProject.title}
+                                    </span>
+                                </span>
+                            )}
+                        </span>
                     </span>
+                    {note && (
+                        <span className="agent-activity-note-group flex flex-none gap-1.5">
+                            <span aria-hidden="true">·</span>
+                            <StatusNote note={note} t={t} />
+                        </span>
+                    )}
                     {relativeTime && (
                         <span className="agent-activity-time flex flex-none gap-1.5 whitespace-nowrap">
                             <span aria-hidden="true">·</span>
@@ -255,7 +341,7 @@ export function AgentActivityRowTrigger({
                         </span>
                     )}
                 </span>
-                {excerpt && (
+                {showExcerpts && excerpt && (
                     <span
                         className="agent-activity-excerpt line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted"
                         data-excerpt-kind={excerpt.kind}
@@ -275,37 +361,16 @@ export function AgentActivityRowTrigger({
                     </span>
                 )}
             </span>
-            <AgentActivityPullRequestSlot
-                hidesOnHover={!isRenaming && canMarkRead}
-                pullRequest={visiblePullRequest}
-            />
+            {visiblePullRequest && (
+                /*
+                 * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title
+                 * line: pinned to the title it floated in the top-right corner, detached from the metadata it
+                 * describes. Only a pull request reserves the slot.
+                 */
+                <span className="agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch">
+                    <SessionPullRequestIndicator pullRequest={visiblePullRequest} />
+                </span>
+            )}
         </div>
-    );
-}
-
-/**
- * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title line: pinned to
- * the title it floated in the top-right corner, detached from the metadata it describes. Only a pull request reserves
- * the slot. The mark-read hover chip overlays the right edge instead, because a slot reserved for a hover-only action
- * would cost every row the width its Project name needs at the side bar's minimum width; the glyph hides while that
- * chip shows, so it hides only on an unread row.
- */
-function AgentActivityPullRequestSlot({
-    hidesOnHover,
-    pullRequest,
-}: {
-    hidesOnHover: boolean;
-    pullRequest: SessionPullRequest | undefined;
-}) {
-    if (!pullRequest) return null;
-    return (
-        <span className="agent-activity-trailing flex w-5 flex-none justify-end">
-            <SessionPullRequestIndicator
-                className={cn(
-                    hidesOnHover && 'transition-opacity group-hover/activity-row:opacity-0',
-                )}
-                pullRequest={pullRequest}
-            />
-        </span>
     );
 }

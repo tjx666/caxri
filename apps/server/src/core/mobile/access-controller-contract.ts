@@ -138,6 +138,20 @@ type MobileDesktopOperation = Extract<
 export const isMobileControlRequest = (request: ServerRequest): request is MobileControlRequest =>
     request.method.startsWith('mobile.');
 
+/**
+ * Owner methods a paired device may also call on one Session or Terminal it can see; the access controller checks that
+ * grant (`validatePairedDeviceRequest`) before Server Core forwards them like an owner request.
+ */
+const deviceScopedMethods = ['session.markDone', 'session.markRead', 'terminal.preview'] as const;
+
+export type DeviceScopedRequest = Extract<
+    ServerRequest,
+    { method: (typeof deviceScopedMethods)[number] }
+>;
+
+export const isDeviceScopedRequest = (request: ServerRequest): request is DeviceScopedRequest =>
+    (deviceScopedMethods as readonly string[]).includes(request.method);
+
 export interface MobileAccessController {
     attach: (
         adapter: CommandAdapter,
@@ -165,9 +179,7 @@ export interface MobileAccessController {
     hasAttentionRecipient: (projectId: string) => boolean;
     watchesExtensionViews: (sessionId: string) => boolean;
     validatePairedDeviceRequest: (
-        request:
-            | Extract<ServerRequest, { method: 'session.markRead' }>
-            | Extract<ServerRequest, { method: 'terminal.preview' }>,
+        request: DeviceScopedRequest,
         context: CommandExecutionContext,
         domainService: ServerDomainService,
     ) => Promise<void>;

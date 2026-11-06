@@ -15,6 +15,8 @@ import delegationNoticesMigrationSql from './0009_delegation_notices.sql?raw';
 import delegationHandBacksMigrationSql from './0010_delegation_hand_backs.sql?raw';
 import sessionRelationIndependentMigrationSql from './0011_session_relation_independent.sql?raw';
 import delegationNoticeDeliveriesMigrationSql from './0012_delegation_notice_deliveries.sql?raw';
+import sessionResolvedAttentionMigrationSql from './0013_session_resolved_attention.sql?raw';
+import sessionResolvedAttentionBackfillMigrationSql from './0014_session_resolved_attention_backfill.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -69,6 +71,11 @@ export const migrationManifest = [
     {
         tag: '0012_delegation_notice_deliveries',
         sql: delegationNoticeDeliveriesMigrationSql,
+    },
+    { tag: '0013_session_resolved_attention', sql: sessionResolvedAttentionMigrationSql },
+    {
+        tag: '0014_session_resolved_attention_backfill',
+        sql: sessionResolvedAttentionBackfillMigrationSql,
     },
 ] as const;
 

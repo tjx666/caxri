@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ didSelectSession: vi.fn() }));
 vi.mock('../../session/session-commands', () => ({
+    cachedMergedPullRequestSessionIds: () => new Set<string>(),
     didSelectSession: mocks.didSelectSession,
 }));
 
@@ -18,6 +19,7 @@ function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRec
     return {
         attentionGeneration: 0,
         title: id,
+        hasPendingAttention: false,
         hasUnread: false,
         id,
         agentActivityState: 'idle',
@@ -35,8 +37,8 @@ function bootstrap(selectedSessionId: string | undefined): BootstrapState {
         selectedSessionId,
         sessions: [
             session('quiet'),
-            session('older', { hasUnread: true, sessionActivityAt: 10 }),
-            session('newer', { hasUnread: true, sessionActivityAt: 20 }),
+            session('older', { hasPendingAttention: true, sessionActivityAt: 10 }),
+            session('newer', { hasPendingAttention: true, sessionActivityAt: 20 }),
         ],
         terminals: [],
     } as unknown as BootstrapState;

@@ -45,9 +45,6 @@ const GROUP_LABEL_KEYS = {
     pinned: 'sessions.list.pinned',
     attention: 'sessions.list.attention',
     working: 'sessions.list.working',
-    waiting: 'sessions.list.waiting',
-    failed: 'sessions.list.failed',
-    finished: 'sessions.list.finished',
     idle: 'sessions.list.idle',
 } as const satisfies Record<MobileSessionListGroup, string>;
 

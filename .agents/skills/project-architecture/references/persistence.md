@@ -30,6 +30,8 @@ the generated column from both column lists of that statement and change nothing
 migration's N-1 upgrade test (for example`apps/server/src/domains/db/**tests**/terminal-pty-exhausted-migration.integration.test.ts`)
 proves the copy keeps existing rows.
 
+A new column whose existing rows need a computed value gets two migrations: the generated column-only migration, then a data step from `bunx --bun drizzle-kit generate --custom --name <name>` holding the `UPDATE` (for example `0014_session_resolved_attention_backfill.sql`). Keep the backfill out of the generated file so that file stays unchanged; one N-1 test anchored on the column migration's tag covers both.
+
 A new column that also needs a `CHECK` is generated as a column-only migration first, then the `CHECK` as a second generated migration, because one combined drizzle-kit rebuild reads the new column from the old table; each gets an N-1 test replaying `migrationManifest.slice(0, index)`.
 
 Each Server Core start writes one `db.opened` record: the closed schema `outcome` (`created`,

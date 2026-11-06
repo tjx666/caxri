@@ -210,6 +210,12 @@ export const sessions = sqliteTable(
         acknowledgedAttentionGeneration: integer('acknowledged_attention_generation')
             .notNull()
             .default(0),
+        /**
+         * Latest attention generation the user resolved (marked done, superseded by a new turn, or answered elsewhere).
+         * Independent of `acknowledged_attention_generation`: reading acknowledges, only acting resolves.
+         */
+        resolvedAttentionGeneration: integer('resolved_attention_generation').notNull().default(0),
+        attentionResolvedAt: integer('attention_resolved_at'),
         lastAttentionKind: text('last_attention_kind'),
         lastViewedAt: integer('last_viewed_at'),
         title: text('title').notNull(),

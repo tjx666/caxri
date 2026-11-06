@@ -25,6 +25,7 @@ const session: MobileSessionItem = {
     primaryAgentEndpoint: { hostId: 'host-one', endpointId: 'endpoint-one', generation: 2 },
     attentionGeneration: 1,
     hasUnread: false,
+    hasPendingAttention: false,
     primaryTerminal: {
         id: 'terminal-one',
         sessionId: 'session-one',

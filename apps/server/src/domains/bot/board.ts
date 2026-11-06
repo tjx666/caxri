@@ -50,8 +50,9 @@ function rowProcessState(terminal: TerminalRecord): ProcessState {
 }
 
 /**
- * Mirrors the Workbench Activity grouping without its Renderer-only selection anchor: unread first, then failure, live
- * work, and requests for input. A turn recorded as running whose Agent is no longer alive is idle, not working.
+ * Caxri Bot's own board grouping, kept finer than the Activity view's three groups because Caxri Bot reports what
+ * changed rather than what the user still has to resolve: unread first, then failure, live work, and requests for
+ * input. A turn recorded as running whose Agent is no longer alive is idle, not working.
  */
 export function botBoardGroup(
     session: SessionRecord,

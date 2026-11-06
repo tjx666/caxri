@@ -23,6 +23,7 @@ import {
     firstSessionOfProject,
     sidebarSessionOrder,
 } from '../primary-sidebar/delegated/delegated-order';
+import { mergedPullRequestSessionIds } from '../primary-sidebar/session-pull-request';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { beginSessionSwitchTiming } from '../renderer-performance/jank-monitor';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
@@ -259,6 +260,17 @@ export async function markSessionRead(
 }
 
 /**
+ * Resolves one attention generation as Done: the Session leaves Needs attention even though it may have been read long
+ * ago. Rejection is the caller's to handle; the Server keeps the Session pending, so the user can retry.
+ */
+export async function markSessionDone(
+    sessionId: string,
+    attentionGeneration: number,
+): Promise<void> {
+    await caxri.request('session.markDone', { sessionId, attentionGeneration });
+}
+
+/**
  * The Server sweep owns delivery-CLI pacing per Session; the PrimarySidebar poll only asks for the latest projection at
  * this cadence, and the `sessionPullRequests.changed` event refetches early when a sweep changes something. The palette
  * uses the same number as its `staleTime`, so a hidden sidebar still leaves the palette self-refreshing at that rate.
@@ -274,6 +286,17 @@ function cachedSessionPullRequest(sessionId: string): SessionPullRequest | undef
     return queryClient.getQueryData<MethodResult<'session.pullRequests'>>(
         caxriQueryKey('session.pullRequests', undefined),
     )?.pullRequests[sessionId];
+}
+
+/**
+ * Sessions whose pull request merged, from the same cached snapshot the sidebar rows read, for non-React callers such
+ * as `session.focusNextAttention`.
+ */
+export function cachedMergedPullRequestSessionIds(): ReadonlySet<string> {
+    const snapshot = queryClient.getQueryData<MethodResult<'session.pullRequests'>>(
+        caxriQueryKey('session.pullRequests', undefined),
+    );
+    return new Set(mergedPullRequestSessionIds(snapshot));
 }
 
 /**

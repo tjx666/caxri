@@ -93,7 +93,7 @@ function isActiveTerminal(terminalId: string | undefined): boolean {
 export function SessionRowMenu({
     children,
     onBeginRename,
-    onMarkRead,
+    onMarkDone,
     onOpenChange,
     onSuggestRename,
     project,
@@ -103,10 +103,10 @@ export function SessionRowMenu({
     children: ReactElement;
     onBeginRename?: () => void;
     /**
-     * Clears the row's Unread Attention without opening it. Passed by the Activity queue, where that is the list's own
-     * Delete action; the entry renders only while the Session is unread.
+     * Resolves the row's Pending Attention without opening it. Passed by the Activity queue, where that is the list's
+     * own Delete action; the entry renders only while the Session has Pending Attention.
      */
-    onMarkRead?: () => void;
+    onMarkDone?: () => void;
     onOpenChange?: (isOpen: boolean) => void;
     /**
      * Opens the row's rename editor and asks for an AI-generated name, as the row's `Shift+Enter` does. Omitted by a
@@ -126,7 +126,7 @@ export function SessionRowMenu({
             menu={() =>
                 sessionRowMenu({
                     onBeginRename,
-                    onMarkRead,
+                    onMarkDone,
                     onSuggestRename,
                     project,
                     pullRequest,
@@ -243,7 +243,7 @@ function reopenConversationMenuEntry(
 
 async function sessionRowMenu({
     onBeginRename,
-    onMarkRead,
+    onMarkDone,
     onSuggestRename,
     project,
     pullRequest,
@@ -252,7 +252,7 @@ async function sessionRowMenu({
     terminals,
 }: {
     onBeginRename?: () => void;
-    onMarkRead?: () => void;
+    onMarkDone?: () => void;
     onSuggestRename?: () => void;
     project: Pick<ProjectRecord, 'id' | 'rootPath'>;
     pullRequest?: SessionPullRequest;
@@ -310,11 +310,11 @@ async function sessionRowMenu({
          * is not necessarily the selected Session, so it cannot become a command binding without changing which Session
          * it would take.
          */
-        onMarkRead &&
-            session.hasUnread && {
-                label: translate('primarySidebar.sessionMenu.markAsRead'),
+        onMarkDone &&
+            session.hasPendingAttention && {
+                label: translate('primarySidebar.sessionMenu.markAsDone'),
                 shortcut: 'delete',
-                onSelect: onMarkRead,
+                onSelect: onMarkDone,
             },
         /**
          * The action runs after the native menu has closed, so the inline rename input mounts into a settled row and
@@ -455,7 +455,7 @@ async function sessionRowMenu({
          */
         {
             label: translate('primarySidebar.sessionMenu.archive'),
-            shortcut: onMarkRead ? undefined : 'delete',
+            shortcut: onMarkDone ? undefined : 'delete',
             onSelect: () => archiveSession(session.id),
         },
         {

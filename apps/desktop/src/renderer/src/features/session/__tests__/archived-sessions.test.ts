@@ -40,6 +40,8 @@ function session(
         agentActivityState: 'unknown',
         attentionGeneration: 0,
         acknowledgedAttentionGeneration: 0,
+        resolvedAttentionGeneration: 0,
+        hasPendingAttention: false,
         hasUnread: false,
         title: id.replaceAll('-', ' '),
         titleMode: 'manual',

@@ -51,9 +51,6 @@ export const emptyMobileSessionGroups = (): Record<
     pinned: [],
     attention: [],
     working: [],
-    waiting: [],
-    failed: [],
-    finished: [],
     idle: [],
 });
 
@@ -81,21 +78,39 @@ const labelForState = (session: MobileSession, t: Translate): string => {
 
 /**
  * The phone mirrors Desktop's status projection from the fields it receives: a running turn reads `running`, and a
- * Terminal handed over to another client reads `detached`. The home list is the phone's only Session list, so a
- * finished Session past the retention window moves to Idle instead of leaving it as it leaves Desktop's Activity view.
+ * Terminal handed over to another client reads `detached`. Pending Attention stays in Needs attention until the user
+ * marks it done, so the group needs no clock.
  */
-const groupForSession = (session: MobileSession, now: number): SessionActivityGroupId =>
-    sessionActivityGroup(
-        {
-            ...session,
-            // A Chat waiting for a plan limit to reset outranks unread attention, as on Desktop (`sessionStatus`).
-            hasUnread: session.hasUnread && session.primaryTerminal?.usageLimitWaitAt === undefined,
-            isUsageWaiting: session.primaryTerminal?.usageLimitWaitAt !== undefined,
-            isDetached: session.primaryTerminal?.lastProcessState === 'detached',
-            isRunning: session.agentActivityState === 'running',
-        },
-        now,
-    ) ?? 'idle';
+const groupForSession = (session: MobileSession): SessionActivityGroupId =>
+    sessionActivityGroup({
+        hasPendingAttention: session.hasPendingAttention,
+        isUsageWaiting: session.primaryTerminal?.usageLimitWaitAt !== undefined,
+        isDetached: session.primaryTerminal?.lastProcessState === 'detached',
+        isRunning: session.agentActivityState === 'running',
+    });
+
+/**
+ * Whether a Session shows the Mark as Done action: only a Session with Pending Attention has something to resolve.
+ */
+export const canMarkSessionDone = (session: Pick<MobileSession, 'hasPendingAttention'>): boolean =>
+    session.hasPendingAttention;
+
+const orderFacts = (session: MobileSession) => ({
+    attentionResolvedAt: session.attentionResolvedAt,
+    id: session.id,
+    isBackgroundWait: session.primaryTerminal?.agentOperation === 'background',
+    isPullRequestMerged: session.pullRequest?.state === 'merged',
+    lastAttentionKind: session.lastAttentionKind,
+    sessionActivityAt: session.sessionActivityAt,
+});
+
+/**
+ * The shared group comparator applied to a mobile row, with the two caches the phone can read off the dashboard.
+ */
+const compareMobileSessionRows =
+    (group: SessionActivityGroupId) =>
+    (left: MobileSessionItem, right: MobileSessionItem): number =>
+        compareSessionActivityGroupRows(group, orderFacts(left), orderFacts(right));
 
 export const buildMobileSessionSections = (
     input: {
@@ -108,7 +123,7 @@ export const buildMobileSessionSections = (
 ): MobileSessionSections => {
     const groups = emptyMobileSessionGroups();
     for (const session of input.sessions) {
-        const group = groupForSession(session, now);
+        const group = groupForSession(session);
         const item: MobileSessionItem = {
             ...session,
             group,
@@ -129,7 +144,7 @@ export const buildMobileSessionSections = (
     }
     groups.pinned.sort(compareSessionPinnedOrder);
     for (const group of SESSION_ACTIVITY_GROUP_ORDER)
-        groups[group].sort(compareSessionActivityGroupRows);
+        groups[group].sort(compareMobileSessionRows(group));
     const seen = new Set<string>();
     const sessions = MOBILE_SESSION_LIST_GROUPS.flatMap((group) => groups[group]).filter((item) => {
         if (seen.has(item.id)) return false;

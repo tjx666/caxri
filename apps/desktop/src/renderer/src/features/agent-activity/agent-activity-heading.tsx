@@ -1,15 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import {
-    CheckCheck,
-    ChevronDown,
-    ChevronRight,
-    Hand,
-    Hourglass,
-    Moon,
-    Pin,
-    TriangleAlert,
-    Zap,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Hand, Moon, Pin, Zap } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
 import type {
@@ -20,9 +10,8 @@ import type {
 
 /**
  * A glyph before each group heading, so the eye finds a group by shape before it reads the label; Paseo's status list
- * does the same. Every shape is deliberately different from the circle-family glyphs the rows use: a heading icon names
- * the section, and repeating the row glyph above its own rows would say the same thing twice. They stay in the
- * heading's muted tone, because color in this list is reserved for rows that want the user.
+ * does the same. Rows carry no state glyph of their own, so the heading icon is the only shape naming the section. They
+ * stay in the heading's muted tone, because color in this list is reserved for rows that want the user.
  *
  * "Needs attention" is a raised hand rather than a bell: the status bar's notification center already owns the bell,
  * and a Session in this group is waiting for the user's turn, not announcing an app notification.
@@ -30,10 +19,7 @@ import type {
 const GROUP_ICONS: Record<AgentActivityGroupId, LucideIcon> = {
     pinned: Pin,
     attention: Hand,
-    failed: TriangleAlert,
-    finished: CheckCheck,
     idle: Moon,
-    waiting: Hourglass,
     working: Zap,
 };
 function AgentActivityGroupIcon({ groupId }: { groupId: AgentActivityGroupId }) {

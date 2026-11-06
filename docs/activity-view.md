@@ -33,31 +33,42 @@ naming a Project the user never added would be unreachable from this list.
 
 Rows are grouped, and the groups are ordered:
 
-| Group             | A Session is here when                                          |
-| ----------------- | --------------------------------------------------------------- |
-| Needs attention   | It has Unread Attention                                         |
-| Waiting           | Its last Agent Activity was `waiting` and has already been read |
-| Failed            | Its last Agent Activity was `failed`                            |
-| Recently finished | It completed within the retention window below                  |
-| Working           | Its Agent is running, including compaction and background waits |
-| Idle              | Everything else, including a detached Agent that did not fail   |
+| Group           | A Session is here when                                                   |
+| --------------- | ------------------------------------------------------------------------ |
+| Needs attention | It has Pending Attention and its Agent is not running                    |
+| Working         | Its Agent is running, including compaction and background waits          |
+| Idle            | Everything else, including a usage-limit wait and a quiet detached Agent |
 
-Waiting, Failed, and Recently finished rank above Working although their Sessions are already read.
-Reading a result is not answering it: the user often opens a finished Session, has not decided the
-next step yet, and switches away to another one. When these groups sat below Working, that Session
-dropped out of sight behind a long list of running Agents while it was still the user's move. A
-running Agent asks nothing of the user until it stops, and sending the next prompt is what moves a
-Session into Working. Paseo orders its status groups the same way, and Orca's smart order keeps a
-recent Done above Working.
+A Session enters **Needs attention** when an Agent turn ends: it finished, asked a question, or
+failed (a dead Agent process counts as a failure). **Reading it does not move it.** The user often
+opens a finished Session, has not decided the next step yet, and switches away to handle another
+one; when reading moved the row into a 15-minute "Recently finished" group, it left the queue
+exactly while it was still the user's move, and Waiting, Failed, and Recently finished split one
+question ("is it my move?") across three headings. A Session leaves only when:
 
-Each heading leads with its own muted glyph: a raised hand, an hourglass, a warning triangle, a
-double check, a bolt, and a moon, so a group is found by shape before its label is read, as in
-Paseo's status list. None of them reuses a row glyph's circle family: the heading names the section,
-and repeating the row glyph above its own rows would say the same thing twice. **Needs attention**
-is a raised hand rather than a bell because the Status Bar's notification center owns the bell.
+- the user marks it done: the row's check button, **Mark as Done** in its context menu, or
+  `Delete` / `Backspace` on the selected row (`session.markDone`);
+- a new turn starts, from the user's prompt or because the Agent resumed on its own;
+- its question is answered elsewhere.
 
-An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
-event in a group is always its first row.
+A Session marked done goes to the top of **Idle**. GitHub notifications and Linear's Inbox separate
+"read" from "Done" the same way, and Orca's smart order keeps the same three tiers. Unread Attention
+still exists, but only decides how a row looks (an unread dot and a bold title), never its group.
+
+Inside **Needs attention**, a question or a failure comes first because the Agent is blocked until
+the user answers; then a Session whose pull request merged, a finished task waiting to be closed
+out; then every other result. Inside **Working**, a Session waiting on background work (background
+shells, subagents, monitors) comes first: its code is usually written and it watches CI or a test
+run, so it is the next one likely to need the user. Otherwise rows keep Session activity recency.
+**Idle** ranks by the later of the work clock and the moment the user marked the Session done
+(`attentionResolvedAt`), so a just-resolved Session lands on top without its activity clock moving,
+since that clock also orders the Project tree.
+
+Each heading leads with its own muted glyph: a raised hand, a bolt, and a moon, so a group is found
+by shape before its label is read, as in Paseo's status list. **Needs attention** is a raised hand
+rather than a bell because the Status Bar's notification center owns the bell.
+
+An empty group is not rendered.
 
 Every heading after the first draws a hairline above itself with 24px of space, and headings use the
 foreground color in 12px semibold with a muted count. Before that a heading was one muted 11px line,
@@ -67,14 +78,13 @@ attention, and Working read as one list. Paseo spaces its status groups the same
 
 Every group collapses from its heading to that heading and its count, and the choice persists across
 launches (`useAgentActivityGroupCollapse`). Pinned shares the Project tree Pinned group's record, so
-the two bodies never disagree about it. **Pinned**, **Recently finished**, and **Idle** can grow
-without bound, so they show their newest five Sessions and the Project tree's `Show N more` row,
-stepping by ten (`WINDOWED_SESSION_LIST_GROUPS` and `sessionListWindow` in `@caxri/protocol`, the
-same window the phone's home list uses). The groups that ask for the user (**Needs attention**,
-**Working**, **Waiting**, **Failed**) always list everything, because a hidden row there is work
-nobody sees. The selected Session stays on screen below a window, and the revealed counts reset on
-relaunch like the Project tree's. Orca and Paseo both make every Activity status group collapsible;
-T3 Code windows its Settled shelf the same way.
+the two bodies never disagree about it. **Pinned** and **Idle** can grow without bound, so they show
+their newest five Sessions and the Project tree's `Show N more` row, stepping by ten
+(`WINDOWED_SESSION_LIST_GROUPS` and `sessionListWindow` in `@caxri/protocol`, the same window the
+phone's home list uses). **Needs attention** and **Working** always list everything, because a
+hidden row there is work nobody sees. The selected Session stays on screen below a window, and the
+revealed counts reset on relaunch like the Project tree's. Orca and Paseo both make every Activity
+status group collapsible; T3 Code windows its Settled shelf the same way.
 
 ## Starting a Session
 
@@ -123,61 +133,35 @@ opens this list when there is none, and `Cmd+N` reaches the same menu: `openSess
 hands a Project-heading claim to this row's `activity` anchor, since no Project heading is mounted
 to open it.
 
-The group rules, their order, the retention window, and the in-group order live in
-`packages/protocol/src/domain/session/session-activity-group.ts`, which the phone's home list also uses, so
-a Session sits under the same heading on Desktop and on the phone. The phone differs in one place:
-its home list is its only Session list, so a finished Session past the window moves to **Idle**
-instead of leaving.
-
-Opening an unread Session acknowledges it immediately, but the selected row stays in its current
-place while Activity remains open and that Session is selected. This is a temporary display anchor,
-not unread state: the **Needs attention** heading and side bar badge count only actual unread
-Sessions, and the next attention command uses that same set. If the viewed row is the only one left
-there, the heading reads **Viewing** with no count. The viewed row loses its attention tint and
-mark-read action. Selecting another Session, switching to the Project tree, or leaving Activity
-releases the anchor; the row then takes its current group or leaves the list if it is no longer
-recent. A new Agent activity or attention generation also releases the anchor so live work is not
-frozen in an old group.
+The group rules, their order, and the in-group order live in
+`packages/protocol/src/domain/session/session-activity-group.ts`, which the phone's home list and
+the Server's capped mobile dashboard also use, so a Session sits under the same heading on Desktop
+and on the phone. Pending Attention is Server state (`resolvedAttentionGeneration` beside the
+attention and acknowledged generations), so marking a Session done on one Client clears it on
+every Client. `session.markDone` names the attention generation it resolves, so a tick that races
+a newer turn's result does not clear that result.
 
 Detaching an Agent hands it to another client and stops its Terminal; it does not update the
 Session's last Agent Activity, which stays frozen at whatever the final probe recorded. A detached
-Session is therefore read as quiet rather than by that frozen value: otherwise one detached
-mid-turn would sit under **Waiting** while its own row read "Detached". The one exception is
-**Failed**: detaching resolves nothing, and nothing else will clear a failure.
+Session is therefore never listed under **Working**, but a result it left pending stays under
+**Needs attention**: detaching resolves nothing.
 
-**Attention outranks Working on purpose.** Caxri's unread flag means "something happened that you
-have not opened yet", which is a property of the user's queue rather than of the Agent, so it
-belongs above any turn still in progress, including that same Session's turn, since a Session can
-be both unread and running. herdr and Kero rank their rollups the same way; Orca and T3 Code put
-running work first because their lists describe live work rather than a to-do queue.
-A hook-reported new turn is the exception that ends this overlap: it supersedes the previous turn's
-attention and acknowledges it, so an Agent that resumes on its own (Claude Code continuing after a
-background shell finishes) reads as Working instead of staying under **Needs attention** until the
-new turn ends. A `running` reading inferred only by a metadata probe does not acknowledge anything.
-
-### Retention
-
-A finished Session stays listed for 15 minutes after its last activity
-(`SESSION_FINISHED_RETENTION_MS`), then drops out. Without a window, "Recently finished"
-would grow into a permanent archive of every Session that ever completed, and the queue would stop
-being readable at a glance. A **Failed** Session is deliberately exempt: nothing else will clear it,
-so ageing it out would silently lose the only place that failure is reported.
-The currently viewed row stays visible even after this window expires; it leaves when the user
-switches away, not while they are reading it.
-
-`useAgentActivityClock` subscribes to the same 30-second window clock the relative-time labels use
-rather than starting a second timer, so a row's "12m ago" and the window that label is about
-turn over in the same tick. It needs no visibility gate: the queue exists only while the side bar is
-showing it, so switching back to the tree stops the clock by unmounting its only consumer.
+**Attention outranks Working on purpose.** A running Agent asks nothing of the user until it stops,
+and sending the next prompt is what moves a Session into Working. A Session with an old pending
+result whose Agent is running again is listed under **Working**: a hook-reported new turn resolves
+the previous turn's attention and acknowledges it, so an Agent that resumes on its own (Claude Code
+continuing after a background shell finishes) reads as Working instead of staying under **Needs
+attention** until the new turn ends. A `running` reading inferred only by a metadata probe resolves
+nothing; it only lists the Session under Working while it lasts.
 
 ## Visual grammar
 
-A row is a state glyph, the Session title on its own line, the Agent, Project, worktree, and time
-beneath it, and a pull request glyph at the right edge, centered on both lines. There is no state phrase on the row at
-all:
+A row is the Session title on its own line, the Agent, Project, worktree, and time beneath it, and
+a pull request glyph at the right edge, centered on both lines. Rows carry no state glyph and no
+state phrase:
 
 ```text
-⊘  Rate limiter for /v1/search              ⇡
+●  Rate limiter for /v1/search              ⇡
    ✳ api-server ⑂ api-server-rate-limit · 18m ago
 ```
 
@@ -189,16 +173,15 @@ It is centered on the whole row rather than on the title line, so it belongs to 
 of floating in the row's top-right corner. The title clips with the Project tree's right-edge fade
 rather than an ellipsis.
 
-**The state is a shape because every group heading already names it.** A row under **Working** that
-also printed "Working" repeated its own heading, and three of the six groups did exactly that, word
-for word. The words are not gone: `agent-activity-glyph.ts` keeps them as the glyph's `aria-label`
-and its shared tooltip: they are just no longer spent on a line that has 230px to work with. Orca and
-T3 Code reached the same place from a different direction: neither groups by state, and both still
-chose a glyph over a colored word because a shape is what a scanning eye resolves first.
+**The group heading already names the state.** With three groups, a state glyph on every row said
+what its heading said; the Project tree keeps its glyphs because it does not group by state. Rows
+under **Needs attention** get a 12px leading slot instead: an unread dot (warning, danger for a
+failure) that turns into a **Mark as Done** check button on hover, keyboard focus, or selection. An
+unread title is set in medium weight. With excerpts off, a waiting row adds a small `?` and "Waiting
+for you" to its second line and a failed row a `✕` and "Failed", since those two tiers are the ones
+that block the Agent.
 
-Six states, six shapes: a check for a finished turn, a question mark for one waiting on you, a cross
-for a failure, a spinner while the Agent runs, a hollow circle for idle, a dashed one when no
-activity was ever reported. A detached Agent shows the unplugged glyph instead of its frozen state. A Claude Code turn that
+A Claude Code turn that
 ended while background subagents, workflows, or monitors it started still run stays under
 **Working** but swaps the spinner for a slow, muted dotted ring: it is waiting for that work to
 wake it, not busy, and it is not ready for review. A background shell holds the turn the same way
@@ -220,16 +203,9 @@ quiet monitoring sub-mode is the precedent for keeping this inside running inste
 state; VS Code's `chat.tools.terminal.autoApprove` keys and Claude Code's `Bash(...)` permission
 rules are the precedent for the pattern syntax.
 
-Color is the one thing the shape does not carry, and it follows the two-tier rule: only
-**Needs attention** and **Failed** rows are tinted warning or danger, so that weight always means
-"this one wants you" and never has to be decoded against a legend. The one exception is the
-**Working** spinner, which is `--success` green: it is the only motion in the list, and in muted grey
-it read as a loading placeholder rather than an Agent making progress. It cannot be confused with a
-request, because an unread running Session sits under **Needs attention** with its attention glyph. An unread row's tint comes from _why_ it needs
-the user (`sessionUnreadTone`), not from what its Agent is doing right now: a completed turn is a
-neutral state, which would print the commonest unread row of all in the same grey as an Idle one,
-and an unread Session still running is a success state, which would put green under "Needs
-attention".
+Color follows the two-tier rule: only the unread dot in **Needs attention** is tinted, warning or
+danger, so that weight always means "this one wants you" and never has to be decoded against a
+legend.
 
 The title takes a line to itself. The location and time share a fixed-height line below it: when
 space runs out, the entire time disappears first, then the worktree name truncates, and the Project
@@ -249,20 +225,17 @@ from the top, through the same `useScrollEdge` binding
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md#scroll-cue)), so every side bar body
 signals hidden content above identically.
 
-An unread row's hover action follows the Project tree's hover-action rule: the same `--elevated`
-chip, centered on the right edge, and on hover the row's text makes room and fades before it instead
-of painting under it. The only chip is **Mark as Read**; a read row shows none. **Pin** and
-**Unpin** live in the context menu only: the queue is scanned by attention, and a pin chip flashing
-on every hovered row was noise there, unlike in the Project tree. The chip reserves no width at
-rest, because a slot held for a hover-only action would cost every row the width its Project name
-needs at the side bar's minimum width. On a row with a pull request the chip covers the glyph's
-slot, and the glyph hides while it shows.
+The **Mark as Done** check is the only row action. **Pin** and **Unpin** live in the context menu
+only: the queue is scanned by attention, and a pin chip flashing on every hovered row was noise
+there, unlike in the Project tree. The check sits in the leading slot every attention row already
+reserves, so it costs no title width; it is a sibling of the row button, so pressing it never
+selects or opens the Session.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
-same in either body of the side bar. Neither the glyph nor the Project name carries a tooltip of its
-own, because a second hover popup on one row would compete with the card. An unread row's menu
-leads with **Mark as Read** (Delete's pointer twin, so Archive loses its `delete` hint here).
-**Rename** opens the same inline editor as the Project tree, including on an unselected row.
+same in either body of the side bar. The Project name carries no tooltip of its own, because a
+second hover popup on one row would compete with the card. A row with Pending Attention gets **Mark
+as Done** in its menu (Delete's pointer twin). **Rename** opens the same inline editor as the
+Project tree, including on an unselected row.
 
 ## Interaction
 
@@ -272,20 +245,20 @@ too.
 
 | Input                   | Result                                                         |
 | ----------------------- | -------------------------------------------------------------- |
-| Click, `Enter`, `Space` | Select that Session; keep a newly viewed row in place          |
+| Click, `Enter`, `Space` | Select that Session; reading it does not move it               |
 | Same on a heading       | Collapse or expand that group                                  |
 | `Left` / `Right`        | Collapse / expand the focused heading's group                  |
 | `Up` / `Down`           | Move between rendered rows, headings included                  |
 | `Home` / `End`          | First / last rendered row                                      |
-| `Delete` / `Backspace`  | Mark the row read, clearing its reminder without opening it    |
+| `Delete` / `Backspace`  | Mark the row done, moving it to the top of Idle                |
 | Row's check button      | The pointer equivalent of Delete                               |
 | Double-click, Rename    | Edit that Session's title inline                               |
 | `session.rename`        | Edit the selected Session's title inline                       |
-| Right-click             | The Session context menu, led by Mark as Read when unread      |
+| Right-click             | The Session context menu, with Mark as Done when pending       |
 | `Cmd+Shift+N`           | Select the next Session needing attention, wrapping at the end |
 | `Cmd+Alt+U`             | Switch the side bar between the Project tree and this queue    |
 
-`Delete` clears the reminder here rather than archiving the Session, which is what the same key does
+`Delete` marks the Session done here rather than archiving the Session, which is what the same key does
 in the Primary Side Bar. The two lists answer different questions, and removing an item from a queue
 is what Delete means in a queue.
 
@@ -307,7 +280,7 @@ the list would vanish on its own first click.
 
 Switching modes unmounts the body that leaves, rather than hiding it. Keeping both alive would mean
 a hidden Project tree still polling pull requests, or a hidden queue still re-projecting every
-Session on the retention clock, purely to preserve a scroll position behind a surface nobody can
+Session on every record change, purely to preserve a scroll position behind a surface nobody can
 see. The Project tree's own expansion state survives regardless: it lives in its own store, not in
 the mounted component.
 
@@ -332,20 +305,18 @@ into the same trap.
 | `.../primary-sidebar/primary-sidebar-project-tree.tsx`       | The other body, split out so mode switching unmounts it      |
 | `apps/desktop/src/renderer/src/stores/chrome-layout.ts`      | `primarySidebarActivityMode` and its persistence             |
 | `.../features/agent-activity/agent-activity-rows.ts`         | Grouping, ordering, the next-attention walk, the badge tally |
-| `packages/protocol/.../session/session-activity-group.ts`    | Group order, retention window, row order shared with mobile  |
-| `.../agent-activity-glyph.ts`                                | Which shape, which words, and the tint a row's state earns   |
+| `packages/protocol/.../session/session-activity-group.ts`    | Group order and row order shared with mobile and the Server  |
 | `.../agent-activity-tree.ts`                                 | Flattening, collapse, windows, and keyboard row math         |
 | `.../hooks/use-agent-activity-group-collapse.ts`             | Which groups are collapsed, persisted to `localStorage`      |
 | `.../session/create-session-menu.tsx`                        | The New Session row (`ActivitySessionCreationMenu`)          |
-| `.../hooks/use-agent-activity-clock.ts`                      | The subscription to the shared window clock                  |
 | `.../hooks/use-agent-attention-count.ts`                     | The tally the badge and the Zen Mode attention dot both read |
 | `.../agent-activity-view.tsx`, `agent-activity-row-item.tsx` | Rendering, roving focus, and mark-read                       |
 | `.../agent-activity-commands.ts`                             | `session.focusNextAttention`                                 |
 | `e2e/agent-activity.e2e.ts`                                  | The cross-Project workflow through a real launch             |
 
 Every Session, Project, and Terminal record this list groups is already in the Renderer's bootstrap
-store, so nothing here crosses into the Server: the queue is projected client-side, and only the
-selection and the read acknowledgement travel over IPC.
+store, so the queue is projected client-side, and only the selection, the read acknowledgement, and
+`session.markDone` travel over IPC.
 
 The projection groups Terminals by Session once per pass (`sessionTerminalIndex` in
 `features/session/session-agent-terminal.ts`) instead of scanning every Terminal for every Session,
@@ -357,8 +328,8 @@ hidden or was never opened.
 
 ## Excerpts
 
-A row in the attention group quotes what the Agent last asked
-or said so the user can decide whether to open the Session. `agent.excerpts` (read-only, one batch
+With **Show Agent excerpts in Activity** on (`agentActivity.showExcerpts`, off by default), a row in
+the attention group quotes what the Agent last asked or said so the user can decide whether to open the Session. `agent.excerpts` (read-only, one batch
 per view) answers per Session and attention generation: a Chat Agent that is waiting on the user
 shows the question or approval it is asking, read from the live Chat's in-memory request without
 starting a provider; every other case shows the closing message of the latest turn from the on-disk
@@ -369,7 +340,8 @@ question or approval. A Terminal Agent has no live request to read, so it only g
 reply. Rows clamp the quote to two lines. The text is user content shown
 locally: the Server never persists or logs it, and the Renderer keeps it only in the query cache.
 A new recap is announced with the transient `agent.recapChanged` event, which refetches the
-Session's excerpt.
+Session's excerpt. Off by default because the quote doubled every row's height and the title plus
+status line was enough to decide what to open; while off, no excerpt is fetched.
 
 ## Past conversations
 

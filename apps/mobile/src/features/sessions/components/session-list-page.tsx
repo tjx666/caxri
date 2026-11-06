@@ -1,5 +1,5 @@
 import type { ReactElement, RefObject } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 
@@ -12,6 +12,20 @@ import type { createSessionListInteraction } from '../session-list-interaction';
 const styles = StyleSheet.create({ list: { flex: 1 } });
 
 const entryKey = (entry: SessionListRow): string => entry.id;
+
+/**
+ * How far from the top, in dp, the list still counts as resting at the top.
+ */
+const TOP_REST_THRESHOLD = 4;
+
+/**
+ * FlashList keeps the first visible row in place when rows are inserted above it. Sessions move between status groups
+ * all the time, so at the top that anchor pushes a newly shown Needs attention heading and its Session above the
+ * viewport, exactly what this list exists to show first. The anchor stays on only once the user has scrolled away from
+ * the top, where it keeps the row they are reading from jumping.
+ */
+const LIST_AT_TOP = { disabled: true } as const;
+
 const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
 
 /**
@@ -52,7 +66,13 @@ export const SessionListPage = ({
         if (isActive) activeListRef.current = ownReference.current;
         else ownReference.current?.scrollToOffset({ animated: false, offset: 0 });
     }, [isActive, activeListRef]);
+    const [isAtTop, setIsAtTop] = useState(true);
     if (empty) return empty;
+    /**
+     * Read where a scroll comes to rest rather than on every frame, so scrolling never re-renders the list.
+     */
+    const settle = (event: NativeSyntheticEvent<NativeScrollEvent>): void =>
+        setIsAtTop(event.nativeEvent.contentOffset.y <= TOP_REST_THRESHOLD);
     const active = isActive ? interactionRef : undefined;
     return (
         <View
@@ -69,11 +89,18 @@ export const SessionListPage = ({
                 getItemType={entryType}
                 keyExtractor={entryKey}
                 onMomentumScrollBegin={() => active?.current?.momentumStart()}
-                onMomentumScrollEnd={() => active?.current?.momentumEnd()}
+                onMomentumScrollEnd={(event) => {
+                    settle(event);
+                    active?.current?.momentumEnd();
+                }}
                 onLoad={isActive ? onLoad : undefined}
+                maintainVisibleContentPosition={isAtTop ? LIST_AT_TOP : undefined}
                 onScroll={isActive ? onScroll : undefined}
                 onScrollBeginDrag={() => active?.current?.dragStart()}
-                onScrollEndDrag={() => active?.current?.dragEnd()}
+                onScrollEndDrag={(event) => {
+                    settle(event);
+                    active?.current?.dragEnd();
+                }}
                 ref={(list) => {
                     ownReference.current = list;
                     if (isActive) activeListRef.current = list;

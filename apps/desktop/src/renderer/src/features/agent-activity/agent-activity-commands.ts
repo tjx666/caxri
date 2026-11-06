@@ -1,8 +1,7 @@
-import { translate } from '../../i18n';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { getBootstrap } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
-import { didSelectSession } from '../session/session-commands';
+import { cachedMergedPullRequestSessionIds, didSelectSession } from '../session/session-commands';
 import { agentActivityGroups, nextAgentAttentionSessionId } from './agent-activity-rows';
 
 /**
@@ -19,10 +18,9 @@ export function focusNextAttentionSession(): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
     const groups = agentActivityGroups({
-        now: Date.now(),
+        mergedPullRequestSessionIds: cachedMergedPullRequestSessionIds(),
         projects: topLevelProjects(bootstrap.projects),
         sessions: bootstrap.sessions,
-        t: translate,
         terminals: bootstrap.terminals,
     });
     const sessionId = nextAgentAttentionSessionId(groups, bootstrap.selectedSessionId);

@@ -1,95 +1,94 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    compareSessionActivityGroupRows,
-    isWithinSessionFinishedRetention,
-    SESSION_FINISHED_RETENTION_MS,
-    sessionActivityGroup,
-} from '../session-activity-group';
-
-const NOW = 1_000_000_000;
+import type { SessionActivityRowOrder } from '../session-activity-group';
+import { compareSessionActivityGroupRows, sessionActivityGroup } from '../session-activity-group';
 
 const session = (overrides: Partial<Parameters<typeof sessionActivityGroup>[0]> = {}) => ({
-    hasUnread: false,
+    hasPendingAttention: false,
     isDetached: false,
     isRunning: false,
-    agentActivityState: 'idle' as const,
-    sessionActivityAt: NOW,
     ...overrides,
 });
 
-describe('isWithinSessionFinishedRetention', () => {
-    it('keeps a Session until the window closes, and one whose clock is ahead of the reader', () => {
-        expect(isWithinSessionFinishedRetention({ sessionActivityAt: NOW }, NOW)).toBe(true);
-        const edge = NOW - SESSION_FINISHED_RETENTION_MS;
-        expect(isWithinSessionFinishedRetention({ sessionActivityAt: edge + 1 }, NOW)).toBe(true);
-        expect(isWithinSessionFinishedRetention({ sessionActivityAt: edge }, NOW)).toBe(false);
-        expect(isWithinSessionFinishedRetention({ sessionActivityAt: NOW + 5_000 }, NOW)).toBe(
-            true,
-        );
-    });
-});
-
 describe('sessionActivityGroup', () => {
-    it('ranks unread above every state, including a running turn', () => {
-        expect(sessionActivityGroup(session({ hasUnread: true, isRunning: true }), NOW)).toBe(
-            'attention',
+    it('keeps a Session with Pending Attention under attention whether or not it was read', () => {
+        expect(sessionActivityGroup(session({ hasPendingAttention: true }))).toBe('attention');
+        expect(sessionActivityGroup(session())).toBe('idle');
+    });
+
+    it('lists a running Agent under working even while it still has Pending Attention', () => {
+        expect(sessionActivityGroup(session({ hasPendingAttention: true, isRunning: true }))).toBe(
+            'working',
         );
     });
 
-    it('keeps a failure even when detached, and files a detached Session as idle', () => {
-        expect(
-            sessionActivityGroup(session({ isDetached: true, agentActivityState: 'failed' }), NOW),
-        ).toBe('failed');
-        expect(
-            sessionActivityGroup(session({ isDetached: true, agentActivityState: 'waiting' }), NOW),
-        ).toBe('idle');
-    });
-
-    it('files a Chat waiting for a usage limit as idle, even after a failed turn', () => {
+    it('never lists a detached Terminal as working, but keeps the result it left pending', () => {
+        expect(sessionActivityGroup(session({ isDetached: true, isRunning: true }))).toBe('idle');
         expect(
             sessionActivityGroup(
-                session({ isUsageWaiting: true, agentActivityState: 'failed' }),
-                NOW,
+                session({ hasPendingAttention: true, isDetached: true, isRunning: true }),
             ),
-        ).toBe('idle');
-        expect(sessionActivityGroup(session({ isUsageWaiting: true, hasUnread: true }), NOW)).toBe(
-            'attention',
-        );
+        ).toBe('attention');
     });
 
-    it('maps running, waiting, and idle states, and ages a finished Session out', () => {
-        expect(sessionActivityGroup(session({ isRunning: true }), NOW)).toBe('working');
-        expect(sessionActivityGroup(session({ agentActivityState: 'waiting' }), NOW)).toBe(
-            'waiting',
-        );
-        expect(sessionActivityGroup(session({ agentActivityState: 'unknown' }), NOW)).toBe('idle');
-        expect(sessionActivityGroup(session({ agentActivityState: 'completed' }), NOW)).toBe(
-            'finished',
-        );
+    it('treats a usage-limit wait as idle, since it continues on its own', () => {
         expect(
             sessionActivityGroup(
-                session({
-                    agentActivityState: 'completed',
-                    sessionActivityAt: NOW - SESSION_FINISHED_RETENTION_MS,
-                }),
-                NOW,
+                session({ hasPendingAttention: true, isRunning: true, isUsageWaiting: true }),
             ),
-        ).toBeUndefined();
+        ).toBe('idle');
     });
 });
+
+const row = (id: string, overrides: Partial<SessionActivityRowOrder> = {}) => ({
+    id,
+    sessionActivityAt: 0,
+    ...overrides,
+});
+
+const order = (
+    group: Parameters<typeof compareSessionActivityGroupRows>[0],
+    rows: SessionActivityRowOrder[],
+) =>
+    rows
+        .toSorted((left, right) => compareSessionActivityGroupRows(group, left, right))
+        .map((r) => r.id);
 
 describe('compareSessionActivityGroupRows', () => {
-    it('puts the most recent work first and breaks ties by id', () => {
-        const rows = [
-            { id: 'b', sessionActivityAt: 1 },
-            { id: 'c', sessionActivityAt: 2 },
-            { id: 'a', sessionActivityAt: 1 },
-        ];
-        expect(rows.toSorted(compareSessionActivityGroupRows).map((row) => row.id)).toEqual([
-            'c',
-            'a',
-            'b',
-        ]);
+    it('ranks questions and failures, then merged pull requests, then other results in Needs attention', () => {
+        expect(
+            order('attention', [
+                row('result', { sessionActivityAt: 50, lastAttentionKind: 'completed' }),
+                row('merged', {
+                    sessionActivityAt: 40,
+                    lastAttentionKind: 'completed',
+                    isPullRequestMerged: true,
+                }),
+                row('failed', { sessionActivityAt: 10, lastAttentionKind: 'failed' }),
+                row('question', { sessionActivityAt: 20, lastAttentionKind: 'waiting' }),
+            ]),
+        ).toEqual(['question', 'failed', 'merged', 'result']);
+    });
+
+    it('puts Sessions waiting on background work first in working', () => {
+        expect(
+            order('working', [
+                row('busy', { sessionActivityAt: 30 }),
+                row('watching', { sessionActivityAt: 10, isBackgroundWait: true }),
+            ]),
+        ).toEqual(['watching', 'busy']);
+    });
+
+    it('lifts a Session just marked done to the top of Idle without its work clock', () => {
+        expect(
+            order('idle', [
+                row('recent', { sessionActivityAt: 30 }),
+                row('resolved', { sessionActivityAt: 10, attentionResolvedAt: 40 }),
+            ]),
+        ).toEqual(['resolved', 'recent']);
+    });
+
+    it('breaks equal recency by id so the order is stable', () => {
+        expect(order('working', [row('b'), row('a')])).toEqual(['a', 'b']);
     });
 });

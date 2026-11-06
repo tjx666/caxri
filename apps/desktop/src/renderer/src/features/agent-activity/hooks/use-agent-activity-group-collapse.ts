@@ -90,9 +90,9 @@ export function useAgentActivityGroupCollapse(): {
 }
 
 /**
- * Reopens a collapsed "Needs attention" or "Failed" group when its count rises, so a Session that just arrived is not
- * hidden. Counts come from the headings so the rule follows the number the user sees; `groupsToAutoExpand` owns the
- * rule itself.
+ * Reopens a collapsed "Needs attention" group when its count rises, so a Session that just arrived is not hidden.
+ * Counts come from the headings so the rule follows the number the user sees; `groupsToAutoExpand` owns the rule
+ * itself.
  */
 export function useAgentActivityAutoExpand(
     headings: ReadonlyMap<AgentActivityGroupId, { count?: number }>,
@@ -100,8 +100,8 @@ export function useAgentActivityAutoExpand(
     expandGroup: (groupId: AgentActivityGroupId) => void,
 ): void {
     // Adjusted during render rather than in an effect (React's "storing information from previous renders"): the
-    // expansion lands in the same commit as the count that caused it. `expandGroup` only reopens "Needs attention" or
-    // "Failed", whose state is this component's own `useState`, so the update stays local.
+    // expansion lands in the same commit as the count that caused it. `expandGroup` only reopens "Needs attention",
+    // whose state is this component's own `useState`, so the update stays local.
     const [observed, setObserved] = useState<{
         counts?: ReadonlyMap<AgentActivityGroupId, number>;
         headings?: ReadonlyMap<AgentActivityGroupId, { count?: number }>;

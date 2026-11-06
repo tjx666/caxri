@@ -70,7 +70,9 @@ describe('createCommandDispatcher receipt capacity', () => {
                 agentActivityState: 'unknown',
                 attentionGeneration: 0,
                 acknowledgedAttentionGeneration: 0,
+                resolvedAttentionGeneration: 0,
                 hasUnread: false,
+                hasPendingAttention: false,
                 workbenchRootProjectId: 'project-1',
             };
         }
@@ -189,7 +191,9 @@ describe('createCommandDispatcher durable receipts', () => {
             agentActivityState: 'unknown' as const,
             attentionGeneration: 0,
             acknowledgedAttentionGeneration: 0,
+            resolvedAttentionGeneration: 0,
             hasUnread: false,
+            hasPendingAttention: false,
             workbenchRootProjectId: 'project-1',
         };
     }

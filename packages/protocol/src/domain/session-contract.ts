@@ -80,6 +80,12 @@ const sessionAttentionReadResult = z.object({
     attentionGeneration: z.number().int().nonnegative(),
     hasUnread: z.boolean(),
 });
+const sessionAttentionDoneResult = z.object({
+    resolved: z.boolean(),
+    sessionId: identifierSchema,
+    attentionGeneration: z.number().int().nonnegative(),
+    hasPendingAttention: z.boolean(),
+});
 export const sessionMethods = {
     'session.compactWarm': {
         ...commandPolicy('server', 'control'),
@@ -274,6 +280,19 @@ export const sessionMethods = {
             attentionGeneration: z.number().int().nonnegative(),
         }),
         result: sessionAttentionReadResult,
+    },
+    /**
+     * Resolves the Session's Pending Attention for the generation the Client showed, and acknowledges it too. A newer
+     * generation (a turn that ended after the Client rendered the row) is left pending, so a late click never clears
+     * news the user has not seen.
+     */
+    'session.markDone': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.object({
+            sessionId: identifierSchema,
+            attentionGeneration: z.number().int().nonnegative(),
+        }),
+        result: sessionAttentionDoneResult,
     },
     /**
      * Owner-only: a title is the user's own naming, so neither an Agent Endpoint nor a paired phone sets it.

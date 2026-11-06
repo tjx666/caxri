@@ -295,6 +295,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.importConversationInternal': 'ordered',
     'session.interruptAndCompact': 'ordered',
     'session.markRead': 'ordered',
+    'session.markDone': 'ordered',
     'usage.dismissNotice': 'ordered',
     'session.refreshDeliveryOnFocus': 'ordered',
     'session.reopenConversation': 'ordered',

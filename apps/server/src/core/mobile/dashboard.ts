@@ -5,6 +5,7 @@ import type {
     MobileArchivedSessionsResult,
     MobileDashboardResult,
     ProjectQueryResult,
+    SessionActivityGroupId,
     SessionPullRequests,
     SessionQueryResult,
     TerminalQueryResult,
@@ -35,30 +36,20 @@ type DashboardTerminal = TerminalQueryResult['terminals'][number];
 
 /**
  * The phone's list order, decided here because the dashboard is capped: pinned Sessions first, then the status groups
- * Desktop's Activity view uses, then recency inside a group. Whatever the cap drops is the least urgent, least recent
- * work, never a pinned or attention Session.
+ * Desktop's Activity view uses, then the shared in-group order. Whatever the cap drops is the least urgent, least
+ * recent work, never a pinned or attention Session.
  */
-const groupRank = (
+const sessionGroup = (
     session: DashboardSession,
     terminal: DashboardTerminal | undefined,
-    now: number,
-): number => {
-    if (isPinnedSession(session)) return -1;
-    // A Chat waiting for a plan limit to reset outranks unread attention, as on Desktop and the phone's own list.
-    const isUsageWaiting = terminal?.usageLimitWaitAt !== undefined;
-    const group =
-        sessionActivityGroup(
-            {
-                ...session,
-                hasUnread: session.hasUnread && !isUsageWaiting,
-                isDetached: terminal?.lastProcessState === 'detached',
-                isRunning: session.agentActivityState === 'running',
-                isUsageWaiting,
-            },
-            now,
-        ) ?? 'idle';
-    return SESSION_ACTIVITY_GROUP_ORDER.indexOf(group);
-};
+): SessionActivityGroupId =>
+    sessionActivityGroup({
+        hasPendingAttention: session.hasPendingAttention,
+        isDetached: terminal?.lastProcessState === 'detached',
+        isRunning: session.agentActivityState === 'running',
+        // A Chat waiting for a plan limit to reset is idle, as on Desktop and the phone's own list.
+        isUsageWaiting: terminal?.usageLimitWaitAt !== undefined,
+    });
 
 /**
  * Builds one frame-safe, principal-scoped mobile projection. Pinned, attention, and running Sessions are ordered before
@@ -81,9 +72,7 @@ export const buildMobileDashboard = (input: {
      * of a Session the device may already see.
      */
     worktreeProjects?: ReadonlyArray<{ id: string; title: string }>;
-    now?: number;
 }): MobileDashboardResult => {
-    const now = input.now ?? Date.now();
     const lastActivityByProject = new Map<string, number>();
     for (const session of input.sessions) {
         if (session.archivedAt !== undefined) continue;
@@ -113,20 +102,33 @@ export const buildMobileDashboard = (input: {
         session.primaryAgentTerminalId
             ? terminals.get(session.primaryAgentTerminalId)
             : shellTerminals.get(session.id);
-    const rank = new Map(
+    const groups = new Map(
         input.sessions.map((session) => [
             session.id,
-            groupRank(session, primaryTerminalOf(session), now),
+            sessionGroup(session, primaryTerminalOf(session)),
         ]),
     );
+    const rank = (session: DashboardSession): number =>
+        isPinnedSession(session)
+            ? -1
+            : SESSION_ACTIVITY_GROUP_ORDER.indexOf(groups.get(session.id)!);
+    const rowOrder = (session: DashboardSession) => ({
+        ...session,
+        isBackgroundWait: primaryTerminalOf(session)?.agentOperation === 'background',
+        isPullRequestMerged: input.pullRequests?.[session.id]?.state === 'merged',
+    });
     const active = input.sessions
         .filter((session) => session.archivedAt === undefined && projects.has(session.projectId))
         .toSorted(
             (left, right) =>
-                rank.get(left.id)! - rank.get(right.id)! ||
+                rank(left) - rank(right) ||
                 (isPinnedSession(left)
                     ? compareSessionPinnedOrder(left, right)
-                    : compareSessionActivityGroupRows(left, right)),
+                    : compareSessionActivityGroupRows(
+                          groups.get(left.id)!,
+                          rowOrder(left),
+                          rowOrder(right),
+                      )),
         );
     const sessions: MobileDashboardResult['sessions'] = [];
     for (const session of active) {
@@ -181,6 +183,10 @@ export const buildMobileDashboard = (input: {
             }),
             attentionGeneration: session.attentionGeneration,
             hasUnread: session.hasUnread,
+            hasPendingAttention: session.hasPendingAttention,
+            ...(session.attentionResolvedAt !== undefined && {
+                attentionResolvedAt: session.attentionResolvedAt,
+            }),
             ...(session.lastAttentionKind !== undefined && {
                 lastAttentionKind: session.lastAttentionKind,
             }),

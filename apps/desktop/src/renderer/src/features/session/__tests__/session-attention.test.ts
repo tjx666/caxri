@@ -17,6 +17,8 @@ const session: SessionRecord = {
     agentActivityState: 'waiting',
     attentionGeneration: 2,
     acknowledgedAttentionGeneration: 1,
+    resolvedAttentionGeneration: 0,
+    hasPendingAttention: false,
     lastAttentionKind: 'waiting',
     hasUnread: true,
     title: 'Needs input',

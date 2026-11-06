@@ -21,9 +21,9 @@ const MAX_BADGE_COUNT = 99;
  * Switches the side bar between the Project tree and the Activity queue, and carries the queue's own tally.
  *
  * The badge is the reason this lives in the header rather than inside Activity: it has to be legible while the tree is
- * showing, which is exactly when the queue is unmounted. {@link useAgentAttentionCount} reads the same `hasUnread` flag
- * the queue's "Needs attention" group is derived from, so the two agree without the badge depending on the queue
- * existing.
+ * showing, which is exactly when the queue is unmounted. {@link useAgentAttentionCount} counts the Sessions with Pending
+ * Attention through the same grouping the queue's "Needs attention" group uses, so the two agree without the badge
+ * depending on the queue existing.
  */
 function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
     const attentionCount = useAgentAttentionCount();

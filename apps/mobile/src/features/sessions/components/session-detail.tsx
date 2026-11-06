@@ -45,6 +45,7 @@ export const SessionDetail = ({
     onComposerFocused,
     onDraftChange,
     onEditQueued,
+    onMarkDone,
     onMarkRead,
     onRequestComposerFocus,
     onRefresh,
@@ -74,6 +75,7 @@ export const SessionDetail = ({
      * Puts a queued Chat message taken back for editing into the draft and focuses the composer.
      */
     onEditQueued: (text: string) => void;
+    onMarkDone: () => Promise<void>;
     onMarkRead: () => Promise<void>;
     /**
      * Focuses the composer once, as a notification reply does.
@@ -141,6 +143,7 @@ export const SessionDetail = ({
                 isCompacting={chat?.controller.snapshot?.operation === 'compacting'}
                 isConnected={isConnected}
                 onBack={onBack}
+                onMarkDone={onMarkDone}
                 onMarkRead={onMarkRead}
                 onSegmentChange={onSegmentChange}
                 panels={panels.panels}

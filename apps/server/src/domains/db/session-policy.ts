@@ -44,6 +44,23 @@ export function processExitActivityState(
 }
 
 /**
+ * A crashed Agent process is news the user has to see: without an attention generation the Session would fall silently
+ * into Idle, because Needs attention lists only Pending Attention. A clean exit (`completed`) raises nothing, as the
+ * turn that preceded it already did, and a failure the Session already reported (a `turnFailed` hook right before the
+ * process died) is not raised again, whether or not the user has since marked it Done. This matches
+ * `reliableAttentionTransition`, which suppresses an unchanged state and kind the same way.
+ */
+export function processExitAttention(
+    session: Pick<SessionRecord, 'agentActivityState' | 'lastAttentionKind'>,
+    state: AgentActivityState,
+): SessionAttentionKind | undefined {
+    if (state !== 'failed') return undefined;
+    if (session.agentActivityState === 'failed' && session.lastAttentionKind === 'failed')
+        return undefined;
+    return 'failed';
+}
+
+/**
  * Maps only user-relevant Primary Agent states onto the content-free Session Activity reason allowlist. Idle and
  * unknown observations are reconciliation states, not evidence that work progressed.
  */
@@ -273,7 +290,7 @@ export interface AgentLifecycleDecision {
     attentionKind?: SessionAttentionKind;
     agentActivityState: AgentActivityState;
     /**
-     * Marks the current unread attention generation read because a new turn superseded it.
+     * Marks the current attention generation read and resolved because a new turn superseded it.
      *
      * A provider can start a turn the user did not submit: Claude Code resumes on its own when a background shell
      * finishes. The finished turn's unread notice then outranks `running` in every Session list, so the row kept
@@ -300,7 +317,11 @@ export function decideAgentLifecycleUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider'>,
     session: Pick<
         SessionRecord,
-        'hasUnread' | 'agentActivityState' | 'lastAttentionKind' | 'primaryAgentTerminalId'
+        | 'hasUnread'
+        | 'hasPendingAttention'
+        | 'agentActivityState'
+        | 'lastAttentionKind'
+        | 'primaryAgentTerminalId'
     >,
     provider: TerminalRecord['provider'],
     phase: AgentLifecyclePhase,
@@ -322,7 +343,8 @@ export function decideAgentLifecycleUpdate(
          * the final concurrent request through, so a still-pending sibling request never reaches this branch.
          */
         const supersedesUnreadAttention =
-            session.hasUnread && session.lastAttentionKind === 'waiting';
+            (session.hasUnread || session.hasPendingAttention) &&
+            session.lastAttentionKind === 'waiting';
         if (!supersedesUnreadAttention && session.agentActivityState !== 'waiting')
             return undefined;
         return {
@@ -360,7 +382,8 @@ export function decideAgentLifecycleUpdate(
         agentActivityState,
         requestedAttention,
     );
-    const supersedesUnreadAttention = phase === 'turnStarted' && session.hasUnread;
+    const supersedesUnreadAttention =
+        phase === 'turnStarted' && (session.hasUnread || session.hasPendingAttention);
     if (
         !attentionKind &&
         !supersedesUnreadAttention &&
