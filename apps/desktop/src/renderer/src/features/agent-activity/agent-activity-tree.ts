@@ -136,3 +136,18 @@ export function rovingAgentActivityRowId(
             : rows.find((row) => row.kind === 'session' && row.sessionId === selectedSessionId);
     return selectedRow?.id ?? rows[0]?.id;
 }
+
+/**
+ * Where focus should return after Mark as Done moved it ahead of the acknowledgement. Only a Session that is still
+ * pending (the request failed or the Server returned `resolved: false`) gets focus back, and only while focus still
+ * sits on the row it was pre-advanced to: a user who has since moved elsewhere keeps their place.
+ */
+export function focusRestoreRowIdAfterMarkDone(options: {
+    currentFocusedRowId: string | undefined;
+    markedRowId: string;
+    plannedRowId: string | undefined;
+    resolved: boolean;
+}): string | undefined {
+    if (options.resolved || options.plannedRowId === undefined) return undefined;
+    return options.currentFocusedRowId === options.plannedRowId ? options.markedRowId : undefined;
+}

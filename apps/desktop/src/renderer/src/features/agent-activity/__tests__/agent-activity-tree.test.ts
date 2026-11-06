@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentActivityGroup, AgentActivityRow } from '../agent-activity-rows';
 import {
     flattenAgentActivityRows,
+    focusRestoreRowIdAfterMarkDone,
     nextAgentActivityRowId,
     rovingAgentActivityRowId,
 } from '../agent-activity-tree';
@@ -143,5 +144,29 @@ describe('rovingAgentActivityRowId', () => {
 
     it('falls back to the first row when neither is on screen', () => {
         expect(rovingAgentActivityRowId(ROWS, undefined, 'elsewhere')).toBe('attention');
+    });
+});
+
+describe('focusRestoreRowIdAfterMarkDone', () => {
+    const base = { currentFocusedRowId: 'b', markedRowId: 'a', plannedRowId: 'b' };
+
+    it('keeps the advanced focus when the Session was resolved', () => {
+        expect(focusRestoreRowIdAfterMarkDone({ ...base, resolved: true })).toBeUndefined();
+    });
+
+    it('returns focus to the marked row when it is still pending', () => {
+        expect(focusRestoreRowIdAfterMarkDone({ ...base, resolved: false })).toBe('a');
+    });
+
+    it('leaves focus alone when the user already moved it', () => {
+        expect(
+            focusRestoreRowIdAfterMarkDone({ ...base, currentFocusedRowId: 'c', resolved: false }),
+        ).toBeUndefined();
+    });
+
+    it('has nothing to restore when focus was never advanced', () => {
+        expect(
+            focusRestoreRowIdAfterMarkDone({ ...base, plannedRowId: undefined, resolved: false }),
+        ).toBeUndefined();
     });
 });

@@ -463,6 +463,25 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             mask: [page.locator('.xterm')],
         });
 
+        // Delete pre-advances focus to the next row; when the Server does not apply it (a newer Agent turn bumped
+        // the generation the Renderer still shows, so `resolved` is false), focus returns to the row still pending.
+        const supersedingTurn = new Database(join(userData, 'caxri.db'));
+        try {
+            supersedingTurn
+                .prepare('UPDATE sessions SET attention_generation = 2 WHERE id = ?')
+                .run(sessions.get('beta'));
+        } finally {
+            supersedingTurn.close();
+        }
+        await betaRow.focus();
+        await page.keyboard.press('Delete');
+        await expect(betaRow).toBeFocused();
+        await expect(betaRow).toHaveAttribute('data-activity-group', 'attention');
+        await page.screenshot({
+            path: test.info().outputPath('activity-mark-done-unresolved-keeps-focus.png'),
+            mask: [page.locator('.xterm')],
+        });
+
         await alphaRow.click();
         await expect.poll(() => selectedSessionId(page)).toBe(sessions.get('alpha'));
         // Selecting from the queue keeps the queue: the user is walking it, and a click that threw them back to the
