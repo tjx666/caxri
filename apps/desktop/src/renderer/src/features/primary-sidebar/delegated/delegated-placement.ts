@@ -54,6 +54,12 @@ export interface DelegatedPlacement {
 
 interface PlaceDelegatedSessionsInput {
     /**
+     * Delegated Sessions the user has taken over and not handed back (`control: 'human'` in the delegation feed). Such
+     * a Session answers to the user rather than to its creator, so it takes an ordinary row and hosts what it
+     * delegates. Omitted by callers that order Sessions without the feed (previous/next Session, the palette).
+     */
+    humanControlledSessionIds?: ReadonlySet<string>;
+    /**
      * The Projects the tree lists. A Session of any other Project has a row only through the Pinned group.
      */
     projects: ReadonlyArray<Pick<ProjectRecord, 'id'>>;
@@ -72,15 +78,22 @@ const MAX_CREATOR_WALK = 16;
 
 /**
  * Whether a Session wants to nest under an ancestor. `consult` always does (it is hidden while an ancestor is listed),
- * `delegated` does unless it is pinned: a pinned, non-hidden Session is a flat row in the Pinned group. A Session
- * without `createdBySessionId` never does, whatever its relation says: the read model drops the creator when it is
- * deleted, and a Session with no creator is an ordinary row.
+ * `delegated` does unless it is pinned or the user controls it: a pinned, non-hidden Session is a flat row in the
+ * Pinned group, and a taken-over one is the user's own Session until they hand it back. A Session without
+ * `createdBySessionId` never does, whatever its relation says: the read model drops the creator when it is deleted, and
+ * a Session with no creator is an ordinary row.
  */
-function shouldNest(session: SessionRecord): boolean {
+function shouldNest(session: SessionRecord, humanControlled: ReadonlySet<string>): boolean {
     if (session.createdBySessionId === undefined) return false;
     if (session.createdByRelation === 'consult') return true;
-    return session.createdByRelation === 'delegated' && !isPinnedSession(session);
+    return (
+        session.createdByRelation === 'delegated' &&
+        !isPinnedSession(session) &&
+        !humanControlled.has(session.id)
+    );
 }
+
+const NO_SESSION_IDS: ReadonlySet<string> = new Set();
 
 /**
  * Resolves the host of `session`: the nearest ancestor along `createdBySessionId` that is a top-level listed row, or
@@ -97,6 +110,7 @@ function resolveHostId(
     session: SessionRecord,
     sessionsById: ReadonlyMap<string, SessionRecord>,
     hasRow: (session: SessionRecord) => boolean,
+    humanControlled: ReadonlySet<string>,
 ): string | undefined {
     /**
      * Creators nearest first; the last entry is the top of the chain the walk reached.
@@ -110,7 +124,7 @@ function resolveHostId(
         if (seen.has(creator.id) || creators.length >= MAX_CREATOR_WALK) return undefined;
         seen.add(creator.id);
         creators.push(creator);
-        if (!shouldNest(creator)) break;
+        if (!shouldNest(creator, humanControlled)) break;
         current = creator;
     }
     /**
@@ -140,16 +154,19 @@ function sessionRowGroupId(session: Pick<SessionRecord, 'pinnedAt' | 'projectId'
 }
 
 /**
- * Decides, from Session records alone, which Sessions get an ordinary row and which nest under a host or disappear as a
- * hidden consult. It never reads the delegation feed: a row must not move because a task failed.
+ * Decides, from Session records and the user's takeovers, which Sessions get an ordinary row and which nest under a
+ * host or disappear as a hidden consult. Nothing else from the delegation feed counts: a row must not move because a
+ * task failed, only because the user took the Session over or handed it back.
  *
- * - `delegated` nests under its host; `consult` takes no row while it has a host, except the selected one, which nests so
- *   the selection stays visible; `handoff`, `independent` and Sessions with no relation are ordinary rows.
+ * - `delegated` nests under its host unless the user took it over; `consult` takes no row while it has a host, except the
+ *   selected one, which nests so the selection stays visible; `handoff`, `independent` and Sessions with no relation
+ *   are ordinary rows.
  * - A host must hold a row itself: a Session whose Project is not shown and which is not pinned is not listed, so what it
  *   created stays an ordinary row in its own Project and nothing becomes unreachable.
  * - Consult hiding applies before pin placement, so a pinned hidden consult stays hidden.
  */
 export function placeDelegatedSessions({
+    humanControlledSessionIds = NO_SESSION_IDS,
     projects,
     selectedSessionId,
     sessions,
@@ -164,8 +181,8 @@ export function placeDelegatedSessions({
     const hidden = new Map<string, SessionRecord[]>();
     const activeSessions = sessions.filter((candidate) => candidate.archivedAt === undefined);
     for (const session of activeSessions) {
-        const hostId = shouldNest(session)
-            ? resolveHostId(session, sessionsById, hasRow)
+        const hostId = shouldNest(session, humanControlledSessionIds)
+            ? resolveHostId(session, sessionsById, hasRow, humanControlledSessionIds)
             : undefined;
         if (hostId === undefined) {
             if (hasRow(session)) {

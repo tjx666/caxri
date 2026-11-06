@@ -32,7 +32,7 @@ test('delegated Sessions nest under their host with their own Project name, a co
         await expect(group).toBeVisible();
 
         // The delegated Sessions left their own Project and sit one level under the host, in its Project's group.
-        const nested = [fixture.reviewer, fixture.failed, fixture.takenOver];
+        const nested = [fixture.reviewer, fixture.failed];
         await expect.poll(async () => sorted(await sessionIdsIn(group))).toEqual(sorted(nested));
         await expect(sessionCard(page, fixture.host)).toHaveAttribute('aria-level', '2');
         await expect(sessionCard(page, fixture.host)).toHaveAttribute('draggable', 'true');
@@ -51,11 +51,15 @@ test('delegated Sessions nest under their host with their own Project name, a co
             ).toHaveCount(1);
         }
 
-        // The consult takes no row while its creator is listed; the hand-off stays an ordinary row in its own Project.
+        // The consult takes no row while its creator is listed; the hand-off, and the delegated Session the user took
+        // over, stay ordinary rows in their own Project.
         await expect(sessionCard(page, fixture.consult)).toHaveCount(0);
         const workerSessions = projectSessions(page, WORKER_PROJECT);
-        await expect.poll(() => sessionIdsIn(workerSessions)).toEqual([fixture.handoff]);
+        await expect
+            .poll(async () => sorted(await sessionIdsIn(workerSessions)))
+            .toEqual(sorted([fixture.handoff, fixture.takenOver]));
         await expect(sessionCard(page, fixture.handoff)).toHaveAttribute('aria-level', '2');
+        await expect(sessionCard(page, fixture.takenOver)).toHaveAttribute('aria-level', '2');
 
         // Only the delegation that failed gets the red X: a task the user took over, or one with no record, does not.
         const failedGlyph = nestedRow(page, fixture.failed).getByRole('img', {
@@ -64,7 +68,7 @@ test('delegated Sessions nest under their host with their own Project name, a co
         await expect(failedGlyph).toBeVisible();
         await expect(failedGlyph).toHaveAttribute('data-session-status', 'failed');
         await expect(page.locator('[data-session-status="failed"]')).toHaveCount(1);
-        await expect(nestedRow(page, fixture.takenOver).getByRole('img')).toHaveCount(0);
+        await expect(sessionCard(page, fixture.takenOver).getByRole('img')).toHaveCount(0);
         await expect(nestedRow(page, fixture.reviewer).getByRole('img')).toHaveCount(0);
         await page
             .getByRole('tree')
@@ -119,7 +123,7 @@ test('previous and next Session and the palette reach nested Sessions, and a sel
         expect(new Set(visited)).toEqual(new Set(everySession));
         // The host is followed by its own nested Sessions before anything else.
         const hostIndex = visited.indexOf(fixture.host);
-        const hostedIds = [fixture.reviewer, fixture.failed, fixture.takenOver];
+        const hostedIds = [fixture.reviewer, fixture.failed];
         expect(sorted(visited.slice(hostIndex + 1, hostIndex + 1 + hostedIds.length))).toEqual(
             sorted(hostedIds),
         );
@@ -173,7 +177,7 @@ test('more than three settled children fold behind Show more, and Show more adds
             .poll(async () => sorted(await sessionIdsIn(group)))
             .toEqual(sorted(fixture.fanOutChildren));
         // The other host's nested rows are untouched by this host's window.
-        await expect(nestedGroup(page, 'Coordinator').locator('.session-card')).toHaveCount(3);
+        await expect(nestedGroup(page, 'Coordinator').locator('.session-card')).toHaveCount(2);
     } finally {
         await fixture.cleanup();
     }
@@ -184,17 +188,17 @@ test('archiving a nested Session or its host returns what remains to its own Pro
     const { page } = fixture.running;
     try {
         const group = nestedGroup(page, 'Coordinator');
-        await expect(group.locator('.session-card')).toHaveCount(3);
+        await expect(group.locator('.session-card')).toHaveCount(2);
 
         // Delete on a nested row archives that Session, not its host.
-        await nestedRow(page, fixture.takenOver).focus();
+        await nestedRow(page, fixture.reviewer).focus();
         await page.keyboard.press('Delete');
-        await expect(sessionCard(page, fixture.takenOver)).toHaveCount(0);
-        await expect(group.locator('.session-card')).toHaveCount(2);
+        await expect(sessionCard(page, fixture.reviewer)).toHaveCount(0);
+        await expect(group.locator('.session-card')).toHaveCount(1);
         await expect(sessionCard(page, fixture.host)).toBeVisible();
         const afterRow = await pageRequest<BootstrapState>(page, 'app.bootstrap');
         expect(
-            afterRow.sessions.find((session) => session.id === fixture.takenOver)?.archivedAt,
+            afterRow.sessions.find((session) => session.id === fixture.reviewer)?.archivedAt,
         ).toBeDefined();
         expect(
             afterRow.sessions.find((session) => session.id === fixture.host)?.archivedAt,
@@ -205,7 +209,7 @@ test('archiving a nested Session or its host returns what remains to its own Pro
         await pageRequest(page, 'session.archive', { sessionId: fixture.host });
         await expect(group).toHaveCount(0);
         const workerSessions = projectSessions(page, WORKER_PROJECT);
-        const returned = [fixture.reviewer, fixture.failed, fixture.consult, fixture.handoff];
+        const returned = [fixture.failed, fixture.takenOver, fixture.consult, fixture.handoff];
         await expect
             .poll(async () => sorted(await sessionIdsIn(workerSessions)))
             .toEqual(sorted(returned));

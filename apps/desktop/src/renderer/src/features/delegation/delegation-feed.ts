@@ -110,6 +110,19 @@ function attemptNumber(
 }
 
 /**
+ * The delegated Sessions the user took over and has not handed back (`control: 'human'`), as a sorted list. The
+ * PrimarySidebar lists them as ordinary rows instead of nesting them under the Session that created them.
+ */
+export function humanControlledSessionIds(
+    entries: ReadonlyArray<Pick<AgentDelegationSession, 'control' | 'relation' | 'sessionId'>>,
+): string[] {
+    return entries
+        .filter((entry) => entry.relation === 'delegated' && entry.control === 'human')
+        .map((entry) => entry.sessionId)
+        .toSorted(compareIds);
+}
+
+/**
  * The nested Sessions whose delegation failed, as a sorted list: plain data, so React Query's structural sharing keeps
  * the same reference while the answer is unchanged and a row only re-renders when its own status moves. A failure a
  * retry superseded (`retriedAs`) is left out: its row stays, but the red cross belongs to the attempt that replaced

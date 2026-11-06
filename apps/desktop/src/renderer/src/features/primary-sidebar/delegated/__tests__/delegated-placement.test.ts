@@ -189,6 +189,48 @@ describe('placeDelegatedSessions', () => {
         expect(placement.byId.get('consult')).toEqual({ kind: 'row' });
     });
 
+    describe('taken-over Sessions', () => {
+        const sessions = [
+            session('host', 'alpha'),
+            createdBy('taken', 'beta', 'host', 'delegated'),
+            createdBy('grandchild', 'alpha', 'taken', 'delegated'),
+            createdBy('sibling', 'alpha', 'host', 'delegated', { sidebarOrder: 1 }),
+        ];
+
+        it('gives a delegated Session the user controls an ordinary row in its own Project', () => {
+            const placement = placeDelegatedSessions({
+                humanControlledSessionIds: new Set(['taken']),
+                projects,
+                selectedSessionId: undefined,
+                sessions,
+            });
+            expect(placement.byId.get('taken')).toEqual({ kind: 'row' });
+            expect(ids(placement.rows)).toEqual(['host', 'taken']);
+            expect(ids(placement.nestedByHost.get('host'))).toEqual(['sibling']);
+            // It hosts what it delegated, like any other row.
+            expect(placement.byId.get('grandchild')).toEqual({ hostId: 'taken', kind: 'nested' });
+        });
+
+        it('nests it again once the user hands it back', () => {
+            const placement = place(sessions);
+            expect(placement.byId.get('taken')).toEqual({ hostId: 'host', kind: 'nested' });
+            expect(placement.byId.get('grandchild')).toEqual({ hostId: 'host', kind: 'nested' });
+        });
+
+        it('leaves a consult hidden even when the feed names it', () => {
+            const placement = placeDelegatedSessions({
+                humanControlledSessionIds: new Set(['asked']),
+                projects,
+                selectedSessionId: undefined,
+                sessions: [
+                    session('host', 'alpha'),
+                    createdBy('asked', 'alpha', 'host', 'consult'),
+                ],
+            });
+            expect(placement.byId.get('asked')).toEqual({ hostId: 'host', kind: 'hidden' });
+        });
+    });
+
     describe('pinned Sessions', () => {
         it('keeps a pinned delegated Session as a flat row instead of nesting it', () => {
             const placement = place([

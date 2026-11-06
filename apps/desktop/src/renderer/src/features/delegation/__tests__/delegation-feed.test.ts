@@ -16,6 +16,7 @@ import {
     delegationElapsedMs,
     delegationFeedCreatorIdChunks,
     failedDelegationSessionIds,
+    humanControlledSessionIds,
     isDelegationAsking,
     isDelegationUserPending,
     isRetryCandidate,
@@ -89,6 +90,21 @@ describe('isDelegationFailed', () => {
             expect(isDelegationFailed({ status: 'failed', failure })).toBe(
                 delegationCopy({ status: 'failed', failure }, 0, translate).glyph === 'failed',
             );
+    });
+});
+
+describe('humanControlledSessionIds', () => {
+    it('lists the delegated Sessions the user controls now, sorted', () => {
+        expect(
+            humanControlledSessionIds([
+                { sessionId: 'c', relation: 'delegated', control: 'human' },
+                { sessionId: 'a', relation: 'delegated', control: 'human' },
+                { sessionId: 'b', relation: 'delegated', control: 'handback_pending' },
+                { sessionId: 'd', relation: 'delegated', control: 'delegated' },
+                { sessionId: 'e', relation: 'delegated' },
+                { sessionId: 'f', relation: 'consult', control: 'human' },
+            ]),
+        ).toEqual(['a', 'c']);
     });
 });
 

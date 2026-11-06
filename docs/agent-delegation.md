@@ -1364,6 +1364,13 @@ that decide which Sessions take which place.
   ends the chain, and the Sessions it created return to their own Project groups. A pinned
   `delegated` Session keeps a flat Pinned row, and a `handoff`, an `independent`, or an ownerless
   Session keeps an ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
+- **Takeover.** A `delegated` Session whose feed entry has `control: "human"` (the user took it over
+  and has not handed it back) keeps an ordinary row in its own Project and hosts the Sessions it
+  delegates. A hand-back nests it again. The feed's creator set comes from the record-only placement,
+  so a taken-over Session's creator stays in the read and the row does not flap. Previous/next
+  Session and selecting a Project read the same answer from the cached feed
+  (`delegation-feed-cache.ts`); the command palette and share dialog list order from the records
+  alone and still list it after its host.
 - **Consult.** A `consult` Session takes no row while a Session above it is listed. It shows
   nested only while it is the selected Session, and the command palette still finds it.
 - **Grouping.** The Session keeps its own `projectId`. Only the sidebar's grouping moves: a nested
@@ -1371,8 +1378,8 @@ that decide which Sessions take which place.
   protection, and its row names its own Project.
 - **Feed.** The Renderer reads `agent.delegation.sessions` for the direct creators of the nested
   Sessions, with no poll. A `state.changed` push of the delegated Session and `agent.delegation.progress`
-  refresh it (`queries/invalidation-delegation-feed.ts`). Today the sidebar uses one field of the
-  feed: a newest task with `status: "failed"` and a failure that is a real one gives the nested
+  refresh it (`queries/invalidation-delegation-feed.ts`). Besides `control` (see Takeover), the sidebar uses the
+  feed for failures: a newest task with `status: "failed"` and a failure that is a real one gives the nested
   row its failure glyph. A `failed` task whose failure is a takeover, a changed target, a
   refusal, or a stop (`human_input`, `target_changed`, `session_changed`, `caller_stopped`,
   `host_reset`, `target_busy`, `target_not_ready`, and the unreadable-result and waiting values)

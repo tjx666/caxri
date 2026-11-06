@@ -67,8 +67,8 @@ export type SessionTitleMode = z.infer<typeof sessionTitleModeSchema>;
  *   questions go to the user; the creator still manages it as the Session it created.
  *
  * The Session records the relation and `session.query` returns it. The PrimarySidebar (issue #3572) lists a `delegated`
- * Session under the Session that created it and gives a `consult` Session no row of its own while a Session above it is
- * listed; a `handoff` or `independent` Session keeps an ordinary row.
+ * Session under the Session that created it (until the user takes it over) and gives a `consult` Session no row of its
+ * own while a Session above it is listed; a `handoff` or `independent` Session keeps an ordinary row.
  *
  * The relation kinds follow the thread relations of T3 Code (see `competitors/references/feature-references.md`).
  */

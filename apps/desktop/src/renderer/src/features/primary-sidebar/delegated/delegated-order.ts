@@ -43,6 +43,9 @@ export interface SidebarSessionOrder {
  * then the sidebar order inside a Project, with every nested Session right after its host. A nested Session follows its
  * host even when the host's child window folds it behind `Show N more`, and a host's hidden consults close its run.
  *
+ * `humanControlledSessionIds` are the delegated Sessions the user took over, which the Project tree lists as ordinary
+ * rows (see `placeDelegatedSessions`); a caller without the feed leaves them after their host.
+ *
  * Pinning does not reorder this list (the Pinned group is a view, not a position); a pinned Session keeps its Project
  * slot, as before nesting existed. Activity mode does not use this order.
  */
@@ -50,8 +53,14 @@ export function sidebarSessionOrder(
     projects: ReadonlyArray<Pick<ProjectRecord, 'id'>>,
     sessions: readonly SessionRecord[],
     selectedSessionId?: string,
+    humanControlledSessionIds?: ReadonlySet<string>,
 ): SidebarSessionOrder {
-    const placement = placeDelegatedSessions({ projects, selectedSessionId, sessions });
+    const placement = placeDelegatedSessions({
+        humanControlledSessionIds,
+        projects,
+        selectedSessionId,
+        sessions,
+    });
     const all: SessionRecord[] = [];
     const navigable: SessionRecord[] = [];
     for (const row of rowSessionsByProject(projects, placement)) {
