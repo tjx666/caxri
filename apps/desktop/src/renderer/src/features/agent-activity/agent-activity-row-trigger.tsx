@@ -1,4 +1,11 @@
-import type { AgentExcerpt, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
+import type { KeyboardEvent } from 'react';
+
+import type {
+    AgentExcerpt,
+    ProjectRecord,
+    SessionAttentionKind,
+    SessionPullRequest,
+} from '@caxri/protocol';
 import { FolderTree, Sparkles } from 'lucide-react';
 
 import type { Translate } from '../../i18n';
@@ -72,6 +79,82 @@ function StatusNote({ note, t }: { note: AgentActivityStatusNote; t: Translate }
             data-activity-note={note}
         >
             {label}
+        </span>
+    );
+}
+
+/**
+ * The row's own keys once the rename editor is closed.
+ */
+function handleRowKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    {
+        canMarkDone,
+        canSuggest,
+        onMarkDone,
+        onSelect,
+        onSuggest,
+    }: {
+        canMarkDone: boolean;
+        canSuggest: boolean;
+        onMarkDone: () => void;
+        onSelect: () => void;
+        onSuggest: () => void;
+    },
+): void {
+    // The Project tree's `Shift+Enter`: open the editor and ask for an AI-generated name.
+    if (event.key === 'Enter' && event.shiftKey) {
+        event.preventDefault();
+        if (canSuggest) onSuggest();
+        return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onSelect();
+        return;
+    }
+    /*
+     * Delete resolves the item here rather than archiving the Session, which is what the same key does in the
+     * PrimarySidebar. The two lists answer different questions: that one is "which Sessions exist", this one is "what is
+     * still on my plate", and removing an item from a queue is what Delete means in a queue. `aria-keyshortcuts`
+     * announces it, and the row's own check button offers the same action.
+     */
+    if (canMarkDone && (event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault();
+        onMarkDone();
+    }
+}
+
+/**
+ * The slot is reserved on every Needs attention row so titles align whether or not the row is unread. The unread dot
+ * sits here; `AgentActivityRowItem` overlays the Mark as Done check on the same spot as a sibling of the row, and the
+ * dot yields to it on hover, focus, and selection. It carries no label of its own: the title's weight and the check's
+ * accessible name say the rest.
+ */
+function AttentionLead({
+    attentionKind,
+    isUnread,
+    selected,
+}: {
+    attentionKind: SessionAttentionKind | undefined;
+    isUnread: boolean;
+    selected: boolean;
+}) {
+    return (
+        <span
+            aria-hidden="true"
+            className="agent-activity-lead flex h-4 w-3 flex-none items-center justify-center"
+        >
+            {isUnread && (
+                <span
+                    className={cn(
+                        'agent-activity-unread-dot size-1.5 rounded-full transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
+                        attentionKind === 'failed' ? 'bg-danger' : 'bg-warning',
+                        selected && 'opacity-0',
+                    )}
+                    data-activity-unread={attentionKind ?? 'unknown'}
+                />
+            )}
         </span>
     );
 }
@@ -168,53 +251,25 @@ export function AgentActivityRowTrigger({
             onDoubleClick={beginRename}
             onKeyDown={(event) => {
                 if (isRenaming) return;
-                // The Project tree's `Shift+Enter`: open the editor and ask for an AI-generated name.
-                if (event.key === 'Enter' && event.shiftKey) {
-                    event.preventDefault();
-                    if (canSuggest)
-                        sessionRename.suggestRename(session.id, session.title, row.rowId);
-                    return;
-                }
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    // Fire-and-forget: the selection reports its own failures through a toast.
-                    if (!selected) void didSelectSession(session.id);
-                    return;
-                }
-                /*
-                 * Delete resolves the item here rather than archiving the Session, which is what the same key does in
-                 * the PrimarySidebar. The two lists answer different questions: that one is "which Sessions exist",
-                 * this one is "what is still on my plate", and removing an item from a queue is what Delete means in a
-                 * queue. `aria-keyshortcuts` above announces it, and the row's own check button offers the same action.
-                 */
-                if (canMarkDone && (event.key === 'Delete' || event.key === 'Backspace')) {
-                    event.preventDefault();
-                    onMarkDone();
-                }
+                handleRowKeyDown(event, {
+                    canMarkDone,
+                    canSuggest,
+                    onMarkDone,
+                    onSelect: () => {
+                        // Fire-and-forget: the selection reports its own failures through a toast.
+                        if (!selected) void didSelectSession(session.id);
+                    },
+                    onSuggest: () =>
+                        sessionRename.suggestRename(session.id, session.title, row.rowId),
+                });
             }}
         >
             {isAttention && (
-                /*
-                 * The slot is reserved on every Needs attention row so titles align whether or not the row is unread.
-                 * The unread dot sits here; `AgentActivityRowItem` overlays the Mark as Done check on the same spot as
-                 * a sibling of the row, and the dot yields to it on hover, focus, and selection. It carries no
-                 * label of its own: the title's weight and the check's accessible name say the rest.
-                 */
-                <span
-                    aria-hidden="true"
-                    className="agent-activity-lead flex h-4 w-3 flex-none items-center justify-center"
-                >
-                    {session.hasUnread && (
-                        <span
-                            className={cn(
-                                'agent-activity-unread-dot size-1.5 rounded-full transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
-                                session.lastAttentionKind === 'failed' ? 'bg-danger' : 'bg-warning',
-                                selected && 'opacity-0',
-                            )}
-                            data-activity-unread={session.lastAttentionKind ?? 'unknown'}
-                        />
-                    )}
-                </span>
+                <AttentionLead
+                    attentionKind={session.lastAttentionKind}
+                    isUnread={session.hasUnread}
+                    selected={selected}
+                />
             )}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <AgentActivityRowTitle

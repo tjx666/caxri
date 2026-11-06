@@ -96,18 +96,57 @@ export async function executeMobileSessionAttentionScenario(
                     .id,
                 data: `${command}\r`,
             });
-        await send(question, 'fixture:question');
-        await send(working, 'fixture:start');
         const session = (state: BootstrapState, id: string): SessionRecord | undefined =>
             state.sessions.find((candidate) => candidate.id === id);
-        await waitForMobile(
-            () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
-            (state) =>
-                session(state, question)?.hasPendingAttention === true &&
-                session(state, working)?.agentActivityState === 'running' &&
-                session(state, finished)?.hasPendingAttention === true,
-            60_000,
+        const readState = () => pageRequest<BootstrapState>(page, 'app.bootstrap');
+        /**
+         * A freshly launched fixture Agent may not read its Terminal yet, so a command is resent until the Desktop
+         * records the expected state.
+         */
+        const sendUntil = async (
+            sessionId: string,
+            command: AttentionCommand,
+            isReached: (record: SessionRecord | undefined) => boolean,
+            label: string,
+        ) => {
+            for (let attempt = 0; attempt < 4; attempt += 1) {
+                // eslint-disable-next-line no-await-in-loop -- each attempt waits for the previous one to settle.
+                await send(sessionId, command);
+                try {
+                    // eslint-disable-next-line no-await-in-loop -- see above.
+                    await waitForMobile(
+                        readState,
+                        (state) => isReached(session(state, sessionId)),
+                        10_000,
+                    );
+                    return;
+                } catch {
+                    // Resend: the Agent had not taken the command yet.
+                }
+            }
+            throw new Error(`${label} was never reached`);
+        };
+        await sendUntil(
+            question,
+            'fixture:question',
+            (record) => record?.lastAttentionKind === 'waiting' && record.hasPendingAttention,
+            'The question Session waiting on the user',
         );
+        await sendUntil(
+            working,
+            'fixture:start',
+            (record) => record?.agentActivityState === 'running',
+            'The working Session running',
+        );
+        try {
+            await waitForMobile(
+                readState,
+                (state) => session(state, finished)?.hasPendingAttention === true,
+                30_000,
+            );
+        } catch {
+            throw new Error('The finished Session never held Pending Attention');
+        }
         await waitForRowGroup(serial, question, 'attention');
         await waitForRowGroup(serial, finished, 'attention');
         await waitForRowGroup(serial, working, 'working');
@@ -132,7 +171,7 @@ export async function executeMobileSessionAttentionScenario(
         await capture(environment, 'menu-mark-done', artifacts);
         await tapMobileCheck(serial, 'session-mark-done');
         await waitForMobile(
-            () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
+            readState,
             (state) => session(state, finished)?.hasPendingAttention === false,
         );
         await tapMobileCheck(serial, 'session-detail-back');
@@ -143,7 +182,12 @@ export async function executeMobileSessionAttentionScenario(
         await capture(environment, 'marked-done-in-idle', artifacts);
 
         // A new turn resolves the question's attention too: the Session leaves Needs attention for Working.
-        await send(question, 'fixture:start');
+        await sendUntil(
+            question,
+            'fixture:start',
+            (record) => record?.agentActivityState === 'running',
+            'The question Session starting a new turn',
+        );
         await waitForRowGroup(serial, question, 'working');
         await capture(environment, 'new-turn-leaves-attention', artifacts);
         await finish(environment, artifacts, {

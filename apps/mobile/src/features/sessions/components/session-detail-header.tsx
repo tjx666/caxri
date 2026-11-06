@@ -1,3 +1,4 @@
+import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import type { HostInstance } from 'react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -186,6 +187,87 @@ interface MarkReadState {
 
 const NO_MARK_READ_ERROR: MarkReadState = { message: null };
 
+/**
+ * Runs a menu's Mark read or Mark as Done request and keeps its failure beside the Session that raised it: a paired
+ * device without reply access reads the forbidden message, any other failure the generic one.
+ */
+function useMarkAction({
+    closeMenu,
+    sessionId,
+    setMarkReadErrors,
+    t,
+}: {
+    closeMenu: () => void;
+    sessionId: string;
+    setMarkReadErrors: Dispatch<SetStateAction<SessionScoped<MarkReadState>>>;
+    t: Translate;
+}) {
+    return useCallback(
+        async (
+            action: () => Promise<void>,
+            forbiddenKey: TranslationKey,
+            failedKey: TranslationKey,
+        ): Promise<void> => {
+            closeMenu();
+            let message: string | null = null;
+            try {
+                await action();
+            } catch (error) {
+                message = t(
+                    error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
+                        ? forbiddenKey
+                        : failedKey,
+                );
+            }
+            setMarkReadErrors((previous) =>
+                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message }),
+            );
+        },
+        [closeMenu, sessionId, setMarkReadErrors, t],
+    );
+}
+
+/**
+ * The menu's attention items: Mark as Done while the Session holds Pending Attention, and Mark read always.
+ */
+function AttentionMenuActions({
+    canMarkDone,
+    isConnected,
+    onMarkDone,
+    onMarkRead,
+    theme,
+}: {
+    canMarkDone: boolean;
+    isConnected: boolean;
+    onMarkDone: () => Promise<void>;
+    onMarkRead: () => Promise<void>;
+    theme: MobileTheme;
+}) {
+    const { t } = useTranslation();
+    return (
+        <>
+            {canMarkDone ? (
+                <PopoverAction
+                    disabled={!isConnected}
+                    icon={CircleCheck}
+                    label={t('sessions.detail.markDone')}
+                    onPress={onMarkDone}
+                    testID="session-mark-done"
+                    theme={theme}
+                />
+            ) : null}
+            <PopoverAction
+                disabled={!isConnected}
+                icon={MailOpen}
+                label={t('sessions.detail.markRead')}
+                onPress={onMarkRead}
+                testID="session-mark-read"
+                theme={theme}
+            />
+        </>
+    );
+}
+
 export const SessionDetailHeader = ({
     changesCount,
     deviceRole,
@@ -264,42 +346,25 @@ export const SessionDetailHeader = ({
         closeMenu();
         void surfaceSwitch.switchSurface();
     }, [closeMenu, surfaceSwitch]);
-    const handleMarkRead = useCallback(async (): Promise<void> => {
-        closeMenu();
-        try {
-            await onMarkRead();
-            setMarkReadErrors((previous) =>
-                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message: null }),
-            );
-        } catch (error) {
-            const message = t(
-                error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
-                    ? 'sessions.detail.markReadForbidden'
-                    : 'sessions.detail.markReadFailed',
-            );
-            setMarkReadErrors((previous) =>
-                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message }),
-            );
-        }
-    }, [closeMenu, onMarkRead, sessionId, t]);
-    const handleMarkDone = useCallback(async (): Promise<void> => {
-        closeMenu();
-        try {
-            await onMarkDone();
-            setMarkReadErrors((previous) =>
-                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message: null }),
-            );
-        } catch (error) {
-            const message = t(
-                error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
-                    ? 'sessions.detail.markDoneForbidden'
-                    : 'sessions.detail.markDoneFailed',
-            );
-            setMarkReadErrors((previous) =>
-                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message }),
-            );
-        }
-    }, [closeMenu, onMarkDone, sessionId, t]);
+    const runMarkAction = useMarkAction({ closeMenu, sessionId, setMarkReadErrors, t });
+    const handleMarkRead = useCallback(
+        () =>
+            runMarkAction(
+                onMarkRead,
+                'sessions.detail.markReadForbidden',
+                'sessions.detail.markReadFailed',
+            ),
+        [onMarkRead, runMarkAction],
+    );
+    const handleMarkDone = useCallback(
+        () =>
+            runMarkAction(
+                onMarkDone,
+                'sessions.detail.markDoneForbidden',
+                'sessions.detail.markDoneFailed',
+            ),
+        [onMarkDone, runMarkAction],
+    );
     return (
         <>
             <View style={[styles.header, { borderColor: theme.border }]}>
@@ -390,22 +455,11 @@ export const SessionDetailHeader = ({
                             theme={theme}
                         />
                     ) : null}
-                    {canMarkSessionDone(session) ? (
-                        <PopoverAction
-                            disabled={!isConnected}
-                            icon={CircleCheck}
-                            label={t('sessions.detail.markDone')}
-                            onPress={handleMarkDone}
-                            testID="session-mark-done"
-                            theme={theme}
-                        />
-                    ) : null}
-                    <PopoverAction
-                        disabled={!isConnected}
-                        icon={MailOpen}
-                        label={t('sessions.detail.markRead')}
-                        onPress={handleMarkRead}
-                        testID="session-mark-read"
+                    <AttentionMenuActions
+                        canMarkDone={canMarkSessionDone(session)}
+                        isConnected={isConnected}
+                        onMarkDone={handleMarkDone}
+                        onMarkRead={handleMarkRead}
                         theme={theme}
                     />
                     <SessionMenuActionEntries
