@@ -37,6 +37,7 @@ import {
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
 import { useAgentActivityClock } from './hooks/use-agent-activity-clock';
+import { useAgentActivityExpandScroll } from './hooks/use-agent-activity-expand-scroll';
 import {
     useAgentActivityAutoExpand,
     useAgentActivityGroupCollapse,
@@ -171,6 +172,7 @@ export function AgentActivityView() {
         [groups, t],
     );
     useAgentActivityAutoExpand(headings, groupCollapse.collapsedGroupIds, groupCollapse.expand);
+    const markExpandScroll = useAgentActivityExpandScroll(scrollReference, rows);
     /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
      * name, a state phrase, and this, inside a side bar the user can drag down to 180px; "8 minutes ago" costs roughly
@@ -287,7 +289,10 @@ export function AgentActivityView() {
                                         heading={heading}
                                         roving={rovingRowId === entry.id}
                                         onFocus={() => setFocusedRowId(entry.id)}
-                                        onToggle={() => groupCollapse.toggle(entry.id)}
+                                        onToggle={() => {
+                                            if (!entry.expanded) markExpandScroll(entry.id);
+                                            groupCollapse.toggle(entry.id);
+                                        }}
                                     />
                                 );
                             }
