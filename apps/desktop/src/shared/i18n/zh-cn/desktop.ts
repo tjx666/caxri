@@ -76,16 +76,12 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.runningWork.terminalOther': '{{count}} 个终端',
     'desktop.runningWork.chatOne': '{{count}} 个对话',
     'desktop.runningWork.chatOther': '{{count}} 个对话',
-    'desktop.runningWork.runningTerminalOne': '{{count}} 个正在运行的终端',
-    'desktop.runningWork.runningTerminalOther': '{{count}} 个正在运行的终端',
-    'desktop.runningWork.runningChatOne': '{{count}} 个正在运行的对话',
-    'desktop.runningWork.runningChatOther': '{{count}} 个正在运行的对话',
     'desktop.runningWork.and': '{{first}}和 {{second}}',
 
     'desktop.deleteProject.title': '删除项目',
     'desktop.deleteProject.confirm': '删除项目',
-    'desktop.deleteProject.detail':
-        '只会删除 Caxri 的元数据和快照，项目文件夹及其中的文件不会被改动。',
+    'desktop.deleteProject.message': '删除项目？',
+    'desktop.deleteProject.messageRunning': '删除项目并终止 {{running}}？',
     'desktop.deleteProject.worktreeOne': '1 个关联的 Worktree 项目会一并移除：{{names}}。',
     'desktop.deleteProject.worktreeOther':
         '{{count}} 个关联的 Worktree 项目会一并移除：{{names}}。',
@@ -96,10 +92,9 @@ export const desktop: TranslatedNamespace<typeof source> = {
         '它们是会话采用 Worktree 时由 Caxri 自动登记的，只能通过这种级联方式移除。仍在其中任一 Worktree 工作的会话会保留，其工作台根目录将恢复为所属项目的根目录。',
     'desktop.deleteSession.title': '删除会话',
     'desktop.deleteSession.confirm': '删除会话',
-    'desktop.deleteSession.detail':
-        '只会删除 Caxri 的元数据和快照，所选文件夹及其中的文件不会被改动。',
-    'desktop.delete.message': '要删除“{{title}}”吗？',
-    'desktop.delete.messageRunning': '要删除“{{title}}”并终止 {{running}}吗？',
+    'desktop.deleteSession.message': '删除会话？',
+    'desktop.deleteSession.messageRunning': '删除会话并终止 {{running}}？',
+    'desktop.delete.detail': '磁盘上的文件不会被改动。',
     'desktop.archiveWorktree.title': '删除 Worktree',
     'desktop.archiveWorktree.message': '同时删除“{{title}}”的 Worktree 吗？',
     'desktop.archiveWorktree.reasonOpen': '它的 Pull Request 尚未合并。',
@@ -112,10 +107,8 @@ export const desktop: TranslatedNamespace<typeof source> = {
 
     'desktop.deleteSessions.title': '删除会话',
     'desktop.deleteSessions.confirm': '删除会话',
-    'desktop.deleteSessions.message': '要删除 {{count}} 个会话吗？',
-    'desktop.deleteSessions.messageRunning': '要删除 {{count}} 个会话并终止 {{running}}吗？',
-    'desktop.deleteSessions.detail':
-        '只会删除 Caxri 的元数据和快照，所选文件夹及其中的文件不会被改动。',
+    'desktop.deleteSessions.message': '删除 {{count}} 个会话？',
+    'desktop.deleteSessions.messageRunning': '删除 {{count}} 个会话并终止 {{running}}？',
 
     'desktop.clearBotData.title': '清除 Caxri Bot 数据',
     'desktop.clearBotData.message': '要清除所选的 Caxri Bot 数据吗？',
@@ -267,9 +260,6 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.benchmarkShare.pngImage': 'PNG 图片',
     'desktop.chooseProjectFolder': '选择项目文件夹',
     'desktop.chooseChatFilesAndFolders': '添加文件和文件夹',
-
-    'desktop.fallback.thisProject': '此项目',
-    'desktop.fallback.thisSession': '此会话',
 
     'desktop.notification.agentWaiting': '正在等待你的输入',
     'desktop.notification.agentTurnFinished': '本轮已完成',

@@ -52,7 +52,6 @@ import {
 import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
-import { translateMain } from './locale';
 import { handleBugReportRequest, isBugReportRequest } from './main-bug-report-methods';
 import type { MainEnvironmentMethods } from './main-environment-methods';
 import {
@@ -382,13 +381,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     ),
                 );
                 const running = sumRunningWork(counts);
-                const projectTitle =
-                    state.projects.find((project) => project.id === projectId)?.title ??
-                    translateMain('desktop.fallback.thisProject');
                 const result = await dialog.showMessageBox(
                     mainWindow!,
                     deleteProjectPrompt(
-                        projectTitle,
                         running,
                         worktreeProjects.map((project) => project.title),
                     ),
@@ -399,11 +394,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             case 'session.delete': {
                 const { sessionId } = request.params;
                 const running = await supervisor.request('terminal.runningCount', { sessionId });
-                const bootstrap = await supervisor.request('app.bootstrap');
-                const sessionTitle =
-                    bootstrap.sessions.find((session) => session.id === sessionId)?.title ??
-                    translateMain('desktop.fallback.thisSession');
-                const sessionPrompt = deleteSessionPrompt(sessionTitle, running);
+                const sessionPrompt = deleteSessionPrompt(running);
                 const result = sessionDeleteFixture
                     ? await sessionDeleteFixture.confirm(sessionId, sessionPrompt)
                     : await dialog.showMessageBox(mainWindow!, sessionPrompt);
@@ -428,12 +419,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 const result = await dialog.showMessageBox(
                     mainWindow!,
                     sessionIds.length === 1
-                        ? deleteSessionPrompt(
-                              (await supervisor.request('app.bootstrap')).sessions.find(
-                                  (session) => session.id === sessionIds[0],
-                              )?.title ?? translateMain('desktop.fallback.thisSession'),
-                              running,
-                          )
+                        ? deleteSessionPrompt(running)
                         : deleteSessionsPrompt(sessionIds.length, running),
                 );
                 if (result.response !== 0) return { canceled: true };

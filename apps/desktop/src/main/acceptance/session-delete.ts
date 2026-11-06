@@ -28,8 +28,8 @@ const commandSchema = z.strictObject({
  * launch's fresh in-memory sequence. The Renderer command, Main authorization, and the Server deletion itself all stay
  * in the path under test.
  *
- * The receipt records the opaque Session id but no prompt text: the confirmation names the Session, and Session names
- * are private Acceptance material while the local id is not.
+ * The receipt records the opaque Session id but no prompt text, so a later prompt that names the Session cannot leak
+ * private Acceptance material into it.
  */
 export function createAcceptanceSessionDeleteFixture(options: {
     environment: NodeJS.ProcessEnv;

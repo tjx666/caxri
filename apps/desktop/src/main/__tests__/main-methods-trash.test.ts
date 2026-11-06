@@ -342,7 +342,7 @@ describe('project.delete', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                message: "Delete 'Caxri' and terminate 2 running Terminals and 1 running Chat?",
+                message: 'Delete Project and stop 2 Terminals and 1 Chat?',
             }),
         );
         expect(request).toHaveBeenCalledWith('project.delete', { projectId: 'project-1' });
@@ -362,23 +362,6 @@ describe('project.delete', () => {
             handle({ method: 'project.delete', params: { projectId: 'project-1' } }),
         ).resolves.toEqual({ canceled: true });
         expect(request).not.toHaveBeenCalledWith('project.delete', expect.anything());
-    });
-
-    it('falls back to a generic title when the Project is missing from bootstrap state', async () => {
-        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
-        const request = vi.fn((method: string) => {
-            if (method === 'app.bootstrap') return Promise.resolve(bootstrapWith([], []));
-            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
-            if (method === 'project.delete') return Promise.resolve({ ok: true });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const handle = handler(request);
-
-        await handle({ method: 'project.delete', params: { projectId: 'missing-project' } });
-        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
-            {},
-            expect.objectContaining({ message: "Delete 'this Project'?" }),
-        );
     });
 });
 
@@ -408,8 +391,7 @@ describe('session.delete', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                message:
-                    "Delete 'Feature work' and terminate 1 running Terminal and 2 running Chats?",
+                message: 'Delete Session and stop 1 Terminal and 2 Chats?',
             }),
         );
         expect(request).toHaveBeenCalledWith('session.delete', { sessionId: 'session-1' });
@@ -428,23 +410,6 @@ describe('session.delete', () => {
             handle({ method: 'session.delete', params: { sessionId: 'session-1' } }),
         ).resolves.toEqual({ canceled: true });
         expect(request).not.toHaveBeenCalledWith('session.delete', expect.anything());
-    });
-
-    it('falls back to a generic title when the Session is missing from bootstrap state', async () => {
-        electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
-        const request = vi.fn((method: string) => {
-            if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
-            if (method === 'app.bootstrap') return Promise.resolve(bootstrapWith([], []));
-            if (method === 'session.delete') return Promise.resolve({ ok: true });
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const handle = handler(request);
-
-        await handle({ method: 'session.delete', params: { sessionId: 'missing-session' } });
-        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
-            {},
-            expect.objectContaining({ message: "Delete 'this Session'?" }),
-        );
     });
 });
 
@@ -473,7 +438,7 @@ describe('session.deleteMany', () => {
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
             expect.objectContaining({
-                message: 'Delete 2 Sessions and terminate 2 running Terminals and 1 running Chat?',
+                message: 'Delete 2 Sessions and stop 2 Terminals and 1 Chat?',
             }),
         );
         expect(request).toHaveBeenCalledWith('session.deleteMany', {
@@ -481,7 +446,7 @@ describe('session.deleteMany', () => {
         });
     });
 
-    it('names the Session when the batch holds exactly one', async () => {
+    it('uses the single-Session wording when the batch holds exactly one', async () => {
         electronMock.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
         const request = vi.fn((method: string) => {
             if (method === 'terminal.runningCount') return Promise.resolve(NOTHING_RUNNING);
@@ -500,7 +465,7 @@ describe('session.deleteMany', () => {
         await handle({ method: 'session.deleteMany', params: { sessionIds: ['session-1'] } });
         expect(electronMock.dialog.showMessageBox).toHaveBeenCalledWith(
             {},
-            expect.objectContaining({ message: "Delete 'Feature work'?" }),
+            expect.objectContaining({ message: 'Delete Session?' }),
         );
     });
 
