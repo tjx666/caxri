@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { nextRevealedSessionCount } from '@caxri/protocol';
 
@@ -16,6 +16,7 @@ import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/pro
 import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
+import { scrollExpandedAgentActivityGroupIntoView } from './agent-activity-expand-scroll';
 import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
@@ -172,6 +173,17 @@ export function AgentActivityView() {
     );
     useAgentActivityAutoExpand(headings, groupCollapse.collapsedGroupIds, groupCollapse.expand);
     /**
+     * The group the user just opened by hand, scrolled into view once its rows are in the DOM. Only a user toggle sets
+     * it: an automatic reopen (`useAgentActivityAutoExpand`) or a rename reveal must not move the list under the user.
+     */
+    const expandScrollGroupReference = useRef<AgentActivityGroupId | undefined>(undefined);
+    useLayoutEffect(() => {
+        const groupId = expandScrollGroupReference.current;
+        if (!groupId || !scrollReference.current) return;
+        expandScrollGroupReference.current = undefined;
+        scrollExpandedAgentActivityGroupIntoView(scrollReference.current, groupId);
+    }, [rows]);
+    /**
      * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
      * name, a state phrase, and this, inside a side bar the user can drag down to 180px; "8 minutes ago" costs roughly
      * twice the width and buys nothing a queue needs.
@@ -287,7 +299,11 @@ export function AgentActivityView() {
                                         heading={heading}
                                         roving={rovingRowId === entry.id}
                                         onFocus={() => setFocusedRowId(entry.id)}
-                                        onToggle={() => groupCollapse.toggle(entry.id)}
+                                        onToggle={() => {
+                                            if (!entry.expanded)
+                                                expandScrollGroupReference.current = entry.id;
+                                            groupCollapse.toggle(entry.id);
+                                        }}
                                     />
                                 );
                             }
