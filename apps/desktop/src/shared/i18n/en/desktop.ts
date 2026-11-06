@@ -81,16 +81,12 @@ export const desktop = {
     'desktop.runningWork.terminalOther': '{{count}} Terminals',
     'desktop.runningWork.chatOne': '{{count}} Chat',
     'desktop.runningWork.chatOther': '{{count}} Chats',
-    'desktop.runningWork.runningTerminalOne': '{{count}} running Terminal',
-    'desktop.runningWork.runningTerminalOther': '{{count}} running Terminals',
-    'desktop.runningWork.runningChatOne': '{{count}} running Chat',
-    'desktop.runningWork.runningChatOther': '{{count}} running Chats',
     'desktop.runningWork.and': '{{first}} and {{second}}',
 
     'desktop.deleteProject.title': 'Delete Project',
     'desktop.deleteProject.confirm': 'Delete Project',
-    'desktop.deleteProject.detail':
-        'Only Caxri metadata and snapshots are deleted. The Project folder and its files are never touched.',
+    'desktop.deleteProject.message': 'Delete Project?',
+    'desktop.deleteProject.messageRunning': 'Delete Project and stop {{running}}?',
     'desktop.deleteProject.worktreeOne': '1 linked worktree Project is removed with it: {{names}}.',
     'desktop.deleteProject.worktreeOther':
         '{{count}} linked worktree Projects are removed with it: {{names}}.',
@@ -101,10 +97,9 @@ export const desktop = {
         'Caxri registered them automatically when a Session adopted the worktree, and a cascade like this is the only way they are removed. Any Session still working in one of them survives, with its Workbench Root back at its own Project root.',
     'desktop.deleteSession.title': 'Delete Session',
     'desktop.deleteSession.confirm': 'Delete Session',
-    'desktop.deleteSession.detail':
-        'Only Caxri metadata and snapshots are deleted. The selected folder and its files are never touched.',
-    'desktop.delete.message': "Delete '{{title}}'?",
-    'desktop.delete.messageRunning': "Delete '{{title}}' and terminate {{running}}?",
+    'desktop.deleteSession.message': 'Delete Session?',
+    'desktop.deleteSession.messageRunning': 'Delete Session and stop {{running}}?',
+    'desktop.delete.detail': 'Files on disk are never touched.',
     'desktop.archiveWorktree.title': 'Remove Worktree',
     'desktop.archiveWorktree.message': 'Remove the worktree of "{{title}}" too?',
     'desktop.archiveWorktree.reasonOpen': 'Its pull request is not merged yet.',
@@ -118,9 +113,7 @@ export const desktop = {
     'desktop.deleteSessions.title': 'Delete Sessions',
     'desktop.deleteSessions.confirm': 'Delete Sessions',
     'desktop.deleteSessions.message': 'Delete {{count}} Sessions?',
-    'desktop.deleteSessions.messageRunning': 'Delete {{count}} Sessions and terminate {{running}}?',
-    'desktop.deleteSessions.detail':
-        'Only Caxri metadata and snapshots are deleted. The selected folders and their files are never touched.',
+    'desktop.deleteSessions.messageRunning': 'Delete {{count}} Sessions and stop {{running}}?',
 
     'desktop.clearBotData.title': 'Clear Caxri Bot Data',
     'desktop.clearBotData.message': 'Clear the selected Caxri Bot data?',
@@ -283,9 +276,6 @@ export const desktop = {
     'desktop.benchmarkShare.pngImage': 'PNG Image',
     'desktop.chooseProjectFolder': 'Choose a Project folder',
     'desktop.chooseChatFilesAndFolders': 'Add files and folders',
-
-    'desktop.fallback.thisProject': 'this Project',
-    'desktop.fallback.thisSession': 'this Session',
 
     'desktop.notification.agentWaiting': 'Waiting for your input',
     'desktop.notification.agentTurnFinished': 'Turn finished',

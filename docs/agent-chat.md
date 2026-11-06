@@ -285,7 +285,7 @@ off on your computer`, refuses input, and offers no Resume, matching its detache
   `terminal.runningCount` reports `{ terminals, chats }` separately, and those confirmations name
   each kind with its own plural and leave out a kind with nothing running, for example
   `Close this window while 1 Terminal and 2 Chats are running?` or
-  `Delete 'X' and terminate 1 running Chat?`.
+  `Delete Session and stop 1 Chat?`.
   Choosing Terminate and Close stops the Chat
   provider process with the PTYs and records it `stopped`; the Chat service keeps running, so the
   next read on the same Server Core starts it again.

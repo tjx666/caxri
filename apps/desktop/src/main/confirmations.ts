@@ -201,22 +201,15 @@ export function sumRunningWork(counts: readonly RunningWork[]): RunningWork {
 
 /**
  * Names running work by kind, for example `2 Terminals and 1 Chat`, so a confirmation tells a plain shell from an Agent
- * still working. Each noun takes its own plural and a kind with nothing running is left out; `qualifier` precedes each
- * noun (`1 running Terminal`); each phrase is translated, so a locale can order the count and the noun its own way.
- * Every prompt that stops or keeps running work words it through here, so the window-close and deletion confirmations
- * stay consistent. Callers check {@link runningWorkTotal} first: nothing running reads as an empty string.
+ * still working. Each noun takes its own plural and a kind with nothing running is left out; each phrase is translated,
+ * so a locale can order the count and the noun its own way. Every prompt that stops or keeps running work words it
+ * through here, so the window-close and deletion confirmations stay consistent. Callers check {@link runningWorkTotal}
+ * first: nothing running reads as an empty string.
  */
-export function runningWorkPhrase(
-    { terminals, chats }: RunningWork,
-    qualifier?: 'running',
-): string {
-    const terminalKey = qualifier
-        ? 'desktop.runningWork.runningTerminal'
-        : 'desktop.runningWork.terminal';
-    const chatKey = qualifier ? 'desktop.runningWork.runningChat' : 'desktop.runningWork.chat';
+export function runningWorkPhrase({ terminals, chats }: RunningWork): string {
     const parts = [
-        [terminals, terminalKey],
-        [chats, chatKey],
+        [terminals, 'desktop.runningWork.terminal'],
+        [chats, 'desktop.runningWork.chat'],
     ] as const;
     const phrases = parts
         .filter(([count]) => count > 0)
@@ -228,10 +221,14 @@ export function runningWorkPhrase(
 /**
  * Deleting a Project or a Session removes Caxri metadata only. The detail line says so explicitly because the verb is
  * the same one file managers use for erasing files.
+ *
+ * The copy stays at one line for the message and one for the detail on purpose. macOS 26 lays a native alert out
+ * centered only while neither text wraps; a single wrapped line (a long Session title was enough) flips the whole sheet
+ * to a left-aligned layout. So the message names the kind rather than the title (the user just picked the row), and
+ * running work is counted without the "running" qualifier.
  */
 function deletePrompt(
     kind: 'deleteProject' | 'deleteSession',
-    title: string,
     running: RunningWork,
 ): MessageBoxOptions {
     return {
@@ -239,12 +236,9 @@ function deletePrompt(
         title: t(`desktop.${kind}.title`),
         message:
             runningWorkTotal(running) > 0
-                ? t('desktop.delete.messageRunning', {
-                      title,
-                      running: runningWorkPhrase(running, 'running'),
-                  })
-                : t('desktop.delete.message', { title }),
-        detail: t(`desktop.${kind}.detail`),
+                ? t(`desktop.${kind}.messageRunning`, { running: runningWorkPhrase(running) })
+                : t(`desktop.${kind}.message`),
+        detail: t('desktop.delete.detail'),
         buttons: [t(`desktop.${kind}.confirm`), t('desktop.dialog.cancel')],
         defaultId: 0,
         cancelId: 1,
@@ -268,11 +262,10 @@ const NAMED_WORKTREE_PROJECT_LIMIT = 5;
  * the one set that is never deleted.
  */
 export function deleteProjectPrompt(
-    title: string,
     running: RunningWork,
     worktreeProjectTitles: readonly string[] = [],
 ): MessageBoxOptions {
-    const prompt = deletePrompt('deleteProject', title, running);
+    const prompt = deletePrompt('deleteProject', running);
     const count = worktreeProjectTitles.length;
     if (count === 0) return prompt;
     const named = worktreeProjectTitles.slice(0, NAMED_WORKTREE_PROJECT_LIMIT);
@@ -292,13 +285,14 @@ export function deleteProjectPrompt(
     return { ...prompt, detail: `${cascade} ${provenance}\n\n${prompt.detail}` };
 }
 
-export function deleteSessionPrompt(title: string, running: RunningWork): MessageBoxOptions {
-    return deletePrompt('deleteSession', title, running);
+export function deleteSessionPrompt(running: RunningWork): MessageBoxOptions {
+    return deletePrompt('deleteSession', running);
 }
 
 /**
  * Bulk deletion from the Archived Sessions manager. A single prompt names the count instead of every title so the
- * dialog stays readable for large selections; one Session still routes through {@link deleteSessionPrompt}.
+ * dialog stays readable for large selections; one Session still routes through {@link deleteSessionPrompt}. Same
+ * one-line copy rule as {@link deletePrompt}.
  */
 export function deleteSessionsPrompt(
     sessionCount: number,
@@ -311,10 +305,10 @@ export function deleteSessionsPrompt(
             runningWorkTotal(running) > 0
                 ? t('desktop.deleteSessions.messageRunning', {
                       count: sessionCount,
-                      running: runningWorkPhrase(running, 'running'),
+                      running: runningWorkPhrase(running),
                   })
                 : t('desktop.deleteSessions.message', { count: sessionCount }),
-        detail: t('desktop.deleteSessions.detail'),
+        detail: t('desktop.delete.detail'),
         buttons: [t('desktop.deleteSessions.confirm'), t('desktop.dialog.cancel')],
         defaultId: 0,
         cancelId: 1,

@@ -37,12 +37,6 @@ describe('running work wording', () => {
         expect(runningWorkPhrase(running)).toBe(phrase);
     });
 
-    it('puts the qualifier before each noun', () => {
-        expect(runningWorkPhrase({ terminals: 2, chats: 1 }, 'running')).toBe(
-            '2 running Terminals and 1 running Chat',
-        );
-    });
-
     it('adds up each kind across Sessions', () => {
         expect(
             sumRunningWork([
@@ -223,44 +217,49 @@ describe('mobile device revoke prompt', () => {
 
 describe('delete prompts', () => {
     it.each([
-        ['Project', deleteProjectPrompt, 'The Project folder'],
-        ['Session', deleteSessionPrompt, 'The selected folder'],
-    ] as const)('names the %s and states that files survive', (kind, prompt, clause) => {
-        const options = prompt('caxri', NOTHING_RUNNING);
+        ['Project', deleteProjectPrompt],
+        ['Session', deleteSessionPrompt],
+    ] as const)('asks to delete the %s and states that files survive', (kind, prompt) => {
+        const options = prompt(NOTHING_RUNNING);
         expect(options.title).toBe(`Delete ${kind}`);
-        expect(options.message).toBe("Delete 'caxri'?");
-        expect(options.detail).toContain('Only Caxri metadata and snapshots are deleted.');
-        expect(options.detail).toContain(`${clause} and its files are never touched.`);
+        expect(options.message).toBe(`Delete ${kind}?`);
+        expect(options.detail).toBe('Files on disk are never touched.');
         expect(options.buttons).toEqual([`Delete ${kind}`, 'Cancel']);
         expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
 
     it.each([
-        [{ terminals: 1, chats: 0 }, "Delete 'caxri' and terminate 1 running Terminal?"],
-        [{ terminals: 3, chats: 0 }, "Delete 'caxri' and terminate 3 running Terminals?"],
-        [{ terminals: 0, chats: 1 }, "Delete 'caxri' and terminate 1 running Chat?"],
-        [
-            { terminals: 1, chats: 2 },
-            "Delete 'caxri' and terminate 1 running Terminal and 2 running Chats?",
-        ],
-    ])('warns about %o running Terminals and Chats by kind', (running, message) => {
-        expect(deleteProjectPrompt('caxri', running).message).toBe(message);
-        expect(deleteSessionPrompt('caxri', running).message).toBe(message);
+        [{ terminals: 1, chats: 0 }, 'and stop 1 Terminal?'],
+        [{ terminals: 3, chats: 0 }, 'and stop 3 Terminals?'],
+        [{ terminals: 0, chats: 1 }, 'and stop 1 Chat?'],
+        [{ terminals: 1, chats: 2 }, 'and stop 1 Terminal and 2 Chats?'],
+    ])('warns about %o running Terminals and Chats by kind', (running, tail) => {
+        expect(deleteProjectPrompt(running).message).toBe(`Delete Project ${tail}`);
+        expect(deleteSessionPrompt(running).message).toBe(`Delete Session ${tail}`);
+    });
+
+    /**
+     * MacOS 26 centers a native alert only while neither the message nor the detail wraps, so the message carries no
+     * user-chosen text (a Session title) whose length could force a second line.
+     */
+    it('keeps user-chosen titles out of the message so the sheet stays one line', () => {
+        expect(deleteSessionPrompt({ terminals: 0, chats: 1 }).message).not.toContain("'");
+        expect(deleteSessionPrompt({ terminals: 0, chats: 1 }).detail).not.toContain('\n');
     });
 
     it('says nothing about worktree Projects when none cascade', () => {
-        expect(deleteProjectPrompt('caxri', NOTHING_RUNNING).detail).not.toContain('worktree');
+        expect(deleteProjectPrompt(NOTHING_RUNNING).detail).not.toContain('worktree');
     });
 
     it('names the cascaded worktree Projects and that this is their only delete path', () => {
-        const options = deleteProjectPrompt('caxri', NOTHING_RUNNING, ['feature-a', 'feature-b']);
+        const options = deleteProjectPrompt(NOTHING_RUNNING, ['feature-a', 'feature-b']);
         expect(options.detail).toContain(
             "2 linked worktree Projects are removed with it: 'feature-a', 'feature-b'.",
         );
         expect(options.detail).toContain('a cascade like this is the only way they are removed');
-        // The metadata-only promise still has to survive the added sentence.
-        expect(options.detail).toContain('The Project folder and its files are never touched.');
+        // The files-survive promise still has to survive the added sentence.
+        expect(options.detail).toContain('Files on disk are never touched.');
     });
 
     /**
@@ -270,7 +269,7 @@ describe('delete prompts', () => {
      */
     it('says the Sessions working in those worktrees survive rather than implying they go too', () => {
         const detail =
-            deleteProjectPrompt('caxri', NOTHING_RUNNING, ['feature-a', 'feature-b']).detail ?? '';
+            deleteProjectPrompt(NOTHING_RUNNING, ['feature-a', 'feature-b']).detail ?? '';
         expect(detail).toContain(
             'Any Session still working in one of them survives, with its Workbench Root back at its own Project root.',
         );
@@ -278,13 +277,13 @@ describe('delete prompts', () => {
     });
 
     it('uses singular wording for one cascaded worktree Project', () => {
-        expect(deleteProjectPrompt('caxri', NOTHING_RUNNING, ['feature-a']).detail).toContain(
+        expect(deleteProjectPrompt(NOTHING_RUNNING, ['feature-a']).detail).toContain(
             "1 linked worktree Project is removed with it: 'feature-a'. Caxri registered it automatically when a Session adopted the worktree, and a cascade like this is the only way it is removed. Any Session still working in it survives",
         );
     });
 
     it('counts the tail instead of listing every title, so the dialog stays readable', () => {
-        const detail = deleteProjectPrompt('caxri', NOTHING_RUNNING, [
+        const detail = deleteProjectPrompt(NOTHING_RUNNING, [
             'a',
             'b',
             'c',
@@ -302,17 +301,14 @@ describe('delete prompts', () => {
 describe('bulk delete Sessions prompt', () => {
     it.each([
         [NOTHING_RUNNING, 'Delete 3 Sessions?'],
-        [{ terminals: 1, chats: 0 }, 'Delete 3 Sessions and terminate 1 running Terminal?'],
-        [{ terminals: 4, chats: 0 }, 'Delete 3 Sessions and terminate 4 running Terminals?'],
-        [
-            { terminals: 2, chats: 1 },
-            'Delete 3 Sessions and terminate 2 running Terminals and 1 running Chat?',
-        ],
+        [{ terminals: 1, chats: 0 }, 'Delete 3 Sessions and stop 1 Terminal?'],
+        [{ terminals: 4, chats: 0 }, 'Delete 3 Sessions and stop 4 Terminals?'],
+        [{ terminals: 2, chats: 1 }, 'Delete 3 Sessions and stop 2 Terminals and 1 Chat?'],
     ])('counts Sessions and running work %o by kind', (running, message) => {
         const options = deleteSessionsPrompt(3, running);
         expect(options.title).toBe('Delete Sessions');
         expect(options.message).toBe(message);
-        expect(options.detail).toContain('Only Caxri metadata and snapshots are deleted.');
+        expect(options.detail).toBe('Files on disk are never touched.');
         expect(options.defaultId).toBe(0);
         expect(options.buttons![options.cancelId!]).toBe('Cancel');
     });
@@ -521,8 +517,8 @@ describe('Return and Escape targets', () => {
         ['external link', externalLinkPrompt(new URL('https://example.com/'), true)],
         ['trash', trashPrompt({ items: [{ name: 'notes.md', path: '/tmp/notes.md' }] })],
         ['shell command', shellCommandElevationPrompt('install', '/usr/local/bin/caxri')],
-        ['delete Project', deleteProjectPrompt('caxri', NOTHING_RUNNING)],
-        ['delete Session', deleteSessionPrompt('caxri', { terminals: 0, chats: 1 })],
+        ['delete Project', deleteProjectPrompt(NOTHING_RUNNING)],
+        ['delete Session', deleteSessionPrompt({ terminals: 0, chats: 1 })],
         ['delete Sessions', deleteSessionsPrompt(3, NOTHING_RUNNING)],
         [
             'revoke device',

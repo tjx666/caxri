@@ -190,7 +190,7 @@ describe('session.delete Acceptance confirmation', () => {
         ).resolves.toEqual({ deleted: true });
         expect(confirm).toHaveBeenCalledWith(
             'session-1',
-            deleteSessionPrompt('Fixture naming hold', { terminals: 0, chats: 0 }),
+            deleteSessionPrompt({ terminals: 0, chats: 0 }),
         );
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
 

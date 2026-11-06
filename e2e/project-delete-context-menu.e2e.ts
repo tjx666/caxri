@@ -90,7 +90,7 @@ test('the Project row menu deletes its own Project even when another Session is 
                         ).caxriProjectDeleteProbe?.messages[0],
                 ),
             )
-            .toContain(`Delete '${secondProject.title}'`);
+            .toMatch(/^Delete Project\b/);
         await expect(secondGroup).toBeVisible();
         await expect(firstGroup).toBeVisible();
 
