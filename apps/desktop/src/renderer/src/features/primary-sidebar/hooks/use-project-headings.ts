@@ -2,9 +2,11 @@ import { useEffect, useMemo } from 'react';
 
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 
+import { caxri } from '../../../lib/caxri';
 import { environmentOfProject } from '../../../lib/environment-routing';
 import {
     refreshProjectRepositories,
+    reloadProjectRepositories,
     useProjectRepositoriesStore,
 } from '../../../stores/project-repositories';
 import { useSelectedProject } from '../../../stores/selectors';
@@ -52,6 +54,19 @@ export function useProjectHeadings({
 } {
     const repoKeys = useProjectRepositoriesStore((store) => store.keys);
     useEffect(() => refreshProjectRepositories(projects), [projects]);
+    // A changed `origin` moves a Project's key; the Server announces it so the merge follows without a restart.
+    useEffect(
+        () =>
+            caxri.onEvent((event, environmentId) => {
+                if (
+                    event.event === 'state.changed' &&
+                    event.payload.kind === 'full' &&
+                    event.payload.reason === 'project.repositoryKeys'
+                )
+                    reloadProjectRepositories(environmentId);
+            }),
+        [],
+    );
     const mergedProjects = useMemo(
         () =>
             mergeProjectsByRepo(projects, (projectId) => repoKeys[projectId], environmentOfProject),
