@@ -10,7 +10,7 @@ import {
 const MIGRATION_TAG = '0015_delegation_hand_back_trigger';
 
 function seed(database: Database.Database): void {
-    seedCreatorLinkedSessions(database, 'delegated');
+    seedCreatorLinkedSessions(database, 'consult');
     database.exec(`
         INSERT INTO agent_delegations (id, session_id, record_json)
             VALUES ('task-1', 'session-created', '{"receipt":{"status":"completed"}}');
