@@ -10,7 +10,7 @@ import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import { useSessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
-import { SessionPinButton, sessionRowActionButton } from '../primary-sidebar/session-row-actions';
+import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { AgentActivityRowTrigger } from './agent-activity-row-trigger';
@@ -119,19 +119,16 @@ export function AgentActivityRowItem({
                     trigger={trigger}
                     worktreeProject={worktreeProject}
                 />
-                {!isRenaming && (
+                {!isRenaming && canMarkRead && (
                     /*
-                     * The Project tree's hover-action cluster: Pin/Unpin on every row, so a pinned Session is unpinned
-                     * here without the context menu, then mark-read when the row has something unread.
+                     * Only mark-read gets a hover chip. Pin/Unpin stays in the context menu: the queue is scanned by
+                     * attention, so a pin chip flashing on every hovered row is noise there, unlike the Project tree.
                      */
-                    <div className="agent-activity-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100">
-                        <SessionPinButton session={session} />
-                        {canMarkRead && (
-                            <AgentActivityMarkReadButton
-                                sessionTitle={sessionTitleForDisplay(session.title, t)}
-                                onMarkRead={onMarkRead}
-                            />
-                        )}
+                    <div className="agent-activity-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100">
+                        <AgentActivityMarkReadButton
+                            sessionTitle={sessionTitleForDisplay(session.title, t)}
+                            onMarkRead={onMarkRead}
+                        />
                     </div>
                 )}
             </div>

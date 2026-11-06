@@ -48,10 +48,10 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
 }
 
 /**
- * The hover Pin/Unpin chip, shared by the Project tree row and the Activity row so a pinned Session is unpinned with
- * the same pointer gesture in either body of the side bar.
+ * The Project tree row's hover Pin/Unpin chip. The Activity row deliberately has none; it pins through the context menu
+ * (see `docs/activity-view.md`).
  */
-export function SessionPinButton({ session }: { session: SessionRecord }) {
+function SessionPinButton({ session }: { session: SessionRecord }) {
     const pinned = isPinnedSession(session);
     const { t } = useTranslation();
     return (

@@ -385,6 +385,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         });
         await markAlphaRead.click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');
+        // Pin lives in the context menu only, so a hovered read row offers no hover chip at all.
+        await expect(
+            page
+                .locator('.agent-activity-row-shell', { has: alphaRow })
+                .locator('.agent-activity-row-actions'),
+        ).toHaveCount(0);
         expect(await selectedSessionId(page)).toBe(sessions.get('gamma'));
         /*
          * Reading a result is not answering it, so the read finished turn stays above the running Agent instead of

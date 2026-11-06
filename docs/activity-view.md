@@ -222,13 +222,14 @@ from the top, through the same `useScrollEdge` binding
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md#scroll-cue)), so every side bar body
 signals hidden content above identically.
 
-Every row's hover actions follow the Project tree's hover-action rule: the same `--elevated` chips,
-centered on the right edge, and on hover the row's text makes room and fades before them instead of
-painting under them. Every row offers **Pin** or **Unpin** (the Project tree's own button,
-`SessionPinButton`), so a pinned Session leaves Pinned without the context menu; an unread row adds
-**Mark as Read** after it. They reserve no width at rest, because a slot held for a hover-only
-action would cost every row the width its Project name needs at the side bar's minimum width. On a
-row with a pull request the chips cover the glyph's slot, and the glyph hides while they show.
+An unread row's hover action follows the Project tree's hover-action rule: the same `--elevated`
+chip, centered on the right edge, and on hover the row's text makes room and fades before it instead
+of painting under it. The only chip is **Mark as Read**; a read row shows none. **Pin** and
+**Unpin** live in the context menu only: the queue is scanned by attention, and a pin chip flashing
+on every hovered row was noise there, unlike in the Project tree. The chip reserves no width at
+rest, because a slot held for a hover-only action would cost every row the width its Project name
+needs at the side bar's minimum width. On a row with a pull request the chip covers the glyph's
+slot, and the glyph hides while it shows.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
 same in either body of the side bar. Neither the glyph nor the Project name carries a tooltip of its
