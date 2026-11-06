@@ -36,6 +36,7 @@ export const windowScopedMethods = [
     'session.create',
     'session.delete',
     'session.deleteMany',
+    'session.discardIfEmpty',
     'session.resume',
     'session.select',
     'terminal.moveToNewSession',

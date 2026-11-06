@@ -11,6 +11,10 @@ interface DeletionHandlerOptions {
     mobileTerminalMutations: MobileTerminalMutationQueue;
     bootstrapState(windowKey?: string): BootstrapState;
     forgetSessionRuntime(sessionId: string): void;
+    /**
+     * Whether a Chat Terminal is a new Chat nobody used; see `AgentChatService.isUntouched`.
+     */
+    isUntouchedChat(terminalId: string): boolean;
     evictSessions(sessionIds: readonly string[]): void;
     projectDeleted(workbenchSessionIds: string[]): void;
     /**
@@ -27,12 +31,31 @@ interface DeletionHandlerOptions {
  */
 export function createDeletionHandlers(
     options: DeletionHandlerOptions,
-): Pick<DomainHandlers, 'session.delete' | 'session.deleteMany' | 'project.delete'> {
+): Pick<
+    DomainHandlers,
+    'session.delete' | 'session.deleteMany' | 'session.discardIfEmpty' | 'project.delete'
+> {
     const { database } = options;
     const finish = (reason: 'session.delete' | 'project.delete', windowKey?: string) => {
         options.restoreSelection();
         options.send({ event: 'state.changed', payload: { kind: 'full', reason } });
         return options.bootstrapState(windowKey);
+    };
+    /**
+     * A Session the user created and never used: a top-level Session (not a delegated or Bot one) whose every Terminal
+     * is a Chat that never received input. A Session with no Terminal is not discardable, since the New Session flow
+     * always creates one and anything else got there some other way.
+     */
+    const isDiscardable = (sessionId: string): boolean => {
+        const session = database.getSession(sessionId);
+        if (!session || session.createdBySessionId) return false;
+        const terminals = database.listTerminals(sessionId);
+        return (
+            terminals.length > 0 &&
+            terminals.every(
+                (terminal) => terminal.surface === 'chat' && options.isUntouchedChat(terminal.id),
+            )
+        );
     };
     const deleteSessions = (sessionIds: readonly string[], windowKey?: string) =>
         options.delegations.deleteSessions(sessionIds, () =>
@@ -47,6 +70,11 @@ export function createDeletionHandlers(
         'session.delete': ({ sessionId, windowKey }) => deleteSessions([sessionId], windowKey),
         'session.deleteMany': ({ sessionIds, windowKey }) =>
             deleteSessions([...new Set(sessionIds)], windowKey),
+        'session.discardIfEmpty': async ({ sessionId, windowKey }) => {
+            if (!isDiscardable(sessionId)) return { discarded: false };
+            await deleteSessions([sessionId], windowKey);
+            return { discarded: true };
+        },
         'project.delete': ({ projectId, windowKey }) =>
             options.mobileTerminalMutations.runProject(projectId, () => {
                 const { owned, workbench } = database.projectDeletionScope(projectId);

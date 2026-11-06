@@ -69,6 +69,12 @@ export interface ChatState {
      */
     readLeaseAt?: number;
     /**
+     * Set by the first input admitted to the send chain (a message, command, or configuration change) and never
+     * cleared, so `AgentChatService.isUntouched` can tell a new Chat nobody used from one whose input is still in
+     * flight before any row reaches the projection.
+     */
+    receivedInput?: boolean;
+    /**
      * Side questions (`/btw` and the continuation handoff) the provider is answering now. They bypass the send chain
      * and leave the projection untouched, so suspension reads this count to avoid stopping the provider mid-answer.
      */
@@ -382,6 +388,43 @@ export class ChatStates {
                 'This Chat was detached for another client. Resume its Session to continue here.',
             );
         return terminal;
+    }
+
+    /**
+     * Accepts input for a Chat Terminal and marks its loaded state as used before the caller's first await, so
+     * {@link isUntouched} never reads a Chat with a message in flight as empty.
+     */
+    acceptInput(terminalId: string): void {
+        requireChatTerminal(this.options.database, terminalId);
+        const state = this.states.get(terminalId);
+        if (state) state.receivedInput = true;
+    }
+
+    /**
+     * {@link admit} for input reaching the head of the send chain: it also ends the read lease and marks the state used.
+     */
+    admitInput(terminalId: string, state: ChatState): void {
+        this.admit(terminalId, state);
+        state.readLeaseAt = undefined;
+        state.receivedInput = true;
+    }
+
+    /**
+     * Whether this Chat is a new one nobody used: its state is loaded in this Server lifetime, it never received input,
+     * and its projection holds no row, turn, queued message, pending request, or side question. Unknown state (not
+     * loaded, for example after a restart) is not untouched, so `session.discardIfEmpty` keeps it.
+     */
+    isUntouched(terminalId: string): boolean {
+        const state = this.states.get(terminalId);
+        if (!state || state.receivedInput || (state.sideQuestions ?? 0) > 0) return false;
+        const { activeTurnId, items, queue, requests, turns } = state.projection.snapshot;
+        return (
+            items.length === 0 &&
+            turns.length === 0 &&
+            requests.length === 0 &&
+            activeTurnId === undefined &&
+            (queue?.length ?? 0) === 0
+        );
     }
 
     /**

@@ -45,6 +45,7 @@ import { ArchivedSessionsDialog } from './features/session/archived-sessions-dia
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { CreateSessionResumeBanner } from './features/session/create-session-resume-banner';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
+import { useFreshChatDiscardOnLeave } from './features/session/hooks/use-fresh-chat-discard-on-leave';
 import { useSessionLookTracker } from './features/session/hooks/use-session-look-tracker';
 import { useSessionMruSwitcherLifecycle } from './features/session/hooks/use-session-mru-switcher-lifecycle';
 import { useSessionNavigationHistory } from './features/session/hooks/use-session-navigation-history';
@@ -254,6 +255,7 @@ export function App() {
     useEffect(() => subscribeEditorBackups(), []);
     useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);
     useSessionMruSwitcherLifecycle();
+    useFreshChatDiscardOnLeave();
     useCommandShortcuts();
     useExternalDocumentSync();
     useChromeViewportClamp();

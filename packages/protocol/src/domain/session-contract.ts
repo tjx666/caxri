@@ -236,6 +236,17 @@ export const sessionMethods = {
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
     /**
+     * Deletes a Session only while it is still an untouched new Chat, without a confirmation: the Activity view's New
+     * Session flow drops the empty Session the user left or replaced. Server Core decides emptiness itself (every
+     * Terminal is a Chat that never received input and shows no conversation), so a Client cannot use this to delete
+     * real work; anything else answers `discarded: false` and stays.
+     */
+    'session.discardIfEmpty': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: windowSessionParameters,
+        result: z.object({ discarded: z.boolean() }),
+    },
+    /**
      * Bulk variant used by the Archived Sessions manager: one native confirmation covers every listed Session.
      */
     'session.deleteMany': {

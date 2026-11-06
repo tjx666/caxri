@@ -244,6 +244,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Mux (AGPL; ideas only)
 
 - **Workflow tab phases**: Failed phases open by default, the result pinned on top, and an interrupted run resumable. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/workflow/agent-chat-workflow.ts`; `docs/agent-chat.md` (Background work).
+- **Choose the Project on a new thread's first screen**: A new thread opens before its Project is final and its first screen offers the Project, as T3 Code's draft thread does; Caxri's fresh Chat is a real Session that moves (recreate and discard) until the first message and is discarded when left empty. Reference: T3 Code (also Codex app, Claude Code). Evidence: `apps/desktop/src/renderer/src/features/session/fresh-chat-commands.ts`; `docs/activity-view.md` (Fresh Chat).
 
 ## Codex app and Claude Code (closed or product references)
 

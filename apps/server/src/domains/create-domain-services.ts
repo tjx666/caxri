@@ -471,6 +471,7 @@ export async function createDomainServices(
             mobileTerminalMutations,
             bootstrapState: snapshots.bootstrap,
             forgetSessionRuntime,
+            isUntouchedChat: (terminalId) => agentChat.states.isUntouched(terminalId),
             evictSessions: evictSessionCaches,
             projectDeleted: (ids) => workbenchRoots.projectDeleted(ids),
             projectMetadataDeleted: () => {
