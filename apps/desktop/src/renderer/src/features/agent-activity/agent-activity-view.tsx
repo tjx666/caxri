@@ -20,7 +20,7 @@ import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
-import { markSessionDone } from '../session/session-commands';
+import { didMarkSessionDone } from '../session/session-commands';
 import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
@@ -32,6 +32,7 @@ import {
 } from './agent-activity-rows';
 import {
     flattenAgentActivityRows,
+    focusRestoreRowIdAfterMarkDone,
     nextAgentActivityRowId,
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
@@ -59,7 +60,15 @@ export function AgentActivityView() {
     const terminals = useTerminals();
     const showExcerpts = (useSettings() ?? defaultAppSettings)['agentActivity.showExcerpts'];
     const selectedSessionId = useSelectedSession()?.id;
-    const [focusedRowId, setFocusedRowId] = useState<string>();
+    const [focusedRowId, setFocusedRowIdState] = useState<string>();
+    /**
+     * Mirrors `focusedRowId` for async callbacks that must read the latest focus, not the render they closed over.
+     */
+    const focusedRowReference = useRef<string | undefined>(undefined);
+    const setFocusedRowId = (rowId: string | undefined): void => {
+        focusedRowReference.current = rowId;
+        setFocusedRowIdState(rowId);
+    };
     const treeReference = useRef<HTMLDivElement>(null);
     const scrollReference = useRef<HTMLDivElement>(null);
     const groupCollapse = useAgentActivityGroupCollapse();
@@ -184,10 +193,19 @@ export function AgentActivityView() {
             nextAgentActivityRowId(sessionTreeRows, row.rowId, 'ArrowDown') ??
             nextAgentActivityRowId(sessionTreeRows, row.rowId, 'ArrowUp');
         // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the Session
-        // pending so the user can retry.
+        // pending so the user can retry. A failure or `resolved: false` leaves the Session in "Needs attention", so
+        // focus returns to it instead of staying on the row it was pre-advanced to.
         void tryCommand(t('agentActivity.markDoneFailed'), () =>
-            markSessionDone(row.session.id, row.session.attentionGeneration),
-        );
+            didMarkSessionDone(row.session.id, row.session.attentionGeneration),
+        ).then((resolved) => {
+            const restoreRowId = focusRestoreRowIdAfterMarkDone({
+                currentFocusedRowId: focusedRowReference.current,
+                markedRowId: row.rowId,
+                plannedRowId: focusAfterRead,
+                resolved: resolved === true,
+            });
+            if (restoreRowId) focusRow(restoreRowId);
+        });
         if (focusAfterRead) focusRow(focusAfterRead);
     };
 

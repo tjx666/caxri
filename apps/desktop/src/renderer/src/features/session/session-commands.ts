@@ -261,13 +261,16 @@ export async function markSessionRead(
 
 /**
  * Resolves one attention generation as Done: the Session leaves Needs attention even though it may have been read long
- * ago. Rejection is the caller's to handle; the Server keeps the Session pending, so the user can retry.
+ * ago. Rejection is the caller's to handle; the Server keeps the Session pending, so the user can retry. Resolves
+ * `false` when the Server did not apply it (a newer Agent turn superseded the generation), so the Session is still
+ * pending.
  */
-export async function markSessionDone(
+export async function didMarkSessionDone(
     sessionId: string,
     attentionGeneration: number,
-): Promise<void> {
-    await caxri.request('session.markDone', { sessionId, attentionGeneration });
+): Promise<boolean> {
+    const result = await caxri.request('session.markDone', { sessionId, attentionGeneration });
+    return result.resolved;
 }
 
 /**
