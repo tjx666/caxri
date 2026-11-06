@@ -255,6 +255,36 @@ describe('Session title material', () => {
         expect(normalizeGeneratedAgentTitle('默认请求模式讨论', context)).toBe('默认请求模式讨论');
         expect(normalizeGeneratedAgentTitle('Fix: Session title sync')).toBeUndefined();
     });
+
+    it('rejects a sentence that describes the request instead of naming it', () => {
+        const context = {
+            opening: [{ role: 'user' as const, text: '<image>现在是怎么邀请企业客户的' }],
+            recent: [],
+        };
+        for (const title of [
+            '该问题的主题是询问当前邀请企业客户的方式。',
+            '该问题的主题是询问当前邀请企业客户的方式',
+            '用户在询问如何邀请企业客户',
+            '这个会话讨论企业客户邀请流程',
+            '企业客户邀请方式。',
+            '企业客户怎么邀请？',
+        ])
+            expect(normalizeGeneratedAgentTitle(title, context)).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('企业客户邀请方式', context)).toBe('企业客户邀请方式');
+        for (const title of [
+            'The user asks how enterprise customers are invited',
+            'This session is about invite flows',
+            'Enterprise customer invites.',
+        ])
+            expect(normalizeGeneratedAgentTitle(title)).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('Enterprise customer invites')).toBe(
+            'Enterprise customer invites',
+        );
+        expect(normalizeGeneratedAgentTitle('Upgrade to Node.js')).toBe('Upgrade to Node.js');
+        expect(normalizeGeneratedAgentTitle('Fix user question parsing')).toBe(
+            'Fix user question parsing',
+        );
+    });
 });
 
 describe('Session title sampling', () => {
