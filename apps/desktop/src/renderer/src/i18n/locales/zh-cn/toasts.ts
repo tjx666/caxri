@@ -29,6 +29,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.errno.EPIPE': '连接已中断。',
     'toasts.failure.errno.ECONNREFUSED': '服务拒绝了连接。',
     'toasts.failure.binaryFile': '二进制文件无法在编辑器中打开。',
+    'toasts.failure.pullRequestHeadMoved': '这个 Pull Request 有新的提交，请确认后重新合并。',
     'toasts.muteFailed': '无法静音通知',
 
     'toasts.action.copyDetails': '复制详细信息',

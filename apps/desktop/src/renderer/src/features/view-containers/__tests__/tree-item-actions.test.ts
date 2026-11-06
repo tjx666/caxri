@@ -17,10 +17,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { window: { showConfirm: mocks.showConfirm } } }));
 vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
-vi.mock('../view-container-commands', () => ({
-    actionFailureMessage: (error: Error, label: string) => `${label}: ${error.message}`,
-    dispatchExtensionViewAction: mocks.dispatch,
-}));
+vi.mock('../view-container-commands', async () => {
+    const { pushToast } = await import('../../../stores/toasts');
+    return {
+        pushActionFailureToast: (error: Error, label: string) =>
+            pushToast('error', `${label}: ${error.message}`),
+        dispatchExtensionViewAction: mocks.dispatch,
+    };
+});
 vi.mock('../../terminal/agent-prompt-commands', async (importOriginal) => ({
     ...(await importOriginal<object>()),
     sendPromptToSessionAgent: mocks.sendPromptToSessionAgent,
