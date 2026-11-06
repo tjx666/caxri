@@ -9,6 +9,7 @@ import {
 } from '../renderer-hang-observer';
 
 const EVENTS = { responsive: 'window.responsive', unresponsive: 'window.unresponsive' } as const;
+const EVIDENCE = { cpuCount: 18, loadAverage1m: 2.5, rendererCpuPercent: 3 };
 const STACK = 'loop@index-abc.js:1:42;render@index-abc.js:1:7';
 
 /**
@@ -44,15 +45,19 @@ function observe(
                 Promise.resolve({ outcome: 'captured', stack: STACK })),
     );
     const write = vi.fn();
+    const mark = vi.fn();
+    const read = vi.fn(() => Promise.resolve(EVIDENCE));
     observeRendererHangs(webContents, EVENTS, () => ({ write }), options.isCurrent, {
         probe,
         createStackSampler: () => ({
             capture: captureStack,
             isPausedByAnotherClient: () => flags.pausedByAnotherClient,
         }),
+        createEvidenceSampler: () => ({ mark, read }),
         now: Date.now,
     });
     return {
+        evidence: { mark, read },
         captureStack,
         flags,
         freeze: () => {
@@ -109,6 +114,7 @@ describe('renderer hang observer', () => {
                 blockedMs: expect.any(Number) as number,
                 stackOutcome: 'captured',
                 stack: STACK,
+                ...EVIDENCE,
             },
         });
         const entry = (
@@ -131,6 +137,29 @@ describe('renderer hang observer', () => {
             write.mock.calls[1] as [string, string, { fields: { durationMs: number } }]
         )[2];
         expect(end.fields.durationMs).toBeGreaterThanOrEqual(HANG_THRESHOLD_MS + 3_000);
+    });
+
+    it('starts measuring CPU only once a probe is slow, and records it when no stack lands', async () => {
+        const { evidence, freeze, probe, write } = observe({
+            capture: () => Promise.resolve({ outcome: 'timeout' }),
+        });
+
+        await vi.advanceTimersByTimeAsync(HANG_PROBE_INTERVAL_MS * 5);
+        expect(probe).toHaveBeenCalledTimes(5);
+        expect(evidence.mark).not.toHaveBeenCalled();
+
+        freeze();
+        await hangPastThreshold();
+
+        expect(evidence.mark).toHaveBeenCalledTimes(1);
+        expect(evidence.read).toHaveBeenCalledTimes(1);
+        expect(write).toHaveBeenCalledWith(
+            'warn',
+            'window.unresponsive',
+            expect.objectContaining({
+                fields: expect.objectContaining({ stackOutcome: 'timeout', ...EVIDENCE }) as object,
+            }),
+        );
     });
 
     it('captures the stack once per continuous hang', async () => {
@@ -158,6 +187,7 @@ describe('renderer hang observer', () => {
                 hangCount: 1,
                 blockedMs: expect.any(Number) as number,
                 stackOutcome: 'debugger-busy',
+                ...EVIDENCE,
             },
         });
     });
@@ -182,6 +212,7 @@ describe('renderer hang observer', () => {
                 hangCount: 1,
                 blockedMs: expect.any(Number) as number,
                 stackOutcome: 'ended',
+                ...EVIDENCE,
             },
         });
         expect(write).toHaveBeenNthCalledWith(2, 'info', 'window.responsive', expect.anything());
