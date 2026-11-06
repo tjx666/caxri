@@ -48,6 +48,7 @@ import { refreshLogRecord } from './refresh-log';
 import { ResidentPoll } from './resident-poll';
 import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
 import { repoPullRequestNumber, resolvePullRequestTarget } from './session-pull-request';
+import { StalePullRequestHeadTracker } from './stale-pull-request-head';
 import { ProjectStatusSummaryObservers } from './summary-observers';
 import { VercelDeploymentStore } from './vercel-store';
 import type { WatchOutcome, WatchRound } from './watch';
@@ -83,6 +84,7 @@ export class ProjectStatusService {
     private readonly commandTelemetry: ExternalStatusCommandTelemetry;
     private readonly clock: ProjectStatusClock;
     private readonly emptyCheckRollups = new EmptyCheckRollupTracker();
+    private readonly staleHeads = new StalePullRequestHeadTracker();
     private readonly remotes = new RepoRemoteCache(() => this.now());
     private readonly remoteHeads = new RemoteHeadCache(() => this.now());
     private readonly readGit = (cwd: string, arguments_: readonly string[]) =>
@@ -277,16 +279,13 @@ export class ProjectStatusService {
         const empty = emptyGitHubLoad;
         if (!context.owner || !context.repo || !context.branch) return empty();
         try {
-            const output = await this.github.view({
-                ...(number ? { number } : { branch: context.branch }),
-                cwd,
-                // An explicit user refresh must reach GitHub; an automatic revalidation may reuse the shared record.
-                maxAgeMs: isForced ? 0 : undefined,
-                owner: context.owner,
-                repo: context.repo,
+            const { owner, repo } = context;
+            const target = number ? { number } : { branch: context.branch };
+            const parsed = await this.staleHeads.read(context, isForced, {
+                view: (maxAgeMs) => this.github.view({ ...target, cwd, maxAgeMs, owner, repo }),
+                parse: (output) => parseGitHubPullRequest(output, this.ignoredChecks()),
             });
-            if (!output) return empty();
-            const parsed = parseGitHubPullRequest(output, this.ignoredChecks());
+            if (!parsed) return empty();
             parsed.pullRequest = this.emptyCheckRollups.settle(parsed.pullRequest, this.now());
             /**
              * Both readers work from the same already-fetched body, and neither blocks the other: a Linear outage must
