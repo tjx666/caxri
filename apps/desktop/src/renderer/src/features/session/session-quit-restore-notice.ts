@@ -1,4 +1,18 @@
 /**
+ * How long after a quit the launch notice stops offering to restore. A restore of Sessions stopped days ago is rarely
+ * what the user wants on opening the app; the Command Palette entry stays available.
+ */
+export const QUIT_RESTORE_NOTICE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether the quit at `stoppedAt` is recent enough to be worth a launch notice. A missing time (nothing recorded)
+ * offers nothing.
+ */
+export function isQuitRestoreNoticeFresh(stoppedAt: number | undefined, now: number): boolean {
+    return stoppedAt !== undefined && now - stoppedAt <= QUIT_RESTORE_NOTICE_MAX_AGE_MS;
+}
+
+/**
  * The launch notice's words for `count` Sessions the last quit stopped, or `undefined` when there is nothing to offer.
  */
 export function quitRestoreNoticeKey(

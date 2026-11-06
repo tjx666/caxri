@@ -11,6 +11,10 @@ export interface FileTreeNavigator {
      */
     move: (path: string, action: FileTreeNavigation) => void;
     /**
+     * Moves keyboard focus from the row at `path` to the visible row whose name starts with `query`, if any.
+     */
+    typeAhead: (path: string, query: string) => void;
+    /**
      * Path of the entry row `action` resolves to from `path`, without moving focus; `undefined` when there is none.
      */
     pathFor: (path: string, action: FileTreeNavigation) => string | undefined;
@@ -27,6 +31,7 @@ export interface FileTreeNavigator {
 const noop: FileTreeNavigator = {
     entryFor: () => {},
     move: () => {},
+    typeAhead: () => {},
     pathFor: () => {},
     visiblePaths: () => [],
 };

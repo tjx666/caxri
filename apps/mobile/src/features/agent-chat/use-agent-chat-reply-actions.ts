@@ -33,7 +33,11 @@ export interface AgentChatReplyAction {
  * from. A list without it (a terminal Agent's Conversation) draws no action bar.
  */
 export interface AgentChatReplyHandlers {
-    copy: (replyId: string) => void;
+    /**
+     * Resolves true once the reply is on the clipboard, so the bar confirms in place; a failure still raises its own
+     * toast and resolves false.
+     */
+    copy: (replyId: string) => Promise<boolean>;
     share: (replyId: string) => void;
     selectText: (replyId: string) => void;
     /**
@@ -148,16 +152,22 @@ export function useAgentChatReplyActions({
             reason: latest.current.t('chat.disabled.send.offline'),
         });
         return {
-            copy: (replyId) =>
-                withText(replyId, async (text) => {
-                    const { t } = latest.current;
-                    try {
-                        await Clipboard.setStringAsync(text);
-                        showToast('success', t('chat.reply.copied'));
-                    } catch {
-                        showToast('error', t('conversation.message.copyFailed'));
-                    }
-                }),
+            copy: async (replyId) => {
+                let text: string;
+                try {
+                    text = await read(replyId);
+                } catch (error) {
+                    showToast('error', messageReadErrorText(error, latest.current.t));
+                    return false;
+                }
+                try {
+                    await Clipboard.setStringAsync(text);
+                    return true;
+                } catch {
+                    showToast('error', latest.current.t('conversation.message.copyFailed'));
+                    return false;
+                }
+            },
             share: (replyId) =>
                 withText(replyId, async (text) => {
                     try {

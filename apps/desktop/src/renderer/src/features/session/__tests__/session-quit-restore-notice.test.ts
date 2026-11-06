@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { quitRestoreAllSkippedKey, quitRestoreNoticeKey } from '../session-quit-restore-notice';
+import {
+    isQuitRestoreNoticeFresh,
+    QUIT_RESTORE_NOTICE_MAX_AGE_MS,
+    quitRestoreAllSkippedKey,
+    quitRestoreNoticeKey,
+} from '../session-quit-restore-notice';
 
 describe('quitRestoreNoticeKey', () => {
     it('offers nothing when the last quit stopped nothing', () => {
@@ -23,5 +28,19 @@ describe('quitRestoreAllSkippedKey', () => {
         );
         expect(quitRestoreAllSkippedKey({ restored: 1, skipped: 2 })).toBeUndefined();
         expect(quitRestoreAllSkippedKey({ restored: 0, skipped: 0 })).toBeUndefined();
+    });
+});
+
+describe('isQuitRestoreNoticeFresh', () => {
+    const now = 1_000_000_000_000;
+
+    it('offers a recent quit and drops one past the limit', () => {
+        expect(isQuitRestoreNoticeFresh(now - 60_000, now)).toBe(true);
+        expect(isQuitRestoreNoticeFresh(now - QUIT_RESTORE_NOTICE_MAX_AGE_MS, now)).toBe(true);
+        expect(isQuitRestoreNoticeFresh(now - QUIT_RESTORE_NOTICE_MAX_AGE_MS - 1, now)).toBe(false);
+    });
+
+    it('offers nothing without a recorded time', () => {
+        expect(isQuitRestoreNoticeFresh(undefined, now)).toBe(false);
     });
 });

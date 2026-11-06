@@ -1,11 +1,11 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { use, useCallback, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import type { HostInstance } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatWebSource } from '@caxri/protocol';
 import { useFocusEffect } from 'expo-router';
-import { Copy, Ellipsis, GitFork, RotateCcw, Share2, TextCursor } from 'lucide-react-native';
+import { Check, Copy, Ellipsis, GitFork, RotateCcw, Share2, TextCursor } from 'lucide-react-native';
 
 import { ConfirmSheet } from '../../components/confirm-sheet';
 import { IconButton } from '../../components/icon-button';
@@ -27,6 +27,10 @@ import type { AgentChatReplyAction } from './use-agent-chat-reply-actions';
 import { AgentChatReplyActionsContext } from './use-agent-chat-reply-actions';
 
 const ICON_SIZE = 18;
+/**
+ * How long Copy shows its check, matching Desktop's `COPY_FEEDBACK_RESET_MS`.
+ */
+const COPY_CONFIRMATION_MS = 2000;
 /**
  * Sites the Sources button stacks before its label, as the ChatGPT app shows three.
  */
@@ -75,6 +79,16 @@ export const AgentChatReplyActionBar = ({
      */
     const placeBeforePage = useRef<AgentChatSourcesPlace>(undefined);
     const [retryToConfirm, setRetryToConfirm] = useState<AgentChatReplyAction>();
+    /**
+     * Whether Copy just succeeded; the glyph becomes a check for {@link COPY_CONFIRMATION_MS}, like Desktop, instead of
+     * a toast.
+     */
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const timer = setTimeout(() => setCopied(false), COPY_CONFIRMATION_MS);
+        return () => clearTimeout(timer);
+    }, [copied]);
     useFocusEffect(
         useCallback(() => {
             const place = placeBeforePage.current;
@@ -111,12 +125,16 @@ export const AgentChatReplyActionBar = ({
         >
             <View style={styles.buttons}>
                 <IconButton
-                    accessibilityLabel={t('chat.reply.copy')}
-                    color={theme.muted}
-                    icon={Copy}
-                    onPress={() => handlers.copy(replyId)}
+                    accessibilityLabel={t(copied ? 'chat.reply.copied' : 'chat.reply.copy')}
+                    color={copied ? theme.success : theme.muted}
+                    icon={copied ? Check : Copy}
+                    onPress={() => {
+                        void handlers.copy(replyId).then((ok) => {
+                            if (ok) setCopied(true);
+                        });
+                    }}
                     size={ICON_SIZE}
-                    testID={`agent-chat-reply-copy-${turnId}`}
+                    testID={`agent-chat-reply-copy-${turnId}${copied ? '-copied' : ''}`}
                     theme={theme}
                 />
                 <IconButton

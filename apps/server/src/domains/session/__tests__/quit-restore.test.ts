@@ -127,17 +127,18 @@ describe('QuitRestore', () => {
         expect(resumed.map(({ sessionId }) => sessionId)).toEqual(['s1']);
     });
 
-    describe('pendingCount', () => {
+    describe('pending', () => {
         it('is zero when no quit stopped anything', () => {
-            expect(createHarness().restore.pendingCount()).toBe(0);
+            expect(createHarness().restore.pending().count).toBe(0);
         });
 
         it('counts what a restore would relaunch without consuming the record', async () => {
             const harness = createHarness({ live: { s1: ['t-s1'], s2: ['t-s2'], s3: ['t-s3'] } });
             harness.restore.record();
             harness.archived.add('s3');
-            expect(harness.restore.pendingCount()).toBe(2);
-            expect(harness.restore.pendingCount()).toBe(2);
+            expect(harness.restore.pending().count).toBe(2);
+            expect(harness.restore.pending().stoppedAt).toEqual(expect.any(Number));
+            expect(harness.restore.pending().count).toBe(2);
             await expect(harness.restore.restore()).resolves.toEqual({ restored: 2, skipped: 1 });
         });
 
@@ -145,7 +146,7 @@ describe('QuitRestore', () => {
             const { restore } = createHarness({ live: { s1: ['t-s1'] } });
             restore.record();
             await restore.restore();
-            expect(restore.pendingCount()).toBe(0);
+            expect(restore.pending().count).toBe(0);
         });
     });
 });

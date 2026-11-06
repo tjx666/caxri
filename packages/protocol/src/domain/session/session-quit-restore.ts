@@ -46,4 +46,9 @@ export const sessionQuitStoppedCountResultSchema = z.object({
      * Recorded Sessions a restore would still relaunch: those deleted or archived since the quit are left out.
      */
     count: z.number().int().nonnegative(),
+    /**
+     * When the quit stopped them, so the launch notice can say how long ago and stop offering a stale restore. Absent
+     * when there is nothing to restore.
+     */
+    stoppedAt: z.number().int().positive().optional(),
 });

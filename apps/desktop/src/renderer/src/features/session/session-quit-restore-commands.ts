@@ -2,8 +2,13 @@ import type { SessionRestoreQuitStoppedResult } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { localizedRelativeTime } from '../../lib/relative-time';
 import { dismissToastsMatching, pushToast, tryCommand } from '../../stores/toasts';
-import { quitRestoreAllSkippedKey, quitRestoreNoticeKey } from './session-quit-restore-notice';
+import {
+    isQuitRestoreNoticeFresh,
+    quitRestoreAllSkippedKey,
+    quitRestoreNoticeKey,
+} from './session-quit-restore-notice';
 
 const restore = { running: false };
 
@@ -56,14 +61,17 @@ export async function offerQuitStoppedRestore(): Promise<void> {
     if (notice.checked) return;
     notice.checked = true;
     let count: number;
+    let stoppedAt: number | undefined;
     try {
-        ({ count } = await caxri.request('session.quitStoppedCount', {}));
+        ({ count, stoppedAt } = await caxri.request('session.quitStoppedCount', {}));
     } catch {
         return;
     }
+    const now = Date.now();
     const key = quitRestoreNoticeKey(count);
-    if (!key) return;
-    pushToast('info', translate(key, { count }), {
+    if (!key || stoppedAt === undefined || !isQuitRestoreNoticeFresh(stoppedAt, now)) return;
+    const when = localizedRelativeTime(stoppedAt, now, 'long', translate.locale);
+    pushToast('info', translate(key, { count, when }), {
         persist: true,
         dismissOnSuccess: true,
         action: { id: 'session.restoreQuitStopped' },

@@ -200,7 +200,8 @@ export async function executeMobileChatReplyActionsScenario(
         await tapMobileCheckByBounds(serial, `agent-chat-reply-copy-${searched}`, {
             viewport: 'conversation-view',
         });
-        await waitForCheck(serial, 'toast');
+        // Copy confirms in place with a check (DESIGN.md), not a toast.
+        await waitForCheck(serial, `agent-chat-reply-copy-${searched}-copied`);
         await capture(environment, 'copied', artifacts);
 
         await showBar(serial, searched);

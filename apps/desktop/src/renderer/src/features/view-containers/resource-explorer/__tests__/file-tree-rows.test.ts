@@ -2,7 +2,11 @@ import type { FileEntry } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { FlattenFileTreeInput } from '../file-tree-rows';
-import { fileTreeNavigationTarget, flattenFileTree } from '../file-tree-rows';
+import {
+    fileTreeNavigationTarget,
+    fileTreeTypeAheadTarget,
+    flattenFileTree,
+} from '../file-tree-rows';
 
 function directory(path: string): FileEntry {
     return { kind: 'directory', name: path.split('/').at(-1) ?? path, path };
@@ -150,5 +154,31 @@ describe('fileTreeNavigationTarget', () => {
 
         expect(fileTreeNavigationTarget(tree, 0, 'afterRemoval')).toBe(2);
         expect(fileTreeNavigationTarget(tree, 2, 'afterRemoval')).toBe(1);
+    });
+});
+
+describe('fileTreeTypeAheadTarget', () => {
+    const { rows } = flatten(
+        { '/p': [directory('/p/docs'), file('/p/dune.md'), file('/p/Readme.md')] },
+        [],
+    );
+
+    it('jumps to the first visible name that starts with the query, ignoring case', () => {
+        expect(fileTreeTypeAheadTarget(rows, 0, 'r')).toBe(2);
+        expect(fileTreeTypeAheadTarget(rows, 2, 'DU')).toBe(1);
+    });
+
+    it('cycles through rows sharing a first letter when one letter repeats', () => {
+        expect(fileTreeTypeAheadTarget(rows, 0, 'd')).toBe(1);
+        expect(fileTreeTypeAheadTarget(rows, 1, 'dd')).toBe(0);
+    });
+
+    it('stays put while a longer query keeps matching the current row', () => {
+        expect(fileTreeTypeAheadTarget(rows, 1, 'du')).toBe(1);
+    });
+
+    it('finds nothing for an unmatched or empty query', () => {
+        expect(fileTreeTypeAheadTarget(rows, 0, 'zz')).toBeUndefined();
+        expect(fileTreeTypeAheadTarget(rows, 0, '')).toBeUndefined();
     });
 });
