@@ -163,6 +163,29 @@ export function machineProjectIndex(
 }
 
 /**
+ * The `project.reorder` calls that persist a heading move. The sidebar orders headings, but each machine's Server
+ * orders every Project on that machine, including the ones merged under another heading. So the heading order is
+ * expanded to its members (a heading's members stay adjacent), and every member of the moved heading gets its own call
+ * with the index counted among its machine's Projects.
+ *
+ * @param headingIds The sidebar order, by heading id (the lead Project's id).
+ * @param movedHeadingId The heading that was moved.
+ * @param membersOf The Project ids under a heading; a heading missing from it holds only itself.
+ */
+export function projectReorderTargets(
+    headingIds: readonly string[],
+    movedHeadingId: string,
+    membersOf: (headingId: string) => readonly string[] | undefined,
+    machineOf: (projectId: string) => string | undefined,
+): Array<{ projectId: string; targetIndex: number }> {
+    const expanded = headingIds.flatMap((headingId) => membersOf(headingId) ?? [headingId]);
+    return (membersOf(movedHeadingId) ?? [movedHeadingId]).map((projectId) => ({
+        projectId,
+        targetIndex: machineProjectIndex(expanded, projectId, machineOf),
+    }));
+}
+
+/**
  * Decides which Project order the sidebar draws. The Server re-sorts Projects the moment an Agent starts or stops,
  * which would replace the row under the pointer mid-click or mid-drag, so while `isHeld` is on the displayed order
  * stays put. A change in membership (a Project added, removed, or merged) always applies at once: a held order cannot

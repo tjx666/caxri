@@ -130,7 +130,7 @@ export function PrimarySidebarProjectTree() {
     const { placement } = delegated;
     const { headingIdBySessionId, headingOf, headingProjects, mergedProjects, selectedProjectId } =
         useProjectHeadings({ placement, projects, sessions });
-    const projectOrder = useProjectOrder(headingProjects);
+    const projectOrder = useProjectOrder(headingProjects, mergedProjects);
     const projectCollapse = useProjectCollapse({
         autoCollapseSetting,
         groupIdBySessionId: headingIdBySessionId,

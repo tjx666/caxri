@@ -7,16 +7,17 @@ import { translate } from '../../../i18n';
 import { environmentOfProject } from '../../../lib/environment-routing';
 import { PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { didReorderProject } from '../../session/session-commands';
+import type { MergedProject } from '../project-merge';
 import type { ProjectDropTarget } from '../project-order';
 import {
     adjacentProjectOrder,
     areProjectDropTargetsEqual,
     createLatestProjectOrderQueue,
     createProjectOrderIntentTracker,
-    machineProjectIndex,
     PROJECT_DRAG_TYPE,
     projectMoveBetween,
     projectOrderAfterDrop,
+    projectReorderTargets,
     sortByProjectOrder,
 } from '../project-order';
 import { useHeldProjectOrder } from './use-held-project-order';
@@ -42,7 +43,15 @@ interface ProjectOrderController {
     drop: (event: DragEvent<HTMLElement>, targetProjectId: string) => void;
 }
 
-export function useProjectOrder(serverProjects: ProjectRecord[]): ProjectOrderController {
+export function useProjectOrder(
+    serverProjects: ProjectRecord[],
+    mergedProjects: readonly MergedProject[],
+): ProjectOrderController {
+    // The queue worker outlives renders, so it reads the latest headings through a ref.
+    const mergedProjectsReference = useRef(mergedProjects);
+    useEffect(() => {
+        mergedProjectsReference.current = mergedProjects;
+    }, [mergedProjects]);
     const [draggedProjectId, setDraggedProjectId] = useState<string>();
     const [projectDropTarget, setProjectDropTarget] = useState<ProjectDropTarget>();
     const [projectOrderAnnouncement, setProjectOrderAnnouncement] = useState('');
@@ -69,10 +78,25 @@ export function useProjectOrder(serverProjects: ProjectRecord[]): ProjectOrderCo
         queueReference.current = createLatestProjectOrderQueue(async (projectIds) => {
             const intent = intentTrackerReference.current?.get();
             if (intent?.projectIds !== projectIds) return;
-            const isReordered = await didReorderProject(
-                intent.movedProjectId,
-                machineProjectIndex(projectIds, intent.movedProjectId, environmentOfProject),
+            const members = new Map(
+                mergedProjectsReference.current.map((entry) => [
+                    entry.id,
+                    entry.members.map((member) => member.id),
+                ]),
             );
+            let isReordered = true;
+            // One call per machine holding a member: each Server orders its own Projects, merged members included.
+            const targets = projectReorderTargets(
+                projectIds,
+                intent.movedProjectId,
+                (headingId) => members.get(headingId),
+                environmentOfProject,
+            );
+            for (const target of targets) {
+                // eslint-disable-next-line no-await-in-loop -- sequential: stop at the first rejected machine
+                isReordered = await didReorderProject(target.projectId, target.targetIndex);
+                if (!isReordered) break;
+            }
             intentTrackerReference.current?.settle(isReordered);
         });
         return () => {

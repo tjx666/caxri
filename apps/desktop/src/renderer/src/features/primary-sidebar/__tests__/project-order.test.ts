@@ -10,11 +10,36 @@ import {
     PROJECT_DRAG_TYPE,
     projectMoveBetween,
     projectOrderAfterDrop,
+    projectReorderTargets,
     resolveHeldProjectOrder,
     sortByProjectOrder,
 } from '../project-order';
 
 describe('Project ordering', () => {
+    const machines: Record<string, string | undefined> = {
+        h: 'host',
+        l1: undefined,
+        l2: undefined,
+        l3: undefined,
+    };
+    const merged: Record<string, string[]> = { h: ['h', 'l1'] };
+    const membersOf = (id: string) => merged[id];
+    const machineOf = (id: string) => machines[id];
+
+    it('counts merged members of the same machine when a Project is dropped above a sibling', () => {
+        // Server order on this Mac is [l1, l2, l3]; the sidebar shows [h, l2, l3] and l3 moves above l2.
+        expect(projectReorderTargets(['h', 'l3', 'l2'], 'l3', membersOf, machineOf)).toEqual([
+            { projectId: 'l3', targetIndex: 1 },
+        ]);
+    });
+
+    it('reorders every machine holding a member when a merged heading moves', () => {
+        expect(projectReorderTargets(['l2', 'h', 'l3'], 'h', membersOf, machineOf)).toEqual([
+            { projectId: 'h', targetIndex: 0 },
+            { projectId: 'l1', targetIndex: 1 },
+        ]);
+    });
+
     it("counts only the moved Project's own machine when telling that machine's Server where it went", () => {
         const machines: Record<string, string | undefined> = {
             a: undefined,
