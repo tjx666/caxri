@@ -68,6 +68,8 @@ export const agentChatPane = {
     'agentChat.portal.tabs': 'Side View items',
     'agentChat.portal.openInSplit': 'Open in Split',
     'agentChat.portal.close': 'Close Side View',
+    'agentChat.portal.maximize': 'Maximize Side View',
+    'agentChat.portal.restore': 'Restore Side View',
     'agentChat.portal.closeItem': 'Close {{label}}',
     'agentChat.portal.resize': 'Resize Side View',
 } as const;

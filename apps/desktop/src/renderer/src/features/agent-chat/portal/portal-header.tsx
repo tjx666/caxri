@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { useRef } from 'react';
 
-import { Columns2, X } from 'lucide-react';
+import { Columns2, Maximize2, Minimize2, X } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -20,12 +20,14 @@ import { usePortalStore } from './portal-store';
 export function PortalHeader({
     activePath,
     idBase,
+    isMaximized,
     panelId,
     paths,
     sessionId,
 }: {
     activePath: string;
     idBase: string;
+    isMaximized: boolean;
     panelId: string;
     paths: readonly string[];
     sessionId: string;
@@ -82,7 +84,30 @@ export function PortalHeader({
                     <Columns2 aria-hidden="true" size={14} />
                 </Button>
             </Tooltip>
-            <Tooltip content={t('agentChat.portal.close')} shortcut="escape">
+            <Tooltip
+                content={t(isMaximized ? 'agentChat.portal.restore' : 'agentChat.portal.maximize')}
+                shortcut={isMaximized ? 'escape' : undefined}
+            >
+                <Button
+                    aria-label={t(
+                        isMaximized ? 'agentChat.portal.restore' : 'agentChat.portal.maximize',
+                    )}
+                    aria-pressed={isMaximized}
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => usePortalStore.getState().toggleMaximized(sessionId)}
+                >
+                    {isMaximized ? (
+                        <Minimize2 aria-hidden="true" size={14} />
+                    ) : (
+                        <Maximize2 aria-hidden="true" size={14} />
+                    )}
+                </Button>
+            </Tooltip>
+            <Tooltip
+                content={t('agentChat.portal.close')}
+                shortcut={isMaximized ? undefined : 'escape'}
+            >
                 <Button
                     aria-label={t('agentChat.portal.close')}
                     size="icon"

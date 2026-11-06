@@ -548,8 +548,12 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   right edge when the sidebar is hidden), so it takes no Workbench width, never reflows the Chat,
   and never counts as a tab (`features/agent-chat/portal/`). Turn reviews, the side chat, and the
   Context breakdown open there too; two or more items show as tabs in its header. Each Session keeps
-  its own items in memory only, so switching Sessions swaps them and a restart starts closed.
-  Clicking back into the Chat leaves it open; Escape inside it or its X closes it. Its left edge
+  its own items, their order, and the active one, so switching Sessions swaps them; they persist in
+  this device's `localStorage` (`portal-persistence.ts`) and come back after a restart, and items
+  whose Chat is gone, or whose Session was deleted, are dropped once the workbench snapshot loads.
+  Clicking back into the Chat leaves it open; Escape inside it or its X closes it. The header's
+  Maximize button widens it over the whole Workbench area, hiding the Chat; Escape (or the same
+  button) restores the overlay, and a further Escape closes it. Maximized is never persisted. Its left edge
   resizes it (360px to 960px, 480px by default, double-click resets), stored per device like the
   sidebar widths. **Open in Split** moves the item into the Workbench as an ordinary tab split
   beside the Chat: the Chat grows to at most 800px, the side pane takes the rest but no less than

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { nextPortalTabPath, portalTabId, shouldFocusPortalOnOpen } from './portal-keys';
+import { nextPortalTabPath, portalTabId, shouldFocusPortalOnOpen } from '../portal-keys';
 
 describe('nextPortalTabPath', () => {
     const paths = ['a', 'b', 'c'];
