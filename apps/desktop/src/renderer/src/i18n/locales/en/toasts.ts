@@ -29,6 +29,8 @@ export const toasts = {
     'toasts.failure.errno.EPIPE': 'The connection was interrupted.',
     'toasts.failure.errno.ECONNREFUSED': 'The service refused the connection.',
     'toasts.failure.binaryFile': "Binary files can't be opened in the editor.",
+    'toasts.failure.pullRequestHeadMoved':
+        'The pull request has new commits. Review them, then merge again.',
     'toasts.muteFailed': 'Unable to mute notifications',
 
     // stores/toast-actions.ts: follow-up buttons

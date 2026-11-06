@@ -12,7 +12,13 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { getSelectedSession } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import type { ToastAction } from '../../stores/toast-actions';
-import { describeFailure, isCancelledRequest, pushToast, tryCommand } from '../../stores/toasts';
+import type { FailureNotice } from '../../stores/toasts';
+import {
+    describeFailureNotice,
+    isCancelledRequest,
+    pushToast,
+    tryCommand,
+} from '../../stores/toasts';
 import { revealSecondarySidebar } from '../secondary-sidebar/secondary-sidebar-visibility';
 import { dispatchCoreViewCommand } from './core-view-commands';
 import {
@@ -88,14 +94,11 @@ export async function dispatchExtensionViewAction(
         result = await execute();
     } catch (error) {
         if (!isCancelledRequest(error))
-            pushToast(
-                'error',
-                actionFailureMessage(
-                    error,
-                    feedback.failure ??
-                        translate('viewContainers.commands.runFailed', { title: commandTitle }),
-                ),
-                { action },
+            pushActionFailureToast(
+                error,
+                feedback.failure ??
+                    translate('viewContainers.commands.runFailed', { title: commandTitle }),
+                action,
             );
         return 'failed';
     }
@@ -107,14 +110,34 @@ export async function dispatchExtensionViewAction(
 type TreeItemActionFeedback = NonNullable<NonNullable<TreeItemDto['actions']>[number]['feedback']>;
 
 /**
- * `Couldn't merge #42: <reason>`. The reason goes through the shared `describeFailure` sanitizer (path redaction,
+ * `Couldn't merge #42: <reason>`. The reason goes through the shared `describeFailureNotice` sanitizer (path redaction,
  * error-code stripping); only its `label. reason` joint becomes a colon, because a provider's failure prefix names the
- * failed operation and the reason completes that sentence rather than starting a new one.
+ * failed operation and the reason completes that sentence rather than starting a new one. `detail` is the provider's
+ * raw reason when the locale replaced it with a generic one, such as GitHub's merge refusal under Chinese.
  */
-export function actionFailureMessage(error: unknown, label: string): string {
-    const described = describeFailure(error, label, translate);
+export function actionFailureNotice(error: unknown, label: string): FailureNotice {
+    const notice = describeFailureNotice(error, label, translate);
     const joint = `${label}. `;
-    return described.startsWith(joint) ? `${label}: ${described.slice(joint.length)}` : described;
+    return notice.message.startsWith(joint)
+        ? { ...notice, message: `${label}: ${notice.message.slice(joint.length)}` }
+        : notice;
+}
+
+/**
+ * Raises a tree or view action's failure toast. When the locale hid the provider's own reason, `Copy details` carries
+ * it, as `tryCommand` does for every other Renderer failure; without it a localized merge failure read only "the Git
+ * operation failed" and GitHub's actual refusal was unrecoverable from the notification.
+ */
+export function pushActionFailureToast(error: unknown, label: string, action?: ToastAction): void {
+    const notice = actionFailureNotice(error, label);
+    const copyDetails: ToastAction | undefined =
+        notice.detail === undefined
+            ? undefined
+            : { id: 'diagnostics.copyFailure', params: { text: notice.detail } };
+    pushToast('error', notice.message, {
+        action: action ?? copyDetails,
+        ...(action && copyDetails && { secondaryAction: copyDetails }),
+    });
 }
 
 /**

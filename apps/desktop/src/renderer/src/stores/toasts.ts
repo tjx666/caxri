@@ -268,9 +268,14 @@ const errnoReasons: Partial<Record<string, TranslationKey>> = {
  * Server messages whose `CaxriError` code alone would give a misleading localized reason: a binary file is readable, so
  * the `IO` reason "could not read or write the file" is wrong. Matched by text until the Server reports a structured
  * reason (https://github.com/tjx666/caxri/issues/1921).
+ *
+ * GitHub's `Head branch was modified` is the refusal `gh pr merge --match-head-commit` gets when the pull request
+ * received a push after its Status row was drawn, the common reason a panel merge fails. The `GIT` reason "the Git
+ * operation failed" hid that the remedy is simply to review the new commits and merge again.
  */
 const messageReasons: ReadonlyArray<readonly [RegExp, TranslationKey]> = [
     [/\bBinary files cannot be opened in the (?:diff )?editor\b/u, 'toasts.failure.binaryFile'],
+    [/\bHead branch was modified\b/u, 'toasts.failure.pullRequestHeadMoved'],
 ];
 
 /**

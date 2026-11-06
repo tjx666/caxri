@@ -1,6 +1,6 @@
 import type { BootstrapState, ViewCatalogSnapshot } from '@caxri/protocol';
-import { createPaneLayout } from '@caxri/protocol';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CaxriError, createPaneLayout } from '@caxri/protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     request: vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>(() =>
@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
+import { applyLanguagePreference } from '../../../i18n';
 import { caxriQueryKey, queryClient } from '../../../queries/client';
 import { useChromeLayoutStore } from '../../../stores/chrome-layout';
+import { useNotificationStore } from '../../../stores/notifications';
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
-    actionFailureMessage,
+    actionFailureNotice,
     didExecuteViewCatalogCommand,
     dispatchExtensionViewAction,
     executeEditableViewCatalogShortcut,
@@ -398,10 +400,56 @@ describe('extension command result messages', () => {
     });
 });
 
-describe('actionFailureMessage', () => {
+describe('actionFailureNotice', () => {
     it('joins the label and the sanitized reason with a colon', () => {
         expect(
-            actionFailureMessage(new Error('GIT: base branch policy'), "Couldn't merge #7"),
+            actionFailureNotice(new Error('GIT: base branch policy'), "Couldn't merge #7").message,
         ).toBe("Couldn't merge #7: base branch policy.");
+    });
+});
+
+describe('a failed action in a locale the Server does not write', () => {
+    const feedback = {
+        failure: '无法合并 #42',
+        githubUrl: 'https://github.com/acme/widget/pull/42',
+    };
+
+    beforeEach(() => {
+        applyLanguagePreference('zh-CN');
+        useNotificationStore.setState({ entries: [] });
+    });
+    afterEach(() => {
+        applyLanguagePreference(null);
+    });
+
+    it("keeps GitHub's own reason behind Copy details beside Open on GitHub", async () => {
+        mocks.request.mockRejectedValueOnce(
+            new CaxriError('GIT', 'Required status check "guards" is expected.'),
+        );
+        await dispatchExtensionViewAction('publisher.fixture.merge', 'Merge', [], feedback);
+
+        const [entry] = useNotificationStore.getState().entries;
+        expect(entry).toMatchObject({
+            message: '无法合并 #42：Git 操作失败。',
+            action: { id: 'github.open', params: { url: feedback.githubUrl } },
+            secondaryAction: {
+                id: 'diagnostics.copyFailure',
+                params: { text: 'Required status check "guards" is expected.' },
+            },
+        });
+    });
+
+    it('names a pull request that received new commits since it was shown', async () => {
+        mocks.request.mockRejectedValueOnce(
+            new CaxriError(
+                'GIT',
+                'GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)',
+            ),
+        );
+        await dispatchExtensionViewAction('publisher.fixture.merge', 'Merge', [], feedback);
+
+        expect(useNotificationStore.getState().entries[0]?.message).toBe(
+            '无法合并 #42：这个 Pull Request 有新的提交，请确认后重新合并。',
+        );
     });
 });

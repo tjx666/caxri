@@ -6,7 +6,7 @@ import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { isCancelledRequest, pushToast } from '../../stores/toasts';
 import { sendPromptToSessionAgent } from '../terminal/agent-prompt-commands';
-import { actionFailureMessage, dispatchExtensionViewAction } from './view-container-commands';
+import { dispatchExtensionViewAction, pushActionFailureToast } from './view-container-commands';
 
 /**
  * The Workbench command a provider uses for "open this page", resolved here rather than in the Extension Host.
@@ -62,7 +62,7 @@ async function sendTreeItemPromptToAgent(
             translate('viewContainers.commands.sentToAgent', { agent: agentName }),
         );
     } catch (error) {
-        if (!isCancelledRequest(error)) pushToast('error', actionFailureMessage(error, failure));
+        if (!isCancelledRequest(error)) pushActionFailureToast(error, failure);
     }
 }
 

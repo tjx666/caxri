@@ -443,6 +443,16 @@ describe('Sonner notification adapter', () => {
             );
         });
 
+        it('names a pull request that moved since its merge button was drawn', () => {
+            const error = new CaxriError(
+                'GIT',
+                'GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)',
+            );
+            expect(describeFailureNotice(error, '无法合并 #42', translate).message).toBe(
+                '无法合并 #42：这个 Pull Request 有新的提交，请确认后重新合并。',
+            );
+        });
+
         it('tryCommand offers the hidden raw text through Copy details', async () => {
             await tryCommand('保存失败', () =>
                 Promise.reject(new CaxriError('CONFLICT', 'Branch main already exists')),
