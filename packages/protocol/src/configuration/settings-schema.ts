@@ -231,6 +231,7 @@ export const appSettingsSchema = z.object({
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),
     'primarySidebar.showSubagents': booleanField(spec['primarySidebar.showSubagents']),
+    'agentActivity.showExcerpts': booleanField(spec['agentActivity.showExcerpts']),
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
     'zen.fullScreen': booleanField(spec['zen.fullScreen']),
     'zen.restore': booleanField(spec['zen.restore']),

@@ -300,8 +300,9 @@ invalidates it in the Workbench, because Workbench records exclude Caxri Bot's r
 record-scoped event names them.
 
 The board (`bot.board`) projects every non-archived Session in a visible top-level Project
-into one of six groups, in the Activity view's order: `attention`, `waiting`, `failed`, `finished`,
-`working`, and `idle`. Each row carries:
+into one of six groups: `attention`, `waiting`, `failed`, `finished`, `working`, and `idle`. The
+board keeps its own finer groups (driven by unread attention and a finished window) because the
+window reports what changed to Caxri Bot; the Activity view's three groups are independent of it. Each row carries:
 
 - the primary Agent's process state: the Agent CLI's own state while its Shell is up, because an
   Agent can exit and leave its Shell running. A turn recorded as running or waiting without a live

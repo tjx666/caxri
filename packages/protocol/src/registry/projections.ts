@@ -40,6 +40,7 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     primaryAgentTerminalId: true,
     attentionGeneration: true,
     hasUnread: true,
+    hasPendingAttention: true,
 });
 const terminalSummarySchema = terminalRecordSchema.pick({
     id: true,

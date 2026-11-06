@@ -30,6 +30,16 @@ export const primarySidebarSettingsSpec = [
     },
     {
         kind: 'boolean',
+        key: 'agentActivity.showExcerpts',
+        title: 'Show Agent excerpts in Activity',
+        description:
+            'Under each Activity row, quote what the Agent last asked or said, or its one-line recap. Off keeps rows to a title and a status line.',
+        category: 'general',
+        keywords: ['activity', 'excerpt', 'recap', 'summary', 'preview', 'quote', 'question'],
+        default: false,
+    },
+    {
+        kind: 'boolean',
         key: 'primarySidebar.translucent',
         title: 'Translucent sidebar',
         description: 'Blur the desktop through the sidebar while the theme matches macOS.',

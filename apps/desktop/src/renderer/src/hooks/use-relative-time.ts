@@ -20,8 +20,7 @@ const clock: { timer?: ReturnType<typeof setInterval> } = {};
  * own a `setInterval`, so five Session cards meant five timers firing at five unrelated phases.
  *
  * Exported so anything else on the same half-minute cadence shares this timer instead of starting a second one at its
- * own phase: `useAgentActivityClock` does, which is what keeps a row's "12 minutes ago" and the retention window it
- * describes turning over together rather than up to 30 seconds apart.
+ * own phase: `useAgentUsageClock` does, which keeps the status bar's usage countdown turning over with the labels.
  */
 export function subscribeToRelativeTimeClock(listener: () => void): () => void {
     listeners.add(listener);

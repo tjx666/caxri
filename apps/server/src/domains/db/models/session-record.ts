@@ -31,6 +31,8 @@ export const sessionSelection = {
     agentActivityState: sessions.agentActivityState,
     attentionGeneration: sessions.attentionGeneration,
     acknowledgedAttentionGeneration: sessions.acknowledgedAttentionGeneration,
+    resolvedAttentionGeneration: sessions.resolvedAttentionGeneration,
+    attentionResolvedAt: sessions.attentionResolvedAt,
     lastAttentionKind: sessions.lastAttentionKind,
     lastViewedAt: sessions.lastViewedAt,
     title: sessions.title,
@@ -56,6 +58,8 @@ interface SessionJoinRow {
     agentActivityState: string;
     attentionGeneration: number;
     acknowledgedAttentionGeneration: number;
+    resolvedAttentionGeneration: number;
+    attentionResolvedAt: number | null;
     lastAttentionKind: string | null;
     lastViewedAt: number | null;
     title: string;
@@ -84,7 +88,10 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         attentionGeneration: row.attentionGeneration,
         acknowledgedAttentionGeneration: row.acknowledgedAttentionGeneration,
         lastAttentionKind: (row.lastAttentionKind as SessionAttentionKind | null) ?? undefined,
+        resolvedAttentionGeneration: row.resolvedAttentionGeneration,
+        ...(row.attentionResolvedAt !== null && { attentionResolvedAt: row.attentionResolvedAt }),
         hasUnread: row.attentionGeneration > row.acknowledgedAttentionGeneration,
+        hasPendingAttention: row.attentionGeneration > row.resolvedAttentionGeneration,
         ...(row.lastViewedAt !== null && { lastViewedAt: row.lastViewedAt }),
         title: row.title,
         titleMode: row.titleMode as SessionTitleMode,

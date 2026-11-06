@@ -55,6 +55,7 @@ import {
     reconcileWindowsAfterRemoval,
 } from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
+import { markAttentionDone, markAttentionRead } from './session-attention';
 import type { CreateSessionOptions } from './session-create';
 import { createSession as createSessionRow } from './session-create';
 import {
@@ -66,6 +67,7 @@ import type { ShutdownReason } from './session-policy';
 import {
     firstActiveSession,
     processExitActivityState,
+    processExitAttention,
     sessionActivityReasonForAgentState,
     shutdownOutcome,
 } from './session-policy';
@@ -432,16 +434,12 @@ export class CaxriDatabase {
         });
     }
 
-    markSessionAttentionRead(
-        sessionId: string,
-        generation: number,
-    ): { acknowledged: boolean; session: SessionRecord } {
-        return this.db.transaction(() => {
-            if (!this.db.sessions.get(sessionId))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            const isAcknowledged = this.db.sessions.acknowledgeAttention(sessionId, generation);
-            return { acknowledged: isAcknowledged, session: this.db.sessions.get(sessionId)! };
-        });
+    markSessionAttentionRead(sessionId: string, generation: number) {
+        return markAttentionRead(this.db, sessionId, generation);
+    }
+
+    markSessionAttentionDone(sessionId: string, generation: number, now = Date.now()) {
+        return markAttentionDone(this.db, sessionId, generation, now);
     }
 
     deleteSession(sessionId: string): void {
@@ -581,10 +579,12 @@ export class CaxriDatabase {
             if (!terminal.provider) return;
             const activityState = processExitActivityState(state);
             const activityReason = sessionActivityReasonForAgentState(activityState);
+            const session = this.db.sessions.get(terminal.sessionId);
             return this.db.sessions.setActivityStateByPrimaryTerminal(
                 id,
                 activityState,
                 activityReason,
+                session && processExitAttention(session, activityState),
             )
                 ? terminal.sessionId
                 : undefined;

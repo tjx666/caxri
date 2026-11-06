@@ -7,6 +7,7 @@ import { SessionRenameInput } from '../primary-sidebar/session-rename-input';
 export function AgentActivityRowTitle({
     canSuggest,
     isRenaming,
+    isUnread,
     onTitleHoverChange,
     rowId,
     sessionId,
@@ -21,6 +22,10 @@ export function AgentActivityRowTitle({
     canSuggest: boolean;
     isRenaming: boolean;
     /**
+     * The Session has not been read yet; its title is set heavier so unread rows stand out without a glyph.
+     */
+    isUnread: boolean;
+    /**
      * The title's own hover state, distinct from the row's roving keyboard focus: `agent-activity-row-trigger.tsx` owns
      * the row-level focus half of the same `useSessionTitleScroll` reveal.
      */
@@ -34,7 +39,11 @@ export function AgentActivityRowTitle({
 }) {
     return (
         <span
-            className={cn('min-w-0 text-xs text-foreground', isRenaming ? 'flex' : 'overflow-fade')}
+            className={cn(
+                'min-w-0 text-xs text-foreground',
+                isRenaming ? 'flex' : 'overflow-fade',
+                isUnread && 'font-medium',
+            )}
         >
             {isRenaming ? (
                 <SessionRenameInput

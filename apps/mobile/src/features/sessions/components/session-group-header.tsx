@@ -2,17 +2,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { LucideIcon } from 'lucide-react-native';
-import {
-    CheckCheck,
-    ChevronDown,
-    ChevronRight,
-    Hand,
-    Hourglass,
-    Moon,
-    Pin,
-    TriangleAlert,
-    Zap,
-} from 'lucide-react-native';
+import { ChevronDown, ChevronRight, Hand, Moon, Pin, Zap } from 'lucide-react-native';
 
 import { SectionLabel } from '../../../components/section-label';
 import { useTranslation } from '../../../i18n';
@@ -29,9 +19,6 @@ const GROUP_ICONS: Record<MobileSessionListGroup, LucideIcon> = {
     pinned: Pin,
     attention: Hand,
     working: Zap,
-    waiting: Hourglass,
-    failed: TriangleAlert,
-    finished: CheckCheck,
     idle: Moon,
 };
 

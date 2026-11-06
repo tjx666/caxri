@@ -52,6 +52,7 @@ import { readHostStatus } from './host-status';
 import { acceptHostStop } from './host-stop';
 import { createIdleExitConnectionTracker, createIdleTimeoutMonitor } from './idle-exit';
 import { isMobileControlRequest, resolveMobileAgentEndpoint } from './mobile';
+import { isDeviceScopedRequest } from './mobile/access-controller-contract';
 import { MutationAdmission } from './mutation-admission';
 import { assertOwnerOnlyMethod, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
@@ -223,10 +224,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     credentials.delegation(),
                     forwardDomainOperation,
                 );
-            if (
-                context.principal.kind === 'paired-device' &&
-                (request.method === 'terminal.preview' || request.method === 'session.markRead')
-            )
+            if (context.principal.kind === 'paired-device' && isDeviceScopedRequest(request))
                 await credentials
                     .mobile()
                     .validatePairedDeviceRequest(request, context, domainService);
@@ -429,6 +427,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     });
                 case 'terminal.preview':
                 case 'session.markRead':
+                case 'session.markDone':
                     return forwardDomainOperation(request);
                 default: {
                     const forwarded: Extract<ServerRequest, { method: CoreForwardedMethod }> =

@@ -4,7 +4,6 @@ import { bootstrapStateSchema } from '../../domain/bootstrap.js';
 import { sessionRecordSchema } from '../../domain/domain.js';
 import { editorNavigationTargetSchema } from '../../domain/editor.js';
 import { identifierSchema, pathSchema } from '../../domain/identifiers.js';
-import { SESSION_ACTIVITY_GROUP_ORDER } from '../../domain/session/session-activity-group.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestSchema,
@@ -48,10 +47,17 @@ export const botSnapshotSchema = z.strictObject({
 });
 
 /**
- * Board groups in display order, the same order as the Workbench Activity view so a Session ranks the same for the user
- * and for Caxri Bot.
+ * Board groups in display order. Caxri Bot reviews work in batches rather than as a to-do queue, so it keeps its own
+ * finer split (failures, open questions, and finished work apart) instead of the Activity view's three groups.
  */
-export const botBoardGroupIds = SESSION_ACTIVITY_GROUP_ORDER;
+export const botBoardGroupIds = [
+    'attention',
+    'waiting',
+    'failed',
+    'finished',
+    'working',
+    'idle',
+] as const;
 const botBoardGroupSchema = z.enum(botBoardGroupIds);
 
 const botBoardRowSchema = z.strictObject({

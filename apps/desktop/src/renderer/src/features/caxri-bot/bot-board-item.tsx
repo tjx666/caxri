@@ -29,11 +29,15 @@ import { caxriBot as englishCaxriBot } from '../../i18n/locales/en/caxri-bot';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { localizedRelativeTime } from '../../lib/relative-time';
 import { cn } from '../../lib/utilities';
-import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import { BackgroundArc, RunningArc } from '../primary-sidebar/running-arc';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { sessionTitleForDisplay } from '../session/session-title';
-import type { BotChecksIconId, BotProcessIconId, BotTaskIconId } from './bot-board';
+import type {
+    AgentActivityGlyphId,
+    BotChecksIconId,
+    BotProcessIconId,
+    BotTaskIconId,
+} from './bot-board';
 import {
     botHandoverDescription,
     botPullRequestBadge,

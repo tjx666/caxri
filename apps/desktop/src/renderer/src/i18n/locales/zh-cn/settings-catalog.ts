@@ -96,6 +96,10 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.primarySidebar.showSubagents.title': '在会话下显示子 Agent',
     'settings.primarySidebar.showSubagents.description': '在会话下列出对话 Agent 启动的子 Agent。',
 
+    'settings.agentActivity.showExcerpts.title': '在活动中显示 Agent 摘录',
+    'settings.agentActivity.showExcerpts.description':
+        '在每个活动行下引用 Agent 最近的提问或回复，或它的一句话回顾。关闭后每行只显示标题和状态行。',
+
     'settings.primarySidebar.translucent.title': '半透明侧边栏',
     'settings.primarySidebar.translucent.description':
         '主题与 macOS 外观一致时，侧栏透出模糊的桌面。',

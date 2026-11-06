@@ -6,6 +6,7 @@ import Animated, { LinearTransition } from 'react-native-reanimated';
 import type { LucideIcon } from 'lucide-react-native';
 import {
     ChevronLeft,
+    CircleCheck,
     EllipsisVertical,
     FileDiff,
     MailOpen,
@@ -34,6 +35,7 @@ import { segmentForAgentSurface } from '../agent-surface-switch';
 import { useAgentSurfaceSwitch } from '../hooks/use-agent-surface-switch';
 import type { SessionMenuActions } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
+import { canMarkSessionDone } from '../session-model';
 import { sessionStateLabel, sessionTitleForDisplay } from '../session-row-model';
 import type { SessionScoped } from '../session-scoped-state';
 import { patchSessionScoped, readSessionScoped } from '../session-scoped-state';
@@ -190,6 +192,7 @@ export const SessionDetailHeader = ({
     isCompacting,
     isConnected,
     onBack,
+    onMarkDone,
     onMarkRead,
     onSegmentChange,
     panels,
@@ -208,6 +211,7 @@ export const SessionDetailHeader = ({
     isCompacting: boolean;
     isConnected: boolean;
     onBack?: () => void;
+    onMarkDone: () => Promise<void>;
     onMarkRead: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
     panels: readonly Panel[] | undefined;
@@ -278,6 +282,24 @@ export const SessionDetailHeader = ({
             );
         }
     }, [closeMenu, onMarkRead, sessionId, t]);
+    const handleMarkDone = useCallback(async (): Promise<void> => {
+        closeMenu();
+        try {
+            await onMarkDone();
+            setMarkReadErrors((previous) =>
+                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message: null }),
+            );
+        } catch (error) {
+            const message = t(
+                error instanceof MobileGatewayRequestError && error.code === 'FORBIDDEN'
+                    ? 'sessions.detail.markDoneForbidden'
+                    : 'sessions.detail.markDoneFailed',
+            );
+            setMarkReadErrors((previous) =>
+                patchSessionScoped(previous, sessionId, NO_MARK_READ_ERROR, { message }),
+            );
+        }
+    }, [closeMenu, onMarkDone, sessionId, t]);
     return (
         <>
             <View style={[styles.header, { borderColor: theme.border }]}>
@@ -365,6 +387,16 @@ export const SessionDetailHeader = ({
                             isDisabled={!isConnected || isSwitchingSurface}
                             onPress={handleSwitchSurface}
                             target={surfaceTarget}
+                            theme={theme}
+                        />
+                    ) : null}
+                    {canMarkSessionDone(session) ? (
+                        <PopoverAction
+                            disabled={!isConnected}
+                            icon={CircleCheck}
+                            label={t('sessions.detail.markDone')}
+                            onPress={handleMarkDone}
+                            testID="session-mark-done"
                             theme={theme}
                         />
                     ) : null}

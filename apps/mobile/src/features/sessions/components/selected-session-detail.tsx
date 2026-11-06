@@ -59,6 +59,13 @@ export const SelectedSessionDetail = ({
         });
         await refresh();
     }, [refresh, request, selected]);
+    const markDone = useCallback(async (): Promise<void> => {
+        await request('session.markDone', {
+            sessionId: selected.id,
+            attentionGeneration: selected.attentionGeneration,
+        });
+        await refresh();
+    }, [refresh, request, selected]);
     const management = useSessionManagement();
     const { archive, clearError, fork, handOverToBot, resume, setPinned, takeBackFromBot } =
         management;
@@ -164,6 +171,7 @@ export const SelectedSessionDetail = ({
                     );
                     requestComposerFocus(selected.id);
                 }}
+                onMarkDone={markDone}
                 onMarkRead={markRead}
                 onRequestComposerFocus={() => requestComposerFocus(selected.id)}
                 onRefresh={refresh}

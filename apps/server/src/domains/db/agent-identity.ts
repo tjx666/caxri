@@ -140,8 +140,11 @@ export class AgentIdentity {
                 decision.attentionKind,
                 sessionActivityReasonForAgentState(decision.agentActivityState),
             );
-            if (decision.supersedesUnreadAttention)
+            if (decision.supersedesUnreadAttention) {
                 this.db.sessions.acknowledgeAttention(session.id, session.attentionGeneration);
+                // A new turn, or the question answered elsewhere, is the user acting on that attention: resolve it too.
+                this.db.sessions.resolveAttention(session.id, session.attentionGeneration);
+            }
             return true;
         });
     }

@@ -2,129 +2,128 @@ import type { SessionRecord } from '../domain.js';
 
 /**
  * The status groups Session lists sort into, shared by Desktop's Activity view and the phone's home list so a Session
- * sits under the same heading on both. Everything that waits on the user first, then live work, then idle history.
+ * sits under the same heading on both: what still needs the user, then live work, then everything else.
  *
- * `attention` deliberately outranks `working`: Caxri's unread flag means "something happened that you have not looked
- * at", which is a property of the user's queue rather than of the Agent, so it belongs above any turn still in
- * progress, including the Session's own, since a Session can be both unread and running.
+ * `attention` ("Needs attention") holds Pending Attention: an Agent turn ended (finished, asked, or failed) and the
+ * user has not resolved it yet. Reading is not resolving. The user often opens a finished Session, has not decided the
+ * next step, and switches away to handle another one; when reading moved the row into a time-limited "Recently
+ * finished" group it left the queue exactly while it was still the user's move. Only marking it done, a new turn, or
+ * the question being answered elsewhere resolves it, the way GitHub notifications and Linear's Inbox separate "read"
+ * from "Done". Orca's smart order keeps the same three tiers (needs you, working, idle).
  *
- * `waiting`, `failed`, and `finished` also sit above `working`, although they are already read. Reading a result is not
- * answering it: the user often opens a finished Session, has not decided the next step yet, and switches away to handle
- * another one. Below a long Working group that Session dropped out of sight exactly while it was still the user's move,
- * whereas a running Agent asks nothing of the user until it stops. Sending the next prompt moves the Session to
- * `working`, which is what takes it off the user's queue. Paseo lists its groups the same way (needs input, failed,
- * attention, running, done) and Orca's smart order keeps a recent Done above Working; Synara and Jean put running work
- * first because their lists describe live work rather than a to-do queue.
+ * `attention` outranks `working` because a running Agent asks nothing of the user until it stops.
  */
-export const SESSION_ACTIVITY_GROUP_ORDER = [
-    'attention',
-    'waiting',
-    'failed',
-    'finished',
-    'working',
-    'idle',
-] as const;
+export const SESSION_ACTIVITY_GROUP_ORDER = ['attention', 'working', 'idle'] as const;
 
 export type SessionActivityGroupId = (typeof SESSION_ACTIVITY_GROUP_ORDER)[number];
 
 /**
  * Status groups that keep a pinned Session even though the Pinned group already lists it. These are the rows the queue
- * exists for: the attention badge and `session.focusNextAttention` walk them, and a Session that is running, waiting,
- * or failed is news the user should see in its state group. A pinned Session that is merely finished or idle is listed
- * only under Pinned, where repeating it would add a second copy and no information.
+ * exists for: the attention badge and `session.focusNextAttention` walk them, and a running Session is news the user
+ * should see in its state group. A pinned idle Session is listed only under Pinned, where repeating it would add a
+ * second copy and no information.
  */
 export const PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS: ReadonlySet<SessionActivityGroupId> =
-    new Set(['attention', 'working', 'waiting', 'failed']);
+    new Set(['attention', 'working']);
 
 /**
  * Session list groups that can grow without bound, so Desktop's Activity view and the phone's home list both show their
  * newest few and a `Show N more` row (`sessionListWindow`), the way the Project tree windows each Project. The status
- * groups that ask for the user (attention, working, waiting, failed) always list everything, since a hidden row there
- * is work nobody sees.
+ * groups that ask for the user (attention, working) always list everything, since a hidden row there is work nobody
+ * sees.
  */
 export const WINDOWED_SESSION_LIST_GROUPS: ReadonlySet<'pinned' | SessionActivityGroupId> = new Set(
-    ['pinned', 'finished', 'idle'],
+    ['pinned', 'idle'],
 );
 
 /**
- * How long a finished, already-read Session stays under "Recently finished".
+ * The group a Session belongs to.
  *
- * Both ends of this window are deliberate. Dropping a Session the moment it is read would mean a turn that finished
- * while the user was looking at it never appears in the group at all, so the list could not answer "what just
- * completed?". Keeping it forever would turn the group into a second copy of the Session tree. T3 Code settled on the
- * same 15 minutes for its own aggregate feed.
- */
-export const SESSION_FINISHED_RETENTION_MS = 15 * 60 * 1_000;
-
-/**
- * Whether a finished Session is still recent enough to list as finished.
- *
- * Measured from `sessionActivityAt`, the Session's own work clock, rather than from when the user read it, so the
- * window describes how long ago the work finished and does not restart because the row was looked at.
- */
-export function isWithinSessionFinishedRetention(
-    session: Pick<SessionRecord, 'sessionActivityAt'>,
-    now: number,
-    retentionMs = SESSION_FINISHED_RETENTION_MS,
-): boolean {
-    return now - session.sessionActivityAt < retentionMs;
-}
-
-/**
- * The group a Session belongs to, or `undefined` for a finished Session past the retention window, which each surface
- * places itself: Desktop's Activity view drops it (the Project tree still lists it), and the phone, whose home list is
- * its only Session list, files it under Idle.
- *
- * `isRunning` and `isDetached` come from the caller's status projection: Desktop folds compaction into running and
- * reads the Terminal's process state, which the phone mirrors from the fields it receives.
+ * `isRunning`, `isDetached`, and `isUsageWaiting` come from the caller's own projection of the live Agent (Desktop
+ * folds compaction into running and reads the Terminal's process state; the phone and the Server dashboard mirror it
+ * from the fields they receive). They must describe the Agent itself, not a status that unread attention already
+ * masks.
  */
 export function sessionActivityGroup(
-    session: Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'sessionActivityAt'> & {
+    session: Pick<SessionRecord, 'hasPendingAttention'> & {
+        /**
+         * A Terminal handed to another client on purpose: its frozen activity state describes nobody's work here, but a
+         * pending result it left behind still waits for the user.
+         */
         isDetached: boolean;
         isRunning: boolean;
         /**
          * A Chat waiting for a plan limit to reset continues on its own, so it asks nothing of the user: it is idle,
-         * even when the limit left a failed turn behind. Absent where the caller does not know of waits.
+         * even when the limit left a pending failure behind. Absent where the caller does not know of waits.
          */
         isUsageWaiting?: boolean;
     },
-    now: number,
-): SessionActivityGroupId | undefined {
-    if (session.hasUnread) return 'attention';
+): SessionActivityGroupId {
     if (session.isUsageWaiting) return 'idle';
-    /**
-     * Failure survives the hand-over. Detaching stops the Terminal so another client can resume it; it does not resolve
-     * anything, and nothing else will ever clear a failed Session, so a detached failure stays in `failed` rather than
-     * quietly joining `idle` below.
-     */
-    if (session.agentActivityState === 'failed') return 'failed';
-    if (session.isRunning) return 'working';
-    /**
-     * Everything below reads `agentActivityState`, which a detached Agent keeps frozen at whatever the last probe
-     * recorded. Without this guard a Session detached mid-turn would keep sitting under "Waiting" (or age out of
-     * "Recently finished" and vanish) while its own row reads "Detached". It is not waiting on anybody: it was handed
-     * to another client on purpose.
-     */
-    if (session.isDetached) return 'idle';
-    if (session.agentActivityState === 'waiting') return 'waiting';
-    if (session.agentActivityState === 'completed')
-        return isWithinSessionFinishedRetention(session, now) ? 'finished' : undefined;
-    // `idle` and `unknown` land here: neither is asking the user for anything.
+    if (session.isRunning && !session.isDetached) return 'working';
+    if (session.hasPendingAttention) return 'attention';
     return 'idle';
 }
 
 /**
- * Order inside a status group: the most recent Session work first, so a new message or state change moves a row to the
- * top of its group at once.
+ * What a row contributes to its order inside a status group. The two optional facts come from caches the caller owns
+ * (the pull request snapshot and the live Agent's background-work variant); a caller without them orders by recency.
+ */
+export interface SessionActivityRowOrder extends Pick<
+    SessionRecord,
+    'attentionResolvedAt' | 'id' | 'lastAttentionKind' | 'sessionActivityAt'
+> {
+    /**
+     * The turn ended but background shells, subagents, or monitors it started still run. Usually the code is written
+     * and the Agent watches CI or a test run, so it is the next one likely to need the user.
+     */
+    isBackgroundWait?: boolean;
+    isPullRequestMerged?: boolean;
+}
+
+/**
+ * Tiers inside Needs attention: a question or failure blocks the Agent until the user answers; a merged pull request is
+ * a finished task waiting to be closed out; anything else is a result to read.
+ */
+function attentionTier(row: SessionActivityRowOrder): number {
+    if (row.lastAttentionKind === 'waiting' || row.lastAttentionKind === 'failed') return 0;
+    if (row.isPullRequestMerged) return 1;
+    return 2;
+}
+
+function byRecency(left: number, right: number, leftId: string, rightId: string): number {
+    return right - left || (leftId < rightId ? -1 : leftId > rightId ? 1 : 0);
+}
+
+/**
+ * Order inside a status group, shared by every surface that ranks Sessions so the Activity view, the next-attention
+ * shortcut, and the phone's capped dashboard agree. Ties fall back to the most recent Session work, so a new event
+ * moves a row to the top of its tier at once.
+ *
+ * Idle ranks by the later of the work clock and the moment the user marked the Session done, so a Session just resolved
+ * lands at the top of Idle without its `sessionActivityAt` moving (that clock also orders the Project tree, and an
+ * acknowledgement is not work progressing).
  */
 export function compareSessionActivityGroupRows(
-    left: Pick<SessionRecord, 'id' | 'sessionActivityAt'>,
-    right: Pick<SessionRecord, 'id' | 'sessionActivityAt'>,
+    group: SessionActivityGroupId,
+    left: SessionActivityRowOrder,
+    right: SessionActivityRowOrder,
 ): number {
-    return (
-        right.sessionActivityAt - left.sessionActivityAt ||
-        (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
-    );
+    if (group === 'attention') {
+        const tier = attentionTier(left) - attentionTier(right);
+        if (tier !== 0) return tier;
+    } else if (group === 'working') {
+        const background =
+            Number(right.isBackgroundWait ?? false) - Number(left.isBackgroundWait ?? false);
+        if (background !== 0) return background;
+    } else
+        return byRecency(
+            Math.max(left.sessionActivityAt, left.attentionResolvedAt ?? 0),
+            Math.max(right.sessionActivityAt, right.attentionResolvedAt ?? 0),
+            left.id,
+            right.id,
+        );
+    return byRecency(left.sessionActivityAt, right.sessionActivityAt, left.id, right.id);
 }
 
 /**

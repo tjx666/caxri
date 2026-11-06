@@ -1,8 +1,11 @@
-import { SESSION_FINISHED_RETENTION_MS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { MobileSession, MobileTerminal } from '../session-model';
-import { buildMobileSessionSections, isMobileTerminalStopped } from '../session-model';
+import {
+    buildMobileSessionSections,
+    canMarkSessionDone,
+    isMobileTerminalStopped,
+} from '../session-model';
 
 const terminal: MobileTerminal = {
     id: 'terminal-1',
@@ -22,73 +25,116 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     primaryAgentTerminalId: 'terminal-1',
     attentionGeneration: 3,
     hasUnread: true,
+    hasPendingAttention: true,
     primaryTerminal: terminal,
     ...overrides,
 });
+const quiet = { hasUnread: false, hasPendingAttention: false } as const;
 
 describe('mobile session model', () => {
-    it('groups like Desktop and orders each group by Session activity', () => {
+    it('groups into attention, working, and idle and orders attention by tier then recency', () => {
         const result = buildMobileSessionSections({
-            total: 4,
+            total: 5,
             truncated: false,
             sessions: [
-                session(),
+                session({ id: 'result', sessionActivityAt: 500, lastAttentionKind: 'completed' }),
                 session({
-                    id: 'session-2',
+                    id: 'merged',
+                    sessionActivityAt: 400,
+                    lastAttentionKind: 'completed',
+                    pullRequest: { state: 'merged' } as MobileSession['pullRequest'],
+                }),
+                session({ id: 'question', sessionActivityAt: 100, lastAttentionKind: 'waiting' }),
+                session({
+                    id: 'running',
                     sessionActivityAt: 200,
                     agentActivityState: 'running',
-                    hasUnread: false,
+                    ...quiet,
                 }),
                 session({
-                    id: 'session-3',
+                    id: 'idle',
                     sessionActivityAt: 300,
-                    agentActivityState: 'waiting',
-                    hasUnread: false,
-                }),
-                session({
-                    id: 'session-4',
-                    sessionActivityAt: 400,
-                    agentActivityState: 'waiting',
-                    hasUnread: false,
+                    agentActivityState: 'idle',
+                    ...quiet,
                 }),
             ],
         });
 
-        expect(result.groups.attention.map((item) => item.id)).toEqual(['session-1']);
-        expect(result.groups.working.map((item) => item.id)).toEqual(['session-2']);
-        expect(result.groups.waiting.map((item) => item.id)).toEqual(['session-4', 'session-3']);
-        expect(result.groups.attention[0]).toMatchObject({
-            projectTitle: 'Caxri',
-            stateLabel: 'Waiting for you',
-        });
+        expect(result.groups.attention.map((item) => item.id)).toEqual([
+            'question',
+            'merged',
+            'result',
+        ]);
+        expect(result.groups.working.map((item) => item.id)).toEqual(['running']);
+        expect(result.groups.idle.map((item) => item.id)).toEqual(['idle']);
     });
 
-    it('files a stale finished Session and a detached one under Idle', () => {
-        const result = buildMobileSessionSections(
-            {
-                total: 3,
-                truncated: false,
-                sessions: [
-                    session({ id: 'fresh', agentActivityState: 'completed', hasUnread: false }),
-                    session({
-                        id: 'stale',
-                        agentActivityState: 'completed',
-                        hasUnread: false,
-                        sessionActivityAt: 100 - SESSION_FINISHED_RETENTION_MS,
-                    }),
-                    session({
-                        id: 'detached',
-                        hasUnread: false,
-                        primaryTerminal: { ...terminal, lastProcessState: 'detached' },
-                    }),
-                ],
-            },
-            undefined,
-            100,
-        );
+    it('keeps a read Session in attention until it is marked done', () => {
+        const result = buildMobileSessionSections({
+            total: 1,
+            truncated: false,
+            sessions: [session({ hasUnread: false, agentActivityState: 'completed' })],
+        });
+        expect(result.groups.attention.map((item) => item.id)).toEqual(['session-1']);
+    });
 
-        expect(result.groups.finished.map((item) => item.id)).toEqual(['fresh']);
-        expect(result.groups.idle.map((item) => item.id)).toEqual(['detached', 'stale']);
+    it('ranks background waits first in working and a just-resolved Session first in idle', () => {
+        const result = buildMobileSessionSections({
+            total: 4,
+            truncated: false,
+            sessions: [
+                session({
+                    id: 'plain',
+                    agentActivityState: 'running',
+                    sessionActivityAt: 900,
+                    ...quiet,
+                }),
+                session({
+                    id: 'background',
+                    agentActivityState: 'running',
+                    sessionActivityAt: 100,
+                    primaryTerminal: { ...terminal, agentOperation: 'background' },
+                    ...quiet,
+                }),
+                session({
+                    id: 'old',
+                    agentActivityState: 'idle',
+                    sessionActivityAt: 300,
+                    ...quiet,
+                }),
+                session({
+                    id: 'resolved',
+                    agentActivityState: 'idle',
+                    sessionActivityAt: 100,
+                    attentionResolvedAt: 800,
+                    ...quiet,
+                }),
+            ],
+        });
+        expect(result.groups.working.map((item) => item.id)).toEqual(['background', 'plain']);
+        expect(result.groups.idle.map((item) => item.id)).toEqual(['resolved', 'old']);
+    });
+
+    it('files a detached Session with pending attention under attention, not working', () => {
+        const result = buildMobileSessionSections({
+            total: 2,
+            truncated: false,
+            sessions: [
+                session({
+                    id: 'detached',
+                    agentActivityState: 'running',
+                    primaryTerminal: { ...terminal, lastProcessState: 'detached' },
+                }),
+                session({ id: 'live', agentActivityState: 'running', ...quiet }),
+            ],
+        });
+        expect(result.groups.attention.map((item) => item.id)).toEqual(['detached']);
+        expect(result.groups.working.map((item) => item.id)).toEqual(['live']);
+    });
+
+    it('offers Mark as Done only while attention is pending', () => {
+        expect(canMarkSessionDone({ hasPendingAttention: true })).toBe(true);
+        expect(canMarkSessionDone({ hasPendingAttention: false })).toBe(false);
     });
 
     it('lists a pinned Session only under Pinned, in pinned order, even when it has news', () => {
@@ -101,9 +147,10 @@ describe('mobile session model', () => {
                     id: 'pinned-idle',
                     pinnedAt: 1,
                     hasUnread: false,
+                    hasPendingAttention: false,
                     agentActivityState: 'idle',
                 }),
-                session({ id: 'plain', hasUnread: false, agentActivityState: 'idle' }),
+                session({ id: 'plain', ...quiet, agentActivityState: 'idle' }),
             ],
         });
 
@@ -157,7 +204,7 @@ describe('mobile session model', () => {
         expect(result.sessions).toHaveLength(1_000);
     });
 
-    it('labels a running Session that only waits on background work as in the background', () => {
+    it('labels a running Session that only waits on background work ', () => {
         const result = buildMobileSessionSections({
             total: 2,
             truncated: false,
@@ -170,7 +217,7 @@ describe('mobile session model', () => {
             ],
         });
         const labels = new Map(result.sessions.map((item) => [item.id, item.stateLabel]));
-        expect(labels.get('session-1')).toBe('In background');
+        expect(labels.get('session-1')).toBe('Waiting on background work');
         expect(labels.get('session-2')).toBe('Working');
     });
 
@@ -186,7 +233,6 @@ describe('mobile session model', () => {
             sessions: [waiting],
         });
         expect(result.groups.idle.map((item) => item.id)).toEqual(['session-1']);
-        expect(result.groups.failed).toEqual([]);
         expect(result.groups.attention).toEqual([]);
         expect(result.sessions[0].stateLabel).toMatch(/^Continues automatically at /);
         // The wait ends: the unread failure shows again.

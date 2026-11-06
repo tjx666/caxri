@@ -210,6 +210,12 @@ user picks which of those Sessions to resume. Agents that were working continue 
 Shell tabs keep running.
 _Avoid_: offline mode, flight mode, pause all
 
+**Pending Attention**:
+Attention the user has not resolved yet. Reading does not resolve it; marking the Session done, a
+new Agent turn, or the question being answered elsewhere does. It decides whether the Activity view
+lists a Session under Needs attention, while Unread Attention only decides how the row looks.
+_Avoid_: Unhandled, todo
+
 **Unread Attention**:
 Attention whose current generation has not been acknowledged by any Client. Visibly focusing the
 Session is one acknowledgement path, a hook-reported new Agent turn superseding it is another, and

@@ -103,6 +103,10 @@ export const settingsCatalog = {
     'settings.primarySidebar.showSubagents.description':
         "List a Chat Agent's subagents under its Session.",
 
+    'settings.agentActivity.showExcerpts.title': 'Show Agent excerpts in Activity',
+    'settings.agentActivity.showExcerpts.description':
+        'Under each Activity row, quote what the Agent last asked or said, or its one-line recap. Off keeps rows to a title and a status line.',
+
     'settings.primarySidebar.translucent.title': 'Translucent sidebar',
     'settings.primarySidebar.translucent.description':
         'Blur the desktop through the sidebar while the theme matches macOS.',

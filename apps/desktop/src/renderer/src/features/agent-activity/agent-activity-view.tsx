@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 
-import { nextRevealedSessionCount } from '@caxri/protocol';
+import { defaultAppSettings, nextRevealedSessionCount } from '@caxri/protocol';
 
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
@@ -8,40 +8,39 @@ import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useSessionExcerpts } from '../../hooks/use-session-excerpts';
 import { useTranslation } from '../../i18n';
 import { isTreeVerticalKey } from '../../lib/tree-navigation';
-import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
+import {
+    useProjects,
+    useSelectedSession,
+    useSessions,
+    useSettings,
+    useTerminals,
+} from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
-import { sessionAgentTerminal } from '../session/session-agent-terminal';
-import { markSessionRead } from '../session/session-commands';
+import { markSessionDone } from '../session/session-commands';
 import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
-import type {
-    AgentActivityGroupId,
-    AgentActivityRow,
-    AgentActivitySelectionAnchor,
-} from './agent-activity-rows';
+import type { AgentActivityGroupId, AgentActivityRow } from './agent-activity-rows';
 import {
     agentActivityGroups,
     agentActivityHeadingPresentation,
     agentActivityRenameRow,
-    agentActivitySelectionAnchor,
-    isAgentActivitySelectionAnchorCurrent,
 } from './agent-activity-rows';
 import {
     flattenAgentActivityRows,
     nextAgentActivityRowId,
     rovingAgentActivityRowId,
 } from './agent-activity-tree';
-import { useAgentActivityClock } from './hooks/use-agent-activity-clock';
 import { useAgentActivityExpandScroll } from './hooks/use-agent-activity-expand-scroll';
 import {
     useAgentActivityAutoExpand,
     useAgentActivityGroupCollapse,
 } from './hooks/use-agent-activity-group-collapse';
+import { useMergedPullRequestSessionIds } from './hooks/use-merged-pull-request-session-ids';
 
 const NO_RECORDS: never[] = [];
 
@@ -55,10 +54,10 @@ const NO_RECORDS: never[] = [];
  */
 export function AgentActivityView() {
     const { t } = useTranslation();
-    const now = useAgentActivityClock();
     const allProjects = useProjects();
     const sessions = useSessions() ?? NO_RECORDS;
     const terminals = useTerminals();
+    const showExcerpts = (useSettings() ?? defaultAppSettings)['agentActivity.showExcerpts'];
     const selectedSessionId = useSelectedSession()?.id;
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
@@ -76,73 +75,19 @@ export function AgentActivityView() {
     useScrollEdge(scrollReference);
     // Owns the cadence only; each row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
+    const mergedPullRequestSessionIds = useMergedPullRequestSessionIds();
 
-    const canonicalGroups = useMemo(
+    const groups = useMemo(
         () =>
             agentActivityGroups({
-                now,
+                mergedPullRequestSessionIds,
                 // Auto-registered worktree Projects are hidden from the PrimarySidebar's top level, so naming one here
                 // would point at a row the user has no other way to reach.
                 projects: topLevelProjects(allProjects ?? NO_RECORDS),
                 sessions,
-                t,
                 terminals,
             }),
-        [allProjects, now, sessions, t, terminals],
-    );
-    /**
-     * Capture the unread generation on the selection render, before the visibility acknowledgement reaches the Server.
-     * React retries this component immediately after the guarded state adjustment, so children only see the new
-     * anchor.
-     */
-    const [selection, setSelection] = useState<{
-        anchor: AgentActivitySelectionAnchor | undefined;
-        sessionId: string | undefined;
-    }>(() => ({
-        anchor: agentActivitySelectionAnchor(canonicalGroups, selectedSessionId),
-        sessionId: selectedSessionId,
-    }));
-    let selectionAnchor = selection.anchor;
-    if (selection.sessionId !== selectedSessionId) {
-        selectionAnchor = agentActivitySelectionAnchor(canonicalGroups, selectedSessionId);
-        setSelection({ anchor: selectionAnchor, sessionId: selectedSessionId });
-    } else if (selectionAnchor) {
-        const anchoredSession = sessions.find(
-            (session) => session.id === selectionAnchor?.sessionId,
-        );
-        if (
-            !isAgentActivitySelectionAnchorCurrent(
-                selectionAnchor,
-                anchoredSession,
-                anchoredSession ? sessionAgentTerminal(anchoredSession, terminals) : undefined,
-            )
-        ) {
-            selectionAnchor = undefined;
-            setSelection({ anchor: undefined, sessionId: selectedSessionId });
-        }
-    }
-    const groups = useMemo(
-        () =>
-            selectionAnchor?.sessionId === selectedSessionId
-                ? agentActivityGroups({
-                      now,
-                      projects: topLevelProjects(allProjects ?? NO_RECORDS),
-                      selectionAnchor,
-                      sessions,
-                      t,
-                      terminals,
-                  })
-                : canonicalGroups,
-        [
-            allProjects,
-            canonicalGroups,
-            now,
-            selectedSessionId,
-            selectionAnchor,
-            sessions,
-            t,
-            terminals,
-        ],
+        [allProjects, mergedPullRequestSessionIds, sessions, terminals],
     );
     const rows = useMemo(
         () =>
@@ -156,10 +101,11 @@ export function AgentActivityView() {
     const rovingRowId = rovingAgentActivityRowId(rows, focusedRowId, selectedSessionId);
     const sessionRows = useMemo(() => groups.flatMap((group) => group.rows), [groups]);
     const attentionSessions = useMemo(
-        () => sessionRows.filter((row) => row.groupId === 'attention').map((row) => row.session),
-        [sessionRows],
+        () =>
+            groups.find((group) => group.id === 'attention')?.rows.map((row) => row.session) ?? [],
+        [groups],
     );
-    const excerpts = useSessionExcerpts(attentionSessions);
+    const excerpts = useSessionExcerpts(attentionSessions, showExcerpts);
     const visibleSessions = useMemo(() => sessionRows.map((row) => row.session), [sessionRows]);
     const sessionRename = useSessionRename(visibleSessions, (session) => {
         const target = agentActivityRenameRow(groups, session.id, groupCollapse.collapsedGroupIds);
@@ -227,25 +173,20 @@ export function AgentActivityView() {
             ?.focus();
     };
 
-    const markRead = (row: AgentActivityRow): void => {
+    const markDone = (row: AgentActivityRow): void => {
         /**
          * Where focus lands is decided before the acknowledgement is sent, the same way archiving does it in
-         * `primary-sidebar-tree-keys.ts`: clearing a reminder is a queue action people repeat, so focus has to advance
-         * to the next row rather than follow the one that just left "Needs attention".
+         * `primary-sidebar-tree-keys.ts`: resolving an item is a queue action people repeat, so focus has to advance to
+         * the next row rather than follow the one that just left "Needs attention".
          */
         const sessionTreeRows = rows.filter((candidate) => candidate.kind === 'session');
         const focusAfterRead =
             nextAgentActivityRowId(sessionTreeRows, row.rowId, 'ArrowDown') ??
             nextAgentActivityRowId(sessionTreeRows, row.rowId, 'ArrowUp');
-        setSelection((current) =>
-            current.anchor?.sessionId === row.session.id
-                ? { ...current, anchor: undefined }
-                : current,
-        );
-        // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the same
-        // generation unread so the next focus event can retry it.
-        void tryCommand(t('agentActivity.markReadFailed'), () =>
-            markSessionRead(row.session.id, row.session.attentionGeneration),
+        // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the Session
+        // pending so the user can retry.
+        void tryCommand(t('agentActivity.markDoneFailed'), () =>
+            markSessionDone(row.session.id, row.session.attentionGeneration),
         );
         if (focusAfterRead) focusRow(focusAfterRead);
     };
@@ -333,11 +274,12 @@ export function AgentActivityView() {
                                     row={entry.row}
                                     selected={selectedSessionId === entry.sessionId}
                                     sessionRename={sessionRename}
+                                    showExcerpts={showExcerpts}
                                     worktreeProject={worktreeProjectBySessionId.get(
                                         entry.sessionId,
                                     )}
                                     onFocusChange={setFocusedRowId}
-                                    onMarkRead={() => markRead(entry.row)}
+                                    onMarkDone={() => markDone(entry.row)}
                                 />
                             );
                         })}

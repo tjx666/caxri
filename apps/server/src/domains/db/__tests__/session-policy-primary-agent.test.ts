@@ -39,6 +39,8 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         agentActivityState: 'idle',
         attentionGeneration: 0,
         acknowledgedAttentionGeneration: 0,
+        resolvedAttentionGeneration: 0,
+        hasPendingAttention: false,
         lastAttentionKind: undefined,
         hasUnread: false,
         title: DEFAULT_SESSION_TITLE,

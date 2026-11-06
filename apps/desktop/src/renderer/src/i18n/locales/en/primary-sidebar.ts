@@ -101,7 +101,7 @@ export const primarySidebar = {
     'primarySidebar.rename.required': 'Session name is required',
 
     // Session context menu
-    'primarySidebar.sessionMenu.markAsRead': 'Mark as Read',
+    'primarySidebar.sessionMenu.markAsDone': 'Mark as Done',
     'primarySidebar.sessionMenu.renameWithAi': 'Rename with AI',
     'primarySidebar.sessionMenu.pin': 'Pin',
     'primarySidebar.sessionMenu.unpin': 'Unpin',

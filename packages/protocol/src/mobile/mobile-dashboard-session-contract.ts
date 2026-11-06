@@ -29,6 +29,8 @@ export const mobileDashboardSessionSchema = z.strictObject({
     primaryAgentEndpoint: agentEndpointReferenceSchema.optional(),
     attentionGeneration: sessionRecordSchema.shape.attentionGeneration,
     hasUnread: sessionRecordSchema.shape.hasUnread,
+    hasPendingAttention: sessionRecordSchema.shape.hasPendingAttention,
+    attentionResolvedAt: sessionRecordSchema.shape.attentionResolvedAt,
     /**
      * What the unread attention is about, so the row draws Desktop's shape: a question mark when the Agent waits on the
      * user, a dot for a result.

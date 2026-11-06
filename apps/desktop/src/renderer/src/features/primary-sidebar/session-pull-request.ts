@@ -201,3 +201,17 @@ export function sessionPullRequestToneClassName(tone: SessionPullRequestTone): s
             return 'text-muted';
     }
 }
+
+/**
+ * Ids of the Sessions whose discovered pull request has merged, sorted so the list keeps its identity across polls that
+ * changed nothing (React Query's structural sharing compares it by value). Activity uses it to rank a finished task
+ * above a plain result in Needs attention.
+ */
+export function mergedPullRequestSessionIds(
+    snapshot: Pick<SessionPullRequests, 'pullRequests'> | undefined,
+): string[] {
+    return Object.entries(snapshot?.pullRequests ?? {})
+        .filter(([, pullRequest]) => pullRequest.state === 'merged')
+        .map(([sessionId]) => sessionId)
+        .toSorted((left, right) => left.localeCompare(right));
+}

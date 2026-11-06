@@ -71,6 +71,7 @@ export const settingRowSources: SettingRowSource[] = [
     specRow('zen.restore', { advanced: true, subcategory: generalGroups.appearance }),
     specRow('primarySidebar.autoCollapseProjects', { subcategory: generalGroups.sidebar }),
     specRow('primarySidebar.showSubagents', { subcategory: generalGroups.sidebar }),
+    specRow('agentActivity.showExcerpts', { subcategory: generalGroups.sidebar }),
     specRow('primarySidebar.translucent', { subcategory: generalGroups.sidebar }),
     specRow('agentChat.longPasteThreshold', { advanced: true }),
     specRow('agentChat.workingIndicator', { advanced: true }),

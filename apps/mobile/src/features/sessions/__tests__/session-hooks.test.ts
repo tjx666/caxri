@@ -26,6 +26,7 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
     primaryAgentTerminalId: 'terminal-1',
     attentionGeneration: 3,
     hasUnread: true,
+    hasPendingAttention: true,
     primaryTerminal: {
         id: 'terminal-1',
         sessionId: 'session-1',
@@ -45,6 +46,7 @@ describe('mobile Session hooks', () => {
             session({
                 id: 'session-2',
                 hasUnread: false,
+                hasPendingAttention: false,
                 agentActivityState: 'running',
                 sessionActivityAt: 200,
             }),

@@ -73,19 +73,10 @@ describe('windowed groups', () => {
     });
 
     it('keeps the selected Session on screen below the window', () => {
-        const rows = flattenAgentActivityRows([group('finished', many('f', 8))], {
+        const rows = flattenAgentActivityRows([group('idle', many('f', 8))], {
             selectedSessionId: 'f7',
         });
-        expect(ids(rows)).toEqual([
-            'finished',
-            'f0',
-            'f1',
-            'f2',
-            'f3',
-            'f4',
-            'f7',
-            'reveal:finished',
-        ]);
+        expect(ids(rows)).toEqual(['idle', 'f0', 'f1', 'f2', 'f3', 'f4', 'f7', 'reveal:idle']);
     });
 });
 

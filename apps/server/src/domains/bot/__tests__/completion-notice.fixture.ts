@@ -38,6 +38,8 @@ export function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         agentActivityState: 'idle',
         attentionGeneration: 0,
         acknowledgedAttentionGeneration: 0,
+        resolvedAttentionGeneration: 0,
+        hasPendingAttention: false,
         hasUnread: false,
         title: 'Caxri Bot',
         titleMode: 'automatic',

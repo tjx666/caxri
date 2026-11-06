@@ -25,6 +25,8 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
         agentActivityState: 'completed',
         attentionGeneration: 0,
         acknowledgedAttentionGeneration: 0,
+        resolvedAttentionGeneration: 0,
+        hasPendingAttention: false,
         hasUnread: false,
         title: 'Investigate hooks',
         titleMode: 'automatic',

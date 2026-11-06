@@ -21,6 +21,7 @@ describe('buildMobileDashboard', () => {
             agentActivityState: 'waiting' as const,
             attentionGeneration: 1,
             hasUnread: true,
+            hasPendingAttention: true,
             lastAttentionKind: 'waiting' as const,
         });
         const result = buildMobileDashboard({
@@ -68,6 +69,7 @@ describe('buildMobileDashboard', () => {
             agentActivityState: 'completed' as const,
             attentionGeneration: 0,
             hasUnread: false,
+            hasPendingAttention: false,
         });
         const result = buildMobileDashboard({
             hostDisplayName: 'Caxri Host',
@@ -99,6 +101,7 @@ describe('buildMobileDashboard', () => {
             primaryAgentTerminalId: `terminal-${index}`,
             attentionGeneration: index === 0 ? 1 : 0,
             hasUnread: index === 0,
+            hasPendingAttention: index === 0,
         }));
         const result = buildMobileDashboard({
             hostDisplayName: 'Caxri Host',
@@ -143,15 +146,22 @@ describe('buildMobileDashboard', () => {
             lastVisitedAt: 1,
             attentionGeneration: 0,
             hasUnread: false,
+            hasPendingAttention: false,
         };
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
             deviceRole: 'control',
-            now: 1_000,
             projects: [{ id: 'project-1', title: 'Project' }],
             sessions: [
                 { ...base, id: 'idle-new', sessionActivityAt: 900, agentActivityState: 'idle' },
-                { ...base, id: 'waiting', sessionActivityAt: 10, agentActivityState: 'waiting' },
+                {
+                    ...base,
+                    id: 'waiting',
+                    sessionActivityAt: 10,
+                    agentActivityState: 'waiting',
+                    hasPendingAttention: true,
+                    lastAttentionKind: 'waiting',
+                },
                 { ...base, id: 'working', sessionActivityAt: 20, agentActivityState: 'running' },
                 {
                     ...base,
@@ -166,14 +176,15 @@ describe('buildMobileDashboard', () => {
                     sessionActivityAt: 5,
                     agentActivityState: 'completed',
                     hasUnread: true,
+                    hasPendingAttention: true,
                 },
             ],
             terminals: [],
         });
         expect(result.sessions.map((session) => session.id)).toEqual([
             'pinned',
-            'unread',
             'waiting',
+            'unread',
             'working',
             'idle-new',
         ]);
@@ -200,6 +211,7 @@ describe('buildMobileDashboard', () => {
                     agentActivityState: 'completed',
                     attentionGeneration: 0,
                     hasUnread: false,
+                    hasPendingAttention: false,
                 },
                 {
                     id: 'session-2',
@@ -212,6 +224,7 @@ describe('buildMobileDashboard', () => {
                     agentActivityState: 'waiting',
                     attentionGeneration: 1,
                     hasUnread: true,
+                    hasPendingAttention: true,
                 },
             ],
             terminals: [],
@@ -241,6 +254,7 @@ describe('buildMobileDashboard', () => {
                     agentActivityState: 'idle',
                     attentionGeneration: 0,
                     hasUnread: false,
+                    hasPendingAttention: false,
                 },
             ],
             terminals: [
@@ -275,6 +289,7 @@ describe('buildMobileArchivedSessions', () => {
             primaryAgentTerminalId: `terminal-${id}`,
             attentionGeneration: 0,
             hasUnread: false,
+            hasPendingAttention: false,
             ...(archivedAt !== undefined && { archivedAt }),
         });
         const result = buildMobileArchivedSessions({
@@ -332,6 +347,7 @@ describe('buildMobileArchivedSessions', () => {
                 agentActivityState: 'completed' as const,
                 attentionGeneration: 0,
                 hasUnread: false,
+                hasPendingAttention: false,
                 archivedAt: index,
             })),
             terminals: [],
@@ -369,7 +385,6 @@ describe('buildMobileDashboard usage-limit waits', () => {
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
             deviceRole: 'control',
-            now: 1_000,
             projects: [{ id: 'project-1', title: 'Granted' }],
             sessions: [
                 {
@@ -377,6 +392,7 @@ describe('buildMobileDashboard usage-limit waits', () => {
                     id: 'waiting',
                     agentActivityState: 'failed' as const,
                     hasUnread: true,
+                    hasPendingAttention: true,
                     primaryAgentTerminalId: 'terminal-waiting',
                 },
                 {
@@ -385,6 +401,7 @@ describe('buildMobileDashboard usage-limit waits', () => {
                     sessionActivityAt: 2,
                     agentActivityState: 'failed' as const,
                     hasUnread: false,
+                    hasPendingAttention: true,
                     primaryAgentTerminalId: 'terminal-failed',
                 },
             ],
@@ -411,6 +428,7 @@ describe('buildMobileDashboard background work', () => {
             attentionGeneration: 0,
             agentActivityState: 'running' as const,
             hasUnread: false,
+            hasPendingAttention: false,
         };
         const terminal = (id: string, sessionId: string, agentOperation?: 'background') => ({
             id,
@@ -424,7 +442,6 @@ describe('buildMobileDashboard background work', () => {
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
             deviceRole: 'control',
-            now: 1_000,
             projects: [{ id: 'project-1', title: 'Granted' }],
             sessions: [
                 { ...base, id: 'background', primaryAgentTerminalId: 'terminal-background' },

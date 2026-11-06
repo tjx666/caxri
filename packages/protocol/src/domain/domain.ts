@@ -206,6 +206,16 @@ export const sessionRecordSchema = z.object({
      * Latest generation acknowledged after the Session was visibly focused.
      */
     acknowledgedAttentionGeneration: z.number().int().nonnegative(),
+    /**
+     * Latest generation the user resolved: marked done from the Activity view or the phone, superseded by a new Agent
+     * turn, or answered elsewhere. Reading a Session acknowledges its attention without resolving it.
+     */
+    resolvedAttentionGeneration: z.number().int().nonnegative(),
+    /**
+     * When the user last marked this Session done, so the Idle group can list a just-resolved Session first without
+     * moving the Session's own work clock (`sessionActivityAt`), which also orders the Project tree.
+     */
+    attentionResolvedAt: z.number().int().nonnegative().optional(),
     lastAttentionKind: sessionAttentionKindSchema.optional(),
     /**
      * When the user last stopped looking at this Session in a focused, visible Desktop window, recorded by Server Core
@@ -217,6 +227,11 @@ export const sessionRecordSchema = z.object({
      * Derived read-model field; SQLite stores only the two epochs above.
      */
     hasUnread: z.boolean(),
+    /**
+     * Derived read-model field: an attention generation the user has not resolved yet (Pending Attention). It survives
+     * reading, so a Session the user opened but has not acted on stays under the Activity view's Needs attention.
+     */
+    hasPendingAttention: z.boolean(),
     title: z.string(),
     /**
      * Automatic titles follow the primary Agent; manual titles are owned by the user.

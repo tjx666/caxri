@@ -14,7 +14,7 @@ import {
     createPaneLayout,
     removePaneTerminal,
 } from '@caxri/protocol';
-import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { asc, eq, isNull, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import {
@@ -24,6 +24,7 @@ import {
 } from '../schema';
 import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
 import { sessionActivityUpdate, sidebarTopOrder } from './session-activity';
+import { didAcknowledgeAttention, didResolveAttention } from './session-attention';
 import { didWriteAutomaticNaming, readAutomaticNaming } from './session-naming';
 import { orderedTerminalIds, orderedTerminalIdsBySession } from './session-owned-terminals';
 import {
@@ -289,6 +290,7 @@ export class SessionsModel {
                 agentActivityState: 'idle',
                 attentionGeneration: 0,
                 acknowledgedAttentionGeneration: 0,
+                resolvedAttentionGeneration: 0,
                 lastAttentionKind: null,
                 title: input.title,
                 titleMode: 'automatic',
@@ -442,23 +444,15 @@ export class SessionsModel {
             .run();
     }
 
-    /**
-     * Acknowledges only the generation the Renderer actually displayed.
-     */
     acknowledgeAttention(id: string, generation: number): boolean {
-        return (
-            this.database
-                .update(sessions)
-                .set({ acknowledgedAttentionGeneration: generation })
-                .where(
-                    and(
-                        eq(sessions.id, id),
-                        eq(sessions.attentionGeneration, generation),
-                        lt(sessions.acknowledgedAttentionGeneration, generation),
-                    ),
-                )
-                .run().changes === 1
-        );
+        return didAcknowledgeAttention(this.database, id, generation);
+    }
+
+    /**
+     * See {@link didResolveAttention}.
+     */
+    resolveAttention(id: string, generation: number, resolvedAt?: number): boolean {
+        return didResolveAttention(this.database, id, generation, resolvedAt);
     }
 
     consumeAttentionReply(id: string, terminalId: string, generation: number): boolean {
@@ -500,6 +494,7 @@ export class SessionsModel {
         terminalId: string,
         agentActivityState: AgentActivityState,
         activityReason?: SessionActivityReason,
+        attentionKind?: SessionAttentionKind,
     ): boolean {
         const now = Date.now();
         return (
@@ -507,6 +502,10 @@ export class SessionsModel {
                 .update(sessions)
                 .set({
                     agentActivityState,
+                    ...(attentionKind && {
+                        attentionGeneration: sql`${sessions.attentionGeneration} + 1`,
+                        lastAttentionKind: attentionKind,
+                    }),
                     ...(activityReason && sessionActivityUpdate(activityReason, now)),
                 })
                 .where(eq(sessions.primaryAgentTerminalId, terminalId))

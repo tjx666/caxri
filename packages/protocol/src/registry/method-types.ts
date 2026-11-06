@@ -346,6 +346,7 @@ export const effectfulCommandRecovery = {
     'window.reportSelectedMachine': 'memory',
     'window.fullScreen.set': 'memory',
     'session.markRead': 'durable',
+    'session.markDone': 'durable',
     'usage.dismissNotice': 'durable',
     'session.refreshDeliveryOnFocus': 'memory',
     'session.reorder': 'durable',

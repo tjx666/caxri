@@ -28,7 +28,9 @@ function session(title: string) {
         agentActivityState: 'unknown' as const,
         attentionGeneration: 0,
         acknowledgedAttentionGeneration: 0,
+        resolvedAttentionGeneration: 0,
         hasUnread: false,
+        hasPendingAttention: false,
     };
 }
 

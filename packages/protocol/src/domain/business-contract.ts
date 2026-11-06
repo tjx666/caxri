@@ -84,6 +84,8 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     primaryAgentTerminalId: true,
     attentionGeneration: true,
     hasUnread: true,
+    hasPendingAttention: true,
+    attentionResolvedAt: true,
     /**
      * What the unread attention is about, so the phone's Session row draws Desktop's attention shape.
      */

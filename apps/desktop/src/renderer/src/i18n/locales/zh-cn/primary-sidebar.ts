@@ -105,7 +105,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.rename.required': '会话名称不能为空',
 
     // Session context menu
-    'primarySidebar.sessionMenu.markAsRead': '标记为已读',
+    'primarySidebar.sessionMenu.markAsDone': '标为已处理',
     'primarySidebar.sessionMenu.renameWithAi': '使用 AI 重命名',
     'primarySidebar.sessionMenu.pin': '置顶',
     'primarySidebar.sessionMenu.unpin': '取消置顶',
