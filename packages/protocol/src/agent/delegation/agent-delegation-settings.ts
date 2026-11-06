@@ -53,10 +53,11 @@ export const DEFAULT_DELEGATION_DEPTH = 2;
 
 /**
  * How long the user must leave a Session they took over alone (no window shows it, no phone watches it, its Agent is
- * idle) before `autoHandBack` gives it back. Long enough to step into another Session and return without losing it,
- * short enough that a forgotten takeover does not stall the delegating Agent's plan.
+ * idle) before `autoHandBack` gives it back. Long enough to work in other Sessions and return without losing it (five
+ * minutes handed back a Session the user was still discussing while they waited on another), short enough that a
+ * forgotten takeover does not stall the delegating Agent's plan for the rest of the day.
  */
-export const AUTO_HAND_BACK_AFTER_MS = 5 * 60_000;
+export const AUTO_HAND_BACK_AFTER_MS = 30 * 60_000;
 
 /**
  * Machine reasons the cross-field checks below attach to their issues (`params.reason`).

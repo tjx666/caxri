@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import type { DelegationHandBackState } from '../schema';
+import type { DelegationHandBackState, DelegationHandBackTrigger } from '../schema';
 import { delegationHandBacks } from '../schema';
 
 /**
@@ -28,6 +28,7 @@ export interface StoredDelegationHandBack {
     callerTerminalId: string;
     callerLaunchId: string;
     state: DelegationHandBackState;
+    trigger: DelegationHandBackTrigger;
     /**
      * The task that used the grant; present exactly when `state` is `consumed`.
      */
@@ -49,6 +50,7 @@ function toStored(row: typeof delegationHandBacks.$inferSelect): StoredDelegatio
         callerTerminalId: row.callerTerminalId,
         callerLaunchId: row.callerLaunchId,
         state: row.state as DelegationHandBackState,
+        trigger: row.trigger as DelegationHandBackTrigger,
         ...(row.consumedBy !== null && { consumedBy: row.consumedBy }),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

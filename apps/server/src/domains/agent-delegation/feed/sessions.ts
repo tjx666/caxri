@@ -8,7 +8,7 @@ import type {
 import { isDelegationActive, MAX_DELEGATION_SESSIONS } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../../db';
-import { sessionControls } from '../handback/control';
+import { controlChanges, sessionControls, sessionGrants } from '../handback/control';
 import { questionSummaries } from '../questions/summary';
 
 /**
@@ -97,11 +97,15 @@ export function delegationEntries(
     const { database } = source;
     const sessionIds = created.map((session) => session.sessionId);
     // One read and parse of the Sessions' records feeds the receipts, the takeovers and the controls.
-    const { receipts: allReceipts, takeovers } =
-        database.agentDelegations.receiptsAndTakeoversForSessions(sessionIds);
+    const {
+        receipts: allReceipts,
+        takeovers,
+        takeoverTimes,
+    } = database.agentDelegations.receiptsAndTakeoversForSessions(sessionIds);
     const receipts = stateReceipts(allReceipts);
     const results = isSummary ? database.createdSessions.results(sessionIds) : undefined;
-    const controls = sessionControls(database, sessionIds, takeovers);
+    const grants = sessionGrants(database, sessionIds);
+    const controls = sessionControls(database, sessionIds, takeovers, grants);
     const delegationIds = receipts
         .values()
         .map((receipt) => receipt.delegationId)
@@ -112,6 +116,7 @@ export function delegationEntries(
         const receipt = receipts.get(sessionId);
         const result = results?.get(sessionId);
         const takenOverAt = takeovers.get(sessionId);
+        const changes = controlChanges(takeoverTimes.get(sessionId), grants.get(sessionId));
         const question = receipt && questions.get(receipt.delegationId);
         const approval = receipt && approvals?.get(receipt.delegationId);
         const step =
@@ -144,6 +149,7 @@ export function delegationEntries(
             }),
             ...(takenOverAt !== undefined && { takenOverAt }),
             ...(controls.has(sessionId) && { control: controls.get(sessionId) }),
+            ...(changes && { controlChanges: changes }),
             ...(approval && { approval: approval.approval, waitingOn: approval.waitingOn }),
             ...question,
             ...(step && { step }),

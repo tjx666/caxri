@@ -1,3 +1,5 @@
+import type { DelegationControlChange } from '@caxri/protocol';
+
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
 import { agentChatTimelineEntryKey } from '../transcript/agent-chat-timeline';
 
@@ -65,4 +67,41 @@ export function takeoverDividerPlacement(
         isFirst = false;
     }
     return { kind: 'standalone' };
+}
+
+/**
+ * Where each control-change divider goes: the changes before each entry key, oldest first, and the one change that has
+ * no entry to precede and sits above the composer instead.
+ */
+export interface ControlDividerPlacements {
+    before: ReadonlyMap<string, readonly DelegationControlChange[]>;
+    standalone: DelegationControlChange | undefined;
+}
+
+export const NO_CONTROL_DIVIDERS: ControlDividerPlacements = {
+    before: new Map(),
+    standalone: undefined,
+};
+
+/**
+ * Places a divider for every time the Session changed hands (see {@link takeoverDividerPlacement} for one). Only the
+ * newest change may fall back to the standalone marker above the composer, since it says who holds the Session now; an
+ * older change the timeline cannot place is left out rather than stacked there out of order.
+ */
+export function controlDividerPlacements(
+    timeline: readonly AgentChatTimelineEntry[],
+    changes: readonly DelegationControlChange[],
+    isHistoryComplete: boolean,
+): ControlDividerPlacements {
+    const before = new Map<string, DelegationControlChange[]>();
+    let standalone: DelegationControlChange | undefined;
+    for (const [index, change] of changes.entries()) {
+        const placement = takeoverDividerPlacement(timeline, change.at, isHistoryComplete);
+        if (placement.kind === 'before') {
+            const list = before.get(placement.entryKey) ?? [];
+            list.push(change);
+            before.set(placement.entryKey, list);
+        } else if (index === changes.length - 1) standalone = change;
+    }
+    return { before, standalone };
 }

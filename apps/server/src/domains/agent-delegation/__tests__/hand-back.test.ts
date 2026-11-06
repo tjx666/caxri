@@ -349,6 +349,33 @@ describe('automatic hand-back', () => {
         expect(f.service.handBacks.autoHandBack(f.sessionId)).toBe('duplicate');
     });
 
+    it('tells the delegating Agent that Caxri, not the user, handed the Session back', async () => {
+        const f = await takenOverSession();
+        expect(f.service.handBacks.autoHandBack(f.sessionId)).toBe('granted');
+        await vi.waitFor(() => expect(f.deliveries).toHaveLength(1));
+        expect(f.deliveries[0]).toBe(
+            `[Caxri] Caxri handed Session ${f.sessionId} back to you automatically after the user left it alone (task ${f.id}); the user did not hand it back. Continue with: caxri agent delegate create --follow-up ${f.id} ...`,
+        );
+    });
+
+    it('lists each takeover and hand-back in the feed, and drops a hand-back the user took back', async () => {
+        const f = await takenOverSession();
+        const callerSession = f.database.getSession(f.sessionId)!.createdBySessionId!;
+        const changes = () =>
+            f.service.sessions([callerSession]).find((entry) => entry.sessionId === f.sessionId)
+                ?.controlChanges;
+        const takenOverAt = f.stored(f.id).humanInterventionAt!;
+        expect(changes()).toEqual([{ kind: 'taken_over', at: takenOverAt }]);
+        f.service.handBacks.autoHandBack(f.sessionId);
+        const [grant] = f.grants();
+        expect(changes()).toEqual([
+            { kind: 'taken_over', at: takenOverAt },
+            { kind: 'handed_back', at: grant.createdAt, trigger: 'auto' },
+        ]);
+        f.service.interruptTerminal(f.terminal.id, true);
+        expect(changes()).toEqual([{ kind: 'taken_over', at: takenOverAt }]);
+    });
+
     it('answers a refusal instead of throwing, and stores no grant', async () => {
         const f = await takenOverSession();
         f.idle.value = false;

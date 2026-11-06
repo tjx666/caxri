@@ -23,6 +23,11 @@ export interface NoticeItem {
      * The Session the task runs in; a hand-back names it as the Session given back.
      */
     sessionId: string;
+    /**
+     * Who handed the Session back, for a hand-back: Caxri after the user left it alone (`auto`) is worded so the
+     * delegating Agent never tells the user they handed back what Caxri did.
+     */
+    handBackTrigger?: 'auto' | 'user';
 }
 
 /**

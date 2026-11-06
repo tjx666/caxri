@@ -289,7 +289,7 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         // With `agents.delegation.autoHandBack` on by default, the tooltip says the Session goes back on its own.
         await handBack.hover();
         await expect(page.locator('.tooltip-popup')).toContainText(
-            'Leave it alone for 5 minutes and it goes back on its own',
+            'Leave it alone for 30 minutes and it goes back on its own',
         );
         await page.screenshot({ path: testInfo.outputPath('handback-available.png') });
         await page.mouse.move(0, 0);
@@ -319,6 +319,10 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         await expect(
             session.locator('[data-agent-chat-delegation-origin="delegated"]'),
         ).toContainText(`Delegated by ${parent.title}`);
+        // The timeline keeps where the Session changed hands: the takeover, then the hand-back.
+        const dividers = session.locator('[data-agent-chat-takeover-divider]');
+        await expect(dividers.filter({ hasText: 'You took over' })).toBeVisible();
+        await expect(dividers.filter({ hasText: `Handed back to ${parent.title}` })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('handback-continued.png') });
     } finally {
         await chat.cleanup();

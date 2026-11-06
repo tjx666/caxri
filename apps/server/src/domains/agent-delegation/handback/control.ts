@@ -1,6 +1,7 @@
-import type { DelegationControl } from '@caxri/protocol';
+import type { DelegationControl, DelegationControlChange } from '@caxri/protocol';
+import { MAX_DELEGATION_CONTROL_CHANGES } from '@caxri/protocol';
 
-import type { CaxriDatabase, StoredAgentDelegation } from '../../db';
+import type { CaxriDatabase, StoredAgentDelegation, StoredDelegationHandBack } from '../../db';
 
 /**
  * Who each named Session answers to now, for the Sessions that have ever been taken over or handed back; any other
@@ -11,21 +12,18 @@ import type { CaxriDatabase, StoredAgentDelegation } from '../../db';
  *   The old tasks keep their takeover mark for good, so the answer comes from the task that used the latest grant: if
  *   it is gone (pruned) or marked, the user is in control.
  *
- * `takeovers` is the Sessions' takeovers when the caller already read them (see
- * `AgentDelegationsModel.receiptsAndTakeoversForSessions`), so the records are not parsed again.
+ * `takeovers` and `grants` are the Sessions' takeovers and hand-back grants when the caller already read them (see
+ * `AgentDelegationsModel.receiptsAndTakeoversForSessions` and {@link sessionGrants}), so nothing is read twice.
  */
 export function sessionControls(
     database: Pick<CaxriDatabase, 'agentDelegations'>,
     sessionIds: readonly string[],
     takeovers?: ReadonlyMap<string, number>,
+    grants: ReadonlyMap<string, StoredDelegationHandBack[]> = sessionGrants(database, sessionIds),
 ): Map<string, DelegationControl> {
     const controls = new Map<string, DelegationControl>();
     if (sessionIds.length === 0) return controls;
     const { agentDelegations } = database;
-    const grants = Map.groupBy(
-        agentDelegations.handBacks.forSessions(sessionIds),
-        (g) => g.sessionId,
-    );
     for (const sessionId of sessionIds) {
         const mine = grants.get(sessionId) ?? [];
         if (mine.some((grant) => grant.state === 'pending')) {
@@ -57,4 +55,41 @@ export function handBackAnchor(
         .forSession(sessionId)
         .filter((task) => task.receipt.terminalId && task.launchId && task.providerSessionId)
         .toSorted((a, b) => b.receipt.createdAt - a.receipt.createdAt)[0];
+}
+
+/**
+ * The named Sessions' hand-back grants in any state, oldest first, grouped by Session.
+ */
+export function sessionGrants(
+    database: Pick<CaxriDatabase, 'agentDelegations'>,
+    sessionIds: readonly string[],
+): Map<string, StoredDelegationHandBack[]> {
+    return Map.groupBy(
+        database.agentDelegations.handBacks.forSessions(sessionIds),
+        (grant) => grant.sessionId,
+    );
+}
+
+/**
+ * When one Session changed hands, oldest first and capped to the newest {@link MAX_DELEGATION_CONTROL_CHANGES}: each
+ * task's takeover and each hand-back the user did not take back. An `invalidated` grant is left out, since the user
+ * kept the Session; a `pending` one is in, since the Session already waits on the delegating Agent. `undefined` when
+ * nothing changed hands.
+ */
+export function controlChanges(
+    takeoverTimes: readonly number[] | undefined,
+    grants: readonly StoredDelegationHandBack[] | undefined,
+): DelegationControlChange[] | undefined {
+    const changes: DelegationControlChange[] = [
+        ...(takeoverTimes ?? []).map((at) => ({ kind: 'taken_over' as const, at })),
+        ...(grants ?? [])
+            .filter((grant) => grant.state !== 'invalidated')
+            .map((grant) => ({
+                kind: 'handed_back' as const,
+                at: grant.createdAt,
+                trigger: grant.trigger,
+            })),
+    ];
+    if (changes.length === 0) return undefined;
+    return changes.toSorted((a, b) => a.at - b.at).slice(-MAX_DELEGATION_CONTROL_CHANGES);
 }

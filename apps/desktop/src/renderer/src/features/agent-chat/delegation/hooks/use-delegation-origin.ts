@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { AgentDelegationSession } from '@caxri/protocol';
+import type { AgentDelegationSession, DelegationControlChange } from '@caxri/protocol';
 import { keepPreviousData } from '@tanstack/react-query';
 
 import { useCaxriQuery } from '../../../../queries/client';
@@ -24,6 +24,7 @@ type DelegationOriginTask = Pick<
     AgentDelegationSession,
     | 'approval'
     | 'control'
+    | 'controlChanges'
     | 'delegationId'
     | 'failure'
     | 'provider'
@@ -36,6 +37,10 @@ type DelegationOriginTask = Pick<
 >;
 
 export interface DelegationOriginState {
+    /**
+     * Every time the Session changed hands, oldest first, for the timeline's dividers; `undefined` until it first did.
+     */
+    controlChanges: readonly DelegationControlChange[] | undefined;
     origin: DelegationOrigin | undefined;
     /**
      * The newest task that runs in this Session, `undefined` until the feed answers.
@@ -48,6 +53,7 @@ export interface DelegationOriginState {
 }
 
 const NONE: DelegationOriginState = {
+    controlChanges: undefined,
     origin: undefined,
     task: undefined,
     takenOverAt: undefined,
@@ -87,6 +93,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                     entry && {
                         approval: entry.approval,
                         control: entry.control,
+                        controlChanges: entry.controlChanges,
                         delegationId: entry.delegationId,
                         failure: entry.failure,
                         provider: entry.provider,
@@ -112,6 +119,6 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
             task?.waitingOn,
             task?.control,
         );
-        return origin ? { origin, task, takenOverAt } : NONE;
+        return origin ? { controlChanges: task?.controlChanges, origin, task, takenOverAt } : NONE;
     }, [canShow, session, parent, task, takenOverAt]);
 }

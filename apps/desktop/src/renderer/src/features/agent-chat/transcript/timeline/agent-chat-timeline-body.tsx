@@ -46,16 +46,17 @@ function LiveTimelineEntries({
     dayBreaks,
     mountedFrom,
     onOpenFile,
-    takeoverBeforeKey,
+    controlDividers,
     timeline,
 }: {
     dayBreaks: ReadonlyMap<string, number>;
     mountedFrom: number;
     onOpenFile: (reference: string) => void;
     /**
-     * The entry the "You took over" divider goes before, in a delegated child the user took over.
+     * The control-change dividers ("You took over", "Handed back to ...") each entry is preceded by, in a delegated
+     * child that changed hands, and the delegating Session's title they name.
      */
-    takeoverBeforeKey: string | undefined;
+    controlDividers: ReturnType<typeof useTakeoverDivider>;
     timeline: readonly AgentChatTimelineEntry[];
 }) {
     return timeline.slice(mountedFrom).map((entry, offset) => {
@@ -66,7 +67,13 @@ function LiveTimelineEntries({
         const view = <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />;
         return (
             <Fragment key={key}>
-                {key === takeoverBeforeKey && <AgentChatTakeoverDividerRow />}
+                {controlDividers.placements.before.get(key)?.map((change) => (
+                    <AgentChatTakeoverDividerRow
+                        change={change}
+                        key={`${change.kind}:${change.at}`}
+                        parentTitle={controlDividers.parentTitle}
+                    />
+                ))}
                 {dayBreak !== undefined && <AgentChatDayBreak timestamp={dayBreak} />}
                 {turnStartId === undefined ? (
                     view
@@ -134,7 +141,7 @@ export function AgentChatTimelineBody({
     const references = useAgentChatReferenceIndex(settledChunks, timeline);
     // The compaction running now holds the reply's place until it ends.
     const compaction = agentChatCompactionInTimeline(snapshot, timeline);
-    const takeover = useTakeoverDivider(
+    const controlDividers = useTakeoverDivider(
         terminalId,
         timeline,
         isHistoryComplete && settledChunks.length === 0,
@@ -161,16 +168,15 @@ export function AgentChatTimelineBody({
                                     <LiveTimelineEntries
                                         dayBreaks={dayBreaks}
                                         mountedFrom={mountedFrom}
-                                        takeoverBeforeKey={
-                                            takeover?.kind === 'before'
-                                                ? takeover.entryKey
-                                                : undefined
-                                        }
+                                        controlDividers={controlDividers}
                                         timeline={timeline}
                                         onOpenFile={onOpenFile}
                                     />
-                                    {takeover?.kind === 'standalone' && (
-                                        <AgentChatTakeoverDividerRow />
+                                    {controlDividers.placements.standalone && (
+                                        <AgentChatTakeoverDividerRow
+                                            change={controlDividers.placements.standalone}
+                                            parentTitle={controlDividers.parentTitle}
+                                        />
                                     )}
                                 </AgentChatVersionsContext>
                                 {isAwaitingReply && !isViewingEarlier && (
