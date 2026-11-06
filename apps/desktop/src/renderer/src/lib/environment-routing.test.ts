@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
     environmentOfSession,
     forgetEnvironment,
+    forgottenRecordIds,
     indexEnvironmentSnapshot,
     indexReplyRecords,
     resolveRequestEnvironment,
     routingGeneration,
     sessionsByEnvironment,
+    settleForgottenRecords,
     trackRemoteRequest,
 } from './environment-routing';
 
@@ -78,9 +80,7 @@ describe('resolveRequestEnvironment', () => {
         expect(environmentOfSession('remote-session')).toBeUndefined();
         indexEnvironmentSnapshot(HOST, snapshot(), routingGeneration());
         forgetEnvironment(HOST);
-        expect(
-            resolveRequestEnvironment('project.rename', { projectId: 'remote-project' }),
-        ).toBeUndefined();
+        expect(environmentOfSession('remote-session')).toBeUndefined();
     });
 });
 
@@ -123,5 +123,43 @@ describe('sessionsByEnvironment', () => {
             [undefined, ['l1', 'l2']],
             [HOST, ['r1', 'r2']],
         ]);
+    });
+});
+
+describe('a disconnected SSH Host', () => {
+    it('keeps routing requests about its leftover records to the Host, never to this Mac', () => {
+        indexEnvironmentSnapshot(HOST, snapshot(), routingGeneration());
+        forgetEnvironment(HOST);
+        expect(resolveRequestEnvironment('terminal.input', { terminalId: 'remote-terminal' })).toBe(
+            HOST,
+        );
+        expect(resolveRequestEnvironment('session.select', { sessionId: 'remote-session' })).toBe(
+            HOST,
+        );
+        expect(resolveRequestEnvironment('project.update', { projectId: 'remote-project' })).toBe(
+            HOST,
+        );
+        expect(
+            resolveRequestEnvironment('session.select', { sessionId: 'local-session' }),
+        ).toBeUndefined();
+    });
+
+    it('releases its records once a snapshot without them settles', () => {
+        indexEnvironmentSnapshot(HOST, snapshot(), routingGeneration());
+        forgetEnvironment(HOST);
+        settleForgottenRecords(forgottenRecordIds());
+        expect(
+            resolveRequestEnvironment('terminal.input', { terminalId: 'remote-terminal' }),
+        ).toBeUndefined();
+    });
+
+    it('routes normally again when the Host reconnects', () => {
+        indexEnvironmentSnapshot(HOST, snapshot(), routingGeneration());
+        forgetEnvironment(HOST);
+        indexEnvironmentSnapshot(HOST, snapshot(), routingGeneration());
+        settleForgottenRecords(['remote-terminal']);
+        expect(resolveRequestEnvironment('terminal.input', { terminalId: 'remote-terminal' })).toBe(
+            HOST,
+        );
     });
 });

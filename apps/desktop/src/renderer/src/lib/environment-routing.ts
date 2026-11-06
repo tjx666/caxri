@@ -12,6 +12,15 @@ const owners = {
 };
 
 /**
+ * Records of an SSH Host that disconnected, kept until a snapshot read settles them: the Workbench keeps mounted
+ * Terminal panels, editor tabs, and in-flight Session operations for a moment after the Host is forgotten, and an id
+ * the index no longer knows would otherwise read as this Mac's, sending their requests (some without any id, hence
+ * acting on the wrong machine's files) to the local Server. A request naming one still routes to the Host's id, where
+ * Main refuses it as `UNAVAILABLE` ("The SSH Host is not connected").
+ */
+const forgotten = new Map<string, string>();
+
+/**
  * In-flight requests sent to an SSH Host, so `requests.cancel` reaches the Server running the request it cancels.
  */
 const requestOwners = new Map<string, string>();
@@ -49,6 +58,7 @@ export function indexEnvironmentSnapshot(
     readAt: number,
 ): void {
     for (const map of Object.values(owners)) forget(map, environmentId);
+    for (const [id, owner] of forgotten) if (owner === environmentId) forgotten.delete(id);
     for (const [id, record] of replyRecords) {
         if (record.environmentId !== environmentId) continue;
         if (record.generation <= readAt) replyRecords.delete(id);
@@ -97,7 +107,30 @@ export function indexReplyRecords(environmentId: string, reply: unknown): void {
 export function forgetEnvironment(environmentId: string): void {
     for (const [id, record] of replyRecords)
         if (record.environmentId === environmentId) replyRecords.delete(id);
-    for (const map of Object.values(owners)) forget(map, environmentId);
+    for (const map of Object.values(owners))
+        for (const [id, owner] of map)
+            if (owner === environmentId) {
+                map.delete(id);
+                forgotten.set(id, environmentId);
+            }
+}
+
+/**
+ * The ids `forgetEnvironment` left behind so far, for `settleForgottenRecords`.
+ */
+export function forgottenRecordIds(): string[] {
+    return forgotten.keys().toArray();
+}
+
+/**
+ * Releases forgotten ids once a composed snapshot without them has been handed to the UI.
+ */
+export function settleForgottenRecords(ids: readonly string[]): void {
+    for (const id of ids) forgotten.delete(id);
+}
+
+function ownerOf(kind: OwnerKind, id: string): string | undefined {
+    return owners[kind].get(id) ?? forgotten.get(id);
 }
 
 /**
@@ -127,7 +160,7 @@ export function sessionsByEnvironment(
 ): Array<[environmentId: string | undefined, sessionIds: string[]]> {
     const groups = new Map<string | undefined, string[]>();
     for (const sessionId of sessionIds) {
-        const environmentId = owners.sessions.get(sessionId);
+        const environmentId = ownerOf('sessions', sessionId);
         const group = groups.get(environmentId);
         if (group) group.push(sessionId);
         else groups.set(environmentId, [sessionId]);
@@ -175,22 +208,22 @@ function resolveParameters(method: string, parameters: RequestParameters): strin
     }
     for (const key of SESSION_KEYS) {
         const id = stringField(parameters, key);
-        if (id !== undefined) return owners.sessions.get(id);
+        if (id !== undefined) return ownerOf('sessions', id);
     }
     for (const key of TERMINAL_KEYS) {
         const id = stringField(parameters, key);
-        if (id !== undefined) return owners.terminals.get(id);
+        if (id !== undefined) return ownerOf('terminals', id);
     }
     for (const key of PROJECT_KEYS) {
         const id = stringField(parameters, key);
-        if (id !== undefined) return owners.projects.get(id);
+        if (id !== undefined) return ownerOf('projects', id);
     }
     const sessionId = firstOf(parameters, 'sessionIds');
-    if (sessionId !== undefined) return owners.sessions.get(sessionId);
+    if (sessionId !== undefined) return ownerOf('sessions', sessionId);
     const terminalId = firstOf(parameters, 'terminalIds');
-    if (terminalId !== undefined) return owners.terminals.get(terminalId);
+    if (terminalId !== undefined) return ownerOf('terminals', terminalId);
     const projectId = firstOf(parameters, 'projectIds');
-    if (projectId !== undefined) return owners.projects.get(projectId);
+    if (projectId !== undefined) return ownerOf('projects', projectId);
     return undefined;
 }
 
