@@ -29,6 +29,15 @@ function rowGroup(
     return found?.group;
 }
 
+/**
+ * Whether `upper`'s row is laid out above `lower`'s.
+ */
+function isAbove(nodes: MobileSemanticNode[], upper: string, lower: string): boolean {
+    const top = checkBounds(nodes, `session-row-${upper}`)?.top;
+    const bottom = checkBounds(nodes, `session-row-${lower}`)?.top;
+    return top !== undefined && bottom !== undefined && top < bottom;
+}
+
 const waitForRowGroup = (serial: string, sessionId: string, group: SessionActivityGroupId) =>
     waitForMobile(
         () => mobileSemantics(serial),
@@ -39,7 +48,8 @@ const waitForRowGroup = (serial: string, sessionId: string, group: SessionActivi
 /**
  * `MOB-SESSION-ATTENTION-DONE-01`: the Session list groups Sessions into Needs attention, Working, and Idle. A Session
  * whose turn ended stays in Needs attention after the user opens and reads it, and leaves only through the detail
- * menu's Mark as Done, which moves it to the top of Idle.
+ * menu's Mark as Done, which moves it to the top of Idle. A question ranks above a finished result, and a new turn
+ * takes a Session out of Needs attention into Working.
  */
 export async function executeMobileSessionAttentionScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -66,6 +76,13 @@ export async function executeMobileSessionAttentionScenario(
             await createAllowedSession(),
             await createAllowedSession(),
         ];
+        // A Shell Session has no Agent turn, so it sits in Idle; the Session marked done must land above it.
+        const shell = (
+            await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+                projectId: fixture.allowedProjectId,
+                defaultAgent: 'shell',
+            })
+        ).session.id;
         const bound = await waitForMobile(
             () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
             (state) =>
@@ -94,6 +111,10 @@ export async function executeMobileSessionAttentionScenario(
         await waitForRowGroup(serial, question, 'attention');
         await waitForRowGroup(serial, finished, 'attention');
         await waitForRowGroup(serial, working, 'working');
+        await waitForRowGroup(serial, shell, 'idle');
+        // A question outranks a finished result inside Needs attention.
+        if (!isAbove(await mobileSemantics(serial), question, finished))
+            throw new Error('The question Session is not above the finished one');
         await capture(environment, 'three-groups', artifacts);
 
         // Reading a finished Session does not resolve it.
@@ -117,9 +138,17 @@ export async function executeMobileSessionAttentionScenario(
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForRowGroup(serial, finished, 'idle');
         await waitForRowGroup(serial, question, 'attention');
+        if (!isAbove(await mobileSemantics(serial), finished, shell))
+            throw new Error('The Session marked done is not at the top of Idle');
         await capture(environment, 'marked-done-in-idle', artifacts);
+
+        // A new turn resolves the question's attention too: the Session leaves Needs attention for Working.
+        await send(question, 'fixture:start');
+        await waitForRowGroup(serial, question, 'working');
+        await capture(environment, 'new-turn-leaves-attention', artifacts);
         await finish(environment, artifacts, {
             afterMarkDone: 'idle',
+            afterNewTurn: 'working',
             afterRead: 'attention',
             groups: 'attention-working-idle',
             status: 'passed',
