@@ -38,12 +38,21 @@ function isAbove(nodes: MobileSemanticNode[], upper: string, lower: string): boo
     return top !== undefined && bottom !== undefined && top < bottom;
 }
 
-const waitForRowGroup = (serial: string, sessionId: string, group: SessionActivityGroupId) =>
-    waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => rowGroup(nodes, sessionId) === group,
-        30_000,
-    );
+async function waitForRowGroup(
+    serial: string,
+    sessionId: string,
+    group: SessionActivityGroupId,
+): Promise<void> {
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => rowGroup(nodes, sessionId) === group,
+            30_000,
+        );
+    } catch {
+        throw new Error(`A Session row never showed under the ${group} heading`);
+    }
+}
 
 /**
  * `MOB-SESSION-ATTENTION-DONE-01`: the Session list groups Sessions into Needs attention, Working, and Idle. A Session
