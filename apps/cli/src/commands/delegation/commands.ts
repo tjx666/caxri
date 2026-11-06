@@ -4,6 +4,7 @@ import {
     agentDelegationCreateRequestSchema,
     CaxriError,
     delegationProviderSchema,
+    delegationTypeSchema,
     MAX_DELEGATION_WAIT_TASKS,
 } from '@caxri/protocol';
 
@@ -22,6 +23,7 @@ const createFlags = new Set([
     '--session',
     '--provider',
     '--preset',
+    '--type',
     '--model',
     '--effort',
     '--caller',
@@ -55,6 +57,24 @@ function surfaceParameter(
 }
 
 const providerUsage = delegationProviderSchema.options.join('|');
+const typeUsage = delegationTypeSchema.options.join('|');
+
+/**
+ * `--type` starts its own new Session in the caller's Project and decides its relation, so it stands in for
+ * `--new-session` and takes none of the flags that choose a Session, an Agent, or a relation.
+ */
+const TYPE_EXCLUSIVE_FLAGS = [
+    '--session',
+    '--new-session',
+    '--handoff',
+    '--consult',
+    '--independent',
+    '--worktree',
+    '--preset',
+    '--follow-up',
+    '--resume',
+    '--continue-handover',
+] as const;
 
 async function createParameters(tokens: readonly string[]) {
     const values = new Map<string, string>();
@@ -64,11 +84,19 @@ async function createParameters(tokens: readonly string[]) {
     for (const flag of switches)
         if (tokens.filter((token) => token === flag).length > 1)
             throw new CaxriError('VALIDATION', `Pass ${flag} at most once`);
-    const isNewSession = tokens.includes('--new-session');
+    const type = typeParameter(tokens);
+    const isNewSession = Boolean(type) || tokens.includes('--new-session');
     const isHandoff = tokens.includes('--handoff');
     const isConsult = tokens.includes('--consult');
     const isIndependent = tokens.includes('--independent');
     const valueTokens = tokens.filter((token) => !switches.has(token));
+    if (type)
+        for (const flag of TYPE_EXCLUSIVE_FLAGS)
+            if (tokens.includes(flag))
+                throw new CaxriError(
+                    'VALIDATION',
+                    `--type starts its own new Session; remove ${flag}`,
+                );
     for (let index = 0; index < valueTokens.length; index += 2) {
         const flag = valueTokens[index];
         const value = valueTokens[index + 1];
@@ -87,15 +115,15 @@ async function createParameters(tokens: readonly string[]) {
         throw new CaxriError('VALIDATION', '--project-path applies only with --new-session');
     const sessionId = values.get('--session');
     const path = values.get('--prompt-file');
-    if (!path || !(projectId ?? projectPath) || Boolean(sessionId) === isNewSession)
+    if (!path || !(type ?? projectId ?? projectPath) || Boolean(sessionId) === isNewSession)
         throw new CaxriError(
             'VALIDATION',
-            'Delegation requires --project or --project-path, one of --session or --new-session, and --prompt-file',
+            'Delegation requires --project or --project-path, one of --session, --new-session or --type, and --prompt-file',
         );
     if (isNewSession !== values.has('--title'))
         throw new CaxriError(
             'VALIDATION',
-            'Name a new Session with --title; --title applies only with --new-session',
+            'Name a new Session with --title; --title applies only with --new-session or --type',
         );
     if (!isNewSession && values.has('--worktree'))
         throw new CaxriError('VALIDATION', '--worktree applies only with --new-session');
@@ -120,6 +148,7 @@ async function createParameters(tokens: readonly string[]) {
         ...(projectPath && { projectPath: resolve(projectPath) }),
         ...(sessionId && { sessionId }),
         ...(isNewSession && { newSession: true }),
+        ...(type && { type }),
         ...(isHandoff && { handoff: true }),
         ...(isConsult && { consult: true }),
         ...(isIndependent && { independent: true }),
@@ -137,6 +166,14 @@ async function createParameters(tokens: readonly string[]) {
             continueFromHandover: values.get('--continue-handover'),
         }),
     });
+}
+
+function typeParameter(tokens: readonly string[]) {
+    const index = tokens.indexOf('--type');
+    if (index === -1) return;
+    const parsed = delegationTypeSchema.safeParse(tokens[index + 1]);
+    if (!parsed.success) throw new CaxriError('VALIDATION', `--type must be one of ${typeUsage}`);
+    return parsed.data;
 }
 
 function identity(tokens: readonly string[]) {
@@ -244,8 +281,9 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         path: ['agent', 'delegate', 'create'],
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
-        summary: 'Run a task in a visible Agent Terminal and preserve its exact result.',
-        usage: `(--project <id> | --project-path <dir>) (--session <id> | --new-session --title <text> [--handoff | --consult | --independent] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
+        summary:
+            'Run a task in a visible Agent Terminal and preserve its exact result, or ask another Agent for a second opinion, a review, or computer use with --type.',
+        usage: `--type <${typeUsage}> --title <text> [--project <id> | --project-path <dir>] --prompt-file <path> [--surface <chat|terminal>] | (--project <id> | --project-path <dir>) (--session <id> | --new-session --title <text> [--handoff | --consult | --independent] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation:
             'Create this visible Agent delegation, adding its folder as a Project if needed?',
         parseParams: createParameters,

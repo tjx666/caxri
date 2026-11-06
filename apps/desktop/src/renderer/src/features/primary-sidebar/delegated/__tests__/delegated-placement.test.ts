@@ -138,16 +138,37 @@ describe('placeDelegatedSessions', () => {
         expect(place(sessions).byId.get('consult')).toEqual({ hostId: 'host', kind: 'hidden' });
     });
 
-    it('returns what an archived creator made to ordinary rows', () => {
-        const placement = place([
+    it('returns what an archived creator delegated to ordinary rows and keeps its consults out', () => {
+        const sessions = [
             session('root', 'alpha'),
             createdBy('archived-middle', 'alpha', 'root', 'delegated', { archivedAt: 5 }),
             createdBy('orphan', 'alpha', 'archived-middle', 'delegated'),
             createdBy('orphan-consult', 'alpha', 'archived-middle', 'consult'),
-        ]);
+            createdBy('consult-child', 'alpha', 'orphan-consult', 'delegated'),
+        ];
+        const placement = place(sessions);
         expect(placement.byId.has('archived-middle')).toBe(false);
         expect(placement.byId.get('orphan')).toEqual({ kind: 'row' });
-        expect(placement.byId.get('orphan-consult')).toEqual({ kind: 'row' });
+        // The asking work is done: its consult takes no row, and nothing it created vanishes with it.
+        expect(placement.byId.has('orphan-consult')).toBe(false);
+        expect(ids(placement.rows)).not.toContain('orphan-consult');
+        expect(placement.byId.get('consult-child')).toEqual({ kind: 'row' });
+        // Opening it from the command palette still shows it.
+        expect(place(sessions, 'orphan-consult').byId.get('orphan-consult')).toEqual({
+            kind: 'row',
+        });
+    });
+
+    it.each([
+        { name: 'running', overrides: { agentActivityState: 'running' as const } },
+        { name: 'waiting', overrides: { agentActivityState: 'waiting' as const } },
+        { name: 'holding Pending Attention', overrides: { hasPendingAttention: true } },
+    ])('keeps a row for a $name consult whose creator is archived', ({ overrides }) => {
+        const placement = place([
+            session('archived-asker', 'alpha', { archivedAt: 5 }),
+            createdBy('live-consult', 'alpha', 'archived-asker', 'consult', overrides),
+        ]);
+        expect(placement.byId.get('live-consult')).toEqual({ kind: 'row' });
     });
 
     it('treats a creator that is missing from the records like a deleted one', () => {

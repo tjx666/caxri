@@ -298,3 +298,94 @@ describe('Delegation into a new Session from a Client continuation', () => {
         expect(retried.sessionId).toBe(receipt.sessionId);
     });
 });
+
+/**
+ * `--type`: a second opinion, a review, or computer use without any preset (the dianjiang replacement).
+ */
+describe('Delegation of a type', () => {
+    const typed = (type: 'computer-use' | 'review' | 'second-opinion') => ({
+        prompt: 'Synthetic private task',
+        newSession: true as const,
+        title: 'Check the plan',
+        type,
+    });
+
+    it.each([
+        { type: 'second-opinion' as const, relation: 'consult' },
+        { type: 'review' as const, relation: 'consult' },
+        { type: 'computer-use' as const, relation: 'delegated' },
+    ])(
+        'runs $type in the Project of the caller’s own Session as a $relation Session',
+        async ({ type, relation }) => {
+            const { database, service, agentAuthority, callerSessionId } = await fixture();
+            const callerProjectId = database.getSession(callerSessionId)!.projectId;
+
+            const receipt = await service.create(randomUUID(), agentAuthority, typed(type));
+
+            expect(database.getSession(receipt.sessionId)).toMatchObject({
+                projectId: callerProjectId,
+                createdBySessionId: callerSessionId,
+                createdByRelation: relation,
+            });
+            expect(receipt.selection?.type).toBe(type);
+        },
+    );
+
+    it('follows the caller into its linked worktree, so a review reads the caller’s changes', async () => {
+        const { directory, database, service, agentAuthority, callerSessionId } = await fixture();
+        const callerProjectId = database.getSession(callerSessionId)!.projectId;
+        const worktree = database.createProject(join(directory, 'caller-wt'), callerProjectId);
+        database.selectWorkbenchProject(callerSessionId, worktree.id);
+
+        const receipt = await service.create(randomUUID(), agentAuthority, typed('review'));
+
+        expect(database.getSession(receipt.sessionId)).toMatchObject({
+            projectId: callerProjectId,
+            workbenchRootProjectId: worktree.id,
+        });
+    });
+
+    it('asks the other vendor by default and opens the task with the type’s instructions', async () => {
+        const { directory, service, agentAuthority } = await fixture();
+        const id = randomUUID();
+
+        // The fixture's caller is a Codex Session, so a review goes to Claude.
+        const receipt = await service.create(id, agentAuthority, typed('review'));
+
+        expect(receipt.selection).toEqual({ provider: 'claude', type: 'review' });
+        const task = await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8');
+        expect(task).toMatch(/^You are asked to review code changes as an independent reviewer\./u);
+        expect(task).toContain('Synthetic private task');
+    });
+
+    it('runs the type on an Agent the request names, keeping its instructions', async () => {
+        const { directory, service, agentAuthority } = await fixture();
+        const id = randomUUID();
+
+        const receipt = await service.create(id, agentAuthority, {
+            ...typed('second-opinion'),
+            provider: 'codex',
+        });
+
+        expect(receipt.selection).toEqual({ provider: 'codex', type: 'second-opinion' });
+        const task = await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8');
+        expect(task).toContain('Synthetic private task');
+        expect(task).not.toMatch(/^Synthetic private task/u);
+    });
+
+    it('refuses an owner caller that names no Project, before any Session exists', async () => {
+        const { database, service, request } = await fixture();
+        const owner = { principal: { kind: 'human-cli' as const, id: 'owner', generation: 1 } };
+        const sessionsBefore = database.listSessions().length;
+
+        await expect(service.create(randomUUID(), owner, typed('second-opinion'))).rejects.toThrow(
+            /Name a Project/u,
+        );
+        expect(database.listSessions()).toHaveLength(sessionsBefore);
+        const receipt = await service.create(randomUUID(), owner, {
+            ...typed('second-opinion'),
+            projectId: request.projectId,
+        });
+        expect(receipt.selection?.type).toBe('second-opinion');
+    });
+});

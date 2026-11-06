@@ -29,7 +29,7 @@ const dianjiangFile = JSON.stringify({
 
 /**
  * Launches with a seeded `settings.jsonc` and a stubbed open dialog that returns `importPath`, then opens the
- * Delegation presets row in Settings.
+ * Delegation types and presets row in Settings.
  */
 async function launchWithImport(importPath: string, directory: string) {
     const root = join(directory, 'project');

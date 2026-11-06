@@ -164,6 +164,8 @@ function sessionRowGroupId(session: Pick<SessionRecord, 'pinnedAt' | 'projectId'
  * - A host must hold a row itself: a Session whose Project is not shown and which is not pinned is not listed, so what it
  *   created stays an ordinary row in its own Project and nothing becomes unreachable.
  * - Consult hiding applies before pin placement, so a pinned hidden consult stays hidden.
+ * - A settled consult whose creator is archived takes no row at all, and what it created returns to ordinary rows; a
+ *   running, waiting, or attention-holding one keeps its row.
  */
 export function placeDelegatedSessions({
     humanControlledSessionIds = NO_SESSION_IDS,
@@ -173,8 +175,31 @@ export function placeDelegatedSessions({
 }: PlaceDelegatedSessionsInput): DelegatedPlacement {
     const listedProjectIds = new Set(projects.map((project) => project.id));
     const sessionsById = new Map(sessions.map((session) => [session.id, session]));
-    const hasRow = (session: SessionRecord): boolean =>
+    const isListed = (session: SessionRecord): boolean =>
         isPinnedSession(session) || listedProjectIds.has(session.projectId);
+    /**
+     * A settled consult whose creator is archived: the work that asked is done, so the consult stays out of the tree
+     * instead of surfacing as a row nobody asked to see. One that is still running, waiting, or holding Pending
+     * Attention keeps its row, because nobody is left to read its answer or relay its question. The command palette
+     * still finds a retired one, unarchiving the creator hides it under the creator again, and the selected one keeps a
+     * row so the selection stays visible.
+     */
+    const retiredConsults = new Set(
+        sessions
+            .filter(
+                (session) =>
+                    session.archivedAt === undefined &&
+                    session.createdByRelation === 'consult' &&
+                    session.id !== selectedSessionId &&
+                    !session.hasPendingAttention &&
+                    session.agentActivityState !== 'running' &&
+                    session.agentActivityState !== 'waiting' &&
+                    sessionsById.get(session.createdBySessionId ?? '')?.archivedAt !== undefined,
+            )
+            .map((session) => session.id),
+    );
+    const hasRow = (session: SessionRecord): boolean =>
+        isListed(session) && !retiredConsults.has(session.id);
     const byId = new Map<string, SessionPlacement>();
     const rows: SessionRecord[] = [];
     const nested = new Map<string, SessionRecord[]>();

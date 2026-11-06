@@ -8,13 +8,14 @@ import { Button } from '../../../components/ui/button';
 import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { DelegationImportPanel } from './delegation-import-panel';
+import { DelegationTypeList } from './delegation-type-list';
 import { useDelegationImport } from './use-delegation-import';
 
 type DelegationSettings = AppSettings['agents.delegation'];
 
 /**
- * The profile's delegation presets, read-only, with the entry to import a dianjiang file. Presets are edited in the
- * file or by import; this row never writes settings itself.
+ * The Agent each delegation type runs on, then the profile's delegation presets, all read-only, with the entry to
+ * import a dianjiang file. Presets are edited in the file or by import; this row never writes settings itself.
  */
 export function DelegationPresetsSection({ value }: { value: DelegationSettings }) {
     const { t } = useTranslation();
@@ -32,13 +33,15 @@ export function DelegationPresetsSection({ value }: { value: DelegationSettings 
     }, [isOpen]);
     return (
         <div className="flex min-w-0 flex-col gap-2">
+            <DelegationTypeList value={value} />
+            <p className="m-0 text-[11px] text-muted">{t('settings.delegationPresets.heading')}</p>
             {value.presets.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">
                     {t('settings.delegationPresets.empty')}
                 </p>
             ) : (
                 <ul
-                    aria-label={t('settings.row.delegationPresets.title')}
+                    aria-label={t('settings.delegationPresets.label')}
                     className="m-0 flex list-none flex-col gap-1 p-0"
                 >
                     {value.presets.map((preset) => (

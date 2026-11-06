@@ -59,7 +59,7 @@ function DelegatedSummary({
                 parentId={origin.parent.id}
                 title={title}
             />
-            {task?.selection?.preset && ' '}
+            {(task?.selection?.preset ?? task?.selection?.type) && ' '}
             <DelegationPresetChip isDetailVisible selection={task?.selection} />
             {!origin.isParentArchived && (
                 <>

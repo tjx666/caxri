@@ -193,6 +193,7 @@ export function delegationStatuses(
                 delegationId,
                 sessionId: receipt.sessionId,
                 provider: receipt.provider,
+                ...(receipt.selection?.type && { type: receipt.selection.type }),
                 status: receipt.status,
                 ...(receipt.failure && { failure: receipt.failure }),
                 ...(receipt.failureResetsAt !== undefined && {

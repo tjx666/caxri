@@ -23,6 +23,7 @@ import {
     agentDelegationFailureSchema,
     delegationProviderSchema,
     delegationSelectionSchema,
+    delegationTypeSchema,
 } from './agent-delegation-settings.js';
 
 /**
@@ -266,6 +267,10 @@ const agentDelegationStatusEntrySchema = z.strictObject({
     delegationId: identifierSchema,
     sessionId: identifierSchema,
     provider: delegationProviderSchema,
+    /**
+     * The task's type (`selection.type` on its receipt), so a timeline record can say what was asked.
+     */
+    type: delegationTypeSchema.optional(),
     status: agentDelegationStatusSchema,
     failure: agentDelegationFailureSchema.optional(),
     failureResetsAt: z.number().int().positive().optional(),

@@ -389,3 +389,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## macOS System Settings (closed product reference)
 
 - **Settings sidebar and grouped cards**: The search field heads the navigation column, the list-wide Show advanced settings switch sits at its foot, and each run of related rows is one rounded card with dividers inside a centered column. Evidence: `apps/desktop/src/renderer/src/features/settings/settings-sidebar.tsx`; `DESIGN.md` (Settings).
+
+## dianjiang (owner's own CLI)
+
+- **Delegation types**: The three most-used presets (`second-opinion`, `review`, `operate-desktop`) as built-in asks, their cross-vendor bindings, the independent-evaluator briefing, and the computer-use rules (stop before irreversible actions, notify and wait on sign-in, never handle secrets, return final screenshots). Evidence: `apps/server/src/domains/agent-delegation/delegation-types.ts`; `docs/agent-delegation.md` (Delegation types).

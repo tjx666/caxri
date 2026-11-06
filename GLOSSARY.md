@@ -174,6 +174,12 @@ a Chat in another Agent, and both use the first Session's Project; an Agent that
 own may name another Project. It is not a Handed-over Session, which the user gives to Caxri Bot.
 _Avoid_: Transfer, fork, hand-over
 
+**Delegation type**:
+One of the asks Caxri knows without configuration: a second opinion, a review, or computer use. The
+type decides the new Session's relation and how Caxri presents the task; Settings only choose which
+Agent runs it. It is not a preset, which is the user's own named Agent choice.
+_Avoid_: Scenario, mode, kind
+
 **Consult**:
 A question or review an Agent asks another Agent in a new Session, not meant to change any files.
 The Session records the Session that asked, and the sidebar gives it no row while the Session that

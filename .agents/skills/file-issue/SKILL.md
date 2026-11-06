@@ -354,7 +354,7 @@ set, Status, and Priority rather than treating command exit statuses as the comp
 ## Independent review before filing
 
 Every filing decision (one issue or a batch) is reviewed by a second opinion first: a subagent, or
-another harness through `dianjiang`. The gate covers anything the agent concluded on its own: a bug
+another harness through `caxri agent delegate create --type second-opinion`. The gate covers anything the agent concluded on its own: a bug
 it believes it found, a follow-up it wants to leave behind, an enhancement it thought of. It does
 not cover an issue that merely records work the user explicitly directed, where there is no
 judgment to test; file that one directly after the duplicate search in [Mechanics](#mechanics).

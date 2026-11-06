@@ -80,8 +80,8 @@ ordinary E2E, CI, or Acceptance to discover or invoke a host provider.
 
 Whether such a probe is worth spending the owner's real subscription quota (for example a few
 minimal requests to confirm that one opens a Claude five-hour window) is a judgment call, not an
-owner decision: hand the plan, its cost, and the alternatives to Codex through `dianjiang` as a
-read-only review, follow its verdict, and record that verdict in the PR instead of asking the owner.
+owner decision: hand the plan, its cost, and the alternatives to Codex as a
+`caxri agent delegate create --type second-opinion` task, follow its verdict, and record that verdict in the PR instead of asking the owner.
 
 - Use an isolated profile or an already authorized Project, the narrowest read-only sandbox
   available, no approval prompts, and one predeclared bounded input. Do not automate or persist a

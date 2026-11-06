@@ -96,6 +96,7 @@ describe('diagnostics redaction', () => {
                     instructions: 'SENTINEL_PRESET_INSTRUCTIONS',
                 },
             ],
+            types: { review: { provider: 'claude', model: 'opus', effort: 'high' } },
             callers: {
                 claude: {
                     presets: {
@@ -127,6 +128,7 @@ describe('diagnostics redaction', () => {
             readChildChat: true,
             approval: true,
             autoHandBack: true,
+            types: { review: { provider: 'claude', model: 'opus', effort: 'high' } },
             presets: [
                 {
                     name: 'reviewer',

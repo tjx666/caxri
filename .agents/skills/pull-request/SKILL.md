@@ -207,7 +207,7 @@ or cancels the delivery, or a concrete blocker requires their input.
    merge decision stays with the agent; it is not a question for the user. Continue the authorized
    merge by default. If the never-run checks plausibly exercise the changed behavior, first hand the
    diff, the never-run list, and the waiver evidence to an independent reviewer (a subagent, or
-   another harness through `dianjiang`), then adjudicate between merging and exactly one CI rerun,
+   another harness through `caxri agent delegate create --type review`), then adjudicate between merging and exactly one CI rerun,
    and record the verdict in the PR.
 7. Merge only when explicitly authorized by the user or an active workflow such as `switch-worktree`'s delivery flow. When a run
    has finished, gate the merge on its `conclusion` read explicitly in the same command
@@ -234,8 +234,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    check the commits merged since the branch's base, plus open issues and PRs, for the owning file
    or symptom: parallel sessions merge constantly, so a suggested guard may already exist on `main`.
    Drop an item that is already fixed and link the tracker for one that is already filed. Then hand
-   the surviving items, with their evidence, to Codex through `dianjiang` (`second-opinion`,
-   read-only) to verify each against the code and existing skills before reporting; report its
+   the surviving items, with their evidence, to Codex through
+   `caxri agent delegate create --type second-opinion` to verify each against the code and existing skills before reporting; report its
    verdict per item. For example, a proposed `drive-app.ts` seeding step can turn out to be
    covered by an existing `CAXRI_TEST_ROOT_PATHS` fixture the owning skill never mentions. Applying
    a suggestion follows `AGENTS.md`'s workflow-improvement rule.
