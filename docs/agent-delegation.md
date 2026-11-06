@@ -354,7 +354,10 @@ the Session once.
   most one pending per task, so a repeated request answers `duplicate` with the same grant), tells
   the delegating Agent once through the notice queue (`handback:<grant>`: `The user handed Session
 <id> back to you (task <id>). Continue with: caxri agent delegate create --follow-up <task>
-...`), and marks the Session `handback_pending` in the feed.
+...`; an automatic hand-back says `Caxri handed Session <id> back to you automatically after the
+user left it alone ...; the user did not hand it back.` instead, so the Agent never tells the user
+  they handed back what Caxri did), and marks the Session `handback_pending` in the feed. The grant
+  stores its `trigger` (`user` or `auto`).
 - **Guards, in order.** `not_taken_over` (the Session is not the user's); `child_busy` (a task or
   Chat turn is running, a Chat has queued input, or no finished turn is proven idle);
   `draft_active` (a Terminal Agent's prompt holds text typed and not submitted, which the pasted
@@ -391,7 +394,7 @@ the Session once.
   `control` is `human` leaves every visible Desktop window, and only for a departure seen during
   the current Server lifetime, so a Session taken over long ago and not opened since is never
   handed back on upgrade or restart. Showing the Session again, or a phone watching its Chat,
-  cancels the wait. After `AUTO_HAND_BACK_AFTER_MS` (5 minutes) it runs the owner's guards above:
+  cancels the wait. After `AUTO_HAND_BACK_AFTER_MS` (30 minutes) it runs the owner's guards above:
   `child_busy` or `draft_active` restarts the wait, so the child must stay idle for the whole
   wait; any other refusal ends it until the user leaves the Session again. The Chat composer's
   unsent draft is Renderer-only and does not block it: the follow-up arrives as a new message and
@@ -1301,7 +1304,9 @@ in the sidebar; [Sidebar rows](#sidebar-rows) says what it shows
   live `step` while the task is active in a Chat, and the stored `result` (`summary`, `source`, the
   `delegationId` of the task that wrote it, and its `completedAt`), and `takenOverAt` once the user
   took the Session over by first acting in it (input, Stop, or Rewind; set once; see
-  [Chat surfaces](#chat-surfaces)). A follow-up or resume the Server
+  [Chat surfaces](#chat-surfaces)), and `controlChanges` once the Session changed hands: each
+  task's takeover (`taken_over`) and each hand-back not invalidated (`handed_back` with its
+  `trigger`), oldest first, capped to the newest `MAX_DELEGATION_CONTROL_CHANGES`. A follow-up or resume the Server
   refused as `target_busy` (another task holds the Session) or as `target_not_ready` (the Session
   was not ready for it) never ran and does not stand for the Session: a task still in flight
   wins over it, and so does the newest task that ran, so a Session whose task is running never
@@ -1477,11 +1482,14 @@ child title>` part. The header counts them in its needs-input and failed parts b
   a small `Hand back` button (tooltip `Let <parent> continue driving this Session`; the navigation
   link stays `Back to <parent>`): disabled with its reason while the parent is archived, the Chat is busy
   or has queued messages, or the composer holds a draft. After a hand-back the row says `Handed back
-to <parent> · waiting for it to continue` until the Agent uses the grant, and returns to the
-  delegated wording after that. The timeline carries a `You took over` divider at the first entry at or
-  after `takenOverAt`, which a hand-back does not clear. When the position is uncertain (an earlier entry has no time, earlier history is
-  not loaded, or nothing arrived since the takeover), the divider is a standalone marker above the
-  composer instead of a guessed position.
+to <parent> · waiting for it to continue` (`Automatically handed back to <parent>` after an
+  automatic hand-back) until the Agent uses the grant, and returns to the delegated wording after
+  that. The timeline carries a divider for each entry of `controlChanges` at the first entry at or
+  after its time: `You took over`, `Handed back to <parent>`, or `Automatically handed back to
+<parent> after you left`, so a user returning to a Session handed back while they were away sees
+  where it happened. When the position is uncertain (an earlier entry has no time, earlier history is
+  not loaded, or nothing arrived since the change), only the newest change is shown, as a standalone
+  marker above the composer instead of a guessed position; an older change is left out.
   While a request waits, the origin row says `Waiting for <parent> to approve` (muted) or, once
   the request is the user's, `Waiting for your approval` (amber), and the request card carries
   the reason line.

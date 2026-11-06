@@ -1,26 +1,28 @@
 import { useMemo } from 'react';
 
 import type { AgentChatTimelineEntry } from '../../transcript/agent-chat-timeline';
-import type { TakeoverDividerPlacement } from '../agent-chat-takeover-divider';
-import { takeoverDividerPlacement } from '../agent-chat-takeover-divider';
+import type { ControlDividerPlacements } from '../agent-chat-takeover-divider';
+import { controlDividerPlacements, NO_CONTROL_DIVIDERS } from '../agent-chat-takeover-divider';
 import { useDelegationOrigin } from './use-delegation-origin';
 
 /**
- * Where the "You took over" divider goes in this Chat's live timeline, or `undefined` while the user has not taken the
- * Session over (or this is not a delegated child). `isHistoryComplete` is false while earlier history exists that this
- * pane has not read back, so a takeover that may sit in it is not pinned to the first live entry.
+ * Where this Chat's live timeline shows a divider for each time the Session changed hands ("You took over", "Handed
+ * back to ..."), and the delegating Session's title the hand-back dividers name. No dividers while the Session never
+ * changed hands or is not a delegated child. `isHistoryComplete` is false while earlier history exists that this pane
+ * has not read back, so a change that may sit in it is not pinned to the first live entry.
  */
 export function useTakeoverDivider(
     terminalId: string,
     timeline: readonly AgentChatTimelineEntry[],
     isHistoryComplete: boolean,
-): TakeoverDividerPlacement | undefined {
-    const { takenOverAt } = useDelegationOrigin(terminalId);
-    return useMemo(
+): { parentTitle: string; placements: ControlDividerPlacements } {
+    const { controlChanges, origin } = useDelegationOrigin(terminalId);
+    const placements = useMemo(
         () =>
-            takenOverAt === undefined
-                ? undefined
-                : takeoverDividerPlacement(timeline, takenOverAt, isHistoryComplete),
-        [timeline, takenOverAt, isHistoryComplete],
+            controlChanges === undefined
+                ? NO_CONTROL_DIVIDERS
+                : controlDividerPlacements(timeline, controlChanges, isHistoryComplete),
+        [timeline, controlChanges, isHistoryComplete],
     );
+    return { parentTitle: origin?.parent.title ?? '', placements };
 }

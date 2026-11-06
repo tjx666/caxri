@@ -39,5 +39,5 @@ export type {
 } from './models/server-credentials';
 export { SessionViewsModel } from './models/session-views';
 export { CaxriDatabase } from './repository';
-export type { DelegationNoticeKind } from './schema';
+export type { DelegationHandBackTrigger, DelegationNoticeKind } from './schema';
 export { shutdownOutcome, type ShutdownReason } from './session-policy';

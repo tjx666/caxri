@@ -287,11 +287,16 @@ export class SettlementNotices {
         if (rows.length === 0) return true;
         const items = rows.map((notice): NoticeItem => {
             const record = this.options.database.agentDelegations.get(notice.delegationId)!;
+            const grant =
+                notice.kind === 'handback' && notice.subjectId
+                    ? this.options.database.agentDelegations.handBacks.get(notice.subjectId)
+                    : undefined;
             return {
                 delegationId: notice.delegationId,
                 kind: notice.kind,
                 ...(NOTICE_KINDS[notice.kind].carriesStatus && { status: record.receipt.status }),
                 sessionId: record.receipt.sessionId,
+                ...(grant && { handBackTrigger: grant.trigger }),
             };
         });
         const kinds = new Set(rows.map((notice) => notice.kind));

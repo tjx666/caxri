@@ -95,8 +95,9 @@ export const delegation = {
     'delegation.origin.handBackAria': 'Hand back to {{title}}',
     'delegation.origin.handBackTooltip': 'Let {{title}} continue driving this Session',
     'delegation.origin.handBackTooltipAuto':
-        'Let {{title}} continue driving this Session. Leave it alone for 5 minutes and it goes back on its own',
+        'Let {{title}} continue driving this Session. Leave it alone for 30 minutes and it goes back on its own',
     'delegation.origin.handBackPending': 'Handed back to',
+    'delegation.origin.handBackPendingAuto': 'Automatically handed back to',
     'delegation.origin.handBackPendingDetail': 'waiting for it to continue',
     'delegation.origin.handBackBlocked.busy':
         'Wait for the current reply to finish before handing back',
@@ -117,6 +118,8 @@ export const delegation = {
     'delegation.origin.handBackReason.parent_changed':
         'The Agent that delegated this Session has been restarted',
     'delegation.divider.takenOver': 'You took over',
+    'delegation.divider.handedBack': 'Handed back to {{title}}',
+    'delegation.divider.handedBackAuto': 'Automatically handed back to {{title}} after you left',
     'delegation.nextStep.signIn': 'Sign in',
     'delegation.nextStep.signInAria': 'Sign in to {{provider}} for the failed task in {{title}}',
     'delegation.nextStep.enableHooks': 'Enable hooks',

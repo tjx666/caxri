@@ -6,7 +6,7 @@ import type { AutoHandBackOutcome } from './service';
 import { isRetryableAutoRefusal } from './service';
 
 /**
- * How often the left Sessions are checked. A hand-back is due five minutes after the user left, so a half-minute sweep
+ * How often the left Sessions are checked. A hand-back is due 30 minutes after the user left, so a half-minute sweep
  * keeps it within a sweep of that.
  */
 const AUTO_HAND_BACK_SWEEP_INTERVAL_MS = 30_000;

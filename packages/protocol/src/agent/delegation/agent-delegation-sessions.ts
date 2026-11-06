@@ -68,6 +68,28 @@ const stepSchema = z.string().max(MAX_DELEGATION_STEP_LENGTH * 2);
 const delegationControlSchema = z.enum(['human', 'handback_pending', 'delegated']);
 export type DelegationControl = z.infer<typeof delegationControlSchema>;
 
+/**
+ * The most control changes one feed entry carries, newest kept: a Session handed back and taken over again this many
+ * times already says what the timeline needs.
+ */
+export const MAX_DELEGATION_CONTROL_CHANGES = 20;
+
+/**
+ * One moment the Session changed hands, for the child timeline's dividers: `taken_over` when the user first acted in a
+ * task, `handed_back` when a hand-back gave the Session to the Agent that delegated it. `trigger` says who handed it
+ * back: the user, or Caxri after the user left it alone (`auto`). A hand-back that something invalidated before the
+ * Agent used it is not a change: the user kept the Session.
+ */
+const delegationControlChangeSchema = z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('taken_over'), at: z.number().int().positive() }),
+    z.strictObject({
+        kind: z.literal('handed_back'),
+        at: z.number().int().positive(),
+        trigger: z.enum(['auto', 'user']),
+    }),
+]);
+export type DelegationControlChange = z.infer<typeof delegationControlChangeSchema>;
+
 const agentDelegationResultSummarySchema = z.strictObject({
     summary: z.string().max(MAX_DELEGATION_RESULT_SUMMARY_LENGTH * 2),
     source: delegationResultSourceSchema,
@@ -127,6 +149,14 @@ const agentDelegationSessionSchema = z.strictObject({
      * a hand-back.
      */
     control: delegationControlSchema.optional(),
+    /**
+     * Every time the Session changed hands, oldest first and at most {@link MAX_DELEGATION_CONTROL_CHANGES} (the
+     * newest). Absent for a Session never taken over.
+     */
+    controlChanges: z
+        .array(delegationControlChangeSchema)
+        .max(MAX_DELEGATION_CONTROL_CHANGES)
+        .optional(),
     /**
      * What an active Agent Chat Session is doing now, as one short label. Absent for a Terminal Session, a settled
      * task, and a Chat that is between steps.

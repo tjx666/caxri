@@ -17,6 +17,15 @@ const handBackStates = closedValues<DelegationHandBackState>()([
 ]);
 
 /**
+ * Who asked for the hand-back: the owner (`user`: the button or `caxri agent delegate hand-back`), or Server Core after
+ * the user left the taken-over Session alone (`auto`, see `DelegationAutoHandBack`). The delegating Agent's notice and
+ * the child's timeline word the two differently, so an Agent never tells the user they handed back what Caxri did.
+ */
+export type DelegationHandBackTrigger = 'auto' | 'user';
+
+const handBackTriggers = closedValues<DelegationHandBackTrigger>()(['auto', 'user']);
+
+/**
  * The single-use continuation grants the user gives when they hand a taken-over Session back to the Agent that
  * delegated it. A grant lets that Agent's next `--follow-up` of `delegation_id` reuse the child's Terminal and
  * conversation as a new task; it restores nothing on the old task, whose takeover mark stays.
@@ -45,6 +54,7 @@ export const delegationHandBacks = sqliteTable(
         callerTerminalId: text('caller_terminal_id').notNull(),
         callerLaunchId: text('caller_launch_id').notNull(),
         state: text('state').notNull(),
+        trigger: text('trigger').notNull().default('user'),
         consumedBy: text('consumed_by'),
         createdAt: integer('created_at').notNull(),
         updatedAt: integer('updated_at').notNull(),
@@ -56,6 +66,7 @@ export const delegationHandBacks = sqliteTable(
             .on(table.delegationId)
             .where(sql`${table.state} = 'pending'`),
         check('delegation_hand_backs_state', isOneOf(table.state, handBackStates)),
+        check('delegation_hand_backs_trigger', isOneOf(table.trigger, handBackTriggers)),
         check(
             'delegation_hand_backs_consumed',
             sql`(${table.state} = 'consumed') = (${table.consumedBy} IS NOT NULL)`,

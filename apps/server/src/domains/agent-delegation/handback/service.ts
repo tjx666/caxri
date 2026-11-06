@@ -4,7 +4,11 @@ import type { DelegationHandBackRefusal, DelegationHandBackReply } from '@caxri/
 import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
-import type { StoredAgentDelegation, StoredDelegationHandBack } from '../../db';
+import type {
+    DelegationHandBackTrigger as HandBackTrigger,
+    StoredAgentDelegation,
+    StoredDelegationHandBack,
+} from '../../db';
 import type { DelegationAuthority } from '../admission';
 import { isCaxriBotCaller } from '../admission';
 import type { DelegationFollowUpRejection } from '../rejection';
@@ -47,12 +51,6 @@ interface HandBackHost {
  * of the pins can be proven any more.
  */
 type InvalidationReason = 'child_changed' | 'parent_changed' | 'restart';
-
-/**
- * Who asked for the hand-back: the owner (`user`: the button or `caxri agent delegate hand-back`), or Server Core after
- * the user left the taken-over Session alone (`auto`, see `DelegationAutoHandBack`).
- */
-type HandBackTrigger = 'auto' | 'user';
 
 /**
  * A refused hand-back, before the caller decides whether to throw it (the owner's request) or keep waiting (automatic).
@@ -241,6 +239,7 @@ export class DelegationHandBacks {
             sessionId,
             ...child,
             ...parent,
+            trigger,
             createdAt: this.now(),
         };
         if (!this.store.insert(grant)) {

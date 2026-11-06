@@ -346,15 +346,18 @@ export class AgentDelegationsModel {
 
     /**
      * The receipts and the takeovers (see {@link takeoversForSessions}) of the named Sessions from one read and one
-     * parse of their records, for the feed that needs both.
+     * parse of their records, for the feed that needs both. `takeoverTimes` lists every task's takeover per Session,
+     * oldest first: after a hand-back the user can take the same Session over again, once per task.
      */
     receiptsAndTakeoversForSessions(sessionIds: readonly string[]): {
         receipts: AgentDelegationReceipt[];
         takeovers: Map<string, number>;
+        takeoverTimes: Map<string, number[]>;
     } {
         const receipts: AgentDelegationReceipt[] = [];
         const takeovers = new Map<string, number>();
-        if (sessionIds.length === 0) return { receipts, takeovers };
+        const takeoverTimes = new Map<string, number[]>();
+        if (sessionIds.length === 0) return { receipts, takeovers, takeoverTimes };
         const rows = this.database
             .select({ recordJson: agentDelegations.recordJson })
             .from(agentDelegations)
@@ -369,8 +372,12 @@ export class AgentDelegationsModel {
             const known = takeovers.get(receipt.sessionId);
             if (known === undefined || humanInterventionAt < known)
                 takeovers.set(receipt.sessionId, humanInterventionAt);
+            const times = takeoverTimes.get(receipt.sessionId) ?? [];
+            times.push(humanInterventionAt);
+            takeoverTimes.set(receipt.sessionId, times);
         }
-        return { receipts, takeovers };
+        for (const times of takeoverTimes.values()) times.sort((a, b) => a - b);
+        return { receipts, takeovers, takeoverTimes };
     }
 
     /**

@@ -164,7 +164,9 @@ export const NOTICE_KINDS: Record<DelegationNoticeKind, KindDescriptor> = {
         presentation: {
             mode: 'standalone',
             line: (item) =>
-                `[Caxri] The user handed Session ${item.sessionId} back to you (task ${item.delegationId}). Continue with: caxri agent delegate create --follow-up ${item.delegationId} ...`,
+                item.handBackTrigger === 'auto'
+                    ? `[Caxri] Caxri handed Session ${item.sessionId} back to you automatically after the user left it alone (task ${item.delegationId}); the user did not hand it back. Continue with: caxri agent delegate create --follow-up ${item.delegationId} ...`
+                    : `[Caxri] The user handed Session ${item.sessionId} back to you (task ${item.delegationId}). Continue with: caxri agent delegate create --follow-up ${item.delegationId} ...`,
         },
         carriesStatus: false,
         event: () => 'handed_back',
