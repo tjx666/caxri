@@ -6,7 +6,7 @@ import {
     openPortalItem,
     retainPortalItems,
     selectPortalItem,
-} from './portal-items';
+} from '../portal-items';
 
 const open = (...paths: string[]) =>
     paths.reduce((items, path) => openPortalItem(items, path), EMPTY_PORTAL_ITEMS);

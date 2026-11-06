@@ -20,14 +20,14 @@ import {
     useChromeLayoutStore,
 } from '../../../stores/chrome-layout';
 import { useDialogStore } from '../../../stores/dialogs';
-import { useSelectedSessionId, useTerminals } from '../../../stores/selectors';
+import { useSelectedSessionId, useSessions, useTerminals } from '../../../stores/selectors';
 import { EditorSurface } from '../../editor/editor-surface';
 import { PaneViewSessionProvider } from '../../workbench/pane-view-session';
 import { PanelDivider } from '../../workbench/panel-divider';
 import { besideChatTabTerminalId } from '../tasks/beside-chat-layout';
 import { PortalHeader } from './portal-header';
 import { portalTabId, shouldFocusPortalOnOpen } from './portal-keys';
-import { usePortalItems, usePortalStore } from './portal-store';
+import { useIsPortalMaximized, usePortalItems, usePortalStore } from './portal-store';
 
 /**
  * Stands in for a pane id: the beside-Chat surfaces `EditorSurface` renders here never read it.
@@ -51,6 +51,7 @@ export function AgentChatPortal() {
     const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
     const isSettingsPageOpen = useDialogStore((state) => state.settingsPageOpen);
     const items = usePortalItems(sessionId);
+    const isMaximized = useIsPortalMaximized(sessionId);
     const width = useChromeLayoutStore((state) => state.portalWidth);
     useEffect(() => {
         document.documentElement.style.setProperty('--agent-chat-portal-width', `${width}px`);
@@ -94,7 +95,10 @@ export function AgentChatPortal() {
         // A key the content already handled (a menu's or picker's own Escape) is not a request to close.
         if (event.key !== 'Escape' || event.defaultPrevented || isImeComposing(event)) return;
         event.preventDefault();
-        if (sessionId) usePortalStore.getState().closeAll(sessionId);
+        if (!sessionId) return;
+        // Escape first restores a maximized Portal (bringing the Chat back); a second one closes it.
+        if (isMaximized) usePortalStore.getState().restore(sessionId);
+        else usePortalStore.getState().closeAll(sessionId);
     };
     const hasChoices = items.paths.length > 1;
     return (
@@ -112,7 +116,10 @@ export function AgentChatPortal() {
                         tabIndex={-1}
                         className={cn(
                             'agent-chat-portal absolute top-0 right-0 bottom-0 z-20 flex outline-none',
-                            'w-(--agent-chat-portal-width,480px) max-w-[calc(100%-320px)] min-w-0',
+                            'min-w-0',
+                            isMaximized
+                                ? 'w-full'
+                                : 'w-(--agent-chat-portal-width,480px) max-w-[calc(100%-320px)]',
                             'border-l border-border bg-surface shadow-[0_8px_24px_var(--shadow)]',
                             // Settings covers the same grid area and hides the Portal; see `SettingsPageHost` in `app.tsx`.
                             '[grid-row:1/2]',
@@ -121,11 +128,12 @@ export function AgentChatPortal() {
                         onKeyDown={closeOnEscape}
                     >
                         <PaneViewSessionProvider value={sessionId}>
-                            <PortalResizeEdge width={width} />
+                            {!isMaximized && <PortalResizeEdge width={width} />}
                             <div className="flex min-w-0 flex-1 flex-col">
                                 <PortalHeader
                                     activePath={activePath}
                                     idBase={idBase}
+                                    isMaximized={isMaximized}
                                     panelId={panelId}
                                     paths={items.paths}
                                     sessionId={sessionId}
@@ -140,7 +148,7 @@ export function AgentChatPortal() {
                                     id={panelId}
                                     role={hasChoices ? 'tabpanel' : undefined}
                                 >
-                                    {/* Window-local and never persisted, so a local boundary suffices: a reload starts closed. */}
+                                    {/* Items restore after a reload, but a faulting surface only resets on its own path, so a local boundary suffices. */}
                                     <SurfaceErrorBoundary resetKey={activePath} scope="portal">
                                         <EditorSurface
                                             key={activePath}
@@ -178,16 +186,25 @@ function PortalResizeEdge({ width }: { width: number }) {
 }
 
 /**
- * Drops Portal items whose Chat is gone, so closing a Chat never leaves its subagent floating over another one.
+ * Drops Portal items whose Chat is gone, so closing a Chat never leaves its subagent floating over another one, and
+ * forgets the items of deleted Sessions.
  */
 function useRetainLivePortalItems(sessionId: string | undefined): void {
     const terminals = useTerminals();
+    const sessions = useSessions();
+    // Items restored from the last run name Chats the workbench snapshot has not delivered yet; judging them against
+    // an empty Terminal list would drop every one, so retention waits for the snapshot.
     useEffect(() => {
-        if (!sessionId) return;
+        if (!sessions) return;
+        const liveSessions = new Set(sessions.map((session) => session.id));
+        usePortalStore.getState().pruneSessions((id) => liveSessions.has(id));
+    }, [sessions]);
+    useEffect(() => {
+        if (!sessionId || !sessions) return;
         const live = new Set(terminals.map((terminal) => terminal.id));
         usePortalStore.getState().retain(sessionId, (path) => {
             const terminalId = besideChatTabTerminalId(path);
             return terminalId !== undefined && live.has(terminalId);
         });
-    }, [sessionId, terminals]);
+    }, [sessionId, sessions, terminals]);
 }

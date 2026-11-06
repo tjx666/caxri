@@ -130,3 +130,57 @@ test('the side chat opens in a Portal over the Secondary Sidebar, kept per Sessi
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the Portal maximizes over the Chat until Escape, and its items come back after a restart', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-portal-restore-'));
+    const directory = await realpath(created);
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const userData = join(directory, 'user-data');
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    let chatSession: string;
+    const first = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = first;
+        const portal = page.locator('[data-agent-chat-portal]');
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        chatSession = await selectedSessionId(page);
+        const chat = page.locator(VISIBLE_SESSION);
+        await chat.getByRole('textbox', { name: 'Message' }).click();
+        await page.keyboard.press('Meta+;');
+        await expect(portal.getByRole('textbox', { name: 'Ask a side question' })).toBeVisible();
+
+        // Maximize covers the Chat entirely; Escape restores the overlay and keeps the item, a second one closes it.
+        const chatBox = await chat.boundingBox();
+        await portal.getByRole('button', { name: 'Maximize Side View' }).click();
+        const maximized = await portal.boundingBox();
+        expect(maximized && chatBox && maximized.x).toBeLessThanOrEqual(chatBox?.x ?? 0);
+        expect((maximized?.x ?? 0) + (maximized?.width ?? 0)).toBeGreaterThanOrEqual(
+            (chatBox?.x ?? 0) + (chatBox?.width ?? 0),
+        );
+        await page.screenshot({ path: testInfo.outputPath('portal-maximized.png') });
+        await portal.getByRole('textbox', { name: 'Ask a side question' }).focus();
+        await page.keyboard.press('Escape');
+        await expect(portal.getByRole('button', { name: 'Maximize Side View' })).toBeVisible();
+        const restored = await portal.boundingBox();
+        expect(restored?.width).toBeLessThan(maximized?.width ?? 0);
+    } finally {
+        await closeAppQuietly(first.app);
+    }
+
+    const second = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = second;
+        await expect.poll(() => selectedSessionId(page)).toBe(chatSession);
+        await expect(
+            page
+                .locator('[data-agent-chat-portal]')
+                .getByRole('textbox', { name: 'Ask a side question' }),
+        ).toBeVisible();
+    } finally {
+        await closeAppQuietly(second.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
