@@ -47,6 +47,44 @@ interface MoreMenu {
 }
 
 /**
+ * Copy for a reply. On success the glyph becomes a check for {@link COPY_CONFIRMATION_MS}, like Desktop, instead of a
+ * toast; a failure still raises its own toast from the handler.
+ */
+const ReplyCopyButton = ({
+    replyId,
+    theme,
+    turnId,
+}: {
+    replyId: string;
+    theme: MobileTheme;
+    turnId: string;
+}) => {
+    const { t } = useTranslation();
+    const handlers = use(AgentChatReplyActionsContext);
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const timer = setTimeout(() => setCopied(false), COPY_CONFIRMATION_MS);
+        return () => clearTimeout(timer);
+    }, [copied]);
+    return (
+        <IconButton
+            accessibilityLabel={t(copied ? 'chat.reply.copied' : 'chat.reply.copy')}
+            color={copied ? theme.success : theme.muted}
+            icon={copied ? Check : Copy}
+            onPress={() => {
+                void handlers?.copy(replyId).then((ok) => {
+                    if (ok) setCopied(true);
+                });
+            }}
+            size={ICON_SIZE}
+            testID={`agent-chat-reply-copy-${turnId}${copied ? '-copied' : ''}`}
+            theme={theme}
+        />
+    );
+};
+
+/**
  * The bar under a reply that ends a turn, laid out as the Codex and ChatGPT apps end a reply: Copy, Share, and More on
  * the left, and after them the pages the turn searched or fetched, stacked as site icons beside `Sources`. More heads
  * its menu with when the reply was sent, since nothing else in the timeline says so, then offers Fork in New Chat,
@@ -79,16 +117,6 @@ export const AgentChatReplyActionBar = ({
      */
     const placeBeforePage = useRef<AgentChatSourcesPlace>(undefined);
     const [retryToConfirm, setRetryToConfirm] = useState<AgentChatReplyAction>();
-    /**
-     * Whether Copy just succeeded; the glyph becomes a check for {@link COPY_CONFIRMATION_MS}, like Desktop, instead of
-     * a toast.
-     */
-    const [copied, setCopied] = useState(false);
-    useEffect(() => {
-        if (!copied) return;
-        const timer = setTimeout(() => setCopied(false), COPY_CONFIRMATION_MS);
-        return () => clearTimeout(timer);
-    }, [copied]);
     useFocusEffect(
         useCallback(() => {
             const place = placeBeforePage.current;
@@ -124,19 +152,7 @@ export const AgentChatReplyActionBar = ({
             testID={`agent-chat-reply-actions-${turnId}`}
         >
             <View style={styles.buttons}>
-                <IconButton
-                    accessibilityLabel={t(copied ? 'chat.reply.copied' : 'chat.reply.copy')}
-                    color={copied ? theme.success : theme.muted}
-                    icon={copied ? Check : Copy}
-                    onPress={() => {
-                        void handlers.copy(replyId).then((ok) => {
-                            if (ok) setCopied(true);
-                        });
-                    }}
-                    size={ICON_SIZE}
-                    testID={`agent-chat-reply-copy-${turnId}${copied ? '-copied' : ''}`}
-                    theme={theme}
-                />
+                <ReplyCopyButton replyId={replyId} theme={theme} turnId={turnId} />
                 <IconButton
                     accessibilityLabel={t('chat.reply.share')}
                     color={theme.muted}
