@@ -5,6 +5,11 @@ import type { WebContents } from 'electron';
 import type { HangState } from './hang-policy';
 import { beginHang, endHang, initialHangState } from './hang-policy';
 import type {
+    RendererHangEvidence,
+    RendererHangEvidenceSampler,
+} from './renderer-diagnostics/renderer-hang-evidence';
+import { createRendererHangEvidenceSampler } from './renderer-diagnostics/renderer-hang-evidence';
+import type {
     RendererStackCapture,
     RendererStackSampler,
 } from './renderer-diagnostics/renderer-hang-stack';
@@ -37,6 +42,7 @@ export interface RendererHangObserverDependencies {
      */
     probe?: (webContents: WebContents) => Promise<unknown>;
     createStackSampler?: (webContents: WebContents) => RendererStackSampler;
+    createEvidenceSampler?: (webContents: WebContents) => RendererHangEvidenceSampler;
     now?: () => number;
 }
 
@@ -69,6 +75,9 @@ export function observeRendererHangs(
 ): void {
     const probe = dependencies.probe ?? ((contents) => contents.executeJavaScript('0'));
     const sampler = (dependencies.createStackSampler ?? createRendererStackSampler)(webContents);
+    const evidence = (dependencies.createEvidenceSampler ?? createRendererHangEvidenceSampler)(
+        webContents,
+    );
     const now = dependencies.now ?? Date.now;
 
     let state: HangState = initialHangState;
@@ -79,6 +88,10 @@ export function observeRendererHangs(
     let pending: { generation: number; sentAtMs: number } | undefined;
     let generation = 0;
     let lastTickAtMs = now();
+    /**
+     * Whether the CPU measurement window was opened for the probe in flight.
+     */
+    let isEvidenceMarked = false;
     /**
      * Settles once the open hang's entry record is written, so its end can never be logged before it.
      */
@@ -118,6 +131,14 @@ export function observeRendererHangs(
             return;
         }
         if (pending) {
+            /**
+             * A probe still unanswered one interval later is slow; start measuring only then, so a healthy Renderer
+             * costs no `getAppMetrics` call.
+             */
+            if (!isEvidenceMarked) {
+                isEvidenceMarked = true;
+                evidence.mark();
+            }
             if (
                 state.startedAtMs === undefined &&
                 tickAtMs - pending.sentAtMs >= HANG_THRESHOLD_MS
@@ -132,6 +153,7 @@ export function observeRendererHangs(
     function sendProbe(sentAtMs: number): void {
         const sent = { generation, sentAtMs };
         pending = sent;
+        isEvidenceMarked = false;
         void awaitProbe(sent);
     }
 
@@ -160,9 +182,15 @@ export function observeRendererHangs(
         startedAtMs: number,
         detectedAtMs: number,
     ): Promise<void> {
+        /**
+         * Both start now: the evidence read must end while the hang is still running so its CPU average covers the
+         * hang, and the stack capture can wait seconds for a pause that may never land.
+         */
+        const stack = sampler.capture();
+        const hangEvidence = await readEvidence();
         let capture: RendererStackCapture;
         try {
-            capture = await sampler.capture();
+            capture = await stack;
         } catch {
             capture = { outcome: 'failed' };
         }
@@ -174,9 +202,18 @@ export function observeRendererHangs(
                 hangCount,
                 blockedMs: detectedAtMs - startedAtMs,
                 stackOutcome: capture.outcome,
+                ...hangEvidence,
                 ...(capture.stack !== undefined && { stack: capture.stack }),
             },
         });
+    }
+
+    async function readEvidence(): Promise<RendererHangEvidence | undefined> {
+        try {
+            return await evidence.read();
+        } catch {
+            return undefined;
+        }
     }
 
     function closeHang(code: HangEndCode): void {
