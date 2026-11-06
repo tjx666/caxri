@@ -88,20 +88,13 @@ export class ClaudeSteers {
     }
 }
 
-export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-            () => reject(new CaxriError('TIMEOUT', 'Claude did not respond')),
-            timeoutMs,
-        );
-    });
-    try {
-        return await Promise.race([promise, timeout]);
-    } finally {
-        clearTimeout(timer);
-    }
-}
+/**
+ * `withTimeout` option for a Claude SDK control call: a stalled Claude rejects with `TIMEOUT` instead of resolving
+ * empty.
+ */
+export const claudeTimeout = {
+    reject: () => new CaxriError('TIMEOUT', 'Claude did not respond'),
+};
 
 /**
  * Why Claude refuses an exact-turn steer (`ChatInputOptions.exactTurnId`, which a delegating Agent's redirect uses).

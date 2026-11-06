@@ -2,6 +2,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+import { withTimeout } from '@caxri/utils';
 
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -13,7 +14,6 @@ import {
     isSameWorkbenchBinding,
     launchKey,
     selectAddition,
-    withTimeout,
 } from './provenance-support';
 
 const MAX_PENDING_CREATIONS = 256;

@@ -407,4 +407,26 @@ describe('agent.delegation.progress', () => {
 
         expect(onProgress).not.toHaveBeenCalled();
     });
+
+    it('reads and parses each task record once per request, whatever the entry derives from it', async () => {
+        const f = await delegatedFixture();
+        const first = await f.delegate();
+        await f.finish(first, 'Summary: Done.');
+        f.service.interruptTerminal(first.terminalId, true);
+        const second = await f.delegate({ consult: true });
+        f.start(second);
+
+        const parse = vi.spyOn(JSON, 'parse');
+        const sessions = f.service.sessions([f.callerSessionId]);
+        const recordParses = parse.mock.calls.filter(
+            ([text]) => typeof text === 'string' && text.includes('"fingerprint"'),
+        );
+        parse.mockRestore();
+
+        expect(sessions).toHaveLength(2);
+        expect(sessions).toContainEqual(
+            expect.objectContaining({ delegationId: first.id, control: 'human' }),
+        );
+        expect(recordParses).toHaveLength(2);
+    });
 });

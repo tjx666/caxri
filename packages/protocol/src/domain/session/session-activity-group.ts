@@ -1,4 +1,4 @@
-import type { SessionRecord } from '../domain.js';
+import type { SessionRecord, TerminalRecord } from '../domain.js';
 
 /**
  * The status groups Session lists sort into, shared by Desktop's Activity view and the phone's home list so a Session
@@ -37,12 +37,22 @@ export const WINDOWED_SESSION_LIST_GROUPS: ReadonlySet<'pinned' | SessionActivit
 );
 
 /**
+ * Whether the Agent is doing work right now: a running turn, or a compaction, which has no turn of its own. Unlike a
+ * list status slot it is never masked by unread attention. Desktop, the Server's mobile dashboard, and the phone all
+ * read it here, so a compacting Session sits under Working on every surface.
+ */
+export function isSessionAgentRunning(
+    session: Pick<SessionRecord, 'agentActivityState'>,
+    terminal: Pick<TerminalRecord, 'agentOperation'> | undefined,
+): boolean {
+    return terminal?.agentOperation === 'compacting' || session.agentActivityState === 'running';
+}
+
+/**
  * The group a Session belongs to.
  *
- * `isRunning`, `isDetached`, and `isUsageWaiting` come from the caller's own projection of the live Agent (Desktop
- * folds compaction into running and reads the Terminal's process state; the phone and the Server dashboard mirror it
- * from the fields they receive). They must describe the Agent itself, not a status that unread attention already
- * masks.
+ * `isRunning` comes from {@link isSessionAgentRunning}; `isDetached` and `isUsageWaiting` from the caller's Primary
+ * Agent Terminal fields. They must describe the Agent itself, not a status that unread attention already masks.
  */
 export function sessionActivityGroup(
     session: Pick<SessionRecord, 'hasPendingAttention'> & {

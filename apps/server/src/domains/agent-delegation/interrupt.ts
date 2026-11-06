@@ -46,7 +46,8 @@ export function interruptDelegationTerminal(
     // each task that still lacks the mark (the input epoch alone is lost on restart), dated for the feed's
     // `takenOverAt`. Deliberately not guarded per Terminal: a task delegated into a Terminal the user already
     // typed in must still be marked by the next input.
-    if (isHumanInput)
+    // `hasUnmarkedTask` answers from memory, so a keystroke in a Terminal with nothing left to mark costs no SQLite.
+    if (isHumanInput && host.options.database.agentDelegations.hasUnmarkedTask(terminalId))
         for (const task of host.options.database.agentDelegations.forTerminal(terminalId))
             if (!task.hasHumanIntervention) host.save(withHumanIntervention(task, host.now()));
     // Re-read: the takeover mark above may have just rewritten the active task.

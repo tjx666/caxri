@@ -1,7 +1,8 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import { CaxriError } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
-import { withTimeout } from '../providers/claude/prompt-queue';
+import { claudeTimeout } from '../providers/claude/prompt-queue';
 
 /**
  * An interrupt that Claude Code never acknowledges stops the process instead, so the Chat cannot stay stuck in a
@@ -15,7 +16,7 @@ const INTERRUPT_TIMEOUT_MS = 10_000;
  */
 export async function didClaudeInterruptTimeout(stream: Query): Promise<boolean> {
     try {
-        await withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS);
+        await withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS, claudeTimeout);
     } catch (error) {
         return error instanceof CaxriError && error.code === 'TIMEOUT';
         // Otherwise the turn already ended; its `result` settles the projection.
@@ -34,5 +35,9 @@ export async function stopClaudeTurn(
     exited: Promise<void> | undefined,
 ): Promise<void> {
     await interrupt();
-    await withTimeout(Promise.race([ended, exited ?? Promise.resolve()]), INTERRUPT_TIMEOUT_MS);
+    await withTimeout(
+        Promise.race([ended, exited ?? Promise.resolve()]),
+        INTERRUPT_TIMEOUT_MS,
+        claudeTimeout,
+    );
 }

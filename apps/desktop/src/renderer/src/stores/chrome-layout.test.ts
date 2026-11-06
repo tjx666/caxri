@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChromeLayout } from './chrome-layout';
 import {
@@ -159,6 +159,10 @@ describe('clampPanelHeight', () => {
 });
 
 describe('Primary Side Bar Activity mode', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     beforeEach(() => {
         useChromeLayoutStore.setState({
             primarySidebarActivityMode: false,
@@ -198,6 +202,29 @@ describe('Primary Side Bar Activity mode', () => {
 
         expect(useChromeLayoutStore.getState().primarySidebarVisible).toBe(true);
         expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(true);
+    });
+
+    /**
+     * The Activity body's failure fallback and the window crash recovery both use this: the mode persists across
+     * reloads, so leaving it must persist too or the failing body re-mounts on every load.
+     */
+    it('leaves Activity mode and persists the Project tree', () => {
+        const data = new Map<string, string>();
+        vi.stubGlobal('window', {});
+        vi.stubGlobal('localStorage', {
+            getItem: (key: string) => data.get(key) ?? null,
+            removeItem: (key: string) => data.delete(key),
+            setItem: (key: string, value: string) => data.set(key, value),
+        });
+        useChromeLayoutStore.getState().showPrimarySidebarActivity();
+
+        useChromeLayoutStore.getState().leavePrimarySidebarActivityMode();
+
+        expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(false);
+        const persisted = JSON.parse(data.get('caxri.chrome-layout') ?? '{}') as {
+            primarySidebarActivityMode?: boolean;
+        };
+        expect(persisted.primarySidebarActivityMode).toBe(false);
     });
 
     it('stays in Activity mode when asked again', () => {

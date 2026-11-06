@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { commandPolicy } from '../../transport/method-spec.js';
+import { commandPolicy, ownerOnlyCommandPolicy } from '../../transport/method-spec.js';
 
 /**
  * Length of a Claude subscription's rolling usage window.
@@ -158,10 +158,12 @@ export const claudeWindowMethods = {
         result: claudeWindowStateSchema,
     },
     /**
-     * Saves the signed-in account's own choice. An explicit `keepRolling` survives later plan re-detection.
+     * Saves the signed-in account's own choice. An explicit `keepRolling` survives later plan re-detection. Owner-only:
+     * `settings.write` alone is also what an Agent's `business:write` grant carries for the Settings patch allowlist,
+     * and account automation is not part of that allowlist.
      */
     'claudeWindow.update': {
-        ...commandPolicy('server', 'write', ['settings.write']),
+        ...ownerOnlyCommandPolicy('server', 'write', ['settings.write']),
         params: z.strictObject({
             accountKey: z.string().min(1).max(64),
             keepRolling: z.boolean().optional(),
@@ -171,10 +173,11 @@ export const claudeWindowMethods = {
     },
     /**
      * Runs one due check now: the background job calls it through the CLI when launchd wakes it. Idempotent per window,
-     * so a repeated or late call never sends a second request for the same window.
+     * so a repeated or late call never sends a second request for the same window. Owner-only, because a tick may send
+     * a model request on the user's Claude account; an Agent holding `business:write` must not reach it.
      */
     'claudeWindow.tick': {
-        ...commandPolicy('server', 'control', ['settings.write']),
+        ...ownerOnlyCommandPolicy('server', 'control', ['settings.write']),
         params: z.object({}).default({}),
         result: claudeWindowStateSchema,
     },

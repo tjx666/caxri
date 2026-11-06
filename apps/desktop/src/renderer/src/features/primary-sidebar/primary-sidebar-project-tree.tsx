@@ -14,7 +14,7 @@ import {
 } from '../../stores/selectors';
 import { rowSessionsByProject } from './delegated/delegated-order';
 import { sessionRevealTarget } from './delegated/delegated-placement';
-import { useDelegatedSessions } from './delegated/hooks/use-delegated-sessions';
+import { useDelegatedSessionNesting } from './delegated/hooks/use-delegated-session-nesting';
 import { useRenderDelegatedRows } from './delegated/hooks/use-render-delegated-rows';
 import { usePinnedCollapse } from './hooks/use-pinned-collapse';
 import { usePinnedSessionGroup } from './hooks/use-pinned-session-group';
@@ -126,7 +126,12 @@ export function PrimarySidebarProjectTree() {
      * Where every Session goes: an ordinary row, nested under a host, or hidden. Computed first because the collapse
      * protection, the Session groups, the Pinned group, and the keyboard row order all read it.
      */
-    const delegated = useDelegatedSessions({ projects, selectedSessionId, sessions, terminals });
+    const delegated = useDelegatedSessionNesting({
+        projects,
+        selectedSessionId,
+        sessions,
+        terminals,
+    });
     const { placement } = delegated;
     const { headingIdBySessionId, headingOf, headingProjects, mergedProjects, selectedProjectId } =
         useProjectHeadings({ placement, projects, sessions });

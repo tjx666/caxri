@@ -55,7 +55,7 @@ import {
     reconcileWindowsAfterRemoval,
 } from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
-import { markAttentionDone, markAttentionRead } from './session-attention';
+import { markAttentionDone, markAttentionRead } from './session-attention-marks';
 import type { CreateSessionOptions } from './session-create';
 import { createSession as createSessionRow } from './session-create';
 import {

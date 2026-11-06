@@ -16,7 +16,7 @@ export { createAgentChatHandlers } from './handlers';
 export { ProviderProcess } from './provider-process';
 export { reapStaleProviderGroups } from './provider-process-groups';
 export { claudePlanLimits } from './providers/claude/plan-limits';
-export { withTimeout } from './providers/claude/prompt-queue';
+export { claudeTimeout } from './providers/claude/prompt-queue';
 export { AgentChatService } from './service';
 export type { AgentChatServiceOptions } from './service-options';
 export { awayRecapFailureReason } from './side-question/chat-away-recap';

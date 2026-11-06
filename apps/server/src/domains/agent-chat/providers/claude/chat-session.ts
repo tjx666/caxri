@@ -16,6 +16,7 @@ import type {
     AgentChatResponse,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
 import { ChatTurnUsage, claudeTurnResponse } from '../../../usage';
 import { isRecord, slashCommandPrompt, stringField } from '../../chat-items';
@@ -69,7 +70,7 @@ import {
 } from './models';
 import { ClaudePermissions } from './permissions';
 import { ClaudePlanLimits } from './plan-limits';
-import { claudeExactTurnRefusal, ClaudeSteers, PromptQueue, withTimeout } from './prompt-queue';
+import { claudeExactTurnRefusal, ClaudeSteers, claudeTimeout, PromptQueue } from './prompt-queue';
 import { ClaudeRequestBroker } from './requests';
 import { reportClaudeSessionEnd } from './session-end';
 import { claudeQueryOptions, claudeStartError, spawnClaudeProcess } from './session-open';
@@ -441,6 +442,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             const initialized = await withTimeout(
                 stream.initializationResult(),
                 INITIALIZE_TIMEOUT_MS,
+                claudeTimeout,
             );
             this.commands.report(initialized.commands);
             const models = claudeChatModels(initialized.models);

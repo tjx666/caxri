@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,14 @@ import {
     migrationsAfterBaseline,
 } from '../migrations/manifest';
 import migrationJournal from '../migrations/meta/_journal.json';
+
+/**
+ * Data-step migrations that the N-1 test of the column migration before them covers (persistence.md: one N-1 test
+ * anchored on the column migration's tag covers both). Every other post-baseline tag needs its own anchored test.
+ */
+const coveredByPreviousTag: ReadonlyMap<string, string> = new Map([
+    ['0014_session_resolved_attention_backfill', '0013_session_resolved_attention'],
+]);
 
 const journal = (tags: readonly string[]) => ({
     dialect: 'sqlite',
@@ -40,6 +48,32 @@ describe('migration manifest', () => {
         expect(CURRENT_SCHEMA_VERSION).toBe(
             BASELINE_SCHEMA_VERSION + migrationsAfterBaseline.length,
         );
+    });
+
+    /**
+     * Persistence.md requires an N-1 upgrade test anchored on each new tag; without this check a migration can land
+     * with none and nothing notices until an upgrade breaks.
+     */
+    it('anchors an N-1 upgrade test on every post-baseline migration', () => {
+        const anchored = new Set(
+            readdirSync(import.meta.dirname)
+                .filter((name) => name.endsWith('.test.ts'))
+                .flatMap((name) => {
+                    const source = readFileSync(resolve(import.meta.dirname, name), 'utf8');
+                    return source
+                        .matchAll(/const MIGRATION_TAG = '([^']+)'/g)
+                        .map((match) => match[1])
+                        .toArray();
+                }),
+        );
+        const missing = migrationsAfterBaseline
+            .map((migration) => migration.tag)
+            .filter((tag) => !anchored.has(coveredByPreviousTag.get(tag) ?? tag));
+        expect(missing).toEqual([]);
+        for (const [tag, coveringTag] of coveredByPreviousTag) {
+            expect(migrationManifest.map((migration) => migration.tag)).toContain(tag);
+            expect(anchored).toContain(coveringTag);
+        }
     });
 
     it.each([

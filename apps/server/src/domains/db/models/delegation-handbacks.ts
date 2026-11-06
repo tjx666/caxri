@@ -61,19 +61,42 @@ function toStored(row: typeof delegationHandBacks.$inferSelect): StoredDelegatio
  * both use it.
  */
 export class DelegationHandBacksModel {
+    /**
+     * Terminals that may hold a pending grant, so per-keystroke `pendingForTerminal` reads skip SQLite for the vast
+     * majority of Terminals. Only ever a superset of the truth: seeded lazily from the table, grown by `insert` and
+     * `release`, and pruned when a lookup finds nothing. A grant leaving `pending` (or cascading away) can only make an
+     * entry stale, which costs one confirming read, never a missed grant.
+     */
+    private pendingTerminals: Set<string> | undefined;
+
     constructor(private readonly database: CaxriDrizzleDatabase) {}
+
+    private queryPendingForTerminal(terminalId: string): StoredDelegationHandBack[] {
+        return this.database
+            .select()
+            .from(delegationHandBacks)
+            .where(
+                and(
+                    eq(delegationHandBacks.terminalId, terminalId),
+                    eq(delegationHandBacks.state, 'pending'),
+                ),
+            )
+            .all()
+            .map((row) => toStored(row));
+    }
 
     /**
      * Stores a pending grant. Returns false when its task already has a pending one.
      */
     insert(grant: Omit<StoredDelegationHandBack, 'state' | 'updatedAt' | 'consumedBy'>): boolean {
-        return (
+        const isInserted =
             this.database
                 .insert(delegationHandBacks)
                 .values({ ...grant, state: 'pending', updatedAt: grant.createdAt })
                 .onConflictDoNothing()
-                .run().changes === 1
-        );
+                .run().changes === 1;
+        if (isInserted) this.pendingTerminals?.add(grant.terminalId);
+        return isInserted;
     }
 
     get(id: string): StoredDelegationHandBack | undefined {
@@ -106,17 +129,11 @@ export class DelegationHandBacksModel {
      * Every pending grant of the named child Terminal.
      */
     pendingForTerminal(terminalId: string): StoredDelegationHandBack[] {
-        return this.database
-            .select()
-            .from(delegationHandBacks)
-            .where(
-                and(
-                    eq(delegationHandBacks.terminalId, terminalId),
-                    eq(delegationHandBacks.state, 'pending'),
-                ),
-            )
-            .all()
-            .map((row) => toStored(row));
+        this.pendingTerminals ??= new Set(this.pending().map((grant) => grant.terminalId));
+        if (!this.pendingTerminals.has(terminalId)) return [];
+        const grants = this.queryPendingForTerminal(terminalId);
+        if (grants.length === 0) this.pendingTerminals.delete(terminalId);
+        return grants;
     }
 
     /**
@@ -165,7 +182,7 @@ export class DelegationHandBacksModel {
      * conversation.
      */
     release(id: string, taskId: string, now: number): boolean {
-        return (
+        const isReleased =
             this.database
                 .update(delegationHandBacks)
                 .set({ state: 'pending', consumedBy: null, updatedAt: now })
@@ -176,8 +193,10 @@ export class DelegationHandBacksModel {
                         eq(delegationHandBacks.consumedBy, taskId),
                     ),
                 )
-                .run().changes === 1
-        );
+                .run().changes === 1;
+        const grant = isReleased && this.pendingTerminals ? this.get(id) : undefined;
+        if (grant) this.pendingTerminals?.add(grant.terminalId);
+        return isReleased;
     }
 
     /**

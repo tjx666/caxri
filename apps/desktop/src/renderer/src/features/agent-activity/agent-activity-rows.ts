@@ -9,13 +9,13 @@ import {
     compareSessionActivityGroupRows,
     compareSessionPinnedOrder,
     isPinnedSession,
+    isSessionAgentRunning,
     PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS,
     SESSION_ACTIVITY_GROUP_ORDER,
     sessionActivityGroup,
 } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
-import { isSessionAgentRunning } from '../primary-sidebar/session-status';
 import {
     indexedSessionAgentTerminal,
     sessionTerminalIndex,

@@ -233,6 +233,14 @@ function pruneForAdmission(
  */
 export class AgentDelegationsModel {
     /**
+     * Terminals whose tasks are known to all carry the takeover mark (`false`), so the per-keystroke takeover pass in
+     * `interruptDelegationTerminal` skips SQLite. Absent means unknown. `insert` and `save` drop the entry of the
+     * Terminal they write (a task may gain a mark or a Terminal only through them), and pruning only removes tasks,
+     * which cannot create an unmarked one. Process-local, so a restart reseeds it from the table.
+     */
+    private readonly unmarkedTerminals = new Map<string, boolean>();
+
+    /**
      * The questions delegated Agents ask. They belong to a task record: `ON DELETE CASCADE` removes them with it, so
      * pruning needs no extra step.
      */
@@ -267,6 +275,10 @@ export class AgentDelegationsModel {
         this.notices = new DelegationNoticesModel(database);
         this.noticeDeliveries = new DelegationNoticeDeliveriesModel(database);
         this.handBacks = new DelegationHandBacksModel(database);
+    }
+
+    private forgetUnmarked(record: StoredAgentDelegation): void {
+        if (record.receipt.terminalId) this.unmarkedTerminals.delete(record.receipt.terminalId);
     }
 
     get(id: string): StoredAgentDelegation | undefined {
@@ -329,8 +341,20 @@ export class AgentDelegationsModel {
      * Session never taken over is absent.
      */
     takeoversForSessions(sessionIds: readonly string[]): Map<string, number> {
+        return this.receiptsAndTakeoversForSessions(sessionIds).takeovers;
+    }
+
+    /**
+     * The receipts and the takeovers (see {@link takeoversForSessions}) of the named Sessions from one read and one
+     * parse of their records, for the feed that needs both.
+     */
+    receiptsAndTakeoversForSessions(sessionIds: readonly string[]): {
+        receipts: AgentDelegationReceipt[];
+        takeovers: Map<string, number>;
+    } {
+        const receipts: AgentDelegationReceipt[] = [];
         const takeovers = new Map<string, number>();
-        if (sessionIds.length === 0) return takeovers;
+        if (sessionIds.length === 0) return { receipts, takeovers };
         const rows = this.database
             .select({ recordJson: agentDelegations.recordJson })
             .from(agentDelegations)
@@ -340,12 +364,13 @@ export class AgentDelegationsModel {
             const { receipt, humanInterventionAt } = storedDelegationSchema.parse(
                 JSON.parse(row.recordJson),
             );
+            receipts.push(receipt);
             if (humanInterventionAt === undefined) continue;
             const known = takeovers.get(receipt.sessionId);
             if (known === undefined || humanInterventionAt < known)
                 takeovers.set(receipt.sessionId, humanInterventionAt);
         }
-        return takeovers;
+        return { receipts, takeovers };
     }
 
     /**
@@ -388,6 +413,18 @@ export class AgentDelegationsModel {
             .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)));
     }
 
+    /**
+     * Whether any task of the Terminal still lacks the takeover mark. Answered from memory once known, so a caller on
+     * the keystroke path costs no SQLite in steady state.
+     */
+    hasUnmarkedTask(terminalId: string): boolean {
+        const known = this.unmarkedTerminals.get(terminalId);
+        if (known !== undefined) return known;
+        const hasUnmarked = this.forTerminal(terminalId).some((task) => !task.hasHumanIntervention);
+        this.unmarkedTerminals.set(terminalId, hasUnmarked);
+        return hasUnmarked;
+    }
+
     forTerminal(terminalId: string): StoredAgentDelegation[] {
         return this.database
             .select()
@@ -415,6 +452,7 @@ export class AgentDelegationsModel {
         if (count >= MAX_SAVED_DELEGATIONS)
             throw new CaxriError('CAPACITY', 'Too many saved Agent delegations');
         const parsed = storedDelegationSchema.parse(record);
+        this.forgetUnmarked(parsed);
         this.database
             .insert(agentDelegations)
             .values({
@@ -428,6 +466,7 @@ export class AgentDelegationsModel {
 
     save(record: StoredAgentDelegation): StoredAgentDelegation {
         const parsed = storedDelegationSchema.parse(record);
+        this.forgetUnmarked(parsed);
         const result = this.database
             .update(agentDelegations)
             .set({

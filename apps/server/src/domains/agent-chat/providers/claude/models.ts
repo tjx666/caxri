@@ -9,9 +9,10 @@ import type {
     AgentChatModelChange,
     AgentChatPatchOperation,
 } from '@caxri/protocol';
+import { withTimeout } from '@caxri/utils';
 
 import { boundedChatModels, clip, isRecord, stringField } from '../../chat-items';
-import { withTimeout } from './prompt-queue';
+import { claudeTimeout } from './prompt-queue';
 
 const CONFIGURE_TIMEOUT_MS = 10_000;
 
@@ -165,7 +166,11 @@ export function claudeEffortHooks(
 export async function readClaudeAppliedSettings(stream: Query): Promise<AgentChatPatchOperation[]> {
     const { getSettings } = stream as Query & { getSettings?: () => Promise<unknown> };
     if (typeof getSettings !== 'function') return [];
-    const settings = await withTimeout(getSettings.call(stream), CONFIGURE_TIMEOUT_MS);
+    const settings = await withTimeout(
+        getSettings.call(stream),
+        CONFIGURE_TIMEOUT_MS,
+        claudeTimeout,
+    );
     if (!isRecord(settings) || !isRecord(settings.applied)) return [];
     const { applied } = settings;
     const effort = stringField(applied.effort);
@@ -189,7 +194,7 @@ export async function configureClaudeModel(
     apply: (operations: AgentChatPatchOperation[]) => void,
 ): Promise<void> {
     if (model) {
-        await withTimeout(stream.setModel(model.id), CONFIGURE_TIMEOUT_MS);
+        await withTimeout(stream.setModel(model.id), CONFIGURE_TIMEOUT_MS, claudeTimeout);
         apply([{ op: 'state', state: { model: model.resolvedId ?? model.id } }]);
     }
     const nextUltracode = ultracode ?? (effort ? current.ultracode : undefined);
@@ -201,6 +206,7 @@ export async function configureClaudeModel(
             ...(fast !== undefined && { fastMode: fast }),
         }),
         CONFIGURE_TIMEOUT_MS,
+        claudeTimeout,
     );
     apply([
         {

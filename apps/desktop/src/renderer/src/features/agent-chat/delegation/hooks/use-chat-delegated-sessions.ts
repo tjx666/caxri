@@ -57,7 +57,7 @@ const DELEGATION_ATTENTION_STALE_TIME_MS = 60_000;
  * `agent.delegation.sessions` for this Chat's own Session through the same cache entries and invalidation as the
  * sidebar's nested rows. Asks nothing where the window cannot show them.
  */
-export function useDelegatedSessions(terminalId: string): DelegatedSessions {
+export function useChatDelegatedSessions(terminalId: string): DelegatedSessions {
     const canShow = useCanShowDelegatedSessions();
     const sessionId = useTerminal(terminalId)?.sessionId;
     const chunks = useMemo(() => (sessionId ? [[sessionId]] : []), [sessionId]);

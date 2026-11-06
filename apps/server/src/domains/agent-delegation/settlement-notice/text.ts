@@ -2,6 +2,7 @@ import type { AgentDelegationReceipt } from '@caxri/protocol';
 import { MAX_DELEGATION_NOTICE_ITEMS } from '@caxri/protocol';
 
 import type { DelegationNoticeKind } from '../../db';
+import { NOTICE_KINDS } from './kinds';
 
 /**
  * Most items one notice message lists; the rest are sent after the caller's next idle.
@@ -24,20 +25,6 @@ export interface NoticeItem {
     sessionId: string;
 }
 
-const SETTLED_PHRASES: Partial<Record<AgentDelegationReceipt['status'], string>> = {
-    completed: 'completed',
-    failed: 'failed',
-    interrupted: 'was interrupted',
-    human_intervened: 'was taken over by the user',
-    answer_unavailable: 'finished, but its answer could not be read',
-};
-
-function phrase(item: NoticeItem): string {
-    if (item.kind === 'question') return 'is asking you a question';
-    if (item.kind === 'approval') return 'needs your approval';
-    return SETTLED_PHRASES[item.status!] ?? 'settled';
-}
-
 /**
  * The fixed message that wakes a delegating Agent: task IDs, a closed phrase per event, and the commands that read each
  * outcome. It carries no answer, summary, question, request text, or Session title (the child Agent can rename its
@@ -46,28 +33,30 @@ function phrase(item: NoticeItem): string {
  * notices).
  */
 export function formatSettlementNotice(items: readonly NoticeItem[]): string {
-    const handBacks = items.filter((item) => item.kind === 'handback');
-    const lines = handBacks.map(
-        (item) =>
-            `[Caxri] The user handed Session ${item.sessionId} back to you (task ${item.delegationId}). Continue with: caxri agent delegate create --follow-up ${item.delegationId} ...`,
-    );
-    items = items.filter((item) => item.kind !== 'handback');
-    if (items.length === 0) return lines.join('\n');
-    lines.push('[Caxri] Delegated task update:');
+    const lines: string[] = [];
+    const listed: NoticeItem[] = [];
     for (const item of items) {
-        lines.push(`- ${item.delegationId} ${phrase(item)}`);
+        const { presentation } = NOTICE_KINDS[item.kind];
+        if (presentation.mode === 'standalone') lines.push(presentation.line(item));
+        else listed.push(item);
     }
-    for (const item of items)
+    if (listed.length === 0) return lines.join('\n');
+    lines.push('[Caxri] Delegated task update:');
+    for (const item of listed) {
+        const { presentation } = NOTICE_KINDS[item.kind];
+        if (presentation.mode === 'listed')
+            lines.push(`- ${item.delegationId} ${presentation.phrase(item)}`);
+    }
+    for (const item of listed)
         if (item.status === 'human_intervened')
             lines.push(
                 `The user took over ${item.delegationId}; stop waiting for it unless the user hands it back.`,
             );
-    const kinds = new Set(items.map((item) => item.kind));
-    const reads = [
-        kinds.has('settled') && 'results: caxri agent delegate result <id> --json',
-        kinds.has('question') && 'questions: caxri agent delegate questions <id> --json',
-        kinds.has('approval') && 'approval requests: caxri agent delegate status <id> --json',
-    ].filter(Boolean);
+    const kinds = new Set(listed.map((item) => item.kind));
+    const reads: string[] = [];
+    for (const [kind, descriptor] of Object.entries(NOTICE_KINDS))
+        if (kinds.has(kind as DelegationNoticeKind) && descriptor.presentation.mode === 'listed')
+            reads.push(descriptor.presentation.read);
     lines.push(`Read each with (${reads.join('; ')}).`);
     return lines.join('\n');
 }

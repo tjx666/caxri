@@ -2,28 +2,14 @@ import { createHash } from 'node:crypto';
 
 import type { AgentChatDelegationNotice, DelegationNoticeEvent } from '@caxri/protocol';
 
+import { NOTICE_KINDS } from './kinds';
 import type { NoticeItem } from './text';
 
 /**
  * The closed event a Client turns into a status word for one item of a notice.
  */
 export function noticeEvent(item: NoticeItem): DelegationNoticeEvent {
-    if (item.kind === 'question' || item.kind === 'approval') return item.kind;
-    if (item.kind === 'handback') return 'handed_back';
-    switch (item.status) {
-        case 'completed':
-        case 'failed':
-        case 'interrupted':
-        case 'answer_unavailable': {
-            return item.status;
-        }
-        case 'human_intervened': {
-            return 'taken_over';
-        }
-        default: {
-            return 'settled';
-        }
-    }
+    return NOTICE_KINDS[item.kind].event(item);
 }
 
 /**

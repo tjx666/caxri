@@ -9,6 +9,8 @@ import { acknowledgeRead } from './acknowledge';
 import type { NoticeOutcome, NoticeReason, SettlementNoticeSources } from './contract';
 import { noticeDelivery, noticeTextDigest } from './delivery';
 import { noticeCallerOf } from './eligibility';
+import type { Drop, Verdict } from './kinds';
+import { NOTICE_KINDS } from './kinds';
 import { PtyIdleProof } from './pty-proof';
 import type { NoticeItem } from './text';
 import { formatSettlementNotice, MAX_NOTICE_ITEMS } from './text';
@@ -47,12 +49,6 @@ const PTY_IDLE_RECHECK_MS = 1000;
 export const NOTICE_MAX_ABSENT_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_TIMING = { quietMs: 1500, recheckMs: 10_000 };
-
-interface Drop {
-    kind: 'skip' | 'discard';
-    reason: NoticeReason;
-}
-type Verdict = Drop | { kind: 'send' } | { kind: 'defer'; reason: NoticeReason };
 
 interface Group {
     terminalId: string;
@@ -186,28 +182,12 @@ export class SettlementNotices {
         const record = this.options.database.agentDelegations.get(notice.delegationId);
         if (!record) return { kind: 'skip', reason: 'resolved' };
         if (notice.acknowledgedAt !== undefined) return { kind: 'skip', reason: 'acknowledged' };
-        const { receipt } = record;
-        // A hand-back is owed while the user's grant stands, whatever state the task is in and whoever waits.
-        if (notice.kind === 'handback')
-            return this.sources.isHandBackPending(notice.subjectId!)
-                ? { kind: 'send' }
-                : { kind: 'skip', reason: 'resolved' };
-        if (notice.kind === 'settled') {
-            if (isDelegationActive(receipt)) return { kind: 'skip', reason: 'resolved' };
-            if (receipt.retriedAs) return { kind: 'discard', reason: 'retry_pending' };
-            return this.waiters.isWaitingForSettlement(notice.callerTerminalId, notice.delegationId)
-                ? { kind: 'defer', reason: 'waiter' }
-                : { kind: 'send' };
-        }
-        const isOpen =
-            isDelegationActive(receipt) &&
-            (notice.kind === 'question'
-                ? this.sources.isQuestionWithParent(notice.delegationId, notice.subjectId!)
-                : this.sources.isApprovalDecidable(notice.delegationId, notice.subjectId!));
-        if (!isOpen) return { kind: 'skip', reason: 'resolved' };
-        return this.waiters.isWaitingForQuestions(notice.callerTerminalId, notice.delegationId)
-            ? { kind: 'defer', reason: 'waiter' }
-            : { kind: 'send' };
+        return NOTICE_KINDS[notice.kind].judge({
+            notice,
+            receipt: record.receipt,
+            sources: this.sources,
+            waiters: this.waiters,
+        });
     }
 
     /**
@@ -310,7 +290,7 @@ export class SettlementNotices {
             return {
                 delegationId: notice.delegationId,
                 kind: notice.kind,
-                ...(notice.kind === 'settled' && { status: record.receipt.status }),
+                ...(NOTICE_KINDS[notice.kind].carriesStatus && { status: record.receipt.status }),
                 sessionId: record.receipt.sessionId,
             };
         });

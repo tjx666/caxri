@@ -3,6 +3,7 @@ import {
     compareSessionActivityGroupRows,
     compareSessionPinnedOrder,
     isPinnedSession,
+    isSessionAgentRunning,
     SESSION_ACTIVITY_GROUP_ORDER,
     sessionActivityGroup,
 } from '@caxri/protocol';
@@ -86,7 +87,7 @@ const groupForSession = (session: MobileSession): SessionActivityGroupId =>
         hasPendingAttention: session.hasPendingAttention,
         isUsageWaiting: session.primaryTerminal?.usageLimitWaitAt !== undefined,
         isDetached: session.primaryTerminal?.lastProcessState === 'detached',
-        isRunning: session.agentActivityState === 'running',
+        isRunning: isSessionAgentRunning(session, session.primaryTerminal),
     });
 
 /**

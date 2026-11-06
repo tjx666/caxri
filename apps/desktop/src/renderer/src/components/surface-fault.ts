@@ -1,9 +1,10 @@
 /**
  * E2E-only seam for `SurfaceErrorBoundary` (`surface-error-boundary.tsx`): `sessionStorage` key whose value names a
  * surface scope, making the first surface of that scope that renders afterwards throw, so an E2E can prove that one
- * failing Chat entry, Terminal, Settings page, or view stays local without a real defect. The key is consumed when
- * claimed; the claimed surface keeps throwing until its boundary's Retry releases it, so React's re-render of a
- * throwing component and StrictMode's double render agree, while every other surface of the scope renders normally.
+ * failing Chat entry, Terminal, Settings page, Activity queue, Side View, or view stays local without a real defect.
+ * The key is consumed when claimed; the claimed surface keeps throwing until its boundary's Retry releases it, so
+ * React's re-render of a throwing component and StrictMode's double render agree, while every other surface of the
+ * scope renders normally.
  */
 export const SURFACE_FAULT_KEY = 'caxri.test.surface-fault';
 
@@ -12,7 +13,15 @@ export const SURFACE_FAULT_KEY = 'caxri.test.surface-fault';
  * classification path keeps free of content, and selects the fault target.
  */
 export type SurfaceScope =
-    'chat' | 'chat-entry' | 'editor' | 'settings' | 'settings-page' | 'terminal' | 'view';
+    | 'activity'
+    | 'chat'
+    | 'chat-entry'
+    | 'editor'
+    | 'portal'
+    | 'settings'
+    | 'settings-page'
+    | 'terminal'
+    | 'view';
 
 /**
  * Which surface instance currently holds the armed fault, as `scope:instanceKey`.

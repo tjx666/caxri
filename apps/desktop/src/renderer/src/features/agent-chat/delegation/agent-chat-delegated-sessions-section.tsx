@@ -15,8 +15,8 @@ import {
     sumDelegatedCost,
 } from './cost/agent-chat-delegated-cost';
 import { AgentChatDelegatedCostBadge } from './cost/agent-chat-delegated-cost-badge';
+import { useChatDelegatedSessions } from './hooks/use-chat-delegated-sessions';
 import { useDelegatedCost } from './hooks/use-delegated-cost';
-import { useDelegatedSessions } from './hooks/use-delegated-sessions';
 
 /**
  * Keeps the pull request snapshot fresh for the rows of a Chat whose sidebar is hidden. The Project tree owns that poll
@@ -36,7 +36,7 @@ function DelegatedPullRequestPoll() {
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
     const { attempts, chainSessionIds, entries, isPartial, sessionId, total, viaBySessionId } =
-        useDelegatedSessions(terminalId);
+        useChatDelegatedSessions(terminalId);
     const cost = useDelegatedCost(sessionId, total > 0);
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
     if (entries.length === 0) return null;

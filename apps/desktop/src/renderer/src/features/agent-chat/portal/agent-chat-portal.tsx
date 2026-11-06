@@ -6,6 +6,7 @@ import * as m from 'motion/react-m';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { SurfaceErrorBoundary } from '../../../components/surface-error-boundary';
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { isEditableEventTarget } from '../../../lib/keybindings';
@@ -139,11 +140,14 @@ export function AgentChatPortal() {
                                     id={panelId}
                                     role={hasChoices ? 'tabpanel' : undefined}
                                 >
-                                    <EditorSurface
-                                        key={activePath}
-                                        paneId={PORTAL_SURFACE_PANE_ID}
-                                        path={activePath}
-                                    />
+                                    {/* Window-local and never persisted, so a local boundary suffices: a reload starts closed. */}
+                                    <SurfaceErrorBoundary resetKey={activePath} scope="portal">
+                                        <EditorSurface
+                                            key={activePath}
+                                            paneId={PORTAL_SURFACE_PANE_ID}
+                                            path={activePath}
+                                        />
+                                    </SurfaceErrorBoundary>
                                 </div>
                             </div>
                         </PaneViewSessionProvider>

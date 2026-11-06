@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 
 import type { ErrorBoundary } from '../../components/error-boundary';
 import { caxri } from '../../lib/caxri';
+import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { noteSessionSelection, readComposedSnapshot } from '../../stores/workbench-environments';
 import { createRecoveringSnapshotSource } from './recovering-snapshot-source';
@@ -30,16 +31,22 @@ export const recoveringSnapshotSource = createRecoveringSnapshotSource({
  * one-click reload that skips that Session.
  */
 export const workbenchCrashBoundary: Omit<ComponentProps<typeof ErrorBoundary>, 'children'> = {
-    onRenderError: () =>
-        recordRenderCrash(sessionStorage, { now: Date.now(), sessionId: activeSessionId() }),
+    onRenderError: () => {
+        recordRenderCrash(sessionStorage, { now: Date.now(), sessionId: activeSessionId() });
+        // The Activity queue is persisted device-local state that re-mounts on reload; leaving it here keeps a crash in
+        // that body from repeating on every load.
+        useChromeLayoutStore.getState().leavePrimarySidebarActivityMode();
+    },
     recoveryAction: {
         isAvailable: () => activeSessionId() !== undefined,
         labelKey: 'core.errorBoundary.reloadWithoutSession',
-        run: () =>
+        run: () => {
             recordRenderCrash(sessionStorage, {
                 now: Date.now(),
                 sessionId: activeSessionId(),
                 skipRequested: true,
-            }),
+            });
+            useChromeLayoutStore.getState().leavePrimarySidebarActivityMode();
+        },
     },
 };

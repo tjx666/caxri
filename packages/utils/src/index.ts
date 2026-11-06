@@ -21,3 +21,4 @@ export * from './rank-path-matches.js';
 export * from './redaction.js';
 export * from './relative-time.js';
 export * from './sorted-copy.js';
+export * from './with-timeout.js';

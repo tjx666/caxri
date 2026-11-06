@@ -1,13 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SessionActivityRowOrder } from '../session-activity-group';
-import { compareSessionActivityGroupRows, sessionActivityGroup } from '../session-activity-group';
+import {
+    compareSessionActivityGroupRows,
+    isSessionAgentRunning,
+    sessionActivityGroup,
+} from '../session-activity-group';
 
 const session = (overrides: Partial<Parameters<typeof sessionActivityGroup>[0]> = {}) => ({
     hasPendingAttention: false,
     isDetached: false,
     isRunning: false,
     ...overrides,
+});
+
+describe('isSessionAgentRunning', () => {
+    it('counts a running turn or a compaction, and nothing else', () => {
+        expect(isSessionAgentRunning({ agentActivityState: 'running' }, undefined)).toBe(true);
+        expect(
+            isSessionAgentRunning({ agentActivityState: 'idle' }, { agentOperation: 'compacting' }),
+        ).toBe(true);
+        expect(
+            isSessionAgentRunning({ agentActivityState: 'idle' }, { agentOperation: 'background' }),
+        ).toBe(false);
+        expect(isSessionAgentRunning({ agentActivityState: 'completed' }, {})).toBe(false);
+    });
 });
 
 describe('sessionActivityGroup', () => {
