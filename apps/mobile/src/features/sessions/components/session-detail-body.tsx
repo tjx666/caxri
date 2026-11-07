@@ -17,19 +17,17 @@ import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import { useSegmentEntering } from '../hooks/use-segment-entering';
 import type { MobileSessionItem } from '../session-model';
 import { isMobileTerminalStopped } from '../session-model';
-import type { SessionSegment } from '../session-ui-state';
-import { isPanelSessionSegment, isSideSessionSegment } from '../session-ui-state';
+import type { ContentSessionSegment, SessionSegment } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
 /**
- * Splits a tab switch's motion between the body wrapper and the Conversation list. A populated Conversation stays
+ * Splits a content switch's motion between the body wrapper and the Conversation list. A populated Conversation stays
  * transparent until its list has scrolled to the latest message, which outlasts the wrapper's entering animation, so
  * the list plays the switch motion itself once it is positioned and the wrapper stays still to keep the two from
- * stacking. Only the selected Conversation slides; the wide layout's background Conversation never follows a side panel
- * switch.
+ * stacking. Opening or closing the side panel never switches the content, so neither moves then.
  */
 const conversationAwareEntering = (
-    segment: SessionSegment,
+    segment: ContentSessionSegment,
     hasConversationItems: boolean,
     { direction, entering }: ReturnType<typeof useSegmentEntering>,
 ) => {
@@ -104,33 +102,38 @@ const SessionConversationPane = ({
 
 export const SessionDetailBody = ({
     chat,
-    changesPanel,
-    panelView,
+    contentSegment,
+    contentSegments,
     conversationTimeline,
     deviceRole,
+    dockedSidePanel,
     isConnected,
     isVisible,
     onEditMessage,
     onEditQueued,
     onSegmentChange,
-    segment,
-    segments,
     session,
     theme,
-    wideBackgroundSegment,
-    wideChanges,
 }: {
     /**
      * Present when the primary Terminal is a Chat, which replaces both the Conversation and the Terminal.
      */
     chat: SessionAgentChat | null;
-    changesPanel: ReactNode;
     /**
-     * The selected Project view, when a panel tab is open.
+     * The content segment on screen, which stays mounted while the side panel is open over or beside it.
      */
-    panelView: ReactNode;
+    contentSegment: ContentSessionSegment;
+    /**
+     * The content segments this Session offers, in order, so a switch between them slides from the matching side.
+     */
+    contentSegments: readonly SessionSegment[];
     conversationTimeline: ReturnType<typeof useConversationTimeline>;
     deviceRole: 'view' | 'reply' | 'control' | null;
+    /**
+     * A wide tablet's side panel, docked beside the content; a phone draws its side panel over the whole Session
+     * instead.
+     */
+    dockedSidePanel: ReactNode;
     isConnected: boolean;
     isVisible: boolean;
     /**
@@ -142,26 +145,19 @@ export const SessionDetailBody = ({
      */
     onEditQueued: (text: string) => void;
     onSegmentChange: (segment: SessionSegment) => void;
-    segment: SessionSegment;
-    segments: readonly SessionSegment[];
     session: MobileSessionItem;
     theme: MobileTheme;
-    wideBackgroundSegment: 'conversation' | 'terminal';
-    wideChanges: boolean;
 }) => {
     const { t } = useTranslation();
-    const segmentEntering = useSegmentEntering(segment, segments);
+    const segmentEntering = useSegmentEntering(contentSegment, contentSegments);
     const openFile = useOpenSessionFile(session.id);
     const { bodyEntering, conversationEnterFrom } = conversationAwareEntering(
-        segment,
+        contentSegment,
         hasConversationItems(chat, conversationTimeline),
         segmentEntering,
     );
-    const backgroundSegment = chat === null ? wideBackgroundSegment : 'conversation';
     // A Chat Session never resolves to the Terminal segment (`resolveSessionConversationSegment`).
-    const showTerminal =
-        segment === 'terminal' ||
-        (isSideSessionSegment(segment) && wideChanges && backgroundSegment === 'terminal');
+    const isShowTerminal = contentSegment === 'terminal';
     const terminalId = session.primaryTerminal?.id ?? session.primaryAgentTerminalId;
     const terminal = terminalId ? (
         <TerminalLiveView
@@ -172,7 +168,7 @@ export const SessionDetailBody = ({
             role={deviceRole}
             terminalId={terminalId}
             theme={theme}
-            visible={isVisible && showTerminal}
+            visible={isVisible && isShowTerminal}
         />
     ) : (
         <View style={styles.placeholder} testID="terminal-unavailable">
@@ -220,37 +216,16 @@ export const SessionDetailBody = ({
             />
         </ConversationFileOpener>
     );
-    const side = isPanelSessionSegment(segment) ? panelView : changesPanel;
-    if (wideChanges && isSideSessionSegment(segment)) {
-        return (
-            <View style={styles.bodyRow}>
-                {backgroundSegment === 'conversation' ? conversation : terminalWithAttention}
-                <View
-                    style={[styles.wideChanges, { borderColor: theme.border }]}
-                    testID="changes-right-pane"
-                >
-                    <Animated.View
-                        entering={segmentEntering.entering}
-                        key={segment}
-                        style={styles.body}
-                    >
-                        {side}
-                    </Animated.View>
-                </View>
-            </View>
-        );
-    }
     /**
-     * Keyed by segment so each tab switch mounts a fresh wrapper and replays its entering animation. The panels already
-     * remounted on every switch because each segment renders a different tree.
+     * Keyed by the content segment so each content switch mounts a fresh wrapper and replays its entering animation.
+     * Opening the side panel keeps the key, so the Chat or Terminal under it keeps its place.
      */
     return (
-        <Animated.View entering={bodyEntering} key={segment} style={styles.body}>
-            {segment === 'conversation'
-                ? conversation
-                : segment === 'terminal'
-                  ? terminalWithAttention
-                  : side}
-        </Animated.View>
+        <View style={styles.bodyRow}>
+            <Animated.View entering={bodyEntering} key={contentSegment} style={styles.body}>
+                {contentSegment === 'conversation' ? conversation : terminalWithAttention}
+            </Animated.View>
+            {dockedSidePanel}
+        </View>
     );
 };

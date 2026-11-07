@@ -5,6 +5,7 @@ import process from 'node:process';
 import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { expect } from './fixtures';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -18,6 +19,8 @@ import {
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { showTabletSessionRow } from './mobile-session-list';
+import { openSessionSidePanel, showSessionContent } from './mobile-session-panel';
 import { assertMobileComposerDraft } from './mobile-unicode-input';
 
 interface ChangesScenarioEnvironment {
@@ -40,9 +43,14 @@ async function safeChangesSemantics(serial: string) {
     return nodes;
 }
 
-async function waitForChanges(serial: string) {
+/**
+ * @param serial The emulator to read.
+ * @param readSemantics `safeChangesSemantics` by default. A case whose Session's Terminal stays mounted under the side
+ *   panel drawer passes `mobileSemantics` instead, since covered content stays in uiautomator semantics.
+ */
+async function waitForChanges(serial: string, readSemantics = safeChangesSemantics) {
     return waitForMobile(
-        () => safeChangesSemantics(serial),
+        () => readSemantics(serial),
         (nodes) =>
             nodes.some(({ checkId }) => checkId === 'changes-view') &&
             nodes.some(({ checkId }) => checkId === 'changes-summary') &&
@@ -78,14 +86,11 @@ async function openChanges(
     serial: string,
     sessionId: string,
     shouldShowConversationBesideChanges: boolean,
+    readSemantics = safeChangesSemantics,
 ): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
-    await waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-changes'),
-    );
     if (shouldShowConversationBesideChanges) {
-        await tapMobileCheck(serial, 'session-segment-conversation');
+        await showSessionContent(serial, 'conversation');
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
@@ -93,8 +98,8 @@ async function openChanges(
                 nodes.some(({ checkId }) => checkId.startsWith('conversation-user-')),
         );
     }
-    await tapMobileCheck(serial, 'session-segment-changes');
-    await waitForChanges(serial);
+    await openSessionSidePanel(serial, 'changes');
+    await waitForChanges(serial, readSemantics);
 }
 
 async function capture(
@@ -265,12 +270,16 @@ export async function executeMobileChangesScenario(
                 '-W',
                 'com.caxri.mobile/.MainActivity',
             ]);
-            await waitForMobile(
-                () => safeChangesSemantics(environment.serial),
-                (nodes) => nodes.some(({ checkId }) => checkId === `session-row-${sessionId}`),
-            );
+            await showTabletSessionRow(environment.serial, fixture.allowedProjectId, sessionId);
         }
-        await openChanges(environment.serial, sessionId, environment.caseId === 'MOB-CHANGES-03');
+        await openChanges(
+            environment.serial,
+            sessionId,
+            environment.caseId === 'MOB-CHANGES-03',
+            // The waiting fixture's Terminal stays mounted under the drawer, still in semantics. Its synthetic Agent
+            // prints one fixed line, so a frame of it shows no real Terminal output.
+            environment.caseId === 'MOB-CHANGES-04' ? mobileSemantics : safeChangesSemantics,
+        );
         switch (environment.caseId) {
             case 'MOB-CHANGES-01': {
                 const rows = changedRowIds(await safeChangesSemantics(environment.serial));
@@ -317,13 +326,13 @@ export async function executeMobileChangesScenario(
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-list') &&
                         nodes.some(({ checkId }) => checkId === 'conversation-view') &&
-                        nodes.some(({ checkId }) => checkId === 'changes-right-pane'),
+                        nodes.some(({ checkId }) => checkId === 'session-side-panel'),
                 );
                 await capture(
                     environment,
                     'wide-tablet-third-pane',
                     artifacts,
-                    'changes-right-pane',
+                    'session-side-panel',
                 );
                 await finish(environment, artifacts, {
                     layout: 'list-detail-changes',
@@ -340,10 +349,14 @@ export async function executeMobileChangesScenario(
                     environment.serial,
                     remoteVideoPath,
                 );
+                // Ask Agent closes the drawer onto this Session's Terminal, whose composer now holds the draft. The
+                // waiting fixture's synthetic Agent prints only one fixed line to its Terminal, so the frames past this
+                // point show that line rather than real Terminal content, and the Changes-only semantics guard does
+                // not apply.
                 await tapMobileCheck(environment.serial, 'changes-ask-agent-commit');
+                await waitForNoCheck(environment.serial, 'session-side-panel');
                 await assertMobileComposerDraft(environment.serial, commitPrompt);
                 expect((await fixture.readCapturedInput()).length).toBe(0);
-                await safeChangesSemantics(environment.serial);
                 await tapMobileCheck(environment.serial, 'session-composer-send');
                 const expected = Buffer.from(`\u{1B}[200~${commitPrompt}\u{1B}[201~\r`, 'utf8');
                 await waitForMobile(
@@ -351,7 +364,7 @@ export async function executeMobileChangesScenario(
                     (input) => countByteSequence(input, expected) === 1,
                 );
                 await waitForMobile(
-                    () => safeChangesSemantics(environment.serial),
+                    () => mobileSemantics(environment.serial),
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-composer-feedback') &&
                         nodes.some(

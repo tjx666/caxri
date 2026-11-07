@@ -14,6 +14,7 @@ import type {
     MobileAndroidCaseEnvironment,
     MobileAndroidCaseHandler,
 } from '../mobile-android-case-registry';
+import { showTabletSessionRow } from '../mobile-session-list';
 import { executeMobileSessionRefreshScenario } from '../mobile-session-refresh-scenarios';
 
 async function executeSessionLayouts(
@@ -47,10 +48,7 @@ async function executeSessionLayouts(
          */
         await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
         await adbShell(environment.serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === `session-row-${allowedSessionId}`),
-        );
+        await showTabletSessionRow(environment.serial, fixture.allowedProjectId, allowedSessionId);
         await tapMobileCheck(environment.serial, `session-row-${allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(environment.serial),

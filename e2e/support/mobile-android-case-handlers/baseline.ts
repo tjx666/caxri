@@ -86,6 +86,7 @@ import {
     executeMobileSessionGroupsScenario,
     executeMobileSessionSwipeScenario,
 } from '../mobile-session-groups-scenario';
+import { expectNoSessionContentSwitch } from '../mobile-session-panel';
 import { executeMobileSessionPinScenario } from '../mobile-session-pin-scenario';
 import { executeMobileSessionPreviewScenario } from '../mobile-session-preview-scenario';
 import { executeMobileSessionUsageScenario } from '../mobile-session-usage-scenario';
@@ -155,9 +156,7 @@ async function executeMobileAgentChatScenario(
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat');
-        const tabs = await mobileSemantics(serial);
-        if (hasCheck(tabs, 'session-segment-terminal'))
-            throw new Error('A Chat must not offer a Terminal tab');
+        await expectNoSessionContentSwitch(serial);
         await waitForCheck(serial, 'agent-chat-status-empty');
         await capture(environment, 'empty', artifacts);
 

@@ -11,7 +11,7 @@ import { composerDeliveryFeedback } from '../session-composer-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
 /**
- * The status lines under the input, set on the `meta` step; the shared composer styles keep only the layout.
+ * The status lines above the capsule, set on the `meta` step; the shared composer styles keep only the layout.
  */
 const statusStyles = StyleSheet.create({
     reason: { ...mobileType.meta, flex: 1 },
@@ -20,8 +20,9 @@ const statusStyles = StyleSheet.create({
 });
 
 /**
- * The lines under the composer row: why sending is off and the byte count near the limit, an image attach failure, and
- * the last delivery's feedback. Split out of `SessionDetailComposer` to keep its control flow flat
+ * The lines right above the capsule: why sending is off and the byte count near the limit, an image attach failure, and
+ * the last delivery's feedback. Above it, as in the Chat composer, the capsule and its Send or Stop never move when a
+ * line appears. Split out of `SessionDetailComposer` to keep its control flow flat
  * (react-doctor/no-high-complexity-react-function).
  */
 export const SessionComposerStatus = ({

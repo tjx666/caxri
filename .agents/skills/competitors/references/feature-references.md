@@ -191,6 +191,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Consecutive reasoning as one thought**: A thought chunk appends to the previous thought instead of starting a new row. Evidence: `packages/protocol/src/agent/agent-chat-work.ts` (`mergeAgentChatReasoning`).
 - **Mobile Relay control and data sockets**: Separate host control and per-connection data sockets; Caxri adds an Ed25519 host proof because Paseo's unauthenticated host ID lets anyone evict the real daemon. Evidence: `docs/adr/0021-blind-splice-relay.md`; `relay-servers.md`.
 - **Android mobile flows**: agent-device as the driver with portable Maestro YAML flows selected by `testID`. Evidence: `docs/mobile/testing.md`; `.agents/skills/competitors/references/mobile-testing.md`.
+- **Mobile Session side panel**: Paseo's phone Explorer, opened by a panel-right button in the Agent header and closed with an X, which overlays the chat from the right with Changes and Files as tabs; Caxri puts Changes and its Project views behind one header button with the changed-file badge, keeps the Chat or Terminal mounted underneath, and docks the same panel on a wide tablet. Evidence: `apps/mobile/src/features/sessions/components/session-side-panel.tsx`; `docs/mobile/design.md` (Session screen).
 
 ## Superset, Synara, Muxy, Herdr, Kero
 
@@ -232,6 +233,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Chat turn spend in the composer strip**: `OpStatusTray`: steps, tokens, and price-list cost of the running turn behind icons, split by hairlines; zero hidden, steps above one; four decimals below a cent; only tokens when narrow; no stop hint. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metric-list.tsx`; `docs/agent-chat.md`.
 - **Chat reply speed and cost footer**: A finished reply's footer reads its generation speed and cost after the time (`62 tok/s`, then the cost behind a dollar glyph, as LobeHub puts its usage behind a coin glyph), with the totals on hover. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/activity/agent-chat-turn-metrics.ts` (`agentChatReplyMetrics`); `docs/agent-chat.md`.
 - **MCP tool row subjects**: A tool row names its primary argument beside the tool (`Get issue LOBE-123`), as LobeHub's Linear and GitHub inspectors show one primary-argument chip; Caxri adds the issue title from the result. Evidence: `packages/protocol/src/agent/tool-rows/agent-chat-mcp-subjects.ts`.
+- **Mobile composer capsule and Add to Chat sheet**: LobeHub Mobile's design only (code written independently): a one-row capsule (`+`, input, send) that grows to two rows while typing, with the settings chips under the input, and a `+` sheet of attachment tiles above a card of settings rows with their values and chevrons. Evidence: `apps/mobile/src/features/sessions/components/session-detail-styles.ts`; `apps/mobile/src/features/sessions/components/composer-add-sheet.tsx`; `docs/mobile/design.md` (Composer).
 
 ## NumberFlow (MIT)
 

@@ -19,6 +19,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { openSessionSidePanel } from './mobile-session-panel';
 
 export interface Environment {
     artifactManifestPath: string;
@@ -159,11 +160,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
             (state) => state.selectedSessionId === fixture.deniedSessionId,
         );
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.files'),
-        );
-        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
+        await openSessionSidePanel(environment.serial, 'caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => hasCheck(nodes, 'files-entry-empty-folder'),
@@ -196,7 +193,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         );
         await capture(environment, 'files-error', artifacts);
         await tapMobileCheck(environment.serial, 'files-up');
-        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.project-status');
+        await openSessionSidePanel(environment.serial, 'caxri.project-status');
         const statusNodes = await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>
@@ -214,7 +211,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         if (statusDesktopState.selectedSessionId === fixture.allowedSessionId)
             throw new Error('Desktop must stay focused on another Session while Status loads');
         await capture(environment, 'status', artifacts);
-        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.fixture');
+        await openSessionSidePanel(environment.serial, 'caxri.fixture');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>
@@ -229,7 +226,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
             (nodes) => hasCheck(nodes, 'tree-nested-empty'),
         );
         await capture(environment, 'extension-tree-nested-empty', artifacts);
-        await tapMobileCheck(environment.serial, 'session-segment-changes');
+        await openSessionSidePanel(environment.serial, 'changes');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => hasCheck(nodes, 'changes-empty'),
@@ -268,11 +265,7 @@ async function refreshExpandedTree(environment: Environment, artifacts: string[]
         const state = await pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap');
         const session = state.sessions.find(({ id }) => id === sessionId)!;
         await tapMobileCheck(environment.serial, `session-row-${sessionId}`);
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.fixture'),
-        );
-        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.fixture');
+        await openSessionSidePanel(environment.serial, 'caxri.fixture');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>
@@ -325,9 +318,9 @@ async function refreshExpandedTree(environment: Environment, artifacts: string[]
 
 /**
  * `MOB-PANELS-TABS-SAVED-01`: the Project view tabs come from the list this phone saved, so a Session opened before the
- * live read answers shows them at once instead of pushing them into the strip later. With the network off after a cold
- * start no live read can answer at all, which makes the saved list the only possible source: before the fix the strip
- * kept only its fixed tabs here, and connected it showed them first and added the view tabs a moment later.
+ * live read answers shows them at once in its side panel instead of adding them later. With the network off after a
+ * cold start no live read can answer at all, which makes the saved list the only possible source: before the fix the
+ * side panel kept only Changes here, and connected it showed Changes first and added the view tabs a moment later.
  */
 async function openSessionWithSavedTabs(
     environment: Environment,
@@ -343,6 +336,7 @@ async function openSessionWithSavedTabs(
         const sessionId = fixture.allowedSessionId;
         if (!sessionId) throw new Error('Panels Session is unavailable');
         await tapMobileCheck(environment.serial, `session-row-${sessionId}`);
+        await openSessionSidePanel(environment.serial, 'changes');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => viewTabs.every((id) => hasCheck(nodes, id)),
@@ -364,6 +358,8 @@ async function openSessionWithSavedTabs(
             () => mobileSemantics(environment.serial),
             (nodes) => hasCheck(nodes, 'session-detail'),
         );
+        // The restart closes the side panel, whose tabs are the saved view list under test.
+        await openSessionSidePanel(environment.serial, 'changes');
         const offline = await mobileSemantics(environment.serial);
         const missing = viewTabs.filter((id) => !hasCheck(offline, id));
         await capture(environment, 'offline-cold-start', artifacts);

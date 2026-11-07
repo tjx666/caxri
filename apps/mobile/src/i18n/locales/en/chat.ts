@@ -38,7 +38,7 @@ export const chat = {
     'chat.commands.skillHint': 'Adds the skill to your message so you can say what to do.',
     'chat.commands.skills': 'Skills',
     'chat.commands.skillsNeedAgent': 'Skills appear once the Agent is running',
-    'chat.composer.attach': 'Attach',
+    'chat.composer.add': 'Add to Chat',
     'chat.composer.holdToQueueHint': "Hold to queue it until {{provider}}'s current turn ends.",
     'chat.composer.imageLimit': 'Up to {{count}} images per message.',
     'chat.composer.imagesTotalLimit': 'Images in one message must add up to {{size}} MB or less.',

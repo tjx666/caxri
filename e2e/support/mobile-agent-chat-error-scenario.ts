@@ -7,7 +7,13 @@ import { allowE2EErrors } from './error-gate.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, sendFromPhone, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import {
+    hasCheck,
+    openChatSetting,
+    sendFromPhone,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import {
     adbShell,
     mobileSemantics,
@@ -195,7 +201,7 @@ export async function executeMobileChatModelRefusedScenario(
                 !snapshot.activeTurnId,
         );
         await waitForNoCheck(serial, 'agent-chat-activity');
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
+        await openChatSetting(serial, 'model');
         await waitForCheck(serial, 'agent-chat-model-sheet');
         const checkedModel = async () =>
             (await mobileSemantics(serial)).find(

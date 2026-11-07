@@ -9,3 +9,10 @@ export const mobileLayoutMode = (width: number, height: number): MobileLayoutMod
         return 'phone';
     return width >= WIDE_TABLET_WIDTH ? 'tablet-wide' : 'tablet-split';
 };
+
+/**
+ * Whether the Session side panel docks beside the content, which only a wide tablet has room for; every other layout
+ * opens it as a drawer over the Session.
+ */
+export const isSessionSidePanelDocked = (layout: MobileLayoutMode): boolean =>
+    layout === 'tablet-wide';

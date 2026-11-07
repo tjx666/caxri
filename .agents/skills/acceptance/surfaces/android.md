@@ -169,7 +169,17 @@ bun run --cwd apps/mobile android:device tap \
 
 The receipt keeps only the first node per `testID`, so it cannot count repeated controls: two Copy
 buttons sharing `agent-chat-work-copy` read as one. Give each instance its own `testID` when a
-scenario must find or count it.
+scenario must find or count it. The same rule can hide a visible control behind an off-screen copy:
+on a wide tablet the Session list's off-screen Project page comes first in the tree, so
+`session-row-<id>` reads with empty bounds and `tap` fails with `Android bounds are invalid`. Tap
+`project-filter-<projectId>` to show that page, then wait for the row to have valid bounds; after
+a relaunch on a tablet display, `showTabletSessionRow` in `e2e/support/mobile-session-list.ts` does
+both.
+
+Content a phone drawer or sheet covers with `importantForAccessibility="no-hide-descendants"` stays
+in the receipt: screen readers skip it, uiautomator does not. Do not wait for a covered control to
+disappear, or treat its presence as proof that it is on screen. Under the Session side panel drawer,
+`conversation-view`, `session-panel-button`, and `terminal-live-webview` all still read.
 
 `tapMobileCheckByBounds` refuses a control, or the row its `rowOffset` reaches, that is not wholly on
 screen (`is off screen`): Android still lists a control scrolled out of a list, and a tap at its bounds
@@ -181,7 +191,10 @@ Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
 `uiautomator dump` waits for an idle screen and, when none comes, exits 0 without writing its file,
-so the helper fails as `driver-failed`. A running Chat turn never idles even under reduced motion:
+so the helper fails as `driver-failed`. Running `e2e/mobile-acceptance-scenarios.e2e.ts` directly
+under Playwright to debug one case skips the runner's reduced motion, so a spinner can turn the real
+failure into `driver-failed`; set `settings put global transition_animation_scale 0` on the
+emulator first and restore `1.0` afterwards. A running Chat turn never idles even under reduced motion:
 the activity line's elapsed time and native spinner keep changing. Read semantics before the turn
 starts or after it ends (or while it waits on the user), and follow a running turn with
 `mobileRegionFingerprint` and framebuffer captures instead (`MOB-CHAT-13` measures the slot with

@@ -7,7 +7,12 @@ import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { checkBounds, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import {
+    checkBounds,
+    openChatSetting,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import {
     adbShell,
     coldStartMobileApp,
@@ -87,7 +92,7 @@ export async function executeMobilePlanLimitsScenario(
         await waitForCheck(serial, 'agent-chat-plan-pace');
         await capture(environment, 'pace-notice', artifacts);
 
-        await tapMobileCheckByBounds(serial, 'agent-chat-usage-button');
+        await openChatSetting(serial, 'usage');
         await waitForCheck(serial, 'agent-chat-usage-sheet');
         await scrollUsageSheetToPlanLimits(serial);
         await waitForCheck(serial, 'agent-chat-plan-limit-300');
@@ -110,7 +115,7 @@ export async function executeMobilePlanLimitsScenario(
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         // The usage sheet listing the weekly window proves the relaunched app read the behind-pace limit, so the absent
         // notice is the remembered dismissal rather than a limit that has not loaded yet.
-        await tapMobileCheckByBounds(serial, 'agent-chat-usage-button');
+        await openChatSetting(serial, 'usage');
         await waitForCheck(serial, 'agent-chat-usage-sheet');
         await scrollUsageSheetToPlanLimits(serial);
         await waitForCheck(serial, 'agent-chat-plan-limit-300');

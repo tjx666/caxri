@@ -33,6 +33,7 @@ const homeNoticeFamily: Record<HomeNoticeKind, 'connection' | 'list' | 'update'>
 export const SessionHomeNotice = ({
     connection,
     isListVisible,
+    isSessionCovered,
     now,
     onRetryConnection,
     theme,
@@ -47,6 +48,10 @@ export const SessionHomeNotice = ({
      * Whether the Session list itself is on screen, as opposed to a Session detail on a phone.
      */
     isListVisible: boolean;
+    /**
+     * Whether the side panel's drawer covers the Session on screen (`isSessionUnderSideDrawer`).
+     */
+    isSessionCovered: boolean;
     now: number;
     onRetryConnection: () => void;
     theme: MobileTheme;
@@ -77,6 +82,7 @@ export const SessionHomeNotice = ({
             return (
                 <ConnectionBanner
                     isListVisible={isListVisible}
+                    isSessionCovered={isSessionCovered}
                     onRetry={onRetryConnection}
                     saved={saved}
                     status={kind === 'connection-stale' ? 'stale' : 'unverified'}

@@ -16,6 +16,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { openSessionSidePanel } from './mobile-session-panel';
 
 const execFileAsync = promisify(execFile);
 
@@ -344,7 +345,7 @@ export async function executeMobileStatusTreeMergeScenario(
         };
         await mobile.pair();
         await tapMobileCheck(serial, `session-row-${mobile.allowedSessionId}`);
-        await tapMobileCheck(serial, 'session-segment-panel-caxri.project-status');
+        await openSessionSidePanel(serial, 'caxri.project-status');
         // A build from before the row actions never shows the buttons; its baseline round still captures the panel.
         let buttons = 0;
         try {
@@ -441,7 +442,7 @@ export async function executeMobileStatusTreeResolveScenario(
             throw new Error('Pull request fixture is unavailable');
         await mobile.pair();
         await tapMobileCheck(serial, `session-row-${mobile.allowedSessionId}`);
-        await tapMobileCheck(serial, 'session-segment-panel-caxri.project-status');
+        await openSessionSidePanel(serial, 'caxri.project-status');
         // The first inline action of the pull request row, which is `Resolve` while the pull request conflicts.
         const resolve = await waitForMobile(
             async () =>

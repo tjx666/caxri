@@ -36,8 +36,8 @@ In scope:
 
 - Pairing over LAN or Tailscale IPv4, fast reconnect, and foreground recovery.
 - Session home ordered by attention, with a Project filter.
-- Session screen with four segments: **Conversation**, **Terminal**, **Changes**, and **Project**
-  (Files, Status, and extension panels, mirroring Desktop's right sidebar).
+- Session screen showing **Conversation** or **Terminal**, with a side panel for **Changes** and
+  **Project** (Files, Status, and extension panels), mirroring Desktop's Secondary Side Bar.
 - Composer with image attachments, `/` actions, `@` file completion, and a Stop action.
 - Claude Code permission and question cards in Conversation, scoped to the exact blocking hook.
 - Creating a Session in a granted Project, and adding a Project from a `control` device.
@@ -114,7 +114,7 @@ The implemented device grants, method matrix, and cancellation behavior are docu
 ```text
 /                         Pairing entry (no paired host)
 /h/[hostId]               Session home
-/h/[hostId]/s/[sessionId] Session screen (segment: conversation | terminal | changes | panels)
+/h/[hostId]/s/[sessionId] Session screen (conversation | terminal, side panel: changes | panels)
 /h/[hostId]/new           New Session
 /h/[hostId]/add-project   Add Project (control devices only)
 /h/[hostId]/status        Computer status (control devices only)
@@ -218,33 +218,49 @@ no background of its own keeps its default dark text readable.
 ## Session screen
 
 ```text
-┌───────────────────────────────┐
-│ ‹ ✳ fix-login    (⇡ #42) ●  ⋮ │  ⋮ = Mark read; (⇡ #42) = pull request
-│ (💬 Conversation) (>_) (± 3) (▯)│  icon tabs; only the selected one is labeled
-├───────────────────────────────┤
-│              segment body     │
-├───────────────────────────────┤
-│ Message Claude…         (↑)   │  composer; (■) Stop while running
-└───────────────────────────────┘
+┌───────────────────────────────┐        ┌───┬───────────────────────────┐
+│ ‹ ✳ fix-login  (⇡ #42) ● [▮]³ ⋮│        │░░░│ (± Changes 3) (📁) (◎)  ✕ │
+├───────────────────────────────┤        │░░░├───────────────────────────┤
+│                               │  [▮]→  │░░░│ 3 files changed · +42 −8  │
+│     Conversation or Terminal  │        │░░░│ M src/login.ts      +12 −3│
+│                               │        │░░░│ …                         │
+├───────────────────────────────┤        │░░░│                           │
+│ ( (+) Message Claude…   (↑) ) │        │░░░│                           │
+└───────────────────────────────┘        └───┴───────────────────────────┘
+ [▮]³ = side panel, 3 changed files       side panel drawer over the Session
 ```
 
-- Default segment: **Conversation** when the Agent's conversation is available, otherwise
-  **Terminal**. Remember the last segment per Session for the app session.
-- Segments are icon tabs; the selected tab adds its label, and every tab keeps an accessible name.
-  The Changes tab shows the changed-file count as a badge when it is non-zero. A plain shell Session
-  with no Agent has no Conversation tab.
-- A Project view tab shows the icon its container declares, resolved through the same glyph table as
-  Desktop's secondary-sidebar tabs (`viewContainerIconGlyph` in `@caxri/protocol`), so Files and
-  Status keep their Desktop glyphs. A container the phone cannot draw (an extension image, which the
-  Server does not project, or an unknown id) shows one generic package glyph, never Status's.
-- Switching segments slides the new body in from the side the selection moved toward while it fades
-  in; the first segment of a Session does not move because the screen transition already animates
-  it. A populated Conversation stays hidden until its list has scrolled to the latest message, so it
-  plays the slide itself once it is positioned instead of spending it on an empty frame. Android
-  Acceptance `MOB-MOTION-01` reads the entry side of every switch from its recording.
-- The composer is hidden on Project, and on Terminal for a `control` device, which types through the
-  Terminal's own keyboard instead. A `reply` device keeps the composer on Terminal because it is its
-  only way to answer.
+- The body shows one content segment, **Conversation** or **Terminal**. Default: **Conversation**
+  when the Agent's conversation is available, otherwise **Terminal**. A plain shell Session with no
+  Agent has no Conversation, and a Chat has no Terminal. An Agent Terminal that offers both switches
+  from the ⋮ menu (`Show Terminal`, `Show Conversation`), which names the one not on screen. Remember
+  the last segment per Session for the app session.
+- **Changes** and the Project views sit behind the header's side panel button, as Desktop's Secondary
+  Side Bar holds them. The button carries the changed-file count as a badge when it is non-zero and
+  reopens the view the Session last showed, Changes the first time. On a phone the panel is a drawer
+  from the right edge over the whole Session, about 88% wide, with a scrim on the strip it leaves.
+  The scrim, the close button, and Android Back close it; a view that uses Back itself (an open diff,
+  a nested folder) goes back within the view first. The Chat or Terminal stays mounted under it, so
+  closing it returns to the same place. While a Chat behind the drawer waits on the user, the close
+  button carries a warning dot. A wide tablet docks the same panel beside the content instead
+  ([Layout](#layout)).
+- The side panel's tabs are icon tabs: Changes, then one per Project view. The selected tab adds its
+  label, and every tab keeps an accessible name. A Project view tab shows the icon its container
+  declares, resolved through the same glyph table as Desktop's Secondary Side Bar tabs
+  (`viewContainerIconGlyph` in `@caxri/protocol`), so Files and Status keep their Desktop glyphs. A
+  container the phone cannot draw (an extension image, which the Server does not project, or an
+  unknown id) shows one generic package glyph, never Status's.
+- Switching between Conversation and Terminal, or between side panel tabs, slides the new body in
+  from the side the selection moved toward while it fades in; the first segment of a Session does
+  not move because the screen transition already animates it. A populated Conversation stays hidden
+  until its list has scrolled to the latest message, so it plays the slide itself once it is
+  positioned instead of spending it on an empty frame. Android Acceptance `MOB-MOTION-01` reads the
+  entry side of every switch from its recording.
+- The composer stays under the content, side panel or not, for every device that can send. A
+  `control` device keeps it on Terminal too, although it can type into a taken-over Terminal: Ask
+  Agent drafts land there, the Terminal keyboard cannot compose Chinese, and a Session without a
+  Conversation has no other place for a multi-line prompt, an image, or Stop. Opening the drawer
+  closes the keyboard, since the drawer covers the composer.
 - Mark read happens automatically when the Session screen is visible and fresh; the menu keeps a
   manual action for accessibility.
 - When the Session's work has a pull request, the header shows a chip with its glyph and number,
@@ -260,6 +276,23 @@ no background of its own keeps its default dark text readable.
 
 ### Composer
 
+- The composer is one rounded capsule, after LobeHub Mobile's. Collapsed it is a single `52dp` row:
+  `+`, the input, and Send (or Stop), the buttons `44dp` circles inset `4dp` from the capsule's
+  edge. A Chat composer expands to two rows while the input is focused, holds a draft or
+  attachments, edits a sent message, or shows the command list: the input spans the top row, and
+  the row below holds `+`, the model and permission chips with the usage ring, and the send
+  controls. A running turn alone keeps it collapsed, since Stop takes Send's place. The input keeps
+  its place among its siblings across the switch, so focusing it never drops the keyboard. Every
+  line about the composer (why it cannot send, `Stopping…`, a failed send or attach) sits right
+  above the capsule with the other notices, so the capsule and its Send or Stop never move when a
+  line appears.
+
+  ```text
+  collapsed  ( (+)  Message Claude Code…        (↑) )
+  expanded   ( Fix the login form|                  )
+             ( (+)  [Opus · high] [🛡 Ask]       (↑) )
+  ```
+
 - One multiline input, 1–6 visible lines, then it scrolls. The Send button is the only way to send:
   the Return key inserts a newline. This keeps Chinese and other IME composition safe.
 - Placeholder: `Message <Agent name>` when idle or waiting; `Reply while <Agent name> works` while
@@ -268,26 +301,31 @@ no background of its own keeps its default dark text readable.
   Agent's own behavior, so the UI never promises queuing.
 - While the Agent is running and the draft is empty, the Send button becomes **Stop** (square icon,
   danger color, label `Stop Agent` on the Terminal composer and `Stop <provider>`, such as
-  `Stop Claude Code`, in a Chat). Send and Stop are the composer's primary action at `52dp`, and
-  the one-line input matches that height. Stop interrupts only the current Agent endpoint and never sends
-  a raw Ctrl-C to a shell.
+  `Stop Claude Code`, in a Chat). Send and Stop are the composer's primary action, a `44dp` circle
+  whose `4dp` hit slop restores the `52dp` capsule's touch height. Stop interrupts only the current
+  Agent endpoint and never sends a raw Ctrl-C to a shell.
 - The byte counter appears only past 75% of the limit.
 - Drafts are kept per Session and survive segment switches, navigation, reconnects, and the system
   ending the app in the background: the newest 50 unsent drafts (1,000,000 characters in total,
   as on Desktop) are saved beside the [read cache](#read-cache) under the same pairing scope, one
   second after typing pauses and at once when the app goes to the background. A draft typed since
   launch wins over a saved one; sending or clearing a draft removes it.
-- The attach button opens an image source sheet. A choice slides the sheet away first and only then
-  opens the photo picker or camera, so system UI never covers a sheet still on screen
-  (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 20 images and
+- `+` opens the `Add to Chat` sheet (`Attach` on the Terminal composer), after LobeHub
+  Mobile's: a row of source tiles (`Photos`, `Camera`, `Files`, and `Paste` for a pasted image),
+  then, in a Chat, a card of the Chat's settings with their current values (`Model` with its effort,
+  `Permissions` with plan mode, and `Session usage` with the context share). A choice slides the
+  sheet away first and only then opens the photo picker, the camera, or the setting's own sheet, so
+  neither system UI nor a second sheet covers one still on screen (`MOB-COMPOSE-02`). Offline, for a
+  `view` device, or with every slot taken, the sheet drops its tiles and still names the settings,
+  on disabled rows while they cannot change. A Chat composer offers the same tiles and strip, for up to 20 images and
   20 MB together (Desktop's `MAX_AGENT_CHAT_IMAGES` and combined limit), when the
   provider takes images in a Chat (Claude Code and Codex); an image alone is a valid message
   (`MOB-CHAT-05`). The strip scrolls sideways once it outgrows the composer and follows the newest
   image. Each thumbnail's remove button is a `22dp` circle inside a `44dp` target that stays within
   its cell, because Android drops touches outside a view's bounds; a preparing image shows a
   spinner. Past 75% of the combined limit the composer notes `Images use 16.2 of 20 MB.`, and an
-  image that would cross it is refused with `Images in one message must add up to 20 MB or less.` For a provider that does not (Grok Build) the attach button stays visible but
-  disabled, and tapping it explains why with Desktop's words (`Grok Build Chat does not accept images`). A sent image opens full screen; when the provider's record has
+  image that would cross it is refused with `Images in one message must add up to 20 MB or less.` A provider that does not (Grok Build) still takes files, so its tiles stay and a photo goes as a
+  file; only `Paste` leaves, since a pasted image has no file to fall back to. A sent image opens full screen; when the provider's record has
   no original (always for Codex) the viewer shows the thumbnail and says `Showing a preview. The
 full-size image is not available.` (`MOB-CHAT-07`), and with neither it says `This image is no
 longer available.` without a Retry (`MOB-CHAT-08`). The viewer pages through the message's
@@ -304,14 +342,14 @@ sent. Try again.` After the user's own send the timeline scrolls to the newest r
   a question's answers show in the timeline; a failed answer brings the card back with its error.
 - While a turn runs a Chat composer shows a compact `Steer` button beside Send (which reads Queue),
   adding the draft to the running turn instead of the queue; long-pressing Send still does the same,
-  and no hint line repeats it. While a turn runs and the user has typed, the attach button steps
-  aside so the input keeps at least about 60% of the row; it returns once the draft is empty.
+  and no hint line repeats it. A draft expands the capsule, so the input keeps the whole top row
+  however many send controls sit below it.
 - The Chat's queue card offers Steer (or `Send now`) and Edit on each row. Swiping a row left reveals
   `Delete`, and only a tap on it deletes; a screen reader reaches Delete as a row action. While the
   keyboard is up the card collapses to its one-line header (`Queued 3`) with a toggle that shows the
   rows, and the timeline keeps a minimum height however much is docked above the composer.
-- Typing `/` at the start of a Chat draft lists matching commands in `48dp` rows, in place of the
-  model, permission, and usage chips. Past six matches a last row says `Keep typing to narrow`. With no match
+- Typing `/` at the start of a Chat draft lists matching commands in `48dp` rows above the
+  capsule, in place of the usage and context notices. Past six matches a last row says `Keep typing to narrow`. With no match
   the list stays open on Desktop's `No matching command or skill`; Send then holds the draft once and
   says `No such command. Tap Send again to send as text.`, and a second tap sends it as text. A
   command the Server refuses reads Desktop's `/<name> could not run`.
@@ -322,9 +360,9 @@ sent. Try again.` After the user's own send the timeline scrolls to the newest r
   - Unknown (connection dropped after sending): keep the draft and show `Couldn't confirm delivery.
 Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
-- A Chat's composer carries one row of chips above the input: `Model · Effort` for the next turn
+- The expanded Chat capsule's lower row carries the chips after `+`: `Model · Effort` for the next turn
   (`Fake Codex · High`, with Desktop's names), a shield chip only while the permission level differs
-  from the provider's default or plan mode is on, and, at the row's end, the context ring. Chips draw
+  from the provider's default or plan mode is on, and, after the chips, the context ring. Chips draw
   at `32dp` and reach `48dp` through their hit slop. The ring has no chip fill, because it reports
   usage rather than offering a choice, and its full track stays visible so a small share never reads
   as a spinner; it takes the same hit slop and opens the Session usage sheet. The model and shield chips open one `Chat settings` sheet with
@@ -332,7 +370,8 @@ Check the Terminal before sending again.` Never resend automatically.
   shield chip opens it scrolled to Permissions. The sheet stays open after a model is chosen so its
   efforts show right away. While a turn runs the sheet says `Applies to the next turn.` Without
   access or a connection the chips are read-only, and an open sheet disables its lists and names the
-  reason. A new Chat opens with this row, so the model is chosen before the first message. A change
+  reason. In a new Chat, focusing the input or the `+` sheet's `Model` row reaches the model before
+  the first message. A change
   the provider refuses keeps the current choice checked and shows Desktop's `Unable to switch the
 model.` with `Try again.` in the sheet (`MOB-CHAT-09`). The plan's 5-hour and weekly limits sit in
   the Session usage sheet beside the context and cost. See [Agent Chat](../agent-chat.md#mobile).
@@ -419,8 +458,8 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   what the Chat is doing with Desktop's
   words under the same sweep (`Mapping the terrain…`, `Compacting context…`) and, after a second, how long
   the turn has run; waiting on the user shows a still question glyph in the warning color instead.
-  Since that line already spins, the Session header's status slot stays empty for a running Chat
-  while its Chat tab is open; the other tabs keep the header spinner.
+  Since that line already spins, the Session header's status slot stays empty for a running Chat;
+  the Chat stays on screen under the side panel, which covers the header on a phone anyway.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
   echoes, local command output) renders as a compact event row: status icon and a short title,
   expandable detail, never as the user's own bubble. Reminder-only turns are hidden.
@@ -481,9 +520,9 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
 
 ### Project
 
-Mirrors of Desktop's right sidebar for the Session's Project: **Files**, **Status**, and any
-extension panel, each as its own Session tab. Desktop's Git panel is omitted because the Changes
-tab already shows the same data. Files browses the Project root (symlinks reached through the root
+Mirrors of Desktop's Secondary Side Bar for the Session's Project: **Files**, **Status**, and any
+extension panel, each as its own tab in the side panel. Desktop's Git panel is omitted because the
+Changes tab already shows the same data. Files browses the Project root (symlinks reached through the root
 included) and opens bounded text previews; binary and oversized files say so. A `control` device can
 edit and save a bounded text file (`mobile.files.write`, see [Conversation](conversation.md)); other
 roles see why editing is unavailable. An unsaved edit and the folder position survive switching
@@ -495,7 +534,7 @@ through `mobile.tree.executeCommand`, asking first when the provider attached a 
 the primary repository's pull request from its row also turns the header's pull request chip merged,
 because the chip re-reads after every Status panel change. A conflicting pull request's `Resolve`
 (and a failed check's `Fix`) sends Desktop's prepared prompt to the Session's Agent Chat, then
-switches the phone to that Chat; a failure keeps the panel and shows the reason in a toast. The Project tab is available to every role. Offline with nothing cached, it asks the
+switches the phone to that Chat; a failure keeps the panel and shows the reason in a toast. The Project views are available to every role. Offline with nothing cached, it asks the
 reader to reconnect instead of showing an empty folder or a spinner. A loading folder or tree item
 waits 500 ms before it shows its spinner, so one that answers at once never flashes it.
 
@@ -513,7 +552,8 @@ waits 500 ms before it shows its spinner, so one that answers at once never flas
   `---`/`+++`) is hidden when the patch has hunks. Binary and oversized files show
   `This file is too large or not text. Review it on your computer.`
 - In Working Tree mode, an `Ask Agent to commit` chip fills the composer with `Commit the current
-changes with a clear message.` The user sends it; nothing is sent automatically.
+changes with a clear message.` and closes a phone's side panel drawer so the draft is in view. The
+  user sends it; nothing is sent automatically.
 
 ## New Session
 
@@ -565,8 +605,8 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 - **Tablet**: at `700dp` wide with a short side of at least `600dp`, show the Session list at `320dp`
   and the Session screen beside it, separated by one semantic border. Selection uses a left accent
   and accessible selected state, not background color alone.
-- **Wide tablet**: at `1100dp` and wider, Changes and Project open as a right pane beside Conversation or
-  Terminal instead of replacing them.
+- **Wide tablet**: at `1100dp` and wider, the side panel (Changes and Project) docks as a right pane
+  beside Conversation or Terminal instead of covering them; the header button toggles it.
 - Keep readable text columns at or below `680dp`. Pairing content is capped at `520dp`.
 - Foldables (second priority): folding or unfolding keeps the selected Session, segment, drafts, and
   scroll position.
@@ -630,7 +670,7 @@ A multi-step task (New Session, Add Project) is a full screen, not a sheet.
 - Never rely on color alone. Every status includes a label and, where useful, a shape or icon.
 - `loading`, `empty`, `error`, `offline/stale`, and `ready` are first-class states on every remote
   surface. A read that cannot start because the phone is offline says so and offers a way back; it
-  never shows a spinner that cannot end (Session deep link, New Session Projects, Project tab).
+  never shows a spinner that cannot end (Session deep link, New Session Projects, Project views).
 - A screen that throws renders a generic `Something went wrong` screen with `Try again`. It never
   shows the error message or stack, which can carry Session, path, or Terminal details.
 

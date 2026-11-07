@@ -398,20 +398,23 @@ export const agentChatSendFailureMessage = (
 };
 
 /**
- * Which optional controls share the composer row with the input. While a turn runs and the user has typed, the row
- * already holds Queue and Steer, so the attach button steps aside to keep the input at least about 60% of the row on a
- * phone; it comes back once the draft is empty, so attaching stays one tap away before typing. Images already attached
- * stay in the strip above, and their own remove buttons still work.
+ * Whether the Chat composer folds into its one-row capsule (`collapsed`: add, input, and the main button) or opens into
+ * two rows (`expanded`: the input across the top, then add, the settings chips, and the send controls). It stays
+ * collapsed while the reader is only reading, so the transcript keeps the screen; anything being composed opens it:
+ * focus, typed text, an attachment, an edit, or an open command or mention menu. A running turn alone does not open it,
+ * since Stop fits in the collapsed row.
  */
-export const agentChatComposerRowControls = ({
-    canAttach,
+export const agentChatComposerLayout = ({
+    hasAttachments,
     hasText,
-    isRunning,
+    isEditing,
+    isFocused,
+    isMenuOpen,
 }: {
-    /**
-     * Whether this device may attach images at all (reply or control access).
-     */
-    canAttach: boolean;
+    hasAttachments: boolean;
     hasText: boolean;
-    isRunning: boolean;
-}): { showsAttach: boolean } => ({ showsAttach: canAttach && !(isRunning && hasText) });
+    isEditing: boolean;
+    isFocused: boolean;
+    isMenuOpen: boolean;
+}): 'collapsed' | 'expanded' =>
+    isFocused || hasText || hasAttachments || isEditing || isMenuOpen ? 'expanded' : 'collapsed';

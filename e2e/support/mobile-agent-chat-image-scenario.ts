@@ -3,7 +3,13 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { agentText, hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import {
+    agentText,
+    hasCheck,
+    openChatAddSheet,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -74,8 +80,8 @@ async function zoomViewer(serial: string): Promise<void> {
 
 /**
  * `MOB-CHAT-05`: the phone attaches a gallery photo to a Claude Code Chat, sends it alone, sees the sent message's
- * thumbnail, opens the original full screen and zooms it, and keeps the conversation's images readable but the attach
- * button disabled while offline.
+ * thumbnail, opens the original full screen and zooms it, and keeps the conversation's images readable while offline,
+ * when the add sheet offers the Chat's settings but no attachment source.
  */
 export async function executeMobileChatImageScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -148,13 +154,15 @@ export async function executeMobileChatImageScenario(
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
         await waitForCheck(serial, 'connection-stale-banner', 60_000);
-        const offline = await mobileSemantics(serial);
-        const attach = offline.find(({ checkId }) => checkId === 'agent-chat-attach-image');
-        if (!hasCheck(offline, thumbnail) || attach?.enabled !== false)
-            throw new Error(
-                'Offline, sent images must stay visible and attaching must be disabled',
-            );
+        if (!hasCheck(await mobileSemantics(serial), thumbnail))
+            throw new Error('Offline, sent images must stay visible');
+        // The add sheet still opens offline for the Chat's settings, but it offers no attachment source.
+        await openChatAddSheet(serial, 'model');
+        if (hasCheck(await mobileSemantics(serial), 'image-source-library'))
+            throw new Error('Offline, the add sheet must not offer attachments');
         await capture(environment, 'offline', artifacts);
+        await tapMobileCheck(serial, 'image-source-cancel');
+        await waitForNoCheck(serial, 'image-source-sheet');
         await setMobileNetworkAvailable(serial, true);
         isNetworkDisabled = false;
         await waitForNoCheck(serial, 'connection-stale-banner', 60_000);

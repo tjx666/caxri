@@ -2,18 +2,25 @@ import type { AgentProvider } from '@caxri/protocol';
 
 import { shouldFallbackToTerminal } from '../conversation/conversation-model';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
+import type { MobileLayoutMode } from '../layout/layout-mode';
+import { isSessionSidePanelDocked } from '../layout/layout-mode';
 import type { MobileTerminal } from './session-model';
 
 /**
- * A Project view mirrored from Desktop's right sidebar (Files, Status, or an extension panel), keyed by its panel id.
- * Each one is its own top-level tab instead of a nested Project tab, so a view is one tap away.
+ * A Project view mirrored from Desktop's Secondary Side Bar (Files, Status, or an extension panel), keyed by its panel
+ * id. Each one is its own tab in the Session's side panel, beside Changes, so a view is one tap away once it is open.
  */
 export type PanelSessionSegment = `panel:${string}`;
 
-export type SessionSegment = 'conversation' | 'terminal' | 'changes' | PanelSessionSegment;
+export type ContentSessionSegment = 'conversation' | 'terminal';
+
+export type SideSessionSegment = 'changes' | PanelSessionSegment;
+
+export type SessionSegment = ContentSessionSegment | SideSessionSegment;
 
 /**
- * The fixed tabs in the Session header, left to right. Panel tabs follow them in the Server's panel order.
+ * The fixed segments in order: the two content segments, then Changes, the side panel's first tab. Panel segments
+ * follow it in the Server's panel order.
  */
 export const SESSION_SEGMENTS = ['conversation', 'terminal', 'changes'] as const;
 
@@ -26,8 +33,9 @@ export const panelIdOfSegment = (segment: PanelSessionSegment): string =>
     segment.slice('panel:'.length);
 
 /**
- * Which way the tab strip moved, so the incoming panel can slide in from that side: `1` toward a later tab, `-1` toward
- * an earlier one, and `0` when nothing changed. A panel tab missing from `order` (still loading) counts as last.
+ * Which way a switch moved through `order`, so the incoming segment can slide in from that side: `1` toward a later
+ * segment, `-1` toward an earlier one, and `0` when nothing changed. A panel segment missing from `order` (still
+ * loading) counts as last.
  */
 export const sessionSegmentDirection = (
     from: SessionSegment,
@@ -42,12 +50,8 @@ export const sessionSegmentDirection = (
 };
 
 /**
- * Side segments inspect the workspace rather than the Agent. On a wide tablet they open beside the last content
- * segment, so switching to one must remember which content segment to keep showing.
- */
-/**
- * The fixed tabs a Session offers: Conversation only when there is one to show, and no Terminal for a Chat, which has
- * no PTY to attach.
+ * The fixed segments a Session offers: Conversation only when there is one to show, and no Terminal for a Chat, which
+ * has no PTY to attach.
  */
 export const sessionSegments = ({
     hasConversation,
@@ -61,34 +65,77 @@ export const sessionSegments = ({
             (hasConversation || option !== 'conversation') && !(isChat && option === 'terminal'),
     );
 
-export const isSideSessionSegment = (
-    segment: SessionSegment,
-): segment is 'changes' | PanelSessionSegment =>
+/**
+ * Side segments inspect the workspace rather than the Agent, as Desktop's Secondary Side Bar does. They open in the
+ * side panel: a drawer over the last content segment on a phone, a pane beside it on a wide tablet. Either way that
+ * content segment stays mounted, so switching to a side segment must remember which one it was.
+ */
+export const isSideSessionSegment = (segment: SessionSegment): segment is SideSessionSegment =>
     segment === 'changes' || isPanelSessionSegment(segment);
 
 /**
- * Whether a Chat is on screen: its own tab, or the wide layout's background beside any side segment (Changes or a
- * Project view), which `SessionDetailBody` renders next to every side segment alike.
+ * Whether the Session on screen sits under its side panel's drawer, which covers it like a sheet: a side segment is
+ * open in a layout that does not dock the panel. The Session on screen is the routed one, or on a tablet the one
+ * selected in the list beside it; a phone showing the Session list has none.
  */
-export const isChatSegmentShown = (segment: SessionSegment, isWideLayout: boolean): boolean =>
-    segment === 'conversation' || (isWideLayout && isSideSessionSegment(segment));
+export const isSessionUnderSideDrawer = ({
+    layout,
+    routeSessionId,
+    segmentBySession,
+    selectedSessionId,
+}: {
+    layout: MobileLayoutMode;
+    routeSessionId: string | null;
+    segmentBySession: Readonly<Record<string, SessionSegment>>;
+    selectedSessionId: string | null;
+}): boolean => {
+    if (isSessionSidePanelDocked(layout)) return false;
+    const shown = routeSessionId ?? (layout === 'phone' ? null : selectedSessionId);
+    const segment = shown === null ? undefined : segmentBySession[shown];
+    return segment !== undefined && isSideSessionSegment(segment);
+};
 
 /**
- * Whether a tab shows the pending-answer dot: the Chat tab while the Session waits on the user (a pending approval or
- * question) and the user is on another tab, so the request is not missed. The selected tab already shows the request.
+ * The content segment on screen: the selected one, or `remembered`, the one an open side panel covers or sits beside. A
+ * Chat has no Terminal, so it always shows its conversation.
  */
-export const isSegmentAwaitingAnswer = ({
-    isChat,
-    isSelected,
+export const shownContentSegment = (
+    segment: SessionSegment,
+    remembered: ContentSessionSegment,
+    isChat: boolean,
+): ContentSessionSegment =>
+    isChat ? 'conversation' : isSideSessionSegment(segment) ? remembered : segment;
+
+/**
+ * The side segment the side panel button opens: the one the user last had open, while the Session still offers it (a
+ * Project view can go away), else Changes.
+ */
+export const sideSegmentToOpen = (
+    remembered: SideSessionSegment | undefined,
+    offered: readonly SessionSegment[],
+): SideSessionSegment =>
+    remembered !== undefined && offered.includes(remembered) ? remembered : 'changes';
+
+/**
+ * Whether a Chat is on screen: its own segment, or the conversation an open side panel covers or sits beside, which
+ * stays mounted under every side segment alike. Only the Terminal, which a Chat never has, leaves it.
+ */
+export const isChatSegmentShown = (segment: SessionSegment): boolean => segment !== 'terminal';
+
+/**
+ * Whether the side panel's close button shows the pending-answer dot: a Chat waits on the user (a pending approval or
+ * question) while a phone's side panel drawer covers it, so the request is not missed. A wide tablet's pane leaves the
+ * Chat in view, and the Chat itself already shows the request.
+ */
+export const isChatAwaitingBehindSidePanel = ({
     agentActivityState,
-    segment,
+    isChat,
+    isCovered,
 }: {
-    isChat: boolean;
-    isSelected: boolean;
     agentActivityState: string;
-    segment: SessionSegment;
-}): boolean =>
-    isChat && !isSelected && segment === 'conversation' && agentActivityState === 'waiting';
+    isChat: boolean;
+    isCovered: boolean;
+}): boolean => isChat && isCovered && agentActivityState === 'waiting';
 
 /**
  * Whether the selected Session's detail is on screen. A phone shows it only on its own route; a tablet shows it beside
@@ -107,10 +154,14 @@ export const isSessionDetailVisible = ({
 }): boolean => isFocused && isSelected && (!isPhone || isRouted);
 
 export interface HostSessionUiState {
-    contentSegmentBySession: Record<string, 'conversation' | 'terminal'>;
+    contentSegmentBySession: Record<string, ContentSessionSegment>;
     draftBySession: Record<string, string>;
     projectId: string | null;
     segmentBySession: Record<string, SessionSegment>;
+    /**
+     * The side segment each Session last showed, so its side panel button reopens that view.
+     */
+    sideSegmentBySession: Record<string, SideSessionSegment>;
 }
 
 export const emptyHostSessionUiState = (): HostSessionUiState => ({
@@ -118,6 +169,7 @@ export const emptyHostSessionUiState = (): HostSessionUiState => ({
     draftBySession: {},
     projectId: null,
     segmentBySession: {},
+    sideSegmentBySession: {},
 });
 
 export const preferredSessionSegment = (
@@ -216,6 +268,9 @@ export const rememberSessionSegment = (
             : { [sessionId]: segment }),
     },
     segmentBySession: { ...state.segmentBySession, [sessionId]: segment },
+    sideSegmentBySession: isSideSessionSegment(segment)
+        ? { ...state.sideSegmentBySession, [sessionId]: segment }
+        : state.sideSegmentBySession,
 });
 
 /**

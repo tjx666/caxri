@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { createTerminalFixturePreflightReceipt } from '../../.agents/skills/acceptance/scripts/fixture-preflight';
 import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { expect } from './fixtures';
 import { pageRequest } from './helpers';
@@ -22,7 +21,15 @@ import {
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import type { MobileDesktopCapture } from './mobile-desktop-capture';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
+import {
+    preflightConversationTerminal,
+    waitForDesktopConversationGrid,
+    waitForDesktopMenuGrid,
+    writeReadyTerminalPreflight,
+} from './mobile-journey-terminal-grid';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { showTabletSessionRow } from './mobile-session-list';
+import { openSessionSidePanel, showSessionContent } from './mobile-session-panel';
 import { tapTerminalKey } from './mobile-terminal-key';
 import {
     assertMobileComposerDraft,
@@ -92,75 +99,6 @@ export function countByteSequence(source: Buffer, target: Buffer): number {
     return count;
 }
 
-async function waitForDesktopConversationGrid(
-    fixture: JourneyFixture,
-    phase: 'busy' | 'menu',
-    selected?: number,
-) {
-    const surface = fixture.running.page.locator(
-        `.terminal-pane[data-terminal-id="${fixture.journey.conversationTerminalId}"] .terminal-surface`,
-    );
-    await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-    return waitForMobile(
-        async () => ({
-            grid: await surface.getAttribute('data-terminal-grid'),
-            renderedRows: await surface.locator('.xterm-rows > div').allTextContents(),
-            state: await fixture.journey.conversationMenuState(),
-        }),
-        ({ grid, renderedRows, state }) =>
-            state?.phase === phase &&
-            (selected === undefined || state.selected === selected) &&
-            grid === `${state.cols}x${state.rows}` &&
-            renderedRows.length === state.rows &&
-            renderedRows[0]?.startsWith(`│${state.generation} `) &&
-            renderedRows.every((line, index) => line === state.lines[index]),
-    );
-}
-
-async function writeReadyTerminalPreflight(
-    environment: JourneyEnvironment,
-    observed: Awaited<ReturnType<typeof waitForDesktopConversationGrid>>,
-): Promise<void> {
-    const state = observed.state;
-    if (!state || state.cols === null || state.rows === null)
-        throw new Error('Synthetic journey Terminal grid is unavailable');
-    const receipt = createTerminalFixturePreflightReceipt(
-        {
-            columns: state.cols,
-            domRowCount: observed.renderedRows.length,
-            firstGridMarker: state.firstGridMarker,
-            generation: state.generation,
-            lines: observed.renderedRows,
-            rows: state.rows,
-        },
-        environment.caseId,
-        { launchId: environment.launchId, sourceCommit: environment.sourceCommit },
-    );
-    if (receipt.result.status !== 'ready')
-        throw new Error('Integrated journey Terminal fixture preflight was blocked');
-    await writeJsonAtomic(
-        join(environment.assetsDirectory, `${environment.caseId}-fixture-preflight.json`),
-        receipt,
-    );
-}
-
-/**
- * Rechecks the exact Desktop grid after pairing so the receipt describes the frame before media.
- */
-async function preflightConversationTerminal(
-    environment: JourneyEnvironment,
-    fixture: JourneyFixture,
-    expectedGeneration?: string,
-): Promise<string> {
-    const observed = await waitForDesktopConversationGrid(fixture, 'busy');
-    const state = observed.state;
-    if (!state) throw new Error('Synthetic journey Terminal grid is unavailable');
-    if (expectedGeneration && state.generation !== expectedGeneration)
-        throw new Error('Synthetic journey Terminal grid changed during mobile pairing');
-    await writeReadyTerminalPreflight(environment, observed);
-    return state.generation;
-}
-
 async function prepareFixture(
     environment: JourneyEnvironment,
     shouldPreflightTerminal: boolean,
@@ -187,11 +125,7 @@ async function openConversation(
     fixture: JourneyFixture,
 ): Promise<void> {
     await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
-    await waitForMobile(
-        () => mobileSemantics(environment.serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
-    );
-    await tapMobileCheck(environment.serial, 'session-segment-conversation');
+    await showSessionContent(environment.serial, 'conversation');
     await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
@@ -297,7 +231,7 @@ async function runCoreJourney(
     );
     await capture(environment, 'stopped', artifacts, 'session-detail');
 
-    await tapMobileCheck(environment.serial, 'session-segment-terminal');
+    await showSessionContent(environment.serial, 'terminal');
     await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
@@ -375,7 +309,7 @@ async function runCoreJourney(
     await capture(environment, 'new-session', artifacts, 'session-detail');
 
     await openOriginalSession(environment, fixture);
-    await tapMobileCheck(environment.serial, 'session-segment-changes');
+    await openSessionSidePanel(environment.serial, 'changes');
     const changes = await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
@@ -429,9 +363,10 @@ async function executeMainJourney(
                 '-W',
                 'com.caxri.mobile/.MainActivity',
             ]);
-            await waitForMobile(
-                () => mobileSemantics(environment.serial),
-                (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
+            await showTabletSessionRow(
+                environment.serial,
+                fixture.allowedProjectId,
+                fixture.allowedSessionId,
             );
         }
         desktop = isTablet
@@ -464,7 +399,7 @@ async function executeMainJourney(
                 () => mobileSemantics(environment.serial),
                 (nodes) =>
                     nodes.some(({ checkId }) => checkId === 'session-list') &&
-                    nodes.some(({ checkId }) => checkId === 'changes-right-pane'),
+                    nodes.some(({ checkId }) => checkId === 'session-side-panel'),
             );
         }
         await recording?.stop();
@@ -673,7 +608,7 @@ async function executeFailureJourney(
                 if (!passive.state) throw new Error('Passive Desktop Terminal grid disappeared');
                 expect(passive.state.generation).not.toBe(before.state.generation);
                 await writeReadyTerminalPreflight(environment, passive);
-                await tapMobileCheck(environment.serial, 'session-segment-terminal');
+                await showSessionContent(environment.serial, 'terminal');
                 const surface = fixture.running.page.locator(
                     `.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`,
                 );
@@ -688,11 +623,7 @@ async function executeFailureJourney(
                         nodes.some(({ checkId }) => checkId === 'terminal-release'),
                 );
                 await releaseMobileTerminalLease(environment.serial);
-                const released = await waitForMobile(
-                    () => waitForDesktopConversationGrid(fixture, 'menu', 1),
-                    ({ state }) =>
-                        state?.cols === passive.state?.cols && state?.rows === passive.state?.rows,
-                );
+                const released = await waitForDesktopMenuGrid(fixture, 1, passive.state);
                 await capture(
                     environment,
                     'terminal-passive-observation',
@@ -729,7 +660,7 @@ async function executeFailureJourney(
                     'terminal-live-webview',
                 );
                 await tapMobileCheck(environment.serial, 'terminal-release');
-                const restored = await waitForDesktopConversationGrid(fixture, 'menu', 2);
+                const restored = await waitForDesktopMenuGrid(fixture, 2, passive.state);
                 if (!restored.state)
                     throw new Error('Desktop Terminal did not restore after release');
                 expect(restored.state.cols).toBe(passive.state.cols);

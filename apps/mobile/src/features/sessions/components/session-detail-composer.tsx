@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
 import { Pressable, TextInput, View } from 'react-native';
 
-import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
+import { ArrowUp, Square } from 'lucide-react-native';
 
-import { IconButton } from '../../../components/icon-button';
 import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -15,7 +14,8 @@ import { useImageAttachments } from '../hooks/use-image-attachments';
 import { useSessionComposer } from '../hooks/use-session-composer';
 import type { ComposerDelivery } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
-import { AttachmentSourceSheet } from './attachment-source-sheet';
+import { ComposerAddButton } from './composer-add-button';
+import { ComposerAddSheet } from './composer-add-sheet';
 import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
 import { SessionComposerStatus } from './session-composer-status';
 import { sessionDetailStyles as styles } from './session-detail-styles';
@@ -76,14 +76,7 @@ const SessionComposerInput = ({
             ref={inputReference}
             scrollEnabled
             submitBehavior="newline"
-            style={[
-                styles.composer,
-                {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                    color: theme.text,
-                },
-            ]}
+            style={[styles.composer, { color: theme.text }]}
             testID="session-composer-input"
             textAlignVertical="top"
             value={draft}
@@ -113,6 +106,7 @@ const SessionComposerActionButton = ({
             accessibilityRole="button"
             accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
             disabled={!canSubmit}
+            hitSlop={4}
             onPress={submit}
             style={[
                 styles.sendButton,
@@ -184,10 +178,7 @@ export const SessionDetailComposer = ({
     const suggestions = useComposerSuggestions(draft, session);
 
     return (
-        <View
-            style={[styles.composerBlock, { borderColor: theme.border }]}
-            testID="session-composer"
-        >
+        <View style={styles.composerBlock} testID="session-composer">
             <SessionComposerAttachments files={files} images={images} theme={theme} />
             <SessionComposerSuggestions
                 draft={draft}
@@ -195,42 +186,6 @@ export const SessionDetailComposer = ({
                 theme={theme}
                 updateDraft={updateDraft}
             />
-            <View style={styles.composerRow}>
-                {deviceRole === 'reply' || deviceRole === 'control' ? (
-                    <View style={styles.attachSlot}>
-                        <IconButton
-                            accessibilityHint={
-                                canAttach ? undefined : t('sessions.composer.imageLimit')
-                            }
-                            accessibilityLabel={t('sessions.composer.attach')}
-                            color={theme.muted}
-                            disabled={!canAttach}
-                            icon={Paperclip}
-                            onPress={() => setChoosingImage(true)}
-                            size={22}
-                            testID="session-attach-image"
-                            theme={theme}
-                        />
-                    </View>
-                ) : null}
-                <SessionComposerInput
-                    delivery={delivery}
-                    draft={draft}
-                    focusComposer={focusComposer}
-                    isVisible={isVisible}
-                    onComposerFocused={onComposerFocused}
-                    session={session}
-                    theme={theme}
-                    updateDraft={updateDraft}
-                />
-                <SessionComposerActionButton
-                    canSubmit={canSubmit}
-                    delivery={delivery}
-                    showStop={showStop}
-                    submit={submit}
-                    theme={theme}
-                />
-            </View>
             <SessionComposerStatus
                 attachError={images.attachError ?? files.attachError}
                 byteLength={byteLength}
@@ -238,13 +193,52 @@ export const SessionDetailComposer = ({
                 disabledReason={disabledReason}
                 theme={theme}
             />
+            <View
+                style={[
+                    styles.capsule,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+            >
+                <View style={styles.composerRow}>
+                    {deviceRole === 'reply' || deviceRole === 'control' ? (
+                        <ComposerAddButton
+                            accessibilityHint={
+                                canAttach ? undefined : t('sessions.composer.imageLimit')
+                            }
+                            accessibilityLabel={t('sessions.composer.attach')}
+                            disabled={!canAttach}
+                            onPress={() => setChoosingImage(true)}
+                            testID="session-attach-image"
+                            theme={theme}
+                        />
+                    ) : null}
+                    <SessionComposerInput
+                        delivery={delivery}
+                        draft={draft}
+                        focusComposer={focusComposer}
+                        isVisible={isVisible}
+                        onComposerFocused={onComposerFocused}
+                        session={session}
+                        theme={theme}
+                        updateDraft={updateDraft}
+                    />
+                    <SessionComposerActionButton
+                        canSubmit={canSubmit}
+                        delivery={delivery}
+                        showStop={showStop}
+                        submit={submit}
+                        theme={theme}
+                    />
+                </View>
+            </View>
             {isChoosingImage ? (
-                <AttachmentSourceSheet
+                <ComposerAddSheet
                     onClose={() => setChoosingImage(false)}
                     onPick={(source) => {
                         void (source === 'files' ? files.pick() : images.add(source));
                     }}
                     theme={theme}
+                    title={t('sessions.composer.attach')}
                 />
             ) : null}
         </View>

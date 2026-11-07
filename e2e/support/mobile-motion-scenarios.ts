@@ -28,6 +28,7 @@ import {
     conversationLongToolRecords,
 } from './mobile-conversation-transcript.ts';
 import { panelTransitions, readRecordingBand } from './mobile-motion-analysis.ts';
+import { sessionSideTabCheckId } from './mobile-session-panel.ts';
 
 type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
 
@@ -52,9 +53,12 @@ const pause = (ms: number) =>
 const SETTLE_MS = 800;
 
 /**
- * Records every Session detail tab switch that avoids the Terminal tab, whose frames need the Terminal fixture
- * preflight. Each new panel slides in from the side the selection moved toward (#1280); the recording itself is
- * analysed, because a panel that only appears after its animation has finished still passes every semantic check.
+ * Records the Session side panel opening and its tab switches, which avoid the Terminal content switch whose frames
+ * need the Terminal fixture preflight. The side panel drawer slides in from the right over the Conversation, and each
+ * later tab slides in inside the drawer from the side the selection moved toward, by tab order: Changes, then the Files
+ * view (#1280). The recording itself is analysed, because a panel that only appears after its animation has finished
+ * still passes every semantic check. Closing the drawer is not analysed: it slides out over a Conversation that never
+ * moves, so the band holds no settled panel to measure an offset against.
  */
 async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
@@ -72,7 +76,8 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
         await openConversation(serial, fixture.allowedSessionId);
         await pause(SETTLE_MS);
         /**
-         * The panel region excludes the header, whose running spinner never stops, and the composer below it.
+         * The panel region excludes the header, whose running spinner never stops, and the composer below it. The
+         * drawer that later covers the Session spans this region too, so its body is analysed in the same band.
          */
         const body = boundsOf(await mobileSemantics(serial), 'conversation-view');
         const remoteVideoPath = requireRemoteVideoPath();
@@ -80,32 +85,35 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
         await pause(SETTLE_MS);
         await capture(environment, 'conversation', artifacts);
         const panels = {
-            changes: 'changes-summary',
-            conversation: 'conversation-view',
-            panels: 'panels-view',
+            changes: { body: 'changes-summary', tab: sessionSideTabCheckId('changes') },
+            conversation: { body: 'conversation-view', tab: null },
+            files: { body: 'panels-view', tab: sessionSideTabCheckId('caxri.files') },
         } as const;
+        /**
+         * The first entry is the drawer itself opening on Changes, from the header button; the others are tab switches
+         * inside it. The Conversation stays mounted under the open drawer, and screen readers skip it, but uiautomator
+         * still lists its body, so only a tab switch waits for the previous body to leave.
+         */
         const transitions = [
             { direction: 'from-right', segment: 'changes' },
-            { direction: 'from-right', segment: 'panels' },
-            { direction: 'from-left', segment: 'conversation' },
-            { direction: 'from-right', segment: 'panels' },
+            { direction: 'from-right', segment: 'files' },
+            { direction: 'from-left', segment: 'changes' },
+            { direction: 'from-right', segment: 'files' },
             { direction: 'from-left', segment: 'changes' },
         ] as const;
         let current: keyof typeof panels = 'conversation';
         for (const [index, { segment }] of transitions.entries()) {
-            const previous = panels[current];
+            const previous = panels[current].body;
+            const { body, tab } = panels[segment];
             // eslint-disable-next-line no-await-in-loop -- each tab switch starts from the previous settled panel.
-            await tapMobileCheck(serial, `session-segment-${segment}`);
+            await tapMobileCheck(serial, index === 0 ? 'session-panel-button' : tab);
             // eslint-disable-next-line no-await-in-loop -- the next capture must follow this panel's render.
             await waitForMobile(
                 () => mobileSemantics(serial),
                 (nodes) =>
-                    hasCheck(nodes, panels[segment]) &&
-                    !hasCheck(nodes, previous) &&
-                    nodes.some(
-                        ({ checkId, selected }) =>
-                            checkId === `session-segment-${segment}` && selected,
-                    ),
+                    hasCheck(nodes, body) &&
+                    (index === 0 || !hasCheck(nodes, previous)) &&
+                    nodes.some(({ checkId, selected }) => checkId === tab && selected),
             );
             // eslint-disable-next-line no-await-in-loop -- the entering animation finishes before the capture.
             await pause(SETTLE_MS);
