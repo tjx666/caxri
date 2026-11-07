@@ -91,6 +91,30 @@ describe('method registry contract selection', () => {
     });
 });
 
+describe('protocol package test selection', () => {
+    it('runs every protocol test for a protocol source change, including fixtures the import graph misses', async () => {
+        const fixtureTest = 'packages/protocol/src/transport/__tests__/dispatcher.test.ts';
+
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'packages/protocol/src/domain/session-contract.ts',
+            ]),
+        ).resolves.toContain(fixtureTest);
+        await expect(
+            selectedTestCandidates(
+                process.cwd(),
+                ['apps/server/src/domains/theme.ts'],
+                ['packages/protocol/src/domain/removed-contract.ts'],
+            ),
+        ).resolves.toContain(fixtureTest);
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'packages/protocol/src/mobile/__tests__/mobile-agent-chat-contract.test.ts',
+            ]),
+        ).resolves.not.toContain(fixtureTest);
+    });
+});
+
 describe('removed-path test selection', () => {
     it('routes removed paths and path-reference configs through the doctor path contract', async () => {
         const contract = 'scripts/__tests__/doctor-config-paths.test.ts';

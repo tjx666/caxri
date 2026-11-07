@@ -145,7 +145,10 @@ evidence rather than automated test or Acceptance evidence.
 - Use `createProjectSession` / `waitForCreatedSession` so dialog removal, selected Session,
   durable Session/Terminal state, visible Session card, and focused Terminal converge together.
 - A fake Agent publishes its ready marker only after raw mode and input capture are installed.
-  Wait for that marker before sending bytes; never use a sleep as readiness.
+  Wait for that marker before sending bytes; never use a sleep as readiness. The Acceptance
+  `agent-features-v1` fixture also writes a `fixtureReady` receipt naming its launch's
+  `agentSessionId` after its initial turn stops, and keeps it in public-frame mode; mobile scenarios
+  send its `fixture:*` commands once through `sendFixtureCommandWhenReady`, never in a resend loop.
 - For Terminal resizing, wait for repeated identical guest/Runtime grid observations and compare
   them with the rendered xterm grid. Extra intermediate `SIGWINCH` values are valid.
 - Place cursor-addressed fixture text inside the smallest grid used by the test. Assert it immediately

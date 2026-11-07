@@ -29,7 +29,8 @@ export async function executeMobileSessionStatusScenario(
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
         const { page } = fixture.running;
-        if (!fixture.allowedSessionId)
+        const { attention } = fixture;
+        if (!attention || !fixture.allowedSessionId)
             throw new Error('Session status fixture Session is unavailable');
         await fixture.pair();
         /**
@@ -51,17 +52,13 @@ export async function executeMobileSessionStatusScenario(
         const bound = await waitForMobile(
             () => pageRequest<BootstrapState>(page, 'app.bootstrap'),
             (state) =>
-                // Input reaches the fixture Agent by Terminal id; the later running-state wait proves the Agents took it.
                 sessionIds.every((id) => state.terminals.some(({ sessionId }) => sessionId === id)),
         );
         const terminalIds = sessionIds.map(
             (id) => bound.terminals.find(({ sessionId }) => sessionId === id)!.id,
         );
         const send = (index: number, command: AttentionCommand) =>
-            pageRequest(page, 'terminal.input', {
-                terminalId: terminalIds[index],
-                data: `${command}\r`,
-            });
+            attention.sendTo(terminalIds[index], command);
         for (const index of terminalIds.keys()) {
             // eslint-disable-next-line no-await-in-loop -- turns start at staggered moments on purpose.
             await send(index, 'fixture:start');

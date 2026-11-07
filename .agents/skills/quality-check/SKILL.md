@@ -66,7 +66,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   A changed or removed `packages/protocol/src/` source runs the tests that enumerate every registry
   method (`control-server-lane`, `operation-dispatcher`, `domain-service`, `role-capabilities`,
   and the Caxri Bot and Benchmark window policies), which reach method specs only through the
-  aggregated registry.
+  aggregated registry. It also runs every test under `packages/protocol/src/`, because their payload
+  fixtures are untyped literals parsed at runtime that neither typecheck nor import discovery ties to
+  the schema.
   A changed or removed top-level `e2e/*.e2e.ts` spec runs `scripts/__tests__/e2e-pools.test.ts`,
   which reads every spec's launch options to check its pool classification.
   A locale catalog, Desktop-shared i18n copy, or protocol Agent Chat label file runs the three

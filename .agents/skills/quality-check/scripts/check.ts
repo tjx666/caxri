@@ -264,6 +264,26 @@ async function skillContractTestCandidates(root: string, files: string[]): Promi
     return nested.flat();
 }
 
+const PROTOCOL_SOURCE_ROOT = 'packages/protocol/src';
+
+/**
+ * Protocol tests build Session and other payload fixtures as untyped literals that Zod parses at runtime, or hand them
+ * to adapters typed `unknown`, so neither typecheck nor import discovery ties them to the schema they exercise. Adding
+ * a required Session field once passed the focused check while two protocol test fixtures still lacked it, and CI was
+ * the first to fail. Any non-test protocol source change therefore runs the whole package's tests (about 8 seconds).
+ */
+async function protocolPackageTestCandidates(
+    root: string,
+    files: readonly string[],
+    removedFiles: readonly string[],
+): Promise<string[]> {
+    const isTouchesProtocolSource = [...files, ...removedFiles].some((file) => {
+        const path = file.replaceAll('\\', '/');
+        return path.startsWith(`${PROTOCOL_SOURCE_ROOT}/`) && !path.includes('/__tests__/');
+    });
+    return isTouchesProtocolSource ? walkVitestTestFiles(root, PROTOCOL_SOURCE_ROOT) : [];
+}
+
 export async function selectedTestCandidates(
     root: string,
     files: string[],
@@ -275,6 +295,7 @@ export async function selectedTestCandidates(
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
             ...(await githubConfigReaderTestCandidates(root, files)),
+            ...(await protocolPackageTestCandidates(root, files, removedFiles)),
             ...contractTestCandidates(files, removedFiles),
         ]),
     ];
