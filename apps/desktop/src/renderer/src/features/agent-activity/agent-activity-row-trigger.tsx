@@ -1,11 +1,6 @@
 import type { KeyboardEvent } from 'react';
 
-import type {
-    AgentExcerpt,
-    ProjectRecord,
-    SessionAttentionKind,
-    SessionPullRequest,
-} from '@caxri/protocol';
+import type { AgentExcerpt, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
 import { FolderTree, Sparkles } from 'lucide-react';
 
 import type { Translate } from '../../i18n';
@@ -126,40 +121,6 @@ function handleRowKeyDown(
 }
 
 /**
- * The slot is reserved on every Needs attention row so titles align whether or not the row is unread. The unread dot
- * sits here; `AgentActivityRowItem` overlays the Mark as Done check on the same spot as a sibling of the row, and the
- * dot yields to it on hover, focus, and selection. It carries no label of its own: the title's weight and the check's
- * accessible name say the rest.
- */
-function AttentionLead({
-    attentionKind,
-    isUnread,
-    selected,
-}: {
-    attentionKind: SessionAttentionKind | undefined;
-    isUnread: boolean;
-    selected: boolean;
-}) {
-    return (
-        <span
-            aria-hidden="true"
-            className="agent-activity-lead flex h-4 w-3 flex-none items-center justify-center"
-        >
-            {isUnread && (
-                <span
-                    className={cn(
-                        'agent-activity-unread-dot size-1.5 rounded-full transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
-                        attentionKind === 'failed' ? 'bg-danger' : 'bg-warning',
-                        selected && 'opacity-0',
-                    )}
-                    data-activity-unread={attentionKind ?? 'unknown'}
-                />
-            )}
-        </span>
-    );
-}
-
-/**
  * Returns the DOM trigger so HoverCardTrigger can attach its event handlers and ref directly.
  */
 export function AgentActivityRowTrigger({
@@ -219,7 +180,11 @@ export function AgentActivityRowTrigger({
     const { project, session, terminal } = row;
     const canSuggest = canSuggestSessionTitle(session);
     const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
-    const isAttention = row.groupId === 'attention';
+    /**
+     * `AgentActivityRowItem` overlays the Mark as Done check on the trailing slot, so the slot must exist whenever the
+     * check can show, even on a row without a pull request.
+     */
+    const offersMarkDone = canMarkDone && !isRenaming;
     const note = agentActivityStatusNote(row, showExcerpts);
     return (
         <div
@@ -264,13 +229,6 @@ export function AgentActivityRowTrigger({
                 });
             }}
         >
-            {isAttention && (
-                <AttentionLead
-                    attentionKind={session.lastAttentionKind}
-                    isUnread={session.hasUnread}
-                    selected={selected}
-                />
-            )}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <AgentActivityRowTitle
                     canSuggest={canSuggest}
@@ -361,14 +319,34 @@ export function AgentActivityRowTrigger({
                     </span>
                 )}
             </span>
-            {visiblePullRequest && (
+            {(visiblePullRequest !== undefined || offersMarkDone) && (
                 /*
                  * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title
                  * line: pinned to the title it floated in the top-right corner, detached from the metadata it
-                 * describes. Only a pull request reserves the slot.
+                 * describes. The Mark as Done check takes the same spot on hover, focus, and selection, where the
+                 * Project tree keeps its row hover actions. Without a pull request the slot only appears while the check
+                 * shows, so the title gives up that width only when the check needs it.
                  */
-                <span className="agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch">
-                    <SessionPullRequestIndicator pullRequest={visiblePullRequest} />
+                <span
+                    className={cn(
+                        'agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch',
+                        !visiblePullRequest &&
+                            !selected &&
+                            'hidden group-focus-within/activity-row:flex group-hover/activity-row:flex',
+                    )}
+                >
+                    {visiblePullRequest && (
+                        <span
+                            className={cn(
+                                'flex',
+                                offersMarkDone &&
+                                    'transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
+                                offersMarkDone && selected && 'opacity-0',
+                            )}
+                        >
+                            <SessionPullRequestIndicator pullRequest={visiblePullRequest} />
+                        </span>
+                    )}
                 </span>
             )}
         </div>

@@ -53,7 +53,7 @@ question ("is it my move?") across three headings. A Session leaves only when:
 
 A Session marked done goes to the top of **Idle**. GitHub notifications and Linear's Inbox separate
 "read" from "Done" the same way, and Orca's smart order keeps the same three tiers. Unread Attention
-still exists, but only decides how a row looks (an unread dot and a bold title), never its group.
+still exists, but only decides how a row looks (a medium-weight title), never its group.
 
 Inside **Needs attention**, a question or a failure comes first because the Agent is blocked until
 the user answers; then a Session whose pull request merged, a finished task waiting to be closed
@@ -174,9 +174,9 @@ of floating in the row's top-right corner. The title clips with the Project tree
 rather than an ellipsis.
 
 **The group heading already names the state.** With three groups, a state glyph on every row said
-what its heading said; the Project tree keeps its glyphs because it does not group by state. Rows
-under **Needs attention** get a 12px leading slot instead: an unread dot (warning, danger for a
-failure) that turns into a **Mark as Done** check button on hover, keyboard focus, or selection. An
+what its heading said; the Project tree keeps its glyphs because it does not group by state. Nothing
+leads a row in any group, so every title shares one left edge: an earlier 12px leading slot for an
+unread dot indented every **Needs attention** row, including the read ones that left it empty. An
 unread title is set in medium weight. With excerpts off, a waiting row adds a small `?` and "Waiting
 for you" to its second line and a failed row a `✕` and "Failed", since those two tiers are the ones
 that block the Agent.
@@ -203,7 +203,7 @@ quiet monitoring sub-mode is the precedent for keeping this inside running inste
 state; VS Code's `chat.tools.terminal.autoApprove` keys and Claude Code's `Bash(...)` permission
 rules are the precedent for the pattern syntax.
 
-Color follows the two-tier rule: only the unread dot in **Needs attention** is tinted, warning or
+Color follows the two-tier rule: only the waiting `?` and failed `✕` marks are tinted, warning or
 danger, so that weight always means "this one wants you" and never has to be decoded against a
 legend.
 
@@ -227,9 +227,10 @@ signals hidden content above identically.
 
 The **Mark as Done** check is the only row action. **Pin** and **Unpin** live in the context menu
 only: the queue is scanned by attention, and a pin chip flashing on every hovered row was noise
-there, unlike in the Project tree. The check sits in the leading slot every attention row already
-reserves, so it costs no title width; it is a sibling of the row button, so pressing it never
-selects or opens the Session.
+there, unlike in the Project tree. The check appears at the row's right edge on hover, keyboard
+focus, or selection, where the Project tree keeps its row hover actions: over the pull request glyph
+when the Session has one, otherwise in a slot that opens only while the check shows. It is a sibling
+of the row button, so pressing it never selects or opens the Session.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
 same in either body of the side bar. The Project name carries no tooltip of its own, because a
