@@ -1,4 +1,9 @@
-import type { AgentChatActivity, AgentChatGoal, AgentChatGoalUsage } from '@caxri/protocol';
+import type {
+    AgentChatActivity,
+    AgentChatGoal,
+    AgentChatGoalReply,
+    AgentChatGoalUsage,
+} from '@caxri/protocol';
 
 export type AgentChatWorkingActivity = Extract<AgentChatActivity, { kind: 'working' }>;
 
@@ -38,4 +43,14 @@ export function agentChatGoalAutoExpandKey(
 ): string | undefined {
     const isUnfinished = ['failed', 'blocked', 'budgetLimited'].includes(goal.status);
     return isUnfinished && goal.reason ? `${goal.status}:${goal.objective}` : undefined;
+}
+
+/**
+ * The condition a `/goal` reply's notice prints under its label. A `set` reply answers the user's own `/goal
+ * <condition>` message directly above it, so printing the condition again repeated the same paragraph twice in a row
+ * (three times with the composer's goal bar); it keeps only the mark and label. `active` and `cleared` still show it,
+ * because the bare `/goal` or `/goal clear` that asked for them did not.
+ */
+export function agentChatGoalNoticeObjective(notice: AgentChatGoalReply): string {
+    return notice.action === 'set' ? '' : notice.objective;
 }
