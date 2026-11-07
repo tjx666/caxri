@@ -256,6 +256,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-clipped-reread',
     },
+    'MOB-CHAT-STREAM-END-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-stream-ending',
+    },
     'MOB-CHAT-LIST-APPROVAL-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

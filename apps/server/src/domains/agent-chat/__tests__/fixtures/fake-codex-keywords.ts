@@ -15,7 +15,8 @@
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a titled thought, a running command, two token usage reports, and a long streamed reply that `turn/interrupt`
  *   can stop. With `reconnect`, a stream retry notice comes before the reply.
- * - `burststream`: a reply arriving in large deltas 400ms apart; `clip` adds a phone window re-read (#2682).
+ * - `burststream`: a reply arriving in large deltas 400ms apart; `clip` adds a phone window re-read (#2682), and `end`
+ *   makes the last delta a long paragraph the reply completes with at once (#3781).
  * - `longstream`: a titled thought, a quiet pause of a few seconds, then a reply of forty numbered paragraphs streamed
  *   over about 30 seconds, which `turn/interrupt` can stop.
  * - `bigstream`: a 50 KB Markdown reply (headings, lists, tables, fenced code) in token-sized deltas over about ten
@@ -64,6 +65,7 @@ import {
 } from './fake-codex-approvals.ts';
 import { runTurnArtifacts, runTurnManyFiles, runTurnOutsideFile } from './fake-codex-artifacts.ts';
 import { runAutoCompact } from './fake-codex-autocompact.ts';
+import { runBurstStream } from './fake-codex-burst-stream.ts';
 import { runDefaultReply } from './fake-codex-default-reply.ts';
 import { runExplore, runParallelExplore } from './fake-codex-explore.ts';
 import type { FakeCodexIo, FakeTurn } from './fake-codex-io.ts';
@@ -72,7 +74,6 @@ import { runQuoteDraft } from './fake-codex-quote-draft.ts';
 import {
     runBigDiff,
     runBigStream,
-    runBurstStream,
     runCodeBlocks,
     runConsecutiveThoughts,
     runJsonCommand,
@@ -118,7 +119,10 @@ export async function runKeywordScenario(
     } else if (text.includes('proposeplan')) {
         runProposedPlan(io, turn);
     } else if (text.includes('burststream')) {
-        await runBurstStream(io, turn, { isClipped: text.includes('clip') });
+        await runBurstStream(io, turn, {
+            isClipped: text.includes('clip'),
+            isEnding: text.includes('burststreamend'),
+        });
     } else if (text.includes('longstream')) {
         await runLongStream(io, turn);
     } else if (text.includes('bigstream')) {

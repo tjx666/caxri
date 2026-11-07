@@ -542,6 +542,8 @@ export const handlers = {
     'MOB-CHAT-LINK-WRAP-01': executeMobileChatInlineLinkScenario,
     'MOB-CHAT-CLIP-REREAD-01': (environment, artifacts) =>
         executeMobileChatBurstStreamScenario(environment, artifacts, 'clipped'),
+    'MOB-CHAT-STREAM-END-01': (environment, artifacts) =>
+        executeMobileChatBurstStreamScenario(environment, artifacts, 'ending'),
     'MOB-CHAT-LIST-APPROVAL-01': (environment, artifacts) =>
         executeMobileChatListApprovalScenario(environment, artifacts, 'codex'),
     'MOB-CHAT-LIST-APPROVAL-02': (environment, artifacts) =>

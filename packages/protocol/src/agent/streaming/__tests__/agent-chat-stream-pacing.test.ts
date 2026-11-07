@@ -94,6 +94,41 @@ describe('createAgentChatStreamPacer', () => {
         expect(shown - before).toBeLessThan(100);
     });
 
+    it('keeps up with a steady stream when redraws come slowly', () => {
+        // A phone busy re-parsing a long reply redraws every 150ms while 300 characters a second arrive. Counting each
+        // slow redraw as a nominal frame left most of the reply hidden until the turn ended and it appeared as a block.
+        const pacer = createAgentChatStreamPacer();
+        let target = '';
+        let shown = '';
+        for (let now = 0; now < 10_000; now += 150) {
+            target += 'x'.repeat(45);
+            shown = pacer.next(target, now);
+        }
+        expect(target.length - shown.length).toBeLessThan(100);
+    });
+
+    it('still eases in the backlog after the app was suspended mid-reply', () => {
+        const pacer = createAgentChatStreamPacer();
+        pacer.next('x'.repeat(10), 0);
+        // Five seconds without a frame: the next one must not reveal the whole backlog.
+        expect(pacer.next('x'.repeat(2_000), 5_000).length).toBeLessThan(1_500);
+    });
+
+    it("types a finished reply's rest out evenly instead of showing it whole on one frame", () => {
+        const pacer = createAgentChatStreamPacer();
+        const partial = 'x'.repeat(100);
+        reveal(pacer, partial);
+        const finished = `${partial}${'y'.repeat(650)}`;
+        // A phone busy re-parsing a long reply redraws every 50 to 80ms.
+        const lengths = [partial.length];
+        for (let now = 2_000; lengths.at(-1) !== finished.length; now += 60)
+            lengths.push(pacer.next(finished, now, { finish: true }).length);
+        const steps = lengths.slice(1).map((length, index) => length - (lengths[index] ?? 0));
+        // No frame reveals more than a fifth of the tail, and the tail is out within about 400ms.
+        expect(Math.max(...steps)).toBeLessThanOrEqual(650 / 5);
+        expect(steps.length * 60).toBeLessThanOrEqual(480);
+    });
+
     it('shows a rewound or edited reply whole at once', () => {
         const pacer = createAgentChatStreamPacer('Old reply text');
         expect(pacer.next('New', 0)).toBe('New');
