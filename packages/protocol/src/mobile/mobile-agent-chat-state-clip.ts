@@ -88,7 +88,10 @@ export function clipAgentChatCommandsForMobile(commands: AgentChatCommands): Age
  * {@link MOBILE_AGENT_CHAT_ENDED_TASKS_MAX_ITEMS} that ended most recently, each with its title and command line cut to
  * one glance and its summary to a line or two. Desktop's list (up to `MAX_AGENT_CHAT_TASKS` tasks with 10,000-character
  * commands) could fill a frame on its own; these bounds keep it to a few KiB in practice and under half the window at
- * worst. The full command and the output tail come from `mobile.agentChat.readTask`.
+ * worst. The full command and the output tail come from `mobile.agentChat.readTask`. A workflow run's phases and
+ * members (`workflow`) stay on the computer: the phone does not draw them, and a few completed runs with their member
+ * previews (up to 200 members of 2,500 characters each) once filled the whole window, so the phone showed an empty
+ * Chat.
  */
 export const MOBILE_AGENT_CHAT_TASKS_MAX_ITEMS = 24;
 export const MOBILE_AGENT_CHAT_ENDED_TASKS_MAX_ITEMS = 10;
@@ -120,16 +123,20 @@ export function clipAgentChatTasksForMobile(tasks: AgentChatTasks): AgentChatTas
     ]);
     return tasks
         .filter((task) => kept.has(task))
-        .map((task) => ({
-            ...task,
-            title: clipText(task.title, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
-            ...(task.command !== undefined && {
-                command: clipText(task.command, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
-            }),
-            ...(task.summary !== undefined && {
-                summary: clipText(task.summary, MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH),
-            }),
-        }));
+        .map((task) => {
+            const clipped = {
+                ...task,
+                title: clipText(task.title, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
+                ...(task.command !== undefined && {
+                    command: clipText(task.command, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
+                }),
+                ...(task.summary !== undefined && {
+                    summary: clipText(task.summary, MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH),
+                }),
+            };
+            delete clipped.workflow;
+            return clipped;
+        });
 }
 
 /**
