@@ -19,16 +19,10 @@ function input(id: string, overrides: Partial<SessionLabelInput> = {}): SessionL
 const UNTITLED = 'Untitled';
 
 describe('sessionLabelTitle', () => {
-    it('prefers the stored title, then a prompt snippet, then Project and worktree, then the placeholder', () => {
+    it('shows the stored title, else the placeholder even in a worktree', () => {
         expect(sessionLabelTitle(input('s1', { title: 'Fix login' }), UNTITLED)).toBe('Fix login');
-        expect(
-            sessionLabelTitle(
-                input('s1', { promptSnippet: 'refactor   the very long session store module' }),
-                UNTITLED,
-            ),
-        ).toBe('refactor the very long…');
         expect(sessionLabelTitle(input('s1', { workingLocation: 'wt-a' }), UNTITLED)).toBe(
-            'Alpha · wt-a',
+            UNTITLED,
         );
         expect(sessionLabelTitle(input('s1'), UNTITLED)).toBe(UNTITLED);
     });
