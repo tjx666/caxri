@@ -84,6 +84,12 @@ describe('Session search over Antigravity conversations', () => {
         const path = await writeAntigravityConversation(home, conversation);
         await engine.indexer.refresh();
         expect(engine.search({ query: 'onboarding checklist', limit: 10 }).hits).toEqual([]);
+        /**
+         * The first search starts a background pass. Settle it before the rewrite: a pass still reading the old
+         * database would be the one the next `refresh()` joins, and it would never see the new turn.
+         */
+        await engine.indexer.refresh();
+        expect(engine.indexer.progress().isRunning).toBe(false);
 
         // Replace the whole database: the indexer's read-only opens leave `-wal` and `-shm` beside it.
         await Promise.all(
