@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { agentChatActivity } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react-native';
 
+import { CARD_BORDER_WIDTH } from '../../components/card';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import { chipHitSlop, mobileSpace, mobileType } from '../../theme/scale';
@@ -149,15 +150,17 @@ const RunningKinds = ({
 
 const styles = StyleSheet.create({
     /**
-     * Inset by the same 16dp gutter as the docked cards and the timeline, so the row, the cards, and the composer share
-     * one left edge.
+     * Inset to the docked cards' content rather than their edge: the 16dp dock gutter, the card's 1dp border, and the
+     * goal row's own insets (12dp before its icon, 8dp after its chevron). The row stacks directly under the goal card,
+     * so a gutter-only inset left its glyph and chevron visibly outside the goal's.
      */
     root: {
         alignItems: 'center',
         flexDirection: 'row',
         gap: mobileSpace.md,
         minHeight: 32,
-        paddingHorizontal: mobileSpace.lg,
+        paddingLeft: mobileSpace.lg + CARD_BORDER_WIDTH + mobileSpace.md,
+        paddingRight: mobileSpace.lg + CARD_BORDER_WIDTH + mobileSpace.sm,
     },
     taskLead: {
         alignItems: 'center',
