@@ -14,7 +14,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentProvider } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -30,18 +29,9 @@ import {
     prepareAcceptanceAgentEnvironment,
     prepareAcceptanceAgentFixture,
 } from '../agent-fixtures';
+import { fixtureExecutable, readReceipts, waitForReceiptCount } from './agent-fixture-test-support';
 
 const directories: string[] = [];
-
-function fixtureExecutable(
-    fixture: { executables: Partial<Record<AgentProvider, string>> },
-    provider: AgentProvider,
-): string {
-    const executable = fixture.executables[provider];
-    expect(executable).toBeTypeOf('string');
-    if (!executable) throw new Error(`Missing ${provider} fixture executable`);
-    return executable;
-}
 
 async function runFixture(
     executable: string,
@@ -68,28 +58,6 @@ async function runFixture(
     });
     if (code !== 0) throw new Error(`Fixture exited with ${code}: ${stderr}`);
     return stdout;
-}
-
-async function readReceipts(root: string): Promise<Array<Record<string, unknown>>> {
-    try {
-        return (await readFile(join(root, 'acceptance-receipts.jsonl'), 'utf8'))
-            .trim()
-            .split('\n')
-            .filter(Boolean)
-            .map((line) => JSON.parse(line) as Record<string, unknown>);
-    } catch {
-        return [];
-    }
-}
-
-async function waitForReceiptCount(root: string, event: string, count: number): Promise<void> {
-    await expect
-        .poll(
-            async () =>
-                (await readReceipts(root)).filter((receipt) => receipt.event === event).length,
-            { interval: 25, timeout: 3_000 },
-        )
-        .toBeGreaterThanOrEqual(count);
 }
 
 afterEach(async () => {
@@ -265,39 +233,6 @@ describe('Acceptance Agent fixtures', () => {
                 userDataDir: userDataDirectory,
             } as Parameters<typeof setAcceptanceAgentFixtureProviderAvailability>[0]),
         ).rejects.toThrow();
-    });
-
-    it('completes the initial Claude turn with its provider hooks and no SessionStart binding', async () => {
-        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
-        directories.push(userDataDirectory);
-        const fixture = await prepareAcceptanceAgentFixture({
-            fixtureId: 'agent-features-v1',
-            sourceEnvironment: { PATH: '/usr/bin:/bin' },
-            userDataDir: userDataDirectory,
-        });
-        const claudeRoot = fixture.environment.CLAUDE_CONFIG_DIR!;
-        const hook = [{ hooks: [{ command: '/usr/bin/true' }] }];
-        await writeFile(
-            join(claudeRoot, 'settings.json'),
-            JSON.stringify({
-                hooks: { UserPromptSubmit: hook, Stop: hook },
-            }),
-        );
-        const fixtureProcess = observeAgentFixtureProcess(
-            spawn(fixtureExecutable(fixture, 'claude'), [], {
-                env: fixture.environment,
-                stdio: ['pipe', 'pipe', 'pipe'],
-            }),
-        );
-        try {
-            await waitForAgentFixtureReady(fixtureProcess, 'Fake claude Acceptance fixture ready');
-            await waitForReceiptCount(claudeRoot, 'Stop', 1);
-            const receipts = await readReceipts(claudeRoot);
-            expect(receipts.filter(({ event }) => event === 'UserPromptSubmit')).toHaveLength(1);
-            expect(receipts.filter(({ event }) => event === 'SessionStart')).toHaveLength(0);
-        } finally {
-            await stopAgentFixtureProcess(fixtureProcess);
-        }
     });
 
     it('emits Codex SessionStart once per fixture process and prompt hooks once per turn', async () => {
@@ -490,50 +425,6 @@ describe('Acceptance Agent fixtures', () => {
                 );
             expect(JSON.stringify(await readReceipts(claudeRoot))).not.toContain(imagePath);
             expect(getAgentFixtureStdout(fixtureProcess)).toBe('');
-        } finally {
-            await stopAgentFixtureProcess(fixtureProcess);
-        }
-    });
-
-    it('waits for managed hooks before starting the initial fixture turn', async () => {
-        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
-        directories.push(userDataDirectory);
-        const fixture = await prepareAcceptanceAgentFixture({
-            fixtureId: 'agent-features-v1',
-            sourceEnvironment: { PATH: '/usr/bin:/bin' },
-            userDataDir: userDataDirectory,
-        });
-        const codexRoot = fixture.environment.CODEX_HOME!;
-        const fixtureProcess = observeAgentFixtureProcess(
-            spawn(fixtureExecutable(fixture, 'codex'), [], {
-                env: fixture.environment,
-                stdio: ['pipe', 'pipe', 'pipe'],
-            }),
-        );
-        try {
-            await waitForAgentFixtureReady(fixtureProcess, 'Fake codex Acceptance fixture ready');
-            await new Promise((resolve) => setTimeout(resolve, 700));
-            expect(await readReceipts(codexRoot)).not.toContainEqual(
-                expect.objectContaining({ kind: 'fixtureError' }),
-            );
-
-            const hook = { hooks: [{ command: '/usr/bin/true' }] };
-            await writeFile(
-                join(codexRoot, 'hooks.json'),
-                JSON.stringify({
-                    hooks: { SessionStart: [hook], Stop: [hook], UserPromptSubmit: [hook] },
-                }),
-            );
-            await expect
-                .poll(
-                    async () =>
-                        (await readReceipts(codexRoot)).filter(({ kind }) => kind === 'hook')
-                            .length,
-                )
-                .toBe(3);
-            expect(await readReceipts(codexRoot)).not.toContainEqual(
-                expect.objectContaining({ kind: 'fixtureError' }),
-            );
         } finally {
             await stopAgentFixtureProcess(fixtureProcess);
         }

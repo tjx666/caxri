@@ -66,6 +66,7 @@ export interface MobileAcceptanceFixture {
     appendTranscript?(records: unknown[]): Promise<void>;
     attention?: {
         readReceipt(): Promise<AttentionReceipt[]>;
+        sendTo(terminalId: string, command: AttentionCommand): Promise<void>;
         trigger(command: AttentionCommand): Promise<void>;
     };
     pairTimelineGateway?(): Promise<MobileEncryptedPeer>;

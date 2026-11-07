@@ -68,7 +68,9 @@ export async function executeMobileSessionAttentionScenario(
     const fixture = await createMobileAcceptanceFixture({ mode: 'attention', serial });
     try {
         const { page } = fixture.running;
-        if (!fixture.allowedSessionId) throw new Error('Attention fixture Session is unavailable');
+        const { attention } = fixture;
+        if (!attention || !fixture.allowedSessionId)
+            throw new Error('Attention fixture Session is unavailable');
         await fixture.pair();
         /**
          * Extra Sessions join the paired Project; another Project would not be granted to the phone.
@@ -99,49 +101,35 @@ export async function executeMobileSessionAttentionScenario(
                     state.terminals.some(({ sessionId }) => sessionId === id),
                 ),
         );
-        const send = (sessionId: string, command: AttentionCommand) =>
-            pageRequest(page, 'terminal.input', {
-                terminalId: bound.terminals.find((terminal) => terminal.sessionId === sessionId)!
-                    .id,
-                data: `${command}\r`,
-            });
         const session = (state: BootstrapState, id: string): SessionRecord | undefined =>
             state.sessions.find((candidate) => candidate.id === id);
         const readState = () => pageRequest<BootstrapState>(page, 'app.bootstrap');
         /**
-         * A freshly launched fixture Agent may not read its Terminal yet, so a command is resent until the Desktop
-         * records the expected state.
+         * Sends the command once its fixture Agent is ready, then waits for the Desktop to record the expected state.
          */
-        const sendUntil = async (
+        const sendAndWait = async (
             sessionId: string,
             command: AttentionCommand,
             isReached: (record: SessionRecord | undefined) => boolean,
             label: string,
         ) => {
-            for (let attempt = 0; attempt < 4; attempt += 1) {
-                // eslint-disable-next-line no-await-in-loop -- each attempt waits for the previous one to settle.
-                await send(sessionId, command);
-                try {
-                    // eslint-disable-next-line no-await-in-loop -- see above.
-                    await waitForMobile(
-                        readState,
-                        (state) => isReached(session(state, sessionId)),
-                        10_000,
-                    );
-                    return;
-                } catch {
-                    // Resend: the Agent had not taken the command yet.
-                }
+            await attention.sendTo(
+                bound.terminals.find((terminal) => terminal.sessionId === sessionId)!.id,
+                command,
+            );
+            try {
+                await waitForMobile(readState, (state) => isReached(session(state, sessionId)));
+            } catch {
+                throw new Error(`${label} was never reached`);
             }
-            throw new Error(`${label} was never reached`);
         };
-        await sendUntil(
+        await sendAndWait(
             question,
             'fixture:question',
             (record) => record?.lastAttentionKind === 'waiting' && record.hasPendingAttention,
             'The question Session waiting on the user',
         );
-        await sendUntil(
+        await sendAndWait(
             working,
             'fixture:start',
             (record) => record?.agentActivityState === 'running',
@@ -191,7 +179,7 @@ export async function executeMobileSessionAttentionScenario(
         await capture(environment, 'marked-done-in-idle', artifacts);
 
         // A new turn resolves the question's attention too: the Session leaves Needs attention for Working.
-        await sendUntil(
+        await sendAndWait(
             question,
             'fixture:start',
             (record) => record?.agentActivityState === 'running',

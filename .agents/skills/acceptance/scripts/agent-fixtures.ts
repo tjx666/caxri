@@ -260,9 +260,12 @@ const startTurn = (topic, includePrivate = false) => {
   }
   invokeHook('UserPromptSubmit');
 };
-const finishTurn = () => {
+const finishTurn = (onFinished) => {
   setClaudeStatus('completed');
-  const notifyFinished = () => invokeHook('Stop');
+  const notifyFinished = () => {
+    invokeHook('Stop');
+    onFinished?.();
+  };
   if (provider !== 'codex') {
     notifyFinished();
     return;
@@ -337,6 +340,14 @@ const initialHooksReady = () => {
     return false;
   }
 };
+// A command sent before the initial turn's Stop would be overwritten by it, so readiness waits for both the input
+// listener and that Stop. The receipt names this launch's Agent Session id, which Caxri binds to the Terminal as
+// agentSessionId, and stays readable in public-frame mode, where the visible ready marker is suppressed.
+let isInputListening = false;
+let isInitialTurnFinished = false;
+const markReadyWhenSettled = () => {
+  if (isInputListening && isInitialTurnFinished) appendReceipt({ kind: 'fixtureReady', agentSessionId: sessionId });
+};
 const startInitialTurn = () => {
   if (!initialHooksReady()) {
     setTimeout(startInitialTurn, 50);
@@ -345,7 +356,12 @@ const startInitialTurn = () => {
   try {
     startTurn('Initial acceptance topic');
     setTimeout(() => {
-      try { finishTurn(); } catch (error) { appendReceipt({ kind: 'fixtureError', message: error.name }); }
+      try {
+        finishTurn(() => {
+          isInitialTurnFinished = true;
+          markReadyWhenSettled();
+        });
+      } catch (error) { appendReceipt({ kind: 'fixtureError', message: error.name }); }
     }, 150);
   } catch (error) {
     appendReceipt({ kind: 'fixtureError', message: error.name });
@@ -456,6 +472,8 @@ process.stdin.on('data', (chunk) => {
   processInput();
 });
 process.stdin.resume();
+isInputListening = true;
+markReadyWhenSettled();
 // Real Agent TUIs enable bracketed paste so embedded newlines remain unsent editor input.
 if (!isPublicFrame) process.stdout.write('\u001b[?2004hFake ' + provider + ' Acceptance fixture ready\r\n');
 }
