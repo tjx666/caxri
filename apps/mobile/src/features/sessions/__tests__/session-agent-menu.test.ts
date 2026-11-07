@@ -58,8 +58,8 @@ describe('sessionAgentMenu', () => {
         ).toEqual({ blocker: 'noConversation' });
     });
 
-    it('picks Hand Over or Take Back from the menu state and hides both until it is read', () => {
-        expect(sessionAgentMenu(withAgent('running'), undefined, none).bot).toBeUndefined();
+    it('picks Hand Over or Take Back from the menu state and offers Hand Over until it is read', () => {
+        expect(sessionAgentMenu(withAgent('running'), undefined, none).bot).toBe('handOver');
         expect(sessionAgentMenu(withAgent('running'), menuState(), none).bot).toBe('handOver');
         expect(
             sessionAgentMenu(withAgent('running'), menuState({ isBotManaged: true }), none).bot,
