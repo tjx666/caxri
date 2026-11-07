@@ -23,6 +23,7 @@ import {
     pairMobileGateway,
     reconnectMobileGateway,
 } from '../mobile-gateway-client';
+import { createMobileRoutePreferenceStore } from '../route-preference';
 import {
     FakeGatewaySocket,
     flushTasks,
@@ -395,4 +396,39 @@ describe('pairing and reconnecting through the Relay', () => {
         await expect(reconnected).resolves.toBeInstanceOf(Error);
         await expect(store.load()).resolves.toMatchObject({ relay: { url: relayUrl, hostId } });
     });
+
+    it.each([
+        ['direct', 'ws://', 'wss://'],
+        ['relay', 'wss://', 'ws://'],
+    ] as const)(
+        'reconnects only over the %s path the user pinned',
+        async (preference, opened, skipped) => {
+            const { runtime: scripted, sockets } = scriptedRuntime();
+            const runtime: MobileGatewayRuntime = {
+                frameCipher: nobleMobileFrameCipher,
+                ...scripted,
+                openWebSocket: (url) => {
+                    const socket = scripted.openWebSocket(url);
+                    queueMicrotask(() => sockets.find((each) => each.url === url)?.fail());
+                    return socket;
+                },
+                platform: 'android',
+                randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+                routePreference: createMobileRoutePreferenceStore({
+                    getItemAsync: () => Promise.resolve(preference),
+                    setItemAsync: () => Promise.resolve(),
+                }),
+            };
+            const credential = { ...mobileCredential, relay: { url: relayUrl, hostId } };
+            const { store } = memoryStore();
+            await store.save(credential);
+
+            await expect(
+                failureOf(reconnectMobileGateway(credential, runtime, store)),
+            ).resolves.toBeInstanceOf(Error);
+            expect(sockets.length).toBeGreaterThan(0);
+            expect(sockets.every((socket) => socket.url.startsWith(opened))).toBe(true);
+            expect(sockets.some((socket) => socket.url.startsWith(skipped))).toBe(false);
+        },
+    );
 });

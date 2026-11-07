@@ -7,6 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import { expoFrameCipher } from './expo-frame-cipher';
 import type { MobileGatewayRuntime } from './mobile-gateway-client';
 import { createMobileRouteHints } from './route-hints';
+import { createMobileRoutePreferenceStore } from './route-preference';
 
 export const expoMobileGatewayRuntime: MobileGatewayRuntime = {
     frameCipher: expoFrameCipher,
@@ -15,6 +16,10 @@ export const expoMobileGatewayRuntime: MobileGatewayRuntime = {
     openWebSocket: (url) => new WebSocket(url),
     platform: Platform.OS === 'ios' ? 'ios' : 'android',
     randomBytes: (length) => Crypto.getRandomBytes(length),
+    routePreference: createMobileRoutePreferenceStore({
+        getItemAsync: (key) => SecureStore.getItemAsync(key),
+        setItemAsync: (key, value) => SecureStore.setItemAsync(key, value),
+    }),
     routeHints: createMobileRouteHints({
         getItemAsync: (key) => SecureStore.getItemAsync(key),
         setItemAsync: (key, value) => SecureStore.setItemAsync(key, value),

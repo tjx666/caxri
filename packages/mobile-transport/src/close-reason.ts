@@ -61,6 +61,10 @@ export const mobileClientCloseReasons = {
      * More Server frames arrived than the phone's bounded inbox holds while its reader was still busy.
      */
     'inbox-overflow': 4017,
+    /**
+     * The user pinned the connection method in Settings to a path this connection did not take, so it reconnects.
+     */
+    'route-preference': 4019,
 } as const;
 
 export type MobileClientCloseReason = keyof typeof mobileClientCloseReasons;
