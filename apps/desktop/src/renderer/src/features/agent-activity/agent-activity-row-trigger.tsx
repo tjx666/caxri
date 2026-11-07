@@ -10,6 +10,7 @@ import type { SessionRenameController } from '../primary-sidebar/hooks/use-sessi
 import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft';
+import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
 import { didSelectSession } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { AgentActivityRowTitle } from './agent-activity-row-title';
@@ -36,20 +37,18 @@ function rowKeyShortcuts({
 }
 
 /**
- * The shape that leads a waiting or failed row's metadata line (`?` for a question, a cross for a failure), so the
- * state never rests on color alone and stays visible when the line is too narrow for the phrase.
+ * The cross that leads a failed row's metadata line, so the failure never rests on color alone and stays visible when
+ * the line is too narrow for the phrase. A waiting row needs no mark here: its leading status glyph is already a `?`,
+ * while a failed result's glyph is the same amber dot as a finished one.
  */
-function StatusMark({ note }: { note: 'failed' | 'waiting' }) {
+function StatusMark() {
     return (
         <span
             aria-hidden="true"
-            className={cn(
-                'agent-activity-mark flex-none font-semibold',
-                note === 'waiting' ? 'text-warning' : 'text-danger',
-            )}
-            data-activity-mark={note}
+            className="agent-activity-mark flex-none font-semibold text-danger"
+            data-activity-mark="failed"
         >
-            {note === 'waiting' ? '?' : '✕'}
+            ✕
         </span>
     );
 }
@@ -123,9 +122,9 @@ function handleRowKeyDown(
 /**
  * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title line: pinned to
  * the title it floated in the top-right corner, detached from the metadata it describes. `AgentActivityRowItem`
- * overlays the Mark as Done check on the same spot on hover, focus, and selection, where the Project tree keeps its row
- * hover actions. Without a pull request the slot only appears while the check shows, so the title gives up that width
- * only when the check needs it.
+ * overlays Archive and the Mark as Done check on the same spot on hover, focus, and selection, where the Project tree
+ * keeps its row hover actions, and the slot widens to fit both. Without a pull request the slot only appears while the
+ * actions show, so the title gives up that width only when they need it.
  */
 function TrailingSlot({
     offersMarkDone,
@@ -141,6 +140,10 @@ function TrailingSlot({
         <span
             className={cn(
                 'agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch',
+                // Archive and the check are two 20px chips with a 2px gap; the slot widens to them while they show.
+                offersMarkDone &&
+                    'group-focus-within/activity-row:w-[2.625rem] group-hover/activity-row:w-[2.625rem]',
+                offersMarkDone && selected && 'w-[2.625rem]',
                 !pullRequest &&
                     !selected &&
                     'hidden group-focus-within/activity-row:flex group-hover/activity-row:flex',
@@ -271,6 +274,18 @@ export function AgentActivityRowTrigger({
                     canSuggest={canSuggest}
                     isRenaming={isRenaming}
                     isUnread={session.hasUnread}
+                    // The same glyph the Project tree shows at its right edge. Here the right edge belongs to the pull
+                    // request and the row actions, so the glyph leads the title instead. Every row reserves the slot,
+                    // so titles keep one left edge across groups (an Idle row's slot stays blank).
+                    status={
+                        isRenaming ? undefined : (
+                            <SessionStatusIndicator
+                                reserveSlot
+                                session={session}
+                                terminal={terminal}
+                            />
+                        )
+                    }
                     onTitleHoverChange={setHovered}
                     rowId={row.rowId}
                     sessionId={session.id}
@@ -288,12 +303,12 @@ export function AgentActivityRowTrigger({
                      * the worktree name truncates first, and a Project wider than the whole line truncates last.
                      */}
                     {/*
-                     * A waiting or failed mark leads the line inside the location's flex item, so it never wraps out of
+                     * A failed mark leads the line inside the location's flex item, so it never wraps out of
                      * the clipped line. The phrase follows the location and the time comes last: on a narrow line the
                      * time drops first, then the phrase, while the mark and the Project stay.
                      */}
                     <span className="agent-activity-lead-group flex h-4 max-w-full min-w-0 items-center gap-1.5">
-                        {(note === 'waiting' || note === 'failed') && <StatusMark note={note} />}
+                        {note === 'failed' && <StatusMark />}
                         <span className="agent-activity-location flex h-4 max-w-full min-w-0 items-center gap-1">
                             <span className="flex size-3 flex-none items-center justify-center">
                                 <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />

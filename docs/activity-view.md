@@ -157,12 +157,12 @@ nothing; it only lists the Session under Working while it lasts.
 ## Visual grammar
 
 A row is the Session title on its own line, the Agent, Project, worktree, and time beneath it, and
-a pull request glyph at the right edge, centered on both lines. Rows carry no state glyph and no
-state phrase:
+a pull request glyph at the right edge, centered on both lines. The Session's status glyph leads
+the title:
 
 ```text
-●  Rate limiter for /v1/search              ⇡
-   ✳ api-server ⑂ api-server-rate-limit · 18m ago
+◉ Rate limiter for /v1/search              ⇡
+  ✳ api-server ⑂ api-server-rate-limit · 18m ago
 ```
 
 The second line says where the Session runs, in the order a user narrows it down: which Agent CLI
@@ -173,13 +173,19 @@ It is centered on the whole row rather than on the title line, so it belongs to 
 of floating in the row's top-right corner. The title clips with the Project tree's right-edge fade
 rather than an ellipsis.
 
-**The group heading already names the state.** With three groups, a state glyph on every row said
-what its heading said; the Project tree keeps its glyphs because it does not group by state. Nothing
-leads a row in any group, so every title shares one left edge: an earlier 12px leading slot for an
-unread dot indented every **Needs attention** row, including the read ones that left it empty. An
-unread title is set in medium weight. With excerpts off, a waiting row adds a small `?` and "Waiting
-for you" to its second line and a failed row a `✕` and "Failed", since those two tiers are the ones
-that block the Agent.
+**The status glyph is the Project tree's own.** `SessionStatusIndicator` draws it in both bodies of
+the side bar from one projection (`sessionStatus`), which follows the same rule this view groups by:
+a **Working** row spins (the slower dotted ring while it only waits on background shells,
+subagents, or monitors), a **Needs attention** row shows an amber mark (a `?` for a question, a dot
+for a result) that breathes until the row is marked Done and ripples three times when a new result
+arrives unread, and a plain **Idle** row shows nothing. A group heading is out of view once the list
+scrolls, and the glyph keeps the state readable on every row, the way it already is in the Project
+tree. Every row reserves the 14px glyph slot, so every title shares one left edge even though
+Idle rows leave it blank. An unread title is set in medium weight, which tells it apart from a read
+**Needs attention** row carrying the same mark. With excerpts off, a waiting row adds "Waiting for
+you" to its second line and a failed row a `✕` and "Failed", since those two tiers are the ones
+that block the Agent. Only the failure carries a second-line mark: a question's leading glyph is
+already a `?`, while a failed result's glyph is the same amber dot as a finished one.
 
 A Claude Code turn that
 ended while background subagents, workflows, or monitors it started still run stays under
@@ -203,9 +209,9 @@ quiet monitoring sub-mode is the precedent for keeping this inside running inste
 state; VS Code's `chat.tools.terminal.autoApprove` keys and Claude Code's `Bash(...)` permission
 rules are the precedent for the pattern syntax.
 
-Color follows the two-tier rule: only the waiting `?` and failed `✕` marks are tinted, warning or
-danger, so that weight always means "this one wants you" and never has to be decoded against a
-legend.
+Color follows the two-tier rule: only attention (the amber status glyph and the "Waiting for you" phrase) and
+failure (the `✕` mark) are tinted, warning or danger, so that weight always means "this one wants
+you" and never has to be decoded against a legend; running glyphs stay muted.
 
 The title takes a line to itself. The location and time share a fixed-height line below it: when
 space runs out, the entire time disappears first, then the worktree name truncates, and the Project
@@ -225,12 +231,14 @@ from the top, through the same `useScrollEdge` binding
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md#scroll-cue)), so every side bar body
 signals hidden content above identically.
 
-The **Mark as Done** check is the only row action. **Pin** and **Unpin** live in the context menu
-only: the queue is scanned by attention, and a pin chip flashing on every hovered row was noise
-there, unlike in the Project tree. The check appears at the row's right edge on hover, keyboard
-focus, or selection, where the Project tree keeps its row hover actions: over the pull request glyph
-when the Session has one, otherwise in a slot that opens only while the check shows. It is a sibling
-of the row button, so pressing it never selects or opens the Session.
+A **Needs attention** row has two hover actions, **Archive** then the **Mark as Done** check:
+handling an item often ends by throwing it away, so Archive sits beside Done instead of only in the
+context menu. **Pin** and **Unpin** live in the context menu only: the queue is scanned by
+attention, and a pin chip flashing on every hovered row was noise there, unlike in the Project tree.
+The actions appear at the row's right edge on hover, keyboard focus, or selection, where the Project
+tree keeps its row hover actions: over the pull request glyph when the Session has one, in a slot
+that widens to fit both while they show. They are siblings of the row button, so pressing one never
+selects or opens the Session. Archive advertises no key here, because Delete marks the row Done.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
 same in either body of the side bar. The Project name carries no tooltip of its own, because a
@@ -253,6 +261,7 @@ too.
 | `Home` / `End`          | First / last rendered row                                      |
 | `Delete` / `Backspace`  | Mark the row done, moving it to the top of Idle                |
 | Row's check button      | The pointer equivalent of Delete                               |
+| Row's Archive button    | Archive the Session (Needs attention rows)                     |
 | Double-click, Rename    | Edit that Session's title inline                               |
 | `session.rename`        | Edit the selected Session's title inline                       |
 | Right-click             | The Session context menu, with Mark as Done when pending       |

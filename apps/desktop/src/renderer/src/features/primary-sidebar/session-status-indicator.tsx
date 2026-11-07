@@ -9,6 +9,7 @@ import { cn } from '../../lib/utilities';
 import { BackgroundArc, RunningArc } from './running-arc';
 import type { SessionStatus, SessionStatusTerminal } from './session-status';
 import { sessionStatus } from './session-status';
+import { syncSpinPhase } from './shared-spin-phase';
 
 /**
  * The slot's class per visible status: the `session-status-<kind>` hook that tests and styles read, and the tone. Only
@@ -24,13 +25,14 @@ const STATUS_SLOT_CLASS: Record<Exclude<SessionStatus['kind'], 'default'>, strin
 };
 
 /**
- * The right-edge lifecycle glyph shared by the PrimarySidebar and the MRU switcher, in the place Codex and most chat
- * lists put it: unread attention pings until it is read, running spins, a detached Agent shows a static unplugged
- * glyph, and a Chat waiting for a usage limit to reset shows a clock. The leading Agent icon stays a plain brand-color
- * mark, so its color alone tells Agents apart.
+ * The lifecycle glyph shared by the PrimarySidebar's Project tree (right edge, where Codex and most chat lists put it),
+ * the Activity view (ahead of the title), and the MRU switcher: Pending Attention breathes in amber until it is marked
+ * Done and pings on arrival while unread, running spins, a detached Agent shows a static unplugged glyph, and a Chat
+ * waiting for a usage limit to reset shows a clock. The leading Agent icon stays a plain brand-color mark, so its color
+ * alone tells Agents apart.
  *
  * Lifecycle outranks delivery: while a signal shows, the Session's pull request glyph (the `fallback`) steps aside and
- * stays reachable from the hover card and the row menu. It returns the moment the Agent settles and is read.
+ * stays reachable from the hover card and the row menu. It returns the moment the Agent settles and is marked Done.
  *
  * A settled Session keeps the element in the DOM (its `data-session-status` is the contract lifecycle assertions read)
  * but collapses it to nothing, so callers that right-align their glyphs do not strand a neighbour a slot short of the
@@ -46,8 +48,8 @@ export function SessionStatusIndicator({
     terminal,
 }: {
     /**
-     * True for a nested Chat Session whose delegation carries a permission request that waits on the user: the static
-     * amber cue that survives reading (see `sessionStatus`). Only nested rows pass it.
+     * True for a nested Chat Session whose delegation carries a permission request that waits on the user: the amber
+     * cue that survives reading (see `sessionStatus`). Only nested rows pass it.
      */
     approvalPending?: boolean;
     className?: string;
@@ -133,9 +135,9 @@ export function SessionStatusIndicator({
 }
 
 /**
- * The glyph inside a visible status slot: a pinging ring for attention, an unplugged plug when detached, a circled X
- * when a delegated task failed, and a running arc that turns into a slower dotted ring while the Agent only waits on
- * its own background work.
+ * The glyph inside a visible status slot: a breathing amber mark for attention (with an arrival ripple while unread),
+ * an unplugged plug when detached, a circled X when a delegated task failed, and a running arc that turns into a slower
+ * dotted ring while the Agent only waits on its own background work.
  */
 function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind: 'default' }> }) {
     if (status.kind === 'detached') return <Unplug aria-hidden="true" size={12} />;
@@ -154,17 +156,41 @@ function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind:
                     data-session-status-ripple=""
                 />
             )}
-            {status.variant === 'waiting' ? (
-                <CircleQuestionMark aria-hidden="true" size={14} strokeWidth={2.25} />
-            ) : (
-                <>
-                    <span
-                        aria-hidden="true"
-                        className="size-3.5 rounded-full border border-warning"
-                    />
-                    <span aria-hidden="true" className="absolute size-2 rounded-full bg-warning" />
-                </>
-            )}
+            <AttentionPulse>
+                {status.variant === 'waiting' ? (
+                    <CircleQuestionMark aria-hidden="true" size={14} strokeWidth={2.25} />
+                ) : (
+                    <>
+                        <span
+                            aria-hidden="true"
+                            className="size-3.5 rounded-full border border-warning"
+                        />
+                        <span
+                            aria-hidden="true"
+                            className="absolute size-2 rounded-full bg-warning"
+                        />
+                    </>
+                )}
+            </AttentionPulse>
         </>
+    );
+}
+
+/**
+ * The steady breathing that keeps an attention glyph moving for as long as the item waits on the user, so a Needs
+ * attention row stays as noticeable as a spinning Working row. It animates opacity on an HTML wrapper, which the
+ * compositor runs off the main thread (see `RunningArc`), and every attention glyph shares one phase so a column of
+ * them breathes together. Reduced motion leaves it still.
+ */
+function AttentionPulse({ children }: { children: ReactNode }) {
+    return (
+        <span
+            aria-hidden="true"
+            className="relative flex size-3.5 items-center justify-center motion-safe:animate-pulse"
+            data-session-status-pulse=""
+            ref={syncSpinPhase}
+        >
+            {children}
+        </span>
     );
 }

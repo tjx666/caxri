@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { AgentExcerpt, ProjectRecord } from '@caxri/protocol';
+import type { AgentExcerpt, ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { Check } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
@@ -10,7 +10,10 @@ import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import { useSessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
-import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
+import {
+    SessionArchiveButton,
+    sessionRowActionButton,
+} from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { AgentActivityRowTrigger } from './agent-activity-row-trigger';
@@ -20,10 +23,11 @@ import type { AgentActivityRow } from './agent-activity-rows';
  * One Session in the Activity list: the Session title with its pull request, and below it the Agent, Project, worktree,
  * and time.
  *
- * There is no state glyph: every group heading already names the state, so a glyph repeated it on each row and cost the
- * width the Project name needs in a 230px column. A Needs attention row offers a Mark as Done check at its right edge
- * on hover, focus, or selection, and an unread row sets its title in medium weight (`agentActivityStatusNote` covers
- * the states the heading cannot say). Nothing leads the row, so every group's titles share one left edge.
+ * The Session's lifecycle glyph leads the title, the same `SessionStatusIndicator` the Project tree shows at its right
+ * edge: Working rows spin, Needs attention rows breathe in amber. Every row reserves its slot, so every group's titles
+ * share one left edge. A Needs attention row offers Archive and a Mark as Done check at its right edge on hover, focus,
+ * or selection, and an unread row sets its title in medium weight (`agentActivityStatusNote` covers the states the
+ * glyph cannot say).
  *
  * The row wears the same hover card and context menu as a Project tree row, so a Session reads and acts the same in
  * either body of the side bar, including the inline rename editor.
@@ -132,9 +136,9 @@ export function AgentActivityRowItem({
                     worktreeProject={worktreeProject}
                 />
                 {!isRenaming && canMarkDone && (
-                    <AgentActivityMarkDoneButton
+                    <AgentActivityRowActions
                         selected={selected}
-                        sessionTitle={sessionTitleForDisplay(session.title, t)}
+                        session={session}
                         onMarkDone={onMarkDone}
                     />
                 )}
@@ -144,34 +148,37 @@ export function AgentActivityRowItem({
 }
 
 /**
- * The Mark as Done check, overlaid on the row's trailing slot where the pull request glyph sits. A sibling of the row
- * rather than a child, the same way a Project tree row keeps its hover actions outside the hover card's trigger: a
- * pointer on the button is not a pointer asking for the card, and a click on it must not select the row. It wears the
- * Project tree's hover-action chip and tooltip, so a Session's pointer actions look the same in either body of the side
- * bar.
+ * A Needs attention row's hover actions, Archive then the Mark as Done check, overlaid on the row's trailing slot where
+ * the pull request glyph sits (the slot widens to fit both while they show). Archive sits here because handling an item
+ * often ends with throwing it away, and without it the only way was the context menu. A sibling of the row rather than
+ * a child, the same way a Project tree row keeps its hover actions outside the hover card's trigger: a pointer on a
+ * button is not a pointer asking for the card, and a click on it must not select the row. They wear the Project tree's
+ * hover-action chips and tooltips, so a Session's pointer actions look the same in either body of the side bar.
  *
- * It shows on row hover, when anything in the row has focus, and on the selected row; otherwise it is invisible and
- * ignores the pointer, so the pull request glyph underneath stays visible. `tabIndex={-1}`: inside `role="tree"` the
- * row itself is the only Tab stop (DESIGN.md), so this is the pointer affordance for an action the keyboard reaches
- * through Delete on the row.
+ * They show on row hover, when anything in the row has focus, and on the selected row; otherwise they are invisible and
+ * ignore the pointer, so the pull request glyph underneath stays visible. `tabIndex={-1}`: inside `role="tree"` the row
+ * itself is the only Tab stop (DESIGN.md), so these are pointer affordances; the keyboard marks Done through Delete on
+ * the row and archives through the context menu.
  */
-function AgentActivityMarkDoneButton({
+function AgentActivityRowActions({
     onMarkDone,
     selected,
-    sessionTitle,
+    session,
 }: {
     onMarkDone: () => void;
     selected: boolean;
-    sessionTitle: string;
+    session: SessionRecord;
 }) {
     const { t } = useTranslation();
+    const sessionTitle = sessionTitleForDisplay(session.title, t);
     return (
         <div
             className={cn(
-                'agent-activity-mark-done-slot absolute top-1/2 right-2 z-10 flex -translate-y-1/2 transition-opacity group-focus-within/activity-row:pointer-events-auto group-focus-within/activity-row:opacity-100 group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100',
+                'agent-activity-mark-done-slot absolute top-1/2 right-2 z-10 flex -translate-y-1/2 items-center gap-0.5 transition-opacity group-focus-within/activity-row:pointer-events-auto group-focus-within/activity-row:opacity-100 group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100',
                 selected ? 'opacity-100' : 'pointer-events-none opacity-0',
             )}
         >
+            <SessionArchiveButton session={session} />
             <Tooltip content={t('agentActivity.markDone')} shortcut="delete">
                 <button
                     aria-keyshortcuts="Delete"

@@ -184,7 +184,8 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     // Session status slot
     'primarySidebar.status.unread': '未读',
     'primarySidebar.status.unreadWithKind': '未读，{{kind}}',
-    'primarySidebar.status.currentStatus': '当前状态：{{status}}。',
+    'primarySidebar.status.pending': '需要处理',
+    'primarySidebar.status.pendingWithKind': '需要处理，{{kind}}',
     'primarySidebar.status.detached.label': '已分离',
     'primarySidebar.status.detached.description': 'Agent 已停止，以便其他客户端恢复。',
 

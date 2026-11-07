@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 
 import { cn } from '../../lib/utilities';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
@@ -12,6 +12,7 @@ export function AgentActivityRowTitle({
     rowId,
     sessionId,
     sessionRename,
+    status,
     textReference,
     title,
     viewportReference,
@@ -22,7 +23,8 @@ export function AgentActivityRowTitle({
     canSuggest: boolean;
     isRenaming: boolean;
     /**
-     * The Session has not been read yet; its title is set heavier so unread rows stand out without a glyph.
+     * The Session has not been read yet; its title is set heavier, which tells it apart from a read Needs attention row
+     * that carries the same glyph.
      */
     isUnread: boolean;
     /**
@@ -33,14 +35,50 @@ export function AgentActivityRowTitle({
     rowId: string;
     sessionId: string;
     sessionRename: SessionRenameController;
+    /**
+     * The Session's lifecycle glyph, leading the title. It collapses to nothing for a settled Session, and the line's
+     * gap only applies between rendered boxes, so an Idle title starts at the row's edge.
+     */
+    status?: ReactNode;
     textReference: RefObject<HTMLSpanElement | null>;
     title: string;
     viewportReference: RefObject<HTMLElement | null>;
 }) {
     return (
+        <span className="agent-activity-title-line flex min-w-0 items-center gap-1.5">
+            {status}
+            <AgentActivityRowTitleText
+                canSuggest={canSuggest}
+                isRenaming={isRenaming}
+                isUnread={isUnread}
+                onTitleHoverChange={onTitleHoverChange}
+                rowId={rowId}
+                sessionId={sessionId}
+                sessionRename={sessionRename}
+                textReference={textReference}
+                title={title}
+                viewportReference={viewportReference}
+            />
+        </span>
+    );
+}
+
+function AgentActivityRowTitleText({
+    canSuggest,
+    isRenaming,
+    isUnread,
+    onTitleHoverChange,
+    rowId,
+    sessionId,
+    sessionRename,
+    textReference,
+    title,
+    viewportReference,
+}: Omit<Parameters<typeof AgentActivityRowTitle>[0], 'status'>) {
+    return (
         <span
             className={cn(
-                'min-w-0 text-xs text-foreground',
+                'min-w-0 flex-1 text-xs text-foreground',
                 isRenaming ? 'flex' : 'overflow-fade',
                 isUnread && 'font-medium',
             )}

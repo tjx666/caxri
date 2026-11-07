@@ -4,14 +4,22 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import { sessionStatus, summarizeSessionStatuses } from '../session-status';
 
+type StatusSource = Pick<
+    SessionRecord,
+    'hasUnread' | 'hasPendingAttention' | 'agentActivityState' | 'lastAttentionKind'
+>;
+
+/**
+ * Unread attention is always pending too (Mark as Done acknowledges it), so `hasUnread: true` implies pending unless a
+ * case overrides it.
+ */
 function sessionSource(
     agentActivityState: AgentActivityState,
-    overrides: Partial<
-        Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'lastAttentionKind'>
-    > = {},
-): Pick<SessionRecord, 'hasUnread' | 'agentActivityState' | 'lastAttentionKind'> {
+    overrides: Partial<StatusSource> = {},
+): StatusSource {
     return {
         hasUnread: false,
+        hasPendingAttention: overrides.hasUnread === true,
         agentActivityState,
         lastAttentionKind: undefined,
         ...overrides,
@@ -19,7 +27,7 @@ function sessionSource(
 }
 
 describe('Session list status', () => {
-    it('shows unread attention ahead of current running activity', () => {
+    it('shows a live turn ahead of attention, as Activity files it under Working', () => {
         expect(
             sessionStatus(
                 sessionSource('running', {
@@ -30,10 +38,53 @@ describe('Session list status', () => {
                 translate,
             ),
         ).toEqual({
-            ariaDescription: 'The Agent finished its latest turn. Current status: Working.',
+            ariaDescription: 'The Agent is running.',
+            ariaLabel: 'Working',
+            kind: 'running',
+            variant: 'active',
+        });
+        expect(
+            sessionStatus(
+                sessionSource('running', { hasUnread: true, lastAttentionKind: 'completed' }),
+                { agentOperation: 'background' },
+                translate,
+            ),
+        ).toMatchObject({ kind: 'running', variant: 'background' });
+    });
+
+    it('unread attention plays the arrival ripple; nothing marks it pending', () => {
+        expect(
+            sessionStatus(
+                sessionSource('completed', { hasUnread: true, lastAttentionKind: 'completed' }),
+                {},
+                translate,
+            ),
+        ).toEqual({
+            ariaDescription: 'The Agent finished its latest turn.',
             ariaLabel: 'Unread, finished',
             kind: 'attention',
             variant: 'result',
+        });
+    });
+
+    it('keeps read Pending Attention amber until Mark as Done, without the arrival ripple', () => {
+        const read = sessionSource('completed', {
+            hasPendingAttention: true,
+            lastAttentionKind: 'completed',
+        });
+        expect(sessionStatus(read, {}, translate)).toEqual({
+            ariaDescription: 'The Agent finished its latest turn.',
+            ariaLabel: 'Needs attention, finished',
+            isPending: true,
+            kind: 'attention',
+            variant: 'result',
+        });
+        expect(
+            sessionStatus(sessionSource('idle', { hasPendingAttention: true }), {}, translate),
+        ).toMatchObject({ ariaLabel: 'Needs attention', isPending: true });
+        // Mark as Done (or a new turn) resolves it.
+        expect(sessionStatus({ ...read, hasPendingAttention: false }, {}, translate)).toEqual({
+            kind: 'default',
         });
     });
 
@@ -63,7 +114,7 @@ describe('Session list status', () => {
     });
 
     describe('a permission request only the user can decide', () => {
-        it('stays static amber after the Session is read, until the request leaves the feed', () => {
+        it('stays amber after the Session is read, until the request leaves the feed', () => {
             const read = sessionSource('waiting', { lastAttentionKind: 'waiting' });
             expect(sessionStatus(read, {}, translate)).toEqual({ kind: 'default' });
             expect(sessionStatus(read, {}, translate, { approvalPending: true })).toEqual({
@@ -144,12 +195,12 @@ describe('Session list status', () => {
     });
 
     /**
-     * The amber slot is a call to open the Session, so reading it is the only thing that clears it and nothing else may
-     * bring it back. A second static amber state keyed off `agentActivityState` used to outlive acknowledgement, which
-     * left an already-read Session marked for as long as its Agent sat at an empty prompt.
+     * The amber slot follows Pending Attention only, never `agentActivityState` alone: a second amber state keyed off
+     * it used to outlive resolution, which left a handled Session marked for as long as its Agent sat at an empty
+     * prompt.
      */
     it.each<AgentActivityState>(['waiting', 'completed', 'failed', 'idle', 'running', 'unknown'])(
-        'leaves an acknowledged %s Session unmarked',
+        'leaves a resolved %s Session unmarked',
         (state) => {
             const acknowledged = sessionSource(state, {
                 hasUnread: false,
@@ -323,7 +374,7 @@ describe('failed delegation status', () => {
                 failed,
             ),
         ).toMatchObject({ kind: 'running' });
-        // Unread news about a live turn keeps the unread cue as well.
+        // A live turn outranks unread news about the earlier one as well.
         expect(
             sessionStatus(
                 sessionSource('running', { hasUnread: true, lastAttentionKind: 'completed' }),
@@ -331,7 +382,7 @@ describe('failed delegation status', () => {
                 translate,
                 failed,
             ),
-        ).toMatchObject({ kind: 'attention' });
+        ).toMatchObject({ kind: 'running' });
     });
 
     it('stays out of the Project heading counts', () => {
@@ -346,13 +397,15 @@ describe('failed delegation status', () => {
 });
 
 describe('summarizeSessionStatuses', () => {
-    it('counts running and unread Sessions with the same projection as their rows', () => {
+    it('counts running and attention Sessions with the same projection as their rows', () => {
         const sessions = [
             sessionSource('running'),
             sessionSource('idle', { hasUnread: true, lastAttentionKind: 'completed' }),
-            // Unread outranks running, so this Session counts as attention only.
+            // Running outranks unread, so this Session counts as running only.
             sessionSource('running', { hasUnread: true, lastAttentionKind: 'completed' }),
             sessionSource('idle'),
+            // Read but not marked Done still counts as attention.
+            sessionSource('idle', { hasPendingAttention: true, lastAttentionKind: 'completed' }),
             sessionSource('idle'),
         ];
         const compacting = sessions[3];
@@ -363,7 +416,7 @@ describe('summarizeSessionStatuses', () => {
                     session === compacting ? { agentOperation: 'compacting' } : undefined,
                 translate,
             ),
-        ).toEqual({ attention: 2, running: 2 });
+        ).toEqual({ attention: 2, running: 3 });
     });
 
     it('leaves a detached Agent out of the running count', () => {
