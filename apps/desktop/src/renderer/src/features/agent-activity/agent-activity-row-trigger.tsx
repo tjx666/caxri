@@ -1,11 +1,6 @@
 import type { KeyboardEvent } from 'react';
 
-import type {
-    AgentExcerpt,
-    ProjectRecord,
-    SessionAttentionKind,
-    SessionPullRequest,
-} from '@caxri/protocol';
+import type { AgentExcerpt, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
 import { FolderTree, Sparkles } from 'lucide-react';
 
 import type { Translate } from '../../i18n';
@@ -126,34 +121,42 @@ function handleRowKeyDown(
 }
 
 /**
- * The slot is reserved on every Needs attention row so titles align whether or not the row is unread. The unread dot
- * sits here; `AgentActivityRowItem` overlays the Mark as Done check on the same spot as a sibling of the row, and the
- * dot yields to it on hover, focus, and selection. It carries no label of its own: the title's weight and the check's
- * accessible name say the rest.
+ * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title line: pinned to
+ * the title it floated in the top-right corner, detached from the metadata it describes. `AgentActivityRowItem`
+ * overlays the Mark as Done check on the same spot on hover, focus, and selection, where the Project tree keeps its row
+ * hover actions. Without a pull request the slot only appears while the check shows, so the title gives up that width
+ * only when the check needs it.
  */
-function AttentionLead({
-    attentionKind,
-    isUnread,
+function TrailingSlot({
+    offersMarkDone,
+    pullRequest,
     selected,
 }: {
-    attentionKind: SessionAttentionKind | undefined;
-    isUnread: boolean;
+    offersMarkDone: boolean;
+    pullRequest: SessionPullRequest | undefined;
     selected: boolean;
 }) {
+    if (!pullRequest && !offersMarkDone) return null;
     return (
         <span
-            aria-hidden="true"
-            className="agent-activity-lead flex h-4 w-3 flex-none items-center justify-center"
+            className={cn(
+                'agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch',
+                !pullRequest &&
+                    !selected &&
+                    'hidden group-focus-within/activity-row:flex group-hover/activity-row:flex',
+            )}
         >
-            {isUnread && (
+            {pullRequest && (
                 <span
                     className={cn(
-                        'agent-activity-unread-dot size-1.5 rounded-full transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
-                        attentionKind === 'failed' ? 'bg-danger' : 'bg-warning',
-                        selected && 'opacity-0',
+                        'flex',
+                        offersMarkDone &&
+                            'transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
+                        offersMarkDone && selected && 'opacity-0',
                     )}
-                    data-activity-unread={attentionKind ?? 'unknown'}
-                />
+                >
+                    <SessionPullRequestIndicator pullRequest={pullRequest} />
+                </span>
             )}
         </span>
     );
@@ -219,7 +222,6 @@ export function AgentActivityRowTrigger({
     const { project, session, terminal } = row;
     const canSuggest = canSuggestSessionTitle(session);
     const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
-    const isAttention = row.groupId === 'attention';
     const note = agentActivityStatusNote(row, showExcerpts);
     return (
         <div
@@ -264,13 +266,6 @@ export function AgentActivityRowTrigger({
                 });
             }}
         >
-            {isAttention && (
-                <AttentionLead
-                    attentionKind={session.lastAttentionKind}
-                    isUnread={session.hasUnread}
-                    selected={selected}
-                />
-            )}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <AgentActivityRowTitle
                     canSuggest={canSuggest}
@@ -361,16 +356,11 @@ export function AgentActivityRowTrigger({
                     </span>
                 )}
             </span>
-            {visiblePullRequest && (
-                /*
-                 * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title
-                 * line: pinned to the title it floated in the top-right corner, detached from the metadata it
-                 * describes. Only a pull request reserves the slot.
-                 */
-                <span className="agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch">
-                    <SessionPullRequestIndicator pullRequest={visiblePullRequest} />
-                </span>
-            )}
+            <TrailingSlot
+                offersMarkDone={canMarkDone && !isRenaming}
+                pullRequest={visiblePullRequest}
+                selected={selected}
+            />
         </div>
     );
 }

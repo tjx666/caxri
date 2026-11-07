@@ -218,15 +218,21 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         // the whole row would pass even if the flat list never printed which repository a row belongs to.
         await expect(betaRow.locator('.agent-activity-project')).toHaveText('web-client-portal');
         /*
-         * Rows carry no state glyph: the group heading names the state. An attention row leads with a reserved slot
-         * holding the unread dot, and (excerpts are off by default) a waiting row says so on its metadata line.
+         * Rows carry no state glyph: the group heading names the state. Nothing leads an attention row either, so its
+         * title shares the other groups' left edge, and (excerpts are off by default) a waiting row says so on its
+         * metadata line.
          */
         await expect(tree.locator('.agent-activity-glyph')).toHaveCount(0);
-        await expect(betaRow.locator('.agent-activity-lead')).toBeAttached();
-        await expect(betaRow.locator('.agent-activity-unread-dot')).toHaveAttribute(
-            'data-activity-unread',
-            'waiting',
+        const titleLeft = (row: typeof betaRow) =>
+            row
+                .locator('.overflow-fade')
+                .first()
+                .evaluate((title) => title.getBoundingClientRect().left);
+        const gammaRow = tree.locator(
+            `.agent-activity-row[data-session-id="${sessions.get('gamma')}"]`,
         );
+        await expect(gammaRow).not.toHaveAttribute('data-activity-group', 'attention');
+        expect(await titleLeft(betaRow)).toBe(await titleLeft(gammaRow));
         await expect(betaRow.locator('.agent-activity-mark')).toHaveText('?');
         await expect(betaRow.locator('.agent-activity-note')).toHaveText('Waiting for you');
         await expect(betaRow).toHaveAttribute('aria-keyshortcuts', /Delete Backspace/u);
@@ -235,10 +241,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             `.agent-activity-row[data-session-id="${sessions.get('alpha')}"]`,
         );
         await expect(alphaRow.locator('.agent-activity-note')).toHaveCount(0);
-        await expect(alphaRow.locator('.agent-activity-unread-dot')).toHaveAttribute(
-            'data-activity-unread',
-            'completed',
-        );
+        await expect(alphaRow.locator('.overflow-fade').first()).toHaveCSS('font-weight', '500');
         const idleRowIds = () =>
             tree
                 .locator('.agent-activity-row[data-activity-group="idle"]')
@@ -373,14 +376,13 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveText('3');
         await expect(staleRow).toHaveAttribute('data-activity-group', 'attention');
         await expect(staleRow).toHaveAttribute('aria-selected', 'true');
-        await expect(staleRow.locator('.agent-activity-unread-dot')).toHaveCount(0);
         await expect(staleTitle).not.toHaveCSS('font-weight', '500');
         const attentionHeading = tree.locator(
             '.agent-activity-heading[data-activity-group="attention"]',
         );
         await expect(attentionHeading.locator('span').first()).toHaveText('Needs attention');
         await expect(attentionHeading.locator('span[aria-hidden="true"]')).toHaveText('3');
-        // The selected row offers its Mark as Done check in the slot the unread dot left.
+        // The selected row offers its Mark as Done check at its right edge without moving.
         await expect(page.getByRole('button', { name: 'Mark stale work as Done' })).toBeVisible();
         expect(await staleRow.evaluate((row) => row.getBoundingClientRect().top)).toBe(
             staleTopBeforeSelection,
@@ -405,7 +407,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(markAlphaDone).toBeVisible();
         // Wait out the fade-in so the screenshot shows the check rather than a half-transparent frame.
         await expect(markAlphaDone).toHaveCSS('opacity', '1');
-        await expect(alphaRow.locator('.agent-activity-unread-dot')).toHaveCSS('opacity', '0');
+        // The check sits at the row's right edge, in the Project tree's hover-action position.
+        const [checkRight, rowRight] = await Promise.all([
+            markAlphaDone.evaluate((button) => button.getBoundingClientRect().right),
+            alphaRow.evaluate((row) => row.getBoundingClientRect().right),
+        ]);
+        expect(rowRight - checkRight).toBeLessThanOrEqual(8);
         await page.screenshot({
             path: test.info().outputPath('activity-mark-done-hover.png'),
             mask: [page.locator('.xterm')],
@@ -439,7 +446,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await page.keyboard.press('Meta+Shift+n');
         await expect.poll(() => selectedSessionId(page)).toBe(sessions.get('beta'));
         await expect(betaRow).toHaveAttribute('data-activity-group', 'attention');
-        await expect(betaRow.locator('.agent-activity-unread-dot')).toHaveCount(0);
+        await expect(betaRow.locator('.overflow-fade').first()).not.toHaveCSS('font-weight', '500');
         await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveText('2');
         await expect(attentionHeading.locator('span[aria-hidden="true"]')).toHaveText('2');
         expect(await betaRow.evaluate((row) => row.getBoundingClientRect().top)).toBe(

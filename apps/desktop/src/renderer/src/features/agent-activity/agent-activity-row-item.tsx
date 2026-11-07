@@ -21,9 +21,9 @@ import type { AgentActivityRow } from './agent-activity-rows';
  * and time.
  *
  * There is no state glyph: every group heading already names the state, so a glyph repeated it on each row and cost the
- * width the Project name needs in a 230px column. A Needs attention row instead leads with an unread dot that becomes a
- * Mark as Done check on hover, focus, or selection (`agentActivityStatusNote` covers the states the heading cannot
- * say).
+ * width the Project name needs in a 230px column. A Needs attention row offers a Mark as Done check at its right edge
+ * on hover, focus, or selection, and an unread row sets its title in medium weight (`agentActivityStatusNote` covers
+ * the states the heading cannot say). Nothing leads the row, so every group's titles share one left edge.
  *
  * The row wears the same hover card and context menu as a Project tree row, so a Session reads and acts the same in
  * either body of the side bar, including the inline rename editor.
@@ -144,15 +144,16 @@ export function AgentActivityRowItem({
 }
 
 /**
- * The Mark as Done check, overlaid on the row's leading slot where the unread dot sits. A sibling of the row rather
- * than a child, the same way a Project tree row keeps its hover actions outside the hover card's trigger: a pointer on
- * the button is not a pointer asking for the card, and a click on it must not select the row. It wears the Project
- * tree's hover-action chip and tooltip, so a Session's pointer actions look the same in either body of the side bar.
+ * The Mark as Done check, overlaid on the row's trailing slot where the pull request glyph sits. A sibling of the row
+ * rather than a child, the same way a Project tree row keeps its hover actions outside the hover card's trigger: a
+ * pointer on the button is not a pointer asking for the card, and a click on it must not select the row. It wears the
+ * Project tree's hover-action chip and tooltip, so a Session's pointer actions look the same in either body of the side
+ * bar.
  *
  * It shows on row hover, when anything in the row has focus, and on the selected row; otherwise it is invisible and
- * ignores the pointer, so the dot underneath stays the row's only mark. `tabIndex={-1}`: inside `role="tree"` the row
- * itself is the only Tab stop (DESIGN.md), so this is the pointer affordance for an action the keyboard reaches through
- * Delete on the row.
+ * ignores the pointer, so the pull request glyph underneath stays visible. `tabIndex={-1}`: inside `role="tree"` the
+ * row itself is the only Tab stop (DESIGN.md), so this is the pointer affordance for an action the keyboard reaches
+ * through Delete on the row.
  */
 function AgentActivityMarkDoneButton({
     onMarkDone,
@@ -167,7 +168,7 @@ function AgentActivityMarkDoneButton({
     return (
         <div
             className={cn(
-                'agent-activity-mark-done-slot absolute top-1 left-1 z-10 transition-opacity group-focus-within/activity-row:pointer-events-auto group-focus-within/activity-row:opacity-100 group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100',
+                'agent-activity-mark-done-slot absolute top-1/2 right-2 z-10 flex -translate-y-1/2 transition-opacity group-focus-within/activity-row:pointer-events-auto group-focus-within/activity-row:opacity-100 group-hover/activity-row:pointer-events-auto group-hover/activity-row:opacity-100',
                 selected ? 'opacity-100' : 'pointer-events-none opacity-0',
             )}
         >
