@@ -93,7 +93,18 @@ async function withChangesSession(
             await adbShell(serial, ['wm', 'density', '240']);
             await adbShell(serial, ['am', 'force-stop', 'com.caxri.mobile']);
             await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-            await waitForCheck(serial, `session-row-${sessionId}`, 60_000);
+            /**
+             * The Session list pages by Project, and the semantics keep only the first node per id. On the wide layout
+             * that first row belongs to the Project's page, parked off screen beside the "All" page, so its bounds are
+             * empty and the tap helper refuses it. Showing the Project's page brings that row on screen.
+             */
+            const projectFilter = `project-filter-${fixture.allowedProjectId}`;
+            await waitForCheck(serial, projectFilter, 60_000);
+            await tapMobileCheck(serial, projectFilter);
+            await waitForMobile(
+                () => mobileSemantics(serial),
+                (nodes) => checkBounds(nodes, `session-row-${sessionId}`) !== undefined,
+            );
         }
         await tapMobileCheck(serial, `session-row-${sessionId}`);
         const opened = await waitForMobile(
