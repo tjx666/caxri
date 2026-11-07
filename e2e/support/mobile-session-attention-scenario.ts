@@ -198,3 +198,71 @@ export async function executeMobileSessionAttentionScenario(
         await fixture.stop();
     }
 }
+
+/**
+ * `MOB-SESSION-ROW-MARK-DONE-01`: a Needs attention row carries a Mark as Done check, the phone's counterpart of the
+ * check on a Desktop Activity row. Tapping it resolves the Session without opening it, so the row moves to the top of
+ * Idle, while a Session without Pending Attention shows no check.
+ */
+export async function executeMobileSessionRowMarkDoneScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({ mode: 'attention', serial });
+    try {
+        const { page } = fixture.running;
+        if (!fixture.allowedSessionId) throw new Error('Attention fixture Session is unavailable');
+        await fixture.pair();
+        const finished = (
+            await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+                projectId: fixture.allowedProjectId,
+                defaultAgent: 'claude',
+            })
+        ).session.id;
+        const shell = (
+            await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+                projectId: fixture.allowedProjectId,
+                defaultAgent: 'shell',
+            })
+        ).session.id;
+        const readState = () => pageRequest<BootstrapState>(page, 'app.bootstrap');
+        const pending = (state: BootstrapState): boolean | undefined =>
+            state.sessions.find(({ id }) => id === finished)?.hasPendingAttention;
+        try {
+            await waitForMobile(readState, (state) => pending(state) === true, 30_000);
+        } catch {
+            throw new Error('The finished Session never held Pending Attention');
+        }
+        await waitForRowGroup(serial, finished, 'attention');
+        await waitForRowGroup(serial, shell, 'idle');
+        const markDone = `session-row-mark-done-${finished}`;
+        await waitForCheck(serial, markDone);
+        if (checkBounds(await mobileSemantics(serial), `session-row-mark-done-${shell}`))
+            throw new Error('An idle Session row shows the Mark as Done check');
+        await capture(environment, 'attention-row-check', artifacts);
+
+        await tapMobileCheck(serial, markDone);
+        try {
+            await waitForMobile(readState, (state) => pending(state) === false, 30_000);
+        } catch {
+            throw new Error('The row check never resolved Pending Attention');
+        }
+        await waitForRowGroup(serial, finished, 'idle');
+        const after = await mobileSemantics(serial);
+        if (checkBounds(after, markDone)) throw new Error('The resolved row still shows the check');
+        if (checkBounds(after, 'session-detail-back'))
+            throw new Error('Tapping the check opened the Session');
+        if (!isAbove(after, finished, shell))
+            throw new Error('The Session marked done is not at the top of Idle');
+        await capture(environment, 'marked-done-in-idle', artifacts);
+        await finish(environment, artifacts, {
+            afterMarkDone: 'idle',
+            idleRowCheck: 'hidden',
+            openedDetail: 'no',
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}

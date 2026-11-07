@@ -13,6 +13,7 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useProjectReorder } from '../hooks/use-project-reorder';
+import { useRowMarkDone } from '../hooks/use-row-mark-done';
 import { useSessionManagement } from '../hooks/use-session-management';
 import { activeProjectFilter, filterSessionEntries, projectPagerWindow } from '../project-filter';
 import {
@@ -23,6 +24,7 @@ import type { SessionListRow } from '../session-list-groups';
 import { sessionListRows } from '../session-list-groups';
 import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
+import { canMarkDoneFromRow } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionChatRequests } from './session-chat-requests';
@@ -118,6 +120,9 @@ export const SessionHome = ({
         savedAt,
         selectedId,
     } = sessions;
+    const { markDone: markRowDone, pendingIds: markingDoneIds } = useRowMarkDone({
+        onRefresh: refresh,
+    });
     const beginInteractionReference = useRef(beginListInteraction);
     const finishInteractionReference = useRef(finishListInteraction);
     const listInteractionReference = useRef<ReturnType<typeof createSessionListInteraction> | null>(
@@ -224,8 +229,14 @@ export const SessionHome = ({
             ) : (
                 <View>
                     <SessionRow
+                        isMarkingDone={markingDoneIds.has(item.session.id)}
                         now={now}
                         onLongPress={deviceRole === 'control' ? openActions : undefined}
+                        onMarkDone={
+                            canMarkDoneFromRow(item.session, deviceRole, savedAt !== null)
+                                ? markRowDone
+                                : undefined
+                        }
                         onPress={onOpenSession}
                         savedAt={savedAt}
                         selected={item.session.id === selectedId && layout !== 'phone'}
@@ -262,6 +273,8 @@ export const SessionHome = ({
             openActions,
             openTerminal,
             revealListGroup,
+            markRowDone,
+            markingDoneIds,
             savedAt,
             selectedId,
             theme,

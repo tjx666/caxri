@@ -115,8 +115,6 @@ export const buildMobileDashboard = (input: {
             : SESSION_ACTIVITY_GROUP_ORDER.indexOf(groups.get(session.id)!);
     const rowOrder = (session: DashboardSession) => ({
         ...session,
-        isBackgroundWait: primaryTerminalOf(session)?.agentOperation === 'background',
-        isPullRequestMerged: input.pullRequests?.[session.id]?.state === 'merged',
     });
     const active = input.sessions
         .filter((session) => session.archivedAt === undefined && projects.has(session.projectId))

@@ -13,12 +13,23 @@ export function sidebarTopOrder() {
 }
 
 /**
+ * The activity reasons that start a turn and so also stamp `turn_started_at`, the clock Running orders by. Raising or
+ * ending attention moves only the activity clock.
+ */
+const TURN_START_REASONS: ReadonlySet<SessionActivityReason> = new Set([
+    'agent_started',
+    'user_submission',
+]);
+
+/**
  * Writes activity and its sidebar promotion atomically. Dragging only writes sidebarOrder and leaves this clock intact.
  */
 export function sessionActivityUpdate(reason: SessionActivityReason, now = Date.now()) {
+    const sessionActivityAt = sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.sessionActivityAt}) + 1 FROM ${sessions}), ${now}))`;
     return {
-        sessionActivityAt: sql<number>`MAX(${now}, COALESCE((SELECT MAX(${sessions.sessionActivityAt}) + 1 FROM ${sessions}), ${now}))`,
+        sessionActivityAt,
         sessionActivityReason: reason,
         sidebarOrder: sidebarTopOrder(),
+        ...(TURN_START_REASONS.has(reason) && { turnStartedAt: sessionActivityAt }),
     };
 }

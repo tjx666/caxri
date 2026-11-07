@@ -1,9 +1,10 @@
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { FolderTree } from 'lucide-react-native';
+import { Check, FolderTree } from 'lucide-react-native';
 
 import { AgentAvatar } from '../../../components/agent-icon';
+import { IconButton } from '../../../components/icon-button';
 import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -36,6 +37,11 @@ const styles = StyleSheet.create({
     copy: { flex: 1, gap: mobileSpace.xxs, minWidth: 0 },
     age: { ...mobileType.meta, flexShrink: 0 },
     meta: { ...mobileType.meta, flexShrink: 1 },
+    /**
+     * The 44dp check would make the row taller than its 64dp minimum with the vertical padding, so it pulls into that
+     * padding (and the trailing one) instead of growing the row.
+     */
+    markDone: { marginRight: -mobileSpace.sm, marginVertical: -mobileSpace.md },
     metaLine: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs, minWidth: 0 },
     worktree: { alignItems: 'center', flexDirection: 'row', gap: 2 },
     /**
@@ -68,8 +74,10 @@ const styles = StyleSheet.create({
 });
 
 export const SessionRow = ({
+    isMarkingDone = false,
     now,
     onLongPress,
+    onMarkDone,
     onPress,
     savedAt,
     selected,
@@ -77,11 +85,21 @@ export const SessionRow = ({
     showProject,
     theme,
 }: {
+    /**
+     * Whether this row's Mark as Done request is in flight, which disables the check so a second tap sends nothing.
+     */
+    isMarkingDone?: boolean;
     now: number;
     /**
      * Present only for a control device, which may rename and archive Sessions.
      */
     onLongPress?: (session: MobileSessionItem) => void;
+    /**
+     * Present only while the row may be marked done (`canMarkDoneFromRow`): a trailing check resolves its Pending
+     * Attention so it leaves Needs attention, as the check on a Desktop Activity row does. A phone has no hover, so the
+     * check stays on screen instead of appearing over the status slot.
+     */
+    onMarkDone?: (session: MobileSessionItem) => void;
     onPress: (sessionId: string) => void;
     /**
      * When the list is the copy saved on this phone, so the row's state is only as fresh as that copy.
@@ -112,13 +130,18 @@ export const SessionRow = ({
                 ...(worktree ? [t('sessions.row.worktree', { name: worktree })] : []),
                 ...(pullRequest ? [pullRequest.label] : []),
             ].join(', ')}
-            accessibilityActions={
-                onLongPress ? [{ name: 'longpress', label: t('sessions.row.actions') }] : undefined
-            }
+            accessibilityActions={[
+                ...(onLongPress ? [{ name: 'longpress', label: t('sessions.row.actions') }] : []),
+                ...(onMarkDone ? [{ name: 'markDone', label: t('sessions.detail.markDone') }] : []),
+            ]}
             accessibilityRole="button"
             accessibilityState={{ selected }}
             delayLongPress={350}
-            onAccessibilityAction={onLongPress ? () => onLongPress(session) : undefined}
+            onAccessibilityAction={({ nativeEvent }) => {
+                if (nativeEvent.actionName === 'longpress') onLongPress?.(session);
+                else if (!isMarkingDone && nativeEvent.actionName === 'markDone')
+                    onMarkDone?.(session);
+            }}
             onLongPress={onLongPress ? () => onLongPress(session) : undefined}
             onPress={handlePress}
             style={({ pressed }) => [
@@ -196,6 +219,20 @@ export const SessionRow = ({
                     theme={theme}
                 />
             </View>
+            {onMarkDone ? (
+                <View style={styles.markDone}>
+                    <IconButton
+                        accessibilityLabel={t('sessions.row.markDone', { title })}
+                        color={theme.muted}
+                        disabled={isMarkingDone}
+                        icon={Check}
+                        onPress={() => onMarkDone(session)}
+                        size={20}
+                        testID={`session-row-mark-done-${session.id}`}
+                        theme={theme}
+                    />
+                </View>
+            ) : null}
         </Pressable>
     );
 };

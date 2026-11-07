@@ -22,6 +22,7 @@ export const sessionSelection = {
     createdAt: sessions.createdAt,
     lastVisitedAt: sessions.lastVisitedAt,
     sessionActivityAt: sessions.sessionActivityAt,
+    turnStartedAt: sessions.turnStartedAt,
     sidebarOrder: sessions.sidebarOrder,
     sessionActivityReason: sessions.sessionActivityReason,
     archivedAt: sessions.archivedAt,
@@ -49,6 +50,7 @@ interface SessionJoinRow {
     createdAt: number;
     lastVisitedAt: number;
     sessionActivityAt: number;
+    turnStartedAt: number | null;
     sidebarOrder: number;
     sessionActivityReason: string;
     archivedAt: number | null;
@@ -90,6 +92,7 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         lastAttentionKind: (row.lastAttentionKind as SessionAttentionKind | null) ?? undefined,
         resolvedAttentionGeneration: row.resolvedAttentionGeneration,
         ...(row.attentionResolvedAt !== null && { attentionResolvedAt: row.attentionResolvedAt }),
+        ...(row.turnStartedAt !== null && { turnStartedAt: row.turnStartedAt }),
         hasUnread: row.attentionGeneration > row.acknowledgedAttentionGeneration,
         hasPendingAttention: row.attentionGeneration > row.resolvedAttentionGeneration,
         ...(row.lastViewedAt !== null && { lastViewedAt: row.lastViewedAt }),

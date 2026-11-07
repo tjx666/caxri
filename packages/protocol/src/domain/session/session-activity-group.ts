@@ -76,29 +76,19 @@ export function sessionActivityGroup(
 }
 
 /**
- * What a row contributes to its order inside a status group. The two optional facts come from caches the caller owns
- * (the pull request snapshot and the live Agent's background-work variant); a caller without them orders by recency.
+ * What a row contributes to its order inside a status group.
  */
-export interface SessionActivityRowOrder extends Pick<
+export type SessionActivityRowOrder = Pick<
     SessionRecord,
-    'attentionResolvedAt' | 'id' | 'lastAttentionKind' | 'sessionActivityAt'
-> {
-    /**
-     * The turn ended but background shells, subagents, or monitors it started still run. Usually the code is written
-     * and the Agent watches CI or a test run, so it is the next one likely to need the user.
-     */
-    isBackgroundWait?: boolean;
-    isPullRequestMerged?: boolean;
-}
+    'attentionResolvedAt' | 'id' | 'lastAttentionKind' | 'sessionActivityAt' | 'turnStartedAt'
+>;
 
 /**
- * Tiers inside Needs attention: a question or failure blocks the Agent until the user answers; a merged pull request is
- * a finished task waiting to be closed out; anything else is a result to read.
+ * Tiers inside Needs attention: a question or failure blocks the Agent until the user answers; anything else (a result
+ * to read, a merged pull request to close out) waits on nothing.
  */
 function attentionTier(row: SessionActivityRowOrder): number {
-    if (row.lastAttentionKind === 'waiting' || row.lastAttentionKind === 'failed') return 0;
-    if (row.isPullRequestMerged) return 1;
-    return 2;
+    return row.lastAttentionKind === 'waiting' || row.lastAttentionKind === 'failed' ? 0 : 1;
 }
 
 function byRecency(left: number, right: number, leftId: string, rightId: string): number {
@@ -106,13 +96,27 @@ function byRecency(left: number, right: number, leftId: string, rightId: string)
 }
 
 /**
- * Order inside a status group, shared by every surface that ranks Sessions so the Activity view, the next-attention
- * shortcut, and the phone's capped dashboard agree. Ties fall back to the most recent Session work, so a new event
- * moves a row to the top of its tier at once.
+ * When the row entered its current group, the key every group orders by (newest first). It holds still while the row
+ * stays in the group, so a row moves only when it changes group, never on its own:
  *
- * Idle ranks by the later of the work clock and the moment the user marked the Session done, so a Session just resolved
- * lands at the top of Idle without its `sessionActivityAt` moving (that clock also orders the Project tree, and an
- * acknowledgement is not work progressing).
+ * - Needs attention: the Session Activity clock, which last moved when the turn ended, asked, or failed.
+ * - Working: when the latest turn started (the user's last message or the Agent starting). Not the activity clock, which
+ *   also moves when a turn ends into a background wait and would lift the row over turns started after it.
+ * - Idle: the later of the activity clock and the moment the user marked the Session done, so a Session just resolved
+ *   lands at the top of Idle without moving its activity clock (that clock also orders the Project tree, and an
+ *   acknowledgement is not work progressing).
+ */
+function groupEnteredAt(group: SessionActivityGroupId, row: SessionActivityRowOrder): number {
+    if (group === 'working') return row.turnStartedAt ?? row.sessionActivityAt;
+    if (group === 'idle') return Math.max(row.sessionActivityAt, row.attentionResolvedAt ?? 0);
+    return row.sessionActivityAt;
+}
+
+/**
+ * Order inside a status group, shared by every surface that ranks Sessions so the Activity view, the next-attention
+ * shortcut, and the phone's capped dashboard agree. Urgency first (only Needs attention has tiers: a blocked Agent
+ * above a result), then the newest arrival in the group first (`groupEnteredAt`). Nothing a row's own state changes
+ * while it stays in a group (a pull request merging, a turn ending into a background wait) reorders it.
  */
 export function compareSessionActivityGroupRows(
     group: SessionActivityGroupId,
@@ -122,18 +126,8 @@ export function compareSessionActivityGroupRows(
     if (group === 'attention') {
         const tier = attentionTier(left) - attentionTier(right);
         if (tier !== 0) return tier;
-    } else if (group === 'working') {
-        const background =
-            Number(right.isBackgroundWait ?? false) - Number(left.isBackgroundWait ?? false);
-        if (background !== 0) return background;
-    } else
-        return byRecency(
-            Math.max(left.sessionActivityAt, left.attentionResolvedAt ?? 0),
-            Math.max(right.sessionActivityAt, right.attentionResolvedAt ?? 0),
-            left.id,
-            right.id,
-        );
-    return byRecency(left.sessionActivityAt, right.sessionActivityAt, left.id, right.id);
+    }
+    return byRecency(groupEnteredAt(group, left), groupEnteredAt(group, right), left.id, right.id);
 }
 
 /**
