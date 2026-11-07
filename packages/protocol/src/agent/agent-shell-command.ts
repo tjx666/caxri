@@ -1,5 +1,5 @@
-import type { AgentShellCliAction } from './tool-rows/agent-shell-cli.js';
-import { describeCliStep, optionValue } from './tool-rows/agent-shell-cli.js';
+import type { AgentShellCliAction } from './tool-rows/shell/agent-shell-cli.js';
+import { describeCliStep, optionValue } from './tool-rows/shell/agent-shell-cli.js';
 
 /**
  * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project,
@@ -186,6 +186,32 @@ export function inlineHeredocs(command: string): string {
         const consumed = lines.slice(0, endLine + 1).join('\n').length + 1 + close[0].length;
         result += `${rest.slice(0, start.index)}'${firstLine.trim().replaceAll("'", '')}'`;
         rest = rest.slice(bodyStart + consumed);
+    }
+    return result + rest;
+}
+
+/**
+ * A heredoc fed to a command's standard input, ending its line: `git commit -q -F - <<'EOF'`.
+ */
+const HEREDOC_INPUT = /(\s-F\s+-|\s--file[= ]-)?\s+<<-?\s*(['"]?)(\w+)\2[ \t]*\n/u;
+
+/**
+ * A heredoc fed to a command (`git commit -F - <<'EOF'`) is the command's input, not part of what it does, so it is
+ * dropped with its body, the way {@link inlineHeredocs} handles a substituted one: `-F -` reads its first line as the
+ * commit message (`-m '<first line>'`). An unterminated heredoc leaves the command unchanged.
+ */
+function inlineHeredocInputs(command: string): string {
+    let rest = command;
+    let result = '';
+    for (let start = HEREDOC_INPUT.exec(rest); start; start = HEREDOC_INPUT.exec(rest)) {
+        const [opener, fileOption, , tag] = start;
+        const lines = rest.slice(start.index + opener.length).split('\n');
+        const endLine = lines.findIndex((line) => line.trim() === tag);
+        if (endLine === -1) return command;
+        const firstLine = lines.slice(0, endLine).find((line) => line.trim() !== '') ?? '';
+        result += rest.slice(0, start.index);
+        if (fileOption) result += ` -m '${firstLine.trim().replaceAll("'", '')}'`;
+        rest = `\n${lines.slice(endLine + 1).join('\n')}`;
     }
     return result + rest;
 }
@@ -478,7 +504,8 @@ function mergeSteps(steps: readonly StepAction[]): StepAction | null {
  * `head`. A leading `cd <dir>` only moves where the rest runs.
  */
 export function describeShellCommand(command: string): AgentShellCommandAction | null {
-    const commands = splitList(inlineHeredocs(command.trim()).replaceAll(OUTPUT_PLUMBING, ''));
+    const inlined = inlineHeredocInputs(inlineHeredocs(command.trim()));
+    const commands = splitList(inlined.replaceAll(OUTPUT_PLUMBING, ''));
     if (!commands) return null;
     const parsed: Array<{ stages: string[][]; text: string }> = [];
     for (const stages of commands) {

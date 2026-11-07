@@ -1,4 +1,4 @@
-import { inlineHeredocs } from '../agent-shell-command.js';
+import { inlineHeredocs } from '../../agent-shell-command.js';
 
 /**
  * Codex reports every command as the login-shell invocation that ran it (`/bin/zsh -lc "git status"`). The wrapper is
@@ -30,14 +30,14 @@ const SHELL_WORD = String.raw`(?:'[^']*'|"(?:[^"\\]|\\.)*"|\\.|[^\s;&|'"\\])+`;
 
 /**
  * A statement that only prepares the command after it, ending in `&&`, `;`, or a newline: `cd <dir>`, variable
- * assignments (`S=acc; A="agent-browser --session $S"`), `export`, a fixed `sleep`, or sourcing a helper (`. lib.sh`).
- * Measured on local Claude Code and Codex transcripts, a leading `cd` alone opened about two thirds of the commands the
- * Agent left undescribed, so the title otherwise reads as the same worktree path on every row.
+ * assignments (`S=acc; A="agent-browser --session $S"`), `export`, a fixed `sleep`, `mkdir -p`, or sourcing a helper
+ * (`. lib.sh`). Measured on local Claude Code and Codex transcripts, a leading `cd` alone opened about two thirds of
+ * the commands the Agent left undescribed, so the title otherwise reads as the same worktree path on every row.
  */
 const SHELL_VALUE = SHELL_WORD.replace(/\+$/u, '*');
 const SHELL_ASSIGNMENTS = String.raw`[A-Za-z_]\w*=${SHELL_VALUE}(?:\s+[A-Za-z_]\w*=${SHELL_VALUE})*`;
 const SHELL_TITLE_SETUP = new RegExp(
-    String.raw`^\s*(?:cd\s+${SHELL_WORD}|(?:export\s+)?${SHELL_ASSIGNMENTS}|sleep\s+\d+(?:\.\d+)?|(?:\.|source)\s+${SHELL_WORD})[ \t]*(?:&&|;|\n)\s*`,
+    String.raw`^\s*(?:cd\s+${SHELL_WORD}|(?:export\s+)?${SHELL_ASSIGNMENTS}|sleep\s+\d+(?:\.\d+)?|mkdir\s+-p(?:\s+${SHELL_WORD})+|(?:\.|source)\s+${SHELL_WORD})[ \t]*(?:&&|;|\n)\s*`,
     'u',
 );
 
@@ -91,28 +91,40 @@ function withoutHeredocBodies(command: string): string {
 }
 
 /**
- * The one-line title of a command no action describes. The expanded row still shows the exact command line.
+ * Strips the setup statements that open a command (see {@link SHELL_TITLE_SETUP}) while a command still follows them, so
+ * `cd src` alone keeps its title, and collects the variables they assign.
  */
-export const readableShellCommand = (command: string): string => {
-    let readable = withoutHeredocBodies(inlineHeredocs(command.trim()));
+function strippedShellSetup(command: string): { rest: string; variables: Map<string, string> } {
+    let rest = command;
     const variables = new Map<string, string>();
-    // Setup is only stripped while a command still follows it, so `cd src` alone keeps its title.
-    for (
-        let match = SHELL_TITLE_SETUP.exec(readable);
-        match;
-        match = SHELL_TITLE_SETUP.exec(readable)
-    ) {
-        const rest = readable.slice(match[0].length);
-        if (rest.trim() === '') break;
+    for (let match = SHELL_TITLE_SETUP.exec(rest); match; match = SHELL_TITLE_SETUP.exec(rest)) {
+        const remaining = rest.slice(match[0].length);
+        if (remaining.trim() === '') break;
         const statement = match[0];
-        if (!/^\s*(?:cd|sleep|\.|source)\s/u.test(statement)) {
+        if (!/^\s*(?:cd|sleep|mkdir|\.|source)\s/u.test(statement)) {
             const assignments = statement.matchAll(SHELL_ASSIGNMENT);
             for (const [, name = '', value = ''] of assignments)
                 variables.set(name, unquoteShellWord(value));
         }
-        readable = rest;
+        rest = remaining;
     }
-    readable = withCommandVariablesExpanded(readable, variables);
+    return { rest, variables };
+}
+
+/**
+ * The command after the setup statements that open it, heredoc bodies kept, for a reader that looks at what the first
+ * real statement does (`python3 - <<'EOF'` after `cd /work/repo &&`).
+ */
+export const withoutShellSetup = (command: string): string =>
+    strippedShellSetup(inlineHeredocs(command.trim())).rest;
+
+/**
+ * The one-line title of a command no action describes. The expanded row still shows the exact command line.
+ */
+export const readableShellCommand = (command: string): string => {
+    const bodiless = withoutHeredocBodies(inlineHeredocs(command.trim()));
+    const stripped = strippedShellSetup(bodiless);
+    let readable = withCommandVariablesExpanded(stripped.rest, stripped.variables);
     // Stripping `| tail -1` leaves the `2>&1` before it at the end of its command, so repeat until nothing changes.
     for (let previous = ''; previous !== readable;) {
         previous = readable;
