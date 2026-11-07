@@ -141,27 +141,42 @@ export const selectHomeNotice = (
 ): HomeNoticeKind | null => homeNoticeCandidates(input)[0] ?? null;
 
 /**
- * How long a notice must stay selected before it takes space at the top of Session home.
+ * How long a self-clearing notice must stay selected before it takes space at the top of Session home.
  */
 export const HOME_NOTICE_SETTLE_MS = 2_000;
 
 /**
- * Notices that usually clear on their own within a moment. On a cold start the connection is `connecting` for a few
- * hundred milliseconds (`connection-stale`), then the list is still the saved copy until the first live list lands
- * (`saved-copy`); drawing each at once pushed the list down and back up twice. Every other notice needs the user or
- * reports a lasting fact, so it shows at once.
+ * The settle delay of the Reconnecting notice, matching the age at which a silent connection counts as stale
+ * (`CONNECTION_STALE_AFTER_MS`). Returning from the background on a mobile network routinely takes two to three seconds
+ * to reconnect; with {@link HOME_NOTICE_SETTLE_MS} the notice dropped in just before the connection came back and
+ * vanished half a second later, pushing the list down and up on every resume.
  */
-const SELF_CLEARING_NOTICES: ReadonlySet<HomeNoticeKind> = new Set([
-    'connection-stale',
-    'saved-copy',
+export const CONNECTION_NOTICE_SETTLE_MS = 5_000;
+
+/**
+ * How long a self-clearing notice already on screen stays after it stops being selected. On a flaky network the
+ * connection recovers for a moment and drops again; hiding at once and waiting out the settle delay again drew the
+ * banner in and out repeatedly, shifting the list each time. Within this window a notice selected again simply stays.
+ */
+export const HOME_NOTICE_HOLD_MS = 3_000;
+
+/**
+ * Notices that usually clear on their own within a moment, with their settle delay. On a cold start the connection is
+ * `connecting` for a few hundred milliseconds (`connection-stale`), then the list is still the saved copy until the
+ * first live list lands (`saved-copy`); drawing each at once pushed the list down and back up twice. Every other notice
+ * needs the user or reports a lasting fact, so it shows at once.
+ */
+const SELF_CLEARING_NOTICE_DELAYS: ReadonlyMap<HomeNoticeKind, number> = new Map([
+    ['connection-stale', CONNECTION_NOTICE_SETTLE_MS],
+    ['saved-copy', HOME_NOTICE_SETTLE_MS],
 ]);
 
 /**
- * The delay before `kind` appears: {@link HOME_NOTICE_SETTLE_MS} for a self-clearing notice, otherwise `0`. Hiding a
- * notice is never delayed.
+ * The delay before `kind` appears: its self-clearing settle delay, otherwise `0`. A drawn self-clearing notice hides
+ * only after {@link HOME_NOTICE_HOLD_MS}; any other notice hides at once.
  */
 export const homeNoticeSettleDelay = (kind: HomeNoticeKind | null): number =>
-    kind !== null && SELF_CLEARING_NOTICES.has(kind) ? HOME_NOTICE_SETTLE_MS : 0;
+    (kind === null ? undefined : SELF_CLEARING_NOTICE_DELAYS.get(kind)) ?? 0;
 
 /**
  * What Session home draws while the most severe candidate is still waiting out its settle delay: the most severe
@@ -170,6 +185,34 @@ export const homeNoticeSettleDelay = (kind: HomeNoticeKind | null): number =>
  */
 export const waitingHomeNotice = (candidates: readonly HomeNoticeKind[]): HomeNoticeKind | null =>
     candidates.find((kind) => homeNoticeSettleDelay(kind) === 0) ?? null;
+
+/**
+ * What Session home draws given the most severe candidate's settle state and a self-clearing notice still held on
+ * screen. A notice that needs no delay always wins at once. Otherwise a settled candidate is drawn; failing that, a
+ * held notice keeps its place so a brief recovery does not collapse the bar; failing that, the most severe candidate
+ * that needs no wait ({@link waitingHomeNotice}).
+ */
+export const drawnHomeNotice = ({
+    candidates,
+    held,
+    settled,
+}: {
+    candidates: readonly HomeNoticeKind[];
+    /**
+     * A self-clearing notice that was on screen and is inside its {@link HOME_NOTICE_HOLD_MS} window, or `null`.
+     */
+    held: HomeNoticeKind | null;
+    /**
+     * The self-clearing notice that has waited out its settle delay, or `null`.
+     */
+    settled: HomeNoticeKind | null;
+}): HomeNoticeKind | null => {
+    const kind = candidates.at(0) ?? null;
+    if (kind !== null && homeNoticeSettleDelay(kind) === 0) return kind;
+    if (kind !== null && settled === kind) return kind;
+    if (held !== null) return held;
+    return waitingHomeNotice(candidates);
+};
 
 /**
  * When each self-clearing notice was first selected by any mounted screen, shared across screens. Opening a Session on
@@ -196,6 +239,7 @@ export const createHomeNoticeSelections = (): HomeNoticeSelections => {
     return {
         acquire: (kind, now) => {
             const entry = entries.get(kind) ?? { count: 0, since: now };
+
             entry.count += 1;
             entries.set(kind, entry);
             return entry.since;

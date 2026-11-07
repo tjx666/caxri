@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    CONNECTION_NOTICE_SETTLE_MS,
     connectionBannerModel,
     connectionNoticeMessage,
     createHomeNoticeSelections,
+    drawnHomeNotice,
     HOME_NOTICE_SETTLE_MS,
     homeNoticeCandidates,
     homeNoticeSettleDelay,
@@ -192,7 +194,7 @@ describe('waitingHomeNotice', () => {
 
 describe('homeNoticeSettleDelay', () => {
     it('holds back only the notices a quick startup clears on its own', () => {
-        expect(homeNoticeSettleDelay('connection-stale')).toBe(HOME_NOTICE_SETTLE_MS);
+        expect(homeNoticeSettleDelay('connection-stale')).toBe(CONNECTION_NOTICE_SETTLE_MS);
         expect(homeNoticeSettleDelay('saved-copy')).toBe(HOME_NOTICE_SETTLE_MS);
     });
 
@@ -208,6 +210,54 @@ describe('homeNoticeSettleDelay', () => {
             expect(homeNoticeSettleDelay(kind)).toBe(0);
         }
         expect(homeNoticeSettleDelay(null)).toBe(0);
+    });
+});
+
+describe('drawnHomeNotice', () => {
+    it('keeps the Reconnecting notice off screen while it waits to settle', () => {
+        expect(
+            drawnHomeNotice({ candidates: ['connection-stale'], held: null, settled: null }),
+        ).toBeNull();
+        expect(
+            drawnHomeNotice({
+                candidates: ['connection-stale'],
+                held: null,
+                settled: 'connection-stale',
+            }),
+        ).toBe('connection-stale');
+    });
+
+    it('keeps a held notice on screen after the connection briefly recovers', () => {
+        expect(drawnHomeNotice({ candidates: [], held: 'connection-stale', settled: null })).toBe(
+            'connection-stale',
+        );
+        expect(
+            drawnHomeNotice({
+                candidates: ['saved-copy'],
+                held: 'connection-stale',
+                settled: null,
+            }),
+        ).toBe('connection-stale');
+    });
+
+    it('lets a notice that needs no wait replace a held one at once', () => {
+        expect(
+            drawnHomeNotice({
+                candidates: ['update-required'],
+                held: 'connection-stale',
+                settled: null,
+            }),
+        ).toBe('update-required');
+    });
+
+    it('falls back to a waiting candidate once nothing is held', () => {
+        expect(
+            drawnHomeNotice({
+                candidates: ['connection-stale', 'update-available'],
+                held: null,
+                settled: null,
+            }),
+        ).toBe('update-available');
     });
 });
 
