@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
     File,
@@ -8,6 +9,7 @@ import {
     FileMusic,
     FileText,
     FileVideoCamera,
+    Play,
     RotateCw,
     X,
 } from 'lucide-react-native';
@@ -21,6 +23,7 @@ import {
     fileAttachmentPreview,
     formatFileSize,
 } from '../file-attachment-store';
+import { useAttachmentCover } from '../hooks/use-attachment-cover';
 import {
     IMAGE_STRIP_REMOVE_CIRCLE,
     IMAGE_STRIP_REMOVE_OVERHANG,
@@ -45,8 +48,47 @@ const GLYPHS: Record<FileAttachmentKind, typeof File> = {
 };
 
 /**
- * A pending file in the composer's strip, beside the image thumbnails and as tall as one: its kind's glyph, its name,
- * and its size, upload progress, or Retry. The remove target overhangs its top end corner like a thumbnail's.
+ * The start of a file card: a cover when the file has one (an image file itself, or a video's first frame with a play
+ * mark), otherwise its kind's glyph. A picture React Native cannot decode (some HEIC files) falls back to the glyph
+ * rather than an empty square.
+ */
+const FileCardLead = ({ file, theme }: { file: FileAttachment; theme: MobileTheme }) => {
+    const kind = fileAttachmentKind(file);
+    const Glyph = GLYPHS[kind];
+    const cover = useAttachmentCover(file);
+    const [brokenCover, setBrokenCover] = useState<string>();
+    if (cover === undefined || cover === brokenCover)
+        return (
+            <View style={styles.glyph}>
+                <Glyph color={theme.muted} size={24} strokeWidth={1.75} />
+            </View>
+        );
+    return (
+        <View
+            style={[styles.cover, { backgroundColor: theme.background }]}
+            testID={`session-file-cover-${file.id}`}
+        >
+            <Image
+                onError={() => setBrokenCover(cover)}
+                source={{ uri: cover }}
+                style={styles.coverImage}
+            />
+            {kind === 'video' ? (
+                <View
+                    style={[styles.play, { backgroundColor: theme.scrimControl }]}
+                    testID={`session-file-play-${file.id}`}
+                >
+                    <Play color={theme.onScrim} fill={theme.onScrim} size={12} />
+                </View>
+            ) : null}
+        </View>
+    );
+};
+
+/**
+ * A pending file in the composer's strip, beside the image thumbnails and as tall as one: a cover (an image file
+ * itself, or a video's first frame with a play mark) or else its kind's glyph, its name, and its size, upload progress,
+ * or Retry. The remove target overhangs its top end corner like a thumbnail's.
  *
  * A tap previews an image, video, or recording from the phone's own copy in any upload state; a failed file keeps Retry
  * as its own target, which explains the failure. A file the phone cannot preview opens that explanation instead.
@@ -68,7 +110,6 @@ export const ComposerFileCard = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const Glyph = GLYPHS[fileAttachmentKind(file)];
     const percent = Math.round(file.progress * 100);
     const label = t('sessions.file.label', { name: file.name, size: formatFileSize(file.size) });
     const accessibilityLabel =
@@ -102,7 +143,7 @@ export const ComposerFileCard = ({
                 ]}
                 testID={`session-file-${file.id}`}
             >
-                <Glyph color={theme.muted} size={24} strokeWidth={1.75} />
+                <FileCardLead file={file} theme={theme} />
                 <View style={styles.text}>
                     <Text
                         ellipsizeMode="middle"
@@ -179,10 +220,25 @@ const styles = StyleSheet.create({
         gap: mobileSpace.sm,
         height: IMAGE_STRIP_THUMBNAIL,
         overflow: 'hidden',
-        paddingLeft: mobileSpace.sm,
         // Clears the remove circle that overhangs the top end corner.
         paddingRight: mobileSpace.md,
         width: CARD_WIDTH,
+    },
+    glyph: { paddingLeft: mobileSpace.sm },
+    // The cover fills the card's start edge, as tall as an image thumbnail beside it.
+    cover: {
+        alignItems: 'center',
+        height: IMAGE_STRIP_THUMBNAIL,
+        justifyContent: 'center',
+        width: IMAGE_STRIP_THUMBNAIL,
+    },
+    coverImage: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 },
+    play: {
+        alignItems: 'center',
+        borderRadius: mobileRadius.pill,
+        height: 24,
+        justifyContent: 'center',
+        width: 24,
     },
     text: { flex: 1, gap: 2 },
     name: { fontWeight: '600' },
