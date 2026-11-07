@@ -52,6 +52,7 @@ const TreeChildren = ({
     const children = useTreeChildren(sessionId, viewId, parentHandle, ancestorHandles);
     const view = treeChildrenView({
         depth,
+        hasData: children.data !== undefined,
         isError: children.isError,
         isPending: children.isPending,
         itemCount: children.data?.items.length ?? 0,
