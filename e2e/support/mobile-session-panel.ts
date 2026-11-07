@@ -16,8 +16,9 @@ export const sessionSideTabCheckId = (tab: SessionSideTab): string =>
 /**
  * Opens the Session side panel on `tab` and waits until that tab is selected. The header's `session-panel-button` opens
  * the panel on the side tab the Session last showed (Changes when none), so the tab is tapped only when another one is
- * selected. A panel that is already open is not toggled shut. On a phone the panel is a drawer that hides the header,
- * body, and composer from semantics until it closes; on a `tablet-wide` layout it docks beside them.
+ * selected. A panel that is already open is not toggled shut. On a phone the panel is a drawer over the header, body,
+ * and composer until it closes: screen readers skip them, but uiautomator still lists them, so a wait cannot use their
+ * absence. On a `tablet-wide` layout the panel docks beside them.
  */
 export async function openSessionSidePanel(serial: string, tab: SessionSideTab): Promise<void> {
     const tabId = sessionSideTabCheckId(tab);
@@ -73,7 +74,7 @@ export async function expectNoSessionContentSwitch(serial: string): Promise<void
 
 /**
  * Shows a PTY Agent Session's `terminal` or `conversation` content. The side panel closes first, because it is not a
- * content segment and hides the header on a phone. The header's menu (`session-detail-menu`) then holds
+ * content segment and covers the header on a phone. The header's menu (`session-detail-menu`) then holds
  * `session-show-<content>` only while that content is not on screen, so the item is tapped when present and the menu is
  * dismissed with Back when absent. A Chat Session or a plain shell has a single content and no such item.
  */
@@ -81,8 +82,7 @@ export async function showSessionContent(
     serial: string,
     content: 'terminal' | 'conversation',
 ): Promise<void> {
-    // A Session row tap may return before the detail mounts. An open phone drawer hides the header's menu, so the panel
-    // itself also proves the detail is there.
+    // A Session row tap may return before the detail mounts; the header's menu or the open panel proves it did.
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => hasCheck(nodes, 'session-detail-menu') || hasCheck(nodes, 'session-side-panel'),

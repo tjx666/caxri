@@ -23,6 +23,7 @@ import {
     conversationBaselineRecords,
 } from './mobile-conversation-transcript.ts';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { showTabletSessionRow } from './mobile-session-list';
 import { expectNoSessionContentSwitch, showSessionContent } from './mobile-session-panel';
 
 export interface ScenarioEnvironment {
@@ -524,12 +525,10 @@ export async function executeMobileConversationScenario(
                     '-W',
                     'com.caxri.mobile/.MainActivity',
                 ]);
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) =>
-                        nodes.some(
-                            ({ checkId }) => checkId === `session-row-${fixture.allowedSessionId}`,
-                        ),
+                await showTabletSessionRow(
+                    environment.serial,
+                    fixture.allowedProjectId,
+                    fixture.allowedSessionId,
                 );
                 await openConversation(environment.serial, fixture.allowedSessionId);
                 await waitForMobile(
@@ -554,12 +553,10 @@ export async function executeMobileConversationScenario(
                     '-W',
                     'com.caxri.mobile/.MainActivity',
                 ]);
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) =>
-                        nodes.some(
-                            ({ checkId }) => checkId === `session-row-${fixture.allowedSessionId}`,
-                        ),
+                await showTabletSessionRow(
+                    environment.serial,
+                    fixture.allowedProjectId,
+                    fixture.allowedSessionId,
                 );
                 await openConversation(environment.serial, fixture.allowedSessionId);
                 await waitForMobile(

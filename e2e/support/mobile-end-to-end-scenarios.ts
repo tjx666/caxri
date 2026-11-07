@@ -23,6 +23,7 @@ import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import type { MobileDesktopCapture } from './mobile-desktop-capture';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { showTabletSessionRow } from './mobile-session-list';
 import { openSessionSidePanel, showSessionContent } from './mobile-session-panel';
 import { tapTerminalKey } from './mobile-terminal-key';
 import {
@@ -426,9 +427,10 @@ async function executeMainJourney(
                 '-W',
                 'com.caxri.mobile/.MainActivity',
             ]);
-            await waitForMobile(
-                () => mobileSemantics(environment.serial),
-                (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
+            await showTabletSessionRow(
+                environment.serial,
+                fixture.allowedProjectId,
+                fixture.allowedSessionId,
             );
         }
         desktop = isTablet

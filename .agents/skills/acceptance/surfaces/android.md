@@ -172,8 +172,14 @@ buttons sharing `agent-chat-work-copy` read as one. Give each instance its own `
 scenario must find or count it. The same rule can hide a visible control behind an off-screen copy:
 on a wide tablet the Session list's off-screen Project page comes first in the tree, so
 `session-row-<id>` reads with empty bounds and `tap` fails with `Android bounds are invalid`. Tap
-`project-filter-<projectId>` to show that page, then wait for the row to have valid bounds
-(`MOB-SIDE-PANEL-TABLET-01`).
+`project-filter-<projectId>` to show that page, then wait for the row to have valid bounds; after
+a relaunch on a tablet display, `showTabletSessionRow` in `e2e/support/mobile-session-list.ts` does
+both.
+
+Content a phone drawer or sheet covers with `importantForAccessibility="no-hide-descendants"` stays
+in the receipt: screen readers skip it, uiautomator does not. Do not wait for a covered control to
+disappear, or treat its presence as proof that it is on screen. Under the Session side panel drawer,
+`conversation-view`, `session-panel-button`, and `terminal-live-webview` all still read.
 
 `tapMobileCheckByBounds` refuses a control, or the row its `rowOffset` reaches, that is not wholly on
 screen (`is off screen`): Android still lists a control scrolled out of a list, and a tap at its bounds

@@ -242,8 +242,9 @@ export async function executeMobileFileEditScenario(
 }
 
 /**
- * Opens the Session overflow menu and taps well below it: an outside tap must close the menu without a second press of
- * the overflow button.
+ * Opens the Session overflow menu and taps beside it: an outside tap must close the menu without a second press of the
+ * overflow button. The menu hangs from the screen's right edge, so the empty space is to its left. A fixed drop below
+ * one item stopped being outside once the menu gained rows (Show Terminal) and landed on a lower item instead.
  */
 async function dismissSessionMenuOutside(serial: string): Promise<void> {
     await tapMobileCheck(serial, 'session-detail-menu');
@@ -254,11 +255,13 @@ async function dismissSessionMenuOutside(serial: string): Promise<void> {
     const item = nodes.find(({ checkId }) => checkId === 'session-mark-read');
     const bounds = item && androidBounds(item.bounds);
     if (!bounds) throw new Error('Session menu item is unavailable');
+    if (bounds.left < 200)
+        throw new Error('Session menu leaves no room beside it for an outside tap');
     await adbShell(serial, [
         'input',
         'tap',
-        String(Math.floor((bounds.left + bounds.right) / 2)),
-        String(bounds.bottom + 400),
+        String(Math.floor(bounds.left / 2)),
+        String(Math.floor((bounds.top + bounds.bottom) / 2)),
     ]);
     await waitForMobile(
         () => mobileSemantics(serial),

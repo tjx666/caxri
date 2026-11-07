@@ -91,8 +91,8 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
         } as const;
         /**
          * The first entry is the drawer itself opening on Changes, from the header button; the others are tab switches
-         * inside it. Under the open drawer the header, body, and composer leave semantics, so the Conversation body
-         * disappears from the first wait on.
+         * inside it. The Conversation stays mounted under the open drawer, and screen readers skip it, but uiautomator
+         * still lists its body, so only a tab switch waits for the previous body to leave.
          */
         const transitions = [
             { direction: 'from-right', segment: 'changes' },
@@ -112,7 +112,7 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
                 () => mobileSemantics(serial),
                 (nodes) =>
                     hasCheck(nodes, body) &&
-                    !hasCheck(nodes, previous) &&
+                    (index === 0 || !hasCheck(nodes, previous)) &&
                     nodes.some(({ checkId, selected }) => checkId === tab && selected),
             );
             // eslint-disable-next-line no-await-in-loop -- the entering animation finishes before the capture.

@@ -59,12 +59,15 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
     await setMobileNetworkAvailable(serial, false);
     try {
         /**
-         * The reconnecting banner pushes the header down when it appears; opening the side panel before it lands taps
-         * the header button at its old position and the wait for the offline Files state times out.
+         * Files opens only once the app shows the connection as lost, so its first reads are the offline ones. The
+         * reconnect capsule then hides under the drawer, whose views explain the offline state themselves; a banner
+         * would instead push the header down, and opening the panel before it lands would miss the header button.
          */
         await waitFor(serial, (nodes) => hasCheck(nodes, 'connection-stale-banner'));
         await openSessionSidePanel(serial, 'caxri.files');
         await waitFor(serial, (nodes) => hasCheck(nodes, 'panels-offline'));
+        // Floating over the drawer, the capsule hid its middle tabs and took their taps.
+        await assertStaysAbsent(serial, ['connection-stale-banner']);
         await capture(environment, 'project-offline', artifacts, 'panels-offline');
     } finally {
         await setMobileNetworkAvailable(serial, true);
@@ -88,6 +91,7 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
     }
     await finish(environment, artifacts, {
         offlineProjectTab: 'reconnect-message',
+        offlineReconnectCapsule: 'hidden-under-drawer',
         offlineTerminalStaleChip: 'absent-while-banner-shown',
         status: 'passed',
     });

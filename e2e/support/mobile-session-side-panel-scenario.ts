@@ -20,6 +20,7 @@ import {
 } from './mobile-android';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
+import { showTabletSessionRow } from './mobile-session-list';
 
 /**
  * The previous header's tabs, which the side panel button replaces.
@@ -93,18 +94,7 @@ async function withChangesSession(
             await adbShell(serial, ['wm', 'density', '240']);
             await adbShell(serial, ['am', 'force-stop', 'com.caxri.mobile']);
             await adbShell(serial, ['am', 'start', '-W', 'com.caxri.mobile/.MainActivity']);
-            /**
-             * The Session list pages by Project, and the semantics keep only the first node per id. On the wide layout
-             * that first row belongs to the Project's page, parked off screen beside the "All" page, so its bounds are
-             * empty and the tap helper refuses it. Showing the Project's page brings that row on screen.
-             */
-            const projectFilter = `project-filter-${fixture.allowedProjectId}`;
-            await waitForCheck(serial, projectFilter, 60_000);
-            await tapMobileCheck(serial, projectFilter);
-            await waitForMobile(
-                () => mobileSemantics(serial),
-                (nodes) => checkBounds(nodes, `session-row-${sessionId}`) !== undefined,
-            );
+            await showTabletSessionRow(serial, fixture.allowedProjectId, sessionId);
         }
         await tapMobileCheck(serial, `session-row-${sessionId}`);
         const opened = await waitForMobile(
