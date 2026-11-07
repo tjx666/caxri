@@ -5,7 +5,6 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import type { SharedValue } from 'react-native-reanimated';
 import Animated, {
     cancelAnimation,
-    Easing,
     useAnimatedStyle,
     useSharedValue,
     withTiming,
@@ -13,6 +12,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { projectPagerPosition, projectPagerTarget, projectPagerWindow } from '../project-filter';
+import { PAGER_SETTLE } from './project-pager-motion';
 
 const styles = StyleSheet.create({
     pager: { flex: 1, overflow: 'hidden' },
@@ -26,7 +26,6 @@ const styles = StyleSheet.create({
  */
 const PAGER_ACTIVATION_DP = 24;
 const PAGER_FAIL_Y_DP = 16;
-const PAGER_SETTLE = { duration: 240, easing: Easing.out(Easing.cubic) };
 
 /**
  * One Project's list. The previous and next pages stay mounted off screen (translated out of view) so a swipe can bring
@@ -75,6 +74,7 @@ export const SessionProjectPager = ({
     onSettle,
     pageCount,
     pageKey,
+    progress,
     renderPage,
 }: {
     activeIndex: number;
@@ -87,6 +87,11 @@ export const SessionProjectPager = ({
      * A stable id per page; it keys the page and names it `session-page-<key>` for Acceptance.
      */
     pageKey: (index: number) => string;
+    /**
+     * Where a swipe has carried the pager, in pages, written while the finger drags and the release settles so the
+     * Project filters' highlight travels with it. At rest the filters own it.
+     */
+    progress: SharedValue<number>;
     renderPage: (index: number) => ReactNode;
 }) => {
     const [width, setWidth] = useState(0);
@@ -107,24 +112,27 @@ export const SessionProjectPager = ({
         maxPointers: 1,
         onActivate: (event) => {
             cancelAnimation(position);
+            cancelAnimation(progress);
             dragStart.set(position.get());
             // Measure from where the pager took the drag, so the page does not jump by the activation distance.
             activationX.set(event.translationX);
         },
         onUpdate: (event) => {
-            position.set(
-                projectPagerPosition(
-                    dragStart.get(),
-                    event.translationX - activationX.get(),
-                    pageCount,
-                    width,
-                ),
+            const next = projectPagerPosition(
+                dragStart.get(),
+                event.translationX - activationX.get(),
+                pageCount,
+                width,
             );
+            position.set(next);
+            if (width > 0) progress.set(next / width);
         },
         onDeactivate: (event) => {
             const target = event.canceled
                 ? activeIndex
                 : projectPagerTarget(activeIndex, pageCount, event, width);
+            // Same curve and duration as the pages, so the highlight lands with them.
+            progress.set(withTiming(target, PAGER_SETTLE));
             position.set(
                 withTiming(target * width, PAGER_SETTLE, (finished) => {
                     if (finished && target !== activeIndex) scheduleOnRN(onSettle, target);

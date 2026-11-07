@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { StyleSheet } from 'react-native';
@@ -8,6 +9,7 @@ import Animated, {
     scrollTo,
     useAnimatedRef,
     useAnimatedStyle,
+    useDerivedValue,
     useFrameCallback,
     useScrollOffset,
     useSharedValue,
@@ -17,17 +19,19 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { Chip } from '../../../components/chip';
 import { useTranslation } from '../../../i18n';
-import { mobileSpace } from '../../../theme/scale';
+import { mobileRadius, mobileSpace } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { ProjectChipSlot } from '../project-order';
 import {
     projectAutoScrollStep,
+    projectChipIndicator,
     projectChipRevealOffset,
     projectChipShift,
     projectDropIndex,
     projectMoveActions,
     projectMoveTarget,
 } from '../project-order';
+import { PAGER_SETTLE } from './project-pager-motion';
 
 /**
  * Holding a chip this long picks it up; a shorter touch stays a tap, and moving first scrolls the strip.
@@ -44,6 +48,10 @@ const AUTO_SCROLL_MAX_STEP = 8;
 const AUTO_SCROLL_SLOP = 8;
 const SETTLE_MS = 150;
 const CHIP_GAP = mobileSpace.sm;
+/**
+ * Wider than any chip, so an unmeasured chip's highlight covers its whole pill.
+ */
+const UNMEASURED_FILL_WIDTH = 10_000;
 
 /**
  * The drag one held chip is making, shared by every chip so the others can step aside.
@@ -84,6 +92,7 @@ export const ProjectFilterChips = ({
     activeProjectId,
     onChooseProject,
     onMoveProject,
+    pageProgress,
     projects,
     theme,
 }: {
@@ -93,10 +102,16 @@ export const ProjectFilterChips = ({
      * Present only for a control device; without it the chips only filter.
      */
     onMoveProject?: (projectId: string, toIndex: number) => void;
+    /**
+     * The Project pager's place in pages (0 is All, then each Project). The highlight follows it while a swipe drags or
+     * settles the pager; at rest the strip sets it, gliding there when another chip is chosen.
+     */
+    pageProgress: SharedValue<number>;
     projects: ProjectFilterChoice[];
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const allSlot = useSharedValue<ProjectChipSlot | undefined>(undefined);
     const scrollReference = useAnimatedRef<Animated.ScrollView>();
     const scrollOffset = useScrollOffset(scrollReference);
     const viewportWidth = useSharedValue(0);
@@ -159,6 +174,15 @@ export const ProjectFilterChips = ({
         drag.translation.set(0);
     }, [drag.from, drag.slots, drag.to, drag.translation, projectOrder, projects.length]);
     const activeIndex = projects.findIndex(({ id }) => id === activeProjectId);
+    const shownProjectId = useRef(activeProjectId);
+    // Choosing another chip glides the highlight there. A settled swipe already carried it there, so the same glide
+    // changes nothing; a Project reorder keeps the selection and only moves its chip, so the highlight follows at once.
+    useEffect(() => {
+        const page = activeIndex + 1;
+        if (shownProjectId.current === activeProjectId) pageProgress.set(page);
+        else pageProgress.set(withTiming(page, PAGER_SETTLE));
+        shownProjectId.current = activeProjectId;
+    }, [activeIndex, activeProjectId, pageProgress]);
     // Swiping the Session list can select a chip past the edge of the strip, so the strip follows the selection.
     useEffect(() => {
         const offset = projectChipRevealOffset(
@@ -206,18 +230,36 @@ export const ProjectFilterChips = ({
             style={styles.scroll}
             testID="session-project-filters"
         >
-            <Chip
-                accessibilityLabel={t('sessions.home.allProjectsLabel')}
-                label={t('sessions.home.allProjects')}
-                onPress={() => onChooseProject(null)}
-                selected={activeProjectId === null}
-                testID="project-filter-all"
-                theme={theme}
-            />
+            <Animated.View
+                onLayout={(event) => {
+                    const { width, x } = event.nativeEvent.layout;
+                    allSlot.set({ width, x });
+                }}
+            >
+                <Chip
+                    accessibilityLabel={t('sessions.home.allProjectsLabel')}
+                    label={t('sessions.home.allProjects')}
+                    onPress={() => onChooseProject(null)}
+                    selected={activeProjectId === null}
+                    selectionFill={(selectedContent) => (
+                        <ChipSelectionFill
+                            allSlot={allSlot}
+                            page={0}
+                            pageProgress={pageProgress}
+                            selectedContent={selectedContent}
+                            slots={drag.slots}
+                            theme={theme}
+                        />
+                    )}
+                    testID="project-filter-all"
+                    theme={theme}
+                />
+            </Animated.View>
             {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A Mac has a handful of Projects, and a virtualized cell would measure each chip in its own cell instead of along the strip, which the drag needs. */}
             {projects.map((project, index) => (
                 <ProjectChip
                     key={`${project.id}\n${projectOrder}`}
+                    allSlot={allSlot}
                     drag={drag}
                     index={index}
                     onChoose={onChooseProject}
@@ -226,6 +268,7 @@ export const ProjectFilterChips = ({
                     onLayout={measure}
                     onMove={onMoveProject}
                     order={projectOrder}
+                    pageProgress={pageProgress}
                     projectCount={projects.length}
                     project={project}
                     reorderHint={onMoveProject ? t('sessions.home.projectReorderHint') : undefined}
@@ -238,6 +281,7 @@ export const ProjectFilterChips = ({
 };
 
 const ProjectChip = ({
+    allSlot,
     drag,
     index,
     onChoose,
@@ -246,12 +290,14 @@ const ProjectChip = ({
     onLayout,
     onMove,
     order,
+    pageProgress,
     project,
     projectCount,
     reorderHint,
     selected,
     theme,
 }: {
+    allSlot: SharedValue<ProjectChipSlot | undefined>;
     drag: ChipDrag;
     index: number;
     onChoose: (projectId: string) => void;
@@ -263,6 +309,7 @@ const ProjectChip = ({
      * The chip order this chip was laid out in.
      */
     order: string;
+    pageProgress: SharedValue<number>;
     project: ProjectFilterChoice;
     projectCount: number;
     /**
@@ -378,10 +425,80 @@ const ProjectChip = ({
                     }}
                     onPress={() => onChoose(project.id)}
                     selected={selected}
+                    selectionFill={(selectedContent) => (
+                        <ChipSelectionFill
+                            allSlot={allSlot}
+                            page={index + 1}
+                            pageProgress={pageProgress}
+                            selectedContent={selectedContent}
+                            slots={slots}
+                            theme={theme}
+                        />
+                    )}
                     testID={`project-filter-${project.id}`}
                     theme={theme}
                 />
             </GestureDetector>
+        </Animated.View>
+    );
+};
+
+/**
+ * One chip's share of the Project filters' highlight. The highlight is a single pill in strip coordinates; each chip
+ * draws it relative to its own place and clips it to its pill, so while a swipe carries the highlight from one chip to
+ * the next it leaves the first and enters the second. Inside it the chip's label is drawn again in the selected colors,
+ * held still against the chip, so the label changes color exactly where the highlight covers it. Drawing it inside the
+ * chip also lets it move with a chip that is being dragged to a new place.
+ */
+const ChipSelectionFill = ({
+    allSlot,
+    page,
+    pageProgress,
+    selectedContent,
+    slots,
+    theme,
+}: {
+    /**
+     * The chip's content in the selected colors, laid out from the chip's left edge.
+     */
+    selectedContent: ReactNode;
+    allSlot: SharedValue<ProjectChipSlot | undefined>;
+    /**
+     * This chip's page: 0 for All, then each Project.
+     */
+    page: number;
+    pageProgress: SharedValue<number>;
+    /**
+     * The Project chips' places, without All.
+     */
+    slots: SharedValue<ProjectChipSlot[]>;
+    theme: MobileTheme;
+}) => {
+    const fill = useDerivedValue(() => {
+        const pageSlots = [allSlot.get(), ...slots.get()];
+        const own = pageSlots[page];
+        const highlight = projectChipIndicator(pageProgress.get(), pageSlots);
+        // Before the strip is measured, the chip at the current page fills itself so the first frame shows the selection.
+        // The width only has to cover the pill, which clips it; a number keeps the animated `width` one type.
+        if (!own || !highlight)
+            return {
+                left: 0,
+                opacity: Math.round(pageProgress.get()) === page ? 1 : 0,
+                width: UNMEASURED_FILL_WIDTH,
+            };
+        return { left: highlight.x - own.x, opacity: 1, width: highlight.width };
+    });
+    const fillStyle = useAnimatedStyle(() => fill.get());
+    // Cancels the fill's offset, so the recolored label stays exactly over the chip's own label.
+    const contentStyle = useAnimatedStyle(() => ({ left: -fill.get().left }));
+    return (
+        <Animated.View
+            pointerEvents="none"
+            style={[styles.selectionFill, { backgroundColor: theme.primary }, fillStyle]}
+        >
+            <Animated.View style={[styles.selectionContent, contentStyle]}>
+                {selectedContent}
+            </Animated.View>
         </Animated.View>
     );
 };
@@ -394,6 +511,14 @@ const styles = StyleSheet.create({
     },
     // The strip has a row of its own under the header, so it takes the chips' height rather than growing to fill.
     scroll: { flexGrow: 0 },
+    selectionContent: { position: 'absolute', top: 0 },
+    selectionFill: {
+        borderRadius: mobileRadius.pill,
+        bottom: 0,
+        overflow: 'hidden',
+        position: 'absolute',
+        top: 0,
+    },
 });
 
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

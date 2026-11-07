@@ -1,7 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ComponentType, ReactNode } from 'react';
 import type { AccessibilityActionEvent, AccessibilityActionInfo } from 'react-native';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { LucideProps } from 'lucide-react-native';
 
@@ -33,6 +33,7 @@ export const Chip = ({
     onPress,
     role = 'button',
     selected = false,
+    selectionFill,
     testID,
     theme,
     tint,
@@ -62,6 +63,14 @@ export const Chip = ({
      */
     role?: 'button' | 'tab';
     selected?: boolean;
+    /**
+     * A selection drawn by the caller instead of the `primary` fill, such as the Project filters' highlight that slides
+     * from chip to chip with the pager. It receives the chip's content recolored for the selection, laid out like the
+     * original from the chip's left edge, to draw inside the highlight over the resting content. The chip keeps its
+     * `elevated` fill and clips the layer to its pill, so a highlight passing between two chips fills and recolors only
+     * the part of each it covers.
+     */
+    selectionFill?: (selectedContent: ReactNode) => ReactNode;
     testID: string;
     theme: MobileTheme;
     tint?: string;
@@ -70,7 +79,20 @@ export const Chip = ({
      */
     trailing?: ReactNode;
 }) => {
-    const foreground = selected ? theme.primaryForeground : (tint ?? theme.text);
+    const resting = tint ?? theme.text;
+    const content = (color: string) => (
+        <>
+            {children ?? (Icon ? <Icon color={color} size={16} /> : null)}
+            {label ? (
+                <Text numberOfLines={1} style={[mobileType.meta, styles.label, { color }]}>
+                    {label}
+                </Text>
+            ) : null}
+        </>
+    );
+    // A caller-drawn selection keeps the resting colors underneath and lays the selected colors over them inside the
+    // fill, so a highlight covering part of the chip colors exactly the part it covers.
+    const foreground = selected && !selectionFill ? theme.primaryForeground : resting;
     return (
         <Pressable
             accessibilityActions={accessibilityActions}
@@ -84,22 +106,24 @@ export const Chip = ({
             onPress={onPress}
             style={({ pressed }) => [
                 styles.chip,
+                selectionFill ? styles.clipped : undefined,
                 {
-                    backgroundColor: selected ? theme.primary : theme.elevated,
+                    backgroundColor: selected && !selectionFill ? theme.primary : theme.elevated,
                     opacity: pressed ? PRESSED_OPACITY : 1,
                 },
             ]}
             testID={testID}
         >
-            {children ?? (Icon ? <Icon color={foreground} size={16} /> : null)}
-            {label ? (
-                <Text
-                    numberOfLines={1}
-                    style={[mobileType.meta, styles.label, { color: foreground }]}
+            {content(foreground)}
+            {selectionFill?.(
+                <View
+                    accessibilityElementsHidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={styles.content}
                 >
-                    {label}
-                </Text>
-            ) : null}
+                    {content(theme.primaryForeground)}
+                </View>,
+            )}
             {trailing}
         </Pressable>
     );
@@ -109,6 +133,17 @@ const styles = StyleSheet.create({
     chip: {
         alignItems: 'center',
         borderRadius: mobileRadius.pill,
+        flexDirection: 'row',
+        gap: mobileSpace.xs,
+        height: mobileControl.chip,
+        paddingHorizontal: mobileSpace.md,
+    },
+    clipped: { overflow: 'hidden' },
+    /**
+     * The chip's content row without its pill, so a selection layer can lay a recolored copy exactly over the original.
+     */
+    content: {
+        alignItems: 'center',
         flexDirection: 'row',
         gap: mobileSpace.xs,
         height: mobileControl.chip,
