@@ -53,10 +53,11 @@ test('a Claude Chat offers its suggested next message in the empty composer, and
         await message.press('Enter');
         await expect(chat.getByText(`You said: ${FAKE_CLAUDE_PROMPT_SUGGESTION}`)).toBeVisible();
         await expectComposerValue(message, '');
-        // With text in the input, Tab is left alone.
+        // With text in the input, Tab indents instead of taking a suggestion, and the input keeps focus.
         await message.fill('x');
         await message.press('Tab');
-        await expectComposerValue(message, 'x');
+        await expectComposerValue(message, 'x  ');
+        await expect(message).toBeFocused();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
