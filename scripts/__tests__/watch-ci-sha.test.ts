@@ -248,6 +248,26 @@ describe('followSupersedingRuns', () => {
         expect(isRunGood).toHaveBeenCalledWith('11');
     });
 
+    it('retries a dropped connection on every read while following a superseding run', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const timeout = new Error('net/http: TLS handshake timeout');
+        const flaky = <T>(value: T) =>
+            vi.fn().mockRejectedValueOnce(timeout).mockResolvedValue(value);
+        const readFailedJobs = flaky<string[]>([]);
+        const readRun = flaky(origin('cancelled'));
+        const listBranchRuns = flaky([{ id: '11', sha: 'b'.repeat(40) }]);
+        const contains = flaky(true);
+        const result = await followSupersedingRuns(
+            cancelled,
+            'a'.repeat(40),
+            () => Promise.resolve(true),
+            { contains, listBranchRuns, readFailedJobs, readRun, wait: noWait },
+        );
+        expect(result).toBe(true);
+        for (const read of [readFailedJobs, readRun, listBranchRuns, contains])
+            expect(read).toHaveBeenCalledTimes(2);
+    });
+
     it('chases a superseding run that was itself cancelled, and reports a real failure as failed', async () => {
         const conclusions = new Map([
             ['10', 'cancelled'],
