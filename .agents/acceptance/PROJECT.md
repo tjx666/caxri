@@ -163,7 +163,8 @@ feature, such as `MOB-CHAT-RUNNING-OPEN-01` or `MOB-DEVICE-ACTIONS-01`, never bo
 non-Chat feature, instead of taking the next global number: parallel
 sessions claim the same next number and force a rename and a new Acceptance run. Keep existing ids. `MOB-E2E-01` is the main phone
 journey (pairing, Session list, Chat send, stop); `CAXRI_MOBILE_ACCEPTANCE_CASE_IDS` takes a
-comma-separated batch. The plan item must use `surface: "mobile"`, `stateIsolation.mode:
+comma-separated batch. The batch stops at the first case that does not pass, so a baseline round,
+whose cases are expected to fail, runs one invocation per case. The plan item must use `surface: "mobile"`, `stateIsolation.mode:
 "isolated"`, and a matching `mobileDevice` object. Include
 `assets/<case-id>-state-isolation.json`, `assets/<case-id>-mobile-device.json`, and
 `assets/<case-id>-result.json`, plus the framebuffer media that the device receipt lists, in
