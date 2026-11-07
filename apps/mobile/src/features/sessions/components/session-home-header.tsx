@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import type { HostInstance } from 'react-native';
 import { Image, StyleSheet, Text, View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 
 import {
     Activity,
@@ -60,6 +61,7 @@ export const SessionHomeHeader = ({
     onOpenSettings,
     onOpenStatus,
     onOpenUsage,
+    pageProgress,
     projects,
     theme,
 }: {
@@ -90,6 +92,10 @@ export const SessionHomeHeader = ({
      * Opens the Agent usage screen: plan limits, output speed, and API status.
      */
     onOpenUsage: () => void;
+    /**
+     * The Project pager's place in pages; the filters' highlight follows it.
+     */
+    pageProgress: SharedValue<number>;
     projects: Project[];
     theme: MobileTheme;
 }) => {
@@ -144,6 +150,7 @@ export const SessionHomeHeader = ({
                     activeProjectId={activeProjectId}
                     onChooseProject={onChooseProject}
                     onMoveProject={onMoveProject}
+                    pageProgress={pageProgress}
                     projects={projects}
                     theme={theme}
                 />

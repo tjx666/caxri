@@ -4,6 +4,7 @@ import {
     isPendingProjectOrderCurrent,
     orderedProjects,
     projectAutoScrollStep,
+    projectChipIndicator,
     projectChipRevealOffset,
     projectChipShift,
     projectDropIndex,
@@ -183,5 +184,34 @@ describe('projectMoveActions', () => {
         expect(projectMoveTarget('moveEarlier', 2)).toBe(1);
         expect(projectMoveTarget('moveLater', 2)).toBe(3);
         expect(projectMoveTarget('activate', 2)).toBeNull();
+    });
+});
+
+describe('projectChipIndicator', () => {
+    const slots = [
+        { width: 60, x: 16 },
+        { width: 100, x: 84 },
+        { width: 140, x: 192 },
+    ];
+
+    it('sits over the chip at a whole page', () => {
+        expect(projectChipIndicator(0, slots)).toEqual(slots[0]);
+        expect(projectChipIndicator(2, slots)).toEqual(slots[2]);
+    });
+
+    it('travels between neighboring chips as a swipe moves between their pages', () => {
+        expect(projectChipIndicator(0.5, slots)).toEqual({ width: 80, x: 50 });
+        expect(projectChipIndicator(1.25, slots)).toEqual({ width: 110, x: 111 });
+    });
+
+    it('stays on the end chip while the pager resists a drag past either end', () => {
+        expect(projectChipIndicator(-0.3, slots)).toEqual(slots[0]);
+        expect(projectChipIndicator(2.3, slots)).toEqual(slots[2]);
+    });
+
+    it('draws nothing until the chips in its span have been measured', () => {
+        expect(projectChipIndicator(0, [])).toBeUndefined();
+        expect(projectChipIndicator(0.5, [slots[0], undefined])).toBeUndefined();
+        expect(projectChipIndicator(NaN, slots)).toBeUndefined();
     });
 });
