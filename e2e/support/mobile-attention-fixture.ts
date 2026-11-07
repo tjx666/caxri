@@ -74,7 +74,7 @@ async function readAttentionReceipts(receiptPath: string): Promise<AttentionRece
  * which it writes once it reads input and its initial turn has stopped. An earlier command could be lost or overwritten
  * by that initial Stop, so callers must not resend.
  */
-export async function sendFixtureCommandWhenReady(
+async function sendFixtureCommandWhenReady(
     page: Page,
     receiptPath: string,
     terminalId: string,
