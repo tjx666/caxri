@@ -29,9 +29,11 @@ export interface SessionAgentMenu {
      */
     detach: { action: 'detach'; canDetach: boolean } | { action: 'resume' } | undefined;
     /**
-     * Hand Over to or Take Back from Caxri Bot, hidden until the menu state says which.
+     * Hand Over to or Take Back from Caxri Bot. Until the menu state is read it shows Hand Over, the common case, so
+     * the menu opens at its final height instead of growing a row a moment later; a Hand Over sent for a Session Caxri
+     * Bot already manages is refused with `already_managed`.
      */
-    bot: 'handOver' | 'takeBack' | undefined;
+    bot: 'handOver' | 'takeBack';
     /**
      * Whether the Session has closed conversations Reopen Conversation can bring back.
      */
@@ -72,7 +74,7 @@ export const sessionAgentMenu = (
             (isDetached
                 ? { action: 'resume' }
                 : { action: 'detach', canDetach: isRunning(terminal) }),
-        bot: menuState && (menuState.isBotManaged ? 'takeBack' : 'handOver'),
+        bot: menuState?.isBotManaged ? 'takeBack' : 'handOver',
         canReopen: (menuState?.conversations.length ?? 0) > 0,
         creatorSessionId:
             creatorSessionId !== undefined && listedSessionIds.has(creatorSessionId)

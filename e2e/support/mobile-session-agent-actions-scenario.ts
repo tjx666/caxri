@@ -139,8 +139,8 @@ export async function executeMobileSessionAgentActionsScenario(
 
 /**
  * `MOB-CHAT-SESSION-AGENT-ACTIONS-02` (#3238): offline, every sheet entry that needs Caxri (the Agent entries plus Pin,
- * Rename, Archive, and Delete) disables under one reconnect hint. Hand Over needs the menu state, which an offline
- * phone cannot read, so it is absent rather than disabled.
+ * Rename, Archive, and Delete) disables under one reconnect hint. Hand Over shows before the menu state is read, so the
+ * menu keeps its height when the state arrives, and an offline phone shows it disabled too.
  */
 export async function executeMobileSessionAgentActionsOfflineScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -163,6 +163,7 @@ export async function executeMobileSessionAgentActionsOfflineScenario(
             'session-action-rename',
             'session-action-restart',
             'session-action-detach',
+            'session-action-hand-over',
             'session-action-archive',
             'session-action-delete',
         ]) {

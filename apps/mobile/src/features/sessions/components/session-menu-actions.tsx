@@ -85,22 +85,18 @@ const SessionAgentMenuEntries = ({
                     theme={theme}
                 />
             ) : null}
-            {bot ? (
-                <PopoverAction
-                    disabled={!isIdle}
-                    icon={bot === 'handOver' ? Bot : Undo2}
-                    label={t(
-                        bot === 'handOver'
-                            ? 'sessions.actions.handOverToBot'
-                            : 'sessions.actions.takeBackFromBot',
-                    )}
-                    onPress={() => run(bot)}
-                    testID={
-                        bot === 'handOver' ? 'session-menu-hand-over' : 'session-menu-take-back'
-                    }
-                    theme={theme}
-                />
-            ) : null}
+            <PopoverAction
+                disabled={!isIdle}
+                icon={bot === 'handOver' ? Bot : Undo2}
+                label={t(
+                    bot === 'handOver'
+                        ? 'sessions.actions.handOverToBot'
+                        : 'sessions.actions.takeBackFromBot',
+                )}
+                onPress={() => run(bot)}
+                testID={bot === 'handOver' ? 'session-menu-hand-over' : 'session-menu-take-back'}
+                theme={theme}
+            />
             {agentMenu.canReopen ? (
                 <PopoverAction
                     disabled={!isConnected}
