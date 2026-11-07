@@ -22,6 +22,7 @@ import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
+    primarySidebarShowFewerRowId,
 } from './primary-sidebar-tree';
 import { ProjectAgentSummary } from './project-agent-summary';
 import { ProjectDetailsCard } from './project-details-card';
@@ -63,6 +64,11 @@ interface ProjectGroupProperties {
     onMove: (delta: -1 | 1) => void;
     onRenameValueChange: (value: string) => void;
     onRevealMoreSessions: () => void;
+    onShowFewerSessions: () => void;
+    /**
+     * Index in `visibleSessions` the `Show fewer` row precedes; absent until the window passed its default rows.
+     */
+    showFewerIndex?: number;
     onToggle: () => void;
     project: ProjectRecord;
     /**
@@ -128,6 +134,38 @@ function openHeadingContextMenu(heading: HTMLElement | null): void {
     );
 }
 
+/**
+ * The line that shows where a dragged Project lands, above or below this group.
+ */
+function ProjectDropMarker({ edge }: { edge: ProjectDropTarget['edge'] }) {
+    return (
+        <div
+            className={cn(
+                'project-drop-marker pointer-events-none absolute right-1 left-1 z-10 h-0.5 bg-accent',
+                edge === 'before' ? '-top-1' : '-bottom-1',
+            )}
+            data-drop-edge={edge}
+        >
+            <span className="absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full bg-accent" />
+        </div>
+    );
+}
+
+/**
+ * The off-screen element the heading's drag uses as its drag image.
+ */
+function ProjectDragPreview({ project }: { project: ProjectRecord }) {
+    return (
+        <div
+            aria-hidden="true"
+            className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
+        >
+            <ProjectIcon icon={project.icon} />
+            <span className="max-w-48 truncate text-[13px] font-medium">{project.title}</span>
+        </div>
+    );
+}
+
 export function ProjectGroup({
     sessionOrder,
     active,
@@ -149,6 +187,8 @@ export function ProjectGroup({
     onMove,
     onRenameValueChange,
     onRevealMoreSessions,
+    onShowFewerSessions,
+    showFewerIndex,
     onToggle,
     project,
     members = [project],
@@ -171,6 +211,7 @@ export function ProjectGroup({
     const isMerged = members.length > 1;
     const memberOf = sessionMemberLookup(project, members);
     const revealRowId = primarySidebarRevealRowId(project.id);
+    const showFewerRowId = primarySidebarShowFewerRowId(project.id);
     const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
     const [menuOpen, setMenuOpen] = useState(false);
     const headingReference = useRef<HTMLDivElement>(null);
@@ -199,17 +240,7 @@ export function ProjectGroup({
                 dragged && 'opacity-40',
             )}
         >
-            {projectDropTarget && (
-                <div
-                    className={cn(
-                        'project-drop-marker pointer-events-none absolute right-1 left-1 z-10 h-0.5 bg-accent',
-                        projectDropTarget.edge === 'before' ? '-top-1' : '-bottom-1',
-                    )}
-                    data-drop-edge={projectDropTarget.edge}
-                >
-                    <span className="absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full bg-accent" />
-                </div>
-            )}
+            {projectDropTarget && <ProjectDropMarker edge={projectDropTarget.edge} />}
             <ProjectRowMenu members={members} project={project} onOpenChange={setMenuOpen}>
                 {/*
                  * The Project drag source and the row's layout. Its tree semantics live on the `.project-select`
@@ -340,13 +371,7 @@ export function ProjectGroup({
                     </div>
                 </div>
             </ProjectRowMenu>
-            <div
-                aria-hidden="true"
-                className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
-            >
-                <ProjectIcon icon={project.icon} />
-                <span className="max-w-48 truncate text-[13px] font-medium">{project.title}</span>
-            </div>
+            <ProjectDragPreview project={project} />
             <DisclosureMotion
                 animate={animateProject}
                 className="project-session-disclosure"
@@ -365,8 +390,17 @@ export function ProjectGroup({
                             className="session-list pb-1 pl-4"
                             role="group"
                         >
-                            {visibleSessions.map((session) => (
+                            {visibleSessions.map((session, index) => (
                                 <Fragment key={session.id}>
+                                    {index === showFewerIndex && (
+                                        <SessionRevealRow
+                                            direction="fewer"
+                                            projectTitle={project.title}
+                                            roving={showFewerRowId === rovingRowId}
+                                            rowId={showFewerRowId}
+                                            onReveal={onShowFewerSessions}
+                                        />
+                                    )}
                                     <MemoizedActiveSessionRow
                                         sessionOrder={sessionOrder}
                                         visibleSessionIds={visibleSessionIds}

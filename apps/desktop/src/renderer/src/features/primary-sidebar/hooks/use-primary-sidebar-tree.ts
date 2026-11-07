@@ -31,6 +31,11 @@ interface PrimarySidebarTreeInput {
      */
     pinnedSessionIds: readonly string[];
     /**
+     * Where the Pinned group's `Show fewer` row sits among `pinnedSessionIds`; absent while the group is not revealed
+     * past its default rows.
+     */
+    pinnedShowFewerIndex?: number;
+    /**
      * One windowed Session list per Project, in sidebar order, so the row order can never reach a hidden Session.
      */
     projectWindows: readonly ProjectSessionWindow[];
@@ -81,6 +86,7 @@ export function usePrimarySidebarTree({
     isProjectExpanded,
     isPinnedExpanded,
     pinnedSessionIds,
+    pinnedShowFewerIndex,
     projectWindows,
     selectedFallbackRowIds,
     selectedProjectId,
@@ -103,12 +109,14 @@ export function usePrimarySidebarTree({
                     hasHiddenSessions: entry.hiddenCount > 0,
                     id: entry.project.id,
                     sessionIds: entry.visibleSessions.map((session) => session.id),
+                    showFewerIndex: entry.showFewerIndex,
                 })),
                 isProjectExpanded,
                 {
                     expanded: isPinnedExpanded,
                     hasHiddenSessions: hasHiddenPinnedSessions,
                     sessionIds: pinnedSessionIds,
+                    showFewerIndex: pinnedShowFewerIndex,
                 },
                 subagentNodes,
                 delegatedNodes,
@@ -120,6 +128,7 @@ export function usePrimarySidebarTree({
             hasHiddenPinnedSessions,
             isPinnedExpanded,
             pinnedSessionIds,
+            pinnedShowFewerIndex,
             subagentNodes,
         ],
     );

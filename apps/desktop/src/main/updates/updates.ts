@@ -1,17 +1,21 @@
 import type { UpdateState } from '@caxri/protocol';
 import { compareStableVersions } from '@caxri/protocol';
 
-import { releaseDmgFileName } from '../source-map-flavor';
+import {
+    BACKGROUND_CHECK_INTERVAL_MS,
+    RESUME_CHECK_MIN_GAP_MS,
+    shouldRunBackgroundCheck,
+    shouldStartAutomaticUpdateCheck,
+} from './discovery/background-check';
+import { supersedeStagedUpdate } from './discovery/supersede';
 import type { AvailableRelease } from './update-download';
 import { downloadVerifiedUpdate } from './update-download';
 import {
     assertStableVersion,
-    isExactReleaseAssetUrl,
     isRateLimitedStatus,
     LATEST_RELEASE_URL,
+    parseLatestRelease,
     rateLimitResumeAt,
-    releasePageUrl,
-    releaseSchema,
 } from './update-github-release';
 import type {
     AcceptanceUpdateDiscovery,
@@ -21,64 +25,14 @@ import type {
 } from './update-service-contract';
 import {
     assertSuccessfulResponse,
-    MAX_CHECKSUM_BYTES,
-    MAX_DMG_BYTES,
     MAX_RELEASE_RESPONSE_BYTES,
     readBoundedResponse,
     readUpdateNetwork,
     updateErrorMessage,
-    UpdateFailure,
     updateFailureKind,
 } from './update-transport';
 
 const CHECK_TIMEOUT_MS = 15_000;
-/**
- * How often a long-running Caxri asks again: soon enough to start a fresh release's background download within minutes,
- * at four requests an hour against GitHub's anonymous 60. A rate-limited tick needs no retry timer of its own.
- */
-const BACKGROUND_CHECK_INTERVAL_MS = 15 * 60 * 1_000;
-/**
- * A wake from sleep re-checks only when the last attempt is at least this old, so closing and opening a lid repeatedly
- * does not turn into a request per wake.
- */
-export const RESUME_CHECK_MIN_GAP_MS = 30 * 60 * 1_000;
-
-interface AutomaticUpdateCheckOptions {
-    alreadyStarted: boolean;
-    hasAcceptanceDiscovery?: boolean;
-    isE2E: boolean;
-    isPackaged: boolean;
-}
-
-/**
- * Packaged E2E profiles stay deterministic and must never contact the release service. An admitted Acceptance fixture
- * is the one exception that runs the launch check off the network, so its notification arrives the same way a real
- * automatic discovery does.
- */
-export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOptions): boolean {
-    if (options.alreadyStarted) return false;
-    return options.hasAcceptanceDiscovery === true || (options.isPackaged && !options.isE2E);
-}
-
-interface BackgroundCheckInput {
-    isCheckInFlight: boolean;
-    lastAttemptAt: number | undefined;
-    minGapMs: number;
-    now: number;
-    status: UpdateState['status'];
-}
-
-/**
- * Whether a timer or wake-from-sleep re-check may run. A download in progress or a verified installer waiting for the
- * user must never be replaced by a fresh discovery, a check already in flight is not repeated, and a recent attempt
- * (including one that GitHub rate-limited) is not retried before `minGapMs` has passed.
- */
-export function shouldRunBackgroundCheck(input: BackgroundCheckInput): boolean {
-    if (input.isCheckInFlight) return false;
-    if (input.status === 'downloading' || input.status === 'ready') return false;
-    return input.lastAttemptAt === undefined || input.now - input.lastAttemptAt >= input.minGapMs;
-}
-
 export class UpdateService {
     private readonly fetch: UpdateFetch;
     private readonly now: () => number;
@@ -89,6 +43,11 @@ export class UpdateService {
      * How the verified installer at {@link readyPath} installs; see `installMode` on the `ready` state.
      */
     private prepared: PreparedInstall = { installMode: 'manual' };
+    /**
+     * The newer release a silent supersede already failed to download or stage in this process. The 15-minute re-check
+     * skips it instead of fetching the whole DMG again every tick; a later release or a relaunch tries again.
+     */
+    private supersedeFailedVersion: string | undefined;
     /**
      * The data-resetting version the user agreed to install from `confirmDataReset`; nothing else may install it.
      */
@@ -150,16 +109,39 @@ export class UpdateService {
         return launchStamped;
     }
 
+    /**
+     * Validates a successful `releases/latest` answer and returns the release when it is newer than this build, or
+     * `undefined` when it is not. Throws on malformed or untrusted metadata. Shared by the visible check and the silent
+     * look for a newer release while one is already staged.
+     */
+    private async readLatestRelease(response: Response): Promise<AvailableRelease | undefined> {
+        assertSuccessfulResponse(response, 'The GitHub release check');
+        // A successful, non-rate-limited response means the previous rate limit (if any) has cleared.
+        this.rateLimitedUntil = undefined;
+        const source = new TextDecoder().decode(
+            await readBoundedResponse(response, MAX_RELEASE_RESPONSE_BYTES),
+        );
+        return parseLatestRelease(
+            source,
+            this.options.currentVersion,
+            this.options.sourceMapFlavor ?? 'include',
+        );
+    }
+
+    private requestLatestRelease(): Promise<Response> {
+        return this.fetch(LATEST_RELEASE_URL, {
+            signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+            headers: {
+                'Accept': 'application/vnd.github+json',
+                'User-Agent': `Caxri/${this.options.currentVersion}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+            },
+        });
+    }
+
     private async performCheck(): Promise<UpdateState> {
         try {
-            const response = await this.fetch(LATEST_RELEASE_URL, {
-                signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-                headers: {
-                    'Accept': 'application/vnd.github+json',
-                    'User-Agent': `Caxri/${this.options.currentVersion}`,
-                    'X-GitHub-Api-Version': '2022-11-28',
-                },
-            });
+            const response = await this.requestLatestRelease();
             // While the repository is private, the anonymous releases API returns 404 for every
             // check. That is an expected pre-release condition, not a fault, so it degrades to
             // `unavailable` instead of surfacing a permanent error on every launch (#244).
@@ -189,27 +171,8 @@ export class UpdateService {
                 });
             }
             assertSuccessfulResponse(response, 'The GitHub release check');
-            // A successful, non-rate-limited response means the previous rate limit (if any) has cleared.
-            this.rateLimitedUntil = undefined;
-            const source = new TextDecoder().decode(
-                await readBoundedResponse(response, MAX_RELEASE_RESPONSE_BYTES),
-            );
-            let json: unknown;
-            try {
-                json = JSON.parse(source) as unknown;
-            } catch {
-                throw new Error('GitHub returned invalid release metadata.');
-            }
-            const parsedRelease = releaseSchema.safeParse(json);
-            if (!parsedRelease.success)
-                throw new Error('GitHub returned invalid release metadata.');
-            const release = parsedRelease.data;
-            if (release.draft || release.prerelease)
-                throw new Error('GitHub returned a non-stable release.');
-            const version = release.tag_name.replace(/^v/, '');
-            assertStableVersion(version);
-            assertStableVersion(this.options.currentVersion);
-            if (compareStableVersions(version, this.options.currentVersion) <= 0) {
+            const release = await this.readLatestRelease(response);
+            if (!release) {
                 this.release = undefined;
                 this.readyPath = undefined;
                 return this.publish({
@@ -217,47 +180,14 @@ export class UpdateService {
                     currentVersion: this.options.currentVersion,
                 });
             }
-
-            const releaseUrl = releasePageUrl(release.html_url);
-            const fileName = releaseDmgFileName(version, this.options.sourceMapFlavor ?? 'include');
-            const checksumName = `${fileName}.sha256`;
-            const dmg = release.assets.find((asset) => asset.name === fileName);
-            const checksum = release.assets.find((asset) => asset.name === checksumName);
-            if (!dmg || !checksum)
-                throw new UpdateFailure(
-                    'integrity',
-                    'The release is missing its arm64 DMG or checksum.',
-                );
-            if (dmg.size > MAX_DMG_BYTES || checksum.size > MAX_CHECKSUM_BYTES)
-                throw new UpdateFailure(
-                    'integrity',
-                    'A release asset is larger than the allowed update size.',
-                );
-            if (
-                !isExactReleaseAssetUrl(dmg.browser_download_url, version, fileName) ||
-                !isExactReleaseAssetUrl(checksum.browser_download_url, version, checksumName)
-            ) {
-                throw new UpdateFailure(
-                    'integrity',
-                    'A release asset URL does not match the requested version.',
-                );
-            }
-
-            this.release = {
-                version,
-                fileName,
-                dmgUrl: dmg.browser_download_url,
-                checksumUrl: checksum.browser_download_url,
-                ...(releaseUrl && { releaseUrl }),
-                ...(dmg.size > 0 && { expectedBytes: dmg.size }),
-            };
+            this.release = release;
             this.readyPath = undefined;
             return this.publish({
                 status: 'available',
                 currentVersion: this.options.currentVersion,
-                version,
-                fileName,
-                ...(releaseUrl && { releaseUrl }),
+                version: release.version,
+                fileName: release.fileName,
+                ...(release.releaseUrl && { releaseUrl: release.releaseUrl }),
             });
         } catch (error) {
             return this.publish({
@@ -337,6 +267,49 @@ export class UpdateService {
         } finally {
             this.checkPromise = undefined;
         }
+    }
+
+    /**
+     * The background re-check while a verified installer is already `ready`: looks for a release newer than the staged
+     * one and, when there is one, downloads and stages it without touching the visible state. Restart to Update keeps
+     * installing the staged version until the newer one is fully staged, then the state swaps to it and is announced
+     * like any new `ready` offer. A rate limit, a failed request, or a failed download is invisible: the ready state
+     * the user already has stays exactly as it was, and the next tick tries again.
+     *
+     * Staging the newer bundle empties the shared staging directory, so a newer bundle that fails to stage restages the
+     * old one before giving up. The few seconds in between are the only window where a quit installs nothing.
+     */
+    private async supersedeReady(
+        staged: AvailableRelease,
+        stagedPath: string,
+    ): Promise<UpdateState> {
+        const keep = this.state;
+        const result = await supersedeStagedUpdate({
+            currentVersion: this.options.currentVersion,
+            downloadDirectory: this.options.downloadDirectory,
+            failedVersion: this.supersedeFailedVersion,
+            fetch: this.fetch,
+            now: this.now,
+            prepareInstall: (input) => this.options.prepareInstall?.(input),
+            previous: this.prepared,
+            readLatest: (response) => this.readLatestRelease(response),
+            recordRateLimit: (until) => {
+                this.rateLimitedUntil = until;
+            },
+            requestLatest: () => this.requestLatestRelease(),
+            staged,
+            stagedPath,
+        });
+        if (result.kind === 'keep') {
+            this.supersedeFailedVersion = result.failedVersion;
+            return keep;
+        }
+        this.supersedeFailedVersion = undefined;
+        this.release = result.release;
+        this.readyPath = result.path;
+        this.prepared = result.prepared;
+        this.dataResetConfirmedFor = undefined;
+        return this.publish(this.readyState(result.release));
     }
 
     private readyState(
@@ -423,9 +396,11 @@ export class UpdateService {
     check(options: { background?: boolean; manual?: boolean } = {}): Promise<UpdateState> {
         if (this.checkPromise) return this.checkPromise;
         if (this.downloadPromise) return Promise.resolve(this.state);
-        // A staged update stays put until the restart or quit that installs it: a re-check would replace `ready` and
-        // leave a confirmed Restart to Update with nothing to install.
-        if (this.isRestartReady()) return Promise.resolve(this.state);
+        // A staged update stays put until the restart or quit that installs it: a visible re-check would replace
+        // `ready` and leave a confirmed Restart to Update with nothing to install. Only a silent background look for a
+        // newer release may run, and it swaps the staged update only once the newer one is fully staged.
+        const isStaged = this.state.status === 'ready' && this.readyPath !== undefined;
+        if (isStaged && !options.background) return Promise.resolve(this.state);
         // A download or open failure is still on screen; a silent re-check must not replace it with `available`.
         // A failed check is different: re-checking is how it recovers, so it stays eligible.
         if (options.background && this.state.status === 'error' && this.state.action !== 'check')
@@ -468,6 +443,17 @@ export class UpdateService {
         }
 
         this.lastCheckAttemptAt = this.now();
+        if (isStaged && this.release) {
+            const supersede = async (staged: AvailableRelease, stagedPath: string) => {
+                try {
+                    return await this.supersedeReady(staged, stagedPath);
+                } finally {
+                    this.checkPromise = undefined;
+                }
+            };
+            this.checkPromise = supersede(this.release, this.readyPath!);
+            return this.checkPromise;
+        }
         // A background re-check stays invisible: publishing `checking` would blank an `available` chip on every tick.
         if (!options.background)
             this.publish({ status: 'checking', currentVersion: this.options.currentVersion });

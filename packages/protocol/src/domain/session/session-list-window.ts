@@ -25,6 +25,15 @@ export interface SessionListWindow<TSession> {
      * {@link SESSION_REVEAL_STEP} on the final step.
      */
     nextRevealCount: number;
+    /**
+     * Where the `Show fewer` row sits among `visibleSessions`: before the Session at this index, i.e. right after the
+     * rows the list shows by default. Present only once the window passed them, and kept in place after the last
+     * reveal; absent while the list is still short, so there is nothing to fold.
+     *
+     * It sits there instead of trailing the list for the reason the subagent toggle does: the pointer is already on
+     * that boundary from the `Show N more` click, and a trailing row ended up below a long list, out of reach.
+     */
+    showFewerIndex?: number;
     visibleSessions: TSession[];
     /**
      * Length of the in-order prefix the window shows, excluding a selected Session pinned in from below it. This is
@@ -84,9 +93,11 @@ export function sessionListWindow<TSession extends { id: string }>(
      */
     const nextWindowCount = Math.min(windowCount + SESSION_REVEAL_STEP, sessions.length);
     const nextVisibleCount = nextWindowCount + (selectedIndex >= nextWindowCount ? 1 : 0);
+    const initialCount = options.initialCount ?? DEFAULT_VISIBLE_SESSION_COUNT;
     return {
         hiddenCount: sessions.length - visibleSessions.length,
         nextRevealCount: nextVisibleCount - visibleSessions.length,
+        showFewerIndex: windowCount > initialCount ? initialCount : undefined,
         visibleSessions,
         windowCount,
     };

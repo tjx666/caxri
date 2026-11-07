@@ -11,8 +11,9 @@ import {
     removeTemporaryDirectories,
     temporaryDirectory,
 } from '../../__tests__/support/update-service-harness';
+import { shouldStartAutomaticUpdateCheck } from '../discovery/background-check';
 import { updateStateLogFields } from '../update-state-log';
-import { shouldStartAutomaticUpdateCheck, UpdateService } from '../updates';
+import { UpdateService } from '../updates';
 
 afterEach(removeTemporaryDirectories);
 

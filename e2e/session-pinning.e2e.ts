@@ -251,7 +251,7 @@ test('an over-full Pinned group closes with a reveal row instead of burying ever
         await pageRequest(page, 'session.select', { sessionId: pinnedIds[0] });
         // Six pinned Sessions, a five-row window: the sixth is behind the reveal row rather than on screen.
         await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds.slice(0, 5));
-        const reveal = page.locator('.pinned-session-group .session-reveal');
+        const reveal = page.getByRole('treeitem', { name: 'Show 1 more pinned Session' });
         await expect(reveal).toHaveAttribute('aria-label', 'Show 1 more pinned Session');
         await expect(reveal).toHaveText('Show 1 more');
         await expect(reveal.locator('svg')).toHaveCount(0);
@@ -263,6 +263,15 @@ test('an over-full Pinned group closes with a reveal row instead of burying ever
         await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds);
         // The final reveal unmounts the row itself, so focus lands on the row above it, not on the document body.
         await expect(reveal).toHaveCount(0);
+        await expect(
+            page.locator(`.pinned-session-group [data-session-id="${pinnedIds[4]}"]`),
+        ).toBeFocused();
+        // The revealed group offers the way back, right after the default rows, and folds to the five-row window.
+        const showFewer = page.getByRole('treeitem', { name: 'Show fewer pinned Sessions' });
+        await expect(showFewer).toHaveText('Show fewer');
+        await showFewer.click();
+        await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds.slice(0, 5));
+        await expect(showFewer).toHaveCount(0);
         await expect(
             page.locator(`.pinned-session-group [data-session-id="${pinnedIds[4]}"]`),
         ).toBeFocused();

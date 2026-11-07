@@ -17,10 +17,14 @@ const UPDATE_INSTALLER_PATTERN = /^Caxri-.+\.dmg$/;
  * disk space (each DMG is hundreds of megabytes). Names outside those two shapes are never returned, so a stray file
  * the user placed in the directory survives.
  */
-export function selectStaleUpdateFiles(entries: readonly string[], keepFileName: string): string[] {
-    const keepPart = `${keepFileName}.part`;
+export function selectStaleUpdateFiles(
+    entries: readonly string[],
+    keepFileName: string,
+    alsoKeep: readonly string[] = [],
+): string[] {
+    const kept = new Set([keepFileName, `${keepFileName}.part`, ...alsoKeep]);
     return entries.filter((name) => {
-        if (name === keepFileName || name === keepPart) return false;
+        if (kept.has(name)) return false;
         if (name.endsWith('.part')) return UPDATE_INSTALLER_PATTERN.test(name.slice(0, -5));
         return UPDATE_INSTALLER_PATTERN.test(name);
     });
@@ -33,6 +37,7 @@ export function selectStaleUpdateFiles(entries: readonly string[], keepFileName:
 export async function removeStaleUpdateFiles(
     directory: string,
     keepFileName: string,
+    alsoKeep: readonly string[] = [],
 ): Promise<void> {
     let entries: string[];
     try {
@@ -41,7 +46,7 @@ export async function removeStaleUpdateFiles(
         return;
     }
     await Promise.all(
-        selectStaleUpdateFiles(entries, keepFileName).map(async (name) => {
+        selectStaleUpdateFiles(entries, keepFileName, alsoKeep).map(async (name) => {
             try {
                 await rm(join(directory, name), { force: true });
             } catch {

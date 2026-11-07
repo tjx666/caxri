@@ -594,7 +594,10 @@ full-width management dialog. Its footer carries the jump to Session search as a
 header stays a title plus description. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a text-only `Show N more` row (N is the count the next activation reveals, at most ten) that reveals ten more per activation and disappears once the list
-is complete, so a busy Project never buries the Projects below it. The row has no disclosure chevron:
+is complete, so a busy Project never buries the Projects below it. Once a group is revealed past its first five
+Sessions, a matching `Show fewer` row (same `SessionRevealRow`) sits right after those five, where the pointer was for
+the reveal, and folds the group back to five; it is not placed at the list end, where a long list left it out of reach.
+The row has no disclosure chevron:
 it is not a collapsible branch, and a twistie would spend width on a meaning it does not have. Project
 and Pinned groups share one `SessionRevealRow`: a 24px, 6px-radius, content-width `--muted` button
 whose label starts at the Session title's left edge, so its hover background and focus ring cover only

@@ -18,8 +18,6 @@ import type { AgentToolKind, AgentToolPresentation } from './agent-tool-presenta
 import {
     agentMessageSubject,
     agentToolActiveLabel,
-    agentToolGroupPhrases,
-    agentToolKindCounts,
     agentToolOutcomeLabel,
     describeAgentTool,
     parseAgentMcpToolName,
@@ -373,7 +371,7 @@ export function splitAgentChatWork(
 /**
  * Work items that did not do what they set out to: failed, or declined by the user or a policy.
  */
-const isAgentChatWorkUnsuccessful = (item: AgentChatWorkItem): boolean =>
+export const isAgentChatWorkUnsuccessful = (item: AgentChatWorkItem): boolean =>
     item.type !== 'reasoning' && (item.status === 'failed' || item.status === 'declined');
 
 /**
@@ -425,94 +423,6 @@ export function agentChatWorkSummaryItems(
 }
 
 /**
- * `Ran 3 commands, read 2 files` for a group, counting each changed file as one edit. Reasoning only names the group
- * when it is all the group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a
- * collapsed group never reads as a clean run.
- */
-export function summarizeAgentChatWork(
-    items: readonly AgentChatWorkItem[],
-    t: AgentChatLabelTranslate = translateAgentChatLabel,
-    options: { isOpen?: boolean } = {},
-): string {
-    return agentChatWorkSummaryPhrases(items, t, options)
-        .map(({ text }) => text)
-        .join('');
-}
-
-/**
- * The tool calls of a group running at the same time: an Agent can start several before any ends (three reads at once),
- * and a title naming only one of them would read as if the Agent did one thing.
- */
-function agentChatParallelWork(items: readonly AgentChatWorkItem[]): AgentChatWorkItem[] {
-    return items.filter((item) => item.type !== 'reasoning' && isAgentChatWorkRunning(item));
-}
-
-/**
- * {@link summarizeAgentChatWork} as keyed phrases that join into it: the running action, the thinking label, or one
- * phrase per tool kind (`Edited 1 file`, `, ran 3 commands`) followed by the failure count (`, 1 failed`). A key stays
- * the same while its phrase only updates a count, so the Renderer can animate a phrase that joins the summary. An open
- * group (`isOpen`, the running turn's latest work) names its current step even between calls, as the Codex app does,
- * and becomes the aggregate only once the run ends.
- */
-export function agentChatWorkSummaryPhrases(
-    items: readonly AgentChatWorkItem[],
-    t: AgentChatLabelTranslate = translateAgentChatLabel,
-    { isOpen = false }: { isOpen?: boolean } = {},
-): Array<{ key: string; text: string }> {
-    const active = isOpen ? agentChatCurrentWork(items) : agentChatActiveWork(items);
-    if (active && (active.item.type !== 'reasoning' || isAgentChatWorkRunning(active.item))) {
-        const verb = agentToolActiveLabel(active.presentation, t);
-        const label = [verb, active.presentation.subject].filter(Boolean).join(' ');
-        const others = agentChatParallelWork(items).filter((item) => item !== active.item).length;
-        const text =
-            others > 0 ? t('agentChat.workGroup.andMore', { label, count: others }) : label;
-        return [{ key: 'active', text }];
-    }
-    const tools = agentChatWorkSummaryTools(items);
-    if (tools.length === 0) {
-        const isThinking = items.some((item) => item.type === 'reasoning' && item.streaming);
-        const label = isThinking ? 'agentChat.tool.label.thinking' : 'agentChat.tool.label.thought';
-        return [{ key: 'reasoning', text: t(label) }];
-    }
-    const phrases = agentToolGroupPhrases(tools, t).map(({ kind, text }) => ({ key: kind, text }));
-    const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
-    if (failed === 0) return phrases;
-    // The failure template wraps the whole summary; an empty summary leaves exactly the text it appends.
-    const failures = t('agentChat.workGroup.withFailures', { summary: '', count: failed });
-    return [...phrases, { key: 'failures', text: failures }];
-}
-
-/**
- * The tool calls a work summary counts: one per command or tool call and one per changed file; reasoning counts none.
- */
-function agentChatWorkSummaryTools(
-    items: readonly AgentChatWorkItem[],
-): Array<{ name: string; summary?: string }> {
-    return items.flatMap((item): Array<{ name: string; summary?: string }> => {
-        switch (item.type) {
-            case 'reasoning': {
-                return [];
-            }
-            case 'command': {
-                return [{ name: 'shell', summary: item.command }];
-            }
-            case 'fileChange': {
-                const name = item.changes.every((change) => change.kind === 'add')
-                    ? 'write'
-                    : 'edit';
-                return item.changes.map((change) => ({ name, summary: change.path }));
-            }
-            case 'toolCall': {
-                return [item];
-            }
-            default: {
-                return [];
-            }
-        }
-    });
-}
-
-/**
  * A work row's kind, verb, and subject on a Client that shows the MCP server's own icon: the shared
  * `describeAgentChatWork`, except that an MCP tool call reads as its tool (`Web search exa`), the way the Codex app
  * names it beside the server's icon; the icon, not an `exa` prefix, says which server answered. Its subject names what
@@ -557,38 +467,4 @@ export function agentChatWorkSubject(
     // A teammate addressed by name keeps that name; only a generated id gives way to the title.
     if (!title || !message || message.recipient) return presentation.subject;
     return agentMessageSubject(message, title);
-}
-
-/**
- * The glyph a work summary row leads with: the running call's kind while one runs, otherwise the kind every call shares
- * (plus the first MCP tool call's name, so the row shows that server's icon). A settled summary mixing kinds (`Searched
- * once, ran 1 command`) takes the generic work glyph, since no single kind's icon describes it.
- */
-export function agentChatWorkSummaryGlyph(
-    items: readonly AgentChatWorkItem[],
-    { isOpen = false }: { isOpen?: boolean } = {},
-): {
-    kind: AgentToolKind;
-    mcpToolName?: string;
-} {
-    const active = isOpen ? agentChatCurrentWork(items) : agentChatActiveWork(items);
-    const parallelKinds = new Set(
-        agentChatParallelWork(items).map((item) => describeAgentChatWork(item).kind),
-    );
-    if (parallelKinds.size > 1) return { kind: 'other' };
-    if (active)
-        return {
-            kind: active.presentation.kind,
-            ...(active.presentation.kind === 'mcp' &&
-                active.item.type === 'toolCall' && { mcpToolName: active.item.name }),
-        };
-    const tools = agentChatWorkSummaryTools(items);
-    const counts = agentToolKindCounts(tools);
-    if (counts.length > 1) return { kind: 'other' };
-    const kind = counts.at(0)?.kind ?? 'thought';
-    const mcpToolName =
-        kind === 'mcp'
-            ? tools.find((tool) => describeAgentTool(tool).kind === 'mcp')?.name
-            : undefined;
-    return { kind, ...(mcpToolName && { mcpToolName }) };
 }

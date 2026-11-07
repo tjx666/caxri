@@ -13,6 +13,7 @@ import {
     primarySidebarHorizontalIntent,
     primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
+    primarySidebarShowFewerRowId,
     primarySidebarSubagentMoreRowId,
     primarySidebarSubagentRowId,
     rovingPrimarySidebarRowId,
@@ -467,5 +468,78 @@ describe('subagent rows', () => {
         const subagent = rows.find((row) => row.kind === 'subagent');
         if (!subagent) throw new Error('expected a subagent row');
         expect(primarySidebarArchiveIntent(subagent, 'Delete')).toBeUndefined();
+    });
+});
+
+describe('Show fewer rows', () => {
+    const ids = (rows: ReturnType<typeof flattenPrimarySidebarRows>) => rows.map((row) => row.id);
+
+    it('puts a Project fold row after the default rows and keeps the reveal row last', () => {
+        const rows = flattenPrimarySidebarRows(
+            [
+                {
+                    id: 'alpha',
+                    hasHiddenSessions: true,
+                    sessionIds: ['a1', 'a2', 'a3'],
+                    showFewerIndex: 2,
+                },
+            ],
+            () => true,
+        );
+        expect(ids(rows)).toEqual([
+            'alpha',
+            'a1',
+            'a2',
+            primarySidebarShowFewerRowId('alpha'),
+            'a3',
+            primarySidebarRevealRowId('alpha'),
+        ]);
+        expect(rows[3]).toEqual({
+            id: primarySidebarShowFewerRowId('alpha'),
+            kind: 'showFewer',
+            projectId: 'alpha',
+        });
+    });
+
+    it('puts the Pinned fold row after its default rows, before the first extra row', () => {
+        const rows = flattenPrimarySidebarRows([], () => true, {
+            expanded: true,
+            sessionIds: ['p1', 'p2', 'p3'],
+            showFewerIndex: 2,
+        });
+        expect(ids(rows)).toEqual([
+            PINNED_GROUP_ROW_ID,
+            primarySidebarPinnedRowId('p1'),
+            primarySidebarPinnedRowId('p2'),
+            primarySidebarShowFewerRowId(PINNED_GROUP_ROW_ID),
+            primarySidebarPinnedRowId('p3'),
+        ]);
+    });
+
+    it('omits the fold row when no rows follow it or the group is collapsed', () => {
+        const node = { id: 'alpha', sessionIds: ['a1', 'a2'], showFewerIndex: 2 };
+        expect(ids(flattenPrimarySidebarRows([node], () => true))).toEqual(['alpha', 'a1', 'a2']);
+        expect(
+            ids(
+                flattenPrimarySidebarRows(
+                    [{ ...node, sessionIds: ['a1', 'a2', 'a3'] }],
+                    () => false,
+                ),
+            ),
+        ).toEqual(['alpha']);
+    });
+
+    it('treats the fold row like a Session row: Left goes to its heading, Right does nothing', () => {
+        const rows = flattenPrimarySidebarRows(
+            [{ id: 'alpha', sessionIds: ['a1', 'a2', 'a3'], showFewerIndex: 1 }],
+            () => true,
+        );
+        const fold = rows.find((row) => row.kind === 'showFewer')!;
+        expect(primarySidebarHorizontalIntent(rows, fold, true, 'ArrowLeft')).toEqual({
+            focusRowId: 'alpha',
+        });
+        expect(primarySidebarHorizontalIntent(rows, fold, true, 'ArrowRight')).toEqual({});
+        expect(nextPrimarySidebarRowId(rows, 'a1', 'ArrowDown')).toBe(fold.id);
+        expect(nextPrimarySidebarRowId(rows, fold.id, 'ArrowDown')).toBe('a2');
     });
 });

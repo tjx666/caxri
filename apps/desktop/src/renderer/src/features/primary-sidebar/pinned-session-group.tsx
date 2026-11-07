@@ -19,6 +19,7 @@ import {
     PINNED_GROUP_ROW_ID,
     primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
+    primarySidebarShowFewerRowId,
 } from './primary-sidebar-tree';
 import { SessionRevealRow } from './session-reveal-row';
 import { rovingSubagentRowId } from './session-subagents';
@@ -41,6 +42,11 @@ interface PinnedSessionGroupProperties {
     onSuggestRename: (sessionId: string, title: string, rowId: string) => void;
     onRenameValueChange: (value: string) => void;
     onRevealMoreSessions: () => void;
+    onShowFewerSessions: () => void;
+    /**
+     * Index in `visibleSessions` the `Show fewer` row precedes; absent until the window passed its default rows.
+     */
+    showFewerIndex?: number;
     onToggle: () => void;
     /**
      * Renders the Sessions nested under a host Session, right after the host's row.
@@ -100,6 +106,8 @@ export function PinnedSessionGroup({
     onSuggestRename,
     onRenameValueChange,
     onRevealMoreSessions,
+    onShowFewerSessions,
+    showFewerIndex,
     onToggle,
     projects,
     renderDelegatedRows,
@@ -126,6 +134,7 @@ export function PinnedSessionGroup({
     const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);
     if (sessions.length === 0) return null;
     const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
+    const showFewerRowId = primarySidebarShowFewerRowId(PINNED_GROUP_ROW_ID);
     return (
         <section className="pinned-session-group relative mb-2" data-pinned-group="">
             <div className="pinned-heading group/pinned-heading flex min-h-7 items-center gap-1 rounded-md text-foreground hover:bg-state-hover">
@@ -193,7 +202,7 @@ export function PinnedSessionGroup({
                         className="session-list pb-1 pl-4"
                         role="group"
                     >
-                        {visibleSessions.map((session) => {
+                        {visibleSessions.map((session, index) => {
                             const project = projects[session.id];
                             if (!project) return null;
                             const rowId = primarySidebarPinnedRowId(session.id);
@@ -207,6 +216,14 @@ export function PinnedSessionGroup({
                             );
                             return (
                                 <Fragment key={session.id}>
+                                    {index === showFewerIndex && (
+                                        <SessionRevealRow
+                                            direction="fewer"
+                                            roving={showFewerRowId === rovingRowId}
+                                            rowId={showFewerRowId}
+                                            onReveal={onShowFewerSessions}
+                                        />
+                                    )}
                                     <MemoizedActiveSessionRow
                                         focusRenameInput={focusRenameInput}
                                         onBeginRename={onBeginRename}

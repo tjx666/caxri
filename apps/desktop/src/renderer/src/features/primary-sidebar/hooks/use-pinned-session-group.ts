@@ -61,6 +61,10 @@ export interface PinnedSessionGroupModel extends SessionListWindow<SessionRecord
      */
     revealMore: () => void;
     /**
+     * Folds the window back to its default rows.
+     */
+    showFewer: () => void;
+    /**
      * Opens the window down to one pinned Session, for a pin that landed below it.
      */
     revealSession: (sessionId: string) => void;
@@ -108,6 +112,7 @@ export function usePinnedSessionGroup({
         () => setRevealedCount(nextRevealedSessionCount(windowCount)),
         [windowCount],
     );
+    const showFewer = useCallback(() => setRevealedCount(undefined), []);
     const revealSession = useCallback(
         (sessionId: string) => {
             const index = groupSessions.findIndex((session) => session.id === sessionId);
@@ -137,6 +142,7 @@ export function usePinnedSessionGroup({
         revealMore,
         revealSession,
         sessionOrder,
+        showFewer,
         sessions: groupSessions,
         worktreeProjects,
     };

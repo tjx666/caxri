@@ -22,6 +22,12 @@ shows the state and asks for the next step.
    executable. Only then does the state become `ready` with `installMode: 'restart'`. The SHA-256
    check is the integrity guarantee: release bundles are only linker-signed with no sealed
    resources, so `codesign --verify --strict` rejects even a complete copy.
+   The 15 minute check keeps running while an update is `ready`. When it finds a release newer
+   than the staged one, Main downloads and stages that one silently: Restart to Update keeps
+   installing the staged version until the newer one is fully staged, then the state swaps to the
+   newer version and is announced like any new `ready` offer. A failed newer download, or a rate
+   limit, changes nothing the user sees. Because staging reuses one directory, a newer bundle that
+   fails to stage makes Main restage the old one; a quit in those few seconds installs nothing.
 4. **Restart to Update.** Nothing restarts on its own. While an update is ready, the application
    menu's **Check for Updates…** reads **View Update…** and reopens the dialog without checking
    again; the dialog closes like any other. The notification and the dialog offer one button. It runs the quit flow

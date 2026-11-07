@@ -185,3 +185,31 @@ describe('revealedCountIncluding', () => {
         expect(revealedCountIncluding(0, DEFAULT_VISIBLE_SESSION_COUNT)).toBeUndefined();
     });
 });
+
+describe('sessionListWindow showFewerIndex', () => {
+    it('offers no fold before the first reveal', () => {
+        expect(
+            sessionListWindow(sessions(12), undefined, undefined).showFewerIndex,
+        ).toBeUndefined();
+    });
+
+    it('puts the fold right after the default rows once the window passed them', () => {
+        const window = sessionListWindow(sessions(30), nextRevealedSessionCount(5), undefined);
+        expect(window.showFewerIndex).toBe(DEFAULT_VISIBLE_SESSION_COUNT);
+    });
+
+    it('offers the fold on a fully revealed list that is longer than the default window', () => {
+        const window = sessionListWindow(sessions(12), 15, undefined);
+        expect(window.hiddenCount).toBe(0);
+        expect(window.showFewerIndex).toBe(DEFAULT_VISIBLE_SESSION_COUNT);
+    });
+
+    it('offers no fold on a list that never exceeded the default window', () => {
+        expect(sessionListWindow(sessions(5), 15, undefined).showFewerIndex).toBeUndefined();
+    });
+
+    it('measures the fold from the caller initial count', () => {
+        const window = sessionListWindow(sessions(10), 6, undefined, { initialCount: 3 });
+        expect(window.showFewerIndex).toBe(3);
+    });
+});

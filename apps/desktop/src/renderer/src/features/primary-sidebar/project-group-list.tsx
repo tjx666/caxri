@@ -11,6 +11,7 @@ interface ProjectGroupListProperties {
     animatedProjectIds: ReadonlySet<string>;
     isProjectExpanded: (projectId: string) => boolean;
     onRevealMoreSessions: (sessionWindow: ProjectSessionWindow) => void;
+    onShowFewerSessions: (sessionWindow: ProjectSessionWindow) => void;
     onToggleProject: (projectId: string) => void;
     projectOrder: ReturnType<typeof useProjectOrder>;
     /**
@@ -42,6 +43,7 @@ export function ProjectGroupList({
     animatedProjectIds,
     isProjectExpanded,
     onRevealMoreSessions,
+    onShowFewerSessions,
     onToggleProject,
     projectOrder,
     projectWindows,
@@ -62,6 +64,7 @@ export function ProjectGroupList({
             nextRevealCount,
             project,
             projectSessions,
+            showFewerIndex,
             statusSessions,
             visibleSessions,
         } = sessionWindow;
@@ -88,9 +91,11 @@ export function ProjectGroupList({
                 onMove={(delta) => projectOrder.move(project.id, project.title, delta)}
                 onRenameValueChange={sessionRename.onRenameValueChange}
                 onRevealMoreSessions={() => onRevealMoreSessions(sessionWindow)}
+                onShowFewerSessions={() => onShowFewerSessions(sessionWindow)}
                 onToggle={() => onToggleProject(project.id)}
                 project={project}
                 projectSessions={projectSessions}
+                showFewerIndex={showFewerIndex}
                 projectDropTarget={
                     projectOrder.projectDropTarget?.projectId === project.id
                         ? projectOrder.projectDropTarget

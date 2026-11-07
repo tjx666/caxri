@@ -43,7 +43,14 @@ export type CliFailureKind =
     | 'tls'
     | 'other';
 
-export type FailureReason = CliFailureKind | 'invalid-arguments' | 'no-pull-request';
+/**
+ * `resource-not-found` is the remote answering HTTP 404 (a deleted branch, a repository the account cannot see). It is
+ * deliberately not a {@link CliFailureKind}: `not-found` there means the CLI executable is missing, a machine-level
+ * state the Status UI names a fix for, while a 404 is one request's answer and stays `other` to every consumer that
+ * turns a kind into recovery copy.
+ */
+export type FailureReason =
+    CliFailureKind | 'invalid-arguments' | 'no-pull-request' | 'resource-not-found';
 
 export interface ExternalStatusRunOptions {
     /**
@@ -142,6 +149,11 @@ export function failureReason(error: unknown): FailureReason {
         )
     )
         return 'invalid-arguments';
+    /*
+     * Case-sensitive on purpose: `gh` prints "gh: Not Found (HTTP 404)", while the lowercase "not found" also appears in
+     * shell and executable diagnostics that are not a remote answer.
+     */
+    if (/HTTP 404|\bNot Found\b/.test(message)) return 'resource-not-found';
     return 'other';
 }
 
@@ -213,9 +225,10 @@ export function externalStatusCommandOperation(
             arguments_.length === 4
         )
             return 'graphql.rate_limit';
-        return arguments_[0] === 'api' && arguments_[1] === 'graphql'
-            ? githubGraphqlOperation(arguments_)
-            : 'unknown';
+        if (arguments_[0] !== 'api') return 'unknown';
+        const endpoint = githubApiEndpoint(arguments_);
+        if (endpoint === 'graphql') return githubGraphqlOperation(arguments_);
+        return endpoint === undefined ? 'unknown' : githubRestOperation(endpoint);
     }
     if (source === 'linear') {
         if (arguments_[0] !== 'api') return 'unknown';
@@ -236,6 +249,53 @@ export function externalStatusCommandOperation(
         return 'shallow.get';
     if (arguments_[0] === 'cat-file') return 'commit.exists';
     if (arguments_[0] === 'rev-list') return 'ahead-behind.count';
+    return 'unknown';
+}
+
+/**
+ * `gh api` flags that consume the next argument, so that value is never mistaken for the endpoint. The GraphQL
+ * `--raw-field query=...` pairs and `--hostname github.com` precede or follow the endpoint depending on the caller.
+ */
+const GITHUB_API_VALUE_FLAGS: ReadonlySet<string> = new Set([
+    '--cache',
+    '--field',
+    '--header',
+    '--hostname',
+    '--input',
+    '--jq',
+    '--method',
+    '--preview',
+    '--raw-field',
+    '--template',
+    '-F',
+    '-H',
+    '-X',
+    '-f',
+    '-q',
+    '-t',
+]);
+
+/**
+ * The first positional argument after `api`: the endpoint (`graphql` or a REST path).
+ */
+function githubApiEndpoint(arguments_: readonly string[]): string | undefined {
+    for (let index = 1; index < arguments_.length; index += 1) {
+        const argument = arguments_[index];
+        if (GITHUB_API_VALUE_FLAGS.has(argument)) index += 1;
+        else if (!argument.startsWith('-')) return argument;
+    }
+    return undefined;
+}
+
+/**
+ * Production logged every `gh api repos/...` failure as operation `unknown`. The REST path embeds the owner,
+ * repository, branch, and issue number, so only its fixed shape is mapped to a name; an unrecognized path stays
+ * `unknown` rather than leaking any segment.
+ */
+function githubRestOperation(endpoint: string): string {
+    const path = endpoint.replace(/^\//u, '').replace(/\?.*$/u, '');
+    if (/^repos\/[^/]+\/[^/]+\/compare\/.+$/u.test(path)) return 'rest.compare';
+    if (/^repos\/[^/]+\/[^/]+\/issues\/\d+$/u.test(path)) return 'rest.issue.get';
     return 'unknown';
 }
 

@@ -13,7 +13,8 @@ import { useTranslation } from '../../i18n';
  */
 export function SessionRevealRow({
     ariaLabel: ariaLabelOverride,
-    count,
+    count = 0,
+    direction = 'more',
     level = 2,
     projectTitle,
     roving,
@@ -29,7 +30,14 @@ export function SessionRevealRow({
      * How many Sessions this activation reveals; the visible label (`Show N more`) and the accessible name both carry
      * it.
      */
-    count: number;
+    count?: number;
+    /**
+     * `more` (default) is the `Show N more` row that closes a windowed list; `fewer` is the `Show fewer` row that folds
+     * a revealed list back to its default rows. It sits after those default rows rather than at the list end, where the
+     * pointer already is after a reveal (the lesson the subagent toggle learned: a trailing fold below a long list was
+     * never reached).
+     */
+    direction?: 'fewer' | 'more';
     /**
      * The row's `aria-level`: 2 under a group heading, 3 under a Session row (a host's nested Sessions).
      */
@@ -43,21 +51,26 @@ export function SessionRevealRow({
     onReveal: () => void;
 }) {
     const { t } = useTranslation();
+    const isFewer = direction === 'fewer';
     const ariaLabel =
         ariaLabelOverride ??
-        (projectTitle === undefined
-            ? t(
-                  count === 1
-                      ? 'primarySidebar.pinned.revealAriaLabelOne'
-                      : 'primarySidebar.pinned.revealAriaLabelOther',
-                  { count },
-              )
-            : t(
-                  count === 1
-                      ? 'primarySidebar.project.revealAriaLabelOne'
-                      : 'primarySidebar.project.revealAriaLabelOther',
-                  { count, title: projectTitle },
-              ));
+        (isFewer
+            ? projectTitle === undefined
+                ? t('primarySidebar.pinned.showFewerAriaLabel')
+                : t('primarySidebar.project.showFewerAriaLabel', { title: projectTitle })
+            : projectTitle === undefined
+              ? t(
+                    count === 1
+                        ? 'primarySidebar.pinned.revealAriaLabelOne'
+                        : 'primarySidebar.pinned.revealAriaLabelOther',
+                    { count },
+                )
+              : t(
+                    count === 1
+                        ? 'primarySidebar.project.revealAriaLabelOne'
+                        : 'primarySidebar.project.revealAriaLabelOther',
+                    { count, title: projectTitle },
+                ));
     return (
         <button
             className="session-reveal mt-0.5 ml-5.5 flex h-6 w-fit max-w-[calc(100%-22px)] cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent px-2 text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
@@ -69,7 +82,11 @@ export function SessionRevealRow({
             tabIndex={roving ? 0 : -1}
             onClick={onReveal}
         >
-            <span className="truncate">{t('primarySidebar.reveal.showMore', { count })}</span>
+            <span className="truncate">
+                {isFewer
+                    ? t('primarySidebar.reveal.showFewer')
+                    : t('primarySidebar.reveal.showMore', { count })}
+            </span>
         </button>
     );
 }
