@@ -114,17 +114,19 @@ describe('createAgentChatStreamPacer', () => {
         expect(pacer.next('x'.repeat(2_000), 5_000).length).toBeLessThan(1_500);
     });
 
-    it('drains a finished reply quickly without showing it whole on one frame', () => {
+    it("types a finished reply's rest out evenly instead of showing it whole on one frame", () => {
         const pacer = createAgentChatStreamPacer();
         const partial = 'x'.repeat(100);
         reveal(pacer, partial);
-        const finished = `${partial}${'y'.repeat(900)}`;
-        const lengths: number[] = [];
-        for (let now = 2_000; lengths.at(-1) !== finished.length; now += 32)
+        const finished = `${partial}${'y'.repeat(650)}`;
+        // A phone busy re-parsing a long reply redraws every 50 to 80ms.
+        const lengths = [partial.length];
+        for (let now = 2_000; lengths.at(-1) !== finished.length; now += 60)
             lengths.push(pacer.next(finished, now, { finish: true }).length);
-        expect(lengths[0]).toBeLessThan(finished.length);
-        // Out within about 400ms of 32ms redraws.
-        expect(lengths.length).toBeLessThanOrEqual(13);
+        const steps = lengths.slice(1).map((length, index) => length - (lengths[index] ?? 0));
+        // No frame reveals more than a fifth of the tail, and the tail is out within about 400ms.
+        expect(Math.max(...steps)).toBeLessThanOrEqual(650 / 5);
+        expect(steps.length * 60).toBeLessThanOrEqual(480);
     });
 
     it('shows a rewound or edited reply whole at once', () => {

@@ -6,8 +6,9 @@
  *
  * It never holds text back for long: the first character of a reply shows on the first frame, a backlog drains in
  * roughly {@link AGENT_CHAT_STREAM_DRAIN_MS}, and once the reply's stream ends (the turn completes, fails, or is
- * interrupted) a caller either shows the whole text or drains the rest within a few hundred milliseconds with `finish`.
- * LobeHub's `useSmoothStreamContent` paces its replies the same way, with an adaptive rate and a short buffer.
+ * interrupted) a caller either shows the whole text or types the rest out at an even rate within
+ * {@link FINISH_DURATION_MS} with `finish`. LobeHub's `useSmoothStreamContent` paces its replies the same way, with an
+ * adaptive rate and a short buffer.
  *
  * The buffer adapts to how text arrives. Over a local connection (Desktop) deltas land every few milliseconds and the
  * reveal trails by about {@link AGENT_CHAT_STREAM_DRAIN_MS}. Over a phone's cellular or VPN link the same stream lands
@@ -43,16 +44,17 @@ const NOMINAL_FRAME_MS = 16;
 const MAX_FRAME_MS = 160;
 
 /**
- * How long, roughly, the rest of a reply takes to show once its stream ended (see `finish`): quick enough that a
- * completed turn is never left mid-reveal, slow enough that the tail still reads as typing rather than a jump.
+ * How long the rest of a reply takes to show once its stream ended (see `finish`): the hidden tail types out at one
+ * even rate over this window, quick enough that a completed turn is never left mid-reveal and slow enough that a long
+ * tail still reads as typing. A share-per-frame drain front-loaded it instead: on a phone redrawing every 50 to 80ms,
+ * 650 hidden characters appeared in two frames.
  */
-const FINISH_DRAIN_MS = 120;
+const FINISH_DURATION_MS = 400;
 
 /**
- * The slowest reveal of a finished reply's rest, in characters per millisecond, so even a long hidden tail is out in
- * well under half a second.
+ * The slowest reveal of a finished reply's rest, in characters per millisecond, so a short tail does not crawl.
  */
-const FINISH_MIN_RATE_PER_MS = 3;
+const FINISH_MIN_RATE_PER_MS = 0.4;
 
 /**
  * The longest drain window a clumpy link stretches to, so text that already arrived never waits more than about this.
@@ -106,9 +108,8 @@ export interface AgentChatStreamPacer {
      * reply whose window moved) keeps easing in after that point; any other `target` that does not extend what is shown
      * (a rewound or edited reply) is shown whole at once.
      *
-     * With `finish`, the stream has ended and `target` is the whole reply: the rest drains within a few hundred
-     * milliseconds instead of at the stream's pace, so the tail never lands as one block the moment the turn
-     * completes.
+     * With `finish`, the stream has ended and `target` is the whole reply: the rest types out at one even rate over
+     * about 400ms instead of at the stream's pace, so the tail never lands as one block the moment the turn completes.
      */
     next(target: string, now: number, options?: { finish?: boolean }): string;
 }
@@ -121,6 +122,11 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
     let shown = initial;
     let lastFrameAt: number | undefined;
     let carry = 0;
+    /**
+     * The even rate, in characters per millisecond, a finished reply's tail drains at, fixed on the first `finish`
+     * frame from the tail's length; `undefined` while the stream is live.
+     */
+    let finishRate: number | undefined;
     /**
      * When `target` last grew and how long it was then, and the running averages of the gap between arrivals and of the
      * arrival rate (characters per millisecond); `undefined` until two arrivals were seen.
@@ -149,6 +155,7 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
                     shown = target;
                     carry = 0;
                     lastFrameAt = undefined;
+                    finishRate = undefined;
                     return shown;
                 }
                 shown = aligned;
@@ -159,30 +166,33 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
                 // Caught up: the next burst starts from a nominal frame, not from the pause before it.
                 lastFrameAt = undefined;
                 carry = 0;
+                finishRate = undefined;
                 return shown;
             }
             const gap =
                 lastFrameAt === undefined ? NOMINAL_FRAME_MS : Math.max(now - lastFrameAt, 0);
             const elapsed = gap > MAX_FRAME_MS ? NOMINAL_FRAME_MS : gap;
             lastFrameAt = now;
-            const isFinishing = options?.finish === true;
-            const drainMs = isFinishing
-                ? FINISH_DRAIN_MS
-                : Math.min(
-                      MAX_DRAIN_MS,
-                      Math.max(
-                          AGENT_CHAT_STREAM_DRAIN_MS,
-                          (arrivalGapMs ?? 0) * DRAIN_PER_ARRIVAL_GAP,
-                      ),
-                  );
-            // Keeping pace with arrivals replaces the fixed floor once the rate is known, so a slow, clumpy stream
-            // keeps moving between clumps instead of racing ahead and stopping.
-            const floorPerMs = isFinishing
-                ? FINISH_MIN_RATE_PER_MS
-                : arrivalRate === undefined
-                  ? MIN_CHARACTERS_PER_SECOND / 1_000
-                  : Math.min(arrivalRate, MAX_FOLLOWED_RATE_PER_MS);
-            carry += Math.max(floorPerMs * elapsed, (backlog * elapsed) / drainMs);
+            if (options?.finish === true) {
+                finishRate ??= Math.max(backlog / FINISH_DURATION_MS, FINISH_MIN_RATE_PER_MS);
+                carry += finishRate * elapsed;
+            } else {
+                finishRate = undefined;
+                const drainMs = Math.min(
+                    MAX_DRAIN_MS,
+                    Math.max(
+                        AGENT_CHAT_STREAM_DRAIN_MS,
+                        (arrivalGapMs ?? 0) * DRAIN_PER_ARRIVAL_GAP,
+                    ),
+                );
+                // Keeping pace with arrivals replaces the fixed floor once the rate is known, so a slow, clumpy stream
+                // keeps moving between clumps instead of racing ahead and stopping.
+                const floorPerMs =
+                    arrivalRate === undefined
+                        ? MIN_CHARACTERS_PER_SECOND / 1_000
+                        : Math.min(arrivalRate, MAX_FOLLOWED_RATE_PER_MS);
+                carry += Math.max(floorPerMs * elapsed, (backlog * elapsed) / drainMs);
+            }
             let count = Math.min(Math.floor(carry), backlog);
             // The first character of a reply shows at once, so pacing never reads as a slow start.
             if (count === 0 && shown.length === 0) count = 1;
@@ -196,6 +206,7 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
                 // Caught up on this frame: the next burst starts from a nominal frame, as above.
                 lastFrameAt = undefined;
                 carry = 0;
+                finishRate = undefined;
             }
             return shown;
         },

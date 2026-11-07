@@ -62,9 +62,16 @@ const ConversationAgentMessage = ({
 }) => {
     const [mountedAt] = useState(() => performance.now());
     const paced = useConversationPacedText(text, isStreaming);
+    /**
+     * Once a reply paced in this mount it keeps fading after the pacing ends: the last characters reach the screen
+     * nearly transparent, and dropping the reveal then drew them all opaque at once, the block the pacing exists to
+     * avoid.
+     */
+    const [hasPaced, setHasPaced] = useState(paced.isPacing);
+    if (!hasPaced && paced.isPacing) setHasPaced(true);
     return (
         <ConversationMarkdown
-            reveal={paced.isPacing ? { since: mountedAt, textShownAt: paced.shownAt } : undefined}
+            reveal={hasPaced ? { since: mountedAt, textShownAt: paced.shownAt } : undefined}
             text={paced.text}
             theme={theme}
         />
