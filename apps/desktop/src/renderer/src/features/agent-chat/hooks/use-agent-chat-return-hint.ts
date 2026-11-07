@@ -136,11 +136,17 @@ export function useAgentChatReturnHintSlot(
         const slot = slotReference.current;
         const view = slot?.parentElement;
         if (!slot || !view) return;
+        /**
+         * Fractional rects, not `offsetTop`/`offsetHeight`/`clientHeight`: the rounded ones misplace the view's bottom
+         * by a fraction of a pixel when its height is fractional.
+         */
+        const viewRect = view.getBoundingClientRect();
+        const slotRect = slot.getBoundingClientRect();
         const height = agentChatReturnHintSlotHeight({
-            height: slot.offsetHeight,
+            height: slotRect.height,
             isShown,
-            slotTop: slot.offsetTop,
-            viewBottom: view.scrollTop + view.clientHeight,
+            slotTop: slotRect.top - viewRect.top + view.scrollTop,
+            viewBottom: view.scrollTop + viewRect.height,
         });
         // Runs on every scroll event, so an unchanged height is not written back to invalidate layout.
         const next = `${height}px`;

@@ -1,6 +1,8 @@
 import type { AgentChatItem, AgentChatTurn } from '@caxri/protocol';
 import { isAgentChatItemVisible } from '@caxri/protocol';
 
+import { isSubpixelShrink } from '../../../lib/subpixel-shrink';
+
 /**
  * The window of time the user was away from a Session: `boundary` is when they last looked at it, `capturedAt` is when
  * they came back. Turns that finish after `capturedAt` happen in front of the user and are not "new" to them.
@@ -93,7 +95,9 @@ export const AGENT_CHAT_RETURN_HINT_SLOT_PX = 40;
  * slot holds the hint's room. Once it clears, the slot keeps only the part still at or above the view's bottom
  * (`viewBottom - slotTop`, both in the scroll content's coordinates), so scrolling back consumes it and it never grows
  * back. Dropping it at once would shorten the content under a view resting at its end, and the browser would clamp the
- * view, shifting the whole transcript down as the hint fades.
+ * view, shifting the whole transcript down as the hint fades. A shrink that is only measurement noise keeps `height`
+ * ({@link isSubpixelShrink}); otherwise a view of fractional height slid one device pixel per frame until the slot was
+ * gone.
  */
 export function agentChatReturnHintSlotHeight({
     height,
@@ -101,11 +105,15 @@ export function agentChatReturnHintSlotHeight({
     slotTop,
     viewBottom,
 }: {
+    /**
+     * The slot's laid-out height before this measurement.
+     */
     height: number;
     isShown: boolean;
     slotTop: number;
     viewBottom: number;
 }): number {
     if (isShown) return AGENT_CHAT_RETURN_HINT_SLOT_PX;
-    return Math.max(Math.min(height, viewBottom - slotTop), 0);
+    const next = Math.max(Math.min(height, viewBottom - slotTop), 0);
+    return isSubpixelShrink(height, next) ? height : next;
 }
