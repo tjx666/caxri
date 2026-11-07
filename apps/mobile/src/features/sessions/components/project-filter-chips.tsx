@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { StyleSheet } from 'react-native';
@@ -8,6 +9,7 @@ import Animated, {
     scrollTo,
     useAnimatedRef,
     useAnimatedStyle,
+    useDerivedValue,
     useFrameCallback,
     useScrollOffset,
     useSharedValue,
@@ -239,15 +241,16 @@ export const ProjectFilterChips = ({
                     label={t('sessions.home.allProjects')}
                     onPress={() => onChooseProject(null)}
                     selected={activeProjectId === null}
-                    selectionFill={
+                    selectionFill={(selectedContent) => (
                         <ChipSelectionFill
                             allSlot={allSlot}
                             page={0}
                             pageProgress={pageProgress}
+                            selectedContent={selectedContent}
                             slots={drag.slots}
                             theme={theme}
                         />
-                    }
+                    )}
                     testID="project-filter-all"
                     theme={theme}
                 />
@@ -422,15 +425,16 @@ const ProjectChip = ({
                     }}
                     onPress={() => onChoose(project.id)}
                     selected={selected}
-                    selectionFill={
+                    selectionFill={(selectedContent) => (
                         <ChipSelectionFill
                             allSlot={allSlot}
                             page={index + 1}
                             pageProgress={pageProgress}
+                            selectedContent={selectedContent}
                             slots={slots}
                             theme={theme}
                         />
-                    }
+                    )}
                     testID={`project-filter-${project.id}`}
                     theme={theme}
                 />
@@ -442,16 +446,22 @@ const ProjectChip = ({
 /**
  * One chip's share of the Project filters' highlight. The highlight is a single pill in strip coordinates; each chip
  * draws it relative to its own place and clips it to its pill, so while a swipe carries the highlight from one chip to
- * the next it leaves the first and enters the second. Drawing it inside the chip keeps it under the label and lets it
- * move with a chip that is being dragged to a new place.
+ * the next it leaves the first and enters the second. Inside it the chip's label is drawn again in the selected colors,
+ * held still against the chip, so the label changes color exactly where the highlight covers it. Drawing it inside the
+ * chip also lets it move with a chip that is being dragged to a new place.
  */
 const ChipSelectionFill = ({
     allSlot,
     page,
     pageProgress,
+    selectedContent,
     slots,
     theme,
 }: {
+    /**
+     * The chip's content in the selected colors, laid out from the chip's left edge.
+     */
+    selectedContent: ReactNode;
     allSlot: SharedValue<ProjectChipSlot | undefined>;
     /**
      * This chip's page: 0 for All, then each Project.
@@ -464,7 +474,7 @@ const ChipSelectionFill = ({
     slots: SharedValue<ProjectChipSlot[]>;
     theme: MobileTheme;
 }) => {
-    const animatedStyle = useAnimatedStyle(() => {
+    const fill = useDerivedValue(() => {
         const pageSlots = [allSlot.get(), ...slots.get()];
         const own = pageSlots[page];
         const highlight = projectChipIndicator(pageProgress.get(), pageSlots);
@@ -478,11 +488,18 @@ const ChipSelectionFill = ({
             };
         return { left: highlight.x - own.x, opacity: 1, width: highlight.width };
     });
+    const fillStyle = useAnimatedStyle(() => fill.get());
+    // Cancels the fill's offset, so the recolored label stays exactly over the chip's own label.
+    const contentStyle = useAnimatedStyle(() => ({ left: -fill.get().left }));
     return (
         <Animated.View
             pointerEvents="none"
-            style={[styles.selectionFill, { backgroundColor: theme.primary }, animatedStyle]}
-        />
+            style={[styles.selectionFill, { backgroundColor: theme.primary }, fillStyle]}
+        >
+            <Animated.View style={[styles.selectionContent, contentStyle]}>
+                {selectedContent}
+            </Animated.View>
+        </Animated.View>
     );
 };
 
@@ -494,9 +511,11 @@ const styles = StyleSheet.create({
     },
     // The strip has a row of its own under the header, so it takes the chips' height rather than growing to fill.
     scroll: { flexGrow: 0 },
+    selectionContent: { position: 'absolute', top: 0 },
     selectionFill: {
         borderRadius: mobileRadius.pill,
         bottom: 0,
+        overflow: 'hidden',
         position: 'absolute',
         top: 0,
     },
