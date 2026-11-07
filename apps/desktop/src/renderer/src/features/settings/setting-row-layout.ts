@@ -40,6 +40,7 @@ const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['typ
     'provider-launch',
     'provider-recovery',
     'provider-skill-health',
+    'session-menu',
     'terminal-reference-links',
     'trusted-domains',
     'trusted-folders',

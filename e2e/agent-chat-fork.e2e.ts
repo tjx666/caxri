@@ -120,20 +120,21 @@ test('Fork Session copies a whole Codex Chat into a new Session from the sidebar
 
         const row = page.locator(`.project-group [data-session-id="${source}"]`);
         await row.click({ button: 'right' });
-        // The Session itself, Fork and Continue, its Agent, where to open it, Copy, and the two removals last.
+        // The built-in layout: closing actions first, the Agent, Fork and hand-offs, where to open it, Rename, and
+        // Delete alone at the end.
         expect(await contextMenuLabels(app)).toEqual([
-            'Rename',
-            'Rename with AI',
+            'Archive',
             'Pin',
-            'Hand Over to Caxri Bot…',
-            'Fork Session',
-            'Continue in Another Agent',
+            'Detach Agent',
             'Open as Terminal',
             'Restart Agent',
-            'Detach Agent',
+            'Fork Session',
+            'Continue in Another Agent',
+            'Hand Over to Caxri Bot…',
             'Open Project in Editor',
             'Copy',
-            'Archive',
+            'Rename',
+            'Rename with AI',
             'Delete Session…',
         ]);
         expect(await isContextMenuItemEnabled(app, ['Copy', 'Conversation ID'])).toBe(true);

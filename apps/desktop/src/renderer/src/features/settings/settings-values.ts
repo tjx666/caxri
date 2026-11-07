@@ -75,6 +75,8 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return settings['terminal.referenceLinks'].length > 0;
         case 'ignored-checks':
             return settings['projectStatus.ignoredChecks'].length > 0;
+        case 'session-menu':
+            return settings['primarySidebar.sessionMenu'] !== null;
         case 'long-running-commands':
             return !isEqual(
                 settings['agents.longRunningShellCommands'],
@@ -212,6 +214,8 @@ export function rowResetAction(
             return { kind: 'field', key: 'terminal.referenceLinks', value: [] };
         case 'ignored-checks':
             return { kind: 'field', key: 'projectStatus.ignoredChecks', value: [] };
+        case 'session-menu':
+            return { kind: 'field', key: 'primarySidebar.sessionMenu', value: null };
         case 'long-running-commands':
             return {
                 kind: 'field',

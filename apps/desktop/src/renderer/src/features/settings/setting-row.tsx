@@ -35,6 +35,7 @@ import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './pro
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import { RelayConnectionStatus } from './relay-connection-status';
+import { SessionMenuForm } from './session-menu-form';
 import { SettingEnumControl } from './setting-enum-control';
 import { SettingRowChrome } from './setting-row-chrome';
 import { isFullWidthRow } from './setting-row-layout';
@@ -438,6 +439,15 @@ function rowControl(
                     <IgnoredChecksForm
                         rules={settings['projectStatus.ignoredChecks']}
                         onChange={(rules) => onFieldChange('projectStatus.ignoredChecks', rules)}
+                    />
+                ),
+            };
+        case 'session-menu':
+            return {
+                control: (
+                    <SessionMenuForm
+                        value={settings['primarySidebar.sessionMenu']}
+                        onChange={(layout) => onFieldChange('primarySidebar.sessionMenu', layout)}
                     />
                 ),
             };

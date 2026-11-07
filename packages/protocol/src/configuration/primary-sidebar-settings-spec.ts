@@ -29,6 +29,25 @@ export const primarySidebarSettingsSpec = [
         default: true,
     },
     {
+        kind: 'complex',
+        key: 'primarySidebar.sessionMenu',
+        title: 'Session menu',
+        description:
+            "Order and show the actions in a Session's right-click menu. Drag to reorder; hidden actions keep their place.",
+        category: 'general',
+        keywords: [
+            'primarySidebar',
+            'context menu',
+            'right-click',
+            'order',
+            'reorder',
+            'customize',
+            'hide',
+            'archive',
+            'rename',
+        ],
+    },
+    {
         kind: 'boolean',
         key: 'agentActivity.showExcerpts',
         title: 'Show Agent excerpts in Activity',

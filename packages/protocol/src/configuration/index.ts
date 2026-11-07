@@ -6,6 +6,7 @@ export * from './environment-monitor-settings.js';
 export * from './i18n-interpolate.js';
 export * from './ignored-checks.js';
 export * from './language-settings-spec.js';
+export * from './session-menu-layout.js';
 export * from './settings-changes.js';
 export * from './settings-schema.js';
 export * from './settings-spec.js';

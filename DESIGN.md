@@ -1924,6 +1924,12 @@ popup itself hold focus until then.
   that row holds focus, and `F2` renames the selected Session from anywhere. The shortcuts exist
   because showing the side bar has never moved focus into it, so neither the context menu nor the
   command palette could otherwise advertise a chord that worked from anywhere.
+- A right-click menu's order never changes with usage: people reach its entries by position, so a
+  reshuffled menu turns muscle memory into misclicks. The Session row menu instead ships a fixed,
+  usage-ordered default (the actions that close out a Session first, Rename low because double-click,
+  `Enter`, and `F2` already reach it, Delete alone at the end) and lets the user reorder, hide, and
+  separate entries in Settings (`primarySidebar.sessionMenu`, `null` until customized so the default
+  can keep evolving).
 - Right-click menus are native OS menus. A surface attaches one with `useContextMenu` or
   `ContextMenuTrigger` and a builder that returns plain entries when the menu opens; Main shows it
   through `contextMenu.show` and hands back only the chosen entry, once the menu has closed, so an

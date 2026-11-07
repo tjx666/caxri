@@ -103,6 +103,10 @@ export const settingsCatalog = {
     'settings.primarySidebar.showSubagents.description':
         "List a Chat Agent's subagents under its Session.",
 
+    'settings.primarySidebar.sessionMenu.title': 'Session menu',
+    'settings.primarySidebar.sessionMenu.description':
+        "Order and show the actions in a Session's right-click menu. Drag to reorder; hidden actions keep their place.",
+
     'settings.agentActivity.showExcerpts.title': 'Show Agent excerpts in Activity',
     'settings.agentActivity.showExcerpts.description':
         'Under each Activity row, quote what the Agent last asked or said, or its one-line recap. Off keeps rows to a title and a status line.',

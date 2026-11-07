@@ -45,6 +45,7 @@ describe('isFullWidthRow', () => {
         { type: 'provider-launch', provider: 'claude', field: 'executable' },
         { type: 'provider-recovery', provider: 'claude' },
         { type: 'provider-skill-health', provider: 'claude' },
+        { type: 'session-menu' },
         { type: 'terminal-reference-links' },
         { type: 'trusted-domains' },
         { type: 'trusted-folders' },
