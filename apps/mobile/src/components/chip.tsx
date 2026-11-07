@@ -118,8 +118,6 @@ export const Chip = ({
             {selectionFill?.(
                 <View
                     accessibilityElementsHidden
-                    // Fabric could flatten this layout-only row into the moving highlight; keep its own native view.
-                    collapsable={false}
                     importantForAccessibility="no-hide-descendants"
                     style={styles.content}
                 >

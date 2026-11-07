@@ -230,11 +230,7 @@ export const ProjectFilterChips = ({
             style={styles.scroll}
             testID="session-project-filters"
         >
-            {/* A style-less wrapper is layout-only, and Fabric flattens it into the strip. With it flattened, the app
-                crashed mid-scroll on Android inserting a view past the strip's last child (`addViewAt ... index=3
-                count=2`), so this one and the highlight's label layer keep a native view of their own. */}
             <Animated.View
-                collapsable={false}
                 onLayout={(event) => {
                     const { width, x } = event.nativeEvent.layout;
                     allSlot.set({ width, x });
@@ -500,7 +496,7 @@ const ChipSelectionFill = ({
             pointerEvents="none"
             style={[styles.selectionFill, { backgroundColor: theme.primary }, fillStyle]}
         >
-            <Animated.View collapsable={false} style={[styles.selectionContent, contentStyle]}>
+            <Animated.View style={[styles.selectionContent, contentStyle]}>
                 {selectedContent}
             </Animated.View>
         </Animated.View>
