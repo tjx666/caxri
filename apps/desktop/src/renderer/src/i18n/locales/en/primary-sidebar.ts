@@ -185,7 +185,8 @@ export const primarySidebar = {
     // Session status slot
     'primarySidebar.status.unread': 'Unread',
     'primarySidebar.status.unreadWithKind': 'Unread, {{kind}}',
-    'primarySidebar.status.currentStatus': ' Current status: {{status}}.',
+    'primarySidebar.status.pending': 'Needs attention',
+    'primarySidebar.status.pendingWithKind': 'Needs attention, {{kind}}',
     'primarySidebar.status.detached.label': 'Detached',
     'primarySidebar.status.detached.description':
         'The Agent was stopped so another client can resume it.',

@@ -1012,15 +1012,16 @@ xterm on each frame), Project drag settlement, folder glyph changes, Terminal pa
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
-The Session status icon is the narrow state-motion exception: unread attention pings so a newly
-actionable event is noticeable, and running spins an arc around the Agent icon. Amber pings three
-times when the event arrives and three more times whenever the window regains focus, then holds
-still: the ripple's job is to be noticed, the amber color already marks the row once it has been,
-and an endless ripple kept the Renderer and compositor busy for as long as a Session waited. An
-unread event is the only thing that colors the Agent icon, so the still amber dot never competes
-with it; the collapsed Project heading's static warning dot summarizes the same rows. The
-motion belongs to the ring, never the Agent mark itself; swapping among the three list projections
-remains instant.
+The Session status icon is the narrow state-motion exception: Pending Attention breathes in amber
+for as long as the item waits on the user, and running spins an arc. The breathing is an opacity
+pulse on an HTML wrapper, which the compositor runs off the main thread, with every attention glyph
+on one shared phase, like the running arcs: a scale-and-fade ripple left running endlessly kept the
+Renderer busy, so the ripple still plays only three times when an unread event arrives and three
+more whenever the window regains focus. A Needs attention row in the Activity view and in the
+Project tree carries the same breathing glyph until it is marked Done, so the two list bodies never
+disagree about what still needs the user. The collapsed Project heading's static warning dot
+summarizes the same rows. The motion belongs to the status glyph, never the Agent mark itself;
+swapping among the three list projections remains instant.
 
 A streaming Agent Chat reply is a content-motion exception, as in the Codex app: each run of
 characters the stream pacer adds fades in from transparent (`.text-reveal`,

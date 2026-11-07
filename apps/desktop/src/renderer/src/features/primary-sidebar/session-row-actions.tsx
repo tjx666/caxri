@@ -25,25 +25,48 @@ export const sessionRowActionButton =
  * of painting through the transparent Lucide strokes.
  */
 export function SessionRowActions({ session }: { session: SessionRecord }) {
-    const { t } = useTranslation();
     return (
         <div className="session-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100">
             <SessionPinButton session={session} />
-            <Tooltip content={t('primarySidebar.sessionRow.archive')} shortcut="delete">
-                <button
-                    type="button"
-                    className={sessionRowActionButton}
-                    aria-label={t('primarySidebar.sessionRow.archiveAriaLabel', {
-                        title: sessionTitleForDisplay(session.title, t),
-                    })}
-                    aria-keyshortcuts="Delete"
-                    tabIndex={-1}
-                    onClick={() => archiveSession(session.id)}
-                >
-                    <Archive size={12} />
-                </button>
-            </Tooltip>
+            <SessionArchiveButton deleteArchives session={session} />
         </div>
+    );
+}
+
+/**
+ * The hover Archive chip, shared by the Project tree row and the Activity Needs attention row. `deleteArchives` names
+ * Delete as its shortcut where that key archives (the Project tree); in Activity, Delete marks the row Done instead, so
+ * the chip there advertises no key.
+ */
+export function SessionArchiveButton({
+    deleteArchives = false,
+    session,
+}: {
+    deleteArchives?: boolean;
+    session: Pick<SessionRecord, 'id' | 'title'>;
+}) {
+    const { t } = useTranslation();
+    return (
+        <Tooltip
+            content={t('primarySidebar.sessionRow.archive')}
+            shortcut={deleteArchives ? 'delete' : undefined}
+        >
+            <button
+                type="button"
+                className={`${sessionRowActionButton} session-archive-button`}
+                aria-label={t('primarySidebar.sessionRow.archiveAriaLabel', {
+                    title: sessionTitleForDisplay(session.title, t),
+                })}
+                aria-keyshortcuts={deleteArchives ? 'Delete' : undefined}
+                tabIndex={-1}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    archiveSession(session.id);
+                }}
+            >
+                <Archive aria-hidden="true" size={12} />
+            </button>
+        </Tooltip>
     );
 }
 

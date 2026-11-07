@@ -233,7 +233,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         );
         await expect(gammaRow).not.toHaveAttribute('data-activity-group', 'attention');
         expect(await titleLeft(betaRow)).toBe(await titleLeft(gammaRow));
-        await expect(betaRow.locator('.agent-activity-mark')).toHaveText('?');
+        // The question's `?` is the leading status glyph, so the metadata line repeats no mark of its own.
+        await expect(betaRow.locator('.session-status')).toHaveAttribute(
+            'data-attention-variant',
+            'waiting',
+        );
+        await expect(betaRow.locator('.agent-activity-mark')).toHaveCount(0);
         await expect(betaRow.locator('.agent-activity-note')).toHaveText('Waiting for you');
         await expect(betaRow).toHaveAttribute('aria-keyshortcuts', /Delete Backspace/u);
         // A finished result has no question, so its metadata line carries no state phrase.
@@ -285,15 +290,8 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             }),
         ).toBeGreaterThanOrEqual(8);
         expect(await betaRow.evaluate((row) => row.getBoundingClientRect().height)).toBe(rowHeight);
-        // The waiting mark leads the clipped line, so the state survives a width too narrow for its phrase.
-        expect(
-            await betaRow.locator('.agent-activity-mark').evaluate((mark) => {
-                const metadata = mark.closest('.agent-activity-metadata')!;
-                return (
-                    mark.getBoundingClientRect().bottom <= metadata.getBoundingClientRect().bottom
-                );
-            }),
-        ).toBe(true);
+        // The leading `?` glyph keeps the state readable at a width too narrow for its phrase.
+        await expect(betaRow.locator('.session-status')).toBeVisible();
         expect(
             await betaRow.locator('.agent-activity-time').evaluate((time) => {
                 const metadata = time.parentElement!;
@@ -327,17 +325,9 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await divider.dblclick();
         await expect(divider).toHaveAttribute('aria-valuenow', '230');
         /*
-         * At the default width the mark and the Project still lead the line; the phrase and the time follow only where
-         * the line has room, so a long Project never loses width to them.
+         * At the default width the Project still leads the line; the phrase and the time follow only where the line has
+         * room, so a long Project never loses width to them.
          */
-        expect(
-            await betaRow.locator('.agent-activity-mark').evaluate((mark) => {
-                const metadata = mark.closest('.agent-activity-metadata')!;
-                return (
-                    mark.getBoundingClientRect().bottom <= metadata.getBoundingClientRect().bottom
-                );
-            }),
-        ).toBe(true);
         await expect
             .poll(() =>
                 betaRow
@@ -413,6 +403,19 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             alphaRow.evaluate((row) => row.getBoundingClientRect().right),
         ]);
         expect(rowRight - checkRight).toBeLessThanOrEqual(8);
+        // Archive shows beside it, to its left, so a handled item can be thrown away without the context menu.
+        const archiveAlpha = page.getByRole('button', { name: 'Archive alpha work' });
+        await expect(archiveAlpha).toHaveCSS('opacity', '1');
+        expect(
+            await archiveAlpha.evaluate((button) => button.getBoundingClientRect().right),
+        ).toBeLessThan(
+            await markAlphaDone.evaluate((button) => button.getBoundingClientRect().left),
+        );
+        // The Needs attention row leads its title with the breathing amber glyph.
+        await expect(alphaRow.locator('.session-status')).toHaveAttribute(
+            'data-session-status',
+            'attention',
+        );
         await page.screenshot({
             path: test.info().outputPath('activity-mark-done-hover.png'),
             mask: [page.locator('.xterm')],

@@ -30,9 +30,10 @@ export type SessionStatus =
     | (VisibleSessionStatus & {
           kind: 'attention';
           /**
-           * True for the static amber cue of a permission request or an escalated question the user must decide
-           * (`approvalPending`): it does not animate and is not cleared by reading the Session, only by the request
-           * leaving the feed.
+           * True once the user has seen the item but it still waits on them: Pending Attention that was read but not
+           * marked Done, or a permission request or escalated question only the user can decide (`approvalPending`).
+           * The glyph keeps its steady pulse but skips the arrival ripple, which belongs to news the user has not
+           * seen.
            */
           isPending?: boolean;
           variant: SessionAttentionVariant;
@@ -54,31 +55,34 @@ export interface SessionStatusTerminal {
 
 type SessionStatusSource = Pick<
     SessionRecord,
-    'hasUnread' | 'agentActivityState' | 'lastAttentionKind'
+    'hasUnread' | 'hasPendingAttention' | 'agentActivityState' | 'lastAttentionKind'
 >;
 
 /**
- * Projects the detailed Agent lifecycle into the single status slot shared by Session lists.
+ * Projects the detailed Agent lifecycle into the single status slot shared by Session lists, by the same rule
+ * `sessionActivityGroup` files Activity rows: whatever group a row sits in, its glyph says the same thing in the
+ * Project tree, the Activity view, and the MRU switcher.
  *
  * A Chat waiting for a plan limit to reset (issue caxri#2220) outranks everything: it asks nothing of the user and
  * continues by itself, so the clock replaces the failure or unread cue the limit left behind. The cue returns when the
  * wait ends.
  *
- * The amber attention slot means an event the user has not opened yet: the animated unread state, which clears once the
- * Session is read. There is exactly one quieter "still waiting" cue, and it is gated: `approvalPending`, passed only
- * for a nested Session whose delegation feed entry carries a permission request or an escalated question that waits on
- * the user (`isDelegationUserPending`). It stays static amber after the Session is read, because reading does not
- * decide the request, and clears when the request or question leaves the feed (decided, answered, withdrawn, or the
- * task ended). It raises no notification. It is never keyed off `agentActivityState` alone: that state is not
- * Chat-specific, and a Terminal (PTY) Session with a stale `waiting` would keep an amber cue no amount of reading could
- * clear, which is why the ungated static variant was removed. A Terminal child never has a feed approval.
+ * The amber attention slot means Pending Attention: a turn ended (finished, waiting on a question, or failed) and the
+ * user has not marked it Done. Reading the Session does not clear it; Mark as Done or a new turn does. Unread attention
+ * is the same item before the user has opened it, and only it plays the arrival ripple. It is never keyed off
+ * `agentActivityState` alone: that state is not Chat-specific, and a Terminal (PTY) Session with a stale `waiting`
+ * would keep an amber cue nothing could clear. The one extra amber source is `approvalPending`, passed only for a
+ * nested Session whose delegation feed entry carries a permission request or an escalated question that waits on the
+ * user (`isDelegationUserPending`); it clears when the request leaves the feed. A Terminal child never has one.
+ *
+ * A live turn outranks attention: a Session whose Agent woke itself while its last result was still unread sits under
+ * Working, so its glyph spins there too. An approval the Agent is blocked on outranks the live turn.
  *
  * `delegationFailed` is the one signal a Session record cannot carry: the delegation that runs in a nested Session
  * ended in `failed` (see `useDelegationFeed`). It only ever changes how a nested row reads, so the caller passes it for
- * those rows alone. Live signals outrank it, because they say the Session is doing something now or asks for you: a
- * usage-limit wait, an approval the Agent is blocked on, and a turn that is running (a follow-up after the failure).
- * Below those, `failed` outranks an unread result and the settled default (a detached Agent keeps its glyph), so a task
- * that failed and was then read still shows it until a later task replaces the failure.
+ * those rows alone. Live signals outrank it: a usage-limit wait, an approval the Agent is blocked on, and a running
+ * turn (a follow-up after the failure). Below those, `failed` replaces an attention result and the settled default (a
+ * detached Agent keeps its glyph), so a task that failed still shows it until a later task replaces the failure.
  */
 export function sessionStatus(
     session: SessionStatusSource,
@@ -100,53 +104,9 @@ export function sessionStatus(
         };
     }
 
-    const isLive = isSessionAgentRunning(session, terminal);
-    const failedStatus = (): SessionStatus => ({
-        ariaDescription: t('primarySidebar.status.failed.description'),
-        ariaLabel: t('primarySidebar.status.failed.label'),
-        kind: 'failed',
-    });
-
-    const currentActivity = sessionActivityPresentation(
-        session.agentActivityState,
-        agentOperation,
-        t,
-    );
-
-    if (session.hasUnread) {
-        // An unread result is news about a task that already ended, which the failure replaces; an unread approval
-        // request or a running turn is not, and stays.
-        if (delegationFailed && !isLive && session.lastAttentionKind !== 'waiting')
-            return failedStatus();
-        const attentionActivity = sessionActivityPresentation(
-            session.lastAttentionKind ?? 'unknown',
-            undefined,
-            t,
-        );
-        const currentStatus = isLive
-            ? t('primarySidebar.status.currentStatus', {
-                  status: currentActivity.label,
-              })
-            : '';
-        return {
-            ariaDescription: `${attentionActivity.description}${currentStatus}`,
-            // `Unread, finished` rather than `Needs attention: Finished`: a finished turn needs nothing, it is unread.
-            ariaLabel:
-                session.lastAttentionKind === undefined
-                    ? t('primarySidebar.status.unread')
-                    : t('primarySidebar.status.unreadWithKind', {
-                          kind: attentionActivity.label.toLowerCase(),
-                      }),
-            kind: 'attention',
-            variant: sessionAttentionVariant(session.lastAttentionKind),
-        };
-    }
-
-    /**
-     * A permission request or an escalated question only the user can answer keeps its amber cue after the Session is
-     * read. It outranks the running and detached glyphs, like unread attention does: the Agent is blocked on it.
-     */
     if (approvalPending) {
+        if (session.hasUnread && session.lastAttentionKind === 'waiting')
+            return attentionStatus(session, t);
         const waiting = sessionActivityPresentation('waiting', undefined, t);
         return {
             ariaDescription: waiting.description,
@@ -159,10 +119,12 @@ export function sessionStatus(
 
     /**
      * A detached Agent was handed to another client on purpose, so whatever activity the last probe recorded is no
-     * longer Caxri's to animate. Unread attention still wins above: it was raised before the hand-over. A live signal
-     * keeps its glyph, so a recorded delegation failure does not replace the detached one.
+     * longer Caxri's to animate. Attention still wins: it was raised before the hand-over. A recorded delegation
+     * failure does not replace the detached glyph either.
      */
+    const hasAttention = session.hasUnread || session.hasPendingAttention;
     if (terminal.lastProcessState === 'detached') {
+        if (hasAttention) return attentionStatus(session, t);
         return {
             ariaDescription: t('primarySidebar.status.detached.description'),
             ariaLabel: t('primarySidebar.status.detached.label'),
@@ -170,7 +132,12 @@ export function sessionStatus(
         };
     }
 
-    if (isLive) {
+    if (isSessionAgentRunning(session, terminal)) {
+        const currentActivity = sessionActivityPresentation(
+            session.agentActivityState,
+            agentOperation,
+            t,
+        );
         return {
             ariaDescription: currentActivity.description,
             ariaLabel: currentActivity.label,
@@ -179,12 +146,50 @@ export function sessionStatus(
         };
     }
 
-    return delegationFailed ? failedStatus() : { kind: 'default' };
+    const failedStatus: SessionStatus = {
+        ariaDescription: t('primarySidebar.status.failed.description'),
+        ariaLabel: t('primarySidebar.status.failed.label'),
+        kind: 'failed',
+    };
+    if (hasAttention) {
+        // A result about a task that already ended is replaced by the failure; a question the Agent asked is not.
+        if (delegationFailed && session.lastAttentionKind !== 'waiting') return failedStatus;
+        return attentionStatus(session, t);
+    }
+
+    return delegationFailed ? failedStatus : { kind: 'default' };
+}
+
+/**
+ * The attention slot for a Session with unread or Pending Attention. `Unread, finished` rather than `Needs attention:
+ * Finished` before it is opened; once read it says `Needs attention, finished` until Mark as Done.
+ */
+function attentionStatus(session: SessionStatusSource, t: Translate): SessionStatus {
+    const attentionActivity = sessionActivityPresentation(
+        session.lastAttentionKind ?? 'unknown',
+        undefined,
+        t,
+    );
+    const kind = attentionActivity.label.toLowerCase();
+    const ariaLabel = session.hasUnread
+        ? session.lastAttentionKind === undefined
+            ? t('primarySidebar.status.unread')
+            : t('primarySidebar.status.unreadWithKind', { kind })
+        : session.lastAttentionKind === undefined
+          ? t('primarySidebar.status.pending')
+          : t('primarySidebar.status.pendingWithKind', { kind });
+    return {
+        ariaDescription: attentionActivity.description,
+        ariaLabel,
+        ...(!session.hasUnread && { isPending: true }),
+        kind: 'attention',
+        variant: sessionAttentionVariant(session.lastAttentionKind),
+    };
 }
 
 export interface SessionStatusSummary {
     /**
-     * Sessions showing unread attention. Attention outranks running in `sessionStatus`, so a Session is counted once.
+     * Sessions showing attention. Running outranks attention in `sessionStatus`, so a Session is counted once.
      */
     attention: number;
     running: number;

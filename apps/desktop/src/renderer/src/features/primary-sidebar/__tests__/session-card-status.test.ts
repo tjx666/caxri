@@ -5,6 +5,7 @@ import { sessionCardStatusLine } from '../session-card-status';
 
 const settled = {
     hasUnread: false,
+    hasPendingAttention: false,
     agentActivityState: 'idle',
     lastAttentionKind: undefined,
 } as const;

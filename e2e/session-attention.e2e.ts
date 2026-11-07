@@ -404,6 +404,23 @@ setInterval(() => {
         const selectedStatus = running.page.locator(
             `[data-session-id="${firstSession.id}"] .session-status`,
         );
+        /**
+         * Reading the Session acknowledges the result but leaves it on the user's plate: the amber glyph stays, now
+         * without the arrival ripple, until Mark as Done.
+         */
+        await expect(selectedStatus).toHaveAttribute('data-attention-pending', '');
+        await expect(selectedStatus).toHaveAccessibleName('Needs attention, finished');
+        await expect(selectedStatus.locator('[data-session-status-ripple]')).toHaveCount(0);
+        const read = await pageRequest<{ sessions: SessionSummary[] }>(
+            running.page,
+            'app.bootstrap',
+        );
+        const readFirst = read.sessions.find((session) => session.id === firstSession.id)!;
+        expect(readFirst.hasUnread).toBe(false);
+        await pageRequest(running.page, 'session.markDone', {
+            attentionGeneration: readFirst.attentionGeneration,
+            sessionId: firstSession.id,
+        });
         await expect(selectedStatus).toHaveAttribute('data-session-status', 'default');
         await expect(selectedStatus).not.toHaveAttribute('data-attention-kind');
         await running.page.screenshot({
