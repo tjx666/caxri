@@ -24,7 +24,6 @@ import {
     firstSessionOfProject,
     sidebarSessionOrder,
 } from '../primary-sidebar/delegated/delegated-order';
-import { mergedPullRequestSessionIds } from '../primary-sidebar/session-pull-request';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { beginSessionSwitchTiming } from '../renderer-performance/jank-monitor';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
@@ -295,17 +294,6 @@ function cachedSessionPullRequest(sessionId: string): SessionPullRequest | undef
     return queryClient.getQueryData<MethodResult<'session.pullRequests'>>(
         caxriQueryKey('session.pullRequests', undefined),
     )?.pullRequests[sessionId];
-}
-
-/**
- * Sessions whose pull request merged, from the same cached snapshot the sidebar rows read, for non-React callers such
- * as `session.focusNextAttention`.
- */
-export function cachedMergedPullRequestSessionIds(): ReadonlySet<string> {
-    const snapshot = queryClient.getQueryData<MethodResult<'session.pullRequests'>>(
-        caxriQueryKey('session.pullRequests', undefined),
-    );
-    return new Set(mergedPullRequestSessionIds(snapshot));
 }
 
 /**

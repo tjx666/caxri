@@ -163,6 +163,12 @@ export const sessionRecordSchema = z.object({
      */
     sessionActivityAt: z.number(),
     /**
+     * When the latest turn started: the user's last submission or the Agent starting work. Equal to `sessionActivityAt`
+     * at that moment, but unlike it not advanced when the turn ends, so Running keeps a Session in place when its turn
+     * ends into a background wait. Absent until the Session's first turn after the column was added.
+     */
+    turnStartedAt: z.number().int().nonnegative().optional(),
+    /**
      * Ascending sidebar position, changed by dragging or meaningful activity.
      */
     sidebarOrder: z.number().int(),

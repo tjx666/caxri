@@ -120,15 +120,10 @@ function groupForSession(
  * queue was never opened (issue caxri#1111).
  */
 export function agentActivityGroups({
-    mergedPullRequestSessionIds,
     projects,
     sessions,
     terminals,
 }: {
-    /**
-     * Sessions whose pull request merged, from the cached pull request snapshot; absent when none is known yet.
-     */
-    mergedPullRequestSessionIds?: ReadonlySet<string>;
     projects: readonly ProjectRecord[];
     sessions: readonly SessionRecord[];
     terminals: readonly TerminalRecord[];
@@ -162,10 +157,9 @@ export function agentActivityGroups({
             order: {
                 attentionResolvedAt: session.attentionResolvedAt,
                 id: session.id,
-                isBackgroundWait,
-                isPullRequestMerged: mergedPullRequestSessionIds?.has(session.id) ?? false,
                 lastAttentionKind: session.lastAttentionKind,
                 sessionActivityAt: session.sessionActivityAt,
+                turnStartedAt: session.turnStartedAt,
             },
             row,
         };

@@ -350,6 +350,22 @@ describe('Runtime record queries', () => {
         expect(parsed.sessions[0]).not.toHaveProperty('createdBySessionId');
     });
 
+    it('answers session.query with the turn start the phone orders Working rows by', () => {
+        const [first, second] = source.sessions();
+        const service = new RecordQueryService(
+            { ...source, sessions: () => [first, { ...second, turnStartedAt: 42 }] },
+            '/Users/test',
+        );
+
+        const parsed = parseServerOperationResult(
+            'session.query',
+            service.session({ mode: 'list' }, human),
+        );
+
+        expect(parsed.sessions[1]).toMatchObject({ id: 'session-2', turnStartedAt: 42 });
+        expect(parsed.sessions[0]).not.toHaveProperty('turnStartedAt');
+    });
+
     it('rejects Agent current selectors until an endpoint binds an exact context', () => {
         const service = new RecordQueryService(source, '/Users/test');
 

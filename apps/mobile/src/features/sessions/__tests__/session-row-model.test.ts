@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setLocale } from '../../../i18n/locale-store';
 import { mobileAgentDisplayName } from '../agent-display-name';
 import type { MobileSessionItem } from '../session-model';
+import { canMarkDoneFromRow } from '../session-model';
 import {
     archivedAgeLabel,
     savedAgeLabel,
@@ -229,5 +230,21 @@ describe('sessionRowPullRequest', () => {
         expect(
             sessionRowPullRequest({ ...open, agentActivityState: 'idle' }, false),
         ).not.toBeNull();
+    });
+});
+
+describe('canMarkDoneFromRow', () => {
+    const pending = { hasPendingAttention: true };
+
+    it('offers the check on a live Pending Attention row for a device that may mark it done', () => {
+        expect(canMarkDoneFromRow(pending, 'control', false)).toBe(true);
+        expect(canMarkDoneFromRow(pending, 'reply', false)).toBe(true);
+    });
+
+    it('hides the check without Pending Attention, on a saved copy, or for a view-only device', () => {
+        expect(canMarkDoneFromRow({ hasPendingAttention: false }, 'control', false)).toBe(false);
+        expect(canMarkDoneFromRow(pending, 'control', true)).toBe(false);
+        expect(canMarkDoneFromRow(pending, 'view', false)).toBe(false);
+        expect(canMarkDoneFromRow(pending, null, false)).toBe(false);
     });
 });

@@ -19,6 +19,7 @@ import sessionResolvedAttentionMigrationSql from './0013_session_resolved_attent
 import sessionResolvedAttentionBackfillMigrationSql from './0014_session_resolved_attention_backfill.sql?raw';
 import delegationHandBackTriggerMigrationSql from './0015_delegation_hand_back_trigger.sql?raw';
 import delegationOwnerConversationMigrationSql from './0016_delegation_owner_conversation.sql?raw';
+import sessionTurnStartedAtMigrationSql from './0017_session_turn_started_at.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -81,6 +82,7 @@ export const migrationManifest = [
     },
     { tag: '0015_delegation_hand_back_trigger', sql: delegationHandBackTriggerMigrationSql },
     { tag: '0016_delegation_owner_conversation', sql: delegationOwnerConversationMigrationSql },
+    { tag: '0017_session_turn_started_at', sql: sessionTurnStartedAtMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

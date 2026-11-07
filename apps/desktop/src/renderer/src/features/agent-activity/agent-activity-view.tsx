@@ -41,7 +41,6 @@ import {
     useAgentActivityAutoExpand,
     useAgentActivityGroupCollapse,
 } from './hooks/use-agent-activity-group-collapse';
-import { useMergedPullRequestSessionIds } from './hooks/use-merged-pull-request-session-ids';
 
 const NO_RECORDS: never[] = [];
 
@@ -84,19 +83,17 @@ export function AgentActivityView() {
     useScrollEdge(scrollReference);
     // Owns the cadence only; each row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
-    const mergedPullRequestSessionIds = useMergedPullRequestSessionIds();
 
     const groups = useMemo(
         () =>
             agentActivityGroups({
-                mergedPullRequestSessionIds,
                 // Auto-registered worktree Projects are hidden from the PrimarySidebar's top level, so naming one here
                 // would point at a row the user has no other way to reach.
                 projects: topLevelProjects(allProjects ?? NO_RECORDS),
                 sessions,
                 terminals,
             }),
-        [allProjects, mergedPullRequestSessionIds, sessions, terminals],
+        [allProjects, sessions, terminals],
     );
     const rows = useMemo(
         () =>

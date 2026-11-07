@@ -180,6 +180,12 @@ export const sessions = sqliteTable(
          */
         sessionActivityAt: integer('session_activity_at').notNull(),
         /**
+         * When the Session's latest turn started (a user submission or the Agent starting), written with the Session
+         * Activity clock. Running orders by it, so a turn ending into a background wait does not move the row. Null
+         * until the first turn after this column was added.
+         */
+        turnStartedAt: integer('turn_started_at'),
+        /**
          * Explicit sidebar position; dragging must never manufacture Session activity.
          */
         sidebarOrder: integer('sidebar_order').notNull().default(0),

@@ -60,10 +60,11 @@ describe('mobile session model', () => {
             ],
         });
 
+        // A merged pull request is a result like any other, so it keeps its place by recency.
         expect(result.groups.attention.map((item) => item.id)).toEqual([
             'question',
-            'merged',
             'result',
+            'merged',
         ]);
         expect(result.groups.working.map((item) => item.id)).toEqual(['running']);
         expect(result.groups.idle.map((item) => item.id)).toEqual(['idle']);
@@ -93,7 +94,7 @@ describe('mobile session model', () => {
         expect(result.groups.attention.map((item) => item.id)).toEqual(['session-1']);
     });
 
-    it('ranks background waits first in working and a just-resolved Session first in idle', () => {
+    it('orders working by turn start, leaving a background wait in place, and lifts a just-resolved Session in idle', () => {
         const result = buildMobileSessionSections({
             total: 4,
             truncated: false,
@@ -101,13 +102,16 @@ describe('mobile session model', () => {
                 session({
                     id: 'plain',
                     agentActivityState: 'running',
-                    sessionActivityAt: 900,
+                    sessionActivityAt: 500,
+                    turnStartedAt: 500,
                     ...quiet,
                 }),
                 session({
                     id: 'background',
                     agentActivityState: 'running',
-                    sessionActivityAt: 100,
+                    // Its turn ended into a background wait after `plain` started, which moved only the activity clock.
+                    sessionActivityAt: 900,
+                    turnStartedAt: 100,
                     primaryTerminal: { ...terminal, agentOperation: 'background' },
                     ...quiet,
                 }),
@@ -126,7 +130,7 @@ describe('mobile session model', () => {
                 }),
             ],
         });
-        expect(result.groups.working.map((item) => item.id)).toEqual(['background', 'plain']);
+        expect(result.groups.working.map((item) => item.id)).toEqual(['plain', 'background']);
         expect(result.groups.idle.map((item) => item.id)).toEqual(['resolved', 'old']);
     });
 

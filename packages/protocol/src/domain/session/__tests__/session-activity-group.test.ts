@@ -72,28 +72,27 @@ const order = (
         .map((r) => r.id);
 
 describe('compareSessionActivityGroupRows', () => {
-    it('ranks questions and failures, then merged pull requests, then other results in Needs attention', () => {
+    it('ranks questions and failures above results in Needs attention, newest arrival first in each', () => {
         expect(
             order('attention', [
+                row('older-result', { sessionActivityAt: 40, lastAttentionKind: 'completed' }),
                 row('result', { sessionActivityAt: 50, lastAttentionKind: 'completed' }),
-                row('merged', {
-                    sessionActivityAt: 40,
-                    lastAttentionKind: 'completed',
-                    isPullRequestMerged: true,
-                }),
                 row('failed', { sessionActivityAt: 10, lastAttentionKind: 'failed' }),
                 row('question', { sessionActivityAt: 20, lastAttentionKind: 'waiting' }),
             ]),
-        ).toEqual(['question', 'failed', 'merged', 'result']);
+        ).toEqual(['question', 'failed', 'result', 'older-result']);
     });
 
-    it('puts Sessions waiting on background work first in working', () => {
+    it('orders working by when the turn started, so a turn ending into a background wait stays in place', () => {
         expect(
             order('working', [
-                row('busy', { sessionActivityAt: 30 }),
-                row('watching', { sessionActivityAt: 10, isBackgroundWait: true }),
+                // Started first, then its turn ended into a background wait, which moved only its activity clock.
+                row('watching', { sessionActivityAt: 90, turnStartedAt: 10 }),
+                row('busy', { sessionActivityAt: 30, turnStartedAt: 30 }),
+                // A row from before the turn clock existed falls back to its activity clock.
+                row('legacy', { sessionActivityAt: 20 }),
             ]),
-        ).toEqual(['watching', 'busy']);
+        ).toEqual(['busy', 'legacy', 'watching']);
     });
 
     it('lifts a Session just marked done to the top of Idle without its work clock', () => {

@@ -57,13 +57,8 @@ function terminal(sessionId: string, overrides: Partial<TerminalRecord> = {}): T
     } as TerminalRecord;
 }
 
-function groupsOf(
-    sessions: readonly SessionRecord[],
-    terminals: readonly TerminalRecord[] = [],
-    mergedPullRequestSessionIds?: ReadonlySet<string>,
-) {
+function groupsOf(sessions: readonly SessionRecord[], terminals: readonly TerminalRecord[] = []) {
     return agentActivityGroups({
-        mergedPullRequestSessionIds,
         projects: [project('alpha'), project('beta')],
         sessions,
         terminals,
@@ -148,37 +143,42 @@ describe('agentActivityGroups', () => {
         expect(groups[0].rows.map((row) => row.groupId)).toEqual(['working', 'idle', 'attention']);
     });
 
-    it('ranks a question or failure above a merged pull request above a plain result', () => {
-        const groups = groupsOf(
-            [
-                pending('result', { sessionActivityAt: NOW }),
-                pending('merged', { sessionActivityAt: NOW - 1_000 }),
-                pending('failed', { lastAttentionKind: 'failed', sessionActivityAt: NOW - 2_000 }),
-                pending('asking', {
-                    lastAttentionKind: 'waiting',
-                    sessionActivityAt: NOW - 3_000,
-                }),
-            ],
-            [],
-            new Set(['merged']),
-        );
-        expect(idsOf(groups[0])).toEqual(['failed', 'asking', 'merged', 'result']);
+    it('ranks a question or failure above a result, newest first within each', () => {
+        const groups = groupsOf([
+            pending('result', { sessionActivityAt: NOW }),
+            pending('older-result', { sessionActivityAt: NOW - 1_000 }),
+            pending('failed', { lastAttentionKind: 'failed', sessionActivityAt: NOW - 2_000 }),
+            pending('asking', {
+                lastAttentionKind: 'waiting',
+                sessionActivityAt: NOW - 3_000,
+            }),
+        ]);
+        expect(idsOf(groups[0])).toEqual(['failed', 'asking', 'result', 'older-result']);
     });
 
-    it('lists background waits first in Working, then by recency', () => {
+    it('orders Working by when each turn started, leaving a background wait where its turn began', () => {
         const groups = groupsOf(
             [
-                session('fresh', { agentActivityState: 'running', sessionActivityAt: NOW }),
+                session('fresh', {
+                    agentActivityState: 'running',
+                    sessionActivityAt: NOW,
+                    turnStartedAt: NOW,
+                }),
                 session('watching', {
                     agentActivityState: 'running',
-                    sessionActivityAt: NOW - 5_000,
+                    sessionActivityAt: NOW + 5_000,
+                    turnStartedAt: NOW - 5_000,
                 }),
-                session('older', { agentActivityState: 'running', sessionActivityAt: NOW - 9_000 }),
+                session('older', {
+                    agentActivityState: 'running',
+                    sessionActivityAt: NOW - 9_000,
+                    turnStartedAt: NOW - 9_000,
+                }),
             ],
             [terminal('watching', { agentOperation: 'background' })],
         );
-        expect(idsOf(groups[0])).toEqual(['watching', 'fresh', 'older']);
-        expect(groups[0].rows.map((row) => row.isBackgroundWait)).toEqual([true, false, false]);
+        expect(idsOf(groups[0])).toEqual(['fresh', 'watching', 'older']);
+        expect(groups[0].rows.map((row) => row.isBackgroundWait)).toEqual([false, true, false]);
     });
 
     it('puts a Session just marked Done at the top of Idle without moving its work clock', () => {

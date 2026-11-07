@@ -1,7 +1,7 @@
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { getBootstrap } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
-import { cachedMergedPullRequestSessionIds, didSelectSession } from '../session/session-commands';
+import { didSelectSession } from '../session/session-commands';
 import { agentActivityGroups, nextAgentAttentionSessionId } from './agent-activity-rows';
 
 /**
@@ -18,7 +18,6 @@ export function focusNextAttentionSession(): void {
     const bootstrap = getBootstrap();
     if (!bootstrap) return;
     const groups = agentActivityGroups({
-        mergedPullRequestSessionIds: cachedMergedPullRequestSessionIds(),
         projects: topLevelProjects(bootstrap.projects),
         sessions: bootstrap.sessions,
         terminals: bootstrap.terminals,

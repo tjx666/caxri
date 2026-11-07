@@ -27,6 +27,10 @@ export const mobileDashboardSessionSchema = z.strictObject({
      * The Session's work clock, which orders rows inside a group on both Desktop and the phone.
      */
     sessionActivityAt: sessionRecordSchema.shape.sessionActivityAt,
+    /**
+     * When the latest turn started, which orders rows inside Running on both Desktop and the phone.
+     */
+    turnStartedAt: sessionRecordSchema.shape.turnStartedAt,
     pinnedAt: sessionRecordSchema.shape.pinnedAt,
     pinnedOrder: sessionRecordSchema.shape.pinnedOrder,
     agentActivityState: sessionRecordSchema.shape.agentActivityState,

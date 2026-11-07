@@ -1,4 +1,4 @@
-import type { MethodResult, SessionActivityGroupId } from '@caxri/protocol';
+import type { MethodResult, MobileDeviceRole, SessionActivityGroupId } from '@caxri/protocol';
 import {
     compareSessionActivityGroupRows,
     compareSessionPinnedOrder,
@@ -96,13 +96,24 @@ const groupForSession = (session: MobileSession): SessionActivityGroupId =>
 export const canMarkSessionDone = (session: Pick<MobileSession, 'hasPendingAttention'>): boolean =>
     session.hasPendingAttention;
 
+/**
+ * Whether a Session row offers its Mark as Done check, the phone's counterpart of the check on a Desktop Activity Needs
+ * attention row. It needs Pending Attention to resolve, a live list (a saved copy's attention generation may already be
+ * stale), and a device granted `session.markDone`, which only the reply and control roles carry.
+ */
+export const canMarkDoneFromRow = (
+    session: Pick<MobileSession, 'hasPendingAttention'>,
+    deviceRole: MobileDeviceRole | null,
+    isSaved: boolean,
+): boolean =>
+    !isSaved && (deviceRole === 'reply' || deviceRole === 'control') && canMarkSessionDone(session);
+
 const orderFacts = (session: MobileSession) => ({
     attentionResolvedAt: session.attentionResolvedAt,
     id: session.id,
-    isBackgroundWait: session.primaryTerminal?.agentOperation === 'background',
-    isPullRequestMerged: session.pullRequest?.state === 'merged',
     lastAttentionKind: session.lastAttentionKind,
     sessionActivityAt: session.sessionActivityAt,
+    turnStartedAt: session.turnStartedAt,
 });
 
 /**

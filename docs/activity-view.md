@@ -55,12 +55,17 @@ A Session marked done goes to the top of **Idle**. GitHub notifications and Line
 "read" from "Done" the same way, and Orca's smart order keeps the same three tiers. Unread Attention
 still exists, but only decides how a row looks (a medium-weight title), never its group.
 
-Inside **Needs attention**, a question or a failure comes first because the Agent is blocked until
-the user answers; then a Session whose pull request merged, a finished task waiting to be closed
-out; then every other result. Inside **Working**, a Session waiting on background work (background
-shells, subagents, monitors) comes first: its code is usually written and it watches CI or a test
-run, so it is the next one likely to need the user. Otherwise rows keep Session activity recency.
-**Idle** ranks by the later of the work clock and the moment the user marked the Session done
+Every group lists the newest arrival first, keyed by when the row entered the group, and that key
+holds still while the row stays there: a row moves when it changes group, never on its own, so the
+list does not shuffle under the user. Urgency comes before recency only inside **Needs
+attention**, where a question or a failure comes first because the Agent is blocked until the user
+answers, then every other result (a merged pull request included; its glyph already says so, and a
+merge landing on GitHub must not reorder the queue). Needs attention keys on the Session Activity
+clock, which last moved when the turn ended, asked, or failed. **Working** keys on `turnStartedAt`,
+when the latest turn started (the user's last message or the Agent starting): a turn that ends into a
+background wait (background shells, subagents, monitors) advances the activity clock but not this
+one, so the row stays where its turn began and only its glyph turns to the dotted ring. **Idle**
+ranks by the later of the work clock and the moment the user marked the Session done
 (`attentionResolvedAt`), so a just-resolved Session lands on top without its activity clock moving,
 since that clock also orders the Project tree.
 

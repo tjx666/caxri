@@ -12,4 +12,11 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-attention-mark-done',
     },
+    'MOB-SESSION-ROW-MARK-DONE-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'session-row-mark-done',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

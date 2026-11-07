@@ -175,7 +175,10 @@ no background of its own keeps its default dark text readable.
   come from `packages/protocol/src/domain/session/session-activity-group.ts`, shared with Desktop (see
   [Activity view](../activity-view.md)). Pinned Sessions keep Desktop's pinned order; a pinned
   Session that needs attention, is working, waiting, or failed is listed again in that group. Rows
-  inside a group are newest Session activity first, and the row's age reads that same clock. The
+  inside a group follow Desktop's in-group order (newest arrival in the group first), and the row's
+  age reads the Session activity clock. A row with Pending Attention carries a trailing Mark as Done
+  check, Desktop's Activity row check: a phone has no hover, so it stays on screen, and it shows only
+  on a live list for a device with reply or control access. The
   one difference from Desktop: a finished Session past the 15-minute window moves to `IDLE`
   instead of leaving, because the home list is the phone's only Session list.
 - Tapping a group heading collapses the group to its heading with its Session count and opens it

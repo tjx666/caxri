@@ -87,6 +87,10 @@ const sessionSummarySchema = sessionRecordSchema.pick({
     hasPendingAttention: true,
     attentionResolvedAt: true,
     /**
+     * When the current turn started, so the phone orders Working rows the way Desktop Activity does.
+     */
+    turnStartedAt: true,
+    /**
      * What the unread attention is about, so the phone's Session row draws Desktop's attention shape.
      */
     lastAttentionKind: true,
