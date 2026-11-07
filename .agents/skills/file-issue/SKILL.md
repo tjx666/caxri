@@ -128,7 +128,8 @@ to load-bearing ones; broad file inventories go stale.
   Contributor issue tracking lives in GitHub issues. Do not file repository work in Linear; the
   product's Project Status view may still read Linear references from a GitHub PR body.
 - Never pass the body inline with `--body` and `\n` escapes: that ships literal `\n` into the
-  issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc.
+  issue. Write the body to a temp file and use `gh issue create --body-file`, or a real heredoc
+  (not inside a Claude Code worktree session; see `switch-worktree` step 4).
 - For a refactor issue, use `create-refactor-issue.ts`; do not split validation and creation into
   separate commands.
 - Link related issues and PRs with `#NN` references; if the issue is spun out of another one, name

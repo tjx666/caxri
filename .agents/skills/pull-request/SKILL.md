@@ -93,6 +93,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    To edit an existing body, join the read, the edit, a `test -s "$body"` guard, and the update
    with `&&`, then read the body back: `gh pr view ... > "$body" && edit; gh pr edit --body-file`
    ran the update after a network timeout emptied the read and wiped a PR's validation record.
+   A Claude Code session inside a worktree cannot chain these or use heredocs; run each step as
+   its own command and check its result before the next (`switch-worktree` step 4).
    A shared UI primitive that changes locator attributes or overlay opening or pointer behavior
    (`title` becoming the shared Tooltip; a focus tooltip now intercepting a right-click) reaches
    every caller: trace them into `e2e/`, search obsolete locators (`getByTitle`) and the affected
