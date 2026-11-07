@@ -5,6 +5,7 @@ import {
     removeTemporaryDirectories,
     temporaryDirectory,
 } from '../../__tests__/support/update-service-harness';
+import { activeDesktopCommand, runDesktopCommand } from '../../desktop-command-scope';
 import { createRemoteUpdateControl, remoteInstallBlock } from '../remote-update';
 import type { PreparedInstall } from '../update-service-contract';
 import { UpdateService } from '../updates';
@@ -64,6 +65,26 @@ describe('UpdateService remote installs', () => {
         expect(log).toHaveBeenCalledWith('info', 'updates.remote_install', {
             fields: { outcome: 'restarting' },
         });
+    });
+
+    it('restarts outside the Desktop command scope so the quit flow can persist window state', async () => {
+        const { restartToUpdate, service } = await stagedService({ installMode: 'restart' });
+        let scopeAtRestart: string | undefined = 'unset';
+        restartToUpdate.mockImplementation(() => {
+            scopeAtRestart = activeDesktopCommand();
+            return Promise.resolve();
+        });
+        const handle = createRemoteUpdateControl({
+            logger: () => {},
+            unsavedEditors: { countForRemoteUpdate: () => Promise.resolve(0) },
+            service: () => service,
+        });
+        const operation = { kind: 'update', action: 'install', version: '0.0.4' } as const;
+
+        await runDesktopCommand(operation, () => handle(operation));
+        await vi.waitFor(() => expect(restartToUpdate).toHaveBeenCalled());
+        // The quit flow writes window state through ordinary Server requests, which the command guard refuses.
+        expect(scopeAtRestart).toBeUndefined();
     });
 
     it.each([
