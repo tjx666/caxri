@@ -9,6 +9,7 @@ import type { MobileGatewayRouteKind } from './gateway-routes';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import type { MobileGatewaySubscriptionHandle } from './mobile-gateway-connection';
 import type { MobileRelayFailureKind } from './relay-failure';
+import type { MobileRoutePreference } from './route-preference';
 
 export interface MobileClientContextValue {
     cancelPairing: () => void;
@@ -23,6 +24,11 @@ export interface MobileClientContextValue {
      * previews) are reachable only over a `direct` route; see `docs/mobile/relay.md`.
      */
     route: MobileGatewayRouteKind | null;
+    /**
+     * The connection method chosen in Settings; reconnects race only the routes it allows.
+     */
+    routePreference: MobileRoutePreference;
+    setRoutePreference: (preference: MobileRoutePreference) => Promise<void>;
     pair: (pairingLink: string) => Promise<void>;
     paired: boolean;
     /**

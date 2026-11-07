@@ -21,6 +21,7 @@ import { isTermuxSupported } from '../device-actions/termux-native';
 import { TermuxSettingRow } from '../device-actions/termux-setting-row';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { allMobileSessions } from '../sessions/hooks/use-session-polling';
+import { RoutePreferenceRow } from './route-preference-row';
 import { SettingsAboutSection } from './settings-about-section';
 import { connectionStatusView, deviceRoleDetails } from './settings-model';
 import { SettingsRow, SettingsSection } from './settings-rows';
@@ -92,12 +93,12 @@ export const SettingsScreen = () => {
                 <SettingsSection theme={theme} title={t('settings.section.thisDevice')}>
                     <SettingsRow
                         detail={role?.description}
-                        isLast={!isTermuxSupported}
                         label={t('settings.access')}
                         testID="settings-access-level"
                         theme={theme}
                         value={role?.label ?? t('settings.unknown')}
                     />
+                    <RoutePreferenceRow isLast={!isTermuxSupported} theme={theme} />
                     {isTermuxSupported ? <TermuxSettingRow theme={theme} /> : null}
                 </SettingsSection>
                 <SettingsAboutSection theme={theme} />

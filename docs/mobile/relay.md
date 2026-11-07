@@ -70,6 +70,14 @@ after three consecutive successes, with the Relay session at least 60 seconds ol
 flight, it closes with `route-upgrade` and reconnects directly. Recovery after any switch uses the
 transport's subscribe-then-snapshot rule, so a running Agent is unaffected.
 
+The race above is the **Automatic** connection method. Settings > This device > Connection method
+can pin reconnects to **Direct** (direct addresses only, never the Relay) or **Relay** (the Relay
+only, even on the same network). A pinned method races only its own routes and never runs the
+direct-route probe, so the phone stays on the chosen path; a pin the pairing cannot honor, such as
+Relay for a computer without one, falls back to every route. Pairing always races every route.
+Changing the method while connected over the other path closes with `route-preference` and
+reconnects at once. The choice is stored on the phone (`apps/mobile/src/features/connection/route-preference.ts`).
+
 A relayed connection has no LAN address, so the gateway's plain-HTTP side channels are unavailable
 over the Relay. The Android update download falls back to the matching GitHub Release asset
 ([Mobile updates](update.md#transport)); web previews stay direct-only.

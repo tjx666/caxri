@@ -45,6 +45,7 @@ import { recoverMobileUpdate } from './recover-mobile-update';
 import type { MobileRelayFailureKind } from './relay-failure';
 import { relayFailureKindOf } from './relay-failure';
 import { useMobileReconnect } from './use-mobile-reconnect';
+import { useRoutePreference } from './use-route-preference';
 
 export const useMobileClientController = (): MobileClientContextValue => {
     const [credential, setCredential] = useState<MobileCredential | null>(null);
@@ -111,6 +112,21 @@ export const useMobileClientController = (): MobileClientContextValue => {
             setRoute(next?.route ?? null);
         },
         [],
+    );
+
+    /**
+     * Drops the live connection and dials a fresh one at once, resetting the backoff: a foreground return, a network
+     * change, or a new connection method. `reason` is the close code the Server logs.
+     */
+    const restartConnection = useCallback(
+        (reason: MobileClientCloseReason): void => {
+            replaceConnection(null, reason);
+            setLastSeenAt(null);
+            setRetryAttempt(0);
+            setRetryToken((token) => token + 1);
+            setStatus('stale');
+        },
+        [replaceConnection, setLastSeenAt],
     );
 
     const probeCurrentConnection = useCallback(
@@ -312,11 +328,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             return;
         }
         if (action === 'reconnect') {
-            replaceConnection(null, 'foreground-reconnect');
-            setLastSeenAt(null);
-            setRetryAttempt(0);
-            setRetryToken((token) => token + 1);
-            setStatus('stale');
+            restartConnection('foreground-reconnect');
             return;
         }
         if (current) probeCurrentConnection(current);
@@ -343,11 +355,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         }
         if (action === 'reconnect') {
             if (!credential) return;
-            replaceConnection(null, 'network-reconnect');
-            setLastSeenAt(null);
-            setRetryAttempt(0);
-            setRetryToken((token) => token + 1);
-            setStatus('stale');
+            restartConnection('network-reconnect');
             return;
         }
         const current = connection.current;
@@ -362,6 +370,17 @@ export const useMobileClientController = (): MobileClientContextValue => {
             }),
         [],
     );
+
+    const currentConnection = useCallback(() => connection.current, []);
+    const deferRestart = useCallback((): void => {
+        deferredForegroundReconnect.current = true;
+    }, []);
+    const { routePreference, setRoutePreference } = useRoutePreference({
+        currentConnection,
+        deferRestart,
+        isPaired: credential !== null,
+        restartConnection,
+    });
 
     const pair = useCallback(
         async (pairingLink: string): Promise<void> => {
@@ -497,11 +516,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 ) {
                     if (deferredForegroundReconnect.current) {
                         deferredForegroundReconnect.current = false;
-                        replaceConnection(null, 'foreground-reconnect');
-                        setLastSeenAt(null);
-                        setRetryAttempt(0);
-                        setRetryToken((token) => token + 1);
-                        setStatus('stale');
+                        restartConnection('foreground-reconnect');
                     } else if (deferredNetworkWake.current) {
                         deferredNetworkWake.current = false;
                         probeCurrentConnection(current);
@@ -514,6 +529,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             isForeground,
             probeCurrentConnection,
             replaceConnection,
+            restartConnection,
             setLastSeenAt,
         ],
     );
@@ -550,6 +566,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
             retryConnection,
             retryCredentialLoad,
             route,
+            routePreference,
+            setRoutePreference,
             status,
             subscribe,
             subscriptionAvailable: status === 'connected' && isForeground,
@@ -569,6 +587,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
             retryConnection,
             retryCredentialLoad,
             route,
+            routePreference,
+            setRoutePreference,
             status,
             subscribe,
         ],

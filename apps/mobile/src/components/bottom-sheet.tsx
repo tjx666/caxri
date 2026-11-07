@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import type { LucideProps } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 
 import { useTranslation } from '../i18n';
 import {
@@ -179,6 +180,7 @@ export const SheetAction = ({
     icon: Icon,
     label,
     onPress,
+    selected,
     testID,
     theme,
     tone = 'default',
@@ -194,6 +196,10 @@ export const SheetAction = ({
     icon: ComponentType<LucideProps>;
     label: string;
     onPress: () => void;
+    /**
+     * Set on every row of a single-choice menu: the chosen row gets a trailing check and each row reads as a radio.
+     */
+    selected?: boolean;
     testID: string;
     theme: MobileTheme;
     /**
@@ -202,8 +208,8 @@ export const SheetAction = ({
     tone?: 'danger' | 'default';
 }) => (
     <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy || disabled }}
+        accessibilityRole={selected === undefined ? 'button' : 'radio'}
+        accessibilityState={{ busy, disabled: busy || disabled, selected }}
         disabled={busy || disabled}
         onPress={onPress}
         style={({ pressed }) => [
@@ -239,6 +245,7 @@ export const SheetAction = ({
                 </Text>
             ) : null}
         </View>
+        {selected ? <Check color={theme.primary} size={18} /> : null}
     </Pressable>
 );
 

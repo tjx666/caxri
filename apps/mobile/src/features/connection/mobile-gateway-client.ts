@@ -28,6 +28,8 @@ import { pairingCredential } from './pairing-credential';
 import { createPairingSocketRuntime } from './pairing-socket-runtime';
 import type { MobileRouteHints } from './route-hints';
 import { reconnectDirectGrace } from './route-hints';
+import type { MobileRoutePreference, MobileRoutePreferenceStore } from './route-preference';
+import { DEFAULT_MOBILE_ROUTE_PREFERENCE, routesForPreference } from './route-preference';
 
 export {
     MobileGatewayRequestError,
@@ -54,6 +56,10 @@ export interface MobileGatewayRuntime {
      * Shortens the direct-only head start when the Relay won last time; absent while pairing and in tests.
      */
     routeHints?: MobileRouteHints;
+    /**
+     * The user's pinned path for reconnects; absent in tests, where every route races.
+     */
+    routePreference?: MobileRoutePreferenceStore;
 }
 
 export interface PairedMobileConnection {
@@ -75,12 +81,23 @@ const hasUnsupportedPairingLinkVersion = (source: string): boolean => {
     }
 };
 
+/**
+ * Only `auto` moves a Relay session back to a direct path; a pinned path stays where the user put it.
+ */
 const directProbeOptions = (
     credential: MobileCredential,
     runtime: MobileGatewayRuntime,
-): MobileGatewayConnectionOptions => ({
-    directProbe: () => isDirectRouteReachable(credential.addresses, credential.port, runtime),
-});
+    preference: MobileRoutePreference,
+): MobileGatewayConnectionOptions =>
+    preference === 'auto'
+        ? {
+              directProbe: () =>
+                  isDirectRouteReachable(credential.addresses, credential.port, runtime),
+          }
+        : {};
+
+const loadRoutePreference = async (runtime: MobileGatewayRuntime): Promise<MobileRoutePreference> =>
+    (await runtime.routePreference?.load()) ?? DEFAULT_MOBILE_ROUTE_PREFERENCE;
 
 export const pairMobileGateway = async (input: {
     isCurrent?: () => boolean;
@@ -146,7 +163,11 @@ export const pairMobileGateway = async (input: {
                 async () => {
                     await input.store.clearIfCurrent(credential);
                 },
-                directProbeOptions(credential, input.runtime),
+                directProbeOptions(
+                    credential,
+                    input.runtime,
+                    await loadRoutePreference(input.runtime),
+                ),
             ),
             credential,
         };
@@ -165,16 +186,22 @@ export const reconnectMobileGateway = async (
 ): Promise<MobileGatewayConnection> => {
     const clientSecretKey = runtime.randomBytes(X25519_KEY_BYTES);
     const clientNonce = runtime.randomBytes(HANDSHAKE_NONCE_BYTES);
-    const directGraceMs = await reconnectDirectGrace({ ...runtime, ...credential });
+    const [directGraceMs, preference] = await Promise.all([
+        reconnectDirectGrace({ ...runtime, ...credential }),
+        loadRoutePreference(runtime),
+    ]);
     let session: EstablishedSession;
     try {
         session = await establish({
             directGraceMs,
-            routes: pairedGatewayRoutes({
-                ...credential,
-                purpose: 'device',
-                secret: credential.credential,
-            }),
+            routes: routesForPreference(
+                pairedGatewayRoutes({
+                    ...credential,
+                    purpose: 'device',
+                    secret: credential.credential,
+                }),
+                preference,
+            ),
             mode: 'connect',
             expectedServerId: credential.serverId,
             clientSecretKey,
@@ -201,7 +228,7 @@ export const reconnectMobileGateway = async (
             await store.clearIfCurrent(credential);
         },
         {
-            ...directProbeOptions(credential, runtime),
+            ...directProbeOptions(credential, runtime, preference),
             expectReady: {
                 deviceId: credential.deviceId,
                 generation: credential.generation,

@@ -5,6 +5,7 @@ import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 import type { MobileGatewayRouteKind } from '../connection/gateway-routes';
 import type { MobileRelayFailureKind } from '../connection/relay-failure';
+import type { MobileRoutePreference } from '../connection/route-preference';
 
 /**
  * The role's name and the capability it adds over the role below it.
@@ -28,6 +29,29 @@ export const deviceRoleDetails = (
             return {
                 label: t('settings.role.control'),
                 description: t('settings.role.controlDescription'),
+            };
+    }
+};
+
+/**
+ * The Connection method row and sheet: each choice's name and what it does.
+ */
+export const routePreferenceDetails = (
+    preference: MobileRoutePreference,
+    t: Translate = translate,
+): { label: string; description: string } => {
+    switch (preference) {
+        case 'auto':
+            return { label: t('settings.route.auto'), description: t('settings.route.autoDetail') };
+        case 'direct':
+            return {
+                label: t('settings.route.direct'),
+                description: t('settings.route.directDetail'),
+            };
+        case 'relay':
+            return {
+                label: t('settings.route.relay'),
+                description: t('settings.route.relayDetail'),
             };
     }
 };
