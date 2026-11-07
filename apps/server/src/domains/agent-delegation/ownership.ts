@@ -14,9 +14,29 @@ export function isDelegationOwnerPrincipal(principal: DelegationAuthority['princ
 }
 
 /**
- * A task belongs to the exact Endpoint generation that created it, so a relaunched Agent cannot settle work its
- * predecessor started. Caxri Bot is the exception: a Caxri restart or Codex relaunch starts a new generation of the
- * same system Terminal, and its ledger of earlier tasks must keep resolving. The owner's own clients see every task.
+ * Whether `terminalId` still runs the conversation that created `record`: its Agent resumed that same provider
+ * conversation (a Caxri restart, an idle suspension, a relaunch), so it remembers the task even though it is a new
+ * Endpoint generation. A new conversation or another provider in the same Terminal changes the binding and fails.
+ */
+export function isSameCallerConversation(
+    database: CaxriDatabase,
+    record: Pick<StoredAgentDelegation, 'callerConversationId'>,
+    terminalId: string | undefined,
+): boolean {
+    const conversationId = record.callerConversationId;
+    return Boolean(
+        conversationId &&
+        terminalId &&
+        database.getTerminal(terminalId)?.agentSessionId === conversationId,
+    );
+}
+
+/**
+ * A task belongs to the Terminal and conversation that created it. The exact Endpoint generation qualifies, and so does
+ * a later generation that resumed the same conversation, so an Agent restarted mid-work can still read, follow up, and
+ * stop what it started. An Agent with a new conversation in that Terminal remembers none of it and is refused, so it
+ * cannot settle work it knows nothing about. Caxri Bot keeps its whole ledger across generations of its system
+ * Terminal. The owner's own clients see every task.
  */
 export function isDelegationOwner(
     database: CaxriDatabase,
@@ -27,6 +47,8 @@ export function isDelegationOwner(
     return (
         authority.callerTerminalId === record.receipt.callerTerminalId &&
         (isSamePrincipal(authority.principal, record.principal) ||
+            (authority.principal.kind === 'agent' &&
+                isSameCallerConversation(database, record, authority.callerTerminalId)) ||
             isCaxriBotCaller(database, authority))
     );
 }

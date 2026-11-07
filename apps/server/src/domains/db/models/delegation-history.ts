@@ -16,8 +16,9 @@ const EDGE_QUERY_CHUNK = 500;
 
 /**
  * Which rows a reader may see. `owner` reads every task. `caller` is an Agent or delegation client: the rows its exact
- * Terminal created under its exact principal (`principalHash`), or, with `anyPrincipal` (the Caxri Bot exception),
- * under any principal of that Terminal. The Terminal compare is NULL-safe: a delegation client has no Terminal.
+ * Terminal created under its exact principal (`principalHash`) or in the conversation that Terminal holds now
+ * (`conversationId`, an Agent resumed across generations), or, with `anyPrincipal` (the Caxri Bot exception), under any
+ * principal of that Terminal. The Terminal compare is NULL-safe: a delegation client has no Terminal.
  */
 export type DelegationHistoryScope =
     | { kind: 'owner' }
@@ -25,6 +26,7 @@ export type DelegationHistoryScope =
           kind: 'caller';
           terminalId: string | undefined;
           principalHash: string;
+          conversationId: string | undefined;
           anyPrincipal: boolean;
       };
 
@@ -214,8 +216,20 @@ export class DelegationHistoryModel {
             conditions.push(
                 sql`${delegationHistory.ownerTerminalId} IS ${scope.terminalId ?? null}`,
             );
-            if (!scope.anyPrincipal)
-                conditions.push(eq(delegationHistory.ownerPrincipalHash, scope.principalHash));
+            if (!scope.anyPrincipal) {
+                const principalMatch = eq(
+                    delegationHistory.ownerPrincipalHash,
+                    scope.principalHash,
+                );
+                conditions.push(
+                    scope.conversationId
+                        ? or(
+                              principalMatch,
+                              eq(delegationHistory.ownerConversationId, scope.conversationId),
+                          )!
+                        : principalMatch,
+                );
+            }
         }
         if (outcome) conditions.push(eq(delegationHistory.outcome, outcome));
         if (pattern)

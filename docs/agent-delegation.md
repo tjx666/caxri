@@ -47,7 +47,11 @@ for unattended use). Every managed Agent Endpoint, in a Terminal or an Agent Cha
 `agents.delegate`; it does not provide dispatch, general Agent control, or human Terminal steer. A delegated Chat task alone can be steered by its delegator through `agent delegate redirect`.
 Server Core derives the caller Terminal from its authenticated Endpoint; a caller cannot supply a
 different principal or Terminal. An Agent may start work in its own Session and in Sessions it
-created, and may read, wait on, follow up, or stop only its own delegations; `list` returns them
+created, and may read, wait on, follow up, or stop only its own delegations. A delegation belongs to
+the caller Terminal plus either the exact Endpoint generation that created it or the provider
+conversation that Terminal held then, so an Agent resumed in the same conversation (a Caxri restart,
+an idle suspension) keeps its tasks and follows them up instead of launching a second child Agent,
+while a new conversation or another provider in that Terminal does not. `list` returns them
 newest first so an Agent that lost its context can recover their IDs, and `history` searches the
 settled ones it created long ago ([Delegation history and cost](#delegation-history-and-cost)). The
 authenticated human owner can inspect tasks in the selected profile.
@@ -1616,8 +1620,8 @@ caxri agent delegate history --query "login retry" --outcome completed --limit 1
 caxri agent delegate history --query "login retry" --outcome completed --after <nextCursor> --json
 ```
 
-- **Scope.** An Agent sees only the rows its own Terminal and exact Endpoint generation created,
-  the same rule as `list` (`isDelegationOwnerPrincipal`, with the Caxri Bot exception for its own
+- **Scope.** An Agent sees only the rows its own Terminal created under its exact Endpoint
+  generation or in the conversation that Terminal holds now, the same rule as `list` (`isDelegationOwnerPrincipal`, with the Caxri Bot exception for its own
   Terminal). A delegation client sees only its own client and generation. The human owner, Desktop,
   an Extension, and a paired device see every row. The request takes no Session, Project, creator,
   Terminal, or principal; the Internal twin `agent.delegation.historyInternal` carries the

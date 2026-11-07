@@ -49,6 +49,7 @@ export function historyRow(
         projectId: receipt.projectId,
         ownerTerminalId: receipt.callerTerminalId ?? null,
         ownerPrincipalHash: principalHash(saved.principal),
+        ownerConversationId: saved.callerConversationId ?? null,
         provider: receipt.provider,
         selectionModel: selection?.model ?? null,
         selectionEffort: selection?.effort ?? null,
