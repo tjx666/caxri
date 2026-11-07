@@ -105,6 +105,44 @@ describe('mobile background tasks', () => {
         expect(patch).toBeDefined();
         expect(agentChatPatchSchema.safeParse(patch).success).toBe(true);
     });
+
+    it('leaves room for the transcript after a few workflow runs', () => {
+        const members = Array.from({ length: 20 }, (_, index) => ({
+            index,
+            label: `review:${index}`,
+            status: 'completed' as const,
+            promptPreview: 'p'.repeat(500),
+            resultPreview: 'r'.repeat(2_000),
+        }));
+        const tasks = Array.from({ length: 3 }, (_, index) =>
+            task({
+                id: `workflow-${index}`,
+                kind: 'agent',
+                status: 'completed',
+                endedAt: index,
+                workflow: { phases: [{ title: 'Review' }], members, result: 'w'.repeat(8_000) },
+            }),
+        );
+        const message: AgentChatItem = {
+            id: 'reply',
+            type: 'agentMessage',
+            text: 'Done.',
+            streaming: false,
+        };
+        const windowed = windowAgentChatSnapshotForMobile({
+            terminalId: 'terminal-1',
+            revision: 1,
+            status: 'ready',
+            truncated: false,
+            items: [message],
+            turns: [],
+            requests: [],
+            tasks,
+        });
+        expect(windowed.items).toEqual([message]);
+        expect(windowed.tasks?.map(({ id }) => id)).toEqual(tasks.map(({ id }) => id));
+        expect(windowed.tasks?.some((value) => value.workflow !== undefined)).toBe(false);
+    });
 });
 
 describe('mobile task detail', () => {
