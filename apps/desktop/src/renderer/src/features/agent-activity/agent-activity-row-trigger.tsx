@@ -121,6 +121,48 @@ function handleRowKeyDown(
 }
 
 /**
+ * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title line: pinned to
+ * the title it floated in the top-right corner, detached from the metadata it describes. `AgentActivityRowItem`
+ * overlays the Mark as Done check on the same spot on hover, focus, and selection, where the Project tree keeps its row
+ * hover actions. Without a pull request the slot only appears while the check shows, so the title gives up that width
+ * only when the check needs it.
+ */
+function TrailingSlot({
+    offersMarkDone,
+    pullRequest,
+    selected,
+}: {
+    offersMarkDone: boolean;
+    pullRequest: SessionPullRequest | undefined;
+    selected: boolean;
+}) {
+    if (!pullRequest && !offersMarkDone) return null;
+    return (
+        <span
+            className={cn(
+                'agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch',
+                !pullRequest &&
+                    !selected &&
+                    'hidden group-focus-within/activity-row:flex group-hover/activity-row:flex',
+            )}
+        >
+            {pullRequest && (
+                <span
+                    className={cn(
+                        'flex',
+                        offersMarkDone &&
+                            'transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
+                        offersMarkDone && selected && 'opacity-0',
+                    )}
+                >
+                    <SessionPullRequestIndicator pullRequest={pullRequest} />
+                </span>
+            )}
+        </span>
+    );
+}
+
+/**
  * Returns the DOM trigger so HoverCardTrigger can attach its event handlers and ref directly.
  */
 export function AgentActivityRowTrigger({
@@ -180,11 +222,6 @@ export function AgentActivityRowTrigger({
     const { project, session, terminal } = row;
     const canSuggest = canSuggestSessionTitle(session);
     const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
-    /**
-     * `AgentActivityRowItem` overlays the Mark as Done check on the trailing slot, so the slot must exist whenever the
-     * check can show, even on a row without a pull request.
-     */
-    const offersMarkDone = canMarkDone && !isRenaming;
     const note = agentActivityStatusNote(row, showExcerpts);
     return (
         <div
@@ -319,36 +356,11 @@ export function AgentActivityRowTrigger({
                     </span>
                 )}
             </span>
-            {(visiblePullRequest !== undefined || offersMarkDone) && (
-                /*
-                 * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title
-                 * line: pinned to the title it floated in the top-right corner, detached from the metadata it
-                 * describes. The Mark as Done check takes the same spot on hover, focus, and selection, where the
-                 * Project tree keeps its row hover actions. Without a pull request the slot only appears while the check
-                 * shows, so the title gives up that width only when the check needs it.
-                 */
-                <span
-                    className={cn(
-                        'agent-activity-trailing flex w-5 flex-none items-center justify-end self-stretch',
-                        !visiblePullRequest &&
-                            !selected &&
-                            'hidden group-focus-within/activity-row:flex group-hover/activity-row:flex',
-                    )}
-                >
-                    {visiblePullRequest && (
-                        <span
-                            className={cn(
-                                'flex',
-                                offersMarkDone &&
-                                    'transition-opacity group-focus-within/activity-row:opacity-0 group-hover/activity-row:opacity-0',
-                                offersMarkDone && selected && 'opacity-0',
-                            )}
-                        >
-                            <SessionPullRequestIndicator pullRequest={visiblePullRequest} />
-                        </span>
-                    )}
-                </span>
-            )}
+            <TrailingSlot
+                offersMarkDone={canMarkDone && !isRenaming}
+                pullRequest={visiblePullRequest}
+                selected={selected}
+            />
         </div>
     );
 }
