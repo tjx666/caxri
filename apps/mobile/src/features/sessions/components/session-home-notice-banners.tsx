@@ -55,12 +55,19 @@ export const UpdateBanner = ({
  */
 export const ConnectionBanner = ({
     isListVisible,
+    isSessionCovered,
     onRetry,
     saved,
     status,
     theme,
 }: {
     isListVisible: boolean;
+    /**
+     * The side panel's drawer covers the Session. The island then hides as it does under a sheet: floating over the
+     * drawer's tab row, it hid the middle tabs and took their taps. Each drawer view says it is offline itself, and the
+     * island returns when the drawer closes. A banner stays, since it pushes the drawer down instead of covering it.
+     */
+    isSessionCovered: boolean;
     onRetry: () => void;
     saved: string | null;
     status: 'stale' | 'unverified';
@@ -88,7 +95,7 @@ export const ConnectionBanner = ({
         relayFailure,
     );
     if (model.presentation === 'island')
-        return (
+        return isSessionCovered ? null : (
             <ConnectionIsland
                 accessibilityLabel={message}
                 actionLabel={actionLabels[model.action]}

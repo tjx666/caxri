@@ -2,6 +2,8 @@ import type { AgentProvider } from '@caxri/protocol';
 
 import { shouldFallbackToTerminal } from '../conversation/conversation-model';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
+import type { MobileLayoutMode } from '../layout/layout-mode';
+import { isSessionSidePanelDocked } from '../layout/layout-mode';
 import type { MobileTerminal } from './session-model';
 
 /**
@@ -70,6 +72,28 @@ export const sessionSegments = ({
  */
 export const isSideSessionSegment = (segment: SessionSegment): segment is SideSessionSegment =>
     segment === 'changes' || isPanelSessionSegment(segment);
+
+/**
+ * Whether the Session on screen sits under its side panel's drawer, which covers it like a sheet: a side segment is
+ * open in a layout that does not dock the panel. The Session on screen is the routed one, or on a tablet the one
+ * selected in the list beside it; a phone showing the Session list has none.
+ */
+export const isSessionUnderSideDrawer = ({
+    layout,
+    routeSessionId,
+    segmentBySession,
+    selectedSessionId,
+}: {
+    layout: MobileLayoutMode;
+    routeSessionId: string | null;
+    segmentBySession: Readonly<Record<string, SessionSegment>>;
+    selectedSessionId: string | null;
+}): boolean => {
+    if (isSessionSidePanelDocked(layout)) return false;
+    const shown = routeSessionId ?? (layout === 'phone' ? null : selectedSessionId);
+    const segment = shown === null ? undefined : segmentBySession[shown];
+    return segment !== undefined && isSideSessionSegment(segment);
+};
 
 /**
  * The content segment on screen: the selected one, or `remembered`, the one an open side panel covers or sits beside. A

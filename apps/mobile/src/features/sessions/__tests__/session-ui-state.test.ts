@@ -6,6 +6,7 @@ import {
     isChatAwaitingBehindSidePanel,
     isChatSegmentShown,
     isSessionDetailVisible,
+    isSessionUnderSideDrawer,
     isSideSessionSegment,
     preferredSessionSegment,
     rememberSessionDraft,
@@ -243,6 +244,25 @@ describe('host Session UI state', () => {
         expect(isSessionDetailVisible({ ...visible, isRouted: false })).toBe(false);
         expect(isSessionDetailVisible({ ...visible, isPhone: false, isRouted: false })).toBe(true);
         expect(isSessionDetailVisible({ ...visible, isSelected: false })).toBe(false);
+    });
+
+    it('reports a Session under its side drawer only where the panel does not dock', () => {
+        const phone = {
+            layout: 'phone',
+            routeSessionId: 'session-one',
+            segmentBySession: { 'session-one': 'changes', 'session-two': 'panel:caxri.files' },
+            selectedSessionId: 'session-two',
+        } as const;
+        expect(isSessionUnderSideDrawer(phone)).toBe(true);
+        // A phone showing the Session list has no Session on screen, whatever the list selected.
+        expect(isSessionUnderSideDrawer({ ...phone, routeSessionId: null })).toBe(false);
+        const split = { ...phone, layout: 'tablet-split', routeSessionId: null } as const;
+        expect(isSessionUnderSideDrawer(split)).toBe(true);
+        expect(isSessionUnderSideDrawer({ ...split, layout: 'tablet-wide' })).toBe(false);
+        expect(
+            isSessionUnderSideDrawer({ ...phone, segmentBySession: { 'session-one': 'terminal' } }),
+        ).toBe(false);
+        expect(isSessionUnderSideDrawer({ ...phone, segmentBySession: {} })).toBe(false);
     });
 });
 

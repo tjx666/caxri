@@ -13,6 +13,7 @@ import { mobileLayoutMode } from '../../layout/layout-mode';
 import { useMobileUpdateNotice } from '../../update/use-mobile-update-notice';
 import { useOpenSession } from '../hooks/use-open-session';
 import { isConnectionBannerShown } from '../session-notices';
+import { isSessionUnderSideDrawer } from '../session-ui-state';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionHome } from './session-home';
 import { SessionHomeNotice } from './session-home-notice';
@@ -66,7 +67,13 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const { height, width } = useWindowDimensions();
     const layout = mobileLayoutMode(width, height);
     const { getLastSeenAt, retryConnection, status } = useMobileClient();
-    const { hostId } = useHostSessions();
+    const { hostId, sessions, ui } = useHostSessions();
+    const isSessionCovered = isSessionUnderSideDrawer({
+        layout,
+        routeSessionId,
+        segmentBySession: ui.segmentBySession,
+        selectedSessionId: sessions.selected?.id ?? null,
+    });
     const updateNotice = useMobileUpdateNotice();
     /**
      * Lazy-initialized so the first paint already reflects the client's current `lastSeenAt` instead of the
@@ -120,6 +127,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
                         : null
                 }
                 isListVisible={layout !== 'phone' || !routeSessionId}
+                isSessionCovered={isSessionCovered}
                 now={now}
                 onRetryConnection={retryConnection}
                 theme={theme}

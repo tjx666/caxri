@@ -7,6 +7,7 @@ import type { useMobileTheme } from '../../../theme/use-mobile-theme';
 import type { MobileAgentChatSessionCommand } from '../../agent-chat/agent-chat-app-commands';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { isSessionSidePanelDocked } from '../../layout/layout-mode';
 import { useOpenSession } from '../hooks/use-open-session';
 import type { useSessionConversation } from '../hooks/use-session-conversation';
 import { useSessionManagement } from '../hooks/use-session-management';
@@ -165,7 +166,7 @@ export const SelectedSessionDetail = ({
                 hasConversation={conversation.hasConversation}
                 hostId={hostId}
                 isConnected={fresh}
-                isSidePanelDocked={layout === 'tablet-wide'}
+                isSidePanelDocked={isSessionSidePanelDocked(layout)}
                 isVisible={isDetailVisible}
                 lastSideSegment={ui.sideSegmentBySession[selected.id]}
                 onBack={layout === 'phone' ? goHome : undefined}
