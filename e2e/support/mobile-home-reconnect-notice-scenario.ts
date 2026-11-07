@@ -181,6 +181,12 @@ export async function executeMobileHomeReconnectNoticeScenario(
 
         // 3. Background and return. Filming starts in the background so the launcher precedes the list's first frame.
         await adbShell(serial, ['input', 'keyevent', 'KEYCODE_HOME']);
+        /**
+         * The key event returns before the launcher animates in; a recording started then opens on the list itself, and
+         * every launcher frame after it reads as the row leaving its final picture.
+         */
+        await waitForNoCheck(serial, row, 10_000);
+        await pause(1_000);
         const resume = departuresFromFinalPicture(
             await filmBand(async () => {
                 await pause(BACKGROUND_MS);
