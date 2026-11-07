@@ -11,4 +11,10 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-home-notice-settle',
     },
+    'MOB-SESSION-NOTICE-RECONNECT-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'session-home-reconnect-notice',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
