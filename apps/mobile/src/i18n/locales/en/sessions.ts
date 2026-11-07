@@ -61,6 +61,8 @@ export const sessions = {
     'sessions.archived.truncated': 'Showing the {{shown}} most recent of {{total}}.',
     'sessions.backToSessions': 'Back to Sessions',
     'sessions.banner.openSettings': 'Open Settings',
+    'sessions.banner.reconnecting': 'Reconnecting…',
+    'sessions.banner.reconnectingSaved': 'Reconnecting… · {{saved}}',
     'sessions.banner.reconnectNow': 'Reconnect now',
     'sessions.continue.notInstalled': 'Not installed',
     'sessions.continue.unsupported': 'No Chat support',
@@ -74,6 +76,7 @@ export const sessions = {
         'Caxri on your computer is offline. Open Caxri on your computer; this phone reconnects automatically.',
     'sessions.banner.relayUnauthorized':
         'The Relay does not accept this phone. On your computer, open Caxri Settings → Mobile to check it is not Revoked, or pair again with Create pairing code.',
+    'sessions.banner.relayBusyShort': 'Relay busy, retrying…',
     'sessions.banner.relayBusy': 'The Relay is busy. Retrying automatically.',
     'sessions.composer.agentNotRunning': 'The primary Agent is not running.',
     'sessions.composer.attach': 'Attach',

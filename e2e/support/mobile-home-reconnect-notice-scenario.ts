@@ -59,8 +59,8 @@ type Recording = Awaited<ReturnType<typeof startMobileFramebufferRecording>>;
  *
  * 1. A two-second network blip must not drop the Reconnecting notice in above the list and take it away again, so the
  *    Project filter row holds still.
- * 2. A sustained outage still shows the notice. When the network returns for a moment and drops again, the notice stays on
- *    screen through the gap instead of collapsing and coming back; it leaves once, after the network is back.
+ * 2. A sustained outage still shows the notice, floating above the Project filter row without moving it (#3759). The row
+ *    holds one picture from the drop, through a flaky recovery, until after the network is back.
  * 3. Leaving Caxri for a few seconds and returning, the path the report filmed, keeps the row still after it first
  *    appears.
  *
@@ -136,14 +136,31 @@ export async function executeMobileHomeReconnectNoticeScenario(
             );
         await capture(environment, 'after-blip', artifacts);
 
-        // 2. Sustained outage, then a flaky recovery.
-        await setOnline(false);
-        await pause(OUTAGE_MS);
-        await waitForCheck(serial, 'connection-stale-banner', 30_000);
-        await capture(environment, 'sustained-outage', artifacts);
+        // 2. Sustained outage, then a flaky recovery, filmed from the moment the network drops.
+        const island = { bottom: 0, filtersTop: 0 };
         const flap = heldPicturesBeforeFinalAt(
             await filmBand(async () => {
                 await pause(500);
+                await setOnline(false);
+                await pause(OUTAGE_MS);
+                await waitForCheck(serial, 'connection-stale-banner', 30_000);
+                const nodes = await mobileSemantics(serial);
+                const bounds = (id: string) => {
+                    const node = nodes.find(({ checkId }) => checkId === id);
+                    return node && androidBounds(node.bounds);
+                };
+                const capsule = bounds('connection-stale-banner');
+                const shifted = bounds('session-project-filters');
+                if (!capsule || !shifted) throw new Error('The outage screen is not laid out');
+                island.bottom = capsule.bottom;
+                island.filtersTop = shifted.top;
+                if (shifted.top !== band.top || shifted.bottom !== band.bottom)
+                    throw new Error(
+                        `The Reconnecting notice moved the Project filter row from ${band.top} to ${shifted.top}`,
+                    );
+                if (capsule.bottom > band.top)
+                    throw new Error('The Reconnecting notice covers the Project filter row');
+                await capture(environment, 'sustained-outage', artifacts);
                 await setOnline(true);
                 await pause(FLAP_GAP_MS);
                 await setOnline(false);
@@ -153,10 +170,10 @@ export async function executeMobileHomeReconnectNoticeScenario(
             }),
             HOLD_MS,
         );
-        // The notice on screen when filming starts is the one picture allowed before the final, notice-free one.
-        if (flap.length > 1)
+        // The notice floats over the screen, so the row must show one picture from the drop until after recovery.
+        if (flap.length > 0)
             throw new Error(
-                `The Reconnecting notice came and went ${flap.length} times on a flaky network: ${summarize(flap)}`,
+                `The Project filter row moved while the Reconnecting notice came and went: ${summarize(flap)}`,
             );
         await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
         await waitForCheck(serial, row);
@@ -182,6 +199,8 @@ export async function executeMobileHomeReconnectNoticeScenario(
             blipMs: BLIP_MS,
             flapGapMs: FLAP_GAP_MS,
             flapHeldPictures: flap.length,
+            islandBottomPx: island.bottom,
+            filterRowTopPx: island.filtersTop,
             outageMs: OUTAGE_MS,
             resumeDepartures: resume.departures,
             status: 'passed',

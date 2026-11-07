@@ -32,22 +32,45 @@ export const connectionNoticeMessage = (
 };
 
 /**
- * What the connection banner draws besides its sentence: the tone and the one action that can help. A stale connection
- * retries on a backoff of up to 30 seconds, so `reconnect` skips the wait; a Relay that does not accept this phone
- * cannot be fixed by retrying, so `settings` opens where the user can forget the computer and pair again. A busy Relay
- * keeps its muted tone because the app is already retrying and nothing needs the user.
+ * What the connection notice draws besides its sentence: the tone, the one action that can help, and where it sits. A
+ * stale connection retries on a backoff of up to 30 seconds, so `reconnect` skips the wait; a Relay that does not
+ * accept this phone cannot be fixed by retrying, so `settings` opens where the user can forget the computer and pair
+ * again. A busy Relay keeps its muted tone because the app is already retrying and nothing needs the user.
+ *
+ * `island` is the floating capsule over the top of the screen: an automatic reconnect needs nothing from the user and
+ * clears by itself, so it must not take layout height and push the list down and back up. A notice the user has to act
+ * on stays a `banner` the screen makes room for.
  */
 export const connectionBannerModel = (
     status: 'stale' | 'unverified',
     relayFailure: MobileRelayFailureKind | null = null,
 ): {
     action: 'reconnect' | 'retry' | 'settings';
+    presentation: 'banner' | 'island';
     tone: 'muted' | 'warning';
 } => {
-    if (status === 'unverified') return { action: 'retry', tone: 'warning' };
-    if (relayFailure === 'unauthorized') return { action: 'settings', tone: 'warning' };
-    if (relayFailure === 'host-offline') return { action: 'reconnect', tone: 'warning' };
-    return { action: 'reconnect', tone: 'muted' };
+    if (status === 'unverified')
+        return { action: 'retry', presentation: 'banner', tone: 'warning' };
+    if (relayFailure === 'unauthorized')
+        return { action: 'settings', presentation: 'banner', tone: 'warning' };
+    if (relayFailure === 'host-offline')
+        return { action: 'reconnect', presentation: 'banner', tone: 'warning' };
+    return { action: 'reconnect', presentation: 'island', tone: 'muted' };
+};
+
+/**
+ * The connection island's short label: the state in a few words, plus the saved copy's age when the Session list on
+ * screen is that copy. The island's accessible name still reads `connectionNoticeMessage`'s full sentence.
+ */
+export const connectionIslandLabel = (
+    savedLabel: string | null,
+    t: Translate = translate,
+    relayFailure: MobileRelayFailureKind | null = null,
+): string => {
+    if (relayFailure === 'busy') return t('sessions.banner.relayBusyShort');
+    return savedLabel === null
+        ? t('sessions.banner.reconnecting')
+        : t('sessions.banner.reconnectingSaved', { saved: savedLabel });
 };
 
 /**

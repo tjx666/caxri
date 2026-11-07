@@ -434,7 +434,7 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
   no network access; the native side owns the authenticated connection and forwards batched output.
 - The Terminal fills the segment. Status that must interrupt (loading, stale, stopped, view only,
   errors) floats as a compact chip at the top instead of stacking rows under the output. While the
-  phone itself is offline the app-wide `Reconnecting…` banner already explains the frozen frame, so
+  phone itself is offline the app-wide `Reconnecting…` notice already explains the frozen frame, so
   the stale chip only appears when the connection is up but Terminal updates stopped.
 - **Observe** (default): the Terminal keeps Desktop's columns and rows. The default scale has a
   readable minimum; a tall grid scrolls vertically and starts at the latest output. A wide grid
@@ -608,6 +608,7 @@ feature finds one way to draw each job.
 | Pushed screen header                    | `ScreenHeader`                                             | `back` or `close`, fixed for the screen's life.                                                                                                                          |
 | Remote state                            | `ScreenState`                                              | `loading`, `empty`, `error`, `offline`; an offline state always offers a way back.                                                                                       |
 | Top notice                              | `NoticeBanner`                                             | At most one per screen, the most severe state.                                                                                                                           |
+| Self-clearing connection notice         | `ConnectionIsland`                                         | Automatic reconnect only: a capsule floating over the top center, no layout height; tap reconnects now. Notices needing the user stay `NoticeBanner`.                    |
 | Confirmation                            | `ConfirmSheet`                                             | Replaces the system `Alert`; the button names the verb; `danger` only when something is lost.                                                                            |
 | Result feedback                         | `Toast` (`showToast`)                                      | One transient card, a new one replaces the old; results only (copied, could not open), ~3 s, errors 6 s, one action such as Undo 8 s. Confirmation stays `ConfirmSheet`. |
 | Menu on a tapped control                | `PopoverMenu` + `PopoverAction`                            | Short anchored menus (a header's ⋮, a chip's choices).                                                                                                                   |
@@ -677,7 +678,7 @@ cache only; nothing is sent from it (see the offline outbox under [Deferred](#de
 
 - Each saved copy is labeled: `Showing Sessions saved 5m ago.` above the list and
   `Showing messages saved 5m ago.` at the top of a Conversation or Chat, above any state notice.
-  The app-wide `Reconnecting…` banner and every disabled mutation keep explaining why it is not
+  The app-wide `Reconnecting…` notice and every disabled mutation keep explaining why it is not
   live. While the screen below labels its saved copy, the banner's body reads only `Replies are
 paused until Caxri reconnects.` instead of repeating `Showing the last known state.`
 - The first live read replaces the saved copy as a whole; the label disappears with it. A saved

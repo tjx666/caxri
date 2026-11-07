@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CONNECTION_NOTICE_SETTLE_MS,
     connectionBannerModel,
+    connectionIslandLabel,
     connectionNoticeMessage,
     createHomeNoticeSelections,
     drawnHomeNotice,
@@ -143,23 +144,41 @@ describe('selectHomeNotice', () => {
 
 describe('connection banner model', () => {
     it('offers an immediate reconnect on a stale connection and warns on actionable Relay failures', () => {
-        expect(connectionBannerModel('stale')).toEqual({ action: 'reconnect', tone: 'muted' });
+        expect(connectionBannerModel('stale')).toEqual({
+            action: 'reconnect',
+            presentation: 'island',
+            tone: 'muted',
+        });
         expect(connectionBannerModel('stale', 'busy')).toEqual({
             action: 'reconnect',
+            presentation: 'island',
             tone: 'muted',
         });
         expect(connectionBannerModel('stale', 'host-offline')).toEqual({
             action: 'reconnect',
+            presentation: 'banner',
             tone: 'warning',
         });
         expect(connectionBannerModel('stale', 'unauthorized')).toEqual({
             action: 'settings',
+            presentation: 'banner',
             tone: 'warning',
         });
         expect(connectionBannerModel('unverified', 'unauthorized')).toEqual({
             action: 'retry',
+            presentation: 'banner',
             tone: 'warning',
         });
+    });
+});
+
+describe('connection island label', () => {
+    it('names the state in a few words and keeps the saved copy age', () => {
+        expect(connectionIslandLabel(null)).toBe('Reconnecting…');
+        expect(connectionIslandLabel('saved 5m ago')).toBe('Reconnecting… · saved 5m ago');
+        expect(connectionIslandLabel('saved 5m ago', undefined, 'busy')).toBe(
+            'Relay busy, retrying…',
+        );
     });
 });
 
