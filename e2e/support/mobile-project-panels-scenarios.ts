@@ -411,7 +411,11 @@ async function holdProjectChip(environment: Environment, artifacts: string[]): P
             extraIds.push(project.id);
         }
         /* eslint-enable no-await-in-loop */
-        await fixture.pair(extraIds);
+        if (!fixture.allowedSessionId) throw new Error('The allowed Session is unavailable');
+        await fixture.pair({
+            projectIds: extraIds,
+            readyCheckId: `session-row-${fixture.allowedSessionId}`,
+        });
         const isProjectChip = (checkId: string) =>
             checkId.startsWith('project-filter-') && checkId !== 'project-filter-all';
         const start = await waitForMobile(

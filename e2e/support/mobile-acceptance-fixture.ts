@@ -17,12 +17,7 @@ import {
 } from './mobile-acceptance-agents';
 import type { MobileAgentChatDriver } from './mobile-agent-chat-driver';
 import { createMobileAgentChatDriver } from './mobile-agent-chat-driver';
-import {
-    mobileSemantics,
-    openMobilePairingLink,
-    runMobileDeviceCommand,
-    waitForMobile,
-} from './mobile-android';
+import { openMobilePairingLink, runMobileDeviceCommand, waitForMobile } from './mobile-android';
 import type { AttentionCommand, AttentionReceipt } from './mobile-attention-fixture';
 import {
     enableMobileAttentionHooks,
@@ -34,6 +29,7 @@ import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { fakeConversationAgent } from './mobile-conversation-agent-fixture';
 import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
 import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
+import { waitForPairedDevice as waitForPairedDeviceOn } from './mobile-paired-device';
 import type { SyntheticMenuState } from './mobile-synthetic-menu-state';
 import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
 import { runServerDatabase as runServerDatabase } from './run-server-database';
@@ -57,9 +53,14 @@ export interface MobileAcceptanceFixture {
         seedChanges(kind?: MobileChangesFixtureKind): Promise<void>;
     };
     /**
-     * Pairs the emulator with the allowed Project plus `extraProjectIds`, so a case can show the phone more Projects.
+     * Pairs the emulator with the allowed Project plus `extra.projectIds`. The phone counts as ready once
+     * `extra.readyCheckId` shows, because extra Projects can keep the allowed Project's own mark (its row, or the empty
+     * list) from ever appearing.
      */
-    pair(extraProjectIds?: string[]): Promise<{ deviceId: string }>;
+    pair(extra?: {
+        projectIds: string[];
+        readyCheckId: `session-row-${string}` | 'session-list-empty';
+    }): Promise<{ deviceId: string }>;
     pairFromDesktopUi(trigger: () => Promise<void>): Promise<{ deviceId: string }>;
     failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
@@ -431,33 +432,15 @@ export async function createMobileAcceptanceFixture(
         throw error;
     }
 
-    const waitForPairedDevice = async (): Promise<{ deviceId: string }> => {
-        const nodes = await waitForMobile(
-            () => mobileSemantics(input.serial),
-            (semantics) =>
-                semantics.some(({ checkId }) =>
-                    allowedSessionId
-                        ? checkId === `session-row-${allowedSessionId}` ||
-                          checkId === 'pairing-error'
-                        : checkId === 'session-list-empty' || checkId === 'pairing-error',
-                ),
-        );
-        if (nodes.some(({ checkId }) => checkId === 'pairing-error')) {
-            throw new Error('Mobile Acceptance pairing failed');
-        }
-        if (
-            deniedSessionId &&
-            nodes.some(({ checkId }) => checkId === `session-row-${deniedSessionId}`)
-        ) {
-            throw new Error('The paired device exposed a Session outside its Project grant');
-        }
-        const devices = await pageRequest<{
-            devices: Array<{ deviceId: string; revokedAt?: number }>;
-        }>(running.page, 'mobile.device.list');
-        const active = devices.devices.filter(({ revokedAt }) => revokedAt === undefined);
-        if (active.length !== 1) throw new Error('Unexpected active paired-device count');
-        return { deviceId: active[0].deviceId };
-    };
+    const waitForPairedDevice = (readyCheckId?: string) =>
+        waitForPairedDeviceOn({
+            deniedSessionId,
+            page: running.page,
+            readyCheckId:
+                readyCheckId ??
+                (allowedSessionId ? `session-row-${allowedSessionId}` : 'session-list-empty'),
+            serial: input.serial,
+        });
     let isChangesSeeded = false;
     return {
         ...(chatTerminalId && {
@@ -539,15 +522,15 @@ export async function createMobileAcceptanceFixture(
                 return pairMobileEncryptedPeer(pairing.pairingLink);
             },
         }),
-        pair: async (extraProjectIds = []) => {
+        pair: async (extra) => {
             await pageRequest(running.page, 'mobile.access.enable');
             const pairing = await pageRequest<{ pairingLink: string }>(
                 running.page,
                 'mobile.pairing.create',
-                { projectIds: [allowedProjectId, ...extraProjectIds] },
+                { projectIds: [allowedProjectId, ...(extra?.projectIds ?? [])] },
             );
             await openMobilePairingLink(input.serial, pairing.pairingLink);
-            return waitForPairedDevice();
+            return waitForPairedDevice(extra?.readyCheckId);
         },
         pairFromDesktopUi: async (trigger) => {
             /**

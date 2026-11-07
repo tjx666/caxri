@@ -83,7 +83,11 @@ export async function executeMobileNewSessionSwitchScenario(
             await pageRequest(fixture.running.page, 'session.delete', {
                 sessionId: fixture.deniedSessionId,
             });
-        await fixture.pair([fixture.deniedProjectId]);
+        if (!fixture.allowedSessionId) throw new Error('The allowed Session is unavailable');
+        await fixture.pair({
+            projectIds: [fixture.deniedProjectId],
+            readyCheckId: `session-row-${fixture.allowedSessionId}`,
+        });
         await tapMobileCheck(serial, 'new-session-button');
         const settled = await waitForMobile(
             () => mobileSemantics(serial),
