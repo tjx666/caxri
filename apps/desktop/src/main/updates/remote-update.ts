@@ -8,6 +8,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { outsideDesktopCommand } from '../desktop-command-scope';
 import type { UpdateService } from './updates';
 
 type RemoteUpdateOperation = Extract<DesktopOperation, { kind: 'update' }>;
@@ -49,7 +50,9 @@ export interface RemoteUpdateControlOptions {
     /**
      * Starts the restart only after the reply has been sent. The restart's quit flow asks Server Core for running work,
      * and an ordinary request issued while this Desktop command is still unanswered queues behind it and deadlocks both
-     * sides until the Desktop command timeout fires.
+     * sides until the Desktop command timeout fires. The default also leaves the command's scope: `setImmediate`
+     * inherits the caller's `AsyncLocalStorage` context, so a restart scheduled inside the handler would still count as
+     * servicing `update`, and `desktopCommandCallbackError` would refuse the quit flow's window-state writes.
      */
     schedule?: (run: () => void) => void;
 }
@@ -59,7 +62,8 @@ export interface RemoteUpdateControlOptions {
  * or download continues in Main and the phone polls `read`, because a download outlives the Desktop command timeout.
  */
 export function createRemoteUpdateControl(options: RemoteUpdateControlOptions) {
-    const schedule = options.schedule ?? ((run: () => void) => setImmediate(run));
+    const schedule =
+        options.schedule ?? ((run: () => void) => outsideDesktopCommand(() => setImmediate(run)));
     const log = (outcome: RemoteUpdateInstallResult['outcome'], reason?: RemoteUpdateBlockReason) =>
         options
             .logger()
