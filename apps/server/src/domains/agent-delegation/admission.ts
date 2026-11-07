@@ -316,6 +316,7 @@ export function resolveDelegationAdmission(options: {
     inherited?: Pick<AgentDelegationReceipt, 'depth' | 'parentDelegationId'> & {
         callerTurnId?: string;
         callerLaunchId?: string;
+        callerConversationId?: string;
     };
 }) {
     const { input, previous, settings, database, authority } = options;
@@ -409,6 +410,11 @@ export function resolveDelegationAdmission(options: {
             ? inherited.callerTurnId
             : authority.callerTerminalId && options.callerTurnId?.(authority.callerTerminalId),
         callerLaunchId: inherited ? inherited.callerLaunchId : (callerLaunch ?? undefined),
+        callerConversationId: inherited
+            ? inherited.callerConversationId
+            : authority.principal.kind === 'agent' && authority.callerTerminalId
+              ? database.getTerminal(authority.callerTerminalId)?.agentSessionId
+              : undefined,
     };
 }
 
@@ -489,5 +495,8 @@ export function admittedDelegation(options: {
         promptDigest: '',
         ...(admission.callerTurnId && { callerTurnId: admission.callerTurnId }),
         ...(admission.callerLaunchId && { callerLaunchId: admission.callerLaunchId }),
+        ...(admission.callerConversationId && {
+            callerConversationId: admission.callerConversationId,
+        }),
     };
 }

@@ -83,8 +83,9 @@ export const delegationEdges = sqliteTable(
  * never deleted. A NULL counter is unknown, never 0. `title` and `summary` are private domain data: they appear only in
  * the authorized caller's command reply, never in logs, events, or diagnostics.
  *
- * `owner_terminal_id` and `owner_principal_hash` reproduce the task ownership rule (`isDelegationOwner`): the exact
- * Terminal and Endpoint generation that created the task. The hash is a SHA-256 of the principal JSON.
+ * `owner_terminal_id`, `owner_principal_hash`, and `owner_conversation_id` reproduce the task ownership rule
+ * (`isDelegationOwner`): the exact Terminal, plus the Endpoint generation or the provider conversation that created the
+ * task. The hash is a SHA-256 of the principal JSON.
  */
 export const delegationHistory = sqliteTable(
     'delegation_history',
@@ -96,6 +97,7 @@ export const delegationHistory = sqliteTable(
         projectId: text('project_id').notNull(),
         ownerTerminalId: text('owner_terminal_id'),
         ownerPrincipalHash: text('owner_principal_hash'),
+        ownerConversationId: text('owner_conversation_id'),
         provider: text('provider').notNull(),
         selectionModel: text('selection_model'),
         selectionEffort: text('selection_effort'),

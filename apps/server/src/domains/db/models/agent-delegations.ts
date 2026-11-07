@@ -126,6 +126,12 @@ const storedDelegationSchema = z
          * ID only.
          */
         callerLaunchId: z.string().min(1).max(256).optional(),
+        /**
+         * The provider conversation the caller's Agent Terminal held when this task was created (and, for a retry, of
+         * the failed task it retries). A later generation of that Terminal that resumed this conversation still owns
+         * the task; see `isDelegationOwner`. Absent for a caller with no Agent conversation. An ID only.
+         */
+        callerConversationId: z.string().min(1).max(256).optional(),
         hasLostTarget: z.boolean().optional(),
         /**
          * The redirects (`agent.delegation.redirect`) this task has been asked to deliver, one claim per operation ID.

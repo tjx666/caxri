@@ -1,0 +1,1 @@
+ALTER TABLE `delegation_history` ADD `owner_conversation_id` text;

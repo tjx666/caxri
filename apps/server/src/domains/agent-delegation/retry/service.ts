@@ -15,6 +15,7 @@ import type { WatchHub } from '../../watch';
 import type { DelegationAuthority } from '../admission';
 import { isCaxriBotCaller } from '../admission';
 import { logDelegationRetry } from '../diagnostics';
+import { isSameCallerConversation } from '../ownership';
 import { resumeRejection } from '../rejection';
 import type { AgentDelegationServiceOptions, DelegationWorktree } from '../service-options';
 import { RetryClaims } from './claims';
@@ -100,9 +101,9 @@ export class DelegationRetries {
 
     /**
      * Whether the Agent that delegated `failed` can still read a task retried on its behalf. An Agent must be the live
-     * Endpoint generation of its Terminal, because ownership compares the stored principal including its generation (a
-     * live Terminal alone proves nothing). Caxri Bot keeps its ledger across generations and only needs its Terminal.
-     * The owner's own tasks (Desktop, CLI) have no Agent to outlive.
+     * Endpoint generation of its Terminal or a later generation that resumed the same conversation, the two ways
+     * ownership admits it (a live Terminal alone proves nothing). Caxri Bot keeps its ledger across generations and
+     * only needs its Terminal. The owner's own tasks (Desktop, CLI) have no Agent to outlive.
      */
     private isCallerLive(failed: StoredAgentDelegation): boolean {
         const { principal } = failed;
@@ -112,6 +113,7 @@ export class DelegationRetries {
         if (!this.database.getTerminal(terminalId)) return false;
         if (isCaxriBotCaller(this.database, { principal, callerTerminalId: terminalId }))
             return true;
+        if (isSameCallerConversation(this.database, failed, terminalId)) return true;
         const endpoint = this.host.options.callerEndpoint?.(terminalId);
         return (
             endpoint !== undefined &&
@@ -390,6 +392,7 @@ export class DelegationRetries {
                 parentDelegationId: failed.receipt.parentDelegationId,
                 callerTurnId: failed.callerTurnId,
                 callerLaunchId: failed.callerLaunchId,
+                callerConversationId: failed.callerConversationId,
             },
             guard: () => {
                 if (!this.isCallerLive(this.claims.load(failedId)))

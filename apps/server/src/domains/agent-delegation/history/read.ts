@@ -36,8 +36,9 @@ interface Cursor {
 
 /**
  * The reader's row filter, from the same rule `isDelegationOwner` applies to a task: every principal except an Agent or
- * delegation client reads all rows; those two read the rows their exact Terminal and Endpoint generation created, and
- * Caxri Bot reads its Terminal's rows under any generation.
+ * delegation client reads all rows; those two read the rows their exact Terminal created under the same Endpoint
+ * generation or in the conversation that Terminal holds now, and Caxri Bot reads its Terminal's rows under any
+ * generation.
  */
 function historyScope(
     database: CaxriDatabase,
@@ -48,6 +49,10 @@ function historyScope(
         kind: 'caller',
         terminalId: authority.callerTerminalId,
         principalHash: principalHash(authority.principal),
+        conversationId:
+            authority.principal.kind === 'agent' && authority.callerTerminalId
+                ? database.getTerminal(authority.callerTerminalId)?.agentSessionId
+                : undefined,
         anyPrincipal: isCaxriBotCaller(database, authority),
     };
 }
