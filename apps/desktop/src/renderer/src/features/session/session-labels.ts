@@ -21,10 +21,6 @@ export interface SessionLabelInput {
     projectId: string;
     projectTitle: string;
     /**
-     * Short snippet of the first prompt, when a surface has one. Names an unnamed Session before its title lands.
-     */
-    promptSnippet?: string;
-    /**
      * False for a Session outside the surface being labeled (an archived one): it never causes a collision, but it
      * still counts when ordinals are assigned so that archiving it does not renumber its siblings.
      */
@@ -45,26 +41,13 @@ export interface SessionLabel {
 }
 
 /**
- * Longest first-prompt snippet used as a title.
- */
-const SESSION_LABEL_SNIPPET_LENGTH = 24;
-
-/**
- * The title chain for one Session: its stored title (the user's rename or the Agent's own), then a snippet of the first
- * prompt, then `Project · worktree`, then the translated placeholder. One rule for every surface, so the strip and the
- * sidebar never name a Session differently.
+ * The title for one Session: its stored title (the user's rename or the Agent's own), else the translated placeholder.
+ * An unnamed Session stays plainly unnamed rather than showing a title assembled from its Project or worktree, which
+ * carries no meaning of its own. One rule for every surface, so no two surfaces name a Session differently.
  */
 export function sessionLabelTitle(input: SessionLabelInput, untitledLabel: string): string {
     const stored = input.title.trim();
-    if (stored !== '' && stored !== DEFAULT_SESSION_TITLE) return input.title;
-    const snippet = input.promptSnippet?.trim().replaceAll(/\s+/g, ' ');
-    if (snippet) {
-        return snippet.length > SESSION_LABEL_SNIPPET_LENGTH
-            ? `${snippet.slice(0, SESSION_LABEL_SNIPPET_LENGTH - 1).trimEnd()}…`
-            : snippet;
-    }
-    if (input.workingLocation) return `${input.projectTitle} · ${input.workingLocation}`;
-    return untitledLabel;
+    return stored !== '' && stored !== DEFAULT_SESSION_TITLE ? input.title : untitledLabel;
 }
 
 function collisionKey(title: string): string {

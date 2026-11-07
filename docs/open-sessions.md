@@ -136,9 +136,9 @@ Each sidebar row selects its own "open in another window" marker as a primitive
 ## Row labels
 
 The PrimarySidebar and pickers name a Session through one pure rule
-(`features/session/session-labels.ts`). The title chain is the stored title (the user's rename or the
-Agent's), then a snippet of the first prompt (24 characters), then `Project · worktree`, then the
-translated "Untitled". The prompt snippet is an optional input that no surface supplies yet.
+(`features/session/session-labels.ts`). The title is the stored title (the user's rename or the
+Agent's), else the translated "Untitled". An unnamed Session never shows a title assembled from its
+Project or worktree name: that string carries no meaning and reads as if someone had named it.
 
 A muted suffix follows the title only when another non-archived Session carries the same
 (case-insensitive) title, and it escalates only as far as needed: the Project name when the colliding
