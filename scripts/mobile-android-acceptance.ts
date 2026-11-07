@@ -36,6 +36,7 @@ import {
     writeMobileAcceptanceArtifact,
     writeMobileAcceptanceReceipt,
 } from './mobile-acceptance-runtime';
+import { collapseAndroidStatusBar } from './mobile-acceptance-status-bar';
 import { executeAndroidBuiltInScenario } from './mobile-android-built-in-scenarios';
 import type { MobileAndroidAcceptanceCaseId } from './mobile-android-cases';
 import {
@@ -287,6 +288,7 @@ async function executeCase(
     const caseSettingRestores: Array<() => void> = [];
     try {
         assertAndroidResponsive(serial, adbRead);
+        collapseAndroidStatusBar(adbRun);
         adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile']);
         // The native-init guard reads only warnings logged after this point.
         adbRun(['logcat', '-c']);
