@@ -94,6 +94,39 @@ describe('createAgentChatStreamPacer', () => {
         expect(shown - before).toBeLessThan(100);
     });
 
+    it('keeps up with a steady stream when redraws come slowly', () => {
+        // A phone busy re-parsing a long reply redraws every 150ms while 300 characters a second arrive. Counting each
+        // slow redraw as a nominal frame left most of the reply hidden until the turn ended and it appeared as a block.
+        const pacer = createAgentChatStreamPacer();
+        let target = '';
+        let shown = '';
+        for (let now = 0; now < 10_000; now += 150) {
+            target += 'x'.repeat(45);
+            shown = pacer.next(target, now);
+        }
+        expect(target.length - shown.length).toBeLessThan(100);
+    });
+
+    it('still eases in the backlog after the app was suspended mid-reply', () => {
+        const pacer = createAgentChatStreamPacer();
+        pacer.next('x'.repeat(10), 0);
+        // Five seconds without a frame: the next one must not reveal the whole backlog.
+        expect(pacer.next('x'.repeat(2_000), 5_000).length).toBeLessThan(1_500);
+    });
+
+    it('drains a finished reply quickly without showing it whole on one frame', () => {
+        const pacer = createAgentChatStreamPacer();
+        const partial = 'x'.repeat(100);
+        reveal(pacer, partial);
+        const finished = `${partial}${'y'.repeat(900)}`;
+        const lengths: number[] = [];
+        for (let now = 2_000; lengths.at(-1) !== finished.length; now += 32)
+            lengths.push(pacer.next(finished, now, { finish: true }).length);
+        expect(lengths[0]).toBeLessThan(finished.length);
+        // Out within about 400ms of 32ms redraws.
+        expect(lengths.length).toBeLessThanOrEqual(13);
+    });
+
     it('shows a rewound or edited reply whole at once', () => {
         const pacer = createAgentChatStreamPacer('Old reply text');
         expect(pacer.next('New', 0)).toBe('New');

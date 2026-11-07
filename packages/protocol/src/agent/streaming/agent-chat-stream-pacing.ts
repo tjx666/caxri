@@ -5,9 +5,9 @@
  * still hidden, so a burst eases in over a few frames while a steady stream stays only a few characters behind it.
  *
  * It never holds text back for long: the first character of a reply shows on the first frame, a backlog drains in
- * roughly {@link AGENT_CHAT_STREAM_DRAIN_MS}, and a caller stops pacing (showing the whole text at once) the moment the
- * turn completes, fails, or is interrupted. LobeHub's `useSmoothStreamContent` paces its replies the same way, with an
- * adaptive rate and a short buffer.
+ * roughly {@link AGENT_CHAT_STREAM_DRAIN_MS}, and once the reply's stream ends (the turn completes, fails, or is
+ * interrupted) a caller either shows the whole text or drains the rest within a few hundred milliseconds with `finish`.
+ * LobeHub's `useSmoothStreamContent` paces its replies the same way, with an adaptive rate and a short buffer.
  *
  * The buffer adapts to how text arrives. Over a local connection (Desktop) deltas land every few milliseconds and the
  * reveal trails by about {@link AGENT_CHAT_STREAM_DRAIN_MS}. Over a phone's cellular or VPN link the same stream lands
@@ -28,11 +28,31 @@ const AGENT_CHAT_STREAM_DRAIN_MS = 180;
 const MIN_CHARACTERS_PER_SECOND = 90;
 
 /**
- * The frame time assumed for the first frame and after any gap longer than {@link MAX_FRAME_MS}, so a reply resuming
- * after a silence, or a frame the system delayed, eases in rather than jumping by a whole window of text.
+ * The frame time assumed for the first frame of a burst and after any gap longer than {@link MAX_FRAME_MS}, so a reply
+ * resuming after a silence, or a frame that lands after the app was suspended mid-reply, eases in rather than jumping
+ * by a whole window of text.
  */
 const NOMINAL_FRAME_MS = 16;
-const MAX_FRAME_MS = 50;
+
+/**
+ * The slowest redraw still counted as a frame, advancing the reveal by the time that really passed. A phone whose
+ * JavaScript thread is busy re-parsing a long reply redraws only every 80 to 150ms; counting each of those as a nominal
+ * frame left the reveal falling behind until the turn ended and the hidden rest (hundreds of characters) appeared as
+ * one block. Kept below {@link AGENT_CHAT_STREAM_DRAIN_MS} so one slow frame never reveals the whole backlog.
+ */
+const MAX_FRAME_MS = 160;
+
+/**
+ * How long, roughly, the rest of a reply takes to show once its stream ended (see `finish`): quick enough that a
+ * completed turn is never left mid-reveal, slow enough that the tail still reads as typing rather than a jump.
+ */
+const FINISH_DRAIN_MS = 120;
+
+/**
+ * The slowest reveal of a finished reply's rest, in characters per millisecond, so even a long hidden tail is out in
+ * well under half a second.
+ */
+const FINISH_MIN_RATE_PER_MS = 3;
 
 /**
  * The longest drain window a clumpy link stretches to, so text that already arrived never waits more than about this.
@@ -85,8 +105,12 @@ export interface AgentChatStreamPacer {
      * `requestAnimationFrame`'s timestamp). A `target` whose text still continues the end of what is shown (a clipped
      * reply whose window moved) keeps easing in after that point; any other `target` that does not extend what is shown
      * (a rewound or edited reply) is shown whole at once.
+     *
+     * With `finish`, the stream has ended and `target` is the whole reply: the rest drains within a few hundred
+     * milliseconds instead of at the stream's pace, so the tail never lands as one block the moment the turn
+     * completes.
      */
-    next(target: string, now: number): string;
+    next(target: string, now: number, options?: { finish?: boolean }): string;
 }
 
 /**
@@ -116,7 +140,7 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
         lastArrival = { at: now, length };
     };
     return {
-        next(target, now) {
+        next(target, now, options) {
             if (!target.startsWith(shown)) {
                 const aligned = realign(shown, target);
                 // The arrival lengths measured the old text; the learned cadence still describes the link.
@@ -141,16 +165,23 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
                 lastFrameAt === undefined ? NOMINAL_FRAME_MS : Math.max(now - lastFrameAt, 0);
             const elapsed = gap > MAX_FRAME_MS ? NOMINAL_FRAME_MS : gap;
             lastFrameAt = now;
-            const drainMs = Math.min(
-                MAX_DRAIN_MS,
-                Math.max(AGENT_CHAT_STREAM_DRAIN_MS, (arrivalGapMs ?? 0) * DRAIN_PER_ARRIVAL_GAP),
-            );
+            const isFinishing = options?.finish === true;
+            const drainMs = isFinishing
+                ? FINISH_DRAIN_MS
+                : Math.min(
+                      MAX_DRAIN_MS,
+                      Math.max(
+                          AGENT_CHAT_STREAM_DRAIN_MS,
+                          (arrivalGapMs ?? 0) * DRAIN_PER_ARRIVAL_GAP,
+                      ),
+                  );
             // Keeping pace with arrivals replaces the fixed floor once the rate is known, so a slow, clumpy stream
             // keeps moving between clumps instead of racing ahead and stopping.
-            const floorPerMs =
-                arrivalRate === undefined
-                    ? MIN_CHARACTERS_PER_SECOND / 1_000
-                    : Math.min(arrivalRate, MAX_FOLLOWED_RATE_PER_MS);
+            const floorPerMs = isFinishing
+                ? FINISH_MIN_RATE_PER_MS
+                : arrivalRate === undefined
+                  ? MIN_CHARACTERS_PER_SECOND / 1_000
+                  : Math.min(arrivalRate, MAX_FOLLOWED_RATE_PER_MS);
             carry += Math.max(floorPerMs * elapsed, (backlog * elapsed) / drainMs);
             let count = Math.min(Math.floor(carry), backlog);
             // The first character of a reply shows at once, so pacing never reads as a slow start.
@@ -161,6 +192,11 @@ export function createAgentChatStreamPacer(initial = ''): AgentChatStreamPacer {
             // A code point above U+FFFF starting at the last shown index means it is a high surrogate with its pair next.
             if ((target.codePointAt(end - 1) ?? 0) > 0xff_ff) end += 1;
             shown = target.slice(0, end);
+            if (shown.length === target.length) {
+                // Caught up on this frame: the next burst starts from a nominal frame, as above.
+                lastFrameAt = undefined;
+                carry = 0;
+            }
             return shown;
         },
     };

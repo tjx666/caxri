@@ -1,7 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { memo, use, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
 
@@ -62,15 +61,10 @@ const ConversationAgentMessage = ({
     theme: MobileTheme;
 }) => {
     const [mountedAt] = useState(() => performance.now());
-    const isReducedMotion = useReducedMotion();
     const paced = useConversationPacedText(text, isStreaming);
     return (
         <ConversationMarkdown
-            reveal={
-                isStreaming && !isReducedMotion
-                    ? { since: mountedAt, textShownAt: paced.shownAt }
-                    : undefined
-            }
+            reveal={paced.isPacing ? { since: mountedAt, textShownAt: paced.shownAt } : undefined}
             text={paced.text}
             theme={theme}
         />
@@ -221,8 +215,12 @@ export const ConversationEntry = memo(
                     style={styles.message}
                     testID={`conversation-agent-${entry.id}`}
                 >
+                    {/* FlashList recycles a row's cell for another entry, keeping its state; the key gives each reply its
+                        own pacer, so a new reply does not start from the previous reply's text and show its first
+                        burst whole. */}
                     <ConversationAgentMessage
                         isStreaming={entry.streaming === true}
+                        key={entry.id}
                         text={entry.text}
                         theme={theme}
                     />
