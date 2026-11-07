@@ -1,5 +1,5 @@
 import type { AgentChatItem } from '../agent-chat-contract.js';
-import { unwrapShellCommand } from '../agent-tool-presentation.js';
+import { unwrapShellCommand } from '../tool-rows/agent-shell-title.js';
 import { toolCallTrackerArtifact } from './agent-chat-mcp-trackers.js';
 import type { AgentChatTrackerArtifact } from './agent-chat-tracker-artifact.js';
 import {

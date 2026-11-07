@@ -171,7 +171,7 @@ function splitList(command: string): string[][] | null {
  */
 const HEREDOC_START = /"?\$\(\s*cat\s+<<-?\s*(['"]?)(\w+)\1[ \t]*\n/u;
 
-function inlineHeredocs(command: string): string {
+export function inlineHeredocs(command: string): string {
     let rest = command;
     let result = '';
     for (let start = HEREDOC_START.exec(rest); start; start = HEREDOC_START.exec(rest)) {

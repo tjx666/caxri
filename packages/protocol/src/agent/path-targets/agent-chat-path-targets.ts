@@ -5,7 +5,8 @@ import type { AgentChatLabelTranslate } from '../agent-chat-labels.js';
 import { translateAgentChatLabel } from '../agent-chat-labels.js';
 import { describeShellCommand } from '../agent-shell-command.js';
 import type { AgentToolPresentation } from '../agent-tool-presentation.js';
-import { describeAgentTool, unwrapShellCommand } from '../agent-tool-presentation.js';
+import { describeAgentTool } from '../agent-tool-presentation.js';
+import { unwrapShellCommand } from '../tool-rows/agent-shell-title.js';
 
 /**
  * What the one file a command or tool reads or searches is, when Server Core recognized it, so the row names it instead

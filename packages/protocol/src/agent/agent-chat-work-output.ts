@@ -1,6 +1,7 @@
 import type { AgentChatWorkItem } from './agent-chat-work.js';
 import type { AgentToolKind } from './agent-tool-presentation.js';
-import { describeAgentTool, unwrapShellCommand } from './agent-tool-presentation.js';
+import { describeAgentTool } from './agent-tool-presentation.js';
+import { unwrapShellCommand } from './tool-rows/agent-shell-title.js';
 
 /**
  * The last path-like token's extension, such as `md` in `sed -n '1,40p' docs/SKILL.md`.
