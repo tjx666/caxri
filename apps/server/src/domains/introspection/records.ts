@@ -193,6 +193,7 @@ export class RecordQueryService {
                     hasUnread,
                     hasPendingAttention,
                     attentionResolvedAt,
+                    turnStartedAt,
                     lastAttentionKind,
                     workbenchRootProjectId,
                 }) => ({
@@ -213,6 +214,7 @@ export class RecordQueryService {
                     hasUnread,
                     hasPendingAttention,
                     ...(attentionResolvedAt !== undefined && { attentionResolvedAt }),
+                    ...(turnStartedAt !== undefined && { turnStartedAt }),
                     ...(lastAttentionKind !== undefined && { lastAttentionKind }),
                     workbenchRootProjectId,
                 }),

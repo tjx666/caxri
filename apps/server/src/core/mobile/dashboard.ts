@@ -189,6 +189,7 @@ export const buildMobileDashboard = (input: {
             ...(session.attentionResolvedAt !== undefined && {
                 attentionResolvedAt: session.attentionResolvedAt,
             }),
+            ...(session.turnStartedAt !== undefined && { turnStartedAt: session.turnStartedAt }),
             ...(session.lastAttentionKind !== undefined && {
                 lastAttentionKind: session.lastAttentionKind,
             }),

@@ -460,6 +460,33 @@ describe('buildMobileDashboard background work', () => {
         expect(byId.get('background')?.primaryTerminal?.agentOperation).toBe('background');
         expect(byId.get('working')?.primaryTerminal).not.toHaveProperty('agentOperation');
     });
+
+    it('orders Working by turn start and sends it, so a turn ending into a background wait keeps its place', () => {
+        const base = {
+            projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
+            title: 'Session',
+            createdAt: 1,
+            lastVisitedAt: 1,
+            attentionGeneration: 0,
+            agentActivityState: 'running' as const,
+            hasUnread: false,
+            hasPendingAttention: false,
+        };
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'control',
+            projects: [{ id: 'project-1', title: 'Granted' }],
+            sessions: [
+                // Started first; its turn then ended into a background wait, which moved only the activity clock.
+                { ...base, id: 'watching', sessionActivityAt: 90, turnStartedAt: 10 },
+                { ...base, id: 'fresh', sessionActivityAt: 30, turnStartedAt: 30 },
+            ],
+            terminals: [],
+        });
+        expect(result.sessions.map((session) => session.id)).toEqual(['fresh', 'watching']);
+        expect(result.sessions[0]).toMatchObject({ turnStartedAt: 30 });
+    });
 });
 
 describe('buildMobileDashboard compaction', () => {
