@@ -67,6 +67,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.load.loadingAgentStatus': '正在加载 Agent 状态…',
     'editor.load.loadingAgentContext': '正在加载上下文…',
     'editor.load.loadingAgentSideChat': '正在加载旁路对话…',
+    'editor.load.loadingAgentDelegation': '正在加载委派任务…',
     'editor.load.loadingUsage': '正在加载用量…',
     'editor.load.loadingEnvironment': '正在加载环境信息…',
 
@@ -119,6 +120,7 @@ export const editor: TranslatedNamespace<typeof source> = {
     'editor.tab.agentStatus': '{{agent}} 状态',
     'editor.tab.agentContext': '上下文',
     'editor.tab.agentSideChat': '旁路对话',
+    'editor.tab.agentDelegation': '委派任务',
     'editor.tab.preview': '预览：{{name}}',
     'editor.tab.untitled': '未命名-{{index}}',
     'editor.untitled.openFailed': '无法新建未命名文件',

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentTaskTabPath } from '../agent-task-tab';
+import { isVirtualEditorTabPath } from '../../virtual-tabs';
+import { agentTaskTabPath } from '../task-tab';
 import {
     agentTurnReviewTabPath,
     isAgentTurnReviewTabPath,
     parseAgentTurnReviewTab,
-} from '../agent-turn-review-tab';
-import { isVirtualEditorTabPath } from '../virtual-tabs';
+} from '../turn-review-tab';
 
 describe('Agent turn review tabs', () => {
     it('round-trips a Terminal and a turn that contain separators', () => {

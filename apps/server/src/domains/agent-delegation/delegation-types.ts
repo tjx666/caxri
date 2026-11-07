@@ -4,9 +4,10 @@ import type { DelegationType } from '@caxri/protocol';
  * The private instructions each {@link DelegationType} opens its task file with, ahead of the caller's prompt. Fixed
  * text, frozen on the task at admission like a preset's instructions, so a follow-up keeps the text it started with.
  *
- * The wording carries over what dianjiang's `second-opinion`, `review`, and `operate-desktop` presets learned in use:
- * an independent evaluator that may disagree, a review that reports instead of fixing, and computer use that stops
- * before anything irreversible and never handles a secret.
+ * The wording carries over what dianjiang's `second-opinion`, `review`, `operate-desktop`, and `search-twitter` presets
+ * learned in use: an independent evaluator that may disagree, a review that reports instead of fixing, computer use
+ * that stops before anything irreversible and never handles a secret, and an X search that cites every post it relies
+ * on.
  *
  * @see https://github.com/tjx666/dianjiang
  */
@@ -26,5 +27,10 @@ export const DELEGATION_TYPE_INSTRUCTIONS: Record<DelegationType, string> = {
         'If a sign-in, two-factor, CAPTCHA, or consent page blocks you, never enter credentials: post one macOS notification (`osascript -e \'display notification "<what to do>" with title "Caxri"\'`) saying what the user must do, then wait, checking only the page URL or title every 30 to 60 seconds with a shell sleep between checks. Continue once past it, or after 10 minutes return what still blocks you.',
         'Never type, copy, or repeat secret values such as API keys, tokens, or passwords; when a step needs one, stop and ask for the user to do that step.',
         'Capture screenshots of the final state, inspect them, and return their paths with a concise account of the state reached and every action you took. If computer use or screenshots are unavailable, say so instead of claiming completion.',
+    ].join('\n'),
+    'x-search': [
+        'Use your live X (Twitter) search tools to answer the question. Do not edit, create, or delete files, and do not commit or push.',
+        'Cite the post URL, author handle, and post date for every claim, and say how recent the newest post you found is. Separate what posts state from your own reading of them, and say plainly when the search turned up nothing relevant.',
+        'If live X search is unavailable, say so instead of answering from memory. Output only the findings, with no preamble about what you are about to do.',
     ].join('\n'),
 };

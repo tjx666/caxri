@@ -6,7 +6,14 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, isDelegationRetryPending } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
-import { Forward, MessagesSquare, MousePointerClick, RotateCcw, ScanSearch } from 'lucide-react';
+import {
+    AtSign,
+    Forward,
+    MessagesSquare,
+    MousePointerClick,
+    RotateCcw,
+    ScanSearch,
+} from 'lucide-react';
 
 import { Tooltip } from '@/components/ui/tooltip';
 import { useClockTick } from '@/hooks/use-clock-tick';
@@ -20,22 +27,24 @@ import {
     isDelegationCopyClockDependent,
 } from '../../delegation/delegation-copy';
 import { useDelegationStatuses } from '../../delegation/hooks/use-delegation-statuses';
-import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import { delegationRecordsOf } from './agent-chat-delegation-records';
 import { useIsDelegationLive } from './hooks/use-is-delegation-live';
+import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 const NO_IDS: readonly string[] = [];
 
 /**
- * A typed task's record says what was asked, so a second opinion, a review, and computer use read apart at a glance.
+ * A typed task's record says what was asked, so a second opinion, a review, computer use, and an X search read apart at
+ * a glance.
  */
 const TYPE_ICONS: Record<DelegationType | 'none', LucideIcon> = {
     'none': Forward,
     'second-opinion': MessagesSquare,
     'review': ScanSearch,
     'computer-use': MousePointerClick,
+    'x-search': AtSign,
 };
 
 /**
@@ -131,7 +140,7 @@ function DelegationRecordRow({
             )}
             data-agent-chat-delegation-record={delegation.delegationId}
             type="button"
-            onClick={() => openSession(delegation.sessionId)}
+            onClick={() => openDelegatedChild(delegation.sessionId)}
         >
             {content}
         </button>

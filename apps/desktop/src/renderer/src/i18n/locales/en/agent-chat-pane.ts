@@ -67,6 +67,7 @@ export const agentChatPane = {
     'agentChat.portal.label': 'Side View',
     'agentChat.portal.tabs': 'Side View items',
     'agentChat.portal.openInSplit': 'Open in Split',
+    'agentChat.portal.openSession': 'Open Session',
     'agentChat.portal.close': 'Close Side View',
     'agentChat.portal.maximize': 'Maximize Side View',
     'agentChat.portal.restore': 'Restore Side View',

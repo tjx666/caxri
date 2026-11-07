@@ -72,6 +72,7 @@ export const editor = {
     'editor.load.loadingAgentStatus': 'Loading Agent status…',
     'editor.load.loadingAgentContext': 'Loading context…',
     'editor.load.loadingAgentSideChat': 'Loading side chat…',
+    'editor.load.loadingAgentDelegation': 'Loading delegated task…',
     'editor.load.loadingUsage': 'Loading Usage…',
     'editor.load.loadingEnvironment': 'Loading Environment…',
 
@@ -129,6 +130,7 @@ export const editor = {
     'editor.tab.agentStatus': '{{agent}} Status',
     'editor.tab.agentContext': 'Context',
     'editor.tab.agentSideChat': 'Side chat',
+    'editor.tab.agentDelegation': 'Delegated task',
     'editor.tab.preview': 'Preview: {{name}}',
     'editor.tab.untitled': 'Untitled-{{index}}',
     'editor.untitled.openFailed': "Couldn't open a new untitled file",

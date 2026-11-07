@@ -392,4 +392,4 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## dianjiang (owner's own CLI)
 
-- **Delegation types**: The three most-used presets (`second-opinion`, `review`, `operate-desktop`) as built-in asks, their cross-vendor bindings, the independent-evaluator briefing, and the computer-use rules (stop before irreversible actions, notify and wait on sign-in, never handle secrets, return final screenshots). Evidence: `apps/server/src/domains/agent-delegation/delegation-types.ts`; `docs/agent-delegation.md` (Delegation types).
+- **Delegation types**: The four most-used presets (`second-opinion`, `review`, `operate-desktop`, `search-twitter`) as built-in asks, their cross-vendor bindings, the independent-evaluator briefing, and the computer-use rules (stop before irreversible actions, notify and wait on sign-in, never handle secrets, return final screenshots), and the X search rules (cite each post's URL and date, findings only). Evidence: `apps/server/src/domains/agent-delegation/delegation-types.ts`; `docs/agent-delegation.md` (Delegation types).

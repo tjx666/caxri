@@ -124,3 +124,54 @@ test('delegation presets import reports an invalid file without echoing its valu
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test('delegation type bindings edit in Settings and write through without touching presets', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-types-e2e-'));
+    const { running, settings, settingsPath } = await launchWithImport(
+        join(directory, 'unused.json'),
+        directory,
+    );
+    try {
+        await settings.getByRole('combobox', { name: 'Second opinion Agent' }).click();
+        await running.page.getByRole('option', { name: 'Codex', exact: true }).click();
+        const model = settings.getByRole('textbox', { name: 'Second opinion model' });
+        await model.fill('gpt-5.5');
+        await model.press('Enter');
+        await settings.getByRole('combobox', { name: 'Second opinion effort' }).click();
+        await running.page.getByRole('option', { name: 'high', exact: true }).click();
+        await expect
+            .poll(async () => JSON.stringify(await readSettings(settingsPath)))
+            .toContain('"second-opinion":{"provider":"codex","model":"gpt-5.5","effort":"high"}');
+
+        await settings.getByRole('button', { name: 'By calling Agent' }).first().click();
+        await settings
+            .getByRole('combobox', { name: 'Add an override for Second opinion' })
+            .click();
+        await running.page.getByRole('option', { name: 'When Codex asks' }).click();
+        await settings
+            .getByRole('combobox', { name: 'Second opinion, when Codex asks Agent' })
+            .click();
+        await running.page.getByRole('option', { name: 'Claude', exact: true }).click();
+        await expect
+            .poll(async () => (await readSettings(settingsPath)).callers?.codex?.types)
+            .toMatchObject({ 'second-opinion': { provider: 'claude' } });
+
+        const saved = await readSettings(settingsPath);
+        expect(saved.presets.map((preset) => preset.name)).toEqual(['keep-me', 'only-here']);
+        expect(await readFile(settingsPath, 'utf8')).toContain('// owner comment');
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * The saved `agents.delegation` value; the file is JSONC, so the leading line comment is stripped before parsing.
+ */
+async function readSettings(settingsPath: string): Promise<{
+    presets: Array<{ name: string }>;
+    callers?: Partial<Record<string, { types?: Record<string, unknown> }>>;
+}> {
+    const text = (await readFile(settingsPath, 'utf8')).replaceAll(/^\s*\/\/.*$/gm, '');
+    return (JSON.parse(text) as Record<string, never>)['agents.delegation'];
+}

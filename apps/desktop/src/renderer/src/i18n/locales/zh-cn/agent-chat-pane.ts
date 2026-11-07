@@ -64,6 +64,7 @@ export const agentChatPane: TranslatedNamespace<typeof source> = {
     'agentChat.portal.label': '浮层',
     'agentChat.portal.tabs': '浮层内容',
     'agentChat.portal.openInSplit': '在分屏中打开',
+    'agentChat.portal.openSession': '打开会话',
     'agentChat.portal.close': '关闭浮层',
     'agentChat.portal.maximize': '最大化浮层',
     'agentChat.portal.restore': '还原浮层',

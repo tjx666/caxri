@@ -3,6 +3,7 @@ import {
     MAX_SPLIT_RATIO,
     MIN_SPLIT_RATIO,
     parseAgentContextTab,
+    parseAgentDelegationTab,
     parseAgentSideChatTab,
     parseAgentTaskTab,
     parseAgentTurnReviewTab,
@@ -28,14 +29,16 @@ const PANE_SPLITTER_WIDTH = 4;
 
 /**
  * The Chat Terminal a tab that opens beside its Chat belongs to: a subagent or background shell, a turn's file-change
- * review, the side chat, or the Context breakdown. `undefined` for every other tab.
+ * review, the side chat, or the Context breakdown. A delegated child's tab names the child's own Chat, so the Side View
+ * drops it once that Chat closes. `undefined` for every other tab.
  */
 export function besideChatTabTerminalId(path: string): string | undefined {
     return (
         parseAgentTaskTab(path) ??
         parseAgentTurnReviewTab(path) ??
         parseAgentSideChatTab(path) ??
-        parseAgentContextTab(path)
+        parseAgentContextTab(path) ??
+        parseAgentDelegationTab(path)
     )?.terminalId;
 }
 

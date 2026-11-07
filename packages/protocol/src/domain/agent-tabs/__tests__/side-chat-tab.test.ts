@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseAgentContextTab } from '../agent-context-tab';
+import { isVirtualEditorTabPath, virtualEditorTabScheme } from '../../virtual-tabs';
+import { parseAgentContextTab } from '../context-tab';
 import {
     agentSideChatTabPath,
     isAgentSideChatTabPath,
     parseAgentSideChatTab,
-} from '../agent-side-chat-tab';
-import { isVirtualEditorTabPath, virtualEditorTabScheme } from '../virtual-tabs';
+} from '../side-chat-tab';
 
 describe('Agent side chat tabs', () => {
     it('round-trips a Terminal id that contains separators', () => {

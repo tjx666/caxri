@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    agentContextTabPath,
-    isAgentContextTabPath,
-    parseAgentContextTab,
-} from '../agent-context-tab';
-import { parseAgentStatusTab } from '../agent-status-tab';
-import { isVirtualEditorTabPath } from '../virtual-tabs';
+import { isVirtualEditorTabPath } from '../../virtual-tabs';
+import { agentContextTabPath, isAgentContextTabPath, parseAgentContextTab } from '../context-tab';
+import { parseAgentStatusTab } from '../status-tab';
 
 describe('Agent context tabs', () => {
     it('round-trips a Terminal id that contains separators', () => {

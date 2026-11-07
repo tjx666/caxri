@@ -209,6 +209,15 @@ export const virtualTabDescriptors: Record<VirtualEditorTabScheme, VirtualTabDes
         loading: { labelKey: 'editor.load.loadingAgentSideChat', variant: 'page' },
         statusBar: 'hidden',
     },
+    agentDelegation: {
+        present: (_path, options, t) =>
+            glyphPresentation(
+                options.agentTerminalTitle ?? t('editor.tab.agentDelegation'),
+                'agent-delegation',
+            ),
+        loading: { labelKey: 'editor.load.loadingAgentDelegation', variant: 'page' },
+        statusBar: 'hidden',
+    },
     environment: {
         present: (_path, _options, t) =>
             glyphPresentation(t('editor.tab.environment'), 'environment'),

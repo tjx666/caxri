@@ -4,7 +4,7 @@ import type {
     AgentDelegationReceipt,
     SessionRelation,
 } from '@caxri/protocol';
-import { CaxriError, delegationTypeRelation, isTopLevelProject } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import { KeyedSerialQueue } from '@caxri/system';
 
 /**
@@ -26,7 +26,8 @@ import type { AgentDelegationServiceOptions, DelegationWorktree } from './servic
 function newSessionRelation(
     fields: Pick<AgentDelegationCreate, 'consult' | 'handoff' | 'independent' | 'type'>,
 ): SessionRelation {
-    if (fields.type) return delegationTypeRelation(fields.type);
+    // Every delegation type is a consult: its Session takes no sidebar row and opens beside the asking Chat.
+    if (fields.type) return 'consult';
     if (fields.handoff) return 'handoff';
     if (fields.independent) return 'independent';
     return fields.consult ? 'consult' : 'delegated';

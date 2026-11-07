@@ -1,6 +1,7 @@
 import {
     Bot,
     ChartColumn,
+    Forward,
     Gauge,
     Layers,
     MessageCircleQuestion,
@@ -21,6 +22,7 @@ export const WORK_TAB_GLYPHS = {
     'agent-status': Gauge,
     'agent-context': Layers,
     'agent-side-chat': MessageCircleQuestion,
+    'agent-delegation': Forward,
 } as const;
 
 export function isWorkTabGlyph(icon: string): icon is WorkTabGlyph {

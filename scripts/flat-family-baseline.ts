@@ -92,7 +92,6 @@ export const KNOWN_FLAT_FAMILIES: readonly string[] = [
     'extensions/status/src/status-',
     'packages/protocol/src/agent/agent-',
     'packages/protocol/src/agent/delegation/agent-',
-    'packages/protocol/src/domain/agent-',
     'packages/protocol/src/domain/logging/logging-',
     'packages/protocol/src/domain/project-',
     'packages/protocol/src/domain/session-',

@@ -282,7 +282,7 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         method: 'agent.delegation.create',
         quietIdKey: 'delegationId',
         summary:
-            'Run a task in a visible Agent Terminal and preserve its exact result, or ask another Agent for a second opinion, a review, or computer use with --type.',
+            'Run a task in a visible Agent Terminal and preserve its exact result, or ask another Agent for a second opinion, a review, computer use, or an X search with --type.',
         usage: `--type <${typeUsage}> --title <text> [--project <id> | --project-path <dir>] --prompt-file <path> [--surface <chat|terminal>] | (--project <id> | --project-path <dir>) (--session <id> | --new-session --title <text> [--handoff | --consult | --independent] [--worktree <new-branch>]) --prompt-file <path> [--preset <name> | --provider <${providerUsage}> [--model <name>] [--effort <level>]] [--caller <${providerUsage}>] [--surface <chat|terminal>] [--follow-up <id> | --resume <id> | --continue-handover <id>]`,
         ownerConfirmation:
             'Create this visible Agent delegation, adding its folder as a Project if needed?',

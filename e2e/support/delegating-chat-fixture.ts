@@ -70,7 +70,15 @@ export interface DelegatingChat {
  */
 export async function launchDelegatingChat(
     prefix: string,
-    options: { env?: NodeJS.ProcessEnv; preset?: string; withClaude?: boolean } = {},
+    options: {
+        /**
+         * Delegates with `--consult`, so the child takes no sidebar row and opens beside the parent's Chat.
+         */
+        consult?: boolean;
+        env?: NodeJS.ProcessEnv;
+        preset?: string;
+        withClaude?: boolean;
+    } = {},
 ): Promise<DelegatingChat> {
     const temporary = await mkdtemp(join(tmpdir(), `${prefix}-`));
     const directory = await realpath(temporary);
@@ -122,7 +130,7 @@ export async function launchDelegatingChat(
         writeScript: async (projectId) => {
             const create = [
                 caxriCliCommand('agent delegate create'),
-                `--project ${projectId} --new-session --title "${CHILD_TITLE}"`,
+                `--project ${projectId} --new-session${options.consult ? ' --consult' : ''} --title "${CHILD_TITLE}"`,
                 `${options.preset ? `--preset ${options.preset}` : '--provider codex'} --prompt-file ${taskPath}`,
                 '--request-id e2e-delegated-review --json',
             ].join(' ');
