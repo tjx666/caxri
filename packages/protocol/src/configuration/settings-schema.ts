@@ -15,6 +15,7 @@ import {
     MIN_AGENT_OUTPUT_RECOVERY_DELAY_MS,
 } from '../agent/agents.js';
 import { agentDelegationSettingsSchema } from '../agent/delegation/agent-delegation-settings.js';
+import { configurationSourceSchema as configSourceSchema } from './configuration-contract.js';
 import {
     environmentMonitorMihomoSettingsFileSchema,
     environmentMonitorMihomoSettingsSchema,
@@ -26,6 +27,12 @@ import {
     MAX_IGNORED_CHECKS,
     normalizeIgnoredCheckRule,
 } from './ignored-checks.js';
+import {
+    MAX_SESSION_MENU_LAYOUT_ENTRIES,
+    normalizeSessionMenuLayout,
+    SESSION_MENU_SEPARATOR,
+    sessionMenuItemIds,
+} from './session-menu-layout.js';
 import type { IntegerSettingSpec, SettingKey, StringSettingSpec } from './settings-spec.js';
 import { settingsSpecByKey } from './settings-spec.js';
 import {
@@ -140,6 +147,33 @@ const ignoredCheckRuleSchema = z.string().min(1).max(MAX_IGNORED_CHECK_LENGTH);
 
 const ignoredChecksSchema = z.array(ignoredCheckRuleSchema).max(MAX_IGNORED_CHECKS).default([]);
 
+/**
+ * `null` follows the built-in layout. The canonical shape only holds known ids; `sessionMenuLayoutFileSchema` is what
+ * turns a hand-edited value into it.
+ */
+const sessionMenuLayoutSchema = z
+    .object({
+        order: z
+            .array(z.enum([...sessionMenuItemIds, SESSION_MENU_SEPARATOR]))
+            .max(MAX_SESSION_MENU_LAYOUT_ENTRIES),
+        hidden: z.array(z.enum(sessionMenuItemIds)).max(sessionMenuItemIds.length),
+    })
+    .nullable()
+    .default(null);
+
+/**
+ * Lenient `settings.jsonc` reading: an id an older or newer Caxri wrote is dropped rather than failing the file, and an
+ * item the layout omits is appended, so no menu action can vanish because of a stale customization.
+ */
+const sessionMenuLayoutFileSchema = z
+    .object({
+        order: z.array(z.string().max(64)).max(MAX_SESSION_MENU_LAYOUT_ENTRIES),
+        hidden: z.array(z.string().max(64)).max(MAX_SESSION_MENU_LAYOUT_ENTRIES).default([]),
+    })
+    .nullable()
+    .default(null)
+    .transform((value) => (value ? normalizeSessionMenuLayout(value) : null));
+
 const shellCommandPatternSchema = z.string().min(1).max(MAX_SHELL_COMMAND_PATTERN_LENGTH);
 
 const longRunningShellCommandsSchema = z
@@ -231,6 +265,7 @@ export const appSettingsSchema = z.object({
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),
     'primarySidebar.showSubagents': booleanField(spec['primarySidebar.showSubagents']),
+    'primarySidebar.sessionMenu': sessionMenuLayoutSchema,
     'agentActivity.showExcerpts': booleanField(spec['agentActivity.showExcerpts']),
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
     'zen.fullScreen': booleanField(spec['zen.fullScreen']),
@@ -365,6 +400,17 @@ export type AppSettings = z.infer<typeof appSettingsSchema>;
  */
 export const defaultAppSettings: AppSettings = appSettingsSchema.parse({});
 
+/**
+ * `settings.*` methods' result. The value is annotated with the named `AppSettings` type instead of inferred: inlined
+ * into four method entries, the expanded settings shape pushed the method registry's declaration past TypeScript's
+ * serialization limit (TS7056), so any new setting failed the build.
+ */
+const settingsValueSchema: z.ZodType<AppSettings> = appSettingsSchema;
+export const settingsResultSchema: z.ZodObject<{
+    value: z.ZodType<AppSettings>;
+    source: typeof configSourceSchema;
+}> = z.object({ value: settingsValueSchema, source: configSourceSchema });
+
 const filesExcludeFileSchema = filesExcludeRecordSchema
     .default({})
     .transform((value): Record<string, boolean> => ({ ...DEFAULT_FILES_EXCLUDE, ...value }));
@@ -474,6 +520,7 @@ export const appSettingsFileSchema = appSettingsSchema.extend({
     'agents.providers': agentProvidersFileSchema,
     'agents.longRunningShellCommands': longRunningShellCommandsFileSchema,
     'projectStatus.ignoredChecks': ignoredChecksFileSchema,
+    'primarySidebar.sessionMenu': sessionMenuLayoutFileSchema,
     'environmentMonitor.expectedTimeZone': expectedEnvironmentTimeZoneFileSchema,
     'environmentMonitor.mihomoRoutes': environmentMonitorMihomoSettingsFileSchema,
     'security.trustedDomains': trustedDomainsFileSchema,

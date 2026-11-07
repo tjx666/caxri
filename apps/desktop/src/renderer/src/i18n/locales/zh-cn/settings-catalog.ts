@@ -95,6 +95,9 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.primarySidebar.showSubagents.title': '在会话下显示子 Agent',
     'settings.primarySidebar.showSubagents.description': '在会话下列出对话 Agent 启动的子 Agent。',
+    'settings.primarySidebar.sessionMenu.title': '会话菜单',
+    'settings.primarySidebar.sessionMenu.description':
+        '调整会话右键菜单中各操作的顺序和显示。拖动可调整顺序，隐藏的操作会保留原位置。',
 
     'settings.agentActivity.showExcerpts.title': '在活动中显示 Agent 摘录',
     'settings.agentActivity.showExcerpts.description':

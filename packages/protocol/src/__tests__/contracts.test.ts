@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { CaxriBridge, CaxriMethod } from '../index';
 import {
     agentProviderIds,
+    appSettingsSchema,
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     createCaxriClient,
@@ -176,16 +177,13 @@ describe('method table', () => {
             launch: { executable: 'claude', args: [] },
             messaging: { enabled: true },
         };
-        expect(
-            methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse({
-                claude: entry,
-            }).success,
-        ).toBe(false);
+        // The registry types its settings value as `ZodType<AppSettings>` (TS7056), so reach the field through the
+        // same schema object it carries.
+        expect(methods['settings.get'].result.shape.value).toBe(appSettingsSchema);
+        const providersSchema = appSettingsSchema.shape['agents.providers'];
+        expect(providersSchema.safeParse({ claude: entry }).success).toBe(false);
         const complete = Object.fromEntries(agentProviderIds.map((provider) => [provider, entry]));
-        expect(
-            methods['settings.get'].result.shape.value.shape['agents.providers'].safeParse(complete)
-                .success,
-        ).toBe(true);
+        expect(providersSchema.safeParse(complete).success).toBe(true);
     });
 
     it('rejects invalid Desktop and Server results as internal contract failures', () => {

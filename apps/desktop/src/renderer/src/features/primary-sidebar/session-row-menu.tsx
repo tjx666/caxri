@@ -3,18 +3,18 @@ import type { ReactElement } from 'react';
 import type {
     ProjectRecord,
     SessionAgentHistoryEntry,
+    SessionMenuLayout,
     SessionPullRequest,
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { isPinnedSession } from '@caxri/protocol';
+import { isPinnedSession, normalizeSessionMenuLayout } from '@caxri/protocol';
 
 import { ContextMenuTrigger } from '../../components/context-menu-trigger';
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import type { ContextMenuEntries } from '../../lib/context-menu';
-import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { environmentOfSession } from '../../lib/environment-routing';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
@@ -56,6 +56,8 @@ import { getActivePaneTab } from '../workbench/pane-actions';
 import { reopenSessionConversation } from './session-agent-history-commands';
 import { reopenableConversations } from './session-agent-history-entries';
 import { resolveSessionCreator } from './session-creator';
+import type { SessionMenuSlots } from './session-menu-arrangement';
+import { arrangeSessionMenu } from './session-menu-arrangement';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
 const FORK_BLOCKER_REASONS = {
@@ -138,6 +140,9 @@ export function SessionRowMenu({
                      */
                     terminals: getBootstrap()?.terminals ?? [],
                     sessions: getBootstrap()?.sessions ?? [],
+                    layout: normalizeSessionMenuLayout(
+                        getBootstrap()?.settings['primarySidebar.sessionMenu'],
+                    ),
                 })
             }
         >
@@ -242,6 +247,7 @@ function reopenConversationMenuEntry(
 }
 
 async function sessionRowMenu({
+    layout,
     onBeginRename,
     onMarkDone,
     onSuggestRename,
@@ -251,6 +257,7 @@ async function sessionRowMenu({
     sessions,
     terminals,
 }: {
+    layout: SessionMenuLayout;
     onBeginRename?: () => void;
     onMarkDone?: () => void;
     onSuggestRename?: () => void;
@@ -298,87 +305,46 @@ async function sessionRowMenu({
     const forkBlocker = sessionForkBlocker(primaryTerminal);
     const isLocal = environmentOfSession(session.id) === undefined;
     /**
-     * Six groups: the Session itself (Rename, Rename with AI, Pin, and Hand Over to or Take Back from the Agent Caxri
-     * Bot), Fork and Continue in Another Agent, its Agent, opening it elsewhere, a Copy submenu for its Agent's
-     * identity, and the two ways to remove it (Archive, Delete) together at the end, the order Codex's sidebar menu
-     * uses. `serializeContextMenu` drops a separator left without neighbors.
+     * Each slot is keyed by its `SessionMenuItemId`; `primarySidebar.sessionMenu` (or the built-in layout, ordered by
+     * how often each action is used) decides where it goes and whether it shows.
      */
-    return [
+    const slots: SessionMenuSlots = {
         /**
-         * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. Archive
-         * keeps a literal on purpose: `Delete` is a tree key, not a keybinding; it archives the row focus is on, which
-         * is not necessarily the selected Session, so it cannot become a command binding without changing which Session
-         * it would take.
+         * Archive keeps a literal hint on purpose: `Delete` is a tree key, not a keybinding; it archives the row focus
+         * is on, which is not necessarily the selected Session, so it cannot become a command binding without changing
+         * which Session it would take.
          */
-        onMarkDone &&
+        markAsDone: onMarkDone &&
             session.hasPendingAttention && {
                 label: translate('primarySidebar.sessionMenu.markAsDone'),
                 shortcut: 'delete',
                 onSelect: onMarkDone,
             },
         /**
-         * The action runs after the native menu has closed, so the inline rename input mounts into a settled row and
-         * keeps its focus.
+         * In the Activity queue Delete marks the row read instead, so the hint moves to that entry.
          */
-        onBeginRename && {
-            label: translate('common.rename'),
-            shortcut: readCommandShortcut('session.rename'),
-            onSelect: onBeginRename,
+        archive: {
+            label: translate('primarySidebar.sessionMenu.archive'),
+            shortcut: onMarkDone ? undefined : 'delete',
+            onSelect: () => archiveSession(session.id),
         },
-        onSuggestRename &&
-            canSuggestSessionTitle(session) && {
-                label: translate('primarySidebar.sessionMenu.renameWithAi'),
-                shortcut: 'shift+enter',
-                onSelect: onSuggestRename,
-            },
         /**
          * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked row
          * rather than the selected Session; the same reason Archive keeps a literal instead of a binding.
          */
-        {
+        pin: {
             label: translate(
                 pinned ? 'primarySidebar.sessionMenu.unpin' : 'primarySidebar.sessionMenu.pin',
             ),
             onSelect: () => setSessionPinned(session.id, !pinned),
         },
         /**
-         * Hand Over opens the picker with this Session selected, so the user can add a note or more Sessions first.
+         * The Agent slots. The surface switch and Restart Agent act on the Primary Agent, the same Terminal the copy
+         * entries read, rather than every Agent Terminal the way Detach does: both end a running turn (after asking),
+         * so they must not reach Agents the user did not point at. Each Agent Terminal's own tab menu acts on that
+         * one.
          */
-        isManaged
-            ? {
-                  label: translate('primarySidebar.sessionMenu.takeBackFromBot'),
-                  onSelect: () => takeBackFromBot(session.id),
-              }
-            : {
-                  label: translate('primarySidebar.sessionMenu.handOverToBot'),
-                  onSelect: () => openBotHandover([session.id]),
-              },
-        CONTEXT_MENU_SEPARATOR,
-        /**
-         * Copies the Primary Agent's whole Chat conversation into a new Session, as Codex's sidebar Fork does; Fork
-         * from Here on a message is the way to cut it earlier.
-         */
-        {
-            label: translate('primarySidebar.sessionMenu.forkSession'),
-            disabled: forkBlocker !== undefined,
-            disabledReason: forkBlocker && translate(FORK_BLOCKER_REASONS[forkBlocker]),
-            onSelect: () => primaryTerminal && forkAgentChat(primaryTerminal.id),
-        },
-        /**
-         * Hands the Primary Agent's work to another provider in a new Session; a non-primary Agent's own tab menu
-         * offers the same for that Agent.
-         */
-        continueEntry,
-        CONTEXT_MENU_SEPARATOR,
-        /**
-         * The Agent group. The surface switch and Restart Agent act on the Primary Agent, the same Terminal the copy
-         * entries below read, rather than every Agent Terminal the way Detach does: both end a running turn (after
-         * asking), so they must not reach Agents the user did not point at. Each Agent Terminal's own tab menu acts on
-         * that one.
-         */
-        primaryTerminal && terminalSurfaceMenuEntry(primaryTerminal, isPrimaryTerminalActive),
-        agentRestartMenuEntry(primaryTerminal, missingConversationReason, isPrimaryTerminalActive),
-        detached
+        detachAgent: detached
             ? {
                   label: translate('primarySidebar.sessionMenu.resumeAgent'),
                   onSelect: () => resumeSession(session.id),
@@ -389,42 +355,74 @@ async function sessionRowMenu({
                   disabledReason: translate('primarySidebar.sessionMenu.noRunningAgentReason'),
                   onSelect: () => detachSession(session.id),
               },
-        reopenConversationMenuEntry(session.id, reopenable),
-        isAutoAllowGranted && {
+        switchSurface:
+            primaryTerminal && terminalSurfaceMenuEntry(primaryTerminal, isPrimaryTerminalActive),
+        restartAgent: agentRestartMenuEntry(
+            primaryTerminal,
+            missingConversationReason,
+            isPrimaryTerminalActive,
+        ),
+        reopenConversation: reopenConversationMenuEntry(session.id, reopenable),
+        turnOffAlwaysAllow: isAutoAllowGranted && {
             label: translate('primarySidebar.sessionMenu.turnOffAlwaysAllow'),
             onSelect: () => revokePermissionAutoAllow(session.id),
         },
-        CONTEXT_MENU_SEPARATOR,
+        /**
+         * Copies the Primary Agent's whole Chat conversation into a new Session, as Codex's sidebar Fork does; Fork
+         * from Here on a message is the way to cut it earlier.
+         */
+        forkSession: {
+            label: translate('primarySidebar.sessionMenu.forkSession'),
+            disabled: forkBlocker !== undefined,
+            disabledReason: forkBlocker && translate(FORK_BLOCKER_REASONS[forkBlocker]),
+            onSelect: () => primaryTerminal && forkAgentChat(primaryTerminal.id),
+        },
+        /**
+         * Hands the Primary Agent's work to another provider in a new Session; a non-primary Agent's own tab menu
+         * offers the same for that Agent.
+         */
+        continueInAgent: continueEntry,
+        /**
+         * Hand Over opens the picker with this Session selected, so the user can add a note or more Sessions first.
+         */
+        handOverToBot: isManaged
+            ? {
+                  label: translate('primarySidebar.sessionMenu.takeBackFromBot'),
+                  onSelect: () => takeBackFromBot(session.id),
+              }
+            : {
+                  label: translate('primarySidebar.sessionMenu.handOverToBot'),
+                  onSelect: () => openBotHandover([session.id]),
+              },
         // Never the Session this window shows (the window would be empty) or one another window already has open.
-        canOpenSessionInNewWindow(getBootstrap(), session.id) && {
+        openInNewWindow: canOpenSessionInNewWindow(getBootstrap(), session.id) && {
             label: translate('primarySidebar.sessionMenu.openInNewWindow'),
             onSelect: () => {
                 void openSessionInNewWindow(session.id);
             },
         },
         // The external editor runs on this Mac and cannot open a Project on an SSH Host.
-        isLocal && {
+        openProjectInEditor: isLocal && {
             label: translate('primarySidebar.sessionMenu.openProjectInEditor'),
             shortcut: readCommandShortcut('project.openInEditor'),
             onSelect: () => openProjectInExternalEditor(project, session.id),
         },
-        creator?.kind === 'session' && {
+        goToCreatingSession: creator?.kind === 'session' && {
             label: translate('primarySidebar.sessionMenu.goToCreatingSession'),
             onSelect: () => openSession(creator.session.id),
         },
-        pullRequest && {
+        openPullRequest: pullRequest && {
             label: translate('primarySidebar.sessionMenu.openPullRequest', {
                 number: pullRequest.number,
             }),
             shortcut: readCommandShortcut('session.openPullRequest'),
             onSelect: () => openSessionPullRequest(pullRequest),
         },
-        CONTEXT_MENU_SEPARATOR,
         /**
          * Every Copy entry reads the Agent's conversation, so without one the whole submenu is disabled with the reason
          * instead of opening onto three disabled rows.
          */
-        {
+        copy: {
             type: 'submenu',
             label: translate('primarySidebar.sessionMenu.copy'),
             disabled: !agentSessionId,
@@ -449,19 +447,27 @@ async function sessionRowMenu({
                 ),
             ],
         },
-        CONTEXT_MENU_SEPARATOR,
         /**
-         * In the Activity queue Delete marks the row read instead, so the hint moves to that entry.
+         * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. The action
+         * runs after the native menu has closed, so the inline rename input mounts into a settled row and keeps its
+         * focus.
          */
-        {
-            label: translate('primarySidebar.sessionMenu.archive'),
-            shortcut: onMarkDone ? undefined : 'delete',
-            onSelect: () => archiveSession(session.id),
+        rename: onBeginRename && {
+            label: translate('common.rename'),
+            shortcut: readCommandShortcut('session.rename'),
+            onSelect: onBeginRename,
         },
-        {
+        renameWithAi: onSuggestRename &&
+            canSuggestSessionTitle(session) && {
+                label: translate('primarySidebar.sessionMenu.renameWithAi'),
+                shortcut: 'shift+enter',
+                onSelect: onSuggestRename,
+            },
+        deleteSession: {
             label: translate('primarySidebar.sessionMenu.deleteSession'),
             shortcut: readCommandShortcut('session.delete'),
             onSelect: () => deleteSession(session.id),
         },
-    ];
+    };
+    return arrangeSessionMenu(slots, layout);
 }

@@ -36,7 +36,7 @@ import {
     configurationSourceSchema as configSourceSchema,
     MAX_KEYBINDINGS,
 } from '../configuration/configuration-contract.js';
-import { appSettingsSchema } from '../configuration/settings-schema.js';
+import { settingsResultSchema } from '../configuration/settings-schema.js';
 import { themeInternalMethods, themeMethods } from '../configuration/theme-contract.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
@@ -145,7 +145,6 @@ const desktopEventRead = commandPolicy('server', 'read');
  */
 const noParameters = z.object({}).default({});
 
-const settingsResult = z.object({ value: appSettingsSchema, source: configSourceSchema });
 const keybindingsResult = z.object({
     value: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
     source: configSourceSchema,
@@ -495,7 +494,7 @@ export const methods = {
     ...gitReviewMethods,
     ...projectStatusMethods,
     ...sessionPullRequestMethods,
-    'settings.get': { ...serverRead, params: noParameters, result: settingsResult },
+    'settings.get': { ...serverRead, params: noParameters, result: settingsResultSchema },
     'agentHooks.get': { ...serverRead, params: noParameters, result: agentHookHealthMapSchema },
     'agentSkills.get': { ...serverRead, params: noParameters, result: agentSkillHealthSchema },
     'agentAvailability.get': {
@@ -506,7 +505,7 @@ export const methods = {
     'settings.update': {
         ...serverWrite,
         params: z.object({ source: configSourceSchema }),
-        result: settingsResult,
+        result: settingsResultSchema,
     },
     'keybindings.get': { ...serverRead, params: noParameters, result: keybindingsResult },
     'keybindings.update': {
@@ -568,12 +567,12 @@ export const internalMethods = {
     'settings.trustDomain': {
         ...serverWrite,
         params: z.object({ domain: z.string().min(1).max(MAX_TRUSTED_DOMAIN_LENGTH) }),
-        result: settingsResult,
+        result: settingsResultSchema,
     },
     'settings.trustFolder': {
         ...serverWrite,
         params: z.object({ path: z.string().min(1).max(MAX_TRUSTED_FOLDER_LENGTH) }),
-        result: settingsResult,
+        result: settingsResultSchema,
     },
     'diagnostics.exportPath': {
         ...serverWrite,

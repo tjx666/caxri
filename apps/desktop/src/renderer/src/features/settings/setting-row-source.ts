@@ -24,6 +24,7 @@ export type SettingRowBinding =
     | { type: 'trusted-folders' }
     | { type: 'terminal-reference-links' }
     | { type: 'ignored-checks' }
+    | { type: 'session-menu' }
     | { type: 'long-running-commands' }
     | { type: 'files-exclude'; key: 'files.exclude' | 'git.diffExclude' }
     | { type: 'archived-sessions' }

@@ -189,6 +189,7 @@ const settingsProjection: SettingsProjection = {
     'workbench.theme.dark': exportAsIs,
     'primarySidebar.autoCollapseProjects': exportAsIs,
     'primarySidebar.showSubagents': exportAsIs,
+    'primarySidebar.sessionMenu': exportAsIs,
     'agentActivity.showExcerpts': exportAsIs,
     'primarySidebar.translucent': exportAsIs,
     'zen.fullScreen': exportAsIs,
