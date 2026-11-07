@@ -5,7 +5,7 @@ status: current
 
 # Mobile Changes
 
-The Changes segment lets a paired device review the selected Session's Git changes. It is a
+The Changes view, the first tab of the Session's side panel, lets a paired device review the selected Session's Git changes. It is a
 read-only view: the mobile gateway does not expose staging, commit, checkout, or arbitrary Git
 commands. The Server resolves repositories from the authorized Session and Project; the app never
 supplies a repository root path.
@@ -51,7 +51,7 @@ returned to the app. See [Mobile authorization](authorization.md) for the role b
 ## Updates and presentation
 
 While the selected Session detail is visible and the app is foregrounded, it subscribes to
-`{ kind: 'changes', sessionId }` so the header count stays current across segments. A scoped
+`{ kind: 'changes', sessionId }` so the side panel button's count stays current while the panel is closed. A scoped
 `git.changed` event produces a content-free `changes.changed` hint; the app refreshes its TanStack
 Query snapshot. When subscription is unavailable, the visible Session polls every 2.5 seconds.
 Disconnect marks the last snapshot stale; reconnect reads it again. The view distinguishes loading,

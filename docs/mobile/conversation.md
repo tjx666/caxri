@@ -79,11 +79,11 @@ without Chat image input, photos from the library and camera go as files and the
 is hidden. Unfinished uploads expire after two idle minutes and uploaded files after one hour; the
 composer marks a file older than 55 minutes as expired, and Retry uploads the phone's copy again.
 
-**Session usage.** The Agent Chat composer's model row ends with Desktop's context ring: a quiet
+**Session usage.** The expanded Agent Chat composer's settings row ends with Desktop's context ring: a quiet
 neutral ring until the context reaches the share where compacting is suggested (85% of the window
 the provider compacts at), then the warning tone with the percentage. Before the provider reports a
 window size, a gauge stands in once the conversation recorded usage. Tapping either opens the
-Session usage sheet: the context against that window with the auto-compact note, the conversation's
+Session usage sheet, as do the add sheet's `Session usage` row and `/usage`: the context against that window with the auto-compact note, the conversation's
 tokens (input, output, cache read, cache write), estimated cost and models, and the prompt cache's
 state (warm with time left, or expired with the estimated rewrite) and hit rate
 (`cacheRead / (input + cacheRead + cacheWrite)`). The context and cache clock come from the Chat

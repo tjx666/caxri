@@ -12,26 +12,30 @@ import type { useSessionConversation } from '../hooks/use-session-conversation';
 import { useSessionManagement } from '../hooks/use-session-management';
 import type { SessionActionsMode, SessionMenuActions } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
+import type { ContentSessionSegment } from '../session-ui-state';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionDetail } from './session-detail';
 
 export const SelectedSessionDetail = ({
+    contentSegment,
     conversation,
     fresh,
     isDetailVisible,
     layout,
     selected,
     theme,
-    wideBackgroundSegment,
 }: {
+    /**
+     * The content segment the user last chose, which stays on screen while a side segment is open.
+     */
+    contentSegment: ContentSessionSegment;
     conversation: ReturnType<typeof useSessionConversation>;
     fresh: boolean;
     isDetailVisible: boolean;
     layout: MobileLayoutMode;
     selected: MobileSessionItem;
     theme: ReturnType<typeof useMobileTheme>;
-    wideBackgroundSegment: 'conversation' | 'terminal';
 }) => {
     const router = useRouter();
     const { request } = useMobileClient();
@@ -152,6 +156,7 @@ export const SelectedSessionDetail = ({
     return (
         <>
             <SessionDetail
+                contentSegment={contentSegment}
                 conversationFallback={conversation.fallback}
                 conversationTimeline={conversation.timeline}
                 deviceRole={sessions.deviceRole}
@@ -160,7 +165,9 @@ export const SelectedSessionDetail = ({
                 hasConversation={conversation.hasConversation}
                 hostId={hostId}
                 isConnected={fresh}
+                isSidePanelDocked={layout === 'tablet-wide'}
                 isVisible={isDetailVisible}
+                lastSideSegment={ui.sideSegmentBySession[selected.id]}
                 onBack={layout === 'phone' ? goHome : undefined}
                 onDraftChange={(draft) => setDraft(selected.id, draft)}
                 onComposerFocused={() => consumeComposerFocus(selected.id)}
@@ -182,8 +189,6 @@ export const SelectedSessionDetail = ({
                 session={selected}
                 sessionActions={sessionActions}
                 theme={theme}
-                wideChanges={layout === 'tablet-wide'}
-                wideBackgroundSegment={wideBackgroundSegment}
             />
             {sheetMode ? (
                 <SessionActionsSheet

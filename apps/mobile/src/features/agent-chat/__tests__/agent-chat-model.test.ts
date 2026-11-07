@@ -8,8 +8,8 @@ import {
     agentChatApprovalRows,
     agentChatComposerAvailability,
     agentChatComposerButton,
+    agentChatComposerLayout,
     agentChatComposerPressDeliveries,
-    agentChatComposerRowControls,
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatEmptyMessage,
@@ -455,19 +455,22 @@ describe('agentChatSendFailureMessage', () => {
     });
 });
 
-describe('agentChatComposerRowControls', () => {
-    it('hides attach only while a running turn has typed text, so the input keeps its room', () => {
-        expect(
-            agentChatComposerRowControls({ canAttach: true, hasText: true, isRunning: true }),
-        ).toEqual({ showsAttach: false });
-        expect(
-            agentChatComposerRowControls({ canAttach: true, hasText: false, isRunning: true }),
-        ).toEqual({ showsAttach: true });
-        expect(
-            agentChatComposerRowControls({ canAttach: true, hasText: true, isRunning: false }),
-        ).toEqual({ showsAttach: true });
-        expect(
-            agentChatComposerRowControls({ canAttach: false, hasText: false, isRunning: false }),
-        ).toEqual({ showsAttach: false });
+describe('agentChatComposerLayout', () => {
+    const idle = {
+        hasAttachments: false,
+        hasText: false,
+        isEditing: false,
+        isFocused: false,
+        isMenuOpen: false,
+    };
+
+    it('stays collapsed while the reader is only reading', () => {
+        expect(agentChatComposerLayout(idle)).toBe('collapsed');
+    });
+
+    it('opens for anything being composed', () => {
+        for (const key of Object.keys(idle) as Array<keyof typeof idle>) {
+            expect(agentChatComposerLayout({ ...idle, [key]: true })).toBe('expanded');
+        }
     });
 });

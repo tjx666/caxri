@@ -15,9 +15,11 @@ export const AgentChatComposerInput = ({
     focusComposer,
     inputReference,
     isEditable,
+    isExpanded,
     isRunning,
     onComposerFocused,
     onDraftChange,
+    onFocusChange,
     provider,
     theme,
 }: {
@@ -25,9 +27,17 @@ export const AgentChatComposerInput = ({
     focusComposer: boolean | undefined;
     inputReference: RefObject<TextInputInstance | null>;
     isEditable: boolean;
+    /**
+     * Whether the capsule is expanded, with the input across its top row instead of between its buttons.
+     */
+    isExpanded: boolean;
     isRunning: boolean;
     onComposerFocused: (() => void) | undefined;
     onDraftChange: (draft: string) => void;
+    /**
+     * Reports focus so the capsule expands while the reader types (`agentChatComposerLayout`).
+     */
+    onFocusChange: (isFocused: boolean) => void;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -41,8 +51,10 @@ export const AgentChatComposerInput = ({
             editable={isEditable}
             multiline
             numberOfLines={6}
+            onBlur={() => onFocusChange(false)}
             onChangeText={onDraftChange}
             onFocus={() => {
+                onFocusChange(true);
                 if (focusComposer) onComposerFocused?.();
             }}
             ref={inputReference}
@@ -56,15 +68,10 @@ export const AgentChatComposerInput = ({
             scrollEnabled
             submitBehavior="newline"
             style={[
-                styles.composer,
+                isExpanded ? styles.composerExpanded : styles.composer,
                 // Android adds the font's ascent padding above the first line; with a fixed lineHeight inside a
                 // max-height scroller that extra space pushes the first line's top under the clip edge (#1937).
-                { includeFontPadding: false },
-                {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                    color: theme.text,
-                },
+                { color: theme.text, includeFontPadding: false },
             ]}
             testID="agent-chat-composer-input"
             textAlignVertical="top"

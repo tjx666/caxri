@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentAction, AgentProvider } from '@caxri/protocol';
 import {
@@ -14,7 +14,7 @@ import { useTranslation } from '../../i18n';
 import { useClearedDraftEchoGuard } from '../../lib/use-cleared-draft-echo-guard';
 import { mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
-import { AttachmentSourceSheet } from '../sessions/components/attachment-source-sheet';
+import { ComposerAddSheet } from '../sessions/components/composer-add-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { useFileAttachments } from '../sessions/hooks/use-file-attachments';
@@ -24,30 +24,31 @@ import type { MobileAgentChatSessionCommand } from './agent-chat-app-commands';
 import { AgentChatCommandList } from './agent-chat-command-list';
 import { agentChatMenuMatches, agentChatSkillNotice } from './agent-chat-commands';
 import {
+    AddButton,
     AgentChatComposerButton,
     AgentChatQueueButton,
-    AttachButton,
 } from './agent-chat-composer-buttons';
+import { AgentChatComposerCapsule } from './agent-chat-composer-capsule';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
 import { AgentChatUsageNotices } from './agent-chat-credits-notice';
 import { AgentChatEditBanner } from './agent-chat-edit-banner';
 import { AgentChatMentionList } from './agent-chat-mention-list';
 import {
     agentChatComposerAvailability,
+    agentChatComposerLayout,
     agentChatComposerPressDeliveries,
-    agentChatComposerRowControls,
     agentChatComposerSubmission,
     agentChatDisabledReason,
 } from './agent-chat-model';
-import { AgentChatSessionUsageButton } from './agent-chat-session-usage-sheet';
-import { AgentChatSettings } from './agent-chat-settings';
-import { sheetStyles } from './agent-chat-sheet-styles';
+import { AgentChatSettingsRow, AgentChatSettingsSheets } from './agent-chat-settings';
 import { AgentChatContextNotice } from './context/agent-chat-context-notice';
 import type { AgentChatController } from './use-agent-chat';
+import { useAgentChatAddSettings } from './use-agent-chat-add-settings';
 import { useAgentChatAppCommands } from './use-agent-chat-app-commands';
 import { useAgentChatComposerAction } from './use-agent-chat-composer-action';
 import { useAgentChatHandoffSource } from './use-agent-chat-handoff-source';
 import { useAgentChatMentions } from './use-agent-chat-mentions';
+import { useAgentChatSettings } from './use-agent-chat-settings';
 import { useAgentChatSkills } from './use-agent-chat-skills';
 
 /**
@@ -118,6 +119,14 @@ const useFocusRequest = ({
         inputReference.current.focus();
         if (inputReference.current.isFocused()) onComposerFocused?.();
     }, [focusComposer, isEditable, isVisible, onComposerFocused]);
+    useEffect(() => {
+        // Android keeps a field focused after Back or a timeline drag closes the keyboard, which would leave an empty
+        // capsule expanded under no keyboard; blurring lets it fold back to one row.
+        const subscription = Keyboard.addListener('keyboardDidHide', () => {
+            if (inputReference.current?.isFocused()) inputReference.current.blur();
+        });
+        return () => subscription.remove();
+    }, []);
     return inputReference;
 };
 
@@ -174,6 +183,75 @@ const AgentChatComposerStatus = ({
         </>
     );
 };
+
+/**
+ * The notices above the capsule: plan usage, the context window, and an edit in progress. The command menu takes the
+ * usage and context notices' place, so the keyboard-up screen keeps its room.
+ */
+const AgentChatComposerNotices = ({
+    canSend,
+    chat,
+    isMenuOpen,
+    onDraftChange,
+    provider,
+    theme,
+}: {
+    canSend: boolean;
+    chat: AgentChatController;
+    isMenuOpen: boolean;
+    onDraftChange: (draft: string) => void;
+    provider: string;
+    theme: MobileTheme;
+}) => {
+    const terminalId = chat.snapshot?.terminalId;
+    const isRunning = chat.snapshot?.activeTurnId !== undefined;
+    const { editing } = chat;
+    return (
+        <>
+            {isMenuOpen || !terminalId ? null : (
+                <AgentChatUsageNotices provider={provider} terminalId={terminalId} theme={theme} />
+            )}
+            {isMenuOpen || isRunning || !terminalId ? null : (
+                <AgentChatContextNotice canSend={canSend} chat={chat} theme={theme} />
+            )}
+            {editing ? (
+                <AgentChatEditBanner
+                    onCancel={() => {
+                        chat.setEditing(undefined);
+                        onDraftChange(editing.previousDraft);
+                    }}
+                    removedTurns={editing.removedTurns}
+                    theme={theme}
+                />
+            ) : null}
+        </>
+    );
+};
+
+/**
+ * The first reason the composer cannot send yet, in priority order: access, a waiting edit, then attachments.
+ */
+const composerStatusReason = ({
+    availabilityReason,
+    editWaitReason,
+    files,
+    images,
+}: {
+    availabilityReason: string | undefined;
+    editWaitReason: string | undefined;
+    files: { waitReason: string | null };
+    images: Pick<ReturnType<typeof useImageAttachments>, 'attachments' | 'waitReason'>;
+}): string | undefined =>
+    availabilityReason ??
+    editWaitReason ??
+    images.waitReason ??
+    files.waitReason ??
+    imageAttachmentBudgetNote(
+        images.attachments,
+        MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
+        MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
+    ) ??
+    undefined;
 
 /**
  * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
@@ -236,6 +314,7 @@ export const AgentChatComposer = ({
         files: { add: files.add, imagesAsFiles: !supportsImages, remaining: files.remaining },
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
+    const [isFocused, setFocused] = useState(false);
     const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
     const draftInput = useClearedDraftEchoGuard(draft, onDraftChange);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
@@ -258,6 +337,13 @@ export const AgentChatComposer = ({
         permissionReason,
         providerId,
     });
+    const settings = useAgentChatSettings({
+        chat,
+        configureReason,
+        permissionReason,
+        provider: providerId,
+    });
+    const addSettings = useAgentChatAddSettings({ chat, onOpen: appCommands.setSheet, settings });
     const menu = useComposerMenu({
         builtIn: appCommands.builtIn,
         chat,
@@ -331,78 +417,55 @@ export const AgentChatComposer = ({
     const queue = async (): Promise<void> => {
         if (deliveries.hold === 'queue') await run();
     };
-    const rowControls = agentChatComposerRowControls({
-        canAttach: deviceRole === 'reply' || deviceRole === 'control',
-        hasText: draft.trim().length > 0,
-        isRunning,
-    });
-    // Images never return to an edit (`agentChatMessageEditAvailability`), so it offers none to add.
-    const showsAttach = rowControls.showsAttach && !editing;
+    const canAttach =
+        (deviceRole === 'reply' || deviceRole === 'control') &&
+        isEditable &&
+        (images.canAdd || files.canAdd);
     const isMenuOpen =
         menu.matches !== undefined || menu.notice !== undefined || mentions.rows !== undefined;
-    const statusReason =
-        availability.reason ??
-        editWaitReason ??
-        images.waitReason ??
-        files.waitReason ??
-        imageAttachmentBudgetNote(
-            images.attachments,
-            MAX_AGENT_CHAT_IMAGES_TOTAL_BASE64_LENGTH,
-            MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
-        ) ??
-        undefined;
-    return (
-        <View
-            style={[styles.composerBlock, { borderColor: theme.border }]}
-            testID="agent-chat-composer"
-        >
-            {/* The command menu takes the model and permission row's place, so the keyboard-up screen keeps its room. */}
-            {isMenuOpen || !chat.snapshot?.terminalId ? null : (
-                <AgentChatUsageNotices
-                    provider={provider}
-                    terminalId={chat.snapshot.terminalId}
-                    theme={theme}
-                />
-            )}
-            {isMenuOpen || isRunning || !chat.snapshot?.terminalId ? null : (
-                <AgentChatContextNotice
-                    canSend={availability.isEnabled}
-                    chat={chat}
-                    theme={theme}
-                />
-            )}
-            {isMenuOpen ? null : (
-                <View style={sheetStyles.choices}>
-                    <AgentChatSettings
-                        chat={chat}
-                        configureReason={configureReason}
-                        entry={appCommands.sheet === 'usage' ? null : appCommands.sheet}
-                        onEntryChange={appCommands.setSheet}
-                        permissionReason={permissionReason}
-                        provider={providerId}
-                        theme={theme}
-                    />
-                    {chat.snapshot?.terminalId ? (
-                        <AgentChatSessionUsageButton
-                            isOpen={appCommands.sheet === 'usage'}
-                            onOpenChange={(isOpen) => appCommands.setSheet(isOpen ? 'usage' : null)}
-                            terminalId={chat.snapshot.terminalId}
-                            theme={theme}
-                            usage={chat.snapshot.usage}
-                        />
-                    ) : null}
-                </View>
-            )}
-            {editing ? (
-                <AgentChatEditBanner
-                    onCancel={() => {
-                        chat.setEditing(undefined);
-                        draftInput.setDraft(editing.previousDraft);
-                    }}
-                    removedTurns={editing.removedTurns}
-                    theme={theme}
-                />
+    const isExpanded =
+        agentChatComposerLayout({
+            hasAttachments: images.attachments.length > 0 || files.attachments.length > 0,
+            hasText: draft.length > 0,
+            isEditing: editing !== undefined,
+            isFocused,
+            isMenuOpen,
+        }) === 'expanded';
+    const sendControls = (
+        <>
+            {canSteer ? (
+                <AgentChatQueueButton onQueue={queue} provider={provider} theme={theme} />
             ) : null}
+            <AgentChatComposerButton
+                canQueue={deliveries.hold === 'queue'}
+                canSubmit={canSubmit}
+                isBusy={isStopping || isRunningCommand || isSendingEdit}
+                isRunning={isRunning}
+                isStopAction={isStopAction}
+                isStopping={isStopping}
+                onPress={submit}
+                onQueue={queue}
+                provider={provider}
+                theme={theme}
+            />
+        </>
+    );
+    const statusReason = composerStatusReason({
+        availabilityReason: availability.reason,
+        editWaitReason,
+        files,
+        images,
+    });
+    return (
+        <View style={styles.composerBlock} testID="agent-chat-composer">
+            <AgentChatComposerNotices
+                canSend={availability.isEnabled}
+                chat={chat}
+                isMenuOpen={isMenuOpen}
+                onDraftChange={draftInput.setDraft}
+                provider={provider}
+                theme={theme}
+            />
             <SessionComposerAttachments files={files} images={images} theme={theme} />
             <AgentChatCommandList
                 confirmsSendAsText={confirmsSendAsText}
@@ -423,42 +486,45 @@ export const AgentChatComposer = ({
                 rows={mentions.rows}
                 theme={theme}
             />
-            <View style={styles.composerRow}>
-                {showsAttach ? (
-                    <AttachButton
-                        canAdd={images.canAdd || files.canAdd}
+            <AgentChatComposerCapsule
+                add={
+                    // Images never return to an edit (`agentChatMessageEditAvailability`), so it offers none to add.
+                    editing ? null : (
+                        <AddButton
+                            isAtLimit={!images.canAdd && !files.canAdd}
+                            isEnabled={canAttach || addSettings.length > 0}
+                            onPress={() => setChoosingImage(true)}
+                            theme={theme}
+                        />
+                    )
+                }
+                input={
+                    <AgentChatComposerInput
+                        draft={draft}
+                        focusComposer={focusComposer}
+                        inputReference={inputReference}
                         isEditable={isEditable}
-                        onPress={() => setChoosingImage(true)}
+                        isExpanded={isExpanded}
+                        isRunning={isRunning}
+                        onComposerFocused={onComposerFocused}
+                        onDraftChange={draftInput.onChangeText}
+                        onFocusChange={setFocused}
+                        provider={provider}
                         theme={theme}
                     />
-                ) : null}
-                <AgentChatComposerInput
-                    draft={draft}
-                    focusComposer={focusComposer}
-                    inputReference={inputReference}
-                    isEditable={isEditable}
-                    isRunning={isRunning}
-                    onComposerFocused={onComposerFocused}
-                    onDraftChange={draftInput.onChangeText}
-                    provider={provider}
-                    theme={theme}
-                />
-                {canSteer ? (
-                    <AgentChatQueueButton onQueue={queue} provider={provider} theme={theme} />
-                ) : null}
-                <AgentChatComposerButton
-                    canQueue={deliveries.hold === 'queue'}
-                    canSubmit={canSubmit}
-                    isBusy={isStopping || isRunningCommand || isSendingEdit}
-                    isRunning={isRunning}
-                    isStopAction={isStopAction}
-                    isStopping={isStopping}
-                    onPress={submit}
-                    onQueue={queue}
-                    provider={provider}
-                    theme={theme}
-                />
-            </View>
+                }
+                isExpanded={isExpanded}
+                send={sendControls}
+                settings={
+                    <AgentChatSettingsRow
+                        chat={chat}
+                        onOpen={appCommands.setSheet}
+                        settings={settings}
+                        theme={theme}
+                    />
+                }
+                theme={theme}
+            />
             <AgentChatComposerStatus
                 error={error ?? mentions.error ?? images.attachError ?? files.attachError}
                 isStopping={isStopping}
@@ -467,16 +533,26 @@ export const AgentChatComposer = ({
                 theme={theme}
             />
             {isChoosingImage ? (
-                <AttachmentSourceSheet
+                <ComposerAddSheet
+                    canAttach={canAttach}
                     // A pasted image has no file to fall back to.
                     hidden={supportsImages ? [] : ['clipboard']}
                     onClose={() => setChoosingImage(false)}
                     onPick={(source) => {
                         void (source === 'files' ? files.pick() : images.add(source));
                     }}
+                    settings={addSettings}
                     theme={theme}
+                    title={t('chat.composer.add')}
                 />
             ) : null}
+            <AgentChatSettingsSheets
+                chat={chat}
+                onClose={() => appCommands.setSheet(null)}
+                settings={settings}
+                sheet={appCommands.sheet}
+                theme={theme}
+            />
         </View>
     );
 };

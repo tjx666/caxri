@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
     emptyHostSessionUiState,
     hasKnownConversationAgent,
+    isChatAwaitingBehindSidePanel,
     isChatSegmentShown,
-    isSegmentAwaitingAnswer,
     isSessionDetailVisible,
     isSideSessionSegment,
     preferredSessionSegment,
@@ -15,6 +15,8 @@ import {
     SESSION_SEGMENTS,
     sessionSegmentDirection,
     sessionSegments,
+    shownContentSegment,
+    sideSegmentToOpen,
 } from '../session-ui-state';
 
 describe('host Session UI state', () => {
@@ -189,13 +191,37 @@ describe('host Session UI state', () => {
         ).toEqual({ one: 'conversation' });
     });
 
+    it('reopens the side view each Session last showed while it is still offered', () => {
+        const state = rememberSessionSegment(
+            rememberSessionSegment(emptyHostSessionUiState(), 'one', 'panel:caxri.files'),
+            'one',
+            'conversation',
+        );
+        expect(state.sideSegmentBySession).toEqual({ one: 'panel:caxri.files' });
+        const offered = ['conversation', 'changes', 'panel:caxri.files'] as const;
+        expect(sideSegmentToOpen(state.sideSegmentBySession.one, offered)).toBe(
+            'panel:caxri.files',
+        );
+        expect(sideSegmentToOpen('panel:gone', offered)).toBe('changes');
+        expect(sideSegmentToOpen(undefined, offered)).toBe('changes');
+    });
+
+    it('keeps the remembered content on screen under a side segment', () => {
+        expect(shownContentSegment('changes', 'terminal', false)).toBe('terminal');
+        expect(shownContentSegment('panel:caxri.files', 'conversation', false)).toBe(
+            'conversation',
+        );
+        expect(shownContentSegment('terminal', 'conversation', false)).toBe('terminal');
+        expect(shownContentSegment('changes', 'terminal', true)).toBe('conversation');
+    });
+
     it('keeps the Project filter while Session-specific state changes', () => {
         const filtered = selectSessionProject(emptyHostSessionUiState(), 'project-one');
         const afterNavigation = rememberSessionSegment(filtered, 'session-one', 'changes');
         expect(afterNavigation.projectId).toBe('project-one');
     });
 
-    it('reports the tab strip direction for the incoming panel', () => {
+    it('reports the switch direction for the incoming segment', () => {
         const order = [
             ...SESSION_SEGMENTS,
             'panel:caxri.files',
@@ -232,26 +258,20 @@ describe('Chat Session tabs', () => {
         ]);
     });
 
-    it('observes a Chat on its tab or behind any wide side segment', () => {
-        expect(isChatSegmentShown('conversation', false)).toBe(true);
-        expect(isChatSegmentShown('changes', false)).toBe(false);
-        expect(isChatSegmentShown('panel:notes', false)).toBe(false);
-        expect(isChatSegmentShown('changes', true)).toBe(true);
-        expect(isChatSegmentShown('panel:notes', true)).toBe(true);
-        expect(isChatSegmentShown('terminal', true)).toBe(false);
+    it('keeps observing a Chat under any side segment', () => {
+        expect(isChatSegmentShown('conversation')).toBe(true);
+        expect(isChatSegmentShown('changes')).toBe(true);
+        expect(isChatSegmentShown('panel:notes')).toBe(true);
+        expect(isChatSegmentShown('terminal')).toBe(false);
     });
 
-    it('marks the Chat tab while a request waits and the user is on another tab', () => {
-        const waiting = {
-            isChat: true,
-            isSelected: false,
-            agentActivityState: 'waiting',
-            segment: 'conversation',
-        } as const;
-        expect(isSegmentAwaitingAnswer(waiting)).toBe(true);
-        expect(isSegmentAwaitingAnswer({ ...waiting, isSelected: true })).toBe(false);
-        expect(isSegmentAwaitingAnswer({ ...waiting, isChat: false })).toBe(false);
-        expect(isSegmentAwaitingAnswer({ ...waiting, agentActivityState: 'running' })).toBe(false);
-        expect(isSegmentAwaitingAnswer({ ...waiting, segment: 'changes' })).toBe(false);
+    it('marks the side panel close button while a request waits on the Chat it covers', () => {
+        const waiting = { agentActivityState: 'waiting', isChat: true, isCovered: true } as const;
+        expect(isChatAwaitingBehindSidePanel(waiting)).toBe(true);
+        expect(isChatAwaitingBehindSidePanel({ ...waiting, isCovered: false })).toBe(false);
+        expect(isChatAwaitingBehindSidePanel({ ...waiting, isChat: false })).toBe(false);
+        expect(isChatAwaitingBehindSidePanel({ ...waiting, agentActivityState: 'running' })).toBe(
+            false,
+        );
     });
 });

@@ -1,69 +1,63 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { MAX_AGENT_CHAT_IMAGES } from '@caxri/protocol';
-import { ArrowUp, ArrowUpToLine, Paperclip, Square } from 'lucide-react-native';
+import { ArrowUp, ArrowUpToLine, Square } from 'lucide-react-native';
 
-import { IconButton } from '../../components/icon-button';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
-import { mobileControl, mobileSpace, mobileType, PRESSED_OPACITY } from '../../theme/scale';
+import { mobileSpace, mobileType, PRESSED_OPACITY } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
+import { ComposerAddButton } from '../sessions/components/composer-add-button';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import type { AgentChatComposerButtonLook } from './agent-chat-composer-button-look';
 import { agentChatComposerButtonLook } from './agent-chat-composer-button-look';
 import { agentChatComposerButton } from './agent-chat-model';
 
 /**
- * Opens the attachment sources. Every provider takes files, so a provider without image input (Grok Build) still gets
- * the button; its photos go as files.
+ * Opens the Chat's add sheet: attachment sources and the Chat's settings. Every provider takes files, so a provider
+ * without image input (Grok Build) still gets the attachment tiles; its photos go as files. The sheet also holds the
+ * settings, so the button stays usable whenever it has a row to show: at the attachment limit, offline, or without
+ * reply access the sheet leaves out its tiles and still names the model and permission level.
  */
-export const AttachButton = ({
-    canAdd,
-    isEditable,
+export const AddButton = ({
+    isAtLimit,
+    isEnabled,
     onPress,
     theme,
 }: {
-    canAdd: boolean;
-    isEditable: boolean;
+    /**
+     * Every image or file slot is taken, so the sheet offers no tiles.
+     */
+    isAtLimit: boolean;
+    isEnabled: boolean;
     onPress: () => void;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     return (
-        <View style={styles.attachSlot}>
-            <IconButton
-                accessibilityHint={
-                    canAdd
-                        ? undefined
-                        : t('chat.composer.imageLimit', { count: MAX_AGENT_CHAT_IMAGES })
-                }
-                accessibilityLabel={t('chat.composer.attach')}
-                color={theme.muted}
-                disabled={!isEditable || !canAdd}
-                icon={Paperclip}
-                onPress={onPress}
-                size={22}
-                testID="agent-chat-attach-image"
-                theme={theme}
-            />
-        </View>
+        <ComposerAddButton
+            accessibilityHint={
+                isAtLimit
+                    ? t('chat.composer.imageLimit', { count: MAX_AGENT_CHAT_IMAGES })
+                    : undefined
+            }
+            accessibilityLabel={t('chat.composer.add')}
+            disabled={!isEnabled}
+            onPress={onPress}
+            testID="agent-chat-attach-image"
+            theme={theme}
+        />
     );
 };
 
 /**
- * The send area's shared shape while a turn runs: with Queue and Steer side by side, both are 52dp pills with a text
- * label, so neither reads as the odd one out. Kept compact (`sm` padding) so that, with attach stepped aside
- * (`agentChatComposerRowControls`), the input keeps at least about 60% of a 360dp phone's composer row.
+ * The send area's shared shape while a turn runs: with Queue and Steer side by side, both are pills with a text label
+ * at the round send button's height, so neither reads as the odd one out.
  */
 const pillStyles = StyleSheet.create({
     pill: {
-        alignItems: 'center',
-        borderRadius: mobileControl.primary / 2,
-        height: mobileControl.primary,
-        justifyContent: 'center',
-        minWidth: mobileControl.primary,
-        paddingHorizontal: mobileSpace.sm,
-        // Overrides the round send button's fixed 52dp width, so the label sets the pill's width.
+        paddingHorizontal: mobileSpace.md,
+        // Overrides the round send button's fixed width, so the label sets the pill's width.
         width: 'auto',
     },
     outlined: { borderWidth: 1.5 },
@@ -94,6 +88,7 @@ export const AgentChatQueueButton = ({
                 void onQueue();
             }}
             style={({ pressed }) => [
+                styles.sendButton,
                 pillStyles.pill,
                 pillStyles.outlined,
                 { borderColor: theme.primary, opacity: pressed ? PRESSED_OPACITY : 1 },
@@ -202,6 +197,7 @@ export const AgentChatComposerButton = ({
                 if (nativeEvent.actionName === 'longpress') void onQueue();
             }}
             onLongPress={canQueue ? onQueue : undefined}
+            hitSlop={4}
             onPress={onPress}
             style={[
                 styles.sendButton,

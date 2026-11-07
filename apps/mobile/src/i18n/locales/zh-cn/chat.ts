@@ -39,7 +39,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.commands.skillHint': '将 Skill 加入消息，以便说明要做什么。',
     'chat.commands.skills': 'Skill',
     'chat.commands.skillsNeedAgent': 'Agent 运行后才会显示 Skill',
-    'chat.composer.attach': '添加附件',
+    'chat.composer.add': '添加到对话',
     'chat.composer.holdToQueueHint': '长按可排队到 {{provider}} 的本轮结束。',
     'chat.composer.imageLimit': '每条消息最多 {{count}} 张图片。',
     'chat.composer.imagesTotalLimit': '一条消息中的图片总大小不能超过 {{size}} MB。',

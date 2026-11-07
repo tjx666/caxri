@@ -68,17 +68,17 @@ export const SessionsScreenDetail = memo(
             isSelected: selected !== null,
         });
         const rememberedSegment = selected ? ui.segmentBySession[selected.id] : undefined;
-        const wideBackgroundSegment = selected
+        const contentSegment = selected
             ? (ui.contentSegmentBySession[selected.id] ??
               (selected.primaryAgentEndpoint ? 'conversation' : 'terminal'))
             : 'terminal';
         const conversation = useSessionConversation({
             isDetailVisible,
+            // The side panel leaves the Conversation mounted under or beside it, in every layout.
             keepVisible:
-                layout === 'tablet-wide' &&
                 rememberedSegment !== undefined &&
                 isSideSessionSegment(rememberedSegment) &&
-                wideBackgroundSegment === 'conversation',
+                contentSegment === 'conversation',
             remembered: rememberedSegment,
             selected,
         });
@@ -91,13 +91,13 @@ export const SessionsScreenDetail = memo(
         if (selected)
             return (
                 <SelectedSessionDetail
+                    contentSegment={contentSegment}
                     conversation={conversation}
                     fresh={fresh}
                     isDetailVisible={isDetailVisible}
                     layout={layout}
                     selected={selected}
                     theme={theme}
-                    wideBackgroundSegment={wideBackgroundSegment}
                 />
             );
         if (routeSessionId)
