@@ -139,7 +139,11 @@ const ConversationUserMessage = ({
         user.kind === 'handoff' ? (
             <ConversationHandoffCard footer={handoff?.footer} note={user.note} theme={theme} />
         ) : (
-            <ConversationUserWords blocks={user.blocks} theme={theme} />
+            <ConversationUserWords
+                blocks={user.blocks}
+                testID={`conversation-user-text-${entry.id}`}
+                theme={theme}
+            />
         );
     return (
         <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>

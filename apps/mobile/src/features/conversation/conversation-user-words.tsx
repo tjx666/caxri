@@ -73,16 +73,26 @@ const renderRun = (run: Run, position: number, theme: MobileTheme) => {
  */
 export const ConversationUserWords = ({
     blocks,
+    testID,
     theme,
 }: {
     blocks: readonly Block[];
+    /**
+     * Prefix for each block's words, `<testID>-<block index>`, so a check can read a line by its place in the message.
+     */
+    testID?: string;
     theme: MobileTheme;
 }) => {
     const textStyle = [conversationStyles.userText, { color: theme.text }];
     const runs = (items: readonly Run[]) => items.map((run, index) => renderRun(run, index, theme));
+    const blockID = (position: number) => (testID ? `${testID}-${position}` : undefined);
     // A message with no list or quote stays one Text, so it wraps and selects as it always did.
     if (blocks.length === 1 && !blocks[0]?.line)
-        return <Text style={textStyle}>{runs(blocks[0]?.runs ?? [])}</Text>;
+        return (
+            <Text style={textStyle} testID={blockID(0)}>
+                {runs(blocks[0]?.runs ?? [])}
+            </Text>
+        );
     return (
         <View>
             {blocks.map((block, position) => {
@@ -92,7 +102,10 @@ export const ConversationUserWords = ({
                             key={position}
                             style={[styles.quote, { borderLeftColor: theme.selection }]}
                         >
-                            <Text style={[...textStyle, { color: theme.muted }]}>
+                            <Text
+                                style={[...textStyle, { color: theme.muted }]}
+                                testID={blockID(position)}
+                            >
                                 {runs(block.runs)}
                             </Text>
                         </View>
@@ -102,14 +115,17 @@ export const ConversationUserWords = ({
                     return (
                         <View key={position} style={styles.listLine}>
                             <Text style={textStyle}>{runs(line.marker)}</Text>
-                            <Text style={[...textStyle, styles.listContent]}>
+                            <Text
+                                style={[...textStyle, styles.listContent]}
+                                testID={blockID(position)}
+                            >
                                 {runs(line.content)}
                             </Text>
                         </View>
                     );
                 }
                 return (
-                    <Text key={position} style={textStyle}>
+                    <Text key={position} style={textStyle} testID={blockID(position)}>
                         {runs(block.runs)}
                     </Text>
                 );

@@ -2,7 +2,12 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
-import { mobileNativeControlBounds, tapMobileCheck, waitForMobile } from './mobile-android';
+import {
+    mobileSemantics,
+    observeMobileNode,
+    tapMobileCheck,
+    waitForMobile,
+} from './mobile-android';
 
 /**
  * A user message with every block Desktop's bubble renders: bold and inline code in a line, a quote, and a bullet list.
@@ -15,8 +20,9 @@ const MARKDOWN_MESSAGE = [
 ].join('\n');
 
 /**
- * The text each block shows once its Markdown markers are hidden. Each is its own native text view, so an exact match
- * proves the `**`, backticks, `> `, and `- ` are gone from what the reader sees.
+ * The text each block of the bubble shows once its Markdown markers are hidden, in block order. Each is its own native
+ * text view (`conversation-user-text-<id>-<index>`), so an exact match proves the `**`, backticks, `> `, and `- ` are
+ * gone from what the reader sees.
  */
 const RENDERED_LINES = [
     '这个是写了迁移脚本?看 0004 文件',
@@ -52,18 +58,20 @@ export async function executeMobileChatUserMarkdownScenario(
         );
         await waitForNoCheck(serial, 'agent-chat-activity');
 
-        for (const text of RENDERED_LINES) {
+        // The fake Agent echoes the message back, so each line also shows in the reply; read the bubble's own blocks.
+        const semantics = await mobileSemantics(serial);
+        const first = semantics.find(({ checkId }) =>
+            /^conversation-user-text-.+-0$/u.test(checkId),
+        )?.checkId;
+        if (!first) throw new Error('The user bubble has no text blocks on screen');
+        const prefix = first.slice(0, -'0'.length);
+        for (const [position, text] of RENDERED_LINES.entries()) {
             // eslint-disable-next-line no-await-in-loop -- one UI dump at a time; parallel dumps share one device path.
-            const line = await waitForMobile(
-                () =>
-                    mobileNativeControlBounds(serial, {
-                        className: 'android.widget.TextView',
-                        text,
-                    }),
-                (candidate) => candidate !== null,
-                15_000,
-            );
-            if (!line)
+            const line = await observeMobileNode(serial, `${prefix}${position}`, {
+                kind: 'equals',
+                value: text,
+            });
+            if (!line.exists || line.textMatches !== true)
                 throw new Error(`The user bubble does not show "${text}" with its markers hidden`);
         }
         await capture(environment, 'user-markdown-bubble', artifacts);
