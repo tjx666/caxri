@@ -117,7 +117,11 @@ bun run <absolute script path> create feat/example              # the second pri
    `ni`, and native `node-pty` artifacts. Rerunning it repairs a failed installation.
 4. In Claude Code, call `EnterWorktree` with `path` set to the new checkout. Caxri follows that tool
    too and keeps the Chat resumable, and later tool calls run there. Other harnesses bind each tool
-   call to the printed path.
+   call to the printed path. Once inside, Claude Code refuses a shell command whose `git`, `gh`, or
+   `caxri` call it cannot read statically: a wrapper (`rtk git diff`), `$(...)`, a heredoc, a
+   `;`/`&&` chain, a quoted command path (`"$CAXRI_CLI"`), or script text naming `git`. Run each as
+   its own plain command (`git diff`, `caxri ...`), compare outputs yourself, and edit files with
+   the Edit or Write tool; a `--body-file` goes to the path a separate `mktemp` call printed.
 
 Use `--base <ref>` on `plan` only when the task explicitly requires another baseline. Allowed
 new-branch prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new
