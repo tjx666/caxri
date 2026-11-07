@@ -7,6 +7,7 @@ import {
     isScrollbarSettling,
     scrollWithoutScrollbarFlash,
 } from '../../../lib/quiet-scroll';
+import { isSubpixelShrink } from '../../../lib/subpixel-shrink';
 
 /**
  * How close to the end still counts as "following" the conversation. A few pixels of slack absorbs sub-pixel layout and
@@ -84,12 +85,6 @@ export function agentChatAnchoredScrollTop(
 const AGENT_CHAT_TURN_TOP_GAP_PX = 112;
 
 /**
- * How far the measured space below a finished turn may fall short of its laid-out height before it shrinks; see
- * {@link agentChatSettledSpacerHeight}.
- */
-const AGENT_CHAT_SPACER_SUBPIXEL_SLACK_PX = 1;
-
-/**
  * The empty space kept below the latest turn so it can rest at the top of the view, as ChatGPT and the Codex app show a
  * sent message: `turnHeight` runs from that turn's user message to the end of the content. A reply then grows into the
  * space instead of pushing the message up from the bottom, and once it outgrows the view the space is gone and
@@ -111,11 +106,7 @@ export function agentChatTurnSpacerHeight(
  * at its end, below which nothing is kept. Measuring against the turn's height rather than the previous space keeps the
  * view still when the finished turn folds its work rows: the turn shrinks, and the space grows by the same amount.
  *
- * A shrink smaller than {@link AGENT_CHAT_SPACER_SUBPIXEL_SLACK_PX} keeps `currentHeight`. At a non-integer zoom the
- * measured space reads a fraction short of the space actually laid out, and each such shrink snaps the content one
- * device pixel shorter; the browser then clamps the view up by that pixel and fires a scroll event that measures the
- * same fraction short again. Unchecked, that loop slid an idle view resting at its end down through the whole space one
- * device pixel per frame. A real scroll back still consumes the space once it moved the view a whole pixel.
+ * A shrink within the turn's space that is only measurement noise keeps `currentHeight`; see {@link isSubpixelShrink}.
  */
 export function agentChatSettledSpacerHeight({
     contentEnd,
@@ -132,12 +123,11 @@ export function agentChatSettledSpacerHeight({
     viewBottom: number;
 }): number {
     const height = Math.max(Math.min(turnSpaceHeight, viewBottom - contentEnd), 0);
-    const isSubpixelShrink =
-        currentHeight !== undefined &&
-        height < currentHeight &&
-        currentHeight - height < AGENT_CHAT_SPACER_SUBPIXEL_SLACK_PX &&
-        currentHeight <= turnSpaceHeight;
-    return isSubpixelShrink ? currentHeight : height;
+    return currentHeight !== undefined &&
+        currentHeight <= turnSpaceHeight &&
+        isSubpixelShrink(currentHeight, height)
+        ? currentHeight
+        : height;
 }
 
 /**

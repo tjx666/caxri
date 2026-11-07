@@ -141,6 +141,28 @@ describe('agentChatReturnHintSlotHeight', () => {
         ).toBe(40);
     });
 
+    it('keeps the slot when a view of fractional height reads its bottom a fraction short', () => {
+        // A 632.39px view whose bottom was read as 632 would shrink the slot by 0.39px, and the clamp that follows
+        // would fire the next scroll event that shrinks it again.
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 40,
+                isShown: false,
+                slotTop: 997,
+                viewBottom: 1036.61,
+            }),
+        ).toBe(40);
+        // A scroll of a whole pixel or more still consumes it.
+        expect(
+            agentChatReturnHintSlotHeight({
+                height: 40,
+                isShown: false,
+                slotTop: 997,
+                viewBottom: 1035.5,
+            }),
+        ).toBe(38.5);
+    });
+
     it('lets scrolling back consume the slot without growing it again', () => {
         expect(
             agentChatReturnHintSlotHeight({
