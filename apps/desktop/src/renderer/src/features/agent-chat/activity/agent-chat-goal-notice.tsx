@@ -4,6 +4,7 @@ import { Goal } from 'lucide-react';
 import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
+import { agentChatGoalNoticeObjective } from './agent-chat-goal-row';
 
 const ACTION_LABELS = {
     set: 'agentChat.goal.notice.set',
@@ -15,16 +16,18 @@ const ACTION_LABELS = {
 /**
  * A `/goal` reply as a goal event: the goal mark and what happened in the accent the composer's goal chip uses, with
  * the condition below it as the user wrote it. A cleared goal or an empty `/goal` settles into neutral, since nothing
- * is pursued anymore.
+ * is pursued anymore. A `set` reply leaves the condition to the `/goal` message it answers
+ * ({@link agentChatGoalNoticeObjective}).
  */
 export function AgentChatGoalNotice({ notice }: { notice: AgentChatGoalReply }) {
     const { t } = useTranslation();
     const isPursued = notice.action === 'set' || notice.action === 'active';
+    const objective = agentChatGoalNoticeObjective(notice);
     return (
         <div
             className={cn(
                 'flex gap-3 rounded-lg border px-3 py-2.5',
-                notice.objective ? 'items-start' : 'items-center',
+                objective ? 'items-start' : 'items-center',
                 isPursued ? 'border-accent/25 bg-accent/5' : 'border-border bg-surface',
             )}
             data-agent-chat-goal-notice={notice.action}
@@ -47,14 +50,14 @@ export function AgentChatGoalNotice({ notice }: { notice: AgentChatGoalReply }) 
                 >
                     {t(ACTION_LABELS[notice.action])}
                 </span>
-                {notice.objective && (
+                {objective && (
                     <p
                         className={cn(
                             'm-0 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap',
                             isPursued ? 'text-foreground' : 'text-muted',
                         )}
                     >
-                        {notice.objective}
+                        {objective}
                     </p>
                 )}
                 {notice.detail && (

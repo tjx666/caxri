@@ -7,6 +7,7 @@ import {
     canFilterUsageToSession,
     limitBarTone,
     pullRequestTileDetail,
+    shouldShowUsageBurnRate,
     usageRowStatusLabel,
     usageSessionFilterTitle,
     usageSessionTitle,
@@ -230,5 +231,12 @@ describe('session row filter', () => {
         expect(canFilterUsageToSession({ sessionId: 'session-1' }, { isOutsideCaxri: false })).toBe(
             false,
         );
+    });
+});
+
+describe('shouldShowUsageBurnRate', () => {
+    it('projects spend only for a report across Sessions, never for one Session', () => {
+        expect(shouldShowUsageBurnRate({})).toBe(true);
+        expect(shouldShowUsageBurnRate({ sessionId: 'session-1' })).toBe(false);
     });
 });

@@ -18,6 +18,15 @@ export function limitBarTone(usedPercent: number): 'chart' | 'warning' {
 }
 
 /**
+ * Whether the report shows the Burn rate card. It averages spend over 7 and 30 days and projects a month from that,
+ * which is a fiction for one Session: a six-minute conversation read as "$0.11 a day" and "about $3 a month". A
+ * Session-scoped report keeps its real total in the cost tile instead.
+ */
+export function shouldShowUsageBurnRate(report: Pick<UsageReport, 'sessionId'>): boolean {
+    return report.sessionId === undefined;
+}
+
+/**
  * What the Agents and Projects share bars are drawn from. Cost is the page's headline figure, so it wins whenever every
  * model in the range has a price; with any unpriced usage a cost share would draw an unpriced row as a zero-width bar
  * beside real tokens, so the bars fall back to tokens, which every row has.

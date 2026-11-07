@@ -41,6 +41,7 @@ import { buildUsageInsights, usageCoverageNotes } from './usage-notes';
 import {
     limitBarTone,
     pullRequestTileDetail,
+    shouldShowUsageBurnRate,
     usageShare,
     usageShareBasis,
     usageShareCaption,
@@ -418,13 +419,14 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
  */
 export function UsageSections({ report }: { report: UsageReport }) {
     const hasLimits = report.limits.length > 0;
+    const hasBurnRate = shouldShowUsageBurnRate(report);
     return (
         // A size container, so the two-column rows follow the pane's width rather than the window's.
         <div className="@container mx-auto grid max-w-6xl gap-3 p-4">
             <KpiTiles report={report} />
             <UsageActivityCard activity={report.activity} today={report.today} />
-            <div className="grid gap-3 @3xl:grid-cols-2">
-                <BurnCard report={report} />
+            <div className={cn('grid gap-3', hasBurnRate && '@3xl:grid-cols-2')}>
+                {hasBurnRate && <BurnCard report={report} />}
                 <HourOfDayCard report={report} />
             </div>
             <div className="grid gap-3 @3xl:grid-cols-2">

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatGoalAutoExpandKey,
+    agentChatGoalNoticeObjective,
     agentChatGoalSpend,
     agentChatLiveGoalActivity,
 } from '../agent-chat-goal-row';
@@ -51,5 +52,20 @@ describe('agentChatGoalAutoExpandKey', () => {
         );
         expect(agentChatGoalAutoExpandKey({ ...goal, status: 'complete' })).toBeUndefined();
         expect(agentChatGoalAutoExpandKey({ objective: 'Ship', status: 'failed' })).toBeUndefined();
+    });
+});
+
+describe('agentChatGoalNoticeObjective', () => {
+    it('leaves the condition to the /goal message a set reply answers', () => {
+        expect(agentChatGoalNoticeObjective({ action: 'set', objective: 'Ship it' })).toBe('');
+    });
+
+    it('keeps the condition a bare /goal or /goal clear did not show', () => {
+        expect(agentChatGoalNoticeObjective({ action: 'active', objective: 'Ship it' })).toBe(
+            'Ship it',
+        );
+        expect(agentChatGoalNoticeObjective({ action: 'cleared', objective: 'Ship it' })).toBe(
+            'Ship it',
+        );
     });
 });

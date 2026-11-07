@@ -205,12 +205,16 @@ export function externalStatusCommandOperation(
             return `pr.${arguments_[1]}`;
         if (arguments_[0] === 'repo' && arguments_[1] === 'view') return 'repo.view';
         // The quota probe is a fixed `rateLimit` self-query; its text is a literal, never user content.
-        return arguments_[0] === 'api' &&
+        if (
+            arguments_[0] === 'api' &&
             arguments_[1] === 'graphql' &&
             arguments_[2] === '-f' &&
             arguments_[3] === `query=${GITHUB_RATE_LIMIT_QUERY}` &&
             arguments_.length === 4
-            ? 'graphql.rate_limit'
+        )
+            return 'graphql.rate_limit';
+        return arguments_[0] === 'api' && arguments_[1] === 'graphql'
+            ? githubGraphqlOperation(arguments_)
             : 'unknown';
     }
     if (source === 'linear') {
@@ -227,6 +231,38 @@ export function externalStatusCommandOperation(
     if (arguments_[0] === 'remote') return 'remote.get-url';
     if (arguments_[0] === 'symbolic-ref') return 'default-branch.get';
     if (arguments_[0] === 'for-each-ref') return 'head.get';
+    // Branch publication's local ahead/behind probes (`branch.ts`).
+    if (arguments_[0] === 'rev-parse' && arguments_[1] === '--is-shallow-repository')
+        return 'shallow.get';
+    if (arguments_[0] === 'cat-file') return 'commit.exists';
+    if (arguments_[0] === 'rev-list') return 'ahead-behind.count';
+    return 'unknown';
+}
+
+/**
+ * The Project Status GraphQL documents, by their operation name (`query BranchPublication(...)` in `branch.ts`, and the
+ * `ReviewThreads` and `PreviousChecks` queries beside it), and the operation each one logs as.
+ */
+const GITHUB_GRAPHQL_OPERATIONS: Readonly<Record<string, string>> = {
+    BranchPublication: 'graphql.branch_publication',
+    PreviousChecks: 'graphql.previous_checks',
+    ReviewThreads: 'graphql.review_threads',
+};
+
+/**
+ * Production logged every Status `gh api graphql` failure as operation `unknown`, so neither the failure record nor the
+ * per-minute aggregate could say which query failed or which one spent the GitHub quota. Only the allowlisted operation
+ * names are mapped; any other document stays `unknown`, so no GraphQL text reaches the log.
+ */
+function githubGraphqlOperation(arguments_: readonly string[]): string {
+    for (const argument of arguments_) {
+        const name = /^query=query (\w+)[({]/u.exec(argument)?.[1];
+        const operation =
+            name && Object.hasOwn(GITHUB_GRAPHQL_OPERATIONS, name)
+                ? GITHUB_GRAPHQL_OPERATIONS[name]
+                : undefined;
+        if (operation) return operation;
+    }
     return 'unknown';
 }
 

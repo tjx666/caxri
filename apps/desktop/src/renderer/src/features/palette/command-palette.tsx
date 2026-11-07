@@ -331,10 +331,8 @@ function CommandPaletteBody() {
                                         selectProject(project.id);
                                     }}
                                 >
+                                    {/* No trailing "Project" tag: the group heading already says it on every row. */}
                                     <span>{project.title}</span>
-                                    <small className={commandItemMetaClassName}>
-                                        {t('palette.source.project')}
-                                    </small>
                                 </CommandItem>
                             ))}
                         </CommandGroup>

@@ -13,7 +13,6 @@ export const palette: TranslatedNamespace<typeof source> = {
     'palette.group.projects': '项目',
     'palette.group.sessions': '会话',
     'palette.group.commands': '命令',
-    'palette.source.project': '项目',
     'palette.source.session': '会话',
     'palette.source.extension': '扩展',
 };

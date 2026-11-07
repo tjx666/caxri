@@ -313,6 +313,43 @@ describe('externalStatusCommandOperation', () => {
         expect(externalStatusCommandOperation('gh', ['api', 'rate_limit'])).toBe('unknown');
     });
 
+    it('names the Project Status GraphQL queries by their allowlisted operation', () => {
+        const graphql = (query: string) =>
+            externalStatusCommandOperation('gh', [
+                'api',
+                'graphql',
+                '--hostname',
+                'github.com',
+                '--raw-field',
+                `query=${query}`,
+                '-F',
+                'owner=acme',
+            ]);
+        expect(graphql('query BranchPublication($owner:String!){repository{id}}')).toBe(
+            'graphql.branch_publication',
+        );
+        expect(graphql('query ReviewThreads($owner:String!){repository{id}}')).toBe(
+            'graphql.review_threads',
+        );
+        expect(graphql('query PreviousChecks($owner:String!){repository{id}}')).toBe(
+            'graphql.previous_checks',
+        );
+        expect(graphql('query SecretName($owner:String!){repository{id}}')).toBe('unknown');
+        expect(graphql('query toString{viewer{login}}')).toBe('unknown');
+    });
+
+    it('names the branch publication Git probes', () => {
+        expect(
+            externalStatusCommandOperation('git', ['rev-parse', '--is-shallow-repository']),
+        ).toBe('shallow.get');
+        expect(externalStatusCommandOperation('git', ['cat-file', '-e', 'abc^{commit}'])).toBe(
+            'commit.exists',
+        );
+        expect(
+            externalStatusCommandOperation('git', ['rev-list', '--left-right', '--count', 'a...b']),
+        ).toBe('ahead-behind.count');
+    });
+
     it('reports a pull-request read without its repository or branch', () => {
         expect(
             externalStatusCommandOperation('gh', [

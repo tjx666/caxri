@@ -34,7 +34,8 @@ Sessions has a filter button that narrows the page to that Session.
   requests created and merged with their line counts.
 - An activity heatmap over the trailing 53 weeks, with daily, weekly, and cumulative views, in tokens or cost.
 - Highlights: streaks, busiest day and weekday, peak hour, cache savings, and the burn rate for today, 7 days, and 30
-  days.
+  days. A report narrowed to one Session leaves the burn rate out, since a daily average and monthly projection mean
+  nothing for a single conversation.
 - Breakdowns by Agent, model, Project (linked worktrees roll up into their owning Project), and Session, plus the
   merged pull requests.
 - The latest plan rate-limit windows: Codex's from its transcripts, Claude Code's from a running Chat (see
