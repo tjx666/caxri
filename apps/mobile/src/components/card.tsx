@@ -7,6 +7,11 @@ import { mobileRadius, mobileSpace } from '../theme/scale';
 import type { MobileTheme } from '../theme/tokens';
 
 /**
+ * The card's border width; a row aligned with a card's content adds it to the card's inner inset.
+ */
+export const CARD_BORDER_WIDTH = 1;
+
+/**
  * Card emphasis. `attention` is reserved for the one thing that blocks the Agent on the user (a permission request or a
  * question), so exactly one card on screen draws the amber border; `danger` marks a failure the user must act on.
  */
@@ -69,7 +74,7 @@ export const Card = ({
 );
 
 const styles = StyleSheet.create({
-    card: { borderRadius: mobileRadius.md, borderWidth: 1, overflow: 'hidden' },
+    card: { borderRadius: mobileRadius.md, borderWidth: CARD_BORDER_WIDTH, overflow: 'hidden' },
     padded: { gap: mobileSpace.sm, padding: mobileSpace.md },
 });
 
