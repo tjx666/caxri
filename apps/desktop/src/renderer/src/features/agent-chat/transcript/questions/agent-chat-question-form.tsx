@@ -12,6 +12,7 @@ import { Kbd } from '../../../../components/ui/kbd';
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { isApprovalClickGuarded } from '../agent-chat-presentation';
+import { AgentChatQuestionBody } from './agent-chat-question-body';
 import type { QuestionFormPrimaryAction, QuestionPanelKeyAction } from './agent-chat-question-flow';
 import {
     agentChatQuestionResponse,
@@ -448,9 +449,7 @@ export function AgentChatQuestionForm({
                         {headings.questionHeader}
                     </p>
                 )}
-                <p className="m-0 text-[13px] leading-5 font-semibold text-foreground">
-                    {question.question}
-                </p>
+                <AgentChatQuestionBody key={question.id} text={question.question} />
             </div>
             {options.length > 0 && optionList}
             {allowsTyping && (
