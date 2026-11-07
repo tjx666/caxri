@@ -97,11 +97,12 @@ const RailTick = memo(
  * is not navigating sees only the transcript; its ticks stay translucent even then, and the tick for the message being
  * read is longer and brighter. Hovering one, or focusing it from the keyboard, opens its preview card
  * ({@link AgentChatRailPreviewCard}) and clicking scrolls there. A conversation with one message has nowhere to jump, so
- * the rail appears from the second; a narrow Chat's transcript then widens its left padding past the rail so content
- * never runs under the ticks, while a wide Chat's centering margin already clears them and its transcript stays put.
- * The rail is one Tab stop: ArrowUp and ArrowDown (Home, End) move among its ticks, and Enter jumps. Ticks shrink
- * together when a long conversation would overflow the view, down to a 6px target each; past that, or past
- * `MAX_AGENT_CHAT_RAIL_MARKS` messages, each tick stands for a stretch of the conversation, so the rail never scrolls.
+ * the rail appears from the second; a narrow Chat's transcript then widens its left padding past the rail (and its
+ * right padding to match) so content never runs under the ticks, while a wide Chat's centering margin already clears
+ * them and its transcript stays put. The rail is one Tab stop: ArrowUp and ArrowDown (Home, End) move among its ticks,
+ * and Enter jumps. Ticks shrink together when a long conversation would overflow the view, down to a 6px target each;
+ * past that, or past `MAX_AGENT_CHAT_RAIL_MARKS` messages, each tick stands for a stretch of the conversation, so the
+ * rail never scrolls.
  */
 export function AgentChatMessageRail({
     activeIndex,
