@@ -74,21 +74,17 @@ export const SessionAgentSheetActions = ({
                     theme={theme}
                 />
             ) : null}
-            {bot ? (
-                <SessionBotSheetAction
-                    bot={bot}
-                    isBusy={isRunning(bot)}
-                    isConnected={isConnected}
-                    onPress={() => {
-                        const send =
-                            bot === 'handOver'
-                                ? management.handOverToBot
-                                : management.takeBackFromBot;
-                        void send(session.id).then(finish);
-                    }}
-                    theme={theme}
-                />
-            ) : null}
+            <SessionBotSheetAction
+                bot={bot}
+                isBusy={isRunning(bot)}
+                isConnected={isConnected}
+                onPress={() => {
+                    const send =
+                        bot === 'handOver' ? management.handOverToBot : management.takeBackFromBot;
+                    void send(session.id).then(finish);
+                }}
+                theme={theme}
+            />
             {menu.canReopen ? (
                 <SheetAction
                     disabled={!isConnected}
@@ -167,7 +163,7 @@ const SessionBotSheetAction = ({
     onPress,
     theme,
 }: {
-    bot: NonNullable<SessionAgentMenu['bot']>;
+    bot: SessionAgentMenu['bot'];
     isBusy: boolean;
     isConnected: boolean;
     onPress: () => void;
