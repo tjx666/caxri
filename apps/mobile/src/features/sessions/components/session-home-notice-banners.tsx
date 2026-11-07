@@ -9,7 +9,12 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileUpdateNotice } from '../../update/use-mobile-update-notice';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import type { selectHomeNotice } from '../session-notices';
-import { connectionBannerModel, connectionNoticeMessage } from '../session-notices';
+import {
+    connectionBannerModel,
+    connectionIslandLabel,
+    connectionNoticeMessage,
+} from '../session-notices';
+import { ConnectionIsland } from './connection-island';
 import { useHostSessions } from './host-sessions-provider';
 
 /**
@@ -45,7 +50,8 @@ export const UpdateBanner = ({
 );
 
 /**
- * The stale or unverified connection banner; split out of `SessionHomeNotice` like `UpdateBanner`.
+ * The stale or unverified connection notice; split out of `SessionHomeNotice` like `UpdateBanner`. An automatic
+ * reconnect floats as `ConnectionIsland` and takes no height; a notice the user must act on stays a banner.
  */
 export const ConnectionBanner = ({
     isListVisible,
@@ -75,16 +81,30 @@ export const ConnectionBanner = ({
     };
     const onAction = model.action === 'settings' ? openSettings : onRetry;
     const isSavedCopyShown = status === 'stale' && isListVisible && saved !== null;
+    const message = connectionNoticeMessage(
+        status,
+        isSavedCopyShown ? saved : null,
+        t,
+        relayFailure,
+    );
+    if (model.presentation === 'island')
+        return (
+            <ConnectionIsland
+                accessibilityLabel={message}
+                actionLabel={actionLabels[model.action]}
+                actionTestID="connection-retry-button"
+                label={connectionIslandLabel(isSavedCopyShown ? saved : null, t, relayFailure)}
+                onAction={onAction}
+                testID="connection-stale-banner"
+                theme={theme}
+                wrapperTestID={isSavedCopyShown ? 'session-list-saved' : undefined}
+            />
+        );
     const banner = (
         <NoticeBanner
             actionLabel={actionLabels[model.action]}
             actionTestID="connection-retry-button"
-            message={connectionNoticeMessage(
-                status,
-                isSavedCopyShown ? saved : null,
-                t,
-                relayFailure,
-            )}
+            message={message}
             onAction={onAction}
             testID="connection-stale-banner"
             theme={theme}

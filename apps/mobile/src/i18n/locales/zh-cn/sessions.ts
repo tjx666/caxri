@@ -62,6 +62,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.archived.truncated': '显示 {{total}} 个中最近的 {{shown}} 个。',
     'sessions.backToSessions': '返回会话',
     'sessions.banner.openSettings': '打开设置',
+    'sessions.banner.reconnecting': '正在重新连接…',
+    'sessions.banner.reconnectingSaved': '正在重新连接… · {{saved}}',
     'sessions.banner.reconnectNow': '立即重新连接',
     'sessions.continue.notInstalled': '未安装',
     'sessions.continue.unsupported': '不支持对话',
@@ -75,6 +77,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
         '电脑上的 Caxri 当前离线。请在电脑上打开 Caxri，这台手机会自动重新连接。',
     'sessions.banner.relayUnauthorized':
         '中继不接受这台手机。请在电脑上打开 Caxri 的“设置 → 移动设备”，确认它没有被撤销，或点击“生成配对码”重新配对。',
+    'sessions.banner.relayBusyShort': '中继繁忙，正在重试…',
     'sessions.banner.relayBusy': '中继繁忙，正在自动重试。',
     'sessions.composer.agentNotRunning': '主 Agent 未在运行。',
     'sessions.composer.attach': '添加附件',
