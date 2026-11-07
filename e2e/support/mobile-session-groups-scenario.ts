@@ -84,18 +84,28 @@ async function swipeList(serial: string, fromShare: number, toShare: number): Pr
 /**
  * Drags across the Session list like {@link swipeList} but holds the finger down past the activation slop, so the frame
  * is compared while the gesture is live: the list must follow the finger like a pager, with the next Project's page
- * sliding in beside it. UIAutomator waits for an idle screen, so the list is compared by its pixels instead.
+ * sliding in beside it. The Project filters' highlight travels with it, so both the current and the next chip change
+ * while the finger is held. UIAutomator waits for an idle screen, so the list and chips are compared by their pixels.
  */
 async function holdSwipeFollowingFinger(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
     pages: { current: string; next: string },
+    chips: { current: string; next: string },
     fromShare: number,
     toShare: number,
 ): Promise<void> {
     const { serial } = environment;
-    const list = checkBounds(await mobileSemantics(serial), 'session-list');
+    const restingNodes = await mobileSemantics(serial);
+    const list = checkBounds(restingNodes, 'session-list');
     if (!list) throw new Error('The Session list is not laid out');
+    const currentChip = checkBounds(restingNodes, chips.current);
+    const nextChip = checkBounds(restingNodes, chips.next);
+    if (!currentChip || !nextChip) throw new Error('The Project chips are not laid out');
+    const restingChips = [
+        await mobileRegionFingerprint(serial, currentChip),
+        await mobileRegionFingerprint(serial, nextChip),
+    ];
     const resting = await mobileRegionFingerprint(serial, list);
     // A list that changes on its own would make the held comparison below blame the gesture for it.
     if ((await mobileRegionFingerprint(serial, list)) !== resting)
@@ -117,9 +127,14 @@ async function holdSwipeFollowingFinger(
         ].join('; '),
     ]);
     let held: string;
+    let heldChips: string[];
     let heldNodes: MobileSemanticNode[];
     try {
         held = await mobileRegionFingerprint(serial, list);
+        heldChips = [
+            await mobileRegionFingerprint(serial, currentChip),
+            await mobileRegionFingerprint(serial, nextChip),
+        ];
         await capture(environment, 'holding-swipe', artifacts);
         // The held finger leaves the screen idle, so UIAutomator can read both pages mid-swipe. Rows repeat their check
         // ids on both pages and the dump keeps only the first, so each page is read by its own id.
@@ -128,6 +143,12 @@ async function holdSwipeFollowingFinger(
         await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
     }
     if (held === resting) throw new Error('The Session list did not follow the finger mid-swipe');
+    // Before the highlight followed the pager it stayed on the current chip until the release, leaving both chips as
+    // they were at rest.
+    if (heldChips[0] === restingChips[0])
+        throw new Error('The highlight did not start leaving the current chip mid-swipe');
+    if (heldChips[1] === restingChips[1])
+        throw new Error('The highlight did not reach toward the next chip mid-swipe');
     // UIAutomator clips bounds to the screen: the current page ends short of the right edge, and the next page starts
     // past the left edge.
     const margin = width * 0.2;
@@ -168,8 +189,8 @@ function assertHeaderLayout(nodes: MobileSemanticNode[], density: number): void 
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
  * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
  * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held, with the
- * next Project's page sliding in, and the release settles flush. The header's icon buttons sit in the brand row above
- * the Project chips.
+ * next Project's page sliding in and the filter highlight travelling toward its chip, and the release settles flush.
+ * The header's icon buttons sit in the brand row above the Project chips.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -265,6 +286,7 @@ export async function executeMobileSessionSwipeScenario(
                 current: 'session-page-project:all',
                 next: `session-page-project:${fixture.allowedProjectId}`,
             },
+            { current: 'project-filter-all', next: projectChip },
             0.8,
             0.2,
         );
@@ -298,6 +320,7 @@ export async function executeMobileSessionSwipeScenario(
             driftingScroll: 'scrolled-without-switching-project',
             headerLayout: 'icon-buttons-in-brand-row-above-chips',
             heldSwipe: 'page-follows-finger-and-next-project-slides-in',
+            heldSwipeHighlight: 'leaves-current-chip-and-reaches-next-chip',
             leftSwipe: 'all-to-project',
             leftSwipeAtLastProject: 'stayed',
             shortRowDrag: 'no-archive-no-switch',
