@@ -154,6 +154,7 @@ describe('delegation presets and caller admission', () => {
             { type: 'second-opinion', provider: 'codex' },
             { type: 'review', provider: 'codex' },
             { type: 'computer-use', provider: 'codex' },
+            { type: 'x-search', provider: 'grok' },
         ]);
         f.setSettings({
             types: {
@@ -167,6 +168,7 @@ describe('delegation presets and caller admission', () => {
             // The caller's binding replaces the base tuple whole: no effort leaks from it.
             { type: 'review', provider: 'codex', model: 'gpt-5.5' },
             { type: 'computer-use', provider: 'codex', model: 'gpt-5.5', effort: 'medium' },
+            { type: 'x-search', provider: 'grok' },
         ]);
         const id = randomUUID();
         const receipt = await f.service.create(id, f.agent, { ...f.input, type: 'review' });

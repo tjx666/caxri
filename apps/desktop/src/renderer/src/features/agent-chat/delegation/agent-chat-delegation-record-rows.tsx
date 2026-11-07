@@ -6,7 +6,14 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, isDelegationRetryPending } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
-import { Forward, MessagesSquare, MousePointerClick, RotateCcw, ScanSearch } from 'lucide-react';
+import {
+    AtSign,
+    Forward,
+    MessagesSquare,
+    MousePointerClick,
+    RotateCcw,
+    ScanSearch,
+} from 'lucide-react';
 
 import { Tooltip } from '@/components/ui/tooltip';
 import { useClockTick } from '@/hooks/use-clock-tick';
@@ -29,13 +36,15 @@ import { useIsDelegationLive } from './hooks/use-is-delegation-live';
 const NO_IDS: readonly string[] = [];
 
 /**
- * A typed task's record says what was asked, so a second opinion, a review, and computer use read apart at a glance.
+ * A typed task's record says what was asked, so a second opinion, a review, computer use, and an X search read apart at
+ * a glance.
  */
 const TYPE_ICONS: Record<DelegationType | 'none', LucideIcon> = {
     'none': Forward,
     'second-opinion': MessagesSquare,
     'review': ScanSearch,
     'computer-use': MousePointerClick,
+    'x-search': AtSign,
 };
 
 /**

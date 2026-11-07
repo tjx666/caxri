@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { DelegationType } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { newSessionFixture as fixture } from './new-session.fixture';
@@ -300,10 +301,10 @@ describe('Delegation into a new Session from a Client continuation', () => {
 });
 
 /**
- * `--type`: a second opinion, a review, or computer use without any preset (the dianjiang replacement).
+ * `--type`: a second opinion, a review, computer use, or an X search without any preset (the dianjiang replacement).
  */
 describe('Delegation of a type', () => {
-    const typed = (type: 'computer-use' | 'review' | 'second-opinion') => ({
+    const typed = (type: DelegationType) => ({
         prompt: 'Synthetic private task',
         newSession: true as const,
         title: 'Check the plan',
@@ -314,6 +315,7 @@ describe('Delegation of a type', () => {
         { type: 'second-opinion' as const, relation: 'consult' },
         { type: 'review' as const, relation: 'consult' },
         { type: 'computer-use' as const, relation: 'delegated' },
+        { type: 'x-search' as const, relation: 'consult' },
     ])(
         'runs $type in the Project of the caller’s own Session as a $relation Session',
         async ({ type, relation }) => {
@@ -355,6 +357,20 @@ describe('Delegation of a type', () => {
         expect(receipt.selection).toEqual({ provider: 'claude', type: 'review' });
         const task = await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8');
         expect(task).toMatch(/^You are asked to review code changes as an independent reviewer\./u);
+        expect(task).toContain('Synthetic private task');
+    });
+
+    it('sends an X search to Grok whoever asks, opening the task with its citation rules', async () => {
+        const { directory, service, agentAuthority } = await fixture();
+        const id = randomUUID();
+
+        const receipt = await service.create(id, agentAuthority, typed('x-search'));
+
+        expect(receipt.selection).toEqual({ provider: 'grok', type: 'x-search' });
+        // Grok Build's Chat cannot report a task, so the child opens on the PTY Terminal.
+        expect(receipt.surface).toBe('pty');
+        const task = await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8');
+        expect(task).toMatch(/^Use your live X \(Twitter\) search tools/u);
         expect(task).toContain('Synthetic private task');
     });
 

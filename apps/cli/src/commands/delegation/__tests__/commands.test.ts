@@ -67,7 +67,7 @@ describe('delegation CLI', () => {
         ).rejects.toThrow(/--title/u);
         await expect(
             command.parseParams(['--type', 'lint', '--title', 'Lint', '--prompt-file', path]),
-        ).rejects.toThrow(/--type must be one of second-opinion\|review\|computer-use/u);
+        ).rejects.toThrow(/--type must be one of second-opinion\|review\|computer-use\|x-search/u);
         await Promise.all(
             [
                 ['--consult'],

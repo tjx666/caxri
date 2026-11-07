@@ -82,28 +82,32 @@ const selectionShape = {
  * - `review`: a review of code changes by another Agent; changes no files.
  * - `computer-use`: operating a signed-in browser or desktop app; it changes state outside the repository and may need
  *   the user to sign in, so its Session stays visible.
+ * - `x-search`: a live X (Twitter) lookup of posts, threads, accounts, or what people say about a topic; changes no
+ *   files.
  */
-export const DELEGATION_TYPES = ['second-opinion', 'review', 'computer-use'] as const;
+export const DELEGATION_TYPES = ['second-opinion', 'review', 'computer-use', 'x-search'] as const;
 export const delegationTypeSchema = z.enum(DELEGATION_TYPES);
 export type DelegationType = z.infer<typeof delegationTypeSchema>;
 
 /**
  * The Agent a type runs on when neither the caller's nor the base Settings bind it. A second opinion and a review are
  * worth most from another vendor, so a Codex caller asks Claude and every other caller asks Codex. Computer use runs on
- * Codex, whose bundled Computer Use plugin drives Chrome and desktop apps.
+ * Codex, whose bundled Computer Use plugin drives Chrome and desktop apps. X search runs on Grok, the only hosted Agent
+ * with native real-time X search.
  */
 export function defaultDelegationTypeProvider(
     type: DelegationType,
     caller: z.infer<typeof delegationProviderSchema> | undefined,
 ): z.infer<typeof delegationProviderSchema> {
     if (type === 'computer-use') return 'codex';
+    if (type === 'x-search') return 'grok';
     return caller === 'codex' ? 'claude' : 'codex';
 }
 
 /**
- * The relation a type's new Session has to the Session that asked: a second opinion and a review change no files and
- * are read back (`consult`, no sidebar row); computer use acts outside the repository and may wait for the user to sign
- * in, so it stays a visible `delegated` Session.
+ * The relation a type's new Session has to the Session that asked: a second opinion, a review, and an X search change
+ * no files and are read back (`consult`, no sidebar row); computer use acts outside the repository and may wait for the
+ * user to sign in, so it stays a visible `delegated` Session.
  */
 export function delegationTypeRelation(type: DelegationType): 'consult' | 'delegated' {
     return type === 'computer-use' ? 'delegated' : 'consult';

@@ -175,7 +175,8 @@ own may name another Project. It is not a Handed-over Session, which the user gi
 _Avoid_: Transfer, fork, hand-over
 
 **Delegation type**:
-One of the asks Caxri knows without configuration: a second opinion, a review, or computer use. The
+One of the asks Caxri knows without configuration: a second opinion, a review, computer use, or an X
+search. The
 type decides the new Session's relation and how Caxri presents the task; Settings only choose which
 Agent runs it. It is not a preset, which is the user's own named Agent choice.
 _Avoid_: Scenario, mode, kind

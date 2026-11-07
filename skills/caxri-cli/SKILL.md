@@ -290,11 +290,11 @@ Then write the task to a file and run
   `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).
   These accept only Sessions created from your own Session; never archive the user's Sessions.
 
-## Ask another Agent: second opinion, review, computer use
+## Ask another Agent: second opinion, review, computer use, X search
 
-Three asks need no preset and no Session flags. Write the task to a file, then run
+Four asks need no preset and no Session flags. Write the task to a file, then run
 `agent delegate create --type review --title <subject> --prompt-file <path> --request-id <id> --json`
-with `--type` set to `second-opinion`, `review`, or `computer-use`.
+with `--type` set to `second-opinion`, `review`, `computer-use`, or `x-search`.
 
 - **`second-opinion`**: an independent view when you are stuck on a hard debugging hypothesis or an
   architecture or design decision that is expensive to reverse. It changes no files.
@@ -309,15 +309,19 @@ with `--type` set to `second-opinion`, `review`, or `computer-use`.
   and exact items (for example "create these two DNS records in zone example.com"); anything unnamed
   stops for approval. Tell the user it is running and to leave the target app alone except to sign
   in when notified. Review its final screenshots before you report.
+- **`x-search`**: a live X (Twitter) lookup: posts, threads, account activity, or what people are
+  saying about a topic right now. It cites the URL, author, and date of every post it relies on and
+  changes no files. Do not use it for general web research; use your own search tools for that.
 
 Caxri picks the Agent from Settings: by default a second opinion and a review go to the other vendor
-(Codex, or Claude when you are Codex) and computer use goes to Codex. `agent delegate presets
+(Codex, or Claude when you are Codex), computer use goes to Codex, and an X search goes to Grok,
+the only Agent with native real-time X search. `agent delegate presets
 --project <id> --session <id>` lists the binding each type has for you in `types`; add `--provider` (with optional `--model` and
 `--effort`) only when the user names the Agent.
 
 - The task runs in a new Session of your own Project, in your linked worktree when you work in one,
   so it reads the same files you do. Do not pass `--project` unless the task is about another
-  Project. A second opinion and a review take no sidebar row (they are consults); computer use is
+  Project. A second opinion, a review, and an X search take no sidebar row (they are consults); computer use is
   listed under your Session so the user can watch it and sign in.
 - Write the task self-contained: background, file paths, what you want back. The Agent starts fresh
   in your folder; it sees your files, not your conversation.

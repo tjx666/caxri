@@ -611,8 +611,9 @@ Agent that is not makes the reason `ancestor_not_covering`.
 
 ## Delegation types
 
-Three asks are built in, so an Agent needs no preset and no dispatcher of its own for them
-(they replace the owner's dianjiang `second-opinion`, `review`, and `operate-desktop` presets):
+Four asks are built in, so an Agent needs no preset and no dispatcher of its own for them
+(they replace the owner's dianjiang `second-opinion`, `review`, `operate-desktop`, and
+`search-twitter` presets):
 
 ```sh
 caxri agent delegate create --type review --title "Review the retry fix" --prompt-file task.md --json
@@ -623,6 +624,7 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
 | `second-opinion` | The other vendor: Codex, Claude for Codex | `consult`            | Independent evaluator: test the caller's conclusion, may disagree, no edits |
 | `review`         | The other vendor: Codex, Claude for Codex | `consult`            | Report findings by severity with file and line, no edits                    |
 | `computer-use`   | Codex (its bundled Computer Use plugin)   | `delegated`          | Stop before irreversible actions, wait on sign-in, no secrets, screenshots  |
+| `x-search`       | Grok (native real-time X search)          | `consult`            | Cite each post's URL, author, and date; say when live search is unavailable |
 
 - **One flag.** `--type` stands in for `--new-session` and a relation flag, and takes no `--session`,
   preset, relation flag, worktree, or continuation; the CLI and the request schema
@@ -640,8 +642,8 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
   native model and effort (`defaultDelegationTypeProvider`). `agent delegate presets` returns the
   effective binding per type in `types`. `--provider` (with optional `--model` and `--effort`) runs
   the type on that Agent instead, for a user who names one.
-- **Relation.** `delegationTypeRelation` decides it: a second opinion and a review change no files
-  and are read back, so they are consults with no sidebar row; computer use changes state outside the
+- **Relation.** `delegationTypeRelation` decides it: a second opinion, a review, and an X search
+  change no files and are read back, so they are consults with no sidebar row; computer use changes state outside the
   repository and may wait for the user to sign in, so it stays a visible `delegated` Session.
 - **Instructions.** The type's fixed text (`delegation-types.ts`) opens the task file ahead of the
   caller's prompt and is frozen at admission like a preset's instructions.
