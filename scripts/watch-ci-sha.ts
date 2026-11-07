@@ -160,10 +160,33 @@ export interface ResolveDependencies {
 }
 
 /**
+ * Runs one GitHub read, retrying a transport failure (`EOF`, a TLS handshake timeout) up to {@link MAX_LIST_FAILURES}
+ * times at the poll cadence; an HTTP 4xx answer (an unknown SHA, missing auth) fails at once. A dropped connection
+ * right after a merge used to end the watcher before it followed anything, and later one ended it while it followed the
+ * run that superseded a cancelled one, so every read outside the shared run poller goes through here.
+ */
+async function withTransientRetry<T>(
+    label: string,
+    read: () => Promise<T>,
+    wait: (ms: number) => Promise<unknown> = sleep,
+): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- retry loop: each attempt waits for the previous one
+            return await read();
+        } catch (error) {
+            if (attempt >= MAX_LIST_FAILURES || /\(HTTP 4\d\d\)/u.test(String(error))) throw error;
+            console.error(`${label} failed (retrying): ${String(error)}`);
+            // eslint-disable-next-line no-await-in-loop -- retry loop: fixed cadence
+            await wait(POLL_INTERVAL_MS);
+        }
+    }
+}
+
+/**
  * Resolves a full or abbreviated commit SHA to the full SHA through the API, which also accepts short forms, so a merge
- * commit that is not fetched locally still resolves. A dropped connection (`EOF`) right after a merge used to end the
- * watcher before it followed anything, so transport failures get the same retry budget as run listing; an HTTP 4xx
- * answer (an unknown SHA, missing auth) or a malformed SHA fails at once.
+ * commit that is not fetched locally still resolves. Transport failures retry (`withTransientRetry`); a malformed SHA
+ * fails at once.
  */
 export async function resolveCommitSha(
     sha: string,
@@ -172,21 +195,9 @@ export async function resolveCommitSha(
         wait = sleep,
     }: ResolveDependencies = {},
 ): Promise<string> {
-    for (let attempt = 1; ; attempt += 1) {
-        let full: string;
-        try {
-            // eslint-disable-next-line no-await-in-loop -- retry loop: each attempt waits for the previous one
-            full = await lookup(sha);
-        } catch (error) {
-            if (attempt >= MAX_LIST_FAILURES || /\(HTTP 4\d\d\)/u.test(String(error))) throw error;
-            console.error(`commit lookup failed (retrying): ${String(error)}`);
-            // eslint-disable-next-line no-await-in-loop -- retry loop: fixed cadence
-            await wait(POLL_INTERVAL_MS);
-            continue;
-        }
-        if (!/^[0-9a-f]{40}$/u.test(full)) throw new Error(`could not resolve commit ${sha}`);
-        return full;
-    }
+    const full = await withTransientRetry('commit lookup', () => lookup(sha), wait);
+    if (!/^[0-9a-f]{40}$/u.test(full)) throw new Error(`could not resolve commit ${sha}`);
+    return full;
 }
 
 async function listCommitRuns(sha: string): Promise<Array<Omit<CommitRun, 'completedAtMs'>>> {
@@ -383,13 +394,21 @@ export async function followSupersedingRuns(
     sha: string,
     isRunGood: (runId: string) => Promise<boolean>,
     {
-        contains = hasCommitAncestor,
-        listBranchRuns: listRuns = listBranchRuns,
-        readRun = readRunOrigin,
-        readFailedJobs = readFailedRunJobs,
+        contains: containsOnce = hasCommitAncestor,
+        listBranchRuns: listRunsOnce = listBranchRuns,
+        readRun: readRunOnce = readRunOrigin,
+        readFailedJobs: readFailedJobsOnce = readFailedRunJobs,
         wait = sleep,
     }: SupersedeDependencies = {},
 ): Promise<boolean | 'unverified' | undefined> {
+    const contains = (base: string, head: string) =>
+        withTransientRetry('commit comparison', () => containsOnce(base, head), wait);
+    const listRuns = (workflowId: string, branch: string, event: string) =>
+        withTransientRetry('successor lookup', () => listRunsOnce(workflowId, branch, event), wait);
+    const readRun = (runId: string) =>
+        withTransientRetry('run lookup', () => readRunOnce(runId), wait);
+    const readFailedJobs = (runId: string) =>
+        withTransientRetry('job lookup', () => readFailedJobsOnce(runId), wait);
     const findSuccessor = async (origin: RunOrigin, current: { id: string; sha: string }) => {
         for (let attempt = 0; attempt < SUPERSEDING_DISCOVERY_ATTEMPTS; attempt += 1) {
             // eslint-disable-next-line no-await-in-loop -- each listing waits for the previous one to miss
