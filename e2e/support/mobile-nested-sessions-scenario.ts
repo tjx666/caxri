@@ -1,6 +1,9 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import type { BootstrapState } from '@caxri/protocol';
+
+import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -21,7 +24,9 @@ export async function executeMobileNestedSessionsScenario(
     const { serial } = environment;
     let seed: MobileNestedSessionsSeed | undefined;
     const mobile = await createMobileAcceptanceFixture({
-        mode: 'empty',
+        // `launch-failure` keeps a Shell Session in the allowed Project, whose row is what `pair` waits for; `empty`
+        // waits for an empty list, which the seeded Project never shows. No Agent launches here.
+        mode: 'launch-failure',
         serial,
         // The fixture keeps its profile beside the allowed root (`<testDirectory>/user-data`) and creates it at first
         // launch, so seeding it here writes the database Caxri then opens.
@@ -42,6 +47,16 @@ export async function executeMobileNestedSessionsScenario(
     try {
         if (!seed) throw new Error('Nested Sessions seed is unavailable');
         const { consult, delegated, handoff, host, projectId } = seed;
+        // The absent rows prove nothing unless the Server holds those Sessions with their relations.
+        const { sessions } = await pageRequest<BootstrapState>(
+            mobile.running.page,
+            'app.bootstrap',
+        );
+        const relationOf = (id: string) =>
+            sessions.find((session) => session.id === id && session.archivedAt === undefined)
+                ?.createdByRelation;
+        if (relationOf(consult) !== 'consult' || relationOf(delegated) !== 'delegated')
+            throw new Error('The seeded consult and delegated Sessions are unavailable');
         await mobile.pair([projectId]);
         const nodes = await waitForMobile(
             () => mobileSemantics(serial),
