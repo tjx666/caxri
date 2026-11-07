@@ -1,4 +1,4 @@
-import type { TerminalProcessEntry } from '@caxri/protocol';
+import type { AgentProvider, TerminalProcessEntry } from '@caxri/protocol';
 import { agentProviderCatalog, isTerminalResourceUsageHigh } from '@caxri/protocol';
 import { collectTreeSubtree } from '@caxri/utils';
 import type {
@@ -44,6 +44,10 @@ export interface ProcessTreeNode {
     name: string;
     pid?: number;
     /**
+     * The Agent a Terminal or Chat row runs, which picks its brand icon; absent for a shell.
+     */
+    provider?: AgentProvider;
+    /**
      * PTY slots this row stands for: what the process holds, or the sum beneath a grouping row. A Terminal row counts
      * its own PTY (held by Terminal Host) plus any its process tree opened.
      */
@@ -52,6 +56,9 @@ export interface ProcessTreeNode {
      * Muted qualifier after the name: the process role, or how many processes a Terminal row stands for.
      */
     tag?: string;
+    /**
+     * Set on a PTY Terminal row, the only kind Stop can suspend; a Chat row leaves it unset.
+     */
     terminalId?: string;
 }
 
@@ -188,7 +195,9 @@ export function buildProcessTree(
         const subtree = collectTreeSubtree(root, (candidate) => candidate.children);
         for (const node of subtree) if (node.pid !== undefined) claimed.add(node.pid);
         const subtreeUsage = treeUsage(root);
-        const usage = { ...subtreeUsage, ptyCount: subtreeUsage.ptyCount + 1 };
+        // A PTY Terminal's own master is held by Terminal Host, outside its tree; a Chat holds none.
+        const ownPty = terminal.surface === 'chat' ? 0 : 1;
+        const usage = { ...subtreeUsage, ptyCount: subtreeUsage.ptyCount + ownPty };
         const processCount = countProcesses(root);
         const terminalNode: ProcessTreeNode = {
             children: [root],
@@ -202,7 +211,9 @@ export function buildProcessTree(
                 processCount > 1
                     ? t('processExplorer.processCount', { count: processCount })
                     : undefined,
-            terminalId: terminal.terminalId,
+            ...(terminal.provider && { provider: terminal.provider }),
+            // Stop suspends a PTY; a Chat has no such path, so its row offers none.
+            ...(terminal.surface !== 'chat' && { terminalId: terminal.terminalId }),
         };
         const session = sessions.get(terminal.sessionId) ?? {
             children: [],

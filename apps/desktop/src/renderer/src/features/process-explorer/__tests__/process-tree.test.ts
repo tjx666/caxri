@@ -89,6 +89,30 @@ describe('buildProcessTree', () => {
         expect(byId(roots, 'pid:10')?.tag).toBe('Main process');
     });
 
+    it('groups a Chat provider process under its Session with its Agent and no Stop target', () => {
+        const chat: TerminalProcessEntry = {
+            ...terminal,
+            terminalId: 'chat-1',
+            surface: 'chat',
+            processId: 50,
+        };
+        const roots = buildProcessTree(
+            {
+                processes: [...processes, process(50, 20, 'claude', { memoryMb: 500 })],
+                terminals: [terminal, chat],
+            },
+            DEFAULT_PROCESS_SORT,
+            translate,
+        );
+        const chatNode = byId(roots, 'terminal:chat-1');
+        expect(chatNode).toMatchObject({ kind: 'terminal', name: 'Claude', provider: 'claude' });
+        expect(chatNode?.terminalId).toBeUndefined();
+        expect(chatNode?.ptyCount).toBe(0);
+        expect(chatNode?.children.map((child) => child.pid)).toEqual([50]);
+        expect(byId(roots, 'terminal:terminal-1')?.terminalId).toBe('terminal-1');
+        expect(byId(roots, CAXRI_GROUP_ID)?.children.some((child) => child.pid === 50)).toBe(false);
+    });
+
     it('flags a Terminal and its Session above the resource alert thresholds', () => {
         const heavy = processes.map((entry) =>
             entry.pid === 41 ? { ...entry, cpuPercent: 350 } : entry,

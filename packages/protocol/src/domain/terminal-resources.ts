@@ -61,6 +61,10 @@ export const terminalProcessEntrySchema = z.object({
     sessionId: identifierSchema,
     sessionTitle: z.string().max(512),
     kind: terminalKindSchema,
+    /**
+     * `chat` for a Chat Terminal, whose `processId` is its provider's process group leader rather than a PTY root.
+     */
+    surface: z.literal('chat').optional(),
     provider: agentProviderSchema.optional(),
     title: z.string().max(512),
     processId: z.number().int().positive(),

@@ -186,3 +186,46 @@ describe('TerminalResourceMonitor.sessionResources', () => {
         await expect(monitor.sessionResources('session-1')).resolves.toBeNull();
     });
 });
+
+describe('TerminalResourceMonitor.processes with Chats', () => {
+    const chat = { ...terminal, id: 'chat-1', surface: 'chat', title: 'Claude Code' } as const;
+
+    function createChatMonitor(events: ServerEvent[] = []) {
+        return new TerminalResourceMonitor({
+            chatProcessGroups: () => [{ pgid: 200, terminalId: 'chat-1' }],
+            database: {
+                getSession: () => ({ title: 'Tune the timeline' }) as SessionRecord,
+                listTerminals: () => [terminal, chat],
+            },
+            logger: { write: vi.fn() } as never,
+            sampleProcessTable: () =>
+                Promise.resolve(
+                    new ProcessTable(parseProcessTable(`100 1 0.1 1024\n200 1 350.0 5000000`)),
+                ),
+            send: (event) => events.push(event),
+            terminals: { processId: (id) => (id === 'terminal-1' ? 100 : undefined) },
+            watchHub: { registerPoller: vi.fn() },
+        });
+    }
+
+    it('lists a live Chat under its Session with the provider group leader as its root', () => {
+        expect(createChatMonitor().processes()).toEqual([
+            expect.objectContaining({ terminalId: 'terminal-1', processId: 100 }),
+            expect.objectContaining({
+                terminalId: 'chat-1',
+                sessionTitle: 'Tune the timeline',
+                surface: 'chat',
+                provider: 'claude',
+                processId: 200,
+            }),
+        ]);
+    });
+
+    it('keeps resource alerts to PTY Terminals', async () => {
+        const events: ServerEvent[] = [];
+        const monitor = createChatMonitor(events);
+        await monitor.sample();
+        await monitor.sample();
+        expect(events).toEqual([]);
+    });
+});
