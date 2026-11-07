@@ -9,6 +9,7 @@ import { useAgentChatExpansion } from '../../hooks/use-agent-chat-expansion';
 import { AgentChatNotice } from '../../messages/agent-chat-message';
 import { agentChatChevronMotion } from '../agent-chat-disclosure';
 import { agentChatItemExpansionKey } from '../agent-chat-expansion';
+import { AgentChatQuestionBody } from './agent-chat-question-body';
 
 /**
  * Keys each answer by its question, numbering a repeat (`question#1`): an Agent can ask the same question twice in one
@@ -97,7 +98,12 @@ export function AgentChatAnsweredQuestions({
                 <dl className="m-0 mt-1 space-y-2 px-1 text-[12px] leading-5" id={detailId}>
                     {withOccurrenceKeys(answers).map(({ answer, key, question }) => (
                         <div key={key}>
-                            <dt className="wrap-anywhere text-muted select-text">{question}</dt>
+                            <dt>
+                                <AgentChatQuestionBody
+                                    className="gap-2 text-[12px] text-muted"
+                                    text={question}
+                                />
+                            </dt>
                             <dd
                                 className={cn(
                                     'm-0 wrap-anywhere text-foreground select-text',

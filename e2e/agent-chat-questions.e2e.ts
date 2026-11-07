@@ -36,6 +36,22 @@ test('a Chat asks several questions behind tabs and lists the answers once sent'
         await expect(questionTabs.nth(0)).toHaveAttribute('aria-description', 'Answered');
         await expect(questionTabs.nth(1)).toHaveAttribute('aria-description', 'Not answered yet');
         await expect(questions.getByText('Which users count as free?')).toBeHidden();
+        // A long question renders as Markdown and folds behind Show more, so the options stay in view.
+        const questionBody = questions.locator('[data-agent-chat-question-body]');
+        await expect(questionBody.locator('ol > li')).toHaveCount(5);
+        await expect(questionBody.locator('code', { hasText: 'api.example.com' })).toBeVisible();
+        const showMore = questions.getByRole('button', { name: 'Show more' });
+        await expect(showMore).toHaveAttribute('aria-expanded', 'false');
+        await expect(
+            questionBody.getByText('Watch the error rate for an hour'),
+        ).not.toBeInViewport();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions-folded.png') });
+        await showMore.click();
+        await expect(questionBody.getByText('Watch the error rate for an hour')).toBeInViewport();
+        await expect(questions.getByRole('button', { name: 'Show less' })).toHaveAttribute(
+            'aria-expanded',
+            'true',
+        );
         await page.screenshot({ path: testInfo.outputPath('agent-chat-questions.png') });
         await questions.getByRole('radio', { name: /^Per request/u }).focus();
         await page.keyboard.press('Enter');

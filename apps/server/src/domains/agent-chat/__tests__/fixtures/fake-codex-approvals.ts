@@ -156,8 +156,25 @@ export async function runQuestion(io: FakeCodexIo, turn: FakeTurn) {
 }
 
 /**
- * `several questions`: three questions in one request, the first with a recommended option and the last free-text only;
- * the reply lists every answer, with `-` for a question left unanswered.
+ * A long Markdown question, so the card's fold, Show more, and Markdown rendering (list, `code`) are exercised.
+ */
+const SPLIT_QUESTION = [
+    'How should traffic split?',
+    'The rollout touches every request path, so each step is checked before the next one starts:',
+    [
+        '1. Add `api.example.com` to the upstream allow list',
+        '2. Create the `canary` route with a concurrency of 10',
+        '3. Move the image models to the `images` route',
+        '4. Switch the fallback order:',
+        '   - Text: canary → primary → backup',
+        '   - Images: images → canary → primary',
+        '5. Watch the error rate for an hour',
+    ].join('\n'),
+].join('\n\n');
+
+/**
+ * `several questions`: three questions in one request, the first a long Markdown question with a recommended option and
+ * the last free-text only; the reply lists every answer, with `-` for a question left unanswered.
  */
 export async function runQuestions(io: FakeCodexIo, turn: FakeTurn) {
     const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
@@ -173,10 +190,7 @@ export async function runQuestions(io: FakeCodexIo, turn: FakeTurn) {
         turnId: turn.id,
         itemId: item.id,
         questions: [
-            question('split', 'Split', 'How should traffic split?', [
-                'Per user (Recommended)',
-                'Per request',
-            ]),
+            question('split', 'Split', SPLIT_QUESTION, ['Per user (Recommended)', 'Per request']),
             question('scope', 'Scope', 'Which users count as free?', [
                 'Free and Hobby',
                 'Free only',
