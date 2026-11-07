@@ -7,7 +7,15 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
-import { tapMobileCheck, waitForMobile } from './mobile-android';
+import { coldStartMobileApp, tapMobileCheck, waitForMobile } from './mobile-android';
+
+async function openSettings(serial: string): Promise<void> {
+    await waitForCheck(serial, 'computer-menu-button');
+    await tapMobileCheck(serial, 'computer-menu-button');
+    await waitForCheck(serial, 'settings-action');
+    await tapMobileCheck(serial, 'settings-action');
+    await waitForCheck(serial, 'settings-connection-method');
+}
 
 /**
  * Picks one connection method from the Settings sheet and waits for the sheet to leave.
@@ -21,9 +29,9 @@ async function pickConnectionMethod(serial: string, method: 'direct' | 'relay'):
 
 /**
  * `MOB-SETTINGS-ROUTE-01`: Settings > This device shows Connection method, Automatic by default, and its sheet offers
- * Automatic, Direct, and Relay with the current one checked. Choosing Direct keeps the direct connection. The emulator
- * fixture has no Relay, so choosing Relay reconnects and falls back to the direct route, and the phone comes back
- * online with the Status row still saying Direct.
+ * Automatic, Direct, and Relay with the current one checked. Choosing Direct keeps the direct connection, and the
+ * choice survives a cold start. The emulator fixture has no Relay, so choosing Relay falls back to the direct route and
+ * the phone stays online with the Status row saying Direct.
  */
 export async function executeMobileSettingsRouteScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -43,10 +51,7 @@ export async function executeMobileSettingsRouteScenario(
         const { deviceId } = await fixture.pair();
         await isOnline(deviceId);
 
-        await tapMobileCheck(serial, 'computer-menu-button');
-        await waitForCheck(serial, 'settings-action');
-        await tapMobileCheck(serial, 'settings-action');
-        await waitForCheck(serial, 'settings-connection-method');
+        await openSettings(serial);
         await capture(environment, 'settings-automatic', artifacts);
 
         await tapMobileCheck(serial, 'settings-connection-method');
@@ -59,6 +64,12 @@ export async function executeMobileSettingsRouteScenario(
         await pickConnectionMethod(serial, 'direct');
         await isOnline(deviceId);
         await capture(environment, 'settings-direct', artifacts);
+
+        // The choice lives in the phone's secure store, so it survives the app process being killed.
+        await coldStartMobileApp(serial);
+        await openSettings(serial);
+        await isOnline(deviceId);
+        await capture(environment, 'settings-direct-after-restart', artifacts);
 
         await pickConnectionMethod(serial, 'relay');
         await isOnline(deviceId);
