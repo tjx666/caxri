@@ -127,6 +127,31 @@ export class TerminalResourceMonitor {
         return (this.options.now ?? Date.now)();
     }
 
+    private processEntry(terminal: TerminalRecord, processId: number): TerminalProcessEntry {
+        const session = this.options.database.getSession(terminal.sessionId);
+        return {
+            terminalId: terminal.id,
+            sessionId: terminal.sessionId,
+            sessionTitle: (session?.title ?? '').slice(0, MAX_TITLE_LENGTH),
+            kind: terminal.kind,
+            ...(terminal.surface && { surface: terminal.surface }),
+            provider: terminal.provider,
+            title: terminal.title.slice(0, MAX_TITLE_LENGTH),
+            processId,
+        };
+    }
+
+    /**
+     * The running PTY Terminals with their PTY root PIDs. Only these feed resource alerts: an alert offers Stop, which
+     * suspends a PTY and has no Chat counterpart, so a Chat alert would leave the user nothing to act on.
+     */
+    private ptyProcesses(): TerminalProcessEntry[] {
+        return this.options.database.listTerminals().flatMap((terminal) => {
+            const processId = this.options.terminals.processId(terminal.id);
+            return processId === undefined ? [] : [this.processEntry(terminal, processId)];
+        });
+    }
+
     /**
      * The injected reading for one Terminal, so the `terminal.resources` status bar query and this monitor's alert are
      * driven by the same value. Always `undefined` outside an explicit E2E launch.
@@ -136,24 +161,17 @@ export class TerminalResourceMonitor {
     }
 
     /**
-     * The running Terminals with their PTY root PIDs, for a process inspector to group OS processes by Session.
+     * The running PTY Terminals and live Chat provider processes with their root PIDs, for a process inspector to group
+     * OS processes by Session. A Chat has no PTY, so its root is the provider's process group leader.
      */
     processes(): TerminalProcessEntry[] {
+        const chatGroups = this.options.chatProcessGroups?.() ?? [];
+        if (chatGroups.length === 0) return this.ptyProcesses();
+        const chatLeaders = new Map(chatGroups.map((group) => [group.terminalId, group.pgid]));
         return this.options.database.listTerminals().flatMap((terminal) => {
-            const processId = this.options.terminals.processId(terminal.id);
-            if (processId === undefined) return [];
-            const session = this.options.database.getSession(terminal.sessionId);
-            return [
-                {
-                    terminalId: terminal.id,
-                    sessionId: terminal.sessionId,
-                    sessionTitle: (session?.title ?? '').slice(0, MAX_TITLE_LENGTH),
-                    kind: terminal.kind,
-                    provider: terminal.provider,
-                    title: terminal.title.slice(0, MAX_TITLE_LENGTH),
-                    processId,
-                },
-            ];
+            const processId =
+                this.options.terminals.processId(terminal.id) ?? chatLeaders.get(terminal.id);
+            return processId === undefined ? [] : [this.processEntry(terminal, processId)];
         });
     }
 
@@ -203,7 +221,7 @@ export class TerminalResourceMonitor {
     }
 
     async sample(): Promise<void> {
-        const running = this.processes();
+        const running = this.ptyProcesses();
         if (running.length === 0 && this.states.size === 0) return;
         let table: ProcessTable;
         try {

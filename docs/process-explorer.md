@@ -72,17 +72,20 @@ Open it from **View > Open Process Explorer**, the Command Palette, the status b
 a resource alert. Desktop Main samples the window every 2 seconds
 (`apps/desktop/src/main/process-explorer/sampler.ts`). It combines Electron's app metrics, the `ps` tree
 under Main, and Server Core's `terminal.processes` list. That list pairs each running Terminal
-with its Session, Agent, and PTY root PID.
+with its Session, Agent, and PTY root PID. A live Chat has no PTY, so it appears with its provider
+process group leader as the root and `surface: 'chat'`. Resource alerts still watch PTY Terminals
+only.
 
 The window shows:
 
 - **Summary bar**: total CPU, memory used out of system memory, the process count, PTY slots in
   use out of the machine limit (see [PTY slots](#pty-slots)), and a filter.
   The filter matches names, command lines, and PIDs, and opens every row while it is active.
-- **Sessions** group: each Session, then each Terminal named after its Agent, with a
-  "N processes" tag. Terminal rows start folded, and the PTY process tree sits under them. A
-  Terminal above the thresholds gets a warning dot and warning-colored readings. Its Stop button
-  (on hover or focus, or the Delete key) suspends it.
+- **Sessions** group: each Session by title, then each Terminal or Chat named after its Agent
+  with the Agent's icon and a "N processes" tag. These rows start folded, and the process tree
+  sits under them. A Terminal above the thresholds gets a warning dot and warning-colored
+  readings. Its Stop button (on hover or focus, or the Delete key) suspends it; a Chat row has no
+  Stop, because suspension applies only to a PTY.
 - **Caxri** group: Caxri's own processes as a flat list with role labels. The roles are Caxri
   (Main process), Workbench and Process Explorer (Window), GPU, helpers such as Network Service,
   and Server Core, Extension Host, and Terminal Host (Service). Processes that no Terminal claims

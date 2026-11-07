@@ -1,12 +1,21 @@
-import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AppSettings } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
+import { fakeClaudeChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, pageRequest, runtimeStatus } from './support/helpers.ts';
+import {
+    closeAppQuietly,
+    createProjectSession,
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    runtimeStatus,
+    VISIBLE_SESSION,
+} from './support/helpers.ts';
 
 const MEMORY_UNITS: Record<string, number> = { B: 1 / 1024 / 1024, KB: 1 / 1024, MB: 1, GB: 1024 };
 
@@ -416,6 +425,56 @@ test('Process Explorer follows the language setting, including while it is open'
         } catch {
             // Ignore close failures; the assertions above already produced the test result.
         }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A Chat has no PTY, so its provider process is reachable only through the process group Server Core records. It must
+ * still list under its Session with the Agent's icon, and offer no Stop, which only suspends a PTY.
+ */
+test('Process Explorer groups a Chat provider process under its Session with the Agent icon', async () => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-chat-e2e-'));
+    const testDirectory = await realpath(created);
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const message = page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' });
+        await message.fill('hi there');
+        await message.press('Enter');
+        await expect(
+            page.getByText('Hello from fake Claude. You said: hi there').filter({ visible: true }),
+        ).toBeVisible();
+
+        await pageRequest(page, 'processExplorer.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const processPage = running.app.windows().find((window) => window !== page)!;
+        await processPage.waitForLoadState('domcontentloaded');
+        const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
+        const sessionRow = grid.locator('.process-row[data-process-kind="session"]');
+        await expect(sessionRow).toHaveCount(1);
+        const agentRows = grid.locator('.process-row[data-process-kind="terminal"]');
+        const chatRow = agentRows.filter({
+            has: processPage.locator('[data-agent-icon="claude"]'),
+        });
+        await expect(chatRow).toHaveCount(1);
+        await expect(chatRow.locator('.process-name-cell')).toHaveAttribute(
+            'data-process-name',
+            'Claude',
+        );
+        await expect(chatRow).not.toHaveAttribute('aria-keyshortcuts', 'Delete');
+        // Name, CPU, memory, then Slots: a Chat holds no PTY.
+        await expect(chatRow.getByRole('gridcell').nth(3)).toHaveText('');
+        await expect(chatRow.getByRole('button', { name: /^Stop / })).toHaveCount(0);
+        await processPage.screenshot({ path: test.info().outputPath('chat-session-row.png') });
+    } finally {
+        await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
     }
 });

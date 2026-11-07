@@ -18,6 +18,7 @@ import {
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { PROCESS_GRID_TEMPLATE } from './process-columns';
 import type { ProcessTreeNodeKind, ProcessTreeRow } from './process-tree';
@@ -62,7 +63,13 @@ function ProcessNameCell({ row }: { row: ProcessTreeRow }) {
             style={{ paddingLeft: 10 + depth * 18 }}
         >
             <ProcessDisclosure isExpandable={isExpandable} isExpanded={isExpanded} />
-            {Icon && <Icon aria-hidden="true" className="shrink-0 text-muted" size={14} />}
+            {node.provider ? (
+                <span className="flex shrink-0">
+                    <AgentIdentityIcon identity={node.provider} size={14} />
+                </span>
+            ) : (
+                Icon && <Icon aria-hidden="true" className="shrink-0 text-muted" size={14} />
+            )}
             {node.isHigh && node.kind === 'terminal' && (
                 <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-warning" />
             )}
