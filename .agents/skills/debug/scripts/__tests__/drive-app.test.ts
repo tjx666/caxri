@@ -1,3 +1,7 @@
+import { mkdtemp, realpath } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { chatChoiceName, parseDriveCommand, splitHeldChord } from '../drive-app';
@@ -6,6 +10,7 @@ import {
     settingsSourceWithLanguage,
     settingsSourceWithTrustedFolders,
 } from '../drive-app-settings';
+import { matchWorkbenchRoot } from '../drive-app-worktree';
 
 describe('drive-app', () => {
     it('reads a step, its argument, and a trailing screenshot path', () => {
@@ -156,6 +161,28 @@ describe('drive-app', () => {
             'security.trustedFolders': ['/tmp/a', '/private/tmp/a'],
         });
         expect(() => parseDriveCommand(['trust-folder', 'relative/folder'], {})).toThrow(
+            /absolute folder path/u,
+        );
+    });
+
+    it('matches a linked worktree by its canonical folder and needs an absolute path', async () => {
+        const folder = await mkdtemp(join(tmpdir(), 'drive-app-worktree-'));
+        const canonical = await realpath(folder);
+        const linked = {
+            authorization: 'required' as const,
+            rootPath: canonical,
+            worktreeId: 'wt-1',
+        };
+        const owner = {
+            authorization: 'authorized' as const,
+            projectId: 'p1',
+            rootPath: '/no/such/project',
+            worktreeId: 'wt-0',
+        };
+
+        await expect(matchWorkbenchRoot([owner, linked], canonical)).resolves.toBe(linked);
+        await expect(matchWorkbenchRoot([owner], canonical)).rejects.toThrow(/worktree add/u);
+        expect(() => parseDriveCommand(['enter-worktree', 'relative/wt'], {})).toThrow(
             /absolute folder path/u,
         );
     });
