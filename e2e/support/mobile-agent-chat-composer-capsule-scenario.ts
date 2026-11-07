@@ -226,11 +226,19 @@ export const executeMobileComposerOfflineScenario = (
         try {
             const offline = await waitForCheck(serial, 'agent-chat-composer-reason', 60_000);
             await capture(environment, 'offline', artifacts);
+            const reason = checkBounds(offline, 'agent-chat-composer-reason');
+            const capsule = checkBounds(offline, 'agent-chat-composer-capsule');
             await concludeScenario(
                 environment,
                 artifacts,
                 {},
-                { 'the offline capsule stays one row': isOneRowCapsule(offline, idle) },
+                {
+                    'the offline capsule stays one row': isOneRowCapsule(offline, idle),
+                    'the reason sits above the capsule':
+                        reason !== undefined &&
+                        capsule !== undefined &&
+                        reason.bottom <= capsule.top,
+                },
             );
         } finally {
             await setMobileNetworkAvailable(serial, true);

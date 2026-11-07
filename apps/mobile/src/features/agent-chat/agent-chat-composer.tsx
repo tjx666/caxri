@@ -131,8 +131,10 @@ const useFocusRequest = ({
 };
 
 /**
- * The lines under the input, the composer's one place for explanations: why the composer or a control is disabled
- * (muted), a pending Stop, and a failed send, Stop, or image attach (danger). Nothing here opens a system dialog.
+ * The lines right above the capsule, the composer's one place for explanations: why the composer or a control is
+ * disabled (muted), a pending Stop, and a failed send, Stop, or image attach (danger). They sit above it with every
+ * other notice, so the capsule, and Send or Stop in it, never moves when a line appears. Nothing here opens a system
+ * dialog.
  */
 const statusStyles = StyleSheet.create({
     line: { ...mobileType.meta },
@@ -486,6 +488,13 @@ export const AgentChatComposer = ({
                 rows={mentions.rows}
                 theme={theme}
             />
+            <AgentChatComposerStatus
+                error={error ?? mentions.error ?? images.attachError ?? files.attachError}
+                isStopping={isStopping}
+                provider={provider}
+                reason={statusReason}
+                theme={theme}
+            />
             <AgentChatComposerCapsule
                 add={
                     // Images never return to an edit (`agentChatMessageEditAvailability`), so it offers none to add.
@@ -523,13 +532,6 @@ export const AgentChatComposer = ({
                         theme={theme}
                     />
                 }
-                theme={theme}
-            />
-            <AgentChatComposerStatus
-                error={error ?? mentions.error ?? images.attachError ?? files.attachError}
-                isStopping={isStopping}
-                provider={provider}
-                reason={statusReason}
                 theme={theme}
             />
             {isChoosingImage ? (

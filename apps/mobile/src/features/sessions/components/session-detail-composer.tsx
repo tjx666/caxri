@@ -186,6 +186,13 @@ export const SessionDetailComposer = ({
                 theme={theme}
                 updateDraft={updateDraft}
             />
+            <SessionComposerStatus
+                attachError={images.attachError ?? files.attachError}
+                byteLength={byteLength}
+                delivery={delivery}
+                disabledReason={disabledReason}
+                theme={theme}
+            />
             <View
                 style={[
                     styles.capsule,
@@ -224,13 +231,6 @@ export const SessionDetailComposer = ({
                     />
                 </View>
             </View>
-            <SessionComposerStatus
-                attachError={images.attachError ?? files.attachError}
-                byteLength={byteLength}
-                delivery={delivery}
-                disabledReason={disabledReason}
-                theme={theme}
-            />
             {isChoosingImage ? (
                 <ComposerAddSheet
                     onClose={() => setChoosingImage(false)}

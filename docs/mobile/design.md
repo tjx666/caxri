@@ -282,7 +282,10 @@ no background of its own keeps its default dark text readable.
   attachments, edits a sent message, or shows the command list: the input spans the top row, and
   the row below holds `+`, the model and permission chips with the usage ring, and the send
   controls. A running turn alone keeps it collapsed, since Stop takes Send's place. The input keeps
-  its place among its siblings across the switch, so focusing it never drops the keyboard.
+  its place among its siblings across the switch, so focusing it never drops the keyboard. Every
+  line about the composer (why it cannot send, `Stopping…`, a failed send or attach) sits right
+  above the capsule with the other notices, so the capsule and its Send or Stop never move when a
+  line appears.
 
   ```text
   collapsed  ( (+)  Message Claude Code…        (↑) )
@@ -357,9 +360,9 @@ sent. Try again.` After the user's own send the timeline scrolls to the newest r
   - Unknown (connection dropped after sending): keep the draft and show `Couldn't confirm delivery.
 Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
-- A Chat's composer carries one row of chips above the input: `Model · Effort` for the next turn
+- The expanded Chat capsule's lower row carries the chips after `+`: `Model · Effort` for the next turn
   (`Fake Codex · High`, with Desktop's names), a shield chip only while the permission level differs
-  from the provider's default or plan mode is on, and, at the row's end, the context ring. Chips draw
+  from the provider's default or plan mode is on, and, after the chips, the context ring. Chips draw
   at `32dp` and reach `48dp` through their hit slop. The ring has no chip fill, because it reports
   usage rather than offering a choice, and its full track stays visible so a small share never reads
   as a spinner; it takes the same hit slop and opens the Session usage sheet. The model and shield chips open one `Chat settings` sheet with
@@ -367,7 +370,8 @@ Check the Terminal before sending again.` Never resend automatically.
   shield chip opens it scrolled to Permissions. The sheet stays open after a model is chosen so its
   efforts show right away. While a turn runs the sheet says `Applies to the next turn.` Without
   access or a connection the chips are read-only, and an open sheet disables its lists and names the
-  reason. A new Chat opens with this row, so the model is chosen before the first message. A change
+  reason. In a new Chat, focusing the input or the `+` sheet's `Model` row reaches the model before
+  the first message. A change
   the provider refuses keeps the current choice checked and shows Desktop's `Unable to switch the
 model.` with `Try again.` in the sheet (`MOB-CHAT-09`). The plan's 5-hour and weekly limits sit in
   the Session usage sheet beside the context and cost. See [Agent Chat](../agent-chat.md#mobile).
