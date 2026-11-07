@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentChatTextEdit } from '../agent-chat-composer-list';
 import {
+    agentChatIndentation,
     agentChatListContinuation,
+    isAgentChatIndentKey,
     isAgentChatListContinuationKey,
 } from '../agent-chat-composer-list';
 
@@ -82,5 +84,75 @@ describe('isAgentChatListContinuationKey', () => {
         expect(isAgentChatListContinuationKey({ ...key, shiftKey: false })).toBe(false);
         expect(isAgentChatListContinuationKey({ ...key, metaKey: true })).toBe(false);
         expect(isAgentChatListContinuationKey({ ...key, isComposing: true })).toBe(false);
+    });
+});
+
+/**
+ * Applies Tab (or Shift+Tab with `isOutdent`) at the `|` caret (or `«...»` selection) and returns the text with the
+ * caret marked again.
+ */
+function indent(marked: string, isOutdent = false): string | undefined {
+    const selection = /«([\s\S]*)»/.exec(marked);
+    const value = selection ? marked.replaceAll(/«|»/g, '') : marked.replace('|', '');
+    const start = selection ? selection.index : marked.indexOf('|');
+    const end = selection ? start + selection[1].length : start;
+    const edit = agentChatIndentation(value, start, end, isOutdent);
+    if (!edit) return undefined;
+    const next = value.slice(0, edit.from) + edit.text + value.slice(edit.to);
+    return `${next.slice(0, edit.caret)}|${next.slice(edit.caret)}`;
+}
+
+describe('agentChatIndentation', () => {
+    it('nests a list item under the item above at its text column', () => {
+        expect(indent('1. one\n2. |two')).toBe('1. one\n   2. |two');
+        expect(indent('- one\n- tw|o')).toBe('- one\n  - tw|o');
+        expect(indent('- [ ] one\n- [ ] |two')).toBe('- [ ] one\n  - [ ] |two');
+    });
+
+    it('nests the first item by its own marker width', () => {
+        expect(indent('10. |one')).toBe('    10. |one');
+    });
+
+    it('nests a sub-item under its own sibling, not under its parent', () => {
+        expect(indent('1. one\n   - a\n   - |b')).toBe('1. one\n   - a\n     - |b');
+    });
+
+    it('outdents a nested item back to its parent indent', () => {
+        expect(indent('1. one\n   2. |two', true)).toBe('1. one\n2. |two');
+        expect(indent('  - |one', true)).toBe('- |one');
+    });
+
+    it('types two spaces at the caret outside a list', () => {
+        expect(indent('hello |world')).toBe('hello   |world');
+        expect(indent('a «bc» d')).toBe('a   | d');
+    });
+
+    it('removes up to two leading spaces outside a list', () => {
+        expect(indent('   |text', true)).toBe(' |text');
+        expect(indent('te|xt', true)).toBeUndefined();
+    });
+
+    it('moves every line of a multi-line selection and keeps blank lines empty', () => {
+        expect(indent('«a\n\nb»')).toBe('  a\n\n  b|');
+        expect(indent('«  a\n b»', true)).toBe('a\nb|');
+    });
+});
+
+describe('isAgentChatIndentKey', () => {
+    const key = {
+        altKey: false,
+        ctrlKey: false,
+        isComposing: false,
+        key: 'Tab',
+        metaKey: false,
+        repeat: false,
+        shiftKey: false,
+    };
+
+    it('takes Tab and Shift+Tab only', () => {
+        expect(isAgentChatIndentKey(key)).toBe(true);
+        expect(isAgentChatIndentKey({ ...key, shiftKey: true })).toBe(true);
+        expect(isAgentChatIndentKey({ ...key, ctrlKey: true })).toBe(false);
+        expect(isAgentChatIndentKey({ ...key, isComposing: true })).toBe(false);
     });
 });

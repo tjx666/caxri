@@ -124,7 +124,8 @@ export function agentChatComposerPrompt(
 
 /**
  * Whether a composer key accepts the offered suggestion: a plain Tab, outside IME composition, in an empty input. Any
- * other Tab keeps moving focus as it does without a suggestion.
+ * other Tab in an empty input keeps moving focus as it does without a suggestion; one in an input holding text indents
+ * (`agentChatIndentation`).
  */
 export function isAgentChatAcceptSuggestionKey(
     key: Pick<

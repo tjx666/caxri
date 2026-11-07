@@ -8,7 +8,9 @@ import {
     isAgentChatPlainPasteKey,
 } from '../composer/agent-chat-composer-keys';
 import {
+    agentChatIndentation,
     agentChatListContinuation,
+    isAgentChatIndentKey,
     isAgentChatListContinuationKey,
 } from '../composer/agent-chat-composer-list';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
@@ -25,7 +27,8 @@ import { useAgentChatComposerNotice } from './use-agent-chat-composer-notice';
  * with no selection empties a composer that holds text or attachments (`isAgentChatClearKey`); over a selection it
  * stays Copy. The text goes as an edit, so Cmd+Z brings it back. Shift+Enter on a Markdown list line starts the next
  * item (`agentChatListContinuation`). Tab in an empty input takes the offered prompt suggestion
- * (`isAgentChatAcceptSuggestionKey`).
+ * (`isAgentChatAcceptSuggestionKey`); in an input that holds text, Tab and Shift+Tab indent and outdent its lines
+ * (`agentChatIndentation`) instead of moving focus, so an empty input still lets the keyboard leave it.
  */
 export function useAgentChatComposerEnter({
     cancelEdit,
@@ -117,6 +120,19 @@ export function useAgentChatComposerEnter({
                 text: offeredSuggestion,
                 caret: offeredSuggestion.length,
             });
+            return;
+        }
+        if (isAgentChatIndentKey(key) && event.currentTarget.value !== '') {
+            const input = event.currentTarget;
+            // Consumed even when nothing moves: focus leaving mid-draft is what the user hit, not a no-op.
+            event.preventDefault();
+            const edit = agentChatIndentation(
+                input.value,
+                input.selectionStart,
+                input.selectionEnd,
+                key.shiftKey,
+            );
+            if (edit) input.applyEdit(edit);
             return;
         }
         if (isAgentChatListContinuationKey(key)) {
