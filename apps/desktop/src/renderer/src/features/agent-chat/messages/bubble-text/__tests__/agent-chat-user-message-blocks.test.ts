@@ -1,7 +1,7 @@
+import { userMessageBlocks } from '@caxri/markdown';
 import { describe, expect, it } from 'vitest';
 
 import { agentChatUserMessageSegments } from '../../agent-chat-user-message-text';
-import { agentChatUserMessageBlocks } from '../agent-chat-user-message-blocks';
 
 /**
  * A message's blocks, each written as its line kind and runs: `text[styles]`, `•` for a bullet, and the segment's text
@@ -9,7 +9,7 @@ import { agentChatUserMessageBlocks } from '../agent-chat-user-message-blocks';
  */
 function blocks(text: string, isFileOpenable = true): string[] {
     const segments = agentChatUserMessageSegments(text, { withFiles: isFileOpenable });
-    return agentChatUserMessageBlocks(text, segments).map((block) => {
+    return userMessageBlocks(text, segments).map((block) => {
         const runs = block.runs
             .map((run) => {
                 if (run.kind === 'bullet') return '•';
@@ -22,7 +22,7 @@ function blocks(text: string, isFileOpenable = true): string[] {
     });
 }
 
-describe('agentChatUserMessageBlocks', () => {
+describe('userMessageBlocks', () => {
     it('leaves plain text as one block', () => {
         expect(blocks('hello\nworld')).toEqual(['plain hello\nworld']);
     });

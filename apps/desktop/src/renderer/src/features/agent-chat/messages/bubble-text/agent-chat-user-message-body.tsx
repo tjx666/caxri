@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import { Fragment } from 'react';
 
+import type { UserMessageRun, UserMessageStyle } from '@caxri/markdown';
+import { userMessageBlocks } from '@caxri/markdown';
+
 import { WebLink } from '../../../../components/markdown/web-link';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
@@ -16,17 +19,12 @@ import { useAgentChatTerminal } from '../../hooks/use-agent-chat-terminal';
 import { openAgentChatLink } from '../../transcript/agent-chat-links';
 import type { AgentChatUserMessageSegment } from '../agent-chat-user-message-text';
 import { agentChatUserMessageSegments } from '../agent-chat-user-message-text';
-import type {
-    AgentChatUserMessageRun,
-    AgentChatUserMessageStyle,
-} from './agent-chat-user-message-blocks';
-import { agentChatUserMessageBlocks } from './agent-chat-user-message-blocks';
 
 /**
  * The composer's live-preview tokens (`composerTheme` in `agent-chat-composer-extensions.ts`) as utilities, so a sent
  * message looks like the draft it was written as.
  */
-const STYLE_CLASSES: Record<AgentChatUserMessageStyle, string> = {
+const STYLE_CLASSES: Record<UserMessageStyle, string> = {
     code: "rounded-sm bg-[color-mix(in_srgb,var(--border)_45%,transparent)] py-px font-[family-name:var(--editor-font-family,ui-monospace,'Caxri_JetBrains_Mono',monospace)] text-[12px]",
     emphasis: 'italic',
     strike: 'line-through',
@@ -34,17 +32,17 @@ const STYLE_CLASSES: Record<AgentChatUserMessageStyle, string> = {
     syntax: 'text-muted',
 };
 
-function styleClass(styles: readonly AgentChatUserMessageStyle[]): string | undefined {
+function styleClass(styles: readonly UserMessageStyle[]): string | undefined {
     return styles.length === 0 ? undefined : cn(styles.map((style) => STYLE_CLASSES[style]));
 }
 
 /**
  * The user's own words as the composer showed them: bold, italics, inline code, lists, and quotes render with their
- * markers hidden (`agentChatUserMessageBlocks`), and the text itself is unchanged, so Copy and Edit still take the
- * original. A path they typed or dropped in (`src/app.ts:12`, an absolute path) opens in the editor, and a URL they
- * pasted gets the same site icon and hover card as a link in a reply. Both take the reply's link treatment (the full
- * accent with no underline until hover), so a link reads the same on both sides of the transcript. An image's
- * placeholder reads as the pill it was in the composer.
+ * markers hidden (`userMessageBlocks`), and the text itself is unchanged, so Copy and Edit still take the original. A
+ * path they typed or dropped in (`src/app.ts:12`, an absolute path) opens in the editor, and a URL they pasted gets the
+ * same site icon and hover card as a link in a reply. Both take the reply's link treatment (the full accent with no
+ * underline until hover), so a link reads the same on both sides of the transcript. An image's placeholder reads as the
+ * pill it was in the composer.
  */
 export function AgentChatUserMessageBody({
     images,
@@ -141,7 +139,10 @@ export function AgentChatUserMessageBody({
             </WebLink>
         );
     };
-    const renderRun = (run: AgentChatUserMessageRun, position: number): ReactNode => {
+    const renderRun = (
+        run: UserMessageRun<AgentChatUserMessageSegment>,
+        position: number,
+    ): ReactNode => {
         if (run.kind === 'bullet')
             return (
                 <span className="text-[15px] leading-none text-muted" key={position}>
@@ -159,7 +160,7 @@ export function AgentChatUserMessageBody({
             <Fragment key={position}>{content}</Fragment>
         );
     };
-    return agentChatUserMessageBlocks(text, segments).map((block, position) => {
+    return userMessageBlocks(text, segments).map((block, position) => {
         const runs = block.runs.map((run, index) => renderRun(run, index));
         if (!block.line) return <Fragment key={position}>{runs}</Fragment>;
         return (

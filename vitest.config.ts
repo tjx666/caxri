@@ -124,6 +124,10 @@ export const workspaceAliases = {
         import.meta.dirname,
         'packages/markdown/src/prose-web-links.ts',
     ),
+    '@caxri/markdown/user-message-blocks': resolve(
+        import.meta.dirname,
+        'packages/markdown/src/user-message-blocks.ts',
+    ),
     '@caxri/markdown': resolve(import.meta.dirname, 'packages/markdown/src/index.ts'),
     '@caxri/mobile-transport': resolve(
         import.meta.dirname,

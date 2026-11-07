@@ -28,6 +28,11 @@
             "bun": "./src/prose-web-links.ts",
             "types": "./src/prose-web-links.ts",
             "import": "./dist/prose-web-links.js"
+        },
+        "./user-message-blocks": {
+            "bun": "./src/user-message-blocks.ts",
+            "types": "./src/user-message-blocks.ts",
+            "import": "./dist/user-message-blocks.js"
         }
     },
     "scripts": {
@@ -40,6 +45,7 @@
         "node": ">=24.0.0"
     },
     "dependencies": {
+        "@lezer/markdown": "^1.8.1",
         "markdown-it": "catalog:"
     }
 }

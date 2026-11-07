@@ -29,6 +29,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-user-link',
     },
+    'MOB-CHAT-USER-MARKDOWN-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-user-markdown',
+    },
     'MOB-CHAT-SLASH-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

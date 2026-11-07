@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    agentChatMarkdownMarks,
-    isAgentChatEmphasisIntentional,
-} from '../agent-chat-composer-markdown';
+import { isIntentionalEmphasis, markdownLivePreviewMarks } from '../live-preview-marks';
 
 /**
  * The marks for a draft with the caret at `|` (or none, for an unfocused editor), each written as its kind, style, and
@@ -13,7 +10,7 @@ function marks(marked: string): string[] {
     const caret = marked.indexOf('|');
     const text = marked.replace('|', '');
     const selection = caret === -1 ? [] : [{ from: caret, to: caret }];
-    return agentChatMarkdownMarks(text, selection)
+    return markdownLivePreviewMarks(text, selection)
         .toSorted((a, b) => a.from - b.from)
         .map((mark) => {
             if (mark.kind === 'line') {
@@ -28,7 +25,7 @@ function marks(marked: string): string[] {
         });
 }
 
-describe('agentChatMarkdownMarks', () => {
+describe('markdownLivePreviewMarks', () => {
     it('renders bold, italics, inline code, and strikethrough with their markers hidden', () => {
         expect(marks('a **b** *c* `d` ~~e~~')).toEqual([
             'text:strong **b**',
@@ -99,9 +96,9 @@ describe('agentChatMarkdownMarks', () => {
     });
 });
 
-describe('isAgentChatEmphasisIntentional', () => {
+describe('isIntentionalEmphasis', () => {
     const isIntentional = (text: string, from = 0, to = text.length): boolean =>
-        isAgentChatEmphasisIntentional(text, from, to);
+        isIntentionalEmphasis(text, from, to);
 
     it('accepts ordinary emphasis', () => {
         expect(isIntentional('**bold**')).toBe(true);
@@ -127,7 +124,7 @@ describe('isAgentChatEmphasisIntentional', () => {
     });
 });
 
-describe('agentChatMarkdownMarks on path-like text', () => {
+describe('markdownLivePreviewMarks on path-like text', () => {
     it('keeps path and identifier text raw and unstyled', () => {
         expect(marks('src/*.ts and lib/*.ts')).toEqual([]);
         expect(marks('__init__.py')).toEqual([]);

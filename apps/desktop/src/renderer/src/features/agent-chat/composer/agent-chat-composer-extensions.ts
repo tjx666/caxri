@@ -1,4 +1,5 @@
-import { proseWebLinks } from '@caxri/markdown';
+import type { MarkdownLivePreviewMark } from '@caxri/markdown';
+import { markdownLivePreviewMarks, proseWebLinks } from '@caxri/markdown';
 import {
     agentChatImageTokenRanges,
     agentChatMediaUrl,
@@ -21,8 +22,6 @@ import {
 import { agentChatInvocationChips } from '../composer-input/chips/agent-chat-invocation-chips';
 import { agentChatLongPasteChips } from '../composer-input/chips/agent-chat-long-paste-chips';
 import { agentChatSessionChips } from '../composer-input/chips/agent-chat-session-chips';
-import type { AgentChatMarkdownMark } from './agent-chat-composer-markdown';
-import { agentChatMarkdownMarks } from './agent-chat-composer-markdown';
 import { agentChatLimitedChange } from './agent-chat-composer-view';
 
 /**
@@ -53,7 +52,7 @@ const textStyles = {
     syntax: Decoration.mark({ class: 'cm-md-syntax' }),
 };
 
-function markDecoration(mark: AgentChatMarkdownMark): Range<Decoration> {
+function markDecoration(mark: MarkdownLivePreviewMark): Range<Decoration> {
     switch (mark.kind) {
         case 'bullet': {
             return bullet.range(mark.from, mark.to);
@@ -81,12 +80,12 @@ function markDecoration(mark: AgentChatMarkdownMark): Range<Decoration> {
 
 function previewDecorations(view: EditorView): DecorationSet {
     const selection = view.hasFocus ? view.state.selection.ranges : [];
-    const marks = agentChatMarkdownMarks(view.state.doc.toString(), selection);
+    const marks = markdownLivePreviewMarks(view.state.doc.toString(), selection);
     return Decoration.set(marks.map(markDecoration), true);
 }
 
 /**
- * Renders the draft's Markdown in place (`agentChatMarkdownMarks`); it re-reads the draft on every edit, caret move,
+ * Renders the draft's Markdown in place (`markdownLivePreviewMarks`); it re-reads the draft on every edit, caret move,
  * and focus change, which a message-sized document parses in well under a frame.
  */
 const livePreview = ViewPlugin.fromClass(

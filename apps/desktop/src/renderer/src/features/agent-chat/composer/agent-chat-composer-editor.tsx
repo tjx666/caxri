@@ -87,15 +87,15 @@ interface ComposerHandlers {
 
 /**
  * The composer's message input: a CodeMirror editor whose document is the draft's Markdown, rendered in place as the
- * user writes (`agentChatMarkdownMarks`), as in the Codex app's composer. Each key goes to the first owner that claims
- * it, in this order: the draft stash (Ctrl+S), the prompt history list, the slash-command menu, the `@` Sessions menu,
- * Goal mode, and finally Enter and Escape; a key an owner prevents never reaches the editor's own keymap. The history
- * list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]` placeholder
- * shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and `imagePlaceholders.onEdit` hears
- * every edit the user makes so a deleted pill takes its image along. A dropped Files entry's path shows as a pill with
- * its icon and name (`pathPills`); a video's pill shows its poster frame and plays it on click. A pasted URL takes the
- * accent color and its site icon, a pull request's tinted by its state, as it will in the sent message. Ctrl+C empties
- * the input (`composerKeys`).
+ * user writes (`markdownLivePreviewMarks`), as in the Codex app's composer. Each key goes to the first owner that
+ * claims it, in this order: the draft stash (Ctrl+S), the prompt history list, the slash-command menu, the `@` Sessions
+ * menu, Goal mode, and finally Enter and Escape; a key an owner prevents never reaches the editor's own keymap. The
+ * history list's highlighted prompt replaces the placeholder while it is open. An attached image's `[Image #N]`
+ * placeholder shows as a pill (`imagePlaceholders.pills`); clicking one opens its preview, and
+ * `imagePlaceholders.onEdit` hears every edit the user makes so a deleted pill takes its image along. A dropped Files
+ * entry's path shows as a pill with its icon and name (`pathPills`); a video's pill shows its poster frame and plays it
+ * on click. A pasted URL takes the accent color and its site icon, a pull request's tinted by its state, as it will in
+ * the sent message. Ctrl+C empties the input (`composerKeys`).
  */
 export function AgentChatComposerEditor({
     composerKeys,

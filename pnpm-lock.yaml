@@ -355,9 +355,6 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.15
         version: 6.43.15
-      '@lezer/markdown':
-        specifier: ^1.8.1
-        version: 1.8.1
       '@lobehub/icons-static-svg':
         specifier: ^1.95.1
         version: 1.95.1
@@ -824,6 +821,9 @@ importers:
 
   packages/markdown:
     dependencies:
+      '@lezer/markdown':
+        specifier: ^1.8.1
+        version: 1.8.1
       markdown-it:
         specifier: 'catalog:'
         version: 15.0.3

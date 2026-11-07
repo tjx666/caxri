@@ -127,8 +127,15 @@ export const packageBoundaries: readonly PackageBoundary[] = [
          * `./prose-web-links` lets it link URLs in a user's message with the reply's rules; it needs only the
          * `markdown-it` linkifier the phone already bundles for replies. `./blocks` lets it copy a quote as Desktop
          * does (`blocksPlainText`) without the HTML renderer and streaming parser the package entry also carries.
+         * `./user-message-blocks` lets it lay a sent message out as Desktop's bubble does, with only the Lezer parser.
          */
-        publicSubpaths: ['.', './blocks', './file-reference', './prose-web-links'],
+        publicSubpaths: [
+            '.',
+            './blocks',
+            './file-reference',
+            './prose-web-links',
+            './user-message-blocks',
+        ],
         browserSafe: true,
         allowedPackages: [],
     },
