@@ -13,6 +13,7 @@ import {
     mobileSemantics,
     setMobileNetworkAvailable,
     startMobileFramebufferRecording,
+    waitForMobile,
 } from './mobile-android';
 import type { GrayFrame } from './mobile-motion-analysis';
 import {
@@ -185,7 +186,12 @@ export async function executeMobileHomeReconnectNoticeScenario(
          * The key event returns before the launcher animates in; a recording started then opens on the list itself, and
          * every launcher frame after it reads as the row leaving its final picture.
          */
-        await waitForNoCheck(serial, row, 10_000);
+        await waitForMobile(
+            () => adbShell(serial, ['dumpsys', 'window', 'windows']),
+            (windows) => !/mCurrentFocus=.*com\.caxri\.mobile/u.test(windows),
+            10_000,
+        );
+        // Focus moves when the launcher starts animating in; let that animation finish before filming.
         await pause(1_000);
         const resume = departuresFromFinalPicture(
             await filmBand(async () => {
