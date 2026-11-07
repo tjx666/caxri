@@ -255,10 +255,12 @@ shared component when every usage shows changing digits (`StatusItem`, `StatTile
   only platform spacing exception: 84px expanded-header and 78px collapsed-header/tab-strip left
   padding while windowed. Both are horizontal clearance for the window controls; fullscreen hides
   those controls and omits the clearance. The 36px figure under Window chrome is rail height, a
-  different axis. The Agent Chat transcript's left padding beside the message rail is the one
+  different axis. The Agent Chat transcript's horizontal padding beside the message rail is the one
   computed inset: it stays at the column's 16px while the centered column's own margin already
   clears the rail, and grows toward 28px only as a narrowing Chat loses that margin, so showing
-  the rail never shifts a wide transcript away from the composer's edge.
+  the rail never shifts a wide transcript away from the composer's edge. The right padding mirrors
+  the left, because the rail stays invisible until hovered and a one-sided inset reads as an
+  off-center transcript.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 8px controls (buttons, selects, toggles, text fields), matching the Codex app's roughly
