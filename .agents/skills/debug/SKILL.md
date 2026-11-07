@@ -197,7 +197,9 @@ window's Workbench reports the Runtime ready (instead of a fixed sleep; a first 
 minute pre-bundling Vite dependencies after CDP already answers), `select-session <id prefix|title>`
 to open a sidebar Session, `new-session [shell|claude|codex|grok|antigravity]` to create a Session in the
 selected Project (a Shell Terminal by default, an Agent in Chat) and print its id instead of
-hand-writing a `session.create` request, `hold-press <modifiers+key> [--times <n>]` to keep
+hand-writing a `session.create` request, `enter-worktree <absolute path>` to move the selected
+Session into a linked worktree you created in the fixture repository with `git worktree add` (for a
+surface that differs inside a worktree, such as sidebar labels), `hold-press <modifiers+key> [--times <n>]` to keep
 modifiers down across several presses (`Control+Alt+Tab --times 2` walks the Session MRU switcher;
 its `--screenshot` captures before release, while the switcher is still open),
 `theme <built-in id|absolute JSON path>` for a light (`solarized-light`)

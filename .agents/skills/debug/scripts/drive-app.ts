@@ -26,6 +26,8 @@
  * - `select-session <id prefix|title>`: clicks that Session in the sidebar, as a user opening it would.
  * - `new-session [shell|claude|codex|grok|antigravity]`: creates a Session in the selected Project (a Shell Terminal by
  *   default, an Agent in Chat), opens it from the sidebar, and prints its id.
+ * - `enter-worktree <absolute path>`: moves the selected Session into that existing linked worktree of its Project, as
+ *   the status bar's Workbench Root picker does.
  * - `hold-press <modifiers+key> [--times <n>]`: holds the modifiers, presses the key n times (default 1), and releases
  *   them, such as `Control+Alt+Tab --times 2` for the Session MRU switcher. `--screenshot` captures while they are
  *   still held, so a surface that closes on release is still on screen.
@@ -58,6 +60,7 @@ import {
     settingsSourceWithTrustedFolders,
     updateSettings,
 } from './drive-app-settings';
+import { enterWorktree } from './drive-app-worktree';
 import { browserEnvironment, resolveTarget } from './worktree-browser';
 
 const STEPS = [
@@ -71,6 +74,7 @@ const STEPS = [
     'ready',
     'select-session',
     'new-session',
+    'enter-worktree',
     'hold-press',
     'stub-folder-dialog',
     'stub-message-box',
@@ -164,11 +168,8 @@ export function parseDriveCommand(
             2,
         );
     }
-    if (step === 'trust-folder' && !isAbsolute(argument)) {
-        throw new CommandError(
-            `\`trust-folder\` takes an absolute folder path, not ${argument}`,
-            2,
-        );
+    if ((step === 'trust-folder' || step === 'enter-worktree') && !isAbsolute(argument)) {
+        throw new CommandError(`\`${step}\` takes an absolute folder path, not ${argument}`, 2);
     }
     if (argument && step === 'paste-image' && !Number.isSafeInteger(Number(argument))) {
         throw new CommandError(`\`paste-image\` takes a count, not ${argument}`, 2);
@@ -476,6 +477,8 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
         }
         case 'new-session':
             return newSession(page, argument || 'shell');
+        case 'enter-worktree':
+            return enterWorktree(page, argument);
         case 'hold-press':
             return holdPress(page, argument, command.times ?? 1, command.screenshot);
         case 'screenshot':
