@@ -98,13 +98,43 @@ describe('readTreeChildren', () => {
         });
     });
 
-    it('fails the branch when the tree resets again', async () => {
+    it('walks the ancestors again when a refresh lands during the recovery', async () => {
+        const host = statusTreeHost();
+        host.readLevel('');
+        host.readLevel('repository');
+        host.readLevel('');
+        const read = vi.fn(async (parentHandle: string | undefined) => {
+            const result = await host.read(parentHandle);
+            // The next Status refresh lands right after the first recovery re-read `repository`.
+            if (read.mock.calls.length === 2) host.readLevel('');
+            return result;
+        });
+
+        await expect(
+            readTreeChildren({
+                ancestorHandles: ['repository'],
+                onLevelSnapshot: vi.fn(),
+                parentHandle: 'deployments',
+                read,
+            }),
+        ).resolves.toEqual({ items: [item('deployment')] });
+        expect(read.mock.calls.map(([handle]) => handle)).toEqual([
+            'deployments',
+            'repository',
+            'deployments',
+            'repository',
+            'deployments',
+        ]);
+    });
+
+    it('fails the branch when the tree keeps resetting', async () => {
         const onLevelSnapshot = vi.fn();
         const read = vi.fn().mockResolvedValue({ ...root, reset: true });
         await expect(
             readTreeChildren({ onLevelSnapshot, parentHandle: 'check', read }),
         ).rejects.toThrow();
-        expect(onLevelSnapshot).toHaveBeenCalledTimes(2);
+        expect(read).toHaveBeenCalledTimes(4);
+        expect(onLevelSnapshot).toHaveBeenCalledTimes(4);
     });
 
     it('fails the branch when an ancestor is gone after the refresh', async () => {
@@ -118,7 +148,7 @@ describe('readTreeChildren', () => {
                 read,
             }),
         ).rejects.toThrow();
-        expect(read).toHaveBeenCalledTimes(2);
+        expect(read).toHaveBeenCalledTimes(4);
     });
 
     it('accepts a reset at the root level as the root', async () => {
