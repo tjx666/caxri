@@ -425,3 +425,17 @@ desktop fixture, so the phone has legitimately lost its computer (`MOB-SETTINGS-
 
 **Works:** Judge the case from the screenshots the scenario captured while the fixture was running.
 Mention the final frame in the report only to explain a disconnected state it shows.
+
+## Matching a sent message's text on Android when the fake Agent echoes it
+
+**Situation:** An Android Chat case sends a message and then checks how the user's own bubble shows
+its text.
+
+**Does not work:** Finding the bubble's lines by exact visible text. The fake Codex echoes the message
+in its reply, so every line appears twice and the unique-match text lookup fails even though the
+bubble rendered correctly; one full emulator run was spent on that false failure.
+
+**Works:** Give each rendered block of the bubble its own `testID`
+(`conversation-user-text-<id>-<index>`), find the bubble's first block through `mobileSemantics`, and
+read each block with `observeMobileNode` and an `equals` text expectation
+(`MOB-CHAT-USER-MARKDOWN-01`, `e2e/support/mobile-agent-chat-user-markdown-scenario.ts`).
