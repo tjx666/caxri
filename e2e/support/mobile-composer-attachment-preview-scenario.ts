@@ -110,8 +110,8 @@ const capturePlayback = async (
 /**
  * `MOB-COMPOSER-ATTACH-PREVIEW-01`: pending attachments preview from the phone's own copy whatever their upload state.
  * With the computer unreachable, a gallery image and a gallery video both fail to upload; the image still opens full
- * size and the video still plays, while each one's Retry opens the failure sheet. Back online, Retry uploads each one,
- * and the ready thumbnail and card open them again.
+ * size and the video's card shows its first frame and still plays, while each one's Retry opens the failure sheet. Back
+ * online, Retry uploads each one, and the ready thumbnail and card open them again.
  */
 export async function executeMobileComposerAttachmentPreviewScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -189,7 +189,16 @@ export async function executeMobileComposerAttachmentPreviewScenario(
             .find(({ checkId }) => checkId.startsWith('session-file-retry-'))
             ?.checkId.slice('session-file-retry-'.length);
         if (!fileId) throw new Error('The video card did not fail');
+        // The card shows the video's first frame from the phone's copy, whatever the upload state. The card is captured
+        // either way, so a build without covers still records what it shows before the case fails.
+        let hasCover = true;
+        try {
+            await waitForCheck(serial, `session-file-cover-${fileId}`, 15_000);
+        } catch {
+            hasCover = false;
+        }
         await capture(environment, 'video-failed', artifacts);
+        if (!hasCover) throw new Error('The video card shows no cover');
         await tapFileGlyph(serial, fileId);
         await capturePlayback(environment, 'video-failed-playing', artifacts);
         await closePreview(serial, 'agent-chat-video-player');
@@ -214,6 +223,8 @@ export async function executeMobileComposerAttachmentPreviewScenario(
             ?.checkId.slice('session-file-remove-'.length);
         if (!readyId || !hasCheck(ready, `session-file-${readyId}`))
             throw new Error('The uploaded video card is missing');
+        if (!hasCheck(ready, `session-file-cover-${readyId}`))
+            throw new Error('The uploaded video card lost its cover');
         await capture(environment, 'video-ready', artifacts);
         await tapFileGlyph(serial, readyId);
         await capturePlayback(environment, 'video-ready-playing', artifacts);
@@ -222,8 +233,8 @@ export async function executeMobileComposerAttachmentPreviewScenario(
         await finish(environment, artifacts, {
             failedImage: 'viewer-and-retry-sheet',
             readyImage: 'viewer',
-            failedVideo: 'played-and-retry-sheet',
-            readyVideo: 'played',
+            failedVideo: 'cover-played-and-retry-sheet',
+            readyVideo: 'cover-played',
             status: 'passed',
         });
     } finally {
