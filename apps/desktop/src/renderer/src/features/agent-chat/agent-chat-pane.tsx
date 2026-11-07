@@ -323,8 +323,7 @@ function AgentChatPaneContent({
                         <div
                             className={cn(
                                 'mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none',
-                                // Clear the rail only by what the centering margin lacks (DESIGN.md "Spacing and radius"),
-                                // and mirror it on the right so a narrow transcript stays centered while the rail is hidden.
+                                // Clear the rail on both sides, by what the centering margin lacks (DESIGN.md "Spacing and radius").
                                 isAgentChatMessageRailShown(railMarks) &&
                                     'px-[clamp(1rem,calc(1.75rem_-_(100%_-_48rem)_/_2),1.75rem)]',
                             )}
