@@ -1,5 +1,6 @@
 import {
     agentContextTabPath,
+    agentDelegationTabPath,
     agentSideChatTabPath,
     agentTaskTabPath,
     agentTurnReviewTabPath,
@@ -48,6 +49,14 @@ export function openAgentChatContext(terminalId: string): void {
  */
 export function openAgentChatSideChat(terminalId: string): void {
     openBesideAgentChat(agentSideChatTabPath(terminalId));
+}
+
+/**
+ * Opens a consulted child's Chat beside the Chat that asked for it, from the task's record or its Delegated Sessions
+ * row, so the user reads and answers it without leaving the conversation.
+ */
+export function openAgentChatDelegation(childTerminalId: string): void {
+    openBesideAgentChat(agentDelegationTabPath(childTerminalId));
 }
 
 /**

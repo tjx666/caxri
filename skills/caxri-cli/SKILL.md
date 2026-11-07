@@ -321,8 +321,8 @@ the only Agent with native real-time X search. `agent delegate presets
 
 - The task runs in a new Session of your own Project, in your linked worktree when you work in one,
   so it reads the same files you do. Do not pass `--project` unless the task is about another
-  Project. A second opinion, a review, and an X search take no sidebar row (they are consults); computer use is
-  listed under your Session so the user can watch it and sign in.
+  Project. Every type is a consult: it takes no sidebar row, and the user opens it beside your Chat
+  from the task's record, where they can watch computer use and answer it.
 - Write the task self-contained: background, file paths, what you want back. The Agent starts fresh
   in your folder; it sees your files, not your conversation.
 - For `second-opinion` and `review`, brief the Agent as an independent evaluator: separate the

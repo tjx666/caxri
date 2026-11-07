@@ -3,6 +3,7 @@ import {
     isExternalEditorTabPath,
     isUntitledEditorTabPath,
     parseAgentContextTab,
+    parseAgentDelegationTab,
     parseAgentSideChatTab,
     parseAgentStatusTab,
     parseAgentTranscriptTab,
@@ -35,8 +36,12 @@ export function useDocumentTabPresentation(path: string, displayPath: string | u
         : undefined;
     const transcriptTerminal = useTerminal(parseAgentTranscriptTab(path)?.terminalId ?? '');
     const agentTerminal = useTerminal(
-        (parseAgentStatusTab(path) ?? parseAgentContextTab(path) ?? parseAgentSideChatTab(path))
-            ?.terminalId ?? '',
+        (
+            parseAgentStatusTab(path) ??
+            parseAgentContextTab(path) ??
+            parseAgentSideChatTab(path) ??
+            parseAgentDelegationTab(path)
+        )?.terminalId ?? '',
     );
     const task = useCachedAgentChatTask(path);
     const previewSourcePath = parseFilePreviewTab(path)?.path;

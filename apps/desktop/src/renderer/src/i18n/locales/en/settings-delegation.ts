@@ -1,13 +1,25 @@
 export const settingsDelegation = {
     'settings.row.delegationPresets.title': 'Delegation types and presets',
     'settings.row.delegationPresets.description':
-        'Which Agent a second opinion, a review, computer use, or an X search runs on, and your own named Agent, model and effort choices. Bindings are edited in the settings file; presets can be imported from dianjiang.',
+        'Which Agent, model and effort a second opinion, a review, computer use, or an X search runs on, with optional overrides per calling Agent, and your own named presets. Presets can be imported from dianjiang.',
     'settings.delegationTypes.title': 'Delegation types',
     'settings.delegationTypes.default.second-opinion':
         'The other vendor: Codex, or Claude when Codex asks',
     'settings.delegationTypes.default.review': 'The other vendor: Codex, or Claude when Codex asks',
     'settings.delegationTypes.default.computer-use': 'Codex',
     'settings.delegationTypes.default.x-search': 'Grok',
+    'settings.delegationTypes.byCaller': 'By calling Agent',
+    'settings.delegationTypes.useDefault': 'Default',
+    'settings.delegationTypes.sameAsBase': 'Same as above',
+    'settings.delegationTypes.whenAsks': 'When {{caller}} asks',
+    'settings.delegationTypes.addOverride': 'Add an override…',
+    'settings.delegationTypes.addOverrideLabel': 'Add an override for {{name}}',
+    'settings.delegationTypes.removeOverride':
+        'Remove the override for {{name}} when {{caller}} asks',
+    'settings.delegationTypes.overrideLabel': '{{name}}, when {{caller}} asks',
+    'settings.delegationTypes.agentLabel': '{{name}} Agent',
+    'settings.delegationTypes.modelLabel': '{{name}} model',
+    'settings.delegationTypes.effortLabel': '{{name}} effort',
     'settings.delegationTypes.caller': 'When {{caller}} asks: {{binding}}',
     'settings.delegationPresets.heading': 'Presets',
     'settings.delegationPresets.label': 'Delegation presets',

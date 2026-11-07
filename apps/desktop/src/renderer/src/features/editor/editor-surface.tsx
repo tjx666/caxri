@@ -14,6 +14,7 @@ import {
     isExternalEditorTabPath,
     isUntitledEditorTabPath,
     parseAgentContextTab,
+    parseAgentDelegationTab,
     parseAgentSideChatTab,
     parseAgentStatusTab,
     parseAgentTaskTab,
@@ -83,6 +84,11 @@ const AgentStatusPage = lazy(async () => {
 const AgentContextPage = lazy(async () => {
     const module = await import('../agent-chat/context/agent-context-page');
     return { default: module.AgentContextPage };
+});
+
+const AgentChatDelegationTab = lazy(async () => {
+    const module = await import('../agent-chat/delegation/side-view/agent-chat-delegation-tab');
+    return { default: module.AgentChatDelegationTab };
 });
 
 const AgentChatSideChatTab = lazy(async () => {
@@ -303,6 +309,10 @@ const VIRTUAL_TAB_SURFACES: Record<
     agentSideChat: ({ path }) => {
         const tab = parseAgentSideChatTab(path);
         return tab && <AgentChatSideChatTab key={path} tab={tab} />;
+    },
+    agentDelegation: ({ path }) => {
+        const tab = parseAgentDelegationTab(path);
+        return tab && <AgentChatDelegationTab key={path} terminalId={tab.terminalId} />;
     },
     environment: () => <EnvironmentWorkbenchPage />,
     external: ({ paneId, path }) => <FileEditorSurface paneId={paneId} path={path} />,

@@ -15,8 +15,8 @@ import {
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { useSessionById } from '../../../../stores/selectors';
-import { openSession } from '../../../session/session-commands';
 import { sessionTitleForDisplay } from '../../../session/session-title';
+import { openDelegatedChild } from '../side-view/delegated-child-opener';
 import { noticeEventKey, noticeRowKey } from './agent-chat-delegation-notice';
 
 const ICONS: Record<DelegationNoticeEvent, LucideIcon> = {
@@ -81,7 +81,7 @@ function DelegationNoticeRow({ item }: { item: AgentChatDelegationNotice['items'
             )}
             data-agent-chat-delegation-notice-item={item.delegationId}
             type="button"
-            onClick={() => openSession(item.sessionId)}
+            onClick={() => openDelegatedChild(item.sessionId)}
         >
             {content}
         </button>

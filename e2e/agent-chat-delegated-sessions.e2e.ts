@@ -141,6 +141,49 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
 });
 
 /**
+ * A consult takes no sidebar row, so its record opens the child's own live Chat in the parent's Side View: the parent
+ * stays selected, and the header's Open Session is the way into the child's full Session.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a consult record opens the child Chat in the Side View beside the parent', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-consult-portal-', { consult: true });
+    try {
+        const { page } = chat.running;
+        const { projectId, sessionId: parentId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await openAgentChat(page, 'Codex Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill(DELEGATE_PROMPT);
+        await message.press('Enter');
+
+        const record = session.locator('[data-agent-chat-delegation-record]');
+        await expect(record).toContainText(`Delegated to ${CHILD_TITLE}`);
+        await expect(session.locator('[data-agent-chat-delegated-session]')).toContainText(
+            CHILD_SUMMARY,
+        );
+        const childId = (await session
+            .locator('[data-agent-chat-delegated-session]')
+            .getAttribute('data-agent-chat-delegated-session'))!;
+
+        await record.click();
+        const sideView = page.locator('[data-agent-chat-portal]');
+        await expect(sideView).toBeVisible();
+        // The child's own conversation, with the parent still selected behind it.
+        await expect(sideView.getByText(CHILD_SUMMARY)).toBeVisible();
+        await expect(sideView.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        expect(await selectedSessionId(page)).toBe(parentId);
+        await page.screenshot({ path: testInfo.outputPath('consult-side-view.png') });
+
+        await sideView.getByRole('button', { name: 'Open Session' }).click();
+        await expect.poll(() => selectedSessionId(page)).toBe(childId);
+        await expect(sideView).toHaveCount(0);
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
  * A delegated Session is the larger unit the user follows, so its section sits above the Agent's own Background work.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.

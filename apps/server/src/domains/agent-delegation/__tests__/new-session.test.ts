@@ -314,7 +314,7 @@ describe('Delegation of a type', () => {
     it.each([
         { type: 'second-opinion' as const, relation: 'consult' },
         { type: 'review' as const, relation: 'consult' },
-        { type: 'computer-use' as const, relation: 'delegated' },
+        { type: 'computer-use' as const, relation: 'consult' },
         { type: 'x-search' as const, relation: 'consult' },
     ])(
         'runs $type in the Project of the caller’s own Session as a $relation Session',

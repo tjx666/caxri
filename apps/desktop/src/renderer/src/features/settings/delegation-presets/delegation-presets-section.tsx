@@ -8,16 +8,23 @@ import { Button } from '../../../components/ui/button';
 import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { DelegationImportPanel } from './delegation-import-panel';
-import { DelegationTypeList } from './delegation-type-list';
+import { TypeList } from './types/type-list';
 import { useDelegationImport } from './use-delegation-import';
 
 type DelegationSettings = AppSettings['agents.delegation'];
 
 /**
- * The Agent each delegation type runs on, then the profile's delegation presets, all read-only, with the entry to
- * import a dianjiang file. Presets are edited in the file or by import; this row never writes settings itself.
+ * The Agent each delegation type runs on, editable here, then the profile's delegation presets, read-only, with the
+ * entry to import a dianjiang file. Presets are edited in the file or by import; type bindings write through
+ * `onChange`, which preserves presets and every other field.
  */
-export function DelegationPresetsSection({ value }: { value: DelegationSettings }) {
+export function DelegationPresetsSection({
+    value,
+    onChange,
+}: {
+    value: DelegationSettings;
+    onChange: (value: DelegationSettings, member: string) => void;
+}) {
     const { t } = useTranslation();
     const flow = useDelegationImport();
     const callerRules = Object.keys(value.callers).length;
@@ -33,7 +40,7 @@ export function DelegationPresetsSection({ value }: { value: DelegationSettings 
     }, [isOpen]);
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            <DelegationTypeList value={value} />
+            <TypeList value={value} onChange={onChange} />
             <p className="m-0 text-[11px] text-muted">{t('settings.delegationPresets.heading')}</p>
             {value.presets.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">

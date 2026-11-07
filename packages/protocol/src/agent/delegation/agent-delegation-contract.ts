@@ -205,9 +205,9 @@ const agentDelegationCreateFields = {
     preset: delegationPresetNameSchema.optional(),
     /**
      * A task Caxri knows without configuration (`DELEGATION_TYPES`): the Server picks its Agent from Settings, adds the
-     * type's private instructions, and records its new Session's relation (`delegationTypeRelation`). Only with
-     * `newSession`, and never with a preset, relation flag, or worktree. A `provider` (with optional model and effort)
-     * runs the type on that Agent instead of its binding.
+     * type's private instructions, and records its new Session as a `consult`. Only with `newSession`, and never with a
+     * preset, relation flag, or worktree. A `provider` (with optional model and effort) runs the type on that Agent
+     * instead of its binding.
      */
     type: delegationTypeSchema.optional(),
     model: delegationModelSchema.optional(),

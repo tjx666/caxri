@@ -623,7 +623,7 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
 | ---------------- | ----------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
 | `second-opinion` | The other vendor: Codex, Claude for Codex | `consult`            | Independent evaluator: test the caller's conclusion, may disagree, no edits |
 | `review`         | The other vendor: Codex, Claude for Codex | `consult`            | Report findings by severity with file and line, no edits                    |
-| `computer-use`   | Codex (its bundled Computer Use plugin)   | `delegated`          | Stop before irreversible actions, wait on sign-in, no secrets, screenshots  |
+| `computer-use`   | Codex (its bundled Computer Use plugin)   | `consult`            | Stop before irreversible actions, wait on sign-in, no secrets, screenshots  |
 | `x-search`       | Grok (native real-time X search)          | `consult`            | Cite each post's URL, author, and date; say when live search is unavailable |
 
 - **One flag.** `--type` stands in for `--new-session` and a relation flag, and takes no `--session`,
@@ -642,15 +642,31 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
   native model and effort (`defaultDelegationTypeProvider`). `agent delegate presets` returns the
   effective binding per type in `types`. `--provider` (with optional `--model` and `--effort`) runs
   the type on that Agent instead, for a user who names one.
-- **Relation.** `delegationTypeRelation` decides it: a second opinion, a review, and an X search
-  change no files and are read back, so they are consults with no sidebar row; computer use changes state outside the
-  repository and may wait for the user to sign in, so it stays a visible `delegated` Session.
+- **Relation.** Every type opens a `consult` Session (`newSessionRelation`): it takes no sidebar
+  row, and the user reaches it from the asking Chat instead. Computer use changes state outside the
+  repository and may wait for the user to sign in, but that needs the child's Chat in view, not a
+  sidebar row.
+- **Side View.** Clicking a consult's timeline record, its Delegated Sessions row, or its notice
+  opens the child's live Chat in the asking Chat's Side View (the Portal), as a
+  `caxri-agent-delegation://<child Chat Terminal>` tab (`delegated-child-opener.ts`). The user reads
+  its progress, answers it, or takes it over without leaving the parent; the tab mounts the Chat as
+  the `portal` host, which drops Fork, Continue in, beside-Chat tabs, and the Delegated Sessions strip
+  because each would act on the selected (parent) Session. The header's Open Session replaces Open in
+  Split and selects the child's own Session. A Terminal child still opens as its own Session: one
+  PTY renders in one place.
 - **Instructions.** The type's fixed text (`delegation-types.ts`) opens the task file ahead of the
   caller's prompt and is frozen at admission like a preset's instructions.
 - **Surfaces.** The receipt's `selection.type` labels the task: the parent strip row and the child's
   origin row show the type in the interface language (`Review`), and a timeline record reads
   `Asked Codex for a review: <title>` with an icon per type (the statuses read carries `type`).
-  Settings, Agents, "Delegation types and presets" lists each type's binding read-only.
+  Settings, Agents, "Delegation types and presets" edits each type's binding: Agent (or Default,
+  which removes the binding and shows the built-in default), a free-text model (blank is the
+  provider default; no static model catalog exists, only a live Chat lists models), and an effort
+  limited to what `isDelegationEffortSupported` accepts for that Agent and model. Changing the
+  Agent clears the model and any effort the new Agent rejects. Under "By calling Agent" (collapsed
+  by default, showing one summary line per override) each calling Agent can get its own binding,
+  or have it removed. Every edit rewrites only the changed binding of `agents.delegation`, so
+  presets and all other fields survive (`delegation-presets/types/binding.ts`).
 
 ```json
 {

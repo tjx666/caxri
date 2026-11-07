@@ -176,15 +176,15 @@ _Avoid_: Transfer, fork, hand-over
 
 **Delegation type**:
 One of the asks Caxri knows without configuration: a second opinion, a review, computer use, or an X
-search. The
-type decides the new Session's relation and how Caxri presents the task; Settings only choose which
-Agent runs it. It is not a preset, which is the user's own named Agent choice.
+search. Each opens a Consult; the type decides the instructions and how Caxri presents the task;
+Settings only choose which Agent runs it. It is not a preset, which is the user's own named Agent choice.
 _Avoid_: Scenario, mode, kind
 
 **Consult**:
-A question or review an Agent asks another Agent in a new Session, not meant to change any files.
-The Session records the Session that asked, and the sidebar gives it no row while the Session that
-asked is listed. It is neither a Delegated Session nor a Hand-off.
+A task an Agent asks another Agent for in a new Session that is not meant to change Project files:
+a question, a review, a search, or operating an app. The Session records the Session that asked, the
+sidebar gives it no row while the Session that asked is listed, and the asking Chat opens it in its
+Side View. It is neither a Delegated Session nor a Hand-off.
 _Avoid_: Side Session, review Session, Delegated Session
 
 **Independent Session**:

@@ -1,21 +1,25 @@
 import type { KeyboardEvent } from 'react';
 import { useRef } from 'react';
 
-import { Columns2, Maximize2, Minimize2, X } from 'lucide-react';
+import { parseAgentDelegationTab } from '@caxri/protocol';
+import { Columns2, Maximize2, Minimize2, SquareArrowOutUpRight, X } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
+import { useTerminal } from '../../../stores/selectors';
 import { useDocumentTabPresentation } from '../../editor/hooks/use-document-tab-presentation';
+import { openSession } from '../../session/session-commands';
 import { WorkTabIcon } from '../../tabs/work-tab';
 import { openPortalItemInSplit } from '../tasks/agent-chat-task-opener';
 import { nextPortalTabPath, portalTabId } from './portal-keys';
 import { usePortalStore } from './portal-store';
 
 /**
- * The Side View's header: its items as tabs (a lone item is a plain title), Open in Split, and Close. `idBase` names
- * the tabs so the panel below can point back at the active one.
+ * The Side View's header: its items as tabs (a lone item is a plain title), Open in Split (Open Session for a delegated
+ * child, whose Chat belongs to its own Session rather than to this Workbench), and Close. `idBase` names the tabs so
+ * the panel below can point back at the active one.
  */
 export function PortalHeader({
     activePath,
@@ -34,6 +38,9 @@ export function PortalHeader({
 }) {
     const { t } = useTranslation();
     const hasChoices = paths.length > 1;
+    const childSessionId = useTerminal(
+        parseAgentDelegationTab(activePath)?.terminalId ?? '',
+    )?.sessionId;
     const tabListReference = useRef<HTMLDivElement>(null);
     /**
      * Arrow keys select the neighbour and move focus with it (roving tabindex: only the active tab is in the Tab
@@ -74,16 +81,32 @@ export function PortalHeader({
                     />
                 ))}
             </div>
-            <Tooltip content={t('agentChat.portal.openInSplit')}>
-                <Button
-                    aria-label={t('agentChat.portal.openInSplit')}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => openPortalItemInSplit(sessionId, activePath)}
-                >
-                    <Columns2 aria-hidden="true" size={14} />
-                </Button>
-            </Tooltip>
+            {childSessionId ? (
+                <Tooltip content={t('agentChat.portal.openSession')}>
+                    <Button
+                        aria-label={t('agentChat.portal.openSession')}
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                            usePortalStore.getState().close(sessionId, activePath);
+                            openSession(childSessionId);
+                        }}
+                    >
+                        <SquareArrowOutUpRight aria-hidden="true" size={14} />
+                    </Button>
+                </Tooltip>
+            ) : (
+                <Tooltip content={t('agentChat.portal.openInSplit')}>
+                    <Button
+                        aria-label={t('agentChat.portal.openInSplit')}
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openPortalItemInSplit(sessionId, activePath)}
+                    >
+                        <Columns2 aria-hidden="true" size={14} />
+                    </Button>
+                </Tooltip>
+            )}
             <Tooltip
                 content={t(isMaximized ? 'agentChat.portal.restore' : 'agentChat.portal.maximize')}
                 shortcut={isMaximized ? 'escape' : undefined}

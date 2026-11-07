@@ -27,11 +27,11 @@ import {
     isDelegationCopyClockDependent,
 } from '../../delegation/delegation-copy';
 import { useDelegationStatuses } from '../../delegation/hooks/use-delegation-statuses';
-import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import { delegationRecordsOf } from './agent-chat-delegation-records';
 import { useIsDelegationLive } from './hooks/use-is-delegation-live';
+import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 const NO_IDS: readonly string[] = [];
 
@@ -140,7 +140,7 @@ function DelegationRecordRow({
             )}
             data-agent-chat-delegation-record={delegation.delegationId}
             type="button"
-            onClick={() => openSession(delegation.sessionId)}
+            onClick={() => openDelegatedChild(delegation.sessionId)}
         >
             {content}
         </button>

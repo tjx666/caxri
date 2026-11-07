@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentTaskTabPath, isAgentTaskTabPath, parseAgentTaskTab } from '../agent-task-tab';
-import { agentTranscriptTabPath } from '../agent-transcript';
-import { isVirtualEditorTabPath } from '../virtual-tabs';
+import { agentTranscriptTabPath } from '../../agent-transcript';
+import { isVirtualEditorTabPath } from '../../virtual-tabs';
+import { agentTaskTabPath, isAgentTaskTabPath, parseAgentTaskTab } from '../task-tab';
 
 describe('Agent task tabs', () => {
     it('round-trips a Terminal and a task key that contain separators', () => {

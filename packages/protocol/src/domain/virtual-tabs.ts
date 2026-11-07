@@ -1,9 +1,10 @@
-import { isAgentContextTabPath } from './agent-context-tab.js';
-import { isAgentSideChatTabPath } from './agent-side-chat-tab.js';
-import { isAgentStatusTabPath } from './agent-status-tab.js';
-import { isAgentTaskTabPath } from './agent-task-tab.js';
+import { isAgentContextTabPath } from './agent-tabs/context-tab.js';
+import { isAgentDelegationTabPath } from './agent-tabs/delegation-tab.js';
+import { isAgentSideChatTabPath } from './agent-tabs/side-chat-tab.js';
+import { isAgentStatusTabPath } from './agent-tabs/status-tab.js';
+import { isAgentTaskTabPath } from './agent-tabs/task-tab.js';
+import { isAgentTurnReviewTabPath } from './agent-tabs/turn-review-tab.js';
 import { isAgentTranscriptTabPath } from './agent-transcript.js';
-import { isAgentTurnReviewTabPath } from './agent-turn-review-tab.js';
 import { isUntitledEditorTabPath } from './editor/untitled.js';
 import { isExternalEditorTabPath } from './external-editor-tab.js';
 import { isFilePreviewTabPath } from './file-preview.js';
@@ -36,6 +37,7 @@ const virtualEditorTabMatchers = {
     agentStatus: isAgentStatusTabPath,
     agentContext: isAgentContextTabPath,
     agentSideChat: isAgentSideChatTabPath,
+    agentDelegation: isAgentDelegationTabPath,
     environment: isEnvironmentTabPath,
     external: isExternalEditorTabPath,
     filePreview: isFilePreviewTabPath,

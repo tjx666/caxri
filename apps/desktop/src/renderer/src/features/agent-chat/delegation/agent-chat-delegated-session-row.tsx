@@ -21,11 +21,11 @@ import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
 import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
 import { SessionPullRequestIndicator } from '../../primary-sidebar/session-pull-request-indicator';
-import { openSession } from '../../session/session-commands';
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { delegatedSessionLine, delegationPrFilesLabel } from './agent-chat-delegated-sessions';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import type { DelegatedCostLabel } from './cost/agent-chat-delegated-cost';
+import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 /**
  * A finished task's pull request, with the whole pull request's file count. Mounted only for a completed row, so a row
@@ -208,7 +208,7 @@ export function AgentChatDelegatedSessionRow({
                             'cursor-pointer border-0 bg-transparent hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent',
                         )}
                         type="button"
-                        onClick={() => openSession(entry.sessionId)}
+                        onClick={() => openDelegatedChild(entry.sessionId)}
                     >
                         {content}
                     </button>

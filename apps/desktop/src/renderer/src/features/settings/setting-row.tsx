@@ -488,7 +488,16 @@ function rowControl(
         case 'agent-secrets':
             return { control: <AgentSecretsForm /> };
         case 'delegation-presets':
-            return { control: <DelegationPresetsSection value={settings['agents.delegation']} /> };
+            return {
+                control: (
+                    <DelegationPresetsSection
+                        value={settings['agents.delegation']}
+                        onChange={(value, member) =>
+                            onFieldChange('agents.delegation', value, member)
+                        }
+                    />
+                ),
+            };
         case 'delegation-field':
             return {
                 labelFor: controlId,

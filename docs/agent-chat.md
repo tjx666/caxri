@@ -543,7 +543,7 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
 - **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
   answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Portal.** A subagent or background row opens its task
-  (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in
+  (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-tabs/task-tab.ts`) in
   the Portal: a flyout over the window's right edge that covers the Secondary Sidebar (or the Chat's
   right edge when the sidebar is hidden), so it takes no Workbench width, never reflows the Chat,
   and never counts as a tab (`features/agent-chat/portal/`). Turn reviews, the side chat, and the

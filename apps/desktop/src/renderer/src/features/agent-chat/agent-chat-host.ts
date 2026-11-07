@@ -1,9 +1,11 @@
 /**
  * The window a Chat Terminal is mounted in. The Workbench offers every Chat action; the Caxri Bot window runs its own
  * Chat under Main's Caxri Bot policy (`apps/desktop/src/main/caxri-bot-policy.ts`), which has no Workbench to show
- * another Session in and refuses Project writes.
+ * another Session in and refuses Project writes. A `portal` Chat is a delegated child shown beside the Chat that asked
+ * for it (`agent-chat-delegation-tab.tsx`): every Workbench action there would act on the selected Session (the parent)
+ * instead, so it offers the conversation and its permission choices only.
  */
-export type AgentChatHost = 'bot' | 'workbench';
+export type AgentChatHost = 'bot' | 'portal' | 'workbench';
 
 /**
  * The Chat actions a host can carry out, derived from `AgentChatHost` so every gated action reads one notion.
@@ -46,7 +48,7 @@ export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCap
     return {
         canFork: isWorkbench,
         canOpenBesideChat: isWorkbench,
-        canSaveProjectDefault: isWorkbench,
+        canSaveProjectDefault: host !== 'bot',
         canOpenContext: isWorkbench,
         canContinueInAgent: isWorkbench,
         canShowDelegatedSessions: isWorkbench,

@@ -75,13 +75,14 @@ const selectionShape = {
 
 /**
  * The tasks Caxri knows how to ask another Agent for without any configuration (`agent delegate create --type`). A type
- * owns its product behavior (the Session relation, the private instructions, how Clients present it); Settings only
- * choose which Agent runs it. A preset is the user's own named binding for everything else.
+ * owns its product behavior (the private instructions, how Clients present it); every type opens a `consult` Session,
+ * which takes no sidebar row and opens beside the asking Chat; Settings only choose which Agent runs it. A preset is
+ * the user's own named binding for everything else.
  *
  * - `second-opinion`: an independent view on a hard decision or hypothesis; changes no files.
  * - `review`: a review of code changes by another Agent; changes no files.
  * - `computer-use`: operating a signed-in browser or desktop app; it changes state outside the repository and may need
- *   the user to sign in, so its Session stays visible.
+ *   the user to sign in, which the parent's record opens beside its Chat.
  * - `x-search`: a live X (Twitter) lookup of posts, threads, accounts, or what people say about a topic; changes no
  *   files.
  */
@@ -102,15 +103,6 @@ export function defaultDelegationTypeProvider(
     if (type === 'computer-use') return 'codex';
     if (type === 'x-search') return 'grok';
     return caller === 'codex' ? 'claude' : 'codex';
-}
-
-/**
- * The relation a type's new Session has to the Session that asked: a second opinion, a review, and an X search change
- * no files and are read back (`consult`, no sidebar row); computer use acts outside the repository and may wait for the
- * user to sign in, so it stays a visible `delegated` Session.
- */
-export function delegationTypeRelation(type: DelegationType): 'consult' | 'delegated' {
-    return type === 'computer-use' ? 'delegated' : 'consult';
 }
 
 export const delegationSelectionSchema = z.strictObject({

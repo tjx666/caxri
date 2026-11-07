@@ -1,6 +1,7 @@
 import type { VirtualEditorTabScheme } from '@caxri/protocol';
 import {
     agentContextTabPath,
+    agentDelegationTabPath,
     agentSideChatTabPath,
     agentStatusTabPath,
     agentTaskTabPath,
@@ -31,6 +32,7 @@ const samplePaths: Record<VirtualEditorTabScheme, string> = {
     agentStatus: agentStatusTabPath('terminal-1'),
     agentContext: agentContextTabPath('terminal-1'),
     agentSideChat: agentSideChatTabPath('terminal-1'),
+    agentDelegation: agentDelegationTabPath('terminal-1'),
     environment: environmentTabPath(),
     external: externalEditorTabPath('document-1', 'notes.md'),
     filePreview: filePreviewTabPath('/project/a.md'),
