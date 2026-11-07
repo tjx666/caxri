@@ -11,7 +11,8 @@ export function pullRequestUnavailable(error: unknown): PullRequestUnavailable {
     let reason: PullRequestUnavailable['reason'];
     switch (classified) {
         case 'invalid-arguments':
-        case 'no-pull-request': {
+        case 'no-pull-request':
+        case 'resource-not-found': {
             reason = 'other';
             break;
         }

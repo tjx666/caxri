@@ -47,6 +47,10 @@ export interface DownloadHost {
     currentVersion: string;
     downloadDirectory: string;
     fetch: UpdateFetch;
+    /**
+     * Installers a concurrent staged update still needs; stale-file cleanup must leave them alone.
+     */
+    keepFileNames?: readonly string[];
     now(): number;
     /**
      * Records the verified installer and decides how it installs, unpacking it ahead of the restart when Caxri can
@@ -95,7 +99,7 @@ export async function downloadVerifiedUpdate(
     const temporaryPath = `${finalPath}.part`;
     try {
         await mkdir(host.downloadDirectory, { recursive: true, mode: 0o700 });
-        await removeStaleUpdateFiles(host.downloadDirectory, release.fileName);
+        await removeStaleUpdateFiles(host.downloadDirectory, release.fileName, host.keepFileNames);
 
         const checksumResponse = await host.fetch(release.checksumUrl, { signal });
         assertSuccessfulResponse(checksumResponse, 'The checksum download');

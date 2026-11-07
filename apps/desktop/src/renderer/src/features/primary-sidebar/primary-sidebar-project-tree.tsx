@@ -103,6 +103,68 @@ function useGroupToggles(
     return { animatedProjectIds, togglePinnedGroup, toggleProject };
 }
 
+/**
+ * The reveal and fold steps for the Pinned group and every Project's Session window, each handing keyboard focus to a
+ * row that survives the step before the step unmounts the row that had it.
+ */
+function sessionWindowStepHandlers({
+    focusRow,
+    pinnedGroup,
+    sessionWindows,
+}: {
+    focusRow: (rowId: string) => void;
+    pinnedGroup: ReturnType<typeof usePinnedSessionGroup>;
+    sessionWindows: ReturnType<typeof useProjectSessionWindows>;
+}) {
+    /**
+     * The final reveal unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
+     * body. Both groups hand focus to the row directly above while it still exists.
+     */
+    const revealMorePinnedSessions = (): void => {
+        pinnedGroup.revealMore();
+        const lastVisibleSessionId = pinnedGroup.visibleSessions.at(-1)?.id;
+        if (lastVisibleSessionId && pinnedGroup.hiddenCount <= SESSION_REVEAL_STEP)
+            focusRow(primarySidebarPinnedRowId(lastVisibleSessionId));
+    };
+
+    /**
+     * Folding unmounts the fold row and every row below it, so focus first moves to the last default row above it,
+     * which survives the fold (the same pre-unmount handoff the reveal path performs).
+     */
+    const showFewerPinnedSessions = (): void => {
+        const boundary = pinnedGroup.showFewerIndex;
+        const anchor =
+            boundary === undefined ? undefined : pinnedGroup.visibleSessions[boundary - 1];
+        if (anchor) focusRow(primarySidebarPinnedRowId(anchor.id));
+        pinnedGroup.showFewer();
+    };
+
+    const showFewerSessions = (sessionWindow: ProjectSessionWindow): void => {
+        const boundary = sessionWindow.showFewerIndex;
+        const anchor =
+            boundary === undefined ? undefined : sessionWindow.visibleSessions[boundary - 1];
+        if (anchor) focusRow(anchor.id);
+        sessionWindows.showFewer(sessionWindow.project.id);
+    };
+
+    const revealMoreSessions = (sessionWindow: ProjectSessionWindow): void => {
+        sessionWindows.revealMore(sessionWindow.project.id, sessionWindow.windowCount);
+        // The final step unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
+        // body. Hand focus to the Session row directly above it while that row still exists: the same pre-unmount
+        // handoff the Delete/Backspace archive path performs.
+        const lastVisibleSessionId = sessionWindow.visibleSessions.at(-1)?.id;
+        if (lastVisibleSessionId && sessionWindow.hiddenCount <= SESSION_REVEAL_STEP)
+            focusRow(lastVisibleSessionId);
+    };
+
+    return {
+        revealMorePinnedSessions,
+        revealMoreSessions,
+        showFewerPinnedSessions,
+        showFewerSessions,
+    };
+}
+
 export function PrimarySidebarProjectTree() {
     const { t } = useTranslation();
     const allProjects = useProjects();
@@ -231,6 +293,7 @@ export function PrimarySidebarProjectTree() {
         isPinnedExpanded: pinnedCollapse.expanded,
         isProjectExpanded,
         pinnedSessionIds,
+        pinnedShowFewerIndex: pinnedGroup.showFewerIndex,
         projectWindows,
         selectedFallbackRowIds: delegated.selectedFallbackRowIds,
         selectedProjectId,
@@ -244,26 +307,12 @@ export function PrimarySidebarProjectTree() {
         projectCollapse,
     );
 
-    /**
-     * The final reveal unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
-     * body. Both groups hand focus to the row directly above while it still exists.
-     */
-    const revealMorePinnedSessions = (): void => {
-        pinnedGroup.revealMore();
-        const lastVisibleSessionId = pinnedGroup.visibleSessions.at(-1)?.id;
-        if (lastVisibleSessionId && pinnedGroup.hiddenCount <= SESSION_REVEAL_STEP)
-            focusRow(primarySidebarPinnedRowId(lastVisibleSessionId));
-    };
-
-    const revealMoreSessions = (sessionWindow: ProjectSessionWindow): void => {
-        sessionWindows.revealMore(sessionWindow.project.id, sessionWindow.windowCount);
-        // The final step unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
-        // body. Hand focus to the Session row directly above it while that row still exists: the same pre-unmount
-        // handoff the Delete/Backspace archive path performs.
-        const lastVisibleSessionId = sessionWindow.visibleSessions.at(-1)?.id;
-        if (lastVisibleSessionId && sessionWindow.hiddenCount <= SESSION_REVEAL_STEP)
-            focusRow(lastVisibleSessionId);
-    };
+    const {
+        revealMorePinnedSessions,
+        revealMoreSessions,
+        showFewerPinnedSessions,
+        showFewerSessions,
+    } = sessionWindowStepHandlers({ focusRow, pinnedGroup, sessionWindows });
 
     const renderDelegatedRows = useRenderDelegatedRows({
         allProjects: allProjects ?? NO_RECORDS,
@@ -347,6 +396,7 @@ export function PrimarySidebarProjectTree() {
                         onSuggestRename={sessionRename.suggestRename}
                         onRenameValueChange={sessionRename.onRenameValueChange}
                         onRevealMoreSessions={revealMorePinnedSessions}
+                        onShowFewerSessions={showFewerPinnedSessions}
                         onToggle={() => togglePinnedGroup()}
                         projects={pinnedGroup.projects}
                         renderDelegatedRows={renderDelegatedRows}
@@ -360,6 +410,7 @@ export function PrimarySidebarProjectTree() {
                         sessions={pinnedGroup.sessions}
                         showSubagents={showSubagents}
                         terminals={terminals}
+                        showFewerIndex={pinnedGroup.showFewerIndex}
                         visibleSessions={pinnedGroup.visibleSessions}
                         worktreeProjects={pinnedGroup.worktreeProjects}
                     />
@@ -367,6 +418,7 @@ export function PrimarySidebarProjectTree() {
                         animatedProjectIds={animatedProjectIds}
                         isProjectExpanded={isProjectExpanded}
                         onRevealMoreSessions={revealMoreSessions}
+                        onShowFewerSessions={showFewerSessions}
                         onToggleProject={toggleProject}
                         projectOrder={projectOrder}
                         projectWindows={projectWindows}

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ExternalStatusCommandDependencies } from '../command';
 import {
     externalStatusCommandOperation,
+    failureReason,
     GITHUB_RATE_LIMIT_QUERY,
     runExternalStatusCommand,
 } from '../command';
@@ -292,6 +293,41 @@ describe('externalStatusCommandOperation', () => {
         expect(externalStatusCommandOperation('gh', ['api', 'PRIVATE_ENDPOINT'])).toBe('unknown');
         expect(externalStatusCommandOperation('gh', ['pr', 'PRIVATE_COMMAND'])).toBe('unknown');
     });
+    it('names the REST calls by fixed shape without owner, repository, branch, or number', () => {
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                '--hostname',
+                'github.com',
+                'repos/acme/private-repo/compare/main...secret-branch',
+                '--jq',
+                '[.files[]?]',
+            ]),
+        ).toBe('rest.compare');
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                '--hostname',
+                'github.com',
+                'repos/acme/private-repo/issues/42',
+            ]),
+        ).toBe('rest.issue.get');
+        // A header or method value in front of the path must not be read as the endpoint.
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                '-H',
+                'Accept: application/json',
+                '-X',
+                'GET',
+                'repos/acme/private-repo/issues/42',
+            ]),
+        ).toBe('rest.issue.get');
+        expect(externalStatusCommandOperation('gh', ['api', 'repos/acme/private-repo/hooks'])).toBe(
+            'unknown',
+        );
+    });
+
     it('keeps the quota probe attributable without logging user content', () => {
         expect(
             externalStatusCommandOperation('gh', [
@@ -360,5 +396,21 @@ describe('externalStatusCommandOperation', () => {
                 'acme/private',
             ]),
         ).toBe('pr.view');
+    });
+});
+
+describe('failureReason', () => {
+    it('classifies an HTTP 404 from gh as a content-free resource-not-found', () => {
+        const error = new Error('Command failed');
+        Object.assign(error, { stderr: 'gh: Not Found (HTTP 404)' });
+        expect(failureReason(error)).toBe('resource-not-found');
+        expect(failureReason(new Error('gh: Could not resolve (HTTP 404)'))).toBe(
+            'resource-not-found',
+        );
+    });
+
+    it('keeps a missing executable and unrelated failures out of resource-not-found', () => {
+        expect(failureReason(new Error('fixture failure'))).toBe('other');
+        expect(failureReason(new Error('zsh: command not found: gh'))).toBe('other');
     });
 });

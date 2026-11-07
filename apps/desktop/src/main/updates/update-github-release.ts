@@ -1,6 +1,11 @@
 import { compareStableVersions } from '@caxri/protocol';
 import { z } from 'zod';
 
+import type { SourceMapFlavor } from '../source-map-flavor';
+import { releaseDmgFileName } from '../source-map-flavor';
+import type { AvailableRelease } from './update-download';
+import { MAX_CHECKSUM_BYTES, MAX_DMG_BYTES, UpdateFailure } from './update-transport';
+
 export const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
 
 const releaseAssetSchema = z.object({
@@ -9,7 +14,7 @@ const releaseAssetSchema = z.object({
     browser_download_url: z.url(),
 });
 
-export const releaseSchema = z.object({
+const releaseSchema = z.object({
     tag_name: z.string(),
     html_url: z.string().optional(),
     draft: z.boolean(),
@@ -71,7 +76,7 @@ export function rateLimitResumeAt(response: Response, now: number): number | und
     return undefined;
 }
 
-export function isExactReleaseAssetUrl(url: string, version: string, fileName: string): boolean {
+function isExactReleaseAssetUrl(url: string, version: string, fileName: string): boolean {
     try {
         const parsed = new URL(url);
         return (
@@ -83,4 +88,61 @@ export function isExactReleaseAssetUrl(url: string, version: string, fileName: s
     } catch {
         return false;
     }
+}
+
+/**
+ * Validates the body of a successful `releases/latest` answer and returns the release when it is newer than
+ * `currentVersion`, or `undefined` when it is not. Throws on malformed or untrusted metadata. Shared by the visible
+ * check and the silent look for a newer release while one is already staged.
+ */
+export function parseLatestRelease(
+    source: string,
+    currentVersion: string,
+    sourceMapFlavor: SourceMapFlavor,
+): AvailableRelease | undefined {
+    let json: unknown;
+    try {
+        json = JSON.parse(source) as unknown;
+    } catch {
+        throw new Error('GitHub returned invalid release metadata.');
+    }
+    const parsedRelease = releaseSchema.safeParse(json);
+    if (!parsedRelease.success) throw new Error('GitHub returned invalid release metadata.');
+    const release = parsedRelease.data;
+    if (release.draft || release.prerelease)
+        throw new Error('GitHub returned a non-stable release.');
+    const version = release.tag_name.replace(/^v/, '');
+    assertStableVersion(version);
+    assertStableVersion(currentVersion);
+    if (compareStableVersions(version, currentVersion) <= 0) return undefined;
+
+    const releaseUrl = releasePageUrl(release.html_url);
+    const fileName = releaseDmgFileName(version, sourceMapFlavor);
+    const checksumName = `${fileName}.sha256`;
+    const dmg = release.assets.find((asset) => asset.name === fileName);
+    const checksum = release.assets.find((asset) => asset.name === checksumName);
+    if (!dmg || !checksum)
+        throw new UpdateFailure('integrity', 'The release is missing its arm64 DMG or checksum.');
+    if (dmg.size > MAX_DMG_BYTES || checksum.size > MAX_CHECKSUM_BYTES)
+        throw new UpdateFailure(
+            'integrity',
+            'A release asset is larger than the allowed update size.',
+        );
+    if (
+        !isExactReleaseAssetUrl(dmg.browser_download_url, version, fileName) ||
+        !isExactReleaseAssetUrl(checksum.browser_download_url, version, checksumName)
+    ) {
+        throw new UpdateFailure(
+            'integrity',
+            'A release asset URL does not match the requested version.',
+        );
+    }
+    return {
+        version,
+        fileName,
+        dmgUrl: dmg.browser_download_url,
+        checksumUrl: checksum.browser_download_url,
+        ...(releaseUrl && { releaseUrl }),
+        ...(dmg.size > 0 && { expectedBytes: dmg.size }),
+    };
 }

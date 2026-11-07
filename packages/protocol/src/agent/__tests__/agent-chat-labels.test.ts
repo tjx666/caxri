@@ -19,12 +19,9 @@ import {
     agentChatWorkingVerb,
 } from '../agent-chat-presentation';
 import { agentChatEditedFilesTitle } from '../agent-chat-turn-artifacts';
-import {
-    agentChatTurnLabel,
-    describeAgentChatWork,
-    summarizeAgentChatWork,
-} from '../agent-chat-work';
+import { agentChatTurnLabel, describeAgentChatWork } from '../agent-chat-work';
 import { botInboxKindLabel, botInboxReplyState } from '../bot/caxri-bot-inbox-presentation';
+import { summarizeAgentChatWork } from '../tool-rows/agent-chat-work-summary';
 import { agentToolLabel } from '../tool-rows/agent-tool-labels';
 
 const zh: AgentChatLabelTranslate = (key, parameters) =>

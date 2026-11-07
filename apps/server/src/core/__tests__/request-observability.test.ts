@@ -27,6 +27,17 @@ describe('requestFailureLogLevel', () => {
         expect(requestFailureLogLevel('git.pullRequestChanges', 'GIT')).toBe('error');
     });
 
+    it('records a Terminal selector miss as a caller-handled outcome', () => {
+        expect(requestFailureLogLevel('terminal.queryForPrincipal', 'NOT_FOUND')).toBe('warn');
+        expect(requestFailureLogLevel('terminal.queryForPrincipal', 'INTERNAL')).toBe('error');
+    });
+
+    it('records rejected delegation creates as caller-handled, keeping real faults an error', () => {
+        for (const code of ['VALIDATION', 'FORBIDDEN'])
+            expect(requestFailureLogLevel('agent.delegation.createInternal', code)).toBe('warn');
+        expect(requestFailureLogLevel('agent.delegation.createInternal', 'INTERNAL')).toBe('error');
+    });
+
     it('keeps NOT_FOUND an error for methods whose caller cannot expect it', () => {
         expect(requestFailureLogLevel('terminal.attach', 'NOT_FOUND')).toBe('error');
         expect(requestFailureLogLevel('session.updateState', 'CONFLICT')).toBe('warn');

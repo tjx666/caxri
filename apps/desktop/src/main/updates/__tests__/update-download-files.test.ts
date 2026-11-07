@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { UpdateState } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { RESUME_CHECK_MIN_GAP_MS, shouldRunBackgroundCheck } from '../discovery/background-check';
 import {
     canResumePartial,
     contentRangeStart,
@@ -15,7 +16,7 @@ import {
 } from '../update-download-files';
 import { releasePageUrl } from '../update-github-release';
 import { detectVersionChange, recordLaunchVersion } from '../update-launch-version';
-import { RESUME_CHECK_MIN_GAP_MS, shouldRunBackgroundCheck, UpdateService } from '../updates';
+import { UpdateService } from '../updates';
 
 describe('selectStaleUpdateFiles', () => {
     it('keeps the current installer and its partial, drops other installers and partials', () => {
@@ -107,7 +108,7 @@ describe('release page and background check policy', () => {
         };
         expect(shouldRunBackgroundCheck(base)).toBe(true);
         expect(shouldRunBackgroundCheck({ ...base, status: 'downloading' })).toBe(false);
-        expect(shouldRunBackgroundCheck({ ...base, status: 'ready' })).toBe(false);
+        expect(shouldRunBackgroundCheck({ ...base, status: 'ready' })).toBe(true);
         expect(shouldRunBackgroundCheck({ ...base, isCheckInFlight: true })).toBe(false);
     });
 

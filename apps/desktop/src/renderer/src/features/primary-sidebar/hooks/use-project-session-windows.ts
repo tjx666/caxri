@@ -106,5 +106,18 @@ export function useProjectSessionWindows({
         }));
     }, []);
 
-    return { revealMore, windows };
+    /**
+     * Folds one Project back to its default rows. The entry is dropped rather than zeroed so the Project is
+     * indistinguishable from one never revealed; a later `Show N more` steps from the default window again.
+     */
+    const showFewer = useCallback((projectId: string): void => {
+        setRevealedCounts((current) => {
+            if (!(projectId in current)) return current;
+            const rest = { ...current };
+            delete rest[projectId];
+            return rest;
+        });
+    }, []);
+
+    return { revealMore, showFewer, windows };
 }

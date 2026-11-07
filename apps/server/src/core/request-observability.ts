@@ -83,6 +83,17 @@ const CALLER_HANDLED_METHOD_FAILURES: Partial<Record<ServerOperation, ReadonlySe
      * (https://github.com/tjx666/caxri/issues/2041).
      */
     'git.pullRequestChanges': new Set(['UNAVAILABLE']),
+    /**
+     * A CLI or Agent selector that matches no Terminal ("Terminal selector did not match") is a bad or stale argument
+     * the caller reads from the reply and retries or reports; bursts of misses paged as production errors.
+     */
+    'terminal.queryForPrincipal': new Set(['NOT_FOUND']),
+    /**
+     * The Internal twin of `agent.delegation.create`. A rejected request (`VALIDATION`) or a caller that does not own
+     * the target (`FORBIDDEN`) is returned to the delegating Agent, and the control relay already logs the outer
+     * `agent.delegation.create` reply at `warn`, so an `error` here only duplicated a caller-handled outcome.
+     */
+    'agent.delegation.createInternal': new Set(['VALIDATION', 'FORBIDDEN']),
 };
 
 export function requestFailureLogLevel(method: string, code: string): 'error' | 'warn' {

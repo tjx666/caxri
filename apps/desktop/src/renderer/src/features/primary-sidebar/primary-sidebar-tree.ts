@@ -17,6 +17,11 @@ export interface PrimarySidebarProjectNode {
      * Only the Sessions the window actually renders; hidden Sessions must stay out of the row order.
      */
     sessionIds: readonly string[];
+    /**
+     * Index in `sessionIds` the `Show fewer` row precedes (`SessionListWindow.showFewerIndex`); absent when the window
+     * was never revealed past its default rows.
+     */
+    showFewerIndex?: number;
 }
 
 export interface PrimarySidebarTreeRow {
@@ -31,6 +36,7 @@ export interface PrimarySidebarTreeRow {
         | 'project'
         | 'session'
         | 'reveal'
+        | 'showFewer'
         | 'createSession'
         | 'subagent'
         | 'subagentMore'
@@ -83,6 +89,14 @@ export function primarySidebarPinnedRowId(sessionId: string): string {
  */
 export function primarySidebarRevealRowId(projectId: string): string {
     return `reveal-sessions:${projectId}`;
+}
+
+/**
+ * Row id of the row that folds a revealed Project (or Pinned) group back to its default rows. Namespaced like the
+ * reveal row so it can never collide with a Session id.
+ */
+export function primarySidebarShowFewerRowId(projectId: string): string {
+    return `show-fewer-sessions:${projectId}`;
 }
 
 /**
@@ -167,6 +181,10 @@ export interface PrimarySidebarPinnedNode {
      * included.
      */
     sessionIds: readonly string[];
+    /**
+     * Index in `sessionIds` the `Show fewer` row precedes; absent when the window was never revealed past its default.
+     */
+    showFewerIndex?: number;
 }
 
 /**
@@ -257,6 +275,17 @@ export function flattenPrimarySidebarRows(
         }
         if (node.toggleIndex === node.taskIds.length) pushToggle();
     };
+    /**
+     * The fold row sits among the Session rows, right after the default ones, at the same depth as them. It is only
+     * pushed ahead of a following Session row, so a boundary with nothing after it adds no row.
+     */
+    const pushShowFewer = (groupId: string): void => {
+        rows.push({
+            id: primarySidebarShowFewerRowId(groupId),
+            kind: 'showFewer',
+            projectId: groupId,
+        });
+    };
     if (pinned && pinned.sessionIds.length > 0) {
         rows.push({
             id: PINNED_GROUP_ROW_ID,
@@ -264,7 +293,8 @@ export function flattenPrimarySidebarRows(
             projectId: PINNED_GROUP_ROW_ID,
         });
         if (pinned.expanded) {
-            for (const sessionId of pinned.sessionIds) {
+            for (const [index, sessionId] of pinned.sessionIds.entries()) {
+                if (index === pinned.showFewerIndex) pushShowFewer(PINNED_GROUP_ROW_ID);
                 rows.push({
                     id: primarySidebarPinnedRowId(sessionId),
                     kind: 'session',
@@ -286,7 +316,8 @@ export function flattenPrimarySidebarRows(
     for (const project of projects) {
         rows.push({ id: project.id, kind: 'project', projectId: project.id });
         if (!isExpanded(project.id)) continue;
-        for (const sessionId of project.sessionIds) {
+        for (const [index, sessionId] of project.sessionIds.entries()) {
+            if (index === project.showFewerIndex) pushShowFewer(project.id);
             rows.push({ id: sessionId, kind: 'session', projectId: project.id, sessionId });
             pushSubagentRows(sessionId, sessionId, project.id);
             pushDelegatedRows(sessionId, sessionId, project.id);

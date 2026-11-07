@@ -18,6 +18,7 @@ import {
     describeAgentChatWorkRow,
     isAgentChatWorkRowRunning,
     isAgentChatWorkRunning,
+    isAgentChatWorkSummaryNamingStep,
     mergeAgentChatReasoning,
     splitAgentChatWork,
 } from '@caxri/protocol';
@@ -416,8 +417,11 @@ function AgentChatWorkSummary({
     );
     // An open group names each step as it starts, so the delay that keeps a settled count from flickering is moot.
     const described = isOpen ? items : agentChatWorkSummaryItems(items, shouldShowRunning);
-    const failureStatus = agentChatWorkGroupFailure(described);
     const phrases = agentChatWorkSummaryPhrases(described, t, { isOpen });
+    // A title naming the current step already carries the failure count; a glyph beside it would mark that step.
+    const failureStatus = isAgentChatWorkSummaryNamingStep(phrases)
+        ? undefined
+        : agentChatWorkGroupFailure(described);
     const glyph = agentChatWorkSummaryGlyph(described, { isOpen });
     const isRunning = described.some(isAgentChatWorkRunning);
     return (
