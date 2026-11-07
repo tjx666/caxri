@@ -169,6 +169,9 @@ export const buildMobileDashboard = (input: {
             ...(session.createdBySessionId !== undefined && {
                 createdBySessionId: session.createdBySessionId,
             }),
+            ...(session.createdByRelation !== undefined && {
+                createdByRelation: session.createdByRelation,
+            }),
             lastVisitedAt: session.lastVisitedAt,
             sessionActivityAt: session.sessionActivityAt,
             ...(session.pinnedAt !== undefined && { pinnedAt: session.pinnedAt }),

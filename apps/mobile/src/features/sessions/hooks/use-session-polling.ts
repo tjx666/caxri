@@ -18,7 +18,11 @@ import type {
     MobileSessionListGroup,
     MobileSessionSections,
 } from '../session-model';
-import { emptyMobileSessionGroups, MOBILE_SESSION_LIST_GROUPS } from '../session-model';
+import {
+    emptyMobileSessionGroups,
+    isSessionListedOnHome,
+    MOBILE_SESSION_LIST_GROUPS,
+} from '../session-model';
 import type { MobileDashboardSnapshot } from '../session-refresh';
 import { fetchMobileSessionDashboard } from '../session-refresh';
 import { showDashboard, useSavedDashboard } from './use-saved-dashboard';
@@ -53,8 +57,11 @@ export const flattenMobileSessionSections = (
     t: Translate = translate,
 ): SessionListEntry[] => {
     const result: SessionListEntry[] = [];
+    const listedSessionIds = new Set(sections.sessions.map(({ id }) => id));
     for (const group of MOBILE_SESSION_LIST_GROUPS) {
-        const sessions = sections.groups[group];
+        const sessions = sections.groups[group].filter((session) =>
+            isSessionListedOnHome(session, listedSessionIds),
+        );
         if (sessions.length === 0) continue;
         // The header id is the group, so it stays stable across languages; only the label is translated.
         result.push(

@@ -56,14 +56,17 @@ describe('buildMobileDashboard', () => {
         expect(plain?.worktreeTitle).toBeUndefined();
     });
 
-    it('carries when a Session was created and by which Session, for finding a hand-off target', () => {
+    it('carries when a Session was created, by which Session, and how', () => {
         const session = (id: string, createdBySessionId?: string) => ({
             id,
             projectId: 'project-1',
             workbenchRootProjectId: 'project-1',
             title: id,
             createdAt: 500,
-            ...(createdBySessionId && { createdBySessionId }),
+            ...(createdBySessionId && {
+                createdBySessionId,
+                createdByRelation: 'consult' as const,
+            }),
             lastVisitedAt: 1,
             sessionActivityAt: 1,
             agentActivityState: 'completed' as const,
@@ -81,6 +84,7 @@ describe('buildMobileDashboard', () => {
         expect(result.sessions.find(({ id }) => id === 'next')).toMatchObject({
             createdAt: 500,
             createdBySessionId: 'source',
+            createdByRelation: 'consult',
         });
         expect(
             result.sessions.find(({ id }) => id === 'source')?.createdBySessionId,

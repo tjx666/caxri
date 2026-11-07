@@ -79,6 +79,70 @@ describe('mobile Session hooks', () => {
         ).toEqual(['attention', 'working']);
     });
 
+    it("leaves a listed creator's consult and delegated work off the home list", () => {
+        const settled = {
+            agentActivityState: 'completed',
+            hasUnread: false,
+            hasPendingAttention: false,
+        } as const;
+        const nested = buildMobileSessionSections({
+            total: 7,
+            truncated: false,
+            sessions: [
+                session({ id: 'creator', ...settled }),
+                session({
+                    id: 'consult',
+                    createdBySessionId: 'creator',
+                    createdByRelation: 'consult',
+                    ...settled,
+                }),
+                session({
+                    id: 'delegated',
+                    createdBySessionId: 'creator',
+                    createdByRelation: 'delegated',
+                    ...settled,
+                }),
+                session({
+                    id: 'pinned-delegated',
+                    createdBySessionId: 'creator',
+                    createdByRelation: 'delegated',
+                    pinnedAt: 1,
+                    ...settled,
+                }),
+                session({
+                    id: 'handoff',
+                    createdBySessionId: 'creator',
+                    createdByRelation: 'handoff',
+                    ...settled,
+                }),
+                session({
+                    id: 'orphan-consult',
+                    createdBySessionId: 'archived-creator',
+                    createdByRelation: 'consult',
+                    ...settled,
+                }),
+                session({
+                    id: 'waiting-delegated',
+                    createdBySessionId: 'creator',
+                    createdByRelation: 'delegated',
+                    lastAttentionKind: 'waiting',
+                }),
+            ],
+        });
+        const listed = flattenMobileSessionSections(nested).flatMap((entry) =>
+            entry.type === 'session' ? [entry.session.id] : [],
+        );
+        expect(listed.toSorted((left, right) => left.localeCompare(right))).toEqual([
+            'creator',
+            'handoff',
+            'orphan-consult',
+            'pinned-delegated',
+            'waiting-delegated',
+        ]);
+        // Still openable from the creator's timeline links.
+        expect(nested.sessions.map(({ id }) => id)).toContain('consult');
+    });
+
     it('holds the rendered order during touch and shows the latest snapshot on release', () => {
         const latest = {
             deviceRole: 'control' as const,
