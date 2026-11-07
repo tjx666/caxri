@@ -189,11 +189,12 @@ export async function executeMobileComposerAttachmentPreviewScenario(
             .find(({ checkId }) => checkId.startsWith('session-file-retry-'))
             ?.checkId.slice('session-file-retry-'.length);
         if (!fileId) throw new Error('The video card did not fail');
-        // The card shows the video's first frame from the phone's copy, whatever the upload state. The card is captured
+        // The card shows the video's first frame and a play mark from the phone's copy, whatever the upload state. The card is captured
         // either way, so a build without covers still records what it shows before the case fails.
         let hasCover = true;
         try {
             await waitForCheck(serial, `session-file-cover-${fileId}`, 15_000);
+            await waitForCheck(serial, `session-file-play-${fileId}`, 1_000);
         } catch {
             hasCover = false;
         }
@@ -223,7 +224,10 @@ export async function executeMobileComposerAttachmentPreviewScenario(
             ?.checkId.slice('session-file-remove-'.length);
         if (!readyId || !hasCheck(ready, `session-file-${readyId}`))
             throw new Error('The uploaded video card is missing');
-        if (!hasCheck(ready, `session-file-cover-${readyId}`))
+        if (
+            !hasCheck(ready, `session-file-cover-${readyId}`) ||
+            !hasCheck(ready, `session-file-play-${readyId}`)
+        )
             throw new Error('The uploaded video card lost its cover');
         await capture(environment, 'video-ready', artifacts);
         await tapFileGlyph(serial, readyId);
