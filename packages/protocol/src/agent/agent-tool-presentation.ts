@@ -5,6 +5,7 @@ import type {
     AgentShellCliLabel,
     AgentShellPullRequestAction,
 } from './tool-rows/agent-shell-cli.js';
+import { readableShellCommand, unwrapShellCommand } from './tool-rows/agent-shell-title.js';
 import { agentToolLabel, CLI_ACTIVE_LABEL_KEYS } from './tool-rows/agent-tool-labels.js';
 
 /**
@@ -232,38 +233,6 @@ export const parseAgentMcpToolName = (name: string): { server: string; tool: str
     const separator = rest.indexOf('__', 1);
     if (separator === -1 || separator + 2 >= rest.length) return null;
     return { server: rest.slice(0, separator), tool: rest.slice(separator + 2) };
-};
-
-/**
- * Codex reports every command as the login-shell invocation that ran it (`/bin/zsh -lc "git status"`). The wrapper is
- * the same on every row, so only the inner command is worth reading. Anything that is not exactly one quoted script
- * passed to `sh`, `bash`, or `zsh` is returned unchanged.
- */
-export const unwrapShellCommand = (command: string): string => {
-    const match = /^(?:\S*\/)?(?:ba|z)?sh -l?c (["'])([\s\S]*)\1$/u.exec(command.trim());
-    if (!match) return command;
-    const [, quote, script = ''] = match;
-    return quote === '"'
-        ? script.replaceAll(String.raw`\"`, '"').replaceAll(String.raw`\\`, '\\')
-        : script;
-};
-
-/**
- * Plumbing an Agent appends only to keep its own output short (`2>&1`, `2>/dev/null`, a trailing `| head -30`) says
- * nothing about what the command does, yet fills a one-line title. The title drops it at each command boundary; the
- * expanded row keeps the exact command line.
- */
-const SHELL_TITLE_NOISE =
-    /\s*(?:\d?>&\d|&?\d?>\s*\/dev\/null|\|\s*(?:head|tail)(?:\s+-n)?(?:\s+-?\d+)?)(?=\s*(?:;|&&|\|\||$))/gu;
-
-export const readableShellCommand = (command: string): string => {
-    let readable = command;
-    // Stripping `| tail -1` leaves the `2>&1` before it at the end of its command, so repeat until nothing changes.
-    for (let previous = ''; previous !== readable;) {
-        previous = readable;
-        readable = readable.replaceAll(SHELL_TITLE_NOISE, '');
-    }
-    return readable.trim() || command;
 };
 
 /**
