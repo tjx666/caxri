@@ -9,6 +9,7 @@ import {
     agentText,
     chatTimelineFrame,
     checkBounds,
+    expandChatComposer,
     hasCheck,
     hideChatKeyboard,
     scrollTimelineUntil,
@@ -125,7 +126,7 @@ export async function executeMobileChatComposerScenario(
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-status-empty');
-        await waitForCheck(serial, 'agent-chat-permission-button');
+        await expandChatComposer(serial, 'agent-chat-permission-button');
         // The Full access trigger reads in the ordinary text color, as Desktop's; only the sheet's option warns.
         await capture(environment, 'permission-trigger-full-access', artifacts);
 
@@ -152,7 +153,7 @@ export async function executeMobileChatComposerScenario(
         await capture(environment, 'permission-plan-on', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-permission-done');
         await waitForNoCheck(serial, 'agent-chat-permission-sheet');
-        await waitForCheck(serial, 'agent-chat-permission-plan');
+        await expandChatComposer(serial, 'agent-chat-permission-plan');
         await capture(environment, 'permission-trigger', artifacts);
         // Back to Codex's Default without plan mode, so the rest of the case runs as a fresh Chat would.
         await tapMobileCheckByBounds(serial, 'agent-chat-permission-button');

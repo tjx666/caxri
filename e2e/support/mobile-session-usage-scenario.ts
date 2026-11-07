@@ -4,7 +4,7 @@ import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import { expandChatComposer, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import { tapMobileCheck, tapMobileCheckByBounds, waitForMobile } from './mobile-android';
 
 /**
@@ -51,7 +51,7 @@ export async function executeMobileSessionUsageScenario(
         );
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
-        await waitForCheck(serial, 'agent-chat-usage-button');
+        await expandChatComposer(serial, 'agent-chat-usage-button');
         await capture(environment, 'composer-ring', artifacts);
 
         await tapMobileCheckByBounds(serial, 'agent-chat-usage-button');

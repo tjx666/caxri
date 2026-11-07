@@ -12,6 +12,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { openSessionSidePanel } from './mobile-session-panel';
 
 interface Environment {
     artifactManifestPath: string;
@@ -64,14 +65,10 @@ export async function executeMobileSessionRefreshScenario(
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail-title'),
         );
         /**
-         * Metadata evidence must not capture the fallback shell's host-specific prompt. Keep this detail mounted on
-         * Project throughout the measurement and final capture.
+         * Metadata evidence must not capture the fallback shell's host-specific prompt. Keep this detail mounted on the
+         * Files view, open in the side panel drawer that covers it, throughout the measurement and final capture.
          */
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-panel-caxri.files'),
-        );
-        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
+        await openSessionSidePanel(environment.serial, 'caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'files-panel'),

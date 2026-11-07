@@ -6,7 +6,10 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     agentText,
+    expandChatComposer,
     hasCheck,
+    openChatAddSheet,
+    openChatSetting,
     sendFromPhone,
     waitForCheck,
     waitForNoCheck,
@@ -20,10 +23,10 @@ import {
 } from './mobile-android';
 
 /**
- * Opens the model sheet from the composer row and waits until it is on screen.
+ * Opens the model sheet through the composer's add sheet and waits until it is on screen.
  */
-async function openModelSheet(serial: string): Promise<void> {
-    await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
+async function openModelSheet(serial: string, timeoutMs?: number): Promise<void> {
+    await openChatSetting(serial, 'model', timeoutMs);
     await waitForCheck(serial, 'agent-chat-model-sheet');
 }
 
@@ -117,7 +120,7 @@ export async function executeMobileChatModelScenario(
             ]);
             steps.push({ step, model: snapshot.model, effort: snapshot.effort });
         };
-        await waitForCheck(serial, 'agent-chat-model-button');
+        await expandChatComposer(serial, 'agent-chat-model-button');
         await capture(environment, 'new-chat-model-row', artifacts);
 
         // 1. Before the first message.
@@ -202,12 +205,16 @@ export async function executeMobileChatModelScenario(
             throw new Error('An option stayed enabled while offline');
         await capture(environment, 'offline-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
-        await waitForCheck(serial, 'agent-chat-model-label');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        // Offline the add sheet still names the model, on a disabled row.
+        const offlineRow = await openChatAddSheet(serial, 'model');
+        if (offlineRow.enabled) throw new Error('The add sheet kept the model row enabled offline');
         await capture(environment, 'offline-row', artifacts);
+        await tapMobileCheck(serial, 'image-source-cancel');
+        await waitForNoCheck(serial, 'image-source-sheet');
         await setMobileNetworkAvailable(serial, true);
         isNetworkDisabled = false;
-        await waitForCheck(serial, 'agent-chat-model-button', 60_000);
-        await openModelSheet(serial);
+        await openModelSheet(serial, 60_000);
         await waitForChoice('reconnected', 'fake-codex-mini', 'low');
         await capture(environment, 'reconnected-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
@@ -258,7 +265,6 @@ export async function executeMobileClaudeModelScenario(
             () => chat.read(),
             (snapshot) => (snapshot.models?.length ?? 0) > 0 && snapshot.ultracode !== undefined,
         );
-        await waitForCheck(serial, 'agent-chat-model-button');
 
         // Ultracode off, then on, then the trigger's marker.
         await openModelSheet(serial);
@@ -277,7 +283,7 @@ export async function executeMobileClaudeModelScenario(
         await capture(environment, 'ultracode-on', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
-        await waitForCheck(serial, 'agent-chat-model-ultracode');
+        await expandChatComposer(serial, 'agent-chat-model-ultracode');
         await capture(environment, 'ultracode-trigger', artifacts);
 
         // The efforts follow the picked model: `opus` offers low, high, and max; the default model offered medium.

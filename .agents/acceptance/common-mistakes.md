@@ -43,12 +43,17 @@ still Agent output under the same privacy rule.
 
 **Situation:** An Android case opens a Session's Files panel after pairing.
 
-**Does not work:** Tapping `session-segment-files`. Files is the `caxri.files` panel's own Session
-tab, `session-segment-panel-caxri.files`; the guessed ID fails before the file behavior is exercised.
+**Does not work:** Tapping `session-segment-files`, or looking for the tab in the Session header.
+Files is the `caxri.files` panel's own tab, `session-segment-panel-caxri.files`, and it lives in the
+Session side panel behind the header's `session-panel-button`, not in the header; the guessed ID
+fails before the file behavior is exercised.
 
 **Works:** Check the mounted component's `testID` and wait for that ID in device semantics before
-each navigation tap. Panel tabs appear only after the panel list loads, so wait for
-`session-segment-panel-caxri.files`, open it, and only then look for `files-entry-*`.
+each navigation tap. Call `openSessionSidePanel(serial, 'caxri.files')` from
+`e2e/support/mobile-session-panel.ts`: it opens the side panel, waits for the panel tab (tabs appear
+only after the panel list loads), and selects it. Only then look for `files-entry-*`. On a phone the
+side panel is a drawer that hides the header, body, and composer from semantics until
+`closeSessionSidePanel` (or `showSessionContent`) closes it.
 
 ## Reusing a disabled native button for another action
 

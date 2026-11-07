@@ -15,6 +15,7 @@ import {
     waitForMobile,
 } from './support/mobile-android.ts';
 import { createMobileDashboardParityFixture } from './support/mobile-dashboard-parity-fixture.ts';
+import { showSessionContent } from './support/mobile-session-panel.ts';
 
 /**
  * This local parity round captures only synthetic Session metadata. Failure attachments are disabled because a default
@@ -55,7 +56,7 @@ async function showTerminal(serial: string): Promise<void> {
     /**
      * Select the Terminal explicitly so the fixture does not depend on Conversation transcript availability.
      */
-    await tapMobileCheck(serial, 'session-segment-terminal');
+    await showSessionContent(serial, 'terminal');
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),

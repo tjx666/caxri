@@ -15,7 +15,7 @@ import {
 
 type ScreenBounds = NonNullable<ReturnType<typeof androidBounds>>;
 
-export const hasCheck = (nodes: Array<{ checkId: string }>, id: string): boolean =>
+export const hasCheck = (nodes: ReadonlyArray<{ checkId: string }>, id: string): boolean =>
     nodes.some(({ checkId }) => checkId === id);
 
 /**
@@ -44,6 +44,24 @@ export const waitForNoCheck = (serial: string, id: string, timeoutMs = 30_000) =
         timeoutMs,
     );
 };
+
+/**
+ * Whether the phone's semantics satisfy `isDone` within `timeoutMs`. A baseline round on the previous build never
+ * reaches some states, so a scenario records the outcome and keeps capturing instead of failing at the first
+ * difference.
+ */
+export async function isReachedWithin(
+    serial: string,
+    isDone: (nodes: readonly MobileSemanticNode[]) => boolean,
+    timeoutMs: number,
+): Promise<boolean> {
+    try {
+        await waitForMobile(() => mobileSemantics(serial), isDone, timeoutMs);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 export const agentText = (snapshot: AgentChatSnapshot): string =>
     snapshot.items
@@ -81,6 +99,58 @@ export async function typeChatDraft(serial: string, text: string): Promise<void>
         value: text,
     });
     if (!draft.exists || !draft.textMatches) throw new Error('Chat draft did not match');
+}
+
+/**
+ * Focuses the Chat composer so its capsule expands to two rows, then waits for `check`, one of the settings chips only
+ * the expanded capsule shows (`agent-chat-model-button`, `agent-chat-permission-plan`, `agent-chat-usage-button`).
+ */
+export async function expandChatComposer(
+    serial: string,
+    check: string,
+    timeoutMs?: number,
+): Promise<void> {
+    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+    await waitForCheck(serial, check, timeoutMs);
+}
+
+/**
+ * Opens the Chat composer's add sheet and waits for its `entry` row (`agent-chat-add-model`, `-permission`, `-usage`).
+ * The add sheet is the settings route that works in both composer layouts: the settings chips show only while the
+ * capsule is expanded.
+ */
+export async function openChatAddSheet(
+    serial: string,
+    entry: 'model' | 'permission' | 'usage',
+): Promise<MobileSemanticNode> {
+    const row = `agent-chat-add-${entry}`;
+    await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
+    const nodes = await waitForMobile(
+        () => mobileSemantics(serial),
+        (current) => hasCheck(current, row),
+    );
+    const node = nodes.find(({ checkId }) => checkId === row);
+    if (!node) throw new Error(`The add sheet has no ${row} row`);
+    return node;
+}
+
+/**
+ * Opens one of the Chat's settings sheets through the composer's add sheet, waiting until its row is enabled (the
+ * provider has listed its models, or the connection is back).
+ */
+export async function openChatSetting(
+    serial: string,
+    entry: 'model' | 'permission' | 'usage',
+    timeoutMs = 30_000,
+): Promise<void> {
+    const row = `agent-chat-add-${entry}`;
+    await openChatAddSheet(serial, entry);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) => nodes.some(({ checkId, enabled }) => checkId === row && enabled),
+        timeoutMs,
+    );
+    await tapMobileCheck(serial, row);
 }
 
 /**

@@ -23,6 +23,7 @@ import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import type { MobileDesktopCapture } from './mobile-desktop-capture';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { openSessionSidePanel, showSessionContent } from './mobile-session-panel';
 import { tapTerminalKey } from './mobile-terminal-key';
 import {
     assertMobileComposerDraft,
@@ -187,11 +188,7 @@ async function openConversation(
     fixture: JourneyFixture,
 ): Promise<void> {
     await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
-    await waitForMobile(
-        () => mobileSemantics(environment.serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
-    );
-    await tapMobileCheck(environment.serial, 'session-segment-conversation');
+    await showSessionContent(environment.serial, 'conversation');
     await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
@@ -297,7 +294,7 @@ async function runCoreJourney(
     );
     await capture(environment, 'stopped', artifacts, 'session-detail');
 
-    await tapMobileCheck(environment.serial, 'session-segment-terminal');
+    await showSessionContent(environment.serial, 'terminal');
     await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
@@ -375,7 +372,7 @@ async function runCoreJourney(
     await capture(environment, 'new-session', artifacts, 'session-detail');
 
     await openOriginalSession(environment, fixture);
-    await tapMobileCheck(environment.serial, 'session-segment-changes');
+    await openSessionSidePanel(environment.serial, 'changes');
     const changes = await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
@@ -464,7 +461,7 @@ async function executeMainJourney(
                 () => mobileSemantics(environment.serial),
                 (nodes) =>
                     nodes.some(({ checkId }) => checkId === 'session-list') &&
-                    nodes.some(({ checkId }) => checkId === 'changes-right-pane'),
+                    nodes.some(({ checkId }) => checkId === 'session-side-panel'),
             );
         }
         await recording?.stop();
@@ -673,7 +670,7 @@ async function executeFailureJourney(
                 if (!passive.state) throw new Error('Passive Desktop Terminal grid disappeared');
                 expect(passive.state.generation).not.toBe(before.state.generation);
                 await writeReadyTerminalPreflight(environment, passive);
-                await tapMobileCheck(environment.serial, 'session-segment-terminal');
+                await showSessionContent(environment.serial, 'terminal');
                 const surface = fixture.running.page.locator(
                     `.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`,
                 );

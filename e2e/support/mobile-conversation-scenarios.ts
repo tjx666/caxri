@@ -23,6 +23,7 @@ import {
     conversationBaselineRecords,
 } from './mobile-conversation-transcript.ts';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { expectNoSessionContentSwitch, showSessionContent } from './mobile-session-panel';
 
 export interface ScenarioEnvironment {
     artifactManifestPath: string;
@@ -103,7 +104,7 @@ export async function openConversation(serial: string, sessionId: string): Promi
         () => mobileSemantics(serial),
         (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
     );
-    await tapMobileCheck(serial, 'session-segment-conversation');
+    await showSessionContent(serial, 'conversation');
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => nodes.some(({ checkId }) => checkId === 'conversation-view'),
@@ -470,8 +471,9 @@ export async function executeMobileConversationScenario(
                 await fixture.pair();
                 await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
                 /**
-                 * A plain shell opens on Terminal with no Conversation tab and no "isn't available" notice; both would
-                 * describe an Agent the user never started. Sample after the timeline answers so a late render fails.
+                 * A plain shell opens on Terminal with no Conversation menu item and no "isn't available" notice; both
+                 * would describe an Agent the user never started. Sample after the timeline answers so a late render
+                 * fails.
                  */
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
@@ -480,20 +482,16 @@ export async function executeMobileConversationScenario(
                 for (let sample = 0; sample < 5; sample += 1) {
                     // eslint-disable-next-line no-await-in-loop -- each sample is one timed observation of the same screen.
                     const nodes = await mobileSemantics(environment.serial);
-                    if (
-                        nodes.some(
-                            ({ checkId }) =>
-                                checkId === 'conversation-fallback-banner' ||
-                                checkId === 'session-segment-conversation',
-                        )
-                    )
+                    if (nodes.some(({ checkId }) => checkId === 'conversation-fallback-banner'))
                         throw new Error('A plain shell still offers Conversation');
                     // eslint-disable-next-line no-await-in-loop -- samples are spaced so a late render is caught.
                     await new Promise((resolve) => setTimeout(resolve, 1000));
                 }
+                // The switch to Conversation lives in the header menu, which a plain shell must not offer it in.
+                await expectNoSessionContentSwitch(environment.serial);
                 await capture(environment, 'shell-fallback', artifacts);
                 await finish(environment, artifacts, {
-                    conversationTab: 'absent',
+                    conversationSwitch: 'absent',
                     fallback: 'shell-opens-terminal-without-notice',
                     terminalPrivacyPreflight: 'formal-grid-ready-before-phone-frame',
                     preflightReceipt,

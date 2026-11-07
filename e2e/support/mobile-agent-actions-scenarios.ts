@@ -23,6 +23,7 @@ import {
     removeMobileGalleryImages,
 } from './mobile-gallery';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { openSessionSidePanel } from './mobile-session-panel';
 import {
     assertMobileComposerDraft,
     insertMobileInputUnicode,
@@ -61,6 +62,29 @@ export async function finish(
 }
 
 /**
+ * Writes the receipt with every missed outcome named in `checks`, then fails the case when any was missed. A scenario
+ * that captures every frame before calling it lets a baseline round on the previous build show the same views for
+ * comparison and still end with a failed receipt naming what differed.
+ */
+export async function concludeScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+    receipt: Record<string, unknown>,
+    checks: Record<string, boolean>,
+): Promise<void> {
+    const differences = Object.entries(checks)
+        .filter(([, isMet]) => !isMet)
+        .map(([name]) => name);
+    await finish(environment, artifacts, {
+        ...receipt,
+        differences,
+        status: differences.length === 0 ? 'passed' : 'failed',
+    });
+    if (differences.length > 0)
+        throw new Error(`${environment.caseId} differs: ${differences.join('; ')}`);
+}
+
+/**
  * Opens a Session's composer from the phone, the entry every composer case starts from.
  */
 export async function openComposerSession(serial: string, sessionId: string): Promise<void> {
@@ -70,9 +94,9 @@ export async function openComposerSession(serial: string, sessionId: string): Pr
         (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
     );
     /**
-     * The synthetic Agent has no Conversation; a control device uses the composer from Changes.
+     * The synthetic Agent has no Conversation, so its Session shows the Terminal, with the composer under it for every
+     * device that can send.
      */
-    await tapMobileCheck(serial, 'session-segment-changes');
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => nodes.some(({ checkId }) => checkId === 'session-composer-input'),
@@ -166,11 +190,7 @@ export async function executeMobileFileEditScenario(
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('File edit fixture Session is unavailable');
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-panel-caxri.files'),
-        );
-        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
+        await openSessionSidePanel(environment.serial, 'caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'files-entry-acceptance-note.txt'),

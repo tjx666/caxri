@@ -10,22 +10,24 @@ import {
 } from './mobile-android';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { executeMobileDesktopUpdateSettings } from './mobile-desktop-update-scenario';
+import {
+    closeSessionSidePanel,
+    openSessionSidePanel,
+    showSessionContent,
+} from './mobile-session-panel';
 import type { UiAuditScenarioEnvironment } from './mobile-ui-audit-support';
 import { assertStaysAbsent, capture, finish, hasCheck, waitFor } from './mobile-ui-audit-support';
 
 async function openSession(serial: string, sessionId: string): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
-    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-segment-terminal'));
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-panel-button'));
 }
 
 async function projectTab(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
-    await waitFor(environment.serial, (current) =>
-        hasCheck(current, 'session-segment-panel-caxri.files'),
-    );
-    await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
+    await openSessionSidePanel(environment.serial, 'caxri.files');
     const nodes = await waitFor(environment.serial, (current) => hasCheck(current, 'files-panel'));
     if (hasCheck(nodes, 'session-segment-panel-caxri.git'))
-        throw new Error('The Session tabs still list the Git view the Changes tab owns');
+        throw new Error('The side panel tabs still list the Git view the Changes tab owns');
     await capture(environment, 'project-tab', artifacts, 'panels-view');
     await finish(environment, artifacts, {
         gitSubTab: 'absent',
@@ -34,7 +36,7 @@ async function projectTab(environment: UiAuditScenarioEnvironment, artifacts: st
 }
 
 async function changesPolish(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
-    await tapMobileCheck(environment.serial, 'session-segment-changes');
+    await openSessionSidePanel(environment.serial, 'changes');
     await waitFor(environment.serial, (nodes) => hasCheck(nodes, 'changes-file-row-0'));
     await capture(environment, 'changes-list', artifacts, 'changes-summary');
     await tapMobileCheck(environment.serial, 'changes-file-row-0');
@@ -46,19 +48,22 @@ async function changesPolish(environment: UiAuditScenarioEnvironment, artifacts:
 async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
     /**
-     * The Files tab appears once the panel list loads online; it is then opened for the first time while offline, so
-     * its reads are pending but idle and it must explain the missing connection instead of spinning. It runs before the
-     * Terminal ever mounts so the capture stays clean.
+     * The Files tab appears in the side panel once the panel list loads online, so the panel is opened and closed once
+     * to prove it did; Files is then opened for the first time while offline, so its reads are pending but idle and it
+     * must explain the missing connection instead of spinning. It runs before the Terminal ever mounts so the capture
+     * stays clean.
      */
+    await openSessionSidePanel(serial, 'changes');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.files'));
+    await closeSessionSidePanel(serial);
     await setMobileNetworkAvailable(serial, false);
     try {
         /**
-         * The reconnecting banner pushes the tab row down when it appears; tapping before it lands hits the tab's old
-         * position, leaves Conversation selected, and the wait for the offline Files state times out.
+         * The reconnecting banner pushes the header down when it appears; opening the side panel before it lands taps
+         * the header button at its old position and the wait for the offline Files state times out.
          */
         await waitFor(serial, (nodes) => hasCheck(nodes, 'connection-stale-banner'));
-        await tapMobileCheck(serial, 'session-segment-panel-caxri.files');
+        await openSessionSidePanel(serial, 'caxri.files');
         await waitFor(serial, (nodes) => hasCheck(nodes, 'panels-offline'));
         await capture(environment, 'project-offline', artifacts, 'panels-offline');
     } finally {
@@ -67,7 +72,7 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
     await waitFor(serial, (nodes) => !hasCheck(nodes, 'connection-stale-banner'));
     await waitFor(serial, (nodes) => hasCheck(nodes, 'files-panel'));
     await capture(environment, 'project-recovered', artifacts, 'files-panel');
-    await tapMobileCheck(serial, 'session-segment-terminal');
+    await showSessionContent(serial, 'terminal');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'terminal-live-webview'));
     await setMobileNetworkAvailable(serial, false);
     try {
@@ -99,8 +104,7 @@ async function projectIcons(
      * Extension trees follow Desktop's active Session, so select it there before the phone reads them.
      */
     await pageRequest(fixture.running.page, 'session.select', { sessionId });
-    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.files'));
-    await tapMobileCheck(serial, 'session-segment-panel-caxri.files');
+    await openSessionSidePanel(serial, 'caxri.files');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'files-panel'));
     await capture(environment, 'files', artifacts, 'files-panel');
     const nodes = await mobileSemantics(serial);
@@ -111,7 +115,8 @@ async function projectIcons(
                 id.startsWith('session-segment-panel-') &&
                 id !== 'session-segment-panel-caxri.files',
         );
-    if (treeTabs.length === 0) throw new Error('The Session tabs list no tree view besides Files');
+    if (treeTabs.length === 0)
+        throw new Error('The side panel tabs list no tree view besides Files');
     /**
      * Tabs are keyed by panel id while the tree body is keyed by view id, so wait for any rendered tree body rather
      * than deriving its id from the tab.

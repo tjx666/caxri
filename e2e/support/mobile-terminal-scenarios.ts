@@ -14,6 +14,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import { pinchTerminal } from './mobile-native-pinch';
+import { showSessionContent } from './mobile-session-panel';
 import type { MobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { tapTerminalKey } from './mobile-terminal-key';
@@ -120,7 +121,7 @@ export async function executeMobileTerminalScenario(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
         );
-        await tapMobileCheck(environment.serial, 'session-segment-terminal');
+        await showSessionContent(environment.serial, 'terminal');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>

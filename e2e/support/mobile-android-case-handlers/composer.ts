@@ -6,6 +6,12 @@ import { createMobileAcceptanceFixture } from '../mobile-acceptance-fixture';
 import { capture, finish, openComposerSession } from '../mobile-agent-actions-scenarios';
 import { executeMobileChatClearAfterSendScenario } from '../mobile-agent-chat-clear-scenario';
 import {
+    executeMobileComposerAddSheetScenario,
+    executeMobileComposerCapsuleLayoutScenario,
+    executeMobileComposerOfflineScenario,
+    executeMobileComposerRunningScenario,
+} from '../mobile-agent-chat-composer-capsule-scenario';
+import {
     mobileSemantics,
     startMobileFramebufferRecording,
     tapMobileCheck,
@@ -174,5 +180,9 @@ export const handlers = {
     'MOB-COMPOSER-01': executeMultilineDelivery,
     'MOB-COMPOSER-02': executeStopRunningTurn,
     'MOB-COMPOSER-03': executeUnknownDeliveryResult,
+    'MOB-COMPOSER-CAPSULE-01': executeMobileComposerCapsuleLayoutScenario,
+    'MOB-COMPOSER-CAPSULE-02': executeMobileComposerAddSheetScenario,
+    'MOB-COMPOSER-CAPSULE-03': executeMobileComposerRunningScenario,
+    'MOB-COMPOSER-CAPSULE-04': executeMobileComposerOfflineScenario,
     'MOB-CHAT-CLEAR-01': executeMobileChatClearAfterSendScenario,
 } satisfies Record<string, MobileAndroidCaseHandler>;

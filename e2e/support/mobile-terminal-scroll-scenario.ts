@@ -8,6 +8,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { showSessionContent } from './mobile-session-panel';
 import type { MobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import type { Environment } from './mobile-terminal-scenarios';
@@ -301,7 +302,7 @@ export async function executeMobileTerminalScrollFeelScenario(
             () => mobileSemantics(serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
         );
-        await tapMobileCheck(serial, 'session-segment-terminal');
+        await showSessionContent(serial, 'terminal');
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>

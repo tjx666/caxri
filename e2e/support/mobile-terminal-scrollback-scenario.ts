@@ -8,6 +8,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { showSessionContent } from './mobile-session-panel';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import type { Environment } from './mobile-terminal-scenarios';
 import { prepareMobileTerminalFixture } from './mobile-terminal-scenarios';
@@ -69,7 +70,7 @@ export async function executeMobileTerminalScrollbackScenario(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
         );
-        await tapMobileCheck(environment.serial, 'session-segment-terminal');
+        await showSessionContent(environment.serial, 'terminal');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>

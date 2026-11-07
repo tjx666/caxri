@@ -5,6 +5,7 @@ import process from 'node:process';
 import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { expect } from './fixtures';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -18,6 +19,7 @@ import {
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import { captureScenarioFrame } from './mobile-scenario-capture';
+import { openSessionSidePanel, showSessionContent } from './mobile-session-panel';
 import { assertMobileComposerDraft } from './mobile-unicode-input';
 
 interface ChangesScenarioEnvironment {
@@ -80,12 +82,8 @@ async function openChanges(
     shouldShowConversationBesideChanges: boolean,
 ): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
-    await waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-changes'),
-    );
     if (shouldShowConversationBesideChanges) {
-        await tapMobileCheck(serial, 'session-segment-conversation');
+        await showSessionContent(serial, 'conversation');
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
@@ -93,7 +91,7 @@ async function openChanges(
                 nodes.some(({ checkId }) => checkId.startsWith('conversation-user-')),
         );
     }
-    await tapMobileCheck(serial, 'session-segment-changes');
+    await openSessionSidePanel(serial, 'changes');
     await waitForChanges(serial);
 }
 
@@ -317,13 +315,13 @@ export async function executeMobileChangesScenario(
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-list') &&
                         nodes.some(({ checkId }) => checkId === 'conversation-view') &&
-                        nodes.some(({ checkId }) => checkId === 'changes-right-pane'),
+                        nodes.some(({ checkId }) => checkId === 'session-side-panel'),
                 );
                 await capture(
                     environment,
                     'wide-tablet-third-pane',
                     artifacts,
-                    'changes-right-pane',
+                    'session-side-panel',
                 );
                 await finish(environment, artifacts, {
                     layout: 'list-detail-changes',
@@ -340,10 +338,14 @@ export async function executeMobileChangesScenario(
                     environment.serial,
                     remoteVideoPath,
                 );
+                // Ask Agent closes the drawer onto this Session's Terminal, whose composer now holds the draft. The
+                // waiting fixture's synthetic Agent writes nothing to its Terminal, so the frames past this point
+                // show an empty grid rather than Terminal content, and the Changes-only semantics guard no longer
+                // applies.
                 await tapMobileCheck(environment.serial, 'changes-ask-agent-commit');
+                await waitForNoCheck(environment.serial, 'session-side-panel');
                 await assertMobileComposerDraft(environment.serial, commitPrompt);
                 expect((await fixture.readCapturedInput()).length).toBe(0);
-                await safeChangesSemantics(environment.serial);
                 await tapMobileCheck(environment.serial, 'session-composer-send');
                 const expected = Buffer.from(`\u{1B}[200~${commitPrompt}\u{1B}[201~\r`, 'utf8');
                 await waitForMobile(
@@ -351,7 +353,7 @@ export async function executeMobileChangesScenario(
                     (input) => countByteSequence(input, expected) === 1,
                 );
                 await waitForMobile(
-                    () => safeChangesSemantics(environment.serial),
+                    () => mobileSemantics(environment.serial),
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-composer-feedback') &&
                         nodes.some(

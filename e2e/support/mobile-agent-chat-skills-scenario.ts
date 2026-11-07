@@ -247,10 +247,10 @@ async function executeSkillsAndQuestionFlow(
             );
             const typingCard = checkBounds(typing, 'agent-chat-request');
             if (!typingCard) throw new Error('The question card is not laid out while typing');
-            // The card ends above the waiting status row, the access and model row, and the composer input below it.
+            // The card ends above the waiting status row and the composer's capsule and input below it.
             for (const id of [
                 'agent-chat-activity',
-                'agent-chat-model-button',
+                'agent-chat-composer-capsule',
                 'agent-chat-composer-input',
             ]) {
                 const below = checkBounds(typing, id);
