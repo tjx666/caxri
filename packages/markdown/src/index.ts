@@ -1,4 +1,6 @@
 export { proseFileReferences } from './file-reference.js';
+export type { MarkdownLivePreviewMark } from './live-preview-marks.js';
+export { markdownLivePreviewMarks } from './live-preview-marks.js';
 export type {
     MarkdownBlock,
     MarkdownBlockOptions,
@@ -14,3 +16,5 @@ export type { StreamingMarkdownParser } from './streaming-parser.js';
 export { createStreamingMarkdownParser } from './streaming-parser.js';
 export { createStreamingMarkdownRepair, repairStreamingMarkdown } from './streaming-repair.js';
 export type { MarkdownAsset, MarkdownCodeBlock, MarkdownDiagram, MarkdownLink } from './types.js';
+export type { UserMessageRun, UserMessageStyle } from './user-message-blocks.js';
+export { userMessageBlocks } from './user-message-blocks.js';

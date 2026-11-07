@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     conversationActionText,
+    conversationUserListLine,
     conversationUserText,
     conversationUserTextRuns,
 } from '../conversation-user-text';
@@ -25,8 +26,62 @@ describe('conversationUserText', () => {
     it('leaves an ordinary message alone', () => {
         expect(conversationUserText('hello')).toEqual({
             kind: 'plain',
-            runs: [{ kind: 'text', from: 0, text: 'hello' }],
+            blocks: [{ runs: [{ kind: 'text', styles: [], text: 'hello' }] }],
             text: 'hello',
+        });
+    });
+
+    it('draws a quote behind its bar with the marker hidden, as Desktop does', () => {
+        const user = conversationUserText('> 迁移给现有渠道\n\n这个是写了迁移脚本?');
+        expect(user.kind === 'plain' ? user.blocks : []).toEqual([
+            { line: 'quote', runs: [{ kind: 'text', styles: [], text: '迁移给现有渠道' }] },
+            { runs: [{ kind: 'text', styles: [], text: '\n这个是写了迁移脚本?' }] },
+        ]);
+    });
+
+    it('hides emphasis and code markers and keeps a link whole inside bold text', () => {
+        const user = conversationUserText('**see https://a.dev** and `x`');
+        expect(user.kind === 'plain' ? user.blocks : []).toEqual([
+            {
+                runs: [
+                    { kind: 'text', styles: ['strong'], text: 'see ' },
+                    {
+                        kind: 'segment',
+                        segment: {
+                            kind: 'url',
+                            from: 6,
+                            text: 'https://a.dev',
+                            url: 'https://a.dev',
+                        },
+                        styles: ['strong'],
+                    },
+                    { kind: 'text', styles: [], text: ' and ' },
+                    { kind: 'text', styles: ['code'], text: 'x' },
+                ],
+            },
+        ]);
+    });
+});
+
+describe('conversationUserListLine', () => {
+    it('splits a bullet line into its marker and the content that wraps after it', () => {
+        const user = conversationUserText('- one two');
+        const block = user.kind === 'plain' ? user.blocks[0] : undefined;
+        expect(block && conversationUserListLine(block)).toEqual({
+            marker: [{ kind: 'bullet' }, { kind: 'text', styles: [], text: ' ' }],
+            content: [{ kind: 'text', styles: [], text: 'one two' }],
+        });
+    });
+
+    it('keeps an ordered number in the marker', () => {
+        const user = conversationUserText('12. first');
+        const block = user.kind === 'plain' ? user.blocks[0] : undefined;
+        expect(block && conversationUserListLine(block)).toEqual({
+            marker: [
+                { kind: 'text', styles: ['syntax'], text: '12.' },
+                { kind: 'text', styles: [], text: ' ' },
+            ],
+            content: [{ kind: 'text', styles: [], text: 'first' }],
         });
     });
 });

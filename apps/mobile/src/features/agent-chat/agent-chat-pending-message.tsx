@@ -8,6 +8,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { ConversationHandoffCard } from '../conversation/conversation-handoff-card';
 import { conversationStyles } from '../conversation/conversation-styles';
 import { conversationUserText } from '../conversation/conversation-user-text';
+import { ConversationUserWords } from '../conversation/conversation-user-words';
 import { AgentChatPathChips } from './agent-chat-path-chips';
 
 const THUMBNAIL_SIZE = 96;
@@ -50,12 +51,7 @@ export const AgentChatPendingMessage = ({
                     {cited.text.length === 0 ? null : user.kind === 'handoff' ? (
                         <ConversationHandoffCard note={user.note} theme={theme} />
                     ) : (
-                        <Text
-                            selectable
-                            style={[conversationStyles.userText, { color: theme.text }]}
-                        >
-                            {cited.text}
-                        </Text>
+                        <ConversationUserWords blocks={user.blocks} theme={theme} />
                     )}
                     {imageUris.length > 0 ? (
                         <View

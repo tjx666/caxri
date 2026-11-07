@@ -12,7 +12,7 @@ const markdownParser = parser.configure(GFM);
  * - `line`: a style for the whole line starting at `from`; `indent` is the hanging indent of a list line in characters,
  *   so its wrapped text lines up after the marker.
  */
-export type AgentChatMarkdownMark =
+export type MarkdownLivePreviewMark =
     | { kind: 'bullet'; from: number; to: number }
     | { kind: 'hide'; from: number; to: number }
     | {
@@ -54,8 +54,8 @@ const IDENTIFIER = /^[\p{L}\p{N}_]+$/u;
  * whitespace, it is an intraword `_` span (`foo_bar_baz`), or it is a `__dunder__` name: double `_` around one
  * identifier word, the way Python spells `__init__`. Asterisk emphasis keeps rendering, so `**bold**` still works.
  */
-export function isAgentChatEmphasisIntentional(text: string, from: number, to: number): boolean {
-    const delimiter = text[from];
+export function isIntentionalEmphasis(text: string, from: number, to: number): boolean {
+    const delimiter = text[from] ?? '';
     const before = text[from - 1] ?? '';
     const after = text[to] ?? '';
     if (PATH_CHARACTER.test(before) || PATH_CHARACTER.test(after)) return false;
@@ -84,16 +84,16 @@ const HEADINGS: Partial<Record<string, 'heading1' | 'heading2' | 'heading3'>> = 
  * again while a selection touches it (the caret on a heading's line, or at either end of `**bold**`), so it can be
  * edited. `selection` is empty while the editor is not focused, which renders everything. Marks are not sorted.
  *
- * A sent message's bubble reads the same marks (`agentChatUserMessageBlocks`) so both surfaces share one rule set; it
- * passes `withBlocks: false` to leave headings and fenced code as typed, since a bubble renders only emphasis, inline
- * code, lists, and quotes.
+ * A sent message's bubble reads the same marks (`userMessageBlocks`) so both surfaces share one rule set; it passes
+ * `withBlocks: false` to leave headings and fenced code as typed, since a bubble renders only emphasis, inline code,
+ * lists, and quotes.
  */
-export function agentChatMarkdownMarks(
+export function markdownLivePreviewMarks(
     text: string,
     selection: readonly Range[],
     { withBlocks = true }: { withBlocks?: boolean } = {},
-): AgentChatMarkdownMark[] {
-    const marks: AgentChatMarkdownMark[] = [];
+): MarkdownLivePreviewMark[] {
+    const marks: MarkdownLivePreviewMark[] = [];
     const isTouched = (from: number, to: number): boolean =>
         selection.some((range) => range.from <= to && range.to >= from);
     const lineStart = (offset: number): number => text.lastIndexOf('\n', offset - 1) + 1;
@@ -118,7 +118,7 @@ export function agentChatMarkdownMarks(
             const inline = INLINE_STYLES[name];
             if (
                 (name === 'Emphasis' || name === 'StrongEmphasis') &&
-                !isAgentChatEmphasisIntentional(text, from, to)
+                !isIntentionalEmphasis(text, from, to)
             ) {
                 // Path or identifier text: leave it raw, and leave its delimiters visible (see the mark branch).
                 return;
@@ -133,7 +133,7 @@ export function agentChatMarkdownMarks(
                 if (
                     owner &&
                     (owner.name === 'Emphasis' || owner.name === 'StrongEmphasis') &&
-                    !isAgentChatEmphasisIntentional(text, owner.from, owner.to)
+                    !isIntentionalEmphasis(text, owner.from, owner.to)
                 )
                     return;
                 const isRevealed = revealed.some((range) => range.from <= from && range.to >= to);

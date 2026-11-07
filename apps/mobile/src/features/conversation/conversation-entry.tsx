@@ -1,12 +1,11 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { Fragment, memo, use, useState } from 'react';
+import { memo, use, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { openLink } from '../../lib/open-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationHandoffCard } from './conversation-handoff-card';
 import { ConversationMarkdown } from './conversation-markdown';
@@ -22,6 +21,7 @@ import { ConversationToolRow } from './conversation-tool-row';
 import { ConversationUserAttachments } from './conversation-user-attachments';
 import type { ConversationUserText } from './conversation-user-text';
 import { conversationActionText, conversationUserText } from './conversation-user-text';
+import { ConversationUserWords } from './conversation-user-words';
 import { useConversationPacedText } from './use-conversation-paced-text';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
@@ -115,35 +115,6 @@ const ConversationMessagePress = ({
 };
 
 /**
- * The words the user typed, with each pasted URL a link.
- */
-const ConversationUserRuns = ({
-    runs,
-    theme,
-}: {
-    runs: Extract<ConversationUserText, { kind: 'plain' }>['runs'];
-    theme: MobileTheme;
-}) => (
-    <Text style={[styles.userText, { color: theme.text }]}>
-        {runs.map((run) =>
-            run.kind === 'url' ? (
-                <Text
-                    accessibilityRole="link"
-                    key={run.from}
-                    onPress={() => openLink(run.url)}
-                    // Underlined like a reply's link: a phone has no hover to reveal it.
-                    style={{ color: theme.primary, textDecorationLine: 'underline' }}
-                >
-                    {run.text}
-                </Text>
-            ) : (
-                <Fragment key={run.from}>{run.text}</Fragment>
-            ),
-        )}
-    </Text>
-);
-
-/**
  * The user's message: what it cites above (`userExtras`), then one bubble holding its words and, under them, the images
  * and videos it carried, as Desktop lays a message out. With neither words nor attachments it has no bubble.
  */
@@ -168,7 +139,7 @@ const ConversationUserMessage = ({
         user.kind === 'handoff' ? (
             <ConversationHandoffCard footer={handoff?.footer} note={user.note} theme={theme} />
         ) : (
-            <ConversationUserRuns runs={user.runs} theme={theme} />
+            <ConversationUserWords blocks={user.blocks} theme={theme} />
         );
     return (
         <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>
