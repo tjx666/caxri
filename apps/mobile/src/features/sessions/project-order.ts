@@ -165,6 +165,30 @@ export const projectAutoScrollStep = ({
 };
 
 /**
+ * Where the Project filters' selection highlight sits for a pager `progress` measured in pages (0 is All, then each
+ * Project): over a chip at a whole page, and partway between two neighboring chips while a swipe is between them, so
+ * the highlight travels with the finger. Progress past either end, where the pager only resists, stays on the end chip.
+ * `slots` are in page order; the result is `undefined` until both chips of its span have been measured.
+ */
+export const projectChipIndicator = (
+    progress: number,
+    slots: ReadonlyArray<ProjectChipSlot | undefined>,
+): ProjectChipSlot | undefined => {
+    'worklet';
+    if (slots.length === 0 || !Number.isFinite(progress)) return undefined;
+    const clamped = Math.min(Math.max(progress, 0), slots.length - 1);
+    const from = Math.floor(clamped);
+    const start = slots[from];
+    const end = slots[Math.min(from + 1, slots.length - 1)];
+    if (!start || !end) return undefined;
+    const share = clamped - from;
+    return {
+        width: start.width + (end.width - start.width) * share,
+        x: start.x + (end.x - start.x) * share,
+    };
+};
+
+/**
  * The strip's scroll offset that centers the selected chip, clamped to the strip's ends, so a Project chosen by swiping
  * the list never stays hidden past the edge of the screen. `slot` is `undefined` for All, the strip's first chip.
  */

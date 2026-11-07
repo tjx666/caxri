@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
@@ -149,6 +150,10 @@ export const SessionHome = ({
         [projectOrder.projects],
     );
     const activeIndex = Math.max(0, pageIds.indexOf(activeProjectId));
+    /**
+     * The pager's place in pages, shared with the Project filters so their highlight follows a swipe.
+     */
+    const pageProgress = useSharedValue(activeIndex);
     /**
      * Rows for the current page and its mounted neighbors, so a swipe draws the next Project's real list.
      */
@@ -339,6 +344,7 @@ export const SessionHome = ({
                         : undefined
                 }
                 onOpenUsage={() => router.navigate(`/h/${encodeURIComponent(hostId)}/usage`)}
+                pageProgress={pageProgress}
                 projects={projectOrder.projects}
                 theme={theme}
             />
@@ -347,6 +353,7 @@ export const SessionHome = ({
                 onSettle={settlePage}
                 pageCount={pageIds.length}
                 pageKey={(index) => `project:${pageIds[index] ?? 'all'}`}
+                progress={pageProgress}
                 renderPage={renderPage}
             />
             <Pressable

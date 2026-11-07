@@ -33,6 +33,7 @@ export const Chip = ({
     onPress,
     role = 'button',
     selected = false,
+    selectionFill,
     testID,
     theme,
     tint,
@@ -62,6 +63,12 @@ export const Chip = ({
      */
     role?: 'button' | 'tab';
     selected?: boolean;
+    /**
+     * A selection drawn by the caller behind the label instead of the `primary` fill, such as the Project filters'
+     * highlight that slides from chip to chip with the pager. The chip keeps its `elevated` fill and clips the node to
+     * its pill, so a highlight passing between two chips shows only where it overlaps each.
+     */
+    selectionFill?: ReactNode;
     testID: string;
     theme: MobileTheme;
     tint?: string;
@@ -84,13 +91,15 @@ export const Chip = ({
             onPress={onPress}
             style={({ pressed }) => [
                 styles.chip,
+                selectionFill ? styles.clipped : undefined,
                 {
-                    backgroundColor: selected ? theme.primary : theme.elevated,
+                    backgroundColor: selected && !selectionFill ? theme.primary : theme.elevated,
                     opacity: pressed ? PRESSED_OPACITY : 1,
                 },
             ]}
             testID={testID}
         >
+            {selectionFill}
             {children ?? (Icon ? <Icon color={foreground} size={16} /> : null)}
             {label ? (
                 <Text
@@ -114,6 +123,7 @@ const styles = StyleSheet.create({
         height: mobileControl.chip,
         paddingHorizontal: mobileSpace.md,
     },
+    clipped: { overflow: 'hidden' },
     label: { flexShrink: 1, fontVariant: ['tabular-nums'], fontWeight: '600' },
 });
 
