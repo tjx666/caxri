@@ -249,6 +249,8 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 The guarded release runner performs this capture itself and records the exact path and SHA-256 in
 the mobile device receipt. For a separately driven case, add the same device-bound artifact entry
 before finalization; a file extension alone is never accepted as Android evidence.
+The runner's own final frame is taken after the scenario stopped its fixture; judge a case from the
+scenario's in-flight captures ([common mistakes](../../../acceptance/common-mistakes.md#reading-the-runners-final-frame-as-the-product-state)).
 
 Read the full-resolution screenshot before citing it. Check safe areas, system bars, clipping,
 overlap, keyboard coverage, selection state, target identity, and phone/tablet layout. Pair a touch

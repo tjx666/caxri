@@ -413,3 +413,15 @@ second after the live view settles.
 **Works:** Open the screen once and let it settle, go back, wait for the read cache write, call
 `coldStartMobileApp`, and only then reopen it while recording. See
 `executeMobileChatLongTurnOpenScenario` in `e2e/support/mobile-agent-chat-running-turn-scenario.ts`.
+
+## Reading the runner's final frame as the product state
+
+**Situation:** An Android case's scenario captures its own screenshots, and the runner then writes
+`assets/<case-id>-android.png` after the case returns.
+
+**Does not work:** Citing that final frame, or treating a "Reconnecting…" or disconnected banner in
+it as a product failure. The runner captures it after the scenario's cleanup has already stopped the
+desktop fixture, so the phone has legitimately lost its computer (`MOB-SETTINGS-ROUTE-01`).
+
+**Works:** Judge the case from the screenshots the scenario captured while the fixture was running.
+Mention the final frame in the report only to explain a disconnected state it shows.
