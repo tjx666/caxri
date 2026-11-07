@@ -17,6 +17,11 @@ export const mobileDashboardSessionSchema = z.strictObject({
      */
     createdAt: sessionRecordSchema.shape.createdAt.optional(),
     createdBySessionId: sessionRecordSchema.shape.createdBySessionId,
+    /**
+     * How the creating Session started this one. The home list leaves out a `consult` or `delegated` Session whose
+     * creator it lists, since that work belongs to the creator rather than to the user.
+     */
+    createdByRelation: sessionRecordSchema.shape.createdByRelation,
     lastVisitedAt: sessionRecordSchema.shape.lastVisitedAt,
     /**
      * The Session's work clock, which orders rows inside a group on both Desktop and the phone.
