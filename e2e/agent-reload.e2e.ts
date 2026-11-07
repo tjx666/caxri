@@ -138,9 +138,12 @@ test('Restart Agent resumes the same conversation in the approval mode it launch
             { timeout: 30_000 },
         );
         await row.click({ button: 'right' });
-        // Sits in the Agent group, directly before the Session's other Agent process entry.
+        // Sits in the Agent group after Detach Agent, the more frequent Agent process entry.
         const rowLabels = await contextMenuLabels(app);
-        expect(rowLabels.indexOf('Restart Agent')).toBe(rowLabels.indexOf('Detach Agent') - 1);
+        expect(rowLabels.indexOf('Restart Agent')).toBeGreaterThan(
+            rowLabels.indexOf('Detach Agent'),
+        );
+        expect(rowLabels.indexOf('Restart Agent')).toBeLessThan(rowLabels.indexOf('Fork Session'));
         await chooseContextMenuItem(app, 'Restart Agent');
         // The fake's turn started (`UserPromptSubmit`) and never stopped, so restarting would end it: the user confirms.
         const confirm = page.getByRole('dialog', { name: 'Stop the running turn?' });

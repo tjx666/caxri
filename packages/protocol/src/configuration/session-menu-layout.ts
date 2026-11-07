@@ -29,7 +29,7 @@ export type SessionMenuItemId = (typeof sessionMenuItemIds)[number];
 
 export const SESSION_MENU_SEPARATOR = 'separator';
 
-export type SessionMenuLayoutEntry = SessionMenuItemId | typeof SESSION_MENU_SEPARATOR;
+type SessionMenuLayoutEntry = SessionMenuItemId | typeof SESSION_MENU_SEPARATOR;
 
 /**
  * A customized `primarySidebar.sessionMenu`. Hidden items keep their place in `order`, so showing one again puts it
@@ -113,6 +113,7 @@ export function normalizeSessionMenuLayout(
         if (order.length > 0) order.push(SESSION_MENU_SEPARATOR);
         order.push(...missing);
     }
-    const hidden = sessionMenuItemIds.filter((id) => layout.hidden.includes(id));
+    const requestedHidden = new Set(layout.hidden);
+    const hidden = sessionMenuItemIds.filter((id) => requestedHidden.has(id));
     return { order, hidden };
 }

@@ -35,6 +35,7 @@ interface SessionMenuFormProperties {
 export function SessionMenuForm({ value, onChange }: SessionMenuFormProperties) {
     const { t } = useTranslation();
     const layout = normalizeSessionMenuLayout(value);
+    const hiddenItems = new Set(layout.hidden);
     const [announcement, setAnnouncement] = useState('');
     const commit = (next: SessionMenuLayout): void => onChange(toStoredSessionMenuLayout(next));
     const drag = useSessionMenuDrag((from, to) => commit(moveSessionMenuEntry(layout, from, to)));
@@ -70,12 +71,12 @@ export function SessionMenuForm({ value, onChange }: SessionMenuFormProperties) 
                 {layout.order.map((entry, index) => {
                     const isSeparator = entry === SESSION_MENU_SEPARATOR;
                     const label = labelAt(index);
-                    const isHidden = !isSeparator && layout.hidden.includes(entry);
+                    const isHidden = !isSeparator && hiddenItems.has(entry);
                     return (
                         <li
-                            // Separators have no identity of their own; items keep their key so a keyboard move keeps
-                            // focus on the row that moved.
-                            key={isSeparator ? `separator-${index}` : entry}
+                            // A normalized separator never leads or repeats, so the item above it names it; items keep
+                            // their own key so a keyboard move keeps focus on the row that moved.
+                            key={isSeparator ? `separator-after-${layout.order[index - 1]}` : entry}
                             {...drag.rowProps(index)}
                             aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                             aria-label={label}
