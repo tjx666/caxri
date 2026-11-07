@@ -1,12 +1,14 @@
 import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import { describeShellCommand } from './agent-shell-command.js';
-import type {
-    AgentShellCliLabel,
-    AgentShellPullRequestAction,
-} from './tool-rows/agent-shell-cli.js';
-import { readableShellCommand, unwrapShellCommand } from './tool-rows/agent-shell-title.js';
 import { agentToolLabel, CLI_ACTIVE_LABEL_KEYS } from './tool-rows/agent-tool-labels.js';
+import type { AgentShellCliLabel } from './tool-rows/shell/agent-shell-cli.js';
+import { describeShellRow, describeSkillRead } from './tool-rows/shell/agent-shell-rows.js';
+import {
+    isAgentShellScriptLabel,
+    SCRIPT_LABEL_NOUNS,
+} from './tool-rows/shell/agent-shell-script.js';
+import { unwrapShellCommand } from './tool-rows/shell/agent-shell-title.js';
 
 /**
  * The two fields every surface knows about a tool call: Agent Chat `toolCall` items and the mobile timeline both carry
@@ -292,14 +294,7 @@ export const describeAgentTool = (
         if (name) return { ...known, subject: name, isCodeSubject: false };
     }
     if (rawSubject && known.kind === 'command' && known.label === 'Ran') {
-        const command = unwrapShellCommand(rawSubject);
-        return (
-            describeShellAction(command) ?? {
-                ...known,
-                subject: readableShellCommand(command),
-                isCodeSubject: true,
-            }
-        );
+        return describeShellRow(unwrapShellCommand(rawSubject));
     }
     const isPath =
         rawSubject !== undefined && FILE_KINDS.has(known.kind) && /[\\/]/u.test(rawSubject);
@@ -314,114 +309,6 @@ export const describeAgentTool = (
         ...(isPath && { path: rawSubject }),
     };
 };
-
-const PULL_REQUEST_LABELS: Readonly<Record<AgentShellPullRequestAction, string>> = {
-    check: 'Checked PR',
-    close: 'Closed PR',
-    comment: 'Commented on PR',
-    create: 'Opened PR',
-    edit: 'Updated PR',
-    list: 'Listed PRs',
-    merge: 'Merged PR',
-};
-
-/**
- * A shell command that reads, searches, or lists files reads as that action (`Read app.ts`), the way the Codex app
- * shows exploration, and a test run, commit, push, or pull request step names that step; see `describeShellCommand`.
- */
-function describeShellAction(command: string): AgentToolPresentation | null {
-    const action = describeShellCommand(command);
-    switch (action?.kind) {
-        case 'read': {
-            const [only] = action.paths;
-            const skill = action.paths.length === 1 && describeSkillRead(only);
-            if (skill) return skill;
-            return {
-                kind: 'read',
-                label: 'Read',
-                subject: action.paths.map((path) => basename(path)).join(', '),
-                isCodeSubject: true,
-                ...(action.paths.length === 1 && only && { path: only }),
-            };
-        }
-        case 'search': {
-            return {
-                kind: 'search',
-                label: action.isFileNames ? 'Found files' : 'Searched',
-                subject: action.path
-                    ? `${action.pattern} in ${basename(action.path)}`
-                    : action.pattern,
-                isCodeSubject: true,
-            };
-        }
-        case 'list': {
-            const path = action.path === '.' ? undefined : action.path;
-            return path
-                ? { kind: 'list', label: 'Listed', subject: basename(path), isCodeSubject: true }
-                : { kind: 'list', label: 'Listed files', isCodeSubject: true };
-        }
-        case 'test': {
-            // Go's `./...` pattern names a package tree; its last segment alone would read `...`.
-            const targets = action.targets.map((target) =>
-                target.endsWith('...') ? target : basename(target),
-            );
-            return {
-                kind: 'test',
-                label: 'Ran tests',
-                subject:
-                    targets.length > 0 ? targets.join(', ') : readableShellCommand(action.command),
-                isCodeSubject: true,
-            };
-        }
-        case 'commit': {
-            return {
-                kind: 'commit',
-                label: action.isPushed ? 'Committed and pushed' : 'Committed',
-                ...(action.message !== undefined && { subject: action.message }),
-                isCodeSubject: false,
-            };
-        }
-        case 'push': {
-            return {
-                kind: 'push',
-                label: 'Pushed',
-                ...(action.branch !== undefined && { subject: action.branch }),
-                isCodeSubject: true,
-            };
-        }
-        case 'pullRequest': {
-            return {
-                kind: 'pullRequest',
-                label: PULL_REQUEST_LABELS[action.action],
-                ...(action.subject !== undefined && { subject: action.subject }),
-                isCodeSubject: false,
-            };
-        }
-        case 'cli': {
-            return {
-                kind: 'command',
-                label: action.label,
-                ...(action.subject !== undefined && { subject: action.subject }),
-                isCodeSubject: action.isCodeSubject,
-            };
-        }
-        case undefined: {
-            return null;
-        }
-    }
-}
-
-/**
- * Reading a skill's `skills/<name>/SKILL.md` is how Codex uses a skill, so the row names the skill with the skill
- * glyph, as Claude Code's `Skill` tool does, instead of `Read SKILL.md`. The path stays so the row still opens the
- * file. A `SKILL.md` outside a `skills` folder is an ordinary read.
- */
-function describeSkillRead(path: string): AgentToolPresentation | undefined {
-    const segments = path.split(/[\\/]+/u);
-    const [folder, name, file] = segments.slice(-3);
-    if (file !== 'SKILL.md' || !name || folder !== 'skills') return undefined;
-    return { kind: 'skill', label: 'Used skill', subject: name, isCodeSubject: true, path };
-}
 
 /**
  * Tool kinds that name an action. `mcp` and `other` name a server or tool instead and keep their label, and a Computer
@@ -442,6 +329,10 @@ export const agentToolActiveLabel = (
 ): string => {
     if (presentation.label === 'Waited for') return t('agentChat.tool.active.waitNamed');
     if (presentation.label === 'Ran workflow') return t('agentChat.tool.active.workflow');
+    if (isAgentShellScriptLabel(presentation.label))
+        return t('agentChat.tool.active.script', {
+            script: t(SCRIPT_LABEL_NOUNS[presentation.label]),
+        });
     const cliKey =
         presentation.kind === 'command'
             ? CLI_ACTIVE_LABEL_KEYS[presentation.label as AgentShellCliLabel]
@@ -469,7 +360,16 @@ export const agentToolOutcomeLabel = (
 ): string => {
     const { kind } = presentation;
     const label = agentToolLabel(presentation.label, t);
-    const verb = isAgentToolActionKind(kind) ? t(`agentChat.tool.verb.${kind}`) : undefined;
+    // An inline script names its language in every state (`Failed to run Python script`).
+    const script = isAgentShellScriptLabel(presentation.label)
+        ? t(SCRIPT_LABEL_NOUNS[presentation.label])
+        : undefined;
+    const verb =
+        script === undefined
+            ? isAgentToolActionKind(kind)
+                ? t(`agentChat.tool.verb.${kind}`)
+                : undefined
+            : t('agentChat.tool.verb.script', { script });
     switch (outcome) {
         case 'completed': {
             return label;
@@ -485,6 +385,7 @@ export const agentToolOutcomeLabel = (
                 : t('agentChat.tool.notAllowedNamed', { label });
         }
         case 'interrupted': {
+            if (script !== undefined) return t('agentChat.tool.stopped.script', { script });
             return isAgentToolActionKind(kind)
                 ? t(`agentChat.tool.stopped.${kind}`)
                 : t('agentChat.tool.stoppedNamed', { label });

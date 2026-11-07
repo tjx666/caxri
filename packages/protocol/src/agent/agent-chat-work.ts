@@ -28,6 +28,7 @@ import {
 import { withAgentChatPathTarget } from './path-targets/agent-chat-path-targets.js';
 import { agentChatMcpSubject } from './tool-rows/agent-chat-mcp-subjects.js';
 import { agentToolLabel } from './tool-rows/agent-tool-labels.js';
+import { isDescribedCommandLabel } from './tool-rows/shell/agent-shell-script.js';
 
 /**
  * What the Agent did between replies: reasoning, commands, file changes, and other tool calls. Every Agent Chat client
@@ -165,11 +166,6 @@ export function describeAgentChatWork(
 }
 
 /**
- * Command labels whose subject the Agent's own description of the command replaces.
- */
-const DESCRIBED_COMMAND_LABELS: ReadonlySet<string> = new Set(['Ran', 'Called GitHub API']);
-
-/**
  * The work row's presentation before its outcome is applied, with the English label the tool table names it by.
  */
 function describeAgentChatWorkAction(
@@ -194,7 +190,7 @@ function describeAgentChatWorkAction(
             // words (`Fetch the review comments`) explain better.
             return item.description &&
                 presentation.kind === 'command' &&
-                DESCRIBED_COMMAND_LABELS.has(presentation.label)
+                isDescribedCommandLabel(presentation.label)
                 ? { ...presentation, subject: item.description, isCodeSubject: false }
                 : withAgentChatPathTarget(presentation, item, t);
         }

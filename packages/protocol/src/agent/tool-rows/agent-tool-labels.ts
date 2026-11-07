@@ -1,6 +1,7 @@
 import type { AgentChatLabelKey, AgentChatLabelTranslate } from '../agent-chat-labels.js';
 import { translateAgentChatLabel } from '../agent-chat-labels.js';
-import type { AgentShellCliLabel } from './agent-shell-cli.js';
+import type { AgentShellCliLabel } from './shell/agent-shell-cli.js';
+import { isAgentShellScriptLabel, SCRIPT_LABEL_NOUNS } from './shell/agent-shell-script.js';
 
 /**
  * The catalog key of each English label in the tool table above, so a surface can show the label in the reader's
@@ -131,6 +132,8 @@ export function agentToolLabel(
     label: string,
     t: AgentChatLabelTranslate = translateAgentChatLabel,
 ): string {
+    if (isAgentShellScriptLabel(label))
+        return t('agentChat.tool.label.ranScript', { script: t(SCRIPT_LABEL_NOUNS[label]) });
     const key = Object.hasOwn(TOOL_LABEL_KEYS, label) ? TOOL_LABEL_KEYS[label] : undefined;
     return key ? t(key) : label;
 }

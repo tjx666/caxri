@@ -80,8 +80,8 @@ export * from './provider-messaging-contract.js';
 export * from './secret/secret-contract.js';
 export * from './streaming/agent-chat-revealed-runs.js';
 export * from './streaming/agent-chat-stream-pacing.js';
-export * from './tool-rows/agent-shell-title.js';
 export * from './tool-rows/agent-tool-labels.js';
+export * from './tool-rows/shell/agent-shell-title.js';
 export type {
     AgentChatTrackerArtifact,
     AgentChatTrackerStatusType,
