@@ -24,8 +24,7 @@ export async function executeMobileNestedSessionsScenario(
     const { serial } = environment;
     let seed: MobileNestedSessionsSeed | undefined;
     const mobile = await createMobileAcceptanceFixture({
-        // `launch-failure` keeps a Shell Session in the allowed Project, whose row is what `pair` waits for; `empty`
-        // waits for an empty list, which the seeded Project never shows. No Agent launches here.
+        // No Agent launches here; the mode only decides which fixture Sessions the allowed Project keeps.
         mode: 'launch-failure',
         serial,
         // The fixture keeps its profile beside the allowed root (`<testDirectory>/user-data`) and creates it at first
@@ -57,7 +56,7 @@ export async function executeMobileNestedSessionsScenario(
                 ?.createdByRelation;
         if (relationOf(consult) !== 'consult' || relationOf(delegated) !== 'delegated')
             throw new Error('The seeded consult and delegated Sessions are unavailable');
-        await mobile.pair([projectId]);
+        await mobile.pair({ projectIds: [projectId], readyCheckId: `session-row-${host}` });
         const nodes = await waitForMobile(
             () => mobileSemantics(serial),
             (current) =>
