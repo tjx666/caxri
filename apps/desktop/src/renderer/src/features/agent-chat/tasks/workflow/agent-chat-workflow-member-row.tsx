@@ -25,10 +25,12 @@ import {
 import { AgentChatWorkflowMemberGlyph } from './agent-chat-workflow-member-glyph';
 
 const COLUMN_CLASS_NAME = 'w-12 shrink-0 text-right tabular-nums';
+const DETAIL_CLASS_NAME = 'truncate text-[11px] leading-4';
 
 /**
  * The parts of a running member's row that follow the clock: its elapsed time, or its activity line, which says so in
- * the warning tone once the member has been quiet for two minutes. Only this leaf re-renders each second.
+ * the warning tone once the member has been quiet for two minutes, rendered as the row's whole second line or nothing.
+ * Only this leaf re-renders each second.
  */
 function RunningMemberClock({
     member,
@@ -46,14 +48,17 @@ function RunningMemberClock({
     if (isAgentChatWorkflowMemberQuiet(member, now)) {
         const since = member.lastProgressAt ?? member.startedAt ?? now;
         return (
-            <span className="text-warning">
+            <span className={cn(DETAIL_CLASS_NAME, 'text-warning')}>
                 {t('agentChat.workflow.quiet', {
                     duration: formatNoticeableDuration(now - since, t) ?? '',
                 })}
             </span>
         );
     }
-    return agentChatWorkflowMemberDetail(member, t) ?? null;
+    const detail = agentChatWorkflowMemberDetail(member, t);
+    // No line until there is something to say: a member that only reasons (no tool call yet) would otherwise leave an
+    // empty reserved line that reads as a stray gap under its row.
+    return detail ? <span className={cn(DETAIL_CLASS_NAME, 'text-muted')}>{detail}</span> : null;
 }
 
 /**
@@ -137,15 +142,19 @@ export function AgentChatWorkflowMemberRow({
                         />
                     </span>
                 </span>
-                {(detail !== undefined || isRunning) && (
-                    <span
-                        className={cn(
-                            'min-h-4 truncate text-[11px] leading-4',
-                            member.status === 'failed' ? 'text-danger' : 'text-muted',
-                        )}
-                    >
-                        {isRunning ? <RunningMemberClock member={member} part="detail" /> : detail}
-                    </span>
+                {isRunning ? (
+                    <RunningMemberClock member={member} part="detail" />
+                ) : (
+                    detail !== undefined && (
+                        <span
+                            className={cn(
+                                DETAIL_CLASS_NAME,
+                                member.status === 'failed' ? 'text-danger' : 'text-muted',
+                            )}
+                        >
+                            {detail}
+                        </span>
+                    )
                 )}
             </span>
         </>
