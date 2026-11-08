@@ -10,6 +10,8 @@
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `widediff`: a completed file change whose lines are wider than a phone, so a narrow diff view has to wrap them.
+ * - `widecode`: a reply with a code block wider than a phone, a quiet pause, then a slow tail, so a Client can check the
+ *   block scrolls sideways while the reply still streams (`fake-codex-wide-code.ts`).
  * - `browsestep`: a Computer Use browser step that binds a tab, then one that drives it and stays running briefly before
  *   its result reports the browser surface.
  * - `ask`: a question; the reply quotes the chosen answer.
@@ -97,6 +99,7 @@ import {
     startUnannouncedTerminal,
 } from './fake-codex-tasks.ts';
 import { failOnUsageLimit } from './fake-codex-usage-limit.ts';
+import { runWideCode } from './fake-codex-wide-code.ts';
 import { runWorktreeCommands } from './fake-codex-worktree.ts';
 
 /**
@@ -160,6 +163,8 @@ export async function runKeywordScenario(
         await runTurnOutsideFile(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
+    } else if (text.includes('widecode')) {
+        await runWideCode(io, turn);
     } else if (text.includes('widediff')) {
         await runWideDiff(io, turn);
     } else if (text.includes('bigdiff')) {
