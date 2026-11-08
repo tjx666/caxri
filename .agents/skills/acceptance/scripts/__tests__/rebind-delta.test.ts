@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { changedPathsBetween } from '../rebind-delta';
+import { changedPathsBetween, resolveRebindHead } from '../rebind-delta';
 
 const gitRoot = { path: '' };
 
@@ -78,5 +78,16 @@ describe('changedPathsBetween', () => {
         await expect(changedPathsBetween('0'.repeat(40), after, gitRoot.path)).rejects.toThrow(
             'to a commit in this repository',
         );
+    });
+
+    it('resolves a short SHA to the full commit id the mobile runner compares', async () => {
+        const before = await commit('seed');
+        await writeFile(join(gitRoot.path, 'apps', 'desktop', 'ship.ts'), 'export const a = 2;');
+        const after = await commit('edit');
+
+        await expect(resolveRebindHead(before, after.slice(0, 9), gitRoot.path)).resolves.toEqual({
+            changedPaths: ['apps/desktop/ship.ts'],
+            commit: after,
+        });
     });
 });

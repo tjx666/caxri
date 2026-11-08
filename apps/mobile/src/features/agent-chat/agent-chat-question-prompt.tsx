@@ -6,7 +6,7 @@ import { Check } from 'lucide-react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
-import { ClampedText } from './agent-chat-request-parts';
+import { AgentChatQuestionBody } from './agent-chat-question-body';
 
 export type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 
@@ -76,7 +76,7 @@ const QuestionTabs = ({
 
 /**
  * The fixed top of the card: the tabs across several questions, the header, and the question itself. While the keyboard
- * is up the header goes and the question clamps to two lines without Show more.
+ * is up the header goes and the question folds to two lines without Show more.
  */
 export const QuestionPrompt = ({
     answers,
@@ -113,31 +113,19 @@ export const QuestionPrompt = ({
                 {question.header}
             </Text>
         ) : null}
-        {isKeyboardVisible ? (
-            <Text
-                numberOfLines={2}
-                style={[styles.questionText, { color: theme.text }]}
-                testID={`agent-chat-question-${index}-text`}
-            >
-                {question.question}
-            </Text>
-        ) : (
-            <ClampedText
-                key={question.id}
-                maxLines={3}
-                style={[styles.questionText, { color: theme.text }]}
-                testID={`agent-chat-question-${index}-text`}
-                text={question.question}
-                theme={theme}
-            />
-        )}
+        <AgentChatQuestionBody
+            isKeyboardVisible={isKeyboardVisible}
+            key={question.id}
+            testID={`agent-chat-question-${index}-text`}
+            text={question.question}
+            theme={theme}
+        />
     </View>
 );
 
 const styles = StyleSheet.create({
     header: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
     questionTop: { gap: 4 },
-    questionText: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
     tabs: { alignItems: 'center', flexDirection: 'row', gap: 4 },
     step: { fontSize: 12, fontVariant: ['tabular-nums'], marginLeft: 'auto' },
     tab: {

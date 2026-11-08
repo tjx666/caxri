@@ -16,7 +16,7 @@ import { verifyTerminalFixturePreflightReceipt } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
 import { validateMobileCaseEvidence } from './mobile-report';
 import { validatePlanFixtureDeclarations } from './plan-fixtures';
-import { changedPathsBetween } from './rebind-delta';
+import { resolveRebindHead } from './rebind-delta';
 import {
     BLOCKED_REASONS,
     isLifecycleReceipt,
@@ -605,8 +605,7 @@ async function main(argv: string[]): Promise<void> {
         }
         await rebindReportHead({
             allowFinalized: options['allow-finalized'] === true,
-            changedPaths: await changedPathsBetween(fromCommit, commit),
-            commit,
+            ...(await resolveRebindHead(fromCommit, commit)),
             createdAt: option(options, 'created-at'),
             directory,
             entry,

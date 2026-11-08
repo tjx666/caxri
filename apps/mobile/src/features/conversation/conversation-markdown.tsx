@@ -20,6 +20,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { fenceLanguage } from '../panels/file-language';
 import { ConversationFileOpener } from './conversation-file-opener';
 import { MARKDOWN_IT, parseMarkdown } from './conversation-markdown-parser';
+import { CONVERSATION_MARKDOWN, CONVERSATION_MARKDOWN_COMPACT } from './conversation-markdown-size';
 import {
     isQuoteWorthCopying,
     quoteIndexOf,
@@ -255,11 +256,17 @@ const ConversationQuote = ({
  */
 export const ConversationMarkdown = memo(
     ({
+        isCompact = false,
         onBeforeOpenLink,
         reveal,
         text,
         theme,
     }: {
+        /**
+         * Sets the body at the transcript's secondary size (`CONVERSATION_MARKDOWN_COMPACT`) for a record such as an
+         * answered question, as Desktop renders it smaller than a reply.
+         */
+        isCompact?: boolean;
         /**
          * Runs before a tapped link opens, for a host that must get out of the way first: the browser is a screen, and
          * a Modal-backed sheet would otherwise stay above it.
@@ -277,7 +284,15 @@ export const ConversationMarkdown = memo(
         const onOpenFile = use(ConversationFileOpener);
         const markdownStyle = useMemo(
             () => ({
-                body: { color: theme.text, fontSize: 15, lineHeight: 23 },
+                body: {
+                    color: theme.text,
+                    ...(isCompact
+                        ? CONVERSATION_MARKDOWN_COMPACT.body
+                        : CONVERSATION_MARKDOWN.body),
+                },
+                paragraph: isCompact
+                    ? CONVERSATION_MARKDOWN_COMPACT.paragraph
+                    : CONVERSATION_MARKDOWN.paragraph,
                 blockquote: {
                     backgroundColor: theme.surface,
                     borderColor: theme.border,
@@ -300,7 +315,7 @@ export const ConversationMarkdown = memo(
                 },
                 link: { color: theme.primary },
             }),
-            [monospace, theme],
+            [isCompact, monospace, theme],
         );
         /**
          * A cited path keeps its code or prose look and adds the link color and an underline, so it reads as tappable

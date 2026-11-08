@@ -165,6 +165,18 @@ export function checkBounds(
 }
 
 /**
+ * Whether `inner` lies wholly inside `outer`, so nothing of it is clipped by or spills past the edge of `outer`.
+ */
+export function isInside(inner: ScreenBounds, outer: ScreenBounds): boolean {
+    return (
+        inner.left >= outer.left &&
+        inner.right <= outer.right &&
+        inner.top >= outer.top &&
+        inner.bottom <= outer.bottom
+    );
+}
+
+/**
  * Closes the soft keyboard when it is open. Back is sent only after the input method reports itself shown, because the
  * same key on a screen without a keyboard leaves the Chat. The Acceptance fixture IME never draws a keyboard
  * (`onEvaluateInputViewShown` is false) yet still reports `mInputShown=true` while a field is focused, and it does not

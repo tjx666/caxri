@@ -7,6 +7,7 @@
  * - `edit`: a file edit needing approval; accept reports a structured patch.
  * - `ask`: an `AskUserQuestion` question; the reply quotes the chosen answer.
  * - `ask recommended`: two `AskUserQuestion` questions, each with a `(Recommended)` option.
+ * - `ask markdown`: one `AskUserQuestion` question written in Markdown (bold, inline code, a numbered list).
  * - `ask multi`: one multi-select `AskUserQuestion` question; the reply lists the chosen options.
  * - `planmode`: an `ExitPlanMode` approval, the generic tool request kind that is neither a command nor a file edit.
  * - `slow`: a long streamed reply that an interrupt can stop.

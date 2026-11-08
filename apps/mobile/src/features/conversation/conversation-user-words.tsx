@@ -15,7 +15,11 @@ type Block = UserMessageBlock<ConversationUserTextRun>;
 type Run = Block['runs'][number];
 
 const styles = StyleSheet.create({
-    listContent: { flex: 1 },
+    /**
+     * `flexShrink`, not `flex: 1`: the bubble sizes to its content, and a zero flex basis made Yoga size it for the
+     * unwrapped line, so a wrapped list item spilled below the bubble.
+     */
+    listContent: { flexShrink: 1 },
     listLine: { flexDirection: 'row' },
     quote: {
         borderLeftWidth: 3,

@@ -9,6 +9,19 @@ import process from 'node:process';
 
 import type { FakeClaudeIo } from './fake-claude-io.ts';
 
+/**
+ * A question written in Markdown, as Agents often ask: bold, inline code, and a numbered list, which the question card
+ * renders as it renders a reply. It runs past the card's three folded lines, so the card offers Show more.
+ */
+const FAKE_CLAUDE_MARKDOWN_QUESTION = [
+    'How should the **migration** roll out to `main`?',
+    '',
+    '1. Back up the database',
+    '2. Run the migration',
+    '3. Check the error rate for an hour',
+    '4. Remove the old columns',
+].join('\n');
+
 type Json = Record<string, unknown>;
 
 /**
@@ -158,6 +171,34 @@ export async function didRunApprovalScenario(
         );
         if (!io.isInterrupted())
             await io.didStreamFully(isAllowed ? 'Plan approved.' : 'Kept planning.', 0);
+        io.result(startedAt, 'done');
+        return true;
+    }
+    if (text.includes('ask markdown')) {
+        let answer = 'nothing';
+        await wasToolAllowed(
+            io,
+            'AskUserQuestion',
+            {
+                questions: [
+                    {
+                        header: 'Rollout',
+                        question: FAKE_CLAUDE_MARKDOWN_QUESTION,
+                        multiSelect: false,
+                        options: [
+                            { label: 'Staged', description: 'One region first' },
+                            { label: 'All at once', description: 'Every region today' },
+                        ],
+                    },
+                ],
+            },
+            (input) => {
+                const answers = (input.answers as Record<string, string> | undefined) ?? {};
+                answer = Object.values(answers).join(' + ') || 'nothing';
+                return { content: `User has answered your questions: ${answer}.` };
+            },
+        );
+        if (!io.isInterrupted()) await io.didStreamFully(`You chose ${answer}.`, 0);
         io.result(startedAt, 'done');
         return true;
     }

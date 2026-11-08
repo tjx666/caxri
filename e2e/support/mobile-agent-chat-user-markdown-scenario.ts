@@ -1,7 +1,7 @@
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import { checkBounds, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     mobileSemantics,
     observeMobileNode,
@@ -10,13 +10,24 @@ import {
 } from './mobile-android';
 
 /**
- * A user message with every block Desktop's bubble renders: bold and inline code in a line, a quote, and a bullet list.
+ * A numbered item long enough to wrap inside the bubble's 85% width. The bubble sizes to its content, and a list line
+ * that measured its words unwrapped left the wrapped line, and the item after it, hanging below the bubble.
+ */
+const WRAPPING_ITEM = '点击发送时图片的 view transition 从输入框飞进刚发出的消息气泡里';
+
+/**
+ * A user message with every block Desktop's bubble renders: bold and inline code in a line, a quote, a bullet list, and
+ * a numbered list whose third item wraps, as in the report that found the overflow.
  */
 const MARKDOWN_MESSAGE = [
     '这个是写了**迁移脚本**?看 `0004` 文件',
     '> 迁移给现有渠道各建一份凭证',
     '- 第一项',
     '- 第二项',
+    '1. 输入时所见即所得',
+    '2. 内联图片显示',
+    `3. ${WRAPPING_ITEM}`,
+    '4. 输入框高度变化动画',
 ].join('\n');
 
 /**
@@ -29,12 +40,22 @@ const RENDERED_LINES = [
     '迁移给现有渠道各建一份凭证',
     '第一项',
     '第二项',
+    '输入时所见即所得',
+    '内联图片显示',
+    WRAPPING_ITEM,
+    '输入框高度变化动画',
 ] as const;
+
+/**
+ * The block of `RENDERED_LINES` that must wrap, so the containment check below proves the case it was written for.
+ */
+const WRAPPING_BLOCK = RENDERED_LINES.indexOf(WRAPPING_ITEM);
 
 /**
  * `MOB-CHAT-USER-MARKDOWN-01`: the user's own message reads as Desktop's bubble shows it. Bold and inline code lose
  * their markers, a quote sits behind its bar without `> `, and list lines get a bullet in place of `- `. Before the fix
- * the bubble showed the message as typed, markers included.
+ * the bubble showed the message as typed, markers included. Every block also stays inside the bubble when a list item
+ * wraps; it used to spill the wrapped line and the item after it below the bubble's background.
  */
 export async function executeMobileChatUserMarkdownScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -74,7 +95,26 @@ export async function executeMobileChatUserMarkdownScenario(
             if (!line.exists || line.textMatches !== true)
                 throw new Error(`The user bubble does not show "${text}" with its markers hidden`);
         }
+        // Captured before judging, so a bubble that spills is on record as the reader saw it.
         await capture(environment, 'user-markdown-bubble', artifacts);
+        /**
+         * UIAutomator clips a view's reported bounds to its parent, so a line hanging below the bubble still reports
+         * bounds inside it; it shows instead as a line shorter than a whole one. The bubble's first lines may sit above
+         * the screen edge, so only the wrapped item and the one after it, the lines that used to spill, are judged.
+         */
+        const height = (position: number) => {
+            const bounds = checkBounds(semantics, `${prefix}${position}`);
+            return bounds ? bounds.bottom - bounds.top : 0;
+        };
+        const line = height(WRAPPING_BLOCK - 1);
+        if (line === 0)
+            throw new Error('The one-line list item before the long one is not laid out');
+        if (height(WRAPPING_BLOCK) < 1.5 * line)
+            throw new Error('The long list item did not wrap, so the bubble check proves nothing');
+        if (height(WRAPPING_BLOCK + 1) < line - 2)
+            throw new Error(
+                `Block ${WRAPPING_BLOCK + 1} of the user message is cut off below its bubble`,
+            );
 
         await finish(environment, artifacts, {
             renderedLines: RENDERED_LINES.length,
