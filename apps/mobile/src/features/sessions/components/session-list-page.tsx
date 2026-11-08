@@ -2,12 +2,20 @@ import type { ReactElement, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 
 import type { SessionListRow } from '../session-list-groups';
 import type { createSessionListInteraction } from '../session-list-interaction';
+import {
+    SESSION_LIST_MOTION_MS,
+    SessionListMotionContext,
+    sessionListRowOrder,
+    shouldAnimateSessionListChange,
+} from '../session-list-motion';
+import { SessionListCell } from './session-list-cell';
 
 const styles = StyleSheet.create({ list: { flex: 1 } });
 
@@ -67,6 +75,41 @@ export const SessionListPage = ({
         else ownReference.current?.scrollToOffset({ animated: false, offset: 0 });
     }, [isActive, activeListRef]);
     const [isAtTop, setIsAtTop] = useState(true);
+    const isReducedMotion = useReducedMotion();
+    const [shownRows, setShownRows] = useState(rows);
+    const [isMoving, setIsMoving] = useState(false);
+    /**
+     * A Session appearing, leaving, or changing group fades and slides instead of jumping. The change lands in two
+     * renders: the first arms the cells' fades while still showing the old rows (Reanimated reads `exiting` only after
+     * a commit, so a row removed in the same commit would vanish), and the effect below then shows the new rows.
+     * Anything else, such as a row's status or title changing in place, applies at once.
+     */
+    if (rows !== shownRows && !isMoving) {
+        const isAnimated = shouldAnimateSessionListChange({
+            isActive,
+            isReducedMotion,
+            nextOrder: sessionListRowOrder(rows),
+            previousOrder: sessionListRowOrder(shownRows),
+        });
+        if (isAnimated) setIsMoving(true);
+        else setShownRows(rows);
+    }
+    useEffect(() => {
+        if (!isMoving || rows === shownRows) return;
+        // A frame later, so the transitions armed by the last commit have reached the UI thread. Recycling stays off for
+        // this render, so a removed row's cell unmounts (and fades) instead of being reused for its neighbour;
+        // FlashList turns it back on after the commit.
+        const frame = requestAnimationFrame(() => {
+            ownReference.current?.prepareForLayoutAnimationRender();
+            setShownRows(rows);
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [isMoving, rows, shownRows]);
+    useEffect(() => {
+        if (!isMoving || rows !== shownRows) return;
+        const settle = setTimeout(() => setIsMoving(false), SESSION_LIST_MOTION_MS + 60);
+        return () => clearTimeout(settle);
+    }, [isMoving, rows, shownRows]);
     if (empty) return empty;
     /**
      * Read where a scroll comes to rest rather than on every frame, so scrolling never re-renders the list.
@@ -81,32 +124,35 @@ export const SessionListPage = ({
             onTouchEnd={() => active?.current?.touchEnd()}
             onTouchStart={() => active?.current?.touchStart()}
         >
-            <FlashList
-                ListFooterComponent={
-                    bottomInset > 0 ? <View style={{ height: bottomInset }} /> : null
-                }
-                data={rows}
-                getItemType={entryType}
-                keyExtractor={entryKey}
-                onMomentumScrollBegin={() => active?.current?.momentumStart()}
-                onMomentumScrollEnd={(event) => {
-                    settle(event);
-                    active?.current?.momentumEnd();
-                }}
-                onLoad={isActive ? onLoad : undefined}
-                maintainVisibleContentPosition={isAtTop ? LIST_AT_TOP : undefined}
-                onScroll={isActive ? onScroll : undefined}
-                onScrollBeginDrag={() => active?.current?.dragStart()}
-                onScrollEndDrag={(event) => {
-                    settle(event);
-                    active?.current?.dragEnd();
-                }}
-                ref={(list) => {
-                    ownReference.current = list;
-                    if (isActive) activeListRef.current = list;
-                }}
-                renderItem={renderEntry}
-            />
+            <SessionListMotionContext value={isMoving}>
+                <FlashList
+                    ListFooterComponent={
+                        bottomInset > 0 ? <View style={{ height: bottomInset }} /> : null
+                    }
+                    CellRendererComponent={SessionListCell}
+                    data={shownRows}
+                    getItemType={entryType}
+                    keyExtractor={entryKey}
+                    onMomentumScrollBegin={() => active?.current?.momentumStart()}
+                    onMomentumScrollEnd={(event) => {
+                        settle(event);
+                        active?.current?.momentumEnd();
+                    }}
+                    onLoad={isActive ? onLoad : undefined}
+                    maintainVisibleContentPosition={isAtTop ? LIST_AT_TOP : undefined}
+                    onScroll={isActive ? onScroll : undefined}
+                    onScrollBeginDrag={() => active?.current?.dragStart()}
+                    onScrollEndDrag={(event) => {
+                        settle(event);
+                        active?.current?.dragEnd();
+                    }}
+                    ref={(list) => {
+                        ownReference.current = list;
+                        if (isActive) activeListRef.current = list;
+                    }}
+                    renderItem={renderEntry}
+                />
+            </SessionListMotionContext>
         </View>
     );
 };

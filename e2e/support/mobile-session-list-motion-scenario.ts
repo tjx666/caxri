@@ -89,15 +89,15 @@ const savedNotePill = ({ bottom, left, right, top }: Band): Band => ({
 const READ_CACHE_SETTLE_MS = 2_500;
 
 /**
- * `MOB-SESSION-LIST-MOTION-01` (#3815): Session rows and the Reconnecting capsule animate instead of popping.
+ * `MOB-SESSION-LIST-MOTION-01` (#3815): Session rows and the saved-messages note animate instead of popping.
  *
  * 1. A Session created on Desktop fades into the phone's list while the existing row slides down to make room.
  * 2. Archiving it on Desktop fades it out while the remaining row slides back up.
- * 3. Opening a Session while offline drops the saved copy's age from the capsule's label; the new label fades in while the
- *    capsule narrows, instead of swapping in one frame.
- * 4. When the network returns, the live read replaces the saved Chat: its "Showing messages saved ..." note and the
- *    capsule both fade out instead of vanishing in one frame. The runner keeps this last recording as the evidence
- *    video.
+ * 3. Opening a Session while offline drops the saved copy's age from the Reconnecting capsule's label. The capsule already
+ *    animated this before #3815; the check guards it from regressing.
+ * 4. When the network returns, the live read replaces the saved Chat: its "Showing messages saved ..." note fades out
+ *    instead of vanishing in one frame, and the capsule keeps its existing fade. The runner keeps this last recording
+ *    as the evidence video.
  *
  * Each change is filmed on its own and judged by the frames drawn between its first and last picture, inside a band
  * that holds still apart from that change.
