@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
+import { agentChatMentionQueryKey } from '../features/agent-chat/hooks/use-agent-chat-file-mentions';
 import { projectSearchQueryKey } from '../features/project-search/project-search-query';
 import type { ExtensionTreeScope } from '../features/view-containers/extension-tree/extension-tree-client';
 import { cacheTreeChildren } from '../features/view-containers/extension-tree/extension-tree-client';
@@ -76,6 +77,32 @@ function isInvalidated(queryClient: QueryClient, queryKey: readonly unknown[]): 
 }
 
 describe('invalidation predicates match factory-built query keys', () => {
+    it('invalidates the Chat @ mention name search a files.changed event covers', () => {
+        vi.useFakeTimers();
+        const queryClient = new QueryClient();
+        const mentionSearch = agentChatMentionQueryKey(CONTEXT_KEY, 'read');
+        const otherSessionSearch = agentChatMentionQueryKey(`other-session:${PROJECT_ID}`, 'read');
+        queryClient.setQueryData(mentionSearch, { matches: [] });
+        queryClient.setQueryData(otherSessionSearch, { matches: [] });
+
+        emit(
+            queryClient,
+            {
+                event: 'files.changed',
+                payload: {
+                    sessionId: SESSION_ID,
+                    workbenchRootProjectId: PROJECT_ID,
+                    overflow: false,
+                    changes: [{ path: '/project-p/src/file.ts', kind: 'create' }],
+                },
+            },
+            150,
+        );
+
+        expect(isInvalidated(queryClient, mentionSearch)).toBe(true);
+        expect(isInvalidated(queryClient, otherSessionSearch)).toBe(false);
+    });
+
     it('invalidates the direct and controlled Files listings a files.changed event covers', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();

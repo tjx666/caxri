@@ -3,12 +3,23 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import { useDebouncedValue } from '../../../hooks/use-debounced-value';
 import { caxri } from '../../../lib/caxri';
-import { getSelectedSession, getSessionState } from '../../../stores/selectors';
+import { getSelectedSession, getSessionState, useSessionById } from '../../../stores/selectors';
+import { projectSearchQueryKey } from '../../project-search/project-search-query';
 import {
     MAX_AGENT_CHAT_FILE_MENTIONS,
     openFileMentions,
     rankAgentChatFileMentions,
 } from '../composer-input/agent-chat-file-mentions';
+
+/**
+ * Cache identity of one mention search: the shared `files.search` key shape (`['files.search', 'sessionId:rootId',
+ * options]`), because the `files.changed` invalidation matches `files.search` reads by that scope. A hand-written key
+ * outside it was never invalidated, so an `@` list kept offering a file the Agent had just deleted or missing one it
+ * had just created until `staleTime` lapsed.
+ */
+export function agentChatMentionQueryKey(scopeId: string, query: string) {
+    return projectSearchQueryKey(scopeId, { consumer: 'agent-chat-mention', mode: 'name', query });
+}
 
 const NO_FILES: readonly string[] = [];
 /**
@@ -54,8 +65,12 @@ export function useAgentChatFileMentions({
     const word = query.trim();
     const debounced = useDebouncedValue(word, SEARCH_DEBOUNCE_MS);
     const isSearchEnabled = isEnabled && sessionId !== undefined && debounced.length > 0;
+    const session = useSessionById(sessionId);
     const result = useQuery({
-        queryKey: ['files.search', 'agent-chat-mention', sessionId, debounced],
+        queryKey: agentChatMentionQueryKey(
+            session ? `${session.id}:${session.workbenchRootProjectId}` : '',
+            debounced,
+        ),
         queryFn: ({ signal }) =>
             caxri.requestWithSignal('files.search', signal, {
                 sessionId: sessionId!,
@@ -63,7 +78,7 @@ export function useAgentChatFileMentions({
                 mode: 'name',
                 query: debounced,
             }),
-        enabled: isSearchEnabled,
+        enabled: isSearchEnabled && session !== undefined,
         placeholderData: keepPreviousData,
         staleTime: 5000,
     });
