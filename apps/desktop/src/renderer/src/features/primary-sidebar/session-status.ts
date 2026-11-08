@@ -67,9 +67,11 @@ type SessionStatusSource = Pick<
  * continues by itself, so the clock replaces the failure or unread cue the limit left behind. The cue returns when the
  * wait ends.
  *
- * The amber attention slot means Pending Attention: a turn ended (finished, waiting on a question, or failed) and the
- * user has not marked it Done. Reading the Session does not clear it; Mark as Done or a new turn does. Unread attention
- * is the same item before the user has opened it, and only it plays the arrival ripple. It is never keyed off
+ * The amber attention slot means unread attention everywhere: a turn ended (finished, waiting on a question, or failed)
+ * and the user has not opened the Session yet. Only the Activity view, a queue the user works through, passes
+ * `pendingAttention` so the cue also covers Pending Attention: read but not marked Done, cleared by Mark as Done or a
+ * new turn. The Project tree, its heading counts, its hover card, and the MRU switcher clear the cue on read, since
+ * they offer no queue to work through. Only unread attention plays the arrival ripple. It is never keyed off
  * `agentActivityState` alone: that state is not Chat-specific, and a Terminal (PTY) Session with a stale `waiting`
  * would keep an amber cue nothing could clear. The one extra amber source is `approvalPending`, passed only for a
  * nested Session whose delegation feed entry carries a permission request or an escalated question that waits on the
@@ -91,7 +93,15 @@ export function sessionStatus(
     {
         approvalPending = false,
         delegationFailed = false,
-    }: { approvalPending?: boolean; delegationFailed?: boolean } = {},
+        pendingAttention = false,
+    }: {
+        approvalPending?: boolean;
+        delegationFailed?: boolean;
+        /**
+         * Keeps a read Session amber until it is marked Done. Only the Activity view passes it (see above).
+         */
+        pendingAttention?: boolean;
+    } = {},
 ): SessionStatus {
     const { agentOperation } = terminal;
     if (terminal.usageLimitWaitAt !== undefined) {
@@ -122,7 +132,7 @@ export function sessionStatus(
      * longer Caxri's to animate. Attention still wins: it was raised before the hand-over. A recorded delegation
      * failure does not replace the detached glyph either.
      */
-    const hasAttention = session.hasUnread || session.hasPendingAttention;
+    const hasAttention = session.hasUnread || (pendingAttention && session.hasPendingAttention);
     if (terminal.lastProcessState === 'detached') {
         if (hasAttention) return attentionStatus(session, t);
         return {
@@ -162,7 +172,7 @@ export function sessionStatus(
 
 /**
  * The attention slot for a Session with unread or Pending Attention. `Unread, finished` rather than `Needs attention:
- * Finished` before it is opened; once read it says `Needs attention, finished` until Mark as Done.
+ * Finished` before it is opened; once read, the Activity view says `Needs attention, finished` until Mark as Done.
  */
 function attentionStatus(session: SessionStatusSource, t: Translate): SessionStatus {
     const attentionActivity = sessionActivityPresentation(

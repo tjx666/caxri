@@ -15,6 +15,7 @@ import {
 
 interface SessionSummary {
     attentionGeneration: number;
+    hasPendingAttention: boolean;
     hasUnread: boolean;
     id: string;
     agentActivityState: string;
@@ -405,24 +406,33 @@ setInterval(() => {
             `[data-session-id="${firstSession.id}"] .session-status`,
         );
         /**
-         * Reading the Session acknowledges the result but leaves it on the user's plate: the amber glyph stays, now
-         * without the arrival ripple, until Mark as Done.
+         * Reading the Session clears the Project tree's glyph. The result stays Pending Attention on the Server until
+         * Mark as Done, which only the Activity view keeps showing.
          */
-        await expect(selectedStatus).toHaveAttribute('data-attention-pending', '');
-        await expect(selectedStatus).toHaveAccessibleName('Needs attention, finished');
-        await expect(selectedStatus.locator('[data-session-status-ripple]')).toHaveCount(0);
+        await expect(selectedStatus).toHaveAttribute('data-session-status', 'default');
+        await expect(selectedStatus).not.toHaveAttribute('data-attention-kind');
         const read = await pageRequest<{ sessions: SessionSummary[] }>(
             running.page,
             'app.bootstrap',
         );
         const readFirst = read.sessions.find((session) => session.id === firstSession.id)!;
         expect(readFirst.hasUnread).toBe(false);
+        expect(readFirst.hasPendingAttention).toBe(true);
         await pageRequest(running.page, 'session.markDone', {
             attentionGeneration: readFirst.attentionGeneration,
             sessionId: firstSession.id,
         });
+        await expect
+            .poll(async () => {
+                const done = await pageRequest<{ sessions: SessionSummary[] }>(
+                    running.page,
+                    'app.bootstrap',
+                );
+                return done.sessions.find((session) => session.id === firstSession.id)
+                    ?.hasPendingAttention;
+            })
+            .toBe(false);
         await expect(selectedStatus).toHaveAttribute('data-session-status', 'default');
-        await expect(selectedStatus).not.toHaveAttribute('data-attention-kind');
         await running.page.screenshot({
             path: testInfo.outputPath('selected-session-attention-cleared.png'),
         });

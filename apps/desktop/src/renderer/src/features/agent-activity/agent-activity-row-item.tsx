@@ -126,6 +126,7 @@ export function AgentActivityRowItem({
             <div className="agent-activity-row-shell group/activity-row relative">
                 <SessionActivityCard
                     inPinnedGroup={inPinnedGroup}
+                    pendingAttention
                     project={project}
                     pullRequest={pullRequest}
                     pullRequestUnavailable={pullRequestUnavailable}

@@ -183,7 +183,9 @@ the side bar from one projection (`sessionStatus`), which follows the same rule 
 a **Working** row spins (the slower dotted ring while it only waits on background shells,
 subagents, or monitors), a **Needs attention** row shows an amber mark (a `?` for a question, a dot
 for a result) that breathes until the row is marked Done and ripples three times when a new result
-arrives unread, and a plain **Idle** row shows nothing. A group heading is out of view once the list
+arrives unread, and a plain **Idle** row shows nothing. Only this view passes `pendingAttention`,
+so a read Session keeps its amber mark here alone: the Project tree, its heading counts, and the MRU
+switcher clear the mark once the Session is opened, since they offer no queue to mark Done in. A group heading is out of view once the list
 scrolls, and the glyph keeps the state readable on every row, the way it already is in the Project
 tree. Every row reserves the 14px glyph slot, so every title shares one left edge even though
 Idle rows leave it blank. An unread title is set in medium weight, which tells it apart from a read

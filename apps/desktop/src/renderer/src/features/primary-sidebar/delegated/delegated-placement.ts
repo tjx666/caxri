@@ -179,10 +179,11 @@ export function placeDelegatedSessions({
         isPinnedSession(session) || listedProjectIds.has(session.projectId);
     /**
      * A settled consult whose creator is archived: the work that asked is done, so the consult stays out of the tree
-     * instead of surfacing as a row nobody asked to see. One that is still running, waiting, or holding Pending
-     * Attention keeps its row, because nobody is left to read its answer or relay its question. The command palette
-     * still finds a retired one, unarchiving the creator hides it under the creator again, and the selected one keeps a
-     * row so the selection stays visible.
+     * instead of surfacing as a row nobody asked to see. One that is still running, waiting, or unread keeps its row,
+     * because nobody is left to read its answer or relay its question. Once read it retires, like every Project tree
+     * glyph: Pending Attention (read but not marked Done) belongs to the Activity view, which does not use this tree.
+     * The command palette still finds a retired one, unarchiving the creator hides it under the creator again, and the
+     * selected one keeps a row so the selection stays visible.
      */
     const retiredConsults = new Set(
         sessions
@@ -191,7 +192,7 @@ export function placeDelegatedSessions({
                     session.archivedAt === undefined &&
                     session.createdByRelation === 'consult' &&
                     session.id !== selectedSessionId &&
-                    !session.hasPendingAttention &&
+                    !session.hasUnread &&
                     session.agentActivityState !== 'running' &&
                     session.agentActivityState !== 'waiting' &&
                     sessionsById.get(session.createdBySessionId ?? '')?.archivedAt !== undefined,
