@@ -447,8 +447,8 @@ test('closing the window with only a Chat running asks first and Terminate stops
         await running.app.evaluate(({ dialog }) => {
             // Records the prompt, then picks "Terminate and Close".
             dialog.showMessageBox = (...parameters: unknown[]) => {
-                const options = parameters.at(-1) as { message?: string };
-                Reflect.set(globalThis, '__caxriCloseConfirmMessage', options.message);
+                const options = parameters.at(-1) as { detail?: string };
+                Reflect.set(globalThis, '__caxriCloseConfirmMessage', options.detail);
                 return Promise.resolve({ response: 1, checkboxChecked: false });
             };
         });
@@ -462,7 +462,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
                 const value: unknown = Reflect.get(globalThis, '__caxriCloseConfirmMessage');
                 return typeof value === 'string' ? value : undefined;
             }),
-        ).toBe('Close this window while 1 Chat is running?');
+        ).toBe('Running: 1 Chat');
         const log = join(userData, 'logs', 'server-core.jsonl');
         await expect
             .poll(async () =>

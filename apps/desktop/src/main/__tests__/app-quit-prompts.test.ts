@@ -14,21 +14,27 @@ import {
  * lives in `app-quit.test.ts`.
  */
 describe('appQuitPrompt', () => {
-    it('explains session portability and other-client impact without defaulting to destruction', () => {
-        expect(appQuitPrompt({ running: { terminals: 2, chats: 0 }, otherClientCount: 1 })).toEqual(
+    it('keeps the common prompt to one line each so macOS 26 centers it, without defaulting to destruction', () => {
+        expect(appQuitPrompt({ running: { terminals: 2, chats: 0 }, otherClientCount: 0 })).toEqual(
             {
                 buttons: ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'],
                 cancelId: 2,
                 defaultId: 1,
-                detail: 'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent conversations so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.\n\n1 other client is connected to Caxri Server. Stopping will disconnect it.',
-                message: 'Quit Caxri while 2 Terminals are running?',
+                detail: 'Running: 2 Terminals',
+                message: 'Quit Caxri?',
                 title: 'Quit Caxri?',
                 type: 'warning',
             },
         );
     });
 
-    it('adds the pending review comment loss as its own paragraph', () => {
+    it('adds the other-client impact as its own line', () => {
+        expect(
+            appQuitPrompt({ running: { terminals: 2, chats: 0 }, otherClientCount: 1 }).detail,
+        ).toBe('Running: 2 Terminals\n1 other client disconnects if tasks stop.');
+    });
+
+    it('adds the pending review comment loss as its own line', () => {
         const detail = appQuitPrompt({
             running: { terminals: 1, chats: 0 },
             otherClientCount: 0,
@@ -44,18 +50,16 @@ describe('appQuitPrompt', () => {
                 ],
             },
         }).detail;
-        expect(detail).toMatch(
-            /\n\nQuitting also loses 3 unsent review comments, because review comments live in memory only\.$/,
-        );
+        expect(detail).toBe('Running: 1 Terminal\n3 unsent review comments are also lost.');
     });
 
     it('names running Terminals and Chats separately, like the window-close confirmation', () => {
         expect(
-            appQuitPrompt({ running: { terminals: 1, chats: 2 }, otherClientCount: 0 }).message,
-        ).toBe('Quit Caxri while 1 Terminal and 2 Chats are running?');
+            appQuitPrompt({ running: { terminals: 1, chats: 2 }, otherClientCount: 0 }).detail,
+        ).toBe('Running: 1 Terminal and 2 Chats');
         expect(
-            appQuitPrompt({ running: { terminals: 0, chats: 1 }, otherClientCount: 0 }).message,
-        ).toBe('Quit Caxri while 1 Chat is running?');
+            appQuitPrompt({ running: { terminals: 0, chats: 1 }, otherClientCount: 0 }).detail,
+        ).toBe('Running: 1 Chat');
     });
 
     it('shows the native prompt without a parent when no window remains', async () => {
@@ -68,7 +72,7 @@ describe('appQuitPrompt', () => {
         expect(showMessageBox).toHaveBeenCalledWith(appQuitPrompt(impact));
     });
 
-    it('explains the pending review comment count and repository count without defaulting to discarding them', () => {
+    it('states the pending review comment count without defaulting to discarding them', () => {
         expect(
             pendingReviewCommentsPrompt({
                 count: 3,
@@ -91,8 +95,8 @@ describe('appQuitPrompt', () => {
             buttons: ['Quit Anyway', 'Cancel'],
             cancelId: 1,
             defaultId: 1,
-            detail: 'Review comments live in memory only and do not survive quitting Caxri. 2 repositories have unsent comments.',
-            message: 'Quit Caxri and lose 3 pending review comments?',
+            detail: 'They are kept in memory only.',
+            message: 'Lose 3 review comments?',
             title: 'Quit with pending review comments?',
             type: 'warning',
         });
@@ -183,8 +187,8 @@ describe('appQuitPrompt', () => {
             buttons: ['Quit Anyway'],
             cancelId: 0,
             defaultId: 0,
-            detail: 'Caxri will quit now. Reopen Caxri to stop any remaining tasks before resuming their Agent conversations in another tool.',
-            message: 'Some background tasks may still be running.',
+            detail: 'Reopen Caxri to stop them.',
+            message: 'Some tasks may still be running.',
             title: "Caxri Couldn't Stop All Tasks",
             type: 'error',
         });

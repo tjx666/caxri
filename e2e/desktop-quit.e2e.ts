@@ -19,8 +19,7 @@ import { runningWork } from './support/running-work.ts';
 
 const QUIT_DIALOG_PROBE_KEY = '__caxriE2EQuitDialogProbe';
 const QUIT_BUTTONS = ['Quit and Stop Tasks', 'Quit and Keep Tasks Running', 'Cancel'];
-const QUIT_DETAIL =
-    'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent conversations so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.';
+const QUIT_DETAIL = 'Running: 1 Terminal';
 
 interface QuitDialogSnapshot {
     buttons: string[];
@@ -305,7 +304,7 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
             cancelId: 2,
             defaultId: 1,
             detail: QUIT_DETAIL,
-            message: 'Quit Caxri while 1 Terminal is running?',
+            message: 'Quit Caxri?',
             title: 'Quit Caxri?',
             type: 'warning',
         });
@@ -377,10 +376,8 @@ test('quit can cancel, keep one live Agent for reconnection, or stop its complet
             buttons: QUIT_BUTTONS,
             cancelId: 2,
             defaultId: 1,
-            detail:
-                `${QUIT_DETAIL}\n\n1 other client is connected to Caxri Server. ` +
-                'Stopping will disconnect it.',
-            message: 'Quit Caxri while 1 Terminal is running?',
+            detail: `${QUIT_DETAIL}\n1 other client disconnects if tasks stop.`,
+            message: 'Quit Caxri?',
             title: 'Quit Caxri?',
             type: 'warning',
         });

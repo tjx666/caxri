@@ -15,8 +15,8 @@ describe('Main locale', () => {
     });
 
     it('translates native copy with interpolation', () => {
-        expect(translateMain('desktop.quit.messageOther', { running: '3 terminals' })).toBe(
-            'Quit Caxri while 3 terminals are running?',
+        expect(translateMain('desktop.runningWork.detail', { running: '3 Terminals' })).toBe(
+            'Running: 3 Terminals',
         );
         setMainLanguage('zh-CN', []);
         expect(translateMain('desktop.dialog.cancel')).toBe('取消');

@@ -82,6 +82,7 @@ export const desktop = {
     'desktop.runningWork.chatOne': '{{count}} Chat',
     'desktop.runningWork.chatOther': '{{count}} Chats',
     'desktop.runningWork.and': '{{first}} and {{second}}',
+    'desktop.runningWork.detail': 'Running: {{running}}',
 
     'desktop.deleteProject.title': 'Delete Project',
     'desktop.deleteProject.confirm': 'Delete Project',
@@ -180,39 +181,24 @@ export const desktop = {
     'desktop.revertFiles.filesOther': '{{count}} files will be reverted',
 
     'desktop.quit.title': 'Quit Caxri?',
-    'desktop.quit.messageOne': 'Quit Caxri while {{running}} is running?',
-    'desktop.quit.messageOther': 'Quit Caxri while {{running}} are running?',
-    'desktop.quit.detail':
-        'Quit and Stop Tasks ends every running Terminal and Agent process, releases Agent conversations so they can be resumed in other tools, and stops Caxri Server. Quit and Keep Tasks Running leaves them attached to Caxri in the background.',
-    'desktop.quit.otherClientsOne':
-        '1 other client is connected to Caxri Server. Stopping will disconnect it.',
-    'desktop.quit.otherClientsOther':
-        '{{count}} other clients are connected to Caxri Server. Stopping will disconnect them.',
+    'desktop.quit.otherClientsOne': '1 other client disconnects if tasks stop.',
+    'desktop.quit.otherClientsOther': '{{count}} other clients disconnect if tasks stop.',
     'desktop.quit.stopTasks': 'Quit and Stop Tasks',
     'desktop.quit.keepTasks': 'Quit and Keep Tasks Running',
     'desktop.quit.reviewTitle': 'Quit with pending review comments?',
-    'desktop.quit.reviewMessageOne': 'Quit Caxri and lose 1 pending review comment?',
-    'desktop.quit.reviewMessageOther': 'Quit Caxri and lose {{count}} pending review comments?',
-    'desktop.quit.reviewDetailOne':
-        'Review comments live in memory only and do not survive quitting Caxri. 1 repository has unsent comments.',
-    'desktop.quit.reviewDetailOther':
-        'Review comments live in memory only and do not survive quitting Caxri. {{count}} repositories have unsent comments.',
-    'desktop.quit.reviewLossOne':
-        'Quitting also loses 1 unsent review comment, because review comments live in memory only.',
-    'desktop.quit.reviewLossOther':
-        'Quitting also loses {{count}} unsent review comments, because review comments live in memory only.',
+    'desktop.quit.reviewMessageOne': 'Lose 1 review comment?',
+    'desktop.quit.reviewMessageOther': 'Lose {{count}} review comments?',
+    'desktop.quit.reviewDetail': 'They are kept in memory only.',
+    'desktop.quit.reviewLossOne': '1 unsent review comment is also lost.',
+    'desktop.quit.reviewLossOther': '{{count}} unsent review comments are also lost.',
     'desktop.quit.anyway': 'Quit Anyway',
     'desktop.quit.stopFailureTitle': "Caxri Couldn't Stop All Tasks",
-    'desktop.quit.stopFailureMessage': 'Some background tasks may still be running.',
-    'desktop.quit.stopFailureDetail':
-        'Caxri will quit now. Reopen Caxri to stop any remaining tasks before resuming their Agent conversations in another tool.',
+    'desktop.quit.stopFailureMessage': 'Some tasks may still be running.',
+    'desktop.quit.stopFailureDetail': 'Reopen Caxri to stop them.',
 
     'desktop.updateRestart.title': 'Restart to Update?',
-    'desktop.updateRestart.messageOne': 'Restart Caxri to update while {{running}} is running?',
-    'desktop.updateRestart.messageOther': 'Restart Caxri to update while {{running}} are running?',
-    'desktop.updateRestart.messageIdle': 'Restart Caxri to update?',
-    'desktop.updateRestart.detail':
-        'Restarting stops every running Terminal and Agent process and releases Agent conversations so they can be resumed, then reopens Caxri on the new version.',
+    'desktop.updateRestart.stopsRunning': '{{running}} will stop.',
+    'desktop.updateRestart.detail': 'Caxri reopens on the new version.',
     'desktop.updateRestart.restart': 'Restart and Update',
     'desktop.sshServerUpdate.title': 'Update Server on SSH Host?',
     'desktop.sshServerUpdate.messageOne':
@@ -225,10 +211,6 @@ export const desktop = {
     'desktop.sshServerUpdate.notNow': 'Not Now',
 
     'desktop.windowClose.title': 'Close this window?',
-    'desktop.windowClose.messageOne': 'Close this window while {{running}} is running?',
-    'desktop.windowClose.messageOther': 'Close this window while {{running}} are running?',
-    'desktop.windowClose.detail':
-        'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether they should stop.',
     'desktop.windowClose.keepRunning': 'Keep Running',
     'desktop.windowClose.terminate': 'Terminate and Close',
 

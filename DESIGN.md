@@ -1874,7 +1874,12 @@ dialog that names the kind and states what survives ("Delete Session? / Files on
 touched."). Keep its message and detail to one line each where the content allows: macOS 26 centers
 an alert only while neither text wraps, and one wrapped line (a long Session title was enough)
 flips the whole sheet to a left-aligned layout. So the message never embeds a user-chosen title;
-the user just picked the row. Every other
+the user just picked the row. The quit, update-restart, and window-close prompts follow the same
+rule: the message asks the question, the detail counts the running work, and the button labels say
+what each choice does instead of a paragraph explaining them. Check new native alert copy, in every
+locale and with the longest realistic counts, with
+`swift .agents/skills/acceptance/native/alert-layout.swift <message> <detail> [buttons...]`, which
+reads AppKit's real layout without showing the alert. Every other
 "are you sure" moment uses the one in-app confirmation modal behind
 `caxri.window.showConfirm({ title, message, confirmLabel, cancelLabel })`; a feature never mounts
 its own. The title asks the question, the message names the consequence, the buttons name the

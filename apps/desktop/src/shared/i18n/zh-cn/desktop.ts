@@ -77,6 +77,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.runningWork.chatOne': '{{count}} 个对话',
     'desktop.runningWork.chatOther': '{{count}} 个对话',
     'desktop.runningWork.and': '{{first}}和 {{second}}',
+    'desktop.runningWork.detail': '{{running}}正在运行。',
 
     'desktop.deleteProject.title': '删除项目',
     'desktop.deleteProject.confirm': '删除项目',
@@ -168,37 +169,24 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.revertFiles.filesOther': '将还原 {{count}} 个文件',
 
     'desktop.quit.title': '退出 Caxri？',
-    'desktop.quit.messageOne': '有 {{running}}正在运行，要退出 Caxri 吗？',
-    'desktop.quit.messageOther': '有 {{running}}正在运行，要退出 Caxri 吗？',
-    'desktop.quit.detail':
-        '“退出并停止任务”会结束所有正在运行的终端和 Agent 进程，释放 Agent 对话以便在其他工具中恢复，并停止 Caxri Server。“退出但保持任务运行”会让它们在后台继续挂接在 Caxri 上。',
-    'desktop.quit.otherClientsOne': '另有 1 个客户端连接着 Caxri Server，停止后它将断开连接。',
-    'desktop.quit.otherClientsOther':
-        '另有 {{count}} 个客户端连接着 Caxri Server，停止后它们将断开连接。',
+    'desktop.quit.otherClientsOne': '停止任务会断开另外 1 个客户端。',
+    'desktop.quit.otherClientsOther': '停止任务会断开另外 {{count}} 个客户端。',
     'desktop.quit.stopTasks': '退出并停止任务',
     'desktop.quit.keepTasks': '退出但保持任务运行',
     'desktop.quit.reviewTitle': '有待发送的评审评论，仍要退出吗？',
-    'desktop.quit.reviewMessageOne': '退出 Caxri 将丢失 1 条待发送的评审评论，确定吗？',
-    'desktop.quit.reviewMessageOther': '退出 Caxri 将丢失 {{count}} 条待发送的评审评论，确定吗？',
-    'desktop.quit.reviewDetailOne':
-        '评审评论只保存在内存中，退出 Caxri 后不会保留。有 1 个仓库存在未发送的评论。',
-    'desktop.quit.reviewDetailOther':
-        '评审评论只保存在内存中，退出 Caxri 后不会保留。有 {{count}} 个仓库存在未发送的评论。',
-    'desktop.quit.reviewLossOne': '退出还会丢失 1 条未发送的评审评论，因为评审评论只保存在内存中。',
-    'desktop.quit.reviewLossOther':
-        '退出还会丢失 {{count}} 条未发送的评审评论，因为评审评论只保存在内存中。',
+    'desktop.quit.reviewMessageOne': '退出并丢失 1 条评审评论？',
+    'desktop.quit.reviewMessageOther': '退出并丢失 {{count}} 条评审评论？',
+    'desktop.quit.reviewDetail': '评审评论只保存在内存中。',
+    'desktop.quit.reviewLossOne': '还会丢失 1 条未发送的评审评论。',
+    'desktop.quit.reviewLossOther': '还会丢失 {{count}} 条未发送的评审评论。',
     'desktop.quit.anyway': '仍要退出',
     'desktop.quit.stopFailureTitle': 'Caxri 未能停止所有任务',
-    'desktop.quit.stopFailureMessage': '部分后台任务可能仍在运行。',
-    'desktop.quit.stopFailureDetail':
-        'Caxri 即将退出。请重新打开 Caxri 停止剩余任务，再在其他工具中恢复它们的 Agent 对话。',
+    'desktop.quit.stopFailureMessage': '部分任务可能仍在运行。',
+    'desktop.quit.stopFailureDetail': '重新打开 Caxri 以停止剩余任务。',
 
     'desktop.updateRestart.title': '重启以更新？',
-    'desktop.updateRestart.messageOne': '有 {{running}}正在运行，要重启 Caxri 完成更新吗？',
-    'desktop.updateRestart.messageOther': '有 {{running}}正在运行，要重启 Caxri 完成更新吗？',
-    'desktop.updateRestart.messageIdle': '要重启 Caxri 完成更新吗？',
-    'desktop.updateRestart.detail':
-        '重启会结束所有正在运行的终端和 Agent 进程，释放 Agent 对话以便之后恢复，然后以新版本重新打开 Caxri。',
+    'desktop.updateRestart.stopsRunning': '{{running}}将被终止。',
+    'desktop.updateRestart.detail': 'Caxri 将以新版本重新打开。',
     'desktop.updateRestart.restart': '重启并更新',
     'desktop.sshServerUpdate.title': '更新 SSH Host 上的 Server？',
     'desktop.sshServerUpdate.messageOne':
@@ -211,10 +199,6 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.sshServerUpdate.notNow': '暂不更新',
 
     'desktop.windowClose.title': '关闭此窗口？',
-    'desktop.windowClose.messageOne': '有 {{running}}正在运行，要关闭此窗口吗？',
-    'desktop.windowClose.messageOther': '有 {{running}}正在运行，要关闭此窗口吗？',
-    'desktop.windowClose.detail':
-        '“保持运行”会关闭此窗口，并让它们在后台继续运行。要退出应用，请使用“退出 Caxri”并选择是否停止它们。',
     'desktop.windowClose.keepRunning': '保持运行',
     'desktop.windowClose.terminate': '终止并关闭',
 
