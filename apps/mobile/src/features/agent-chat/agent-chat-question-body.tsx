@@ -1,7 +1,9 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { MaskedView } from '../../components/masked-view';
 import { useTranslation } from '../../i18n';
 import { mobileControl, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
@@ -48,12 +50,25 @@ export const AgentChatQuestionBody = ({
     const isFolded = isKeyboardVisible || !isExpanded;
     // Measured on the unclamped content: a child keeps its own height inside a clipped parent.
     const isCut = contentHeight > maxHeight + margin + 1;
+    const content = (
+        <View onLayout={({ nativeEvent }) => setContentHeight(nativeEvent.layout.height)}>
+            <ConversationMarkdown isCompact={isRecord} text={text} theme={markdownTheme} />
+        </View>
+    );
     return (
         <View>
-            <View style={isFolded ? [styles.folded, { maxHeight }] : null} testID={testID}>
-                <View onLayout={({ nativeEvent }) => setContentHeight(nativeEvent.layout.height)}>
-                    <ConversationMarkdown isCompact={isRecord} text={text} theme={markdownTheme} />
-                </View>
+            <View testID={testID}>
+                {isFolded && isCut ? (
+                    /**
+                     * Paragraphs, list items, and code differ in height, so a fixed fold cannot always land between
+                     * lines; the cut edge fades out, as Desktop's does, instead of showing half a line.
+                     */
+                    <MaskedView maskElement={<FoldFade />} style={[styles.folded, { maxHeight }]}>
+                        {content}
+                    </MaskedView>
+                ) : (
+                    <View style={isFolded ? [styles.folded, { maxHeight }] : null}>{content}</View>
+                )}
             </View>
             {!isKeyboardVisible && (isCut || isExpanded) ? (
                 <Pressable
@@ -70,6 +85,25 @@ export const AgentChatQuestionBody = ({
                 </Pressable>
             ) : null}
         </View>
+    );
+};
+
+/**
+ * Opaque over the top 60% of the folded box and fading to clear at its bottom, Desktop's `linear-gradient(to bottom,
+ * black 60%, transparent)` mask.
+ */
+const FoldFade = () => {
+    const id = useId();
+    return (
+        <Svg height="100%" width="100%">
+            <Defs>
+                <LinearGradient id={id} x1="0" x2="0" y1="0" y2="1">
+                    <Stop offset="0.6" stopColor="black" stopOpacity={1} />
+                    <Stop offset="1" stopColor="black" stopOpacity={0} />
+                </LinearGradient>
+            </Defs>
+            <Rect fill={`url(#${id})`} height="100%" width="100%" />
+        </Svg>
     );
 };
 
