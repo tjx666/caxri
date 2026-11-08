@@ -341,6 +341,39 @@ function PaneTabList({
     );
 }
 
+/**
+ * Evenly divided tabs reach the window's right edge, so with the primarySidebar hidden the root bar is the whole
+ * titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and stays just wide enough
+ * to grab. It exists only for that state: `primary-sidebar-title` is a drag region of its own, so while the sidebar is
+ * open the window already moves from there and reserving a second strip would only wedge dead space beside "+": iTerm2
+ * ends its bar at the button too. The same goes for a bar that stops in the middle of the window: the leading pane of a
+ * side-by-side split has a neighbour on its right, not the window corner, so reserving the strip there is the dead
+ * space this exists to avoid rather than the grab handle it exists to provide.
+ *
+ * A lone Terminal or Chat tab fills the whole bar with the active tab color and floats its actions over its own right
+ * end, so a title-bar colored corner would read as a stray dark block beside it; the corner continues the tab's fill
+ * instead, pulled 1px left over the rail's end scroll sentinel so no title-bar hairline survives at the seam.
+ */
+function TitleBarDragCorner({
+    hasTabsToSwitch,
+    pane,
+}: {
+    hasTabsToSwitch: boolean;
+    pane: PaneNode;
+}) {
+    const { anchoredTabs, railTabs } = paneTabSegments(pane.tabs);
+    const isLoneFillTab = !hasTabsToSwitch && anchoredTabs.length === 1 && railTabs.length === 0;
+    return (
+        <div
+            aria-hidden="true"
+            className={cn(
+                'work-tabs-drag-handle h-9 w-8 flex-none',
+                isLoneFillTab && '-ml-px bg-tab-active-background',
+            )}
+        />
+    );
+}
+
 interface PaneTabBarProperties {
     /**
      * Whether the Workbench holds more than one tab. The active accent and close buttons have no choice to express
@@ -389,11 +422,6 @@ export function PaneTabBar({
         onDrop,
     } = usePaneTabDrag(pane, listReference);
     const { anchoredTabs, orderedTabs, railTabs } = paneTabSegments(pane.tabs);
-    /**
-     * The Workbench's only tab is a Terminal or Chat: it fills the bar edge to edge, is always active, and its actions
-     * float over it (see `PaneTabActions`) instead of taking a title-bar colored slot of their own.
-     */
-    const isLoneFillTab = !hasTabsToSwitch && anchoredTabs.length === 1 && railTabs.length === 0;
     /**
      * Whether this pane owns `activePaneId`, DESIGN.md principle 2's "one durable accent focus per screen": the tab
      * border and the pane ring express the same focus and count as one. After a split, only the focused pane's active
@@ -457,26 +485,8 @@ export function PaneTabBar({
                     canSwitchTerminalSurface(activeTerminal) ? activeTerminal : undefined
                 }
             />
-            {/* Evenly divided tabs reach the window's right edge, so with the primarySidebar hidden this bar is the
-                whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and
-                stays just wide enough to grab. It exists only for that state: `primary-sidebar-title` is a drag
-                region of its own, so while the sidebar is open the window already moves from there and reserving a
-                second strip would only wedge dead space beside "+": iTerm2 ends its bar at the button too. The same
-                goes for a bar that stops in the middle of the window: the leading pane of a side-by-side split has a
-                neighbour on its right, not the window corner, so reserving the strip there is the dead space this
-                exists to avoid rather than the grab handle it exists to provide. */}
-            {/* A lone Terminal or Chat tab fills the whole bar with the active tab color and floats its actions over
-                its own right end, so a title-bar colored corner would read as a stray dark block beside it; the corner
-                continues the tab's fill instead, pulled 1px left over the rail's end scroll sentinel so no title-bar
-                hairline survives at the seam. */}
             {isRootBar && spansWindowWidth && !isPrimarySidebarVisible && (
-                <div
-                    aria-hidden="true"
-                    className={cn(
-                        'work-tabs-drag-handle h-9 w-8 flex-none',
-                        isLoneFillTab && '-ml-px bg-tab-active-background',
-                    )}
-                />
+                <TitleBarDragCorner hasTabsToSwitch={hasTabsToSwitch} pane={pane} />
             )}
         </div>
     );
