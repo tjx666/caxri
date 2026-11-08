@@ -120,6 +120,33 @@ export function summarizeChatSwitch(receipt: unknown, baseline: unknown): ChatSw
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-size-comment.test.ts
+export interface ReportPullCandidate {
+    head: { repo: { full_name: string } | null; sha: string };
+    merged_at: string | null;
+    number: number;
+    state: 'closed' | 'open';
+}
+
+/**
+ * Picks the pull request whose exact head SHA and repository produced the CI run. An open or merged pull request gets
+ * the report; one closed without merging does not, since nobody will read it. A reused branch name can list older pull
+ * requests too, so the SHA match, not the branch, decides.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-size-comment.test.ts
+export function selectReportPull(
+    pulls: ReportPullCandidate[],
+    headSha: string,
+    headRepo: string,
+): ReportPullCandidate | undefined {
+    return pulls.find(
+        ({ head, merged_at: mergedAt, state }) =>
+            head.sha === headSha &&
+            head.repo?.full_name === headRepo &&
+            (state === 'open' || mergedAt !== null),
+    );
+}
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-size-comment.test.ts
 export interface CommentInput {
     baselines: Partial<Record<SizeReportKind, SizeReport>>;
     headSha: string;
@@ -365,17 +392,17 @@ async function main(): Promise<void> {
     if (!/^[0-9a-f]{40}$/u.test(headSha)) throw new Error('--head-sha must be a full commit SHA');
 
     // The pull request comes from the head, never from an artifact: fork runs carry no `pull_requests` association.
+    // `state=all` because a pull request merged on `guards` alone closes minutes before its full CI run finishes.
     const headOwner = headRepo.split('/', 1)[0];
-    const pulls = await ghJson<
-        Array<{ head: { repo: { full_name: string } | null; sha: string }; number: number }>
-    >(
-        `repos/${repo}/pulls?state=open&per_page=10&head=${encodeURIComponent(`${headOwner}:${headBranch}`)}`,
-    );
-    const pull = pulls.find(
-        ({ head }) => head.sha === headSha && head.repo?.full_name === headRepo,
+    const pull = selectReportPull(
+        await ghJson<ReportPullCandidate[]>(
+            `repos/${repo}/pulls?state=all&per_page=10&head=${encodeURIComponent(`${headOwner}:${headBranch}`)}`,
+        ),
+        headSha,
+        headRepo,
     );
     if (!pull) {
-        console.log(`No open pull request has head ${headSha}; nothing to report.`);
+        console.log(`No open or merged pull request has head ${headSha}; nothing to report.`);
         return;
     }
 
