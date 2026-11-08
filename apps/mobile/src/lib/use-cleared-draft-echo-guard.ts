@@ -1,19 +1,48 @@
 import { useLayoutEffect, useRef } from 'react';
 
 /**
- * The text the app clears when it empties a draft that held some, or `undefined` for any other change.
+ * How long after a clear the field may still hand back the cleared text as an echo. The keyboard's late write lands in
+ * the same JavaScript tick as the Send tap or a few frames after it; anything later is the user typing. Without this
+ * bound, re-entering a one-letter message such as `a` (answering an Agent's option list) was dropped on every press, so
+ * the letter flashed into the field and vanished (#3817).
  */
-export const clearedDraftText = (previous: string, next: string): string | undefined => {
+export const CLEARED_DRAFT_ECHO_WINDOW_MS = 500;
+
+/**
+ * A clear the guard still watches for: the cleared text and when the app cleared it.
+ */
+export interface ClearedDraft {
+    /**
+     * Milliseconds since the epoch at the clear.
+     */
+    at: number;
+    text: string;
+}
+
+/**
+ * The clear the app makes when it empties a draft that held some, or `undefined` for any other change.
+ */
+export const clearedDraft = (
+    previous: string,
+    next: string,
+    now: number,
+): ClearedDraft | undefined => {
     if (next !== '') return undefined;
-    const cleared = previous.trim();
-    return cleared === '' ? undefined : cleared;
+    const text = previous.trim();
+    return text === '' ? undefined : { at: now, text };
 };
 
 /**
  * Whether a native text change only hands back the text the app just cleared, so the field should stay empty.
  */
-export const isClearedDraftEcho = (text: string, cleared: string | undefined): boolean =>
-    cleared !== undefined && text.trim() === cleared;
+export const isClearedDraftEcho = (
+    text: string,
+    cleared: ClearedDraft | undefined,
+    now: number,
+): boolean =>
+    cleared !== undefined &&
+    now - cleared.at <= CLEARED_DRAFT_ECHO_WINDOW_MS &&
+    text.trim() === cleared.text;
 
 /**
  * Keeps a controlled composer empty after the app clears it. React Native's Android field refuses a value from
@@ -22,9 +51,9 @@ export const isClearedDraftEcho = (text: string, cleared: string | undefined): b
  * sent text back, often in the same JavaScript tick as the tap; the draft then refills with a message that already went
  * out (#3463). The app's own draft writes go through `setDraft`, which records a clear at once; the field's changes go
  * through `onChangeText`, which ignores that echo. The draft stays empty, and React Native's `TextInput` pushes the
- * empty value again with the newer event count, which the field accepts. The first field change that differs from the
- * cleared text ends the guard, so the user's own typing is never dropped; only re-entering the exact sent text as one
- * change right after is.
+ * empty value again with the newer event count, which the field accepts. The guard ends at the first field change that
+ * differs from the cleared text or once `CLEARED_DRAFT_ECHO_WINDOW_MS` has passed, so the user's own typing is never
+ * dropped; only the exact sent text arriving as one change right after the clear is.
  *
  * @see https://github.com/react/react-native/blob/v0.88.0/packages/react-native/Libraries/Components/TextInput/TextInput.js
  */
@@ -33,19 +62,19 @@ export const useClearedDraftEchoGuard = (
     onDraftChange: (draft: string) => void,
 ): { onChangeText: (text: string) => void; setDraft: (draft: string) => void } => {
     const latest = useRef(draft);
-    const cleared = useRef<string | undefined>(undefined);
+    const cleared = useRef<ClearedDraft | undefined>(undefined);
     useLayoutEffect(() => {
         latest.current = draft;
     }, [draft]);
     return {
         onChangeText: (text) => {
-            if (isClearedDraftEcho(text, cleared.current)) return;
+            if (isClearedDraftEcho(text, cleared.current, Date.now())) return;
             cleared.current = undefined;
             latest.current = text;
             onDraftChange(text);
         },
         setDraft: (next) => {
-            cleared.current = clearedDraftText(latest.current, next);
+            cleared.current = clearedDraft(latest.current, next, Date.now());
             latest.current = next;
             onDraftChange(next);
         },
