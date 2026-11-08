@@ -44,7 +44,8 @@ export const cases = {
     },
     'MOB-CHAT-COMPOSER-MARKDOWN-01': {
         desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
+        motion: 'live',
         recordingOwner: 'scenario',
         scenario: 'agent-chat-composer-markdown',
     },
