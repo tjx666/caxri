@@ -73,6 +73,7 @@ export async function executeMobileComputerRenameScenario(
         await tapMobileCheck(serial, 'settings-computer-name');
         await waitForCheck(serial, 'computer-rename-input');
         await adbShell(serial, ['input', 'keyevent', 'KEYCODE_DEL']);
+        await capture(environment, 'settings-rename-cleared', artifacts);
         await tapMobileCheck(serial, 'computer-rename-save');
         await waitForNoCheck(serial, 'computer-rename-sheet');
         await waitForMobile(readComputerName, (name) => name === null, 15_000);
