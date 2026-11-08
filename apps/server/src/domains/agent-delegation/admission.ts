@@ -14,7 +14,7 @@ import type {
 } from '@caxri/protocol';
 import {
     CaxriError,
-    defaultDelegationTypeProvider,
+    defaultDelegationTypeBinding,
     DELEGATION_TYPES,
     delegationProviderSchema,
     isDelegationEffortSupported,
@@ -237,8 +237,7 @@ export function delegationCaller(
 
 /**
  * The Agent a type runs on for a caller: the caller's own binding, else the base binding, else the type's default
- * provider with its native model and effort. Each step replaces the whole tuple, so a model never leaks across
- * providers.
+ * binding. Each step replaces the whole tuple, so a model never leaks across providers.
  */
 function delegationTypeBinding(
     settings: AgentDelegationSettings,
@@ -246,7 +245,7 @@ function delegationTypeBinding(
     caller: DelegationSelection['provider'] | undefined,
 ): Pick<DelegationSelection, 'effort' | 'model' | 'provider'> {
     const bound = (caller && settings.callers[caller]?.types?.[type]) ?? settings.types[type];
-    if (!bound) return { provider: defaultDelegationTypeProvider(type, caller) };
+    if (!bound) return defaultDelegationTypeBinding(type, caller);
     return {
         provider: bound.provider,
         ...(bound.model && { model: bound.model }),

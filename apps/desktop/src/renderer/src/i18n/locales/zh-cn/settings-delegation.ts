@@ -4,10 +4,11 @@ export const settingsDelegation = {
         '参考意见、代码评审、操作电脑和 X 搜索分别交给哪个 Agent、模型和推理强度，可按发起方单独覆盖；以及你自己命名的预设。预设可以从 dianjiang 导入。',
     'settings.delegationTypes.title': '委派类型',
     'settings.delegationTypes.default.second-opinion':
-        '另一家厂商：Codex；由 Codex 发起时用 Claude',
-    'settings.delegationTypes.default.review': '另一家厂商：Codex；由 Codex 发起时用 Claude',
-    'settings.delegationTypes.default.computer-use': 'Codex',
-    'settings.delegationTypes.default.x-search': 'Grok',
+        '另一家厂商：Codex · gpt-6.1-sol · xhigh；由 Codex 发起时用 Claude · opus · high',
+    'settings.delegationTypes.default.review':
+        '另一家厂商：Codex · gpt-6.1-sol · high；由 Codex 发起时用 Claude · sonnet · xhigh',
+    'settings.delegationTypes.default.computer-use': 'Codex · gpt-6.1-terra · medium',
+    'settings.delegationTypes.default.x-search': 'Grok · grok-4.7 · medium',
     'settings.delegationTypes.byCaller': '按发起方设置',
     'settings.delegationTypes.useDefault': '默认',
     'settings.delegationTypes.sameAsBase': '与上方相同',

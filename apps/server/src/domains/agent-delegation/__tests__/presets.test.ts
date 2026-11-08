@@ -149,12 +149,36 @@ describe('delegation presets and caller admission', () => {
 
     it('binds each type through the caller, then the base Settings, then the other vendor', async () => {
         const f = await fixture();
-        // Nothing configured: a Claude caller asks Codex, with Codex's native model and effort.
+        // Nothing configured: a Claude caller asks Codex, on the models and efforts dianjiang's presets settled on.
         expect(f.service.presets(f.agent, f.input).types).toEqual([
-            { type: 'second-opinion', provider: 'codex' },
-            { type: 'review', provider: 'codex' },
-            { type: 'computer-use', provider: 'codex' },
-            { type: 'x-search', provider: 'grok' },
+            { type: 'second-opinion', provider: 'codex', model: 'gpt-6.1-sol', effort: 'xhigh' },
+            { type: 'review', provider: 'codex', model: 'gpt-6.1-sol', effort: 'high' },
+            { type: 'computer-use', provider: 'codex', model: 'gpt-6.1-terra', effort: 'medium' },
+            { type: 'x-search', provider: 'grok', model: 'grok-4.7', effort: 'medium' },
+        ]);
+        const unbound = randomUUID();
+        await f.service.create(unbound, f.agent, { ...f.input, type: 'second-opinion' });
+        expect(f.database.agentDelegations.get(unbound)?.receipt.selection).toEqual({
+            provider: 'codex',
+            model: 'gpt-6.1-sol',
+            effort: 'xhigh',
+            type: 'second-opinion',
+        });
+        // A Codex caller asks the other vendor, Claude, for a review and a second opinion.
+        const { session: codexSession, terminal: codexCaller } = f.database.createSession(
+            f.input.projectId,
+            'codex',
+        );
+        expect(
+            f.service
+                .presets(
+                    { ...f.agent, callerTerminalId: codexCaller!.id },
+                    { ...f.input, sessionId: codexSession.id },
+                )
+                .types.slice(0, 2),
+        ).toEqual([
+            { type: 'second-opinion', provider: 'claude', model: 'opus', effort: 'high' },
+            { type: 'review', provider: 'claude', model: 'sonnet', effort: 'xhigh' },
         ]);
         f.setSettings({
             types: {
@@ -164,11 +188,11 @@ describe('delegation presets and caller admission', () => {
             callers: { claude: { types: { review: { provider: 'codex', model: 'gpt-5.5' } } } },
         });
         expect(f.service.presets(f.agent, f.input).types).toEqual([
-            { type: 'second-opinion', provider: 'codex' },
+            { type: 'second-opinion', provider: 'codex', model: 'gpt-6.1-sol', effort: 'xhigh' },
             // The caller's binding replaces the base tuple whole: no effort leaks from it.
             { type: 'review', provider: 'codex', model: 'gpt-5.5' },
             { type: 'computer-use', provider: 'codex', model: 'gpt-5.5', effort: 'medium' },
-            { type: 'x-search', provider: 'grok' },
+            { type: 'x-search', provider: 'grok', model: 'grok-4.7', effort: 'medium' },
         ]);
         const id = randomUUID();
         const receipt = await f.service.create(id, f.agent, { ...f.input, type: 'review' });

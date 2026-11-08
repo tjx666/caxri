@@ -642,8 +642,11 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
   Project.
 - **Which Agent.** `agents.delegation.types.<type>` binds a type to a provider, model, and effort;
   `callers.<provider>.types.<type>` overrides it for one caller. Each step replaces the whole tuple,
-  as caller preset bindings do; an unbound type runs on its default provider with that provider's
-  native model and effort (`defaultDelegationTypeProvider`). `agent delegate presets` returns the
+  as caller preset bindings do; an unbound type runs on its default tuple
+  (`defaultDelegationTypeBinding`), the model and effort dianjiang's matching preset used: a review
+  on Codex `gpt-6.1-sol` at `high` (Claude `sonnet` at `xhigh` when Codex asks), a second opinion on
+  Codex `gpt-6.1-sol` at `xhigh` (Claude `opus` at `high` when Codex asks), computer use on Codex
+  `gpt-6.1-terra` at `medium`, and an X search on Grok `grok-4.7` at `medium`. `agent delegate presets` returns the
   effective binding per type in `types`. `--provider` (with optional `--model` and `--effort`) runs
   the type on that Agent instead, for a user who names one.
 - **Relation.** Every type opens a `consult` Session (`newSessionRelation`): it takes no sidebar

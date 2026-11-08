@@ -354,7 +354,12 @@ describe('Delegation of a type', () => {
         // The fixture's caller is a Codex Session, so a review goes to Claude.
         const receipt = await service.create(id, agentAuthority, typed('review'));
 
-        expect(receipt.selection).toEqual({ provider: 'claude', type: 'review' });
+        expect(receipt.selection).toEqual({
+            provider: 'claude',
+            model: 'sonnet',
+            effort: 'xhigh',
+            type: 'review',
+        });
         const task = await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8');
         expect(task).toMatch(/^You are asked to review code changes as an independent reviewer\./u);
         expect(task).toContain('Synthetic private task');
@@ -366,7 +371,12 @@ describe('Delegation of a type', () => {
 
         const receipt = await service.create(id, agentAuthority, typed('x-search'));
 
-        expect(receipt.selection).toEqual({ provider: 'grok', type: 'x-search' });
+        expect(receipt.selection).toEqual({
+            provider: 'grok',
+            model: 'grok-4.7',
+            effort: 'medium',
+            type: 'x-search',
+        });
         // Grok Build's Chat cannot report a task, so the child opens on the PTY Terminal.
         expect(receipt.surface).toBe('pty');
         const task = await readFile(join(directory, 'delegations', id, 'task.md'), 'utf8');
