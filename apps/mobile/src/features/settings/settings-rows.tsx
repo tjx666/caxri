@@ -73,7 +73,11 @@ export const SettingsRow = ({
     >
         <View style={styles.rowMain}>
             <Text style={[styles.rowLabel, { color: theme.text }]}>{label}</Text>
-            <Text numberOfLines={1} style={[styles.rowValue, { color: valueColor ?? theme.muted }]}>
+            <Text
+                numberOfLines={1}
+                style={[styles.rowValue, { color: valueColor ?? theme.muted }]}
+                testID={`${testID}-value`}
+            >
                 {value}
             </Text>
             {showsChevron && onPress ? <ChevronRight color={theme.muted} size={18} /> : null}

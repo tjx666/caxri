@@ -79,8 +79,8 @@ export async function executeMobileComputerRenameScenario(
         await waitForMobile(readComputerName, (name) => name === null, 15_000);
         await waitForMobile(
             () =>
-                observeMobileNode(serial, 'settings-computer-name', {
-                    kind: 'includes',
+                observeMobileNode(serial, 'settings-computer-name-value', {
+                    kind: 'equals',
                     value: FIXTURE_HOST_NAME,
                 }),
             (observation) => observation.textMatches === true,
