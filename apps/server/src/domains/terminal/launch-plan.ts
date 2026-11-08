@@ -6,16 +6,12 @@ import type {
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    defaultAgentProviderSettings,
-    errorMessage,
-    isCaxriError,
-} from '@caxri/protocol';
+import { agentProviderCatalog, defaultAgentProviderSettings, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentLaunch,
     assertE2EShellLaunch,
+    errorLogFields,
     logEventCatalog,
     readE2EAgentPolicy,
 } from '@caxri/system';
@@ -220,7 +216,7 @@ export class TerminalLaunchPlanner {
                  * its resolver becomes unavailable.
                  */
                 this.options.logger.write('warn', logEventCatalog.pty.shellIntegrationUnavailable, {
-                    fields: { error: errorMessage(error, 'unknown') },
+                    fields: errorLogFields(error),
                 });
             }
             environment = { ...environment, ...this.options.shellEnvironment?.(record) };

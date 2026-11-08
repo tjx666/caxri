@@ -2,9 +2,9 @@ import { lstat, readdir } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 
 import type { FileChange, ServerEvent } from '@caxri/protocol';
-import { errorMessage, MAX_FILE_CHANGES_PER_EVENT } from '@caxri/protocol';
+import { MAX_FILE_CHANGES_PER_EVENT } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import { errorLogFields, logEventCatalog, mapWithConcurrency } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 
 import { isOutsideRoot } from '../path-security';
@@ -141,7 +141,7 @@ export class WatcherService {
             this.logger.write('warn', logEventCatalog.watcher.setupFailed, {
                 fields: {
                     sessionId: scope?.sessionId ?? 'none',
-                    error: errorMessage(error, 'unknown watcher error'),
+                    ...errorLogFields(error),
                 },
             });
         });
@@ -217,7 +217,7 @@ export class WatcherService {
                 this.logger.write('warn', logEventCatalog.watcher.fallback, {
                     fields: {
                         sessionId: eventScope.sessionId,
-                        error: errorMessage(error, 'unknown watcher error'),
+                        ...errorLogFields(error),
                     },
                 });
                 erroredHandle.startFallback(error);
@@ -510,7 +510,7 @@ export class WatcherService {
                         this.logger.write('debug', logEventCatalog.watcher.signatureEntrySkipped, {
                             fields: {
                                 path,
-                                error: errorMessage(error, 'unknown'),
+                                ...errorLogFields(error),
                             },
                         });
                 }

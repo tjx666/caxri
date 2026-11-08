@@ -89,9 +89,9 @@ export function createMainQuitHandler(options: MainQuitWiringOptions) {
             return server().request('terminal.detachAll');
         },
         exit: () => app.exit(0),
-        logFailure: (level, stage, error) =>
+        logFailure: (level, stage, fields) =>
             options.logger()?.write(level, logEventCatalog.app.quitFailed, {
-                fields: { stage, error },
+                fields: { stage, ...fields },
             }),
         persistWindowState: async () => {
             const window = options.mainWindow();

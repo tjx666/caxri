@@ -2,8 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn(), stored: undefined as unknown }));
 vi.mock('../../../lib/local-storage', () => ({
-    readLocalStorageJson: () => mocks.stored,
-    writeLocalStorageJson: vi.fn(),
+    createSharedLocalState: (_key: string, parse: (raw: unknown) => unknown) => ({
+        patch: vi.fn(),
+        read: () => parse(mocks.stored),
+        subscribe: vi.fn(() => () => {}),
+        write: vi.fn(),
+    }),
 }));
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 

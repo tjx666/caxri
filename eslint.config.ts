@@ -585,6 +585,26 @@ export default defineConfig(
         },
     },
     /**
+     * Diagnostics bundles copy log fields verbatim and the logger redacts only home paths and credential-shaped tokens,
+     * so Server Core, Desktop Main, and the shared system package log `errorLogFields(error)`, never error or stderr
+     * text (`project-architecture`'s `diagnostics.md`).
+     */
+    {
+        files: [
+            'apps/server/src/**/*.ts',
+            'apps/desktop/src/main/**/*.ts',
+            'packages/system/src/**/*.ts',
+            'scripts/fixtures/eslint/no-raw-error-text-in-logs/**/*.ts',
+        ],
+        ignores: ['**/__tests__/**', '**/*.test.ts'],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/no-raw-error-text-in-logs': 'error',
+        },
+    },
+    /**
      * An upgrade test anchors its starting schema on a migration tag, never on `CURRENT_SCHEMA_VERSION - n`, which
      * shifts to the wrong migration as soon as another one is appended (`project-architecture`'s `persistence.md`).
      */

@@ -2,9 +2,9 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider, ServerEvent } from '@caxri/protocol';
-import { errorMessage, isChatTerminal } from '@caxri/protocol';
+import { isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 // Server domain composition uses the public dispatch boundary required by the repository architecture.
 // react-doctor-disable-next-line react-doctor/no-barrel-import
@@ -288,7 +288,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await writeLongRunningCommands(longRunningCommands, patterns);
         } catch (error: unknown) {
             logger.write('warn', logEventCatalog.agent.integrationReconcileFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             });
         }
     };
@@ -305,7 +305,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
                 await settingsReconcile;
             } catch (error: unknown) {
                 logger.write('warn', logEventCatalog.agent.integrationReconcileFailed, {
-                    fields: { error: errorMessage(error, 'unknown') },
+                    fields: errorLogFields(error),
                 });
             }
             await Promise.all([

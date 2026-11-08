@@ -1,6 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
-import { errorMessage, logEventCatalog } from '@caxri/protocol';
+import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import type { App } from 'electron';
 
 import { installSecondInstanceFocus } from '../desktop-profile';
@@ -32,7 +33,7 @@ export function installExternalActivation(options: ExternalActivationOptions): {
         },
         (error) =>
             logger()?.write('error', logEventCatalog.app.secondInstanceFocusFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             }),
     );
     let isReady = false;

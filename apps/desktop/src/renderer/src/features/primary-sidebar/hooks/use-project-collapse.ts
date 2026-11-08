@@ -7,41 +7,15 @@ import type { ProjectCollapseState } from '../project-collapse';
 import {
     autoCollapseThresholdMs,
     isProjectCollapsed,
-    parseProjectCollapseState,
     projectCollapseAfterAutoPass,
     projectCollapseAfterReveal,
     projectCollapseAfterToggle,
     reconcileProjectCollapse,
 } from '../project-collapse';
+import { createProjectCollapsePersistence } from '../project-collapse-persistence';
 
-/**
- * `v2` records the user's expansions as well as their collapses, so the stored vocabulary changed. Unrecognized values
- * are dropped rather than translated: this is local view state, and starting an unknown Project expanded is the same
- * thing a first launch does.
- */
-const STORAGE_KEY = 'caxri.primary-sidebar-project-collapse.v2';
 const AUTO_COLLAPSE_IDLE_DELAY_MS = 500;
 const AUTO_COLLAPSE_RECHECK_MS = 60 * 1000;
-
-function isBrowser(): boolean {
-    // DOM types declare these globals as always present, but this module also loads in Vitest's Node environment.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-    return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
-}
-
-function readPersistedState(): ProjectCollapseState {
-    if (!isBrowser()) return {};
-    return parseProjectCollapseState(localStorage.getItem(STORAGE_KEY));
-}
-
-function writePersistedState(serialized: string): void {
-    if (!isBrowser()) return;
-    try {
-        localStorage.setItem(STORAGE_KEY, serialized);
-    } catch {
-        // Storage-disabled windows keep the disclosure state for this Renderer lifetime.
-    }
-}
 
 interface UseProjectCollapseInput {
     autoCollapseSetting: AppSettings['primarySidebar.autoCollapseProjects'];
@@ -58,8 +32,10 @@ interface UseProjectCollapseInput {
 export function useProjectCollapse(input: UseProjectCollapseInput) {
     const { autoCollapseSetting, groupIdBySessionId, projects, selectedSessionId, sessions } =
         input;
-    const [storedDisclosure, setStoredDisclosure] =
-        useState<ProjectCollapseState>(readPersistedState);
+    const [persistence] = useState(createProjectCollapsePersistence);
+    const [storedDisclosure, setStoredDisclosure] = useState<ProjectCollapseState>(
+        persistence.initial,
+    );
     const [hasFocus, setHasFocus] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
 
@@ -80,12 +56,23 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
         [storedDisclosure, groupIdBySessionId, projects, selectedSessionId, sessions],
     );
 
+    // Another window's collapse lands here and only updates memory. The persist effect below then has nothing of this
+    // window's to write, so a change never echoes back.
+    useEffect(() => persistence.subscribe(setStoredDisclosure), [persistence]);
+
     /**
-     * Persisted from the serialized form rather than the object: the reconciliation allocates a fresh record on every
-     * Workbench refresh, so an object-identity dependency would rewrite identical JSON dozens of times a minute.
+     * Persists just the Projects whose disclosure changed (`projectCollapseChanges`), merged into the shared record at
+     * write time. The reconciliation allocates a fresh record on every Workbench refresh, but an unchanged one yields
+     * no changes, so a refresh costs a comparison and no write.
      */
-    const serializedDisclosure = useMemo(() => JSON.stringify(disclosure), [disclosure]);
-    useEffect(() => writePersistedState(serializedDisclosure), [serializedDisclosure]);
+    useEffect(
+        () =>
+            persistence.persist(
+                disclosure,
+                projects ? new Set(projects.map((project) => project.id)) : undefined,
+            ),
+        [persistence, disclosure, projects],
+    );
 
     const autoCollapse = useCallback((): void => {
         setStoredDisclosure((current) => {

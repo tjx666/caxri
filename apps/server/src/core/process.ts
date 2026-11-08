@@ -14,6 +14,7 @@ import {
 import type { CausalCapsule } from '@caxri/system';
 import {
     computeBuildFingerprint,
+    errorLogFields,
     installProcessErrorMonitor,
     observationProcessManifestDirectory,
     ObservationProcessManifestPublisher,
@@ -81,7 +82,7 @@ if (cliPath) {
         });
     } catch (error) {
         logger.write('error', logEventCatalog.serverCore.cliLauncherFailed, {
-            fields: { message: error instanceof Error ? error.message : String(error) },
+            fields: errorLogFields(error),
         });
     }
 }

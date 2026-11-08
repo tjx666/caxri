@@ -11,6 +11,7 @@ import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { retainAgentChatComposerState } from '../agent-chat/composer-input/agent-chat-drafts';
 import { EnvironmentWorkbenchPage } from '../environment-monitor/environment-workbench-page';
+import { useDepartedSessionCleanup } from '../session/departed-session-cleanup';
 import { useReportViewedSession } from '../session/hooks/use-report-viewed-session';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { reconcileSessionAnimations } from './hidden-session-transitions';
@@ -98,6 +99,7 @@ export function Workbench() {
     }, [selectedSessionId]);
     useSessionFocusHandoff(selectedSessionId);
     useReportViewedSession(selectedSessionId);
+    useDepartedSessionCleanup();
     const liveSessionKey = useWorkbenchStore(
         (state) => state.bootstrap?.sessions.map(({ id }) => id).join('\u{0}') ?? '',
     );

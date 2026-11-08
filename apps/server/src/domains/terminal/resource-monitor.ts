@@ -8,9 +8,9 @@ import type {
     TerminalRecord,
     TerminalResourceAlert,
 } from '@caxri/protocol';
-import { errorMessage, isTerminalResourceUsageHigh } from '@caxri/protocol';
+import { isTerminalResourceUsageHigh } from '@caxri/protocol';
 import type { ProcessTable, ProcessTreeUsage, StructuredLogger } from '@caxri/system';
-import { logEventCatalog, sampleProcessTable } from '@caxri/system';
+import { errorLogFields, logEventCatalog, sampleProcessTable } from '@caxri/system';
 
 import type { WatchHandle, WatchHub } from '../watch';
 import type {
@@ -228,7 +228,7 @@ export class TerminalResourceMonitor {
             table = await (this.options.sampleProcessTable ?? sampleProcessTable)();
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminal.resourceSampleFailed, {
-                fields: { error: errorMessage(error, 'unknown'), terminals: running.length },
+                fields: { ...errorLogFields(error), terminals: running.length },
             });
             return;
         }

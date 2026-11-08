@@ -52,6 +52,8 @@ it('logs a rejected delegation import without any text from the file', async () 
     });
     await logger.flush();
     const log = await readFile(logger.path, 'utf8');
-    expect(log).toContain('Delegation presets could not be imported');
+    // The failure is recorded by size and class only; the rejection message is free text.
+    expect(log).toContain('"errorMessageLength"');
+    expect(log).not.toContain('Delegation presets could not be imported');
     expect(log).not.toMatch(/sentinel|Synthetic/u);
 });

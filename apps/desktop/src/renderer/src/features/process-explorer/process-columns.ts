@@ -201,24 +201,13 @@ function defaultProcessTableState(): ProcessTableState {
  * Reads the persisted table state, falling back to the defaults for anything malformed. A diagnostics window must open
  * even when its stored layout was written by an older build or hand-edited into nonsense.
  */
-export function parseProcessTableState(raw: string | null): ProcessTableState {
-    if (!raw) return defaultProcessTableState();
-    let json: unknown;
-    try {
-        json = JSON.parse(raw);
-    } catch {
-        return defaultProcessTableState();
-    }
-    const parsed = processTableStateSchema.safeParse(json);
+export function parseProcessTableState(stored: unknown): ProcessTableState {
+    const parsed = processTableStateSchema.safeParse(stored);
     if (!parsed.success) return defaultProcessTableState();
     const widths: ProcessColumnWidths = {};
     for (const column of PROCESS_COLUMNS) {
-        const stored = parsed.data.widths?.[column.key];
-        if (stored !== undefined) widths[column.key] = clampProcessColumnWidth(column.key, stored);
+        const width = parsed.data.widths?.[column.key];
+        if (width !== undefined) widths[column.key] = clampProcessColumnWidth(column.key, width);
     }
     return { sort: parsed.data.sort ?? DEFAULT_PROCESS_SORT, widths };
-}
-
-export function serializeProcessTableState(state: ProcessTableState): string {
-    return JSON.stringify(state);
 }

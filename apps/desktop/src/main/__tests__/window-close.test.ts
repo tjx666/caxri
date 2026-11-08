@@ -1,3 +1,4 @@
+import { errorLogFields } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createWindowCloseHandler, resolveWindowClose, windowClosePrompt } from '../window-close';
@@ -44,7 +45,7 @@ describe('resolveWindowClose', () => {
             terminateAll: vi.fn(),
         });
 
-        expect(logFailure).toHaveBeenCalledWith('Runtime unavailable');
+        expect(logFailure).toHaveBeenCalledWith(errorLogFields(new Error('Runtime unavailable')));
         expect(close).toHaveBeenCalledOnce();
     });
 

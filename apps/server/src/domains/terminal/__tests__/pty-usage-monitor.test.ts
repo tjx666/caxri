@@ -1,4 +1,5 @@
 import type { PtyUsage, ServerEvent } from '@caxri/protocol';
+import { errorLogFields } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { E2EPtyUsageOverride } from '../e2e-pty-usage-override';
@@ -91,7 +92,7 @@ describe('PtyUsageMonitor', () => {
 
         expect(events).toEqual([]);
         expect(write).toHaveBeenCalledWith('warn', 'terminal.pty_sample_failed', {
-            fields: { error: 'lsof timed out' },
+            fields: errorLogFields(new Error('lsof timed out')),
         });
     });
 

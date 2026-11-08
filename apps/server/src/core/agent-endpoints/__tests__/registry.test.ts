@@ -1,4 +1,5 @@
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentEndpointRegistry } from '..';
@@ -344,7 +345,7 @@ describe('AgentEndpointRegistry', () => {
         expect(write).toHaveBeenCalledWith(
             'warn',
             'agent_endpoint.messaging_changed_listener_failed',
-            { fields: { error: 'messagingChanged listener failure' } },
+            { fields: errorLogFields(new Error('messagingChanged listener failure')) },
         );
     });
 
@@ -367,7 +368,7 @@ describe('AgentEndpointRegistry', () => {
         expect(failing).toHaveBeenCalledTimes(1);
         expect(surviving).toHaveBeenCalledTimes(1);
         expect(write).toHaveBeenCalledWith('warn', 'agent_endpoint.retired_listener_failed', {
-            fields: { error: 'retired listener failure' },
+            fields: errorLogFields(new Error('retired listener failure')),
         });
     });
 });

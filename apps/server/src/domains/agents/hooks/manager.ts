@@ -14,7 +14,7 @@ import {
     errorMessage,
     isCaxriError,
 } from '@caxri/protocol';
-import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
+import { errorLogFields, logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
 import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
 import { WatchHub } from '../../watch';
@@ -198,7 +198,7 @@ export class AgentHookManager {
                 if (settings[provider].hooks.enabled)
                     this.setHealth(provider, { kind: 'error', message });
             this.options.logger.write('warn', logEventCatalog.agentHooks.lockFailed, {
-                fields: { error: message },
+                fields: errorLogFields(error),
             });
         }
     }
@@ -311,7 +311,7 @@ export class AgentHookManager {
                 message,
             });
             this.options.logger.write('warn', logEventCatalog.agentHooks.reconcileFailed, {
-                fields: { provider, error: message },
+                fields: { provider, ...errorLogFields(error) },
             });
         }
     }
@@ -601,7 +601,7 @@ export class AgentHookManager {
                                 provider: signal.provider,
                                 phase: signal.phase,
                                 terminalId: signal.terminalId,
-                                error: errorMessage(error, 'Lifecycle signal failed'),
+                                ...errorLogFields(error),
                             },
                         });
                         return { disposition: 'rejected' };
@@ -622,7 +622,7 @@ export class AgentHookManager {
         } catch (error) {
             const message = errorMessage(error, 'Lifecycle hook initialization failed');
             this.options.logger.write('warn', logEventCatalog.agentHooks.initializeFailed, {
-                fields: { error: message },
+                fields: errorLogFields(error),
             });
             for (const provider of agentProviderIds)
                 this.setHealth(provider, { kind: 'error', message });

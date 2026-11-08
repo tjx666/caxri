@@ -1,9 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import type { CaxriMethod, WindowPresenceReport, WindowPresenceSeed } from '@caxri/protocol';
-import { errorMessage, isWindowScopedMethod } from '@caxri/protocol';
+import { isWindowScopedMethod } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { DesktopServerConnection } from './connection/server-connection';
 import { outsideDesktopCommand } from './desktop-command-scope';
@@ -274,7 +274,7 @@ export function createConnectionPresence(
         // reseed on re-attach covers it.
         onSendError: (error) =>
             logger()?.write('warn', logEventCatalog.window.presenceReportFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             }),
         reportPresence: (report) => connection().request('window.reportPresence', report),
     });

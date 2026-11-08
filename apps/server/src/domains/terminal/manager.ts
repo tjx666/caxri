@@ -7,9 +7,9 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage, isCaxriError } from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, SingleFlight } from '@caxri/system';
+import { errorLogFields, logEventCatalog, SingleFlight } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
 
 import type { ShutdownReason } from '../db';
@@ -184,7 +184,7 @@ export class TerminalManager {
             this.agentStarts.settle(terminalId, launchId, false);
             await this.retireCoreLifecycle(terminalId, launchId);
             this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
-                fields: { terminalId, error: errorMessage(error, 'unknown') },
+                fields: { terminalId, ...errorLogFields(error) },
             });
         }
     }
@@ -236,7 +236,7 @@ export class TerminalManager {
             });
         } catch (error) {
             this.logger.write('warn', ptyLogEvents.exitFinalizeFailed, {
-                fields: { terminalId: event.record.id, error: errorMessage(error, 'unknown') },
+                fields: { terminalId: event.record.id, ...errorLogFields(error) },
             });
         }
     }
@@ -277,7 +277,7 @@ export class TerminalManager {
         // eslint-disable-next-line unicorn/prefer-await -- synchronous execution retirement cannot await Core cleanup
         this.retireCoreLifecycle(terminalId, launchId).catch((error: unknown) =>
             this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
-                fields: { terminalId, error: errorMessage(error, 'unknown') },
+                fields: { terminalId, ...errorLogFields(error) },
             }),
         );
     }
@@ -374,7 +374,7 @@ export class TerminalManager {
                 this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
                     fields: {
                         terminalId: record.id,
-                        error: errorMessage(retirementError, 'unknown'),
+                        ...errorLogFields(retirementError),
                     },
                 });
             }

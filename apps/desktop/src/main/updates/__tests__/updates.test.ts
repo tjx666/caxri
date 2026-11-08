@@ -76,7 +76,7 @@ describe('update state log fields', () => {
             status: 'error',
             failureKind: 'network',
             action: 'check',
-            message: 'The GitHub release check failed with status 404.',
+            messageLength: 'The GitHub release check failed with status 404.'.length,
         });
         expect(
             updateStateLogFields({

@@ -9,6 +9,11 @@ import {
     updateRestartPrompt,
 } from '../app-quit';
 
+/**
+ * Failure log fields: the message's shape, never its text.
+ */
+const LOGGED: unknown = expect.objectContaining({ errorName: expect.any(String) as unknown });
+
 function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
     return {
         acceptQuit: vi.fn(),
@@ -152,7 +157,7 @@ describe('resolveAppQuit', () => {
 
         await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
 
-        expect(target.logFailure).toHaveBeenCalledWith('warn', 'status', 'Server unavailable');
+        expect(target.logFailure).toHaveBeenCalledWith('warn', 'status', LOGGED);
         expect(target.confirm).not.toHaveBeenCalled();
         expect(target.detachAll).toHaveBeenCalledOnce();
         expect(target.closeDesktop).toHaveBeenCalledOnce();
@@ -292,11 +297,7 @@ describe('resolveAppQuit', () => {
 
         await expect(resolveAppQuit(target)).resolves.toBe('stopped');
 
-        expect(target.logFailure).toHaveBeenCalledWith(
-            'error',
-            'reviewComments',
-            'Server unavailable',
-        );
+        expect(target.logFailure).toHaveBeenCalledWith('error', 'reviewComments', LOGGED);
         expect(target.confirmPendingReviewComments).not.toHaveBeenCalled();
     });
 
@@ -318,7 +319,7 @@ describe('resolveAppQuit', () => {
 
         await expect(resolveAppQuit(target)).resolves.toBe('stopped');
 
-        expect(target.logFailure).toHaveBeenCalledWith('error', 'reviewComments', 'dialog failed');
+        expect(target.logFailure).toHaveBeenCalledWith('error', 'reviewComments', LOGGED);
     });
 
     it('exits after best-effort shutdown failures and reports their owning stages', async () => {
@@ -329,8 +330,8 @@ describe('resolveAppQuit', () => {
 
         await expect(resolveAppQuit(target)).resolves.toBe('stop-failed');
 
-        expect(target.logFailure).toHaveBeenNthCalledWith(1, 'error', 'persist', 'persist failed');
-        expect(target.logFailure).toHaveBeenNthCalledWith(2, 'error', 'stop', 'stop failed');
+        expect(target.logFailure).toHaveBeenNthCalledWith(1, 'error', 'persist', LOGGED);
+        expect(target.logFailure).toHaveBeenNthCalledWith(2, 'error', 'stop', LOGGED);
         expect(target.notifyStopFailure).toHaveBeenCalledOnce();
         expect(target.exit).toHaveBeenCalledOnce();
     });

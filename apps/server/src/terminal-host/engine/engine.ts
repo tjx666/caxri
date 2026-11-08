@@ -13,6 +13,7 @@ import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentInput,
     clearScheduledTimer,
+    errorLogFields,
     logEventCatalog,
     readE2EAgentPolicy,
 } from '@caxri/system';
@@ -476,10 +477,7 @@ export class TerminalExecutionEngine {
                 await this.onExit(live, exitCode, signal);
             } catch (error) {
                 this.options.logger.write('warn', ptyLogEvents.exitFinalizeFailed, {
-                    fields: {
-                        terminalId: live.record.id,
-                        error: error instanceof Error ? error.message : String(error),
-                    },
+                    fields: { terminalId: live.record.id, ...errorLogFields(error) },
                 });
             }
         });

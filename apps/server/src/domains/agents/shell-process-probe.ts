@@ -1,7 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { ShellPromotionCandidate } from './shell-promotion';
 
@@ -159,7 +158,7 @@ export class ShellProcessProbe {
 
     private logProbeFailure(terminalId: string, error: unknown): void {
         this.options.logger.write('warn', logEventCatalog.agent.processProbeFailed, {
-            fields: { terminalId, error: errorMessage(error, 'unknown') },
+            fields: { terminalId, ...errorLogFields(error) },
         });
     }
 

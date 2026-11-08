@@ -1,6 +1,7 @@
 import type { PersistedWindowState } from '@caxri/protocol';
-import { errorMessage, logEventCatalog } from '@caxri/protocol';
+import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 
 import type { DesktopServerConnection } from '../connection/server-connection';
 import type { WindowPlacement } from '../window-placement';
@@ -111,7 +112,7 @@ export function createTearOffWindows<W extends TearOffBrowserWindow>(
                 return;
             } catch (error) {
                 logger()?.write('warn', logEventCatalog.window.tearOffReleaseFailed, {
-                    fields: { attempt, error: errorMessage(error, 'unknown') },
+                    fields: { attempt, ...errorLogFields(error) },
                 });
             }
         }
@@ -167,7 +168,7 @@ export function createTearOffWindows<W extends TearOffBrowserWindow>(
                     });
             } catch (error) {
                 logger()?.write('warn', logEventCatalog.window.tearOffRestoreFailed, {
-                    fields: { error: errorMessage(error, 'unknown') },
+                    fields: errorLogFields(error),
                 });
             }
         },

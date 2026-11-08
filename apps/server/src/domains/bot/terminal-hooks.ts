@@ -1,7 +1,6 @@
 import type { AgentDelegationReceipt, TerminalRecord } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal, SessionActivityTransition } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -89,7 +88,7 @@ export class BotTerminalHooks {
             this.logger.write('warn', logEventCatalog.caxriBot.taskRecordFailed, {
                 fields: {
                     delegationId: receipt.delegationId,
-                    error: errorMessage(error, 'unknown'),
+                    ...errorLogFields(error),
                 },
             });
         }

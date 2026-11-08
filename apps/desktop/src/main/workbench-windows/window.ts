@@ -164,10 +164,8 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
                   countRunning: () => supervisor().request('terminal.runningCount'),
                   decideUnsavedEditors: () => options.decideUnsavedEditors(),
                   detachAll: () => supervisor().request('terminal.detachAll'),
-                  logFailure: (message) =>
-                      logger()?.write('error', logEventCatalog.window.closeFailed, {
-                          fields: { error: message },
-                      }),
+                  logFailure: (fields) =>
+                      logger()?.write('error', logEventCatalog.window.closeFailed, { fields }),
                   terminateAll: () =>
                       supervisor().request('terminal.terminateAll', { reason: 'windowClose' }),
               })
@@ -181,10 +179,8 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
                   countRunning: () => Promise.resolve({ chats: 0, terminals: 0 }),
                   decideUnsavedEditors: () => options.decideUnsavedEditors(windowKey),
                   detachAll: () => Promise.resolve(),
-                  logFailure: (message) =>
-                      logger()?.write('error', logEventCatalog.window.closeFailed, {
-                          fields: { error: message },
-                      }),
+                  logFailure: (fields) =>
+                      logger()?.write('error', logEventCatalog.window.closeFailed, { fields }),
                   terminateAll: () => Promise.resolve(),
               });
         window.on('close', (event) => {

@@ -16,6 +16,7 @@ export type SurfaceScope =
     | 'activity'
     | 'chat'
     | 'chat-entry'
+    | 'chat-strip'
     | 'editor'
     | 'portal'
     | 'settings'

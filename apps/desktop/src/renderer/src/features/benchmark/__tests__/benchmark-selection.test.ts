@@ -6,9 +6,9 @@ import {
     defaultJudge,
     draftFromPreferences,
     draftFromRun,
+    draftPreferencesOf,
     draftProblem,
     emptyDraft,
-    serializeDraftPreferences,
     startParameters,
     toggleEntry,
 } from '../benchmark-selection';
@@ -134,14 +134,14 @@ describe('draft preferences', () => {
             repeats: 3,
             judge: null,
         };
-        const restored = draftFromPreferences(serializeDraftPreferences(draft));
+        const restored = draftFromPreferences(draftPreferencesOf(draft));
 
         expect(restored).toEqual({ ...draft, prompt: '', projectId: undefined });
     });
 
     it('falls back to an empty draft for anything invalid', () => {
         expect(draftFromPreferences('{not json')).toEqual(emptyDraft());
-        expect(draftFromPreferences(JSON.stringify({ entries: 'x' }))).toEqual(emptyDraft());
-        expect(draftFromPreferences(null)).toEqual(emptyDraft());
+        expect(draftFromPreferences({ entries: 'x' })).toEqual(emptyDraft());
+        expect(draftFromPreferences(undefined)).toEqual(emptyDraft());
     });
 });

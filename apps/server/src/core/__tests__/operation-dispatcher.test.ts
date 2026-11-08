@@ -264,7 +264,9 @@ describe('createOperationDispatcher', () => {
             fields: { method: 'files.read', code: 'NOT_FOUND' },
         });
         expect(records[0].fields?.stack).toBeNull();
-        expect(records[1].fields?.stack).toContain('unexpected boom');
+        // Frames only: the first stack line repeats the message, which diagnostics bundles must not carry.
+        expect(records[1].fields?.stack).toContain('    at ');
+        expect(records[1].fields?.stack).not.toContain('unexpected boom');
         expect(records[2]).toMatchObject({
             event: 'ipc.request_failed',
             correlationId: 'r3',

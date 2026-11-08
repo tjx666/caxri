@@ -7,9 +7,9 @@ import type {
     SessionRecord,
     WorkbenchRootOption,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -198,7 +198,7 @@ export class WorkbenchRootService {
             .catch((error: unknown) => {
                 if (!this.closed)
                     this.options.logger.write('warn', workbenchRootLogEvents.topologyFailed, {
-                        fields: { error: errorMessage(error, 'unknown') },
+                        fields: errorLogFields(error),
                     });
             });
         /* eslint-enable unicorn/prefer-await */

@@ -1,6 +1,6 @@
 import type { ProjectRecord } from '@caxri/protocol';
 
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 
 const ACTIVITY_SESSION_PROJECT_STORAGE_KEY = 'caxri.session.activityNewSessionProject';
@@ -18,9 +18,22 @@ export function parseActivitySessionProject(stored: unknown): ActivitySessionPro
     return { projectId: typeof stored === 'string' && stored.length > 0 ? stored : undefined };
 }
 
+/**
+ * Shared by every window of the profile (docs/client-local-data.md): the last pick is the user's, so a pick in one
+ * window becomes the target in the others.
+ */
+const sharedProject = createSharedLocalState(
+    ACTIVITY_SESSION_PROJECT_STORAGE_KEY,
+    parseActivitySessionProject,
+);
+
 export const useActivitySessionProjectStore = createStore<ActivitySessionProject>(
     'activity-session-project',
-    () => parseActivitySessionProject(readLocalStorageJson(ACTIVITY_SESSION_PROJECT_STORAGE_KEY)),
+    (set) => {
+        // Memory only, so another window's pick never writes back.
+        sharedProject.subscribe((state) => set(state));
+        return sharedProject.read();
+    },
 );
 
 /**
@@ -29,7 +42,7 @@ export const useActivitySessionProjectStore = createStore<ActivitySessionProject
 export function rememberActivitySessionProject(projectId: string): void {
     if (useActivitySessionProjectStore.getState().projectId === projectId) return;
     useActivitySessionProjectStore.setState({ projectId });
-    writeLocalStorageJson(ACTIVITY_SESSION_PROJECT_STORAGE_KEY, projectId);
+    sharedProject.write(projectId);
 }
 
 /**

@@ -53,12 +53,12 @@ describe('saved preferences', () => {
     it('falls back to overlay for anything but window', () => {
         expect(parseMode('window')).toBe('window');
         expect(parseMode('x')).toBe('overlay');
-        expect(parseMode(null)).toBe('overlay');
+        expect(parseMode(undefined)).toBe('overlay');
     });
     it('rejects malformed positions', () => {
-        expect(parsePosition('{"x":1,"y":2}')).toEqual({ x: 1, y: 2 });
-        expect(parsePosition('{"x":"1","y":2}')).toBeNull();
+        expect(parsePosition({ x: 1, y: 2 })).toEqual({ x: 1, y: 2 });
+        expect(parsePosition({ x: '1', y: 2 })).toBeNull();
         expect(parsePosition('nope')).toBeNull();
-        expect(parsePosition(null)).toBeNull();
+        expect(parsePosition(undefined)).toBeNull();
     });
 });

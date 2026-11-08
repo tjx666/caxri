@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { installSharedProfile } from '../../../lib/__tests__/local-storage-profile';
 import { DEFAULT_USAGE_FILTERS, parseUsageFilters } from '../usage-filter-store';
 
 const STORAGE_KEY = 'caxri.usage.filters';
@@ -9,13 +10,7 @@ const STORAGE_KEY = 'caxri.usage.filters';
  * reads storage when its module loads, which is when the Usage tab first opens, so each case loads a fresh copy.
  */
 function stubStorage(entries: Map<string, string>): void {
-    vi.stubGlobal('window', {});
-    vi.stubGlobal('localStorage', {
-        getItem: (key: string) => entries.get(key) ?? null,
-        setItem: (key: string, value: string) => {
-            entries.set(key, value);
-        },
-    });
+    installSharedProfile(entries);
 }
 
 async function openPage() {

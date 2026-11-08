@@ -2,7 +2,7 @@ import type { RecoveringEventClient } from '@caxri/client';
 import { createRecoveringEventClient } from '@caxri/client';
 import type { ServerClient, ServerSupervisionEvent } from '@caxri/client/supervise';
 import type { ServerEvent } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { DesktopServerConnectionOptions } from './server-attachment';
 
@@ -22,9 +22,7 @@ export function createDesktopEventClient(parameters: {
         ...(parameters.connection && { identity: parameters.connection }),
         onError: (error) =>
             parameters.logger.write('error', logEventCatalog.serverConnection.eventRecoveryFailed, {
-                fields: {
-                    error: error instanceof Error ? error.message : 'Unknown recovery error',
-                },
+                fields: errorLogFields(error),
             }),
         // Resolved per call so recovery always targets the currently attached client
         // instead of a connection that has since been lost.

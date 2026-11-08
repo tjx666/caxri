@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => {
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
         closeCreateSessionMenu: vi.fn(),
         copyFilePath: vi.fn(() => Promise.resolve()),
-        dropSessions: vi.fn(),
         getBootstrap: vi.fn(),
         typeAgentSignInCommand: vi.fn(() => Promise.resolve()),
         openCreateSessionMenu: vi.fn(),
@@ -34,7 +33,6 @@ const mocks = vi.hoisted(() => {
             promise: Promise.resolve(),
         })),
         refreshWorkbench: vi.fn(() => Promise.resolve()),
-        removeSessionQueries: vi.fn(),
         selectSelectedProject: vi.fn(),
         /**
          * Mirrors the real funnel's swallow-and-report contract rather than only forwarding `run`: an action offered
@@ -72,9 +70,6 @@ vi.mock('../../../queries/client', () => ({
     caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
     queryClient: { getQueryData: mocks.getQueryData },
 }));
-vi.mock('../../../queries/session-queries', () => ({
-    removeSessionQueries: mocks.removeSessionQueries,
-}));
 vi.mock('../../../stores/chrome-layout', () => ({
     isPrimarySidebarShown: (state: { primarySidebarVisible: boolean }) =>
         state.primarySidebarVisible,
@@ -103,9 +98,6 @@ vi.mock('../../../stores/selectors', () => ({
     getSelectedSession: mocks.getSelectedSession,
     selectSelectedProject: mocks.selectSelectedProject,
     selectSelectedSession: vi.fn(),
-}));
-vi.mock('../../../stores/session-view', () => ({
-    useSessionViewStore: { getState: vi.fn(() => ({ dropSessions: mocks.dropSessions })) },
 }));
 vi.mock('../../../stores/toasts', () => ({
     pushToast: mocks.pushToast,
@@ -155,7 +147,6 @@ describe('Session creation commands', () => {
         mocks.copyFilePath.mockClear();
         mocks.pushToast.mockClear();
         mocks.writeText.mockClear();
-        mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.getQueryData.mockReset();
         mocks.getSelectedSession.mockReset();
@@ -163,7 +154,6 @@ describe('Session creation commands', () => {
         mocks.pushToast.mockClear();
         mocks.registerSessionCommandConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
-        mocks.removeSessionQueries.mockClear();
         mocks.selectSelectedProject.mockReset();
         mocks.tryCommand.mockClear();
         mocks.closeCreateSessionMenu.mockClear();

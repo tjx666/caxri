@@ -1,4 +1,4 @@
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 
 const STORAGE_KEY = 'caxri.settings.showAdvanced';
@@ -12,12 +12,26 @@ interface SettingsAdvancedState {
     showAdvanced: boolean;
 }
 
+function parseShowAdvanced(stored: unknown): SettingsAdvancedState {
+    return { showAdvanced: stored === true };
+}
+
+/**
+ * Shared by every window of the profile (docs/client-local-data.md): a scalar the user chose, so a toggle in one window
+ * reaches the others live.
+ */
+const sharedShowAdvanced = createSharedLocalState(STORAGE_KEY, parseShowAdvanced);
+
 export const useSettingsAdvancedStore = createStore<SettingsAdvancedState>(
     'settings-advanced',
-    () => ({ showAdvanced: readLocalStorageJson(STORAGE_KEY) === true }),
+    (set) => {
+        // Memory only, so another window's change never writes back.
+        sharedShowAdvanced.subscribe((state) => set(state));
+        return sharedShowAdvanced.read();
+    },
 );
 
 export function setShowAdvancedSettings(shouldShow: boolean): void {
     useSettingsAdvancedStore.setState({ showAdvanced: shouldShow });
-    writeLocalStorageJson(STORAGE_KEY, shouldShow);
+    sharedShowAdvanced.write(shouldShow);
 }

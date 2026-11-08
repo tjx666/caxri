@@ -4,7 +4,7 @@ import type { ViewContainerId } from '@caxri/protocol';
 import { viewContainerIdSchema } from '@caxri/protocol';
 import { clamp } from 'es-toolkit';
 
-import { readLocalStorageJson, writeLocalStorageJson } from '../lib/local-storage';
+import { createSharedLocalState } from '../lib/local-storage';
 import { createStore } from '../lib/store';
 import { handOffChromeFocus, refocusChromeSurfaceBody } from './chrome-focus-handoff';
 import { useNotificationStore } from './notifications';
@@ -161,8 +161,8 @@ function isBrowser(): boolean {
 /**
  * Falls back to defaults for a missing/corrupt entry instead of throwing during module load.
  */
-function readPersistedLayout(): ChromeLayout {
-    const parsed = readLocalStorageJson(STORAGE_KEY) as Partial<ChromeLayout> | undefined;
+function parsePersistedLayout(raw: unknown): ChromeLayout {
+    const parsed = raw as Partial<ChromeLayout> | undefined;
     if (!parsed || typeof parsed !== 'object') return DEFAULT_CHROME_LAYOUT;
     return {
         primarySidebarWidth: clampWidth(
@@ -208,9 +208,14 @@ function readPersistedLayout(): ChromeLayout {
     };
 }
 
-function writePersistedLayout(layout: ChromeLayout): void {
-    writeLocalStorageJson(STORAGE_KEY, layout);
-}
+/**
+ * Per-window by design (docs/client-local-data.md): widths, visibility, and the Panel view belong to the window that
+ * shows them, so a change in one window must not resize or hide another window's side bars, and this entry is never
+ * subscribed to. It only seeds the layout of the next window that starts. Writes go field by field, so a window that
+ * changes its Panel height does not revert the sidebar width another window saved meanwhile; for the same field the
+ * last window to change it wins.
+ */
+const sharedLayout = createSharedLocalState(STORAGE_KEY, parsePersistedLayout);
 
 /**
  * Revalidates a visibility change immediately instead of waiting for the next window resize.
@@ -304,191 +309,204 @@ function pickLayout(state: ChromeLayout): ChromeLayout {
     };
 }
 
-export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layout', (set, get) => ({
-    ...readPersistedLayout(),
-    zenMode: false,
-    toggleZenMode() {
-        const isEntering = !get().zenMode;
-        if (isEntering) {
-            // Before `set`, so a focused side bar row or Panel view hands the keyboard back before it unmounts.
-            handOffChromeFocus('primarySidebar', false);
-            handOffChromeFocus('secondarySidebar', false);
-            handOffChromeFocus('panel', false);
-            // The status bar bell that owns the center unmounts with Zen, which would leave it open and mark every
-            // notice that arrives meanwhile as read.
-            useNotificationStore.getState().setOpen(false);
-        }
-        set({ zenMode: isEntering });
-    },
-    setPrimarySidebarWidth(width) {
-        const primarySidebarWidth = clampWidth(
-            width,
-            PRIMARY_SIDEBAR_MIN_WIDTH,
-            PRIMARY_SIDEBAR_MAX_WIDTH,
-        );
-        writePersistedLayout({ ...pickLayout(get()), primarySidebarWidth });
-        set({ primarySidebarWidth });
-    },
-    setSecondarySidebarWidth(width) {
-        const secondarySidebarWidth = clampWidth(
-            width,
-            SECONDARY_SIDEBAR_MIN_WIDTH,
-            SECONDARY_SIDEBAR_MAX_WIDTH,
-        );
-        writePersistedLayout({ ...pickLayout(get()), secondarySidebarWidth });
-        set({ secondarySidebarWidth });
-    },
-    setPanelHeight(height) {
-        const panelHeight = isBrowser()
-            ? clampPanelHeight(height, window.innerHeight)
-            : clampWidth(height, PANEL_MIN_HEIGHT, PANEL_MAX_HEIGHT);
-        writePersistedLayout({ ...pickLayout(get()), panelHeight });
-        set({ panelHeight });
-    },
-    resetPrimarySidebarWidth() {
-        writePersistedLayout({
-            ...pickLayout(get()),
-            primarySidebarWidth: PRIMARY_SIDEBAR_DEFAULT_WIDTH,
-        });
-        set({ primarySidebarWidth: PRIMARY_SIDEBAR_DEFAULT_WIDTH });
-    },
-    resetSecondarySidebarWidth() {
-        writePersistedLayout({
-            ...pickLayout(get()),
-            secondarySidebarWidth: SECONDARY_SIDEBAR_DEFAULT_WIDTH,
-        });
-        set({ secondarySidebarWidth: SECONDARY_SIDEBAR_DEFAULT_WIDTH });
-    },
-    resetPanelHeight() {
-        const panelHeight = isBrowser()
-            ? clampPanelHeight(PANEL_DEFAULT_HEIGHT, window.innerHeight)
-            : PANEL_DEFAULT_HEIGHT;
-        writePersistedLayout({ ...pickLayout(get()), panelHeight });
-        set({ panelHeight });
-    },
-    togglePrimarySidebar() {
-        if (get().zenMode) {
-            set({ zenMode: false });
-            if (get().primarySidebarVisible) return;
-        }
-        const isPrimarySidebarVisible = !get().primarySidebarVisible;
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            primarySidebarVisible: isPrimarySidebarVisible,
-        });
-        // `Cmd+0` owns keyboard entry into the Primary Side Bar. `Cmd+[` only changes visibility, matching its command
-        // description and preserving the Terminal/editor caret; when hiding, the handoff still rescues focus from a
-        // row that is about to unmount.
-        if (!isPrimarySidebarVisible) handOffChromeFocus('primarySidebar', false);
-        writePersistedLayout(layout);
-        set(layout);
-    },
-    toggleSecondarySidebar() {
-        if (get().zenMode) {
-            set({ zenMode: false });
-            if (get().secondarySidebarVisible) return;
-        }
-        const isRevealing = !get().secondarySidebarVisible;
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            secondarySidebarVisible: isRevealing,
-        });
-        // Same contract as the Panel: `Cmd+]` reaches through a focused Terminal too, so it owes the same handoff.
-        handOffChromeFocus('secondarySidebar', isRevealing);
-        writePersistedLayout(layout);
-        set(layout);
-    },
-    setPrimarySidebarVisible(isVisible) {
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            primarySidebarVisible: isVisible,
-        });
-        writePersistedLayout(layout);
-        set({ ...layout, ...(isVisible && { zenMode: false }) });
-    },
-    setSecondarySidebarVisible(isVisible) {
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            secondarySidebarVisible: isVisible,
-        });
-        writePersistedLayout(layout);
-        set({ ...layout, ...(isVisible && { zenMode: false }) });
-    },
-    togglePanel() {
-        if (get().zenMode) {
-            set({ zenMode: false });
-            if (get().panelVisible) return;
-        }
-        const isRevealing = !get().panelVisible;
-        const layout = fitCurrentViewport({ ...pickLayout(get()), panelVisible: isRevealing });
-        // Before `set`, so the handoff still sees the element that owns focus and the Panel that is about to unmount.
-        handOffChromeFocus('panel', isRevealing);
-        writePersistedLayout(layout);
-        set(layout);
-    },
-    setPanelVisible(isVisible) {
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            panelVisible: isVisible,
-        });
-        writePersistedLayout(layout);
-        set({ ...layout, ...(isVisible && { zenMode: false }) });
-    },
-    togglePrimarySidebarActivityMode() {
-        const isActivityMode = !get().primarySidebarActivityMode;
-        const layout = { ...pickLayout(get()), primarySidebarActivityMode: isActivityMode };
-        // Before the commit: the body that owns focus right now is the one about to unmount.
-        refocusChromeSurfaceBody('primarySidebar');
-        writePersistedLayout(layout);
-        set(layout);
-    },
-    leavePrimarySidebarActivityMode() {
-        if (!get().primarySidebarActivityMode) return;
-        const layout = { ...pickLayout(get()), primarySidebarActivityMode: false };
-        refocusChromeSurfaceBody('primarySidebar');
-        writePersistedLayout(layout);
-        set(layout);
-    },
-    showPrimarySidebarActivity() {
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            primarySidebarVisible: true,
-            primarySidebarActivityMode: true,
-        });
-        refocusChromeSurfaceBody('primarySidebar');
-        writePersistedLayout(layout);
-        set({ ...layout, zenMode: false });
-    },
-    activatePanelViewContainer(view) {
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            panelVisible: true,
-            desiredPanelViewContainerId: view,
-        });
-        writePersistedLayout(layout);
-        set({ ...layout, zenMode: false });
-    },
-    clampToViewport(viewportWidth, viewportHeight) {
+export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layout', (set, get) => {
+    /**
+     * Persists the fields of `layout` that differ from this window's current layout. Call it before `set`, while the
+     * store still holds the previous values.
+     */
+    const writePersistedLayout = (layout: ChromeLayout): void => {
         const current = pickLayout(get());
-        const next = {
-            ...clampLayoutToViewport(current, viewportWidth),
-            panelHeight: clampPanelHeight(current.panelHeight, viewportHeight),
-        };
-        if (
-            next.primarySidebarWidth === current.primarySidebarWidth &&
-            next.secondarySidebarWidth === current.secondarySidebarWidth &&
-            next.panelHeight === current.panelHeight
-        )
-            return;
-        writePersistedLayout(next);
-        set(next);
-    },
-    setPortalWidth(width) {
-        const portalWidth = clampWidth(width, PORTAL_MIN_WIDTH, PORTAL_MAX_WIDTH);
-        writePersistedLayout({ ...pickLayout(get()), portalWidth });
-        set({ portalWidth });
-    },
-}));
+        const changes: Record<string, unknown> = {};
+        for (const field of Object.keys(layout) as Array<keyof ChromeLayout>)
+            if (layout[field] !== current[field]) changes[field] = layout[field];
+        if (Object.keys(changes).length > 0) sharedLayout.patch(changes);
+    };
+    return {
+        ...sharedLayout.read(),
+        zenMode: false,
+        toggleZenMode() {
+            const isEntering = !get().zenMode;
+            if (isEntering) {
+                // Before `set`, so a focused side bar row or Panel view hands the keyboard back before it unmounts.
+                handOffChromeFocus('primarySidebar', false);
+                handOffChromeFocus('secondarySidebar', false);
+                handOffChromeFocus('panel', false);
+                // The status bar bell that owns the center unmounts with Zen, which would leave it open and mark every
+                // notice that arrives meanwhile as read.
+                useNotificationStore.getState().setOpen(false);
+            }
+            set({ zenMode: isEntering });
+        },
+        setPrimarySidebarWidth(width) {
+            const primarySidebarWidth = clampWidth(
+                width,
+                PRIMARY_SIDEBAR_MIN_WIDTH,
+                PRIMARY_SIDEBAR_MAX_WIDTH,
+            );
+            writePersistedLayout({ ...pickLayout(get()), primarySidebarWidth });
+            set({ primarySidebarWidth });
+        },
+        setSecondarySidebarWidth(width) {
+            const secondarySidebarWidth = clampWidth(
+                width,
+                SECONDARY_SIDEBAR_MIN_WIDTH,
+                SECONDARY_SIDEBAR_MAX_WIDTH,
+            );
+            writePersistedLayout({ ...pickLayout(get()), secondarySidebarWidth });
+            set({ secondarySidebarWidth });
+        },
+        setPanelHeight(height) {
+            const panelHeight = isBrowser()
+                ? clampPanelHeight(height, window.innerHeight)
+                : clampWidth(height, PANEL_MIN_HEIGHT, PANEL_MAX_HEIGHT);
+            writePersistedLayout({ ...pickLayout(get()), panelHeight });
+            set({ panelHeight });
+        },
+        resetPrimarySidebarWidth() {
+            writePersistedLayout({
+                ...pickLayout(get()),
+                primarySidebarWidth: PRIMARY_SIDEBAR_DEFAULT_WIDTH,
+            });
+            set({ primarySidebarWidth: PRIMARY_SIDEBAR_DEFAULT_WIDTH });
+        },
+        resetSecondarySidebarWidth() {
+            writePersistedLayout({
+                ...pickLayout(get()),
+                secondarySidebarWidth: SECONDARY_SIDEBAR_DEFAULT_WIDTH,
+            });
+            set({ secondarySidebarWidth: SECONDARY_SIDEBAR_DEFAULT_WIDTH });
+        },
+        resetPanelHeight() {
+            const panelHeight = isBrowser()
+                ? clampPanelHeight(PANEL_DEFAULT_HEIGHT, window.innerHeight)
+                : PANEL_DEFAULT_HEIGHT;
+            writePersistedLayout({ ...pickLayout(get()), panelHeight });
+            set({ panelHeight });
+        },
+        togglePrimarySidebar() {
+            if (get().zenMode) {
+                set({ zenMode: false });
+                if (get().primarySidebarVisible) return;
+            }
+            const isPrimarySidebarVisible = !get().primarySidebarVisible;
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                primarySidebarVisible: isPrimarySidebarVisible,
+            });
+            // `Cmd+0` owns keyboard entry into the Primary Side Bar. `Cmd+[` only changes visibility, matching its command
+            // description and preserving the Terminal/editor caret; when hiding, the handoff still rescues focus from a
+            // row that is about to unmount.
+            if (!isPrimarySidebarVisible) handOffChromeFocus('primarySidebar', false);
+            writePersistedLayout(layout);
+            set(layout);
+        },
+        toggleSecondarySidebar() {
+            if (get().zenMode) {
+                set({ zenMode: false });
+                if (get().secondarySidebarVisible) return;
+            }
+            const isRevealing = !get().secondarySidebarVisible;
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                secondarySidebarVisible: isRevealing,
+            });
+            // Same contract as the Panel: `Cmd+]` reaches through a focused Terminal too, so it owes the same handoff.
+            handOffChromeFocus('secondarySidebar', isRevealing);
+            writePersistedLayout(layout);
+            set(layout);
+        },
+        setPrimarySidebarVisible(isVisible) {
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                primarySidebarVisible: isVisible,
+            });
+            writePersistedLayout(layout);
+            set({ ...layout, ...(isVisible && { zenMode: false }) });
+        },
+        setSecondarySidebarVisible(isVisible) {
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                secondarySidebarVisible: isVisible,
+            });
+            writePersistedLayout(layout);
+            set({ ...layout, ...(isVisible && { zenMode: false }) });
+        },
+        togglePanel() {
+            if (get().zenMode) {
+                set({ zenMode: false });
+                if (get().panelVisible) return;
+            }
+            const isRevealing = !get().panelVisible;
+            const layout = fitCurrentViewport({ ...pickLayout(get()), panelVisible: isRevealing });
+            // Before `set`, so the handoff still sees the element that owns focus and the Panel that is about to unmount.
+            handOffChromeFocus('panel', isRevealing);
+            writePersistedLayout(layout);
+            set(layout);
+        },
+        setPanelVisible(isVisible) {
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                panelVisible: isVisible,
+            });
+            writePersistedLayout(layout);
+            set({ ...layout, ...(isVisible && { zenMode: false }) });
+        },
+        togglePrimarySidebarActivityMode() {
+            const isActivityMode = !get().primarySidebarActivityMode;
+            const layout = { ...pickLayout(get()), primarySidebarActivityMode: isActivityMode };
+            // Before the commit: the body that owns focus right now is the one about to unmount.
+            refocusChromeSurfaceBody('primarySidebar');
+            writePersistedLayout(layout);
+            set(layout);
+        },
+        leavePrimarySidebarActivityMode() {
+            if (!get().primarySidebarActivityMode) return;
+            const layout = { ...pickLayout(get()), primarySidebarActivityMode: false };
+            refocusChromeSurfaceBody('primarySidebar');
+            writePersistedLayout(layout);
+            set(layout);
+        },
+        showPrimarySidebarActivity() {
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                primarySidebarVisible: true,
+                primarySidebarActivityMode: true,
+            });
+            refocusChromeSurfaceBody('primarySidebar');
+            writePersistedLayout(layout);
+            set({ ...layout, zenMode: false });
+        },
+        activatePanelViewContainer(view) {
+            const layout = fitCurrentViewport({
+                ...pickLayout(get()),
+                panelVisible: true,
+                desiredPanelViewContainerId: view,
+            });
+            writePersistedLayout(layout);
+            set({ ...layout, zenMode: false });
+        },
+        clampToViewport(viewportWidth, viewportHeight) {
+            const current = pickLayout(get());
+            const next = {
+                ...clampLayoutToViewport(current, viewportWidth),
+                panelHeight: clampPanelHeight(current.panelHeight, viewportHeight),
+            };
+            if (
+                next.primarySidebarWidth === current.primarySidebarWidth &&
+                next.secondarySidebarWidth === current.secondarySidebarWidth &&
+                next.panelHeight === current.panelHeight
+            )
+                return;
+            writePersistedLayout(next);
+            set(next);
+        },
+        setPortalWidth(width) {
+            const portalWidth = clampWidth(width, PORTAL_MIN_WIDTH, PORTAL_MAX_WIDTH);
+            writePersistedLayout({ ...pickLayout(get()), portalWidth });
+            set({ portalWidth });
+        },
+    };
+});
 
 /**
  * Whether the Primary Side Bar is on screen: its stored preference, unless Zen mode hides it.

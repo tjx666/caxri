@@ -1,3 +1,4 @@
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 
 /**
@@ -13,41 +14,19 @@ export interface OverlayPosition {
 const MODE_KEY = 'caxri.performanceMonitor.mode';
 const POSITION_KEY = 'caxri.performanceMonitor.position';
 
-function readStorage(key: string): string | null {
-    try {
-        return localStorage.getItem(key);
-    } catch {
-        return null;
-    }
-}
-
-function writeStorage(key: string, value: string): void {
-    try {
-        localStorage.setItem(key, value);
-    } catch {
-        // A storage-disabled window keeps the choice for this Renderer's lifetime only.
-    }
-}
-
-export function parseMode(raw: string | null): MonitorMode {
+export function parseMode(raw: unknown): MonitorMode {
     return raw === 'window' ? 'window' : 'overlay';
 }
 
 /**
  * Reads a saved card position; anything that is not two finite numbers is treated as never saved.
  */
-export function parsePosition(raw: string | null): OverlayPosition | null {
-    if (raw === null) return null;
-    try {
-        const value: unknown = JSON.parse(raw);
-        if (typeof value !== 'object' || value === null) return null;
-        const x: unknown = Reflect.get(value, 'x');
-        const y: unknown = Reflect.get(value, 'y');
-        if (typeof x !== 'number' || typeof y !== 'number') return null;
-        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
-    } catch {
-        return null;
-    }
+export function parsePosition(value: unknown): OverlayPosition | null {
+    if (typeof value !== 'object' || value === null) return null;
+    const x: unknown = Reflect.get(value, 'x');
+    const y: unknown = Reflect.get(value, 'y');
+    if (typeof x !== 'number' || typeof y !== 'number') return null;
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
 interface MonitorState {
@@ -60,22 +39,27 @@ interface MonitorState {
     setPosition: (position: OverlayPosition) => void;
 }
 
+const modeState = createSharedLocalState(MODE_KEY, parseMode);
+const positionState = createSharedLocalState(POSITION_KEY, parsePosition);
+
 /**
- * Window-local UI state. The mode and the card position persist in this window's `localStorage`: they are presentation
- * preferences of one Renderer, not Server data, so an SSH Host window or a second Workbench keeps its own.
+ * Window-local UI state. The mode and the card position persist in the profile's `localStorage`
+ * (docs/client-local-data.md) but are never subscribed: they are presentation preferences of the window showing the
+ * card, and switching the mode in one window must not open or close the monitor in another. The entries only seed the
+ * next window that opens.
  */
 export const useMonitorStore = createStore<MonitorState>('performanceMonitor', (set) => ({
     closeOverlay: () => set({ isOverlayOpen: false }),
     isOverlayOpen: false,
-    mode: parseMode(readStorage(MODE_KEY)),
+    mode: modeState.read(),
     openOverlay: () => set({ isOverlayOpen: true }),
-    position: parsePosition(readStorage(POSITION_KEY)),
+    position: positionState.read(),
     setMode: (mode) => {
-        writeStorage(MODE_KEY, mode);
+        modeState.write(mode);
         set({ mode });
     },
     setPosition: (position) => {
-        writeStorage(POSITION_KEY, JSON.stringify(position));
+        positionState.write(position);
         set({ position });
     },
 }));

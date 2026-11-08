@@ -1,5 +1,7 @@
 import type { GitReviewPendingSummary } from '@caxri/protocol';
 import { errorMessage, toWireError } from '@caxri/protocol';
+import type { ErrorLogFields } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import type { BrowserWindow, Dialog } from 'electron';
 
 import type { RunningWork } from './confirmations';
@@ -83,7 +85,11 @@ export interface AppQuitOptions {
     countUnsavedEditorsForRemoteUpdate: () => Promise<number>;
     detachAll: () => Promise<unknown>;
     exit: () => void;
-    logFailure: (level: 'error' | 'warn', stage: AppQuitFailureStage, message: string) => void;
+    logFailure: (
+        level: 'error' | 'warn',
+        stage: AppQuitFailureStage,
+        fields: ErrorLogFields,
+    ) => void;
     notifyStopFailure: () => Promise<void>;
     persistWindowState: () => Promise<void>;
     quitIntent: () => AppQuitIntent;
@@ -346,7 +352,7 @@ function reportFailure(
         ['detach', 'disconnect', 'persist', 'reviewComments', 'status'].includes(stage)
             ? 'warn'
             : 'error';
-    options.logFailure(level, stage, message);
+    options.logFailure(level, stage, errorLogFields(error));
     return message;
 }
 

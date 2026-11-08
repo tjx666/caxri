@@ -1,6 +1,5 @@
 import type { TerminalRecord } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { AgentChatServiceOptions } from '../service-options';
 
@@ -17,7 +16,7 @@ export class ChatEndpointLease {
             await this.options.endpoint?.retire(terminalId);
         } catch (error: unknown) {
             this.options.logger.write('warn', logEventCatalog.agentEndpoint.retireFailed, {
-                fields: { terminalId, error: errorMessage(error, 'unknown') },
+                fields: { terminalId, ...errorLogFields(error) },
             });
         }
     }

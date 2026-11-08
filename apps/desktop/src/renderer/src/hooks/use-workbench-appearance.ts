@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { cssFontFamilyEntry } from '@caxri/utils';
 
+import { startupBackgroundState } from '../lib/startup-background-state';
 import { applyCssTheme } from '../lib/theme-css';
 import { useSettings, useTheme } from '../stores/selectors';
 import { readSystemColorScheme } from './use-system-color-scheme';
@@ -13,11 +14,7 @@ import { readSystemColorScheme } from './use-system-color-scheme';
  * default light canvas.
  */
 function rememberStartupBackground(background: string): void {
-    try {
-        localStorage.setItem(`caxri.startupBackground.${readSystemColorScheme()}`, background);
-    } catch {
-        // The loader falls back to its default canvas.
-    }
+    startupBackgroundState(readSystemColorScheme()).write(background);
 }
 
 /**

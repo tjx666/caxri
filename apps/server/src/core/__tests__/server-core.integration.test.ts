@@ -427,8 +427,11 @@ describe('Server Core application', () => {
         emit?.(stateChanged);
         const logPath = join(userDataPath, 'logs', 'server-core.jsonl');
         await vi.waitFor(async () =>
-            expect(await readFile(logPath, 'utf8')).toContain(refreshError.message),
+            expect(await readFile(logPath, 'utf8')).toContain(
+                'extension_host.context_refresh_failed',
+            ),
         );
+        expect(await readFile(logPath, 'utf8')).not.toContain(refreshError.message);
         const countFailures = async () =>
             (
                 (await readFile(logPath, 'utf8')).match(

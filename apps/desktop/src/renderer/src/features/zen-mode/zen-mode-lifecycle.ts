@@ -1,4 +1,4 @@
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { didRequestWindowFullScreen } from './zen-mode-commands';
@@ -19,6 +19,13 @@ export function parsePersistedZenMode(raw: unknown): PersistedZenMode {
     const isActive = value.isActive === true;
     return { isActive, enteredFullScreen: isActive && value.enteredFullScreen === true };
 }
+
+/**
+ * Per-window by design (docs/client-local-data.md): Zen is a window-local overlay tied to that window's own native full
+ * screen, so it never subscribes to other windows' writes. The entry only seeds the next launch and the last window to
+ * change Zen wins, as with the chrome layout it overlays.
+ */
+const sharedZenMode = createSharedLocalState(STORAGE_KEY, parsePersistedZenMode);
 
 const launch = { isRestored: false };
 
@@ -67,11 +74,11 @@ export function startZenModeLifecycle(options: {
     isFullScreenEnabled: () => boolean;
     isRestoreEnabled: () => boolean;
 }): () => void {
-    const persisted = parsePersistedZenMode(readLocalStorageJson(STORAGE_KEY));
+    const persisted = sharedZenMode.read();
     let isEnteredFullScreen = false;
     launch.isRestored = false;
     const persist = (): void => {
-        writeLocalStorageJson(STORAGE_KEY, {
+        sharedZenMode.write({
             isActive: useChromeLayoutStore.getState().zenMode,
             enteredFullScreen: isEnteredFullScreen,
         } satisfies PersistedZenMode);

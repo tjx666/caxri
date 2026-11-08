@@ -6,10 +6,8 @@ import { caxri } from '../../lib/caxri';
 import { sessionsByEnvironment } from '../../lib/environment-routing';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
-import { removeSessionQueries } from '../../queries/session-queries';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { registerSessionCommandConvergence } from '../../stores/session-command-convergence';
-import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench, showSessionTitle } from '../../stores/workbench';
 import { noteSessionSelection } from '../../stores/workbench-environments';
@@ -17,7 +15,6 @@ import {
     beginPendingSessionTitle,
     settlePendingSessionTitle,
 } from '../../stores/workbench-session-titles';
-import { forgetDeletedSessions } from '../closed-items/recording';
 import { cachedHumanControlledSessionIds } from '../delegation/delegation-feed-cache';
 import { recordSessionSwitchLatency } from '../performance-monitor/collector';
 import {
@@ -376,9 +373,7 @@ export function deleteSession(sessionId: string): void {
     void tryCommand(translate('session.errors.deleteFailed'), async () => {
         const result = await caxri.request('session.delete', { sessionId });
         if ('canceled' in result) return;
-        useSessionViewStore.getState().dropSessions([sessionId]);
-        forgetDeletedSessions([sessionId]);
-        removeSessionQueries(queryClient, [sessionId]);
+        // Per-Session Renderer state is released by `useDepartedSessionCleanup` once the refreshed list drops the Session.
         await refreshWorkbench();
     });
 }
@@ -404,9 +399,7 @@ export function deleteSessions(sessionIds: readonly string[]): void {
             }
         } finally {
             if (deleted.length > 0) {
-                useSessionViewStore.getState().dropSessions(deleted);
-                forgetDeletedSessions(deleted);
-                removeSessionQueries(queryClient, deleted);
+                // Per-Session Renderer state is released by `useDepartedSessionCleanup` once the refreshed list drops the Session.
                 await refreshWorkbench();
             }
         }

@@ -9,6 +9,7 @@ import { inheritedExecArgv, inspectExecArgv, logLevelEnvironment } from '@caxri/
 import type { ExtensionHostProtocolFault, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
+    errorLogFields,
     logEventCatalog,
     mergeObservationContext,
     resolveExtensionHostProtocolFaults,
@@ -249,7 +250,7 @@ export class ExtensionHostSupervisor extends EventTarget {
             // eslint-disable-next-line unicorn/prefer-await
             this.handleApiRequest(message).catch((error: unknown) =>
                 this.options.logger.write('error', logEventCatalog.extensionHost.apiRequestFailed, {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
+                    fields: errorLogFields(error),
                 }),
             );
             return;
@@ -342,11 +343,7 @@ export class ExtensionHostSupervisor extends EventTarget {
                     this.options.logger.write(
                         'error',
                         logEventCatalog.extensionHost.restartFailed,
-                        {
-                            fields: {
-                                message: error instanceof Error ? error.message : String(error),
-                            },
-                        },
+                        { fields: errorLogFields(error) },
                     ),
                 );
             },
@@ -403,7 +400,7 @@ export class ExtensionHostSupervisor extends EventTarget {
         });
         child.on('error', (error) =>
             this.options.logger.write('error', logEventCatalog.extensionHost.error, {
-                fields: { message: error.message },
+                fields: errorLogFields(error),
             }),
         );
         try {

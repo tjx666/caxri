@@ -1,5 +1,6 @@
 import { clamp } from 'es-toolkit';
 
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 
 const VISIBILITY_STORAGE_KEY = 'caxri.bot.inbox-visible';
@@ -13,27 +14,25 @@ export const BOT_INBOX_DEFAULT_WIDTH = 352;
  * A stored width outside the current bounds, or not a number at all, falls back into range instead of breaking the
  * layout.
  */
-export function botInboxWidth(stored: string | null): number {
-    const width = Number(stored);
-    if (stored === null || !Number.isFinite(width)) return BOT_INBOX_DEFAULT_WIDTH;
-    return clamp(Math.round(width), BOT_INBOX_MIN_WIDTH, BOT_INBOX_MAX_WIDTH);
+export function botInboxWidth(stored: unknown): number {
+    if (typeof stored !== 'number' || !Number.isFinite(stored)) return BOT_INBOX_DEFAULT_WIDTH;
+    return clamp(Math.round(stored), BOT_INBOX_MIN_WIDTH, BOT_INBOX_MAX_WIDTH);
 }
 
-function storedWidth(): number {
-    try {
-        return botInboxWidth(localStorage.getItem(WIDTH_STORAGE_KEY));
-    } catch {
-        return BOT_INBOX_DEFAULT_WIDTH;
-    }
+/**
+ * Only an explicit stored `false` keeps the Inbox closed, so a missing or corrupt entry never hides it.
+ */
+function isInboxVisible(stored: unknown): boolean {
+    return stored !== false;
 }
 
-function isStoredVisible(): boolean {
-    try {
-        return localStorage.getItem(VISIBILITY_STORAGE_KEY) !== 'false';
-    } catch {
-        return true;
-    }
-}
+/**
+ * Each field has its own key, so a write never carries another field's stale value. Shared by every window of the
+ * profile (docs/client-local-data.md), like the Sessions board's: a width dragged in one window is the user's width in
+ * the others.
+ */
+const sharedVisibility = createSharedLocalState(VISIBILITY_STORAGE_KEY, isInboxVisible);
+const sharedWidth = createSharedLocalState(WIDTH_STORAGE_KEY, botInboxWidth);
 
 /**
  * A request an Inbox card started and is waiting on: merging its pull request, or sending one of its answer options.
@@ -72,14 +71,19 @@ interface BotInboxUiState {
     isFocusRequested: boolean;
 }
 
-export const useBotInboxUiStore = createStore<BotInboxUiState>('caxri-bot-inbox', () => ({
-    isVisible: isStoredVisible(),
-    width: storedWidth(),
-    focusEpoch: 0,
-    pendingActions: {},
-    dismissingIds: {},
-    isFocusRequested: false,
-}));
+export const useBotInboxUiStore = createStore<BotInboxUiState>('caxri-bot-inbox', (set) => {
+    // Live as long as the store. They update memory only, so another window's change never writes back.
+    sharedVisibility.subscribe((isVisible) => set({ isVisible }));
+    sharedWidth.subscribe((width) => set({ width }));
+    return {
+        isVisible: sharedVisibility.read(),
+        width: sharedWidth.read(),
+        focusEpoch: 0,
+        pendingActions: {},
+        dismissingIds: {},
+        isFocusRequested: false,
+    };
+});
 
 /**
  * Runs one card request while marking the item pending, and clears the mark however the request ends. A second request
@@ -120,11 +124,7 @@ export function setBotInboxDismissing(itemId: string, isDismissing: boolean): vo
 
 export function setBotInboxVisible(isVisible: boolean): void {
     useBotInboxUiStore.setState({ isVisible });
-    try {
-        localStorage.setItem(VISIBILITY_STORAGE_KEY, String(isVisible));
-    } catch {
-        // Storage-disabled windows keep the choice for this Renderer lifetime.
-    }
+    sharedVisibility.write(isVisible);
 }
 
 /**
@@ -144,13 +144,9 @@ export function settleBotInboxFocusRequest(): void {
 }
 
 export function setBotInboxWidth(width: number): void {
-    const next = botInboxWidth(String(width));
+    const next = botInboxWidth(width);
     useBotInboxUiStore.setState({ width: next });
-    try {
-        localStorage.setItem(WIDTH_STORAGE_KEY, String(next));
-    } catch {
-        // Storage-disabled windows keep the width for this Renderer lifetime.
-    }
+    sharedWidth.write(next);
 }
 
 export function chooseBotInboxReplyTarget(targetId: string | undefined): void {

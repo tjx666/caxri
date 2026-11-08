@@ -1,4 +1,5 @@
 import { environmentOfTerminal } from '../../../../lib/environment-routing';
+import { removeLocalStorageEntriesByPrefix } from '../../../../lib/local-storage';
 import { storageScopeOf } from '../../../../stores/environment';
 
 /**
@@ -78,13 +79,11 @@ function removeSupersededAgentChatComposerState(scope: string): void {
     if (cleanedScopes.has(scope)) return;
     cleanedScopes.add(scope);
     try {
-        for (const key of Object.keys(localStorage))
-            if (SUPERSEDED_STORAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)))
-                localStorage.removeItem(key);
+        removeLocalStorageEntriesByPrefix(SUPERSEDED_STORAGE_KEY_PREFIXES);
         indexedDB.deleteDatabase(
             scope === 'local' ? SUPERSEDED_DATABASE_NAME : `${SUPERSEDED_DATABASE_NAME}:${scope}`,
         );
     } catch {
-        // Storage can be unavailable (a locked profile, or Vitest's Node environment); the leftovers are harmless.
+        // IndexedDB can be unavailable (a locked profile, or Vitest's Node environment); the leftovers are harmless.
     }
 }

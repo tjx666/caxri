@@ -1,7 +1,12 @@
 import type { TerminalFailureReason, TerminalRecord } from '@caxri/protocol';
 import { errorMessage, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { isPtyAllocationError, logEventCatalog, samplePtyUsage } from '@caxri/system';
+import {
+    errorLogFields,
+    isPtyAllocationError,
+    logEventCatalog,
+    samplePtyUsage,
+} from '@caxri/system';
 
 import type { TerminalManagerOptions } from './manager-types';
 import type { TerminalStateStore } from './state-store';
@@ -67,7 +72,7 @@ export async function recordTerminalLaunchFailure(
             terminalId: record.id,
             kind: record.kind,
             failureReason,
-            error: errorMessage(error, 'unknown'),
+            ...errorLogFields(error),
         },
     });
 }

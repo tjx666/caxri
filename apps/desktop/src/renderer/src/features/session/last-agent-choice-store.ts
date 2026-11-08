@@ -1,7 +1,7 @@
 import type { TerminalKind } from '@caxri/protocol';
 import { terminalKindSchema } from '@caxri/protocol';
 
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 
 const LAST_AGENT_CHOICE_STORAGE_KEY = 'caxri.session.lastAgentChoice';
@@ -35,9 +35,16 @@ export function isLastUsedAgentRow(
     return !isDefault && repeatedKind !== undefined && kind === repeatedKind;
 }
 
-export const useLastAgentChoiceStore = createStore<LastAgentChoice>('last-agent-choice', () =>
-    parseLastAgentChoice(readLocalStorageJson(LAST_AGENT_CHOICE_STORAGE_KEY)),
-);
+/**
+ * Shared by every window of the profile (docs/client-local-data.md): the last pick follows the user, not a window.
+ */
+const sharedChoice = createSharedLocalState(LAST_AGENT_CHOICE_STORAGE_KEY, parseLastAgentChoice);
+
+export const useLastAgentChoiceStore = createStore<LastAgentChoice>('last-agent-choice', (set) => {
+    // Lives as long as the store. It updates memory only, so another window's change never writes back.
+    sharedChoice.subscribe((choice) => set(choice));
+    return sharedChoice.read();
+});
 
 /**
  * Records an explicit pick. `null` (an Empty Session) is not recorded: it is the escape hatch, not a Terminal the
@@ -46,5 +53,5 @@ export const useLastAgentChoiceStore = createStore<LastAgentChoice>('last-agent-
 export function rememberLastAgentChoice(kind: TerminalKind | null): void {
     if (kind === null || useLastAgentChoiceStore.getState().kind === kind) return;
     useLastAgentChoiceStore.setState({ kind });
-    writeLocalStorageJson(LAST_AGENT_CHOICE_STORAGE_KEY, kind);
+    sharedChoice.write(kind);
 }

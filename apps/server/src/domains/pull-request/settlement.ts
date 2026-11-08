@@ -1,7 +1,6 @@
 import type { SessionPullRequest } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { SessionActivityTransition } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -197,14 +196,14 @@ export class PullRequestSettlement {
             this.log(sessionId, 'archived');
             this.options.onArchived?.(sessionId, entry.pullRequestState);
         } catch (error) {
-            this.log(sessionId, 'failed', { error: errorMessage(error, 'unknown') });
+            this.log(sessionId, 'failed', errorLogFields(error));
         }
     }
 
     private log(
         sessionId: string,
         outcome: AutoArchiveOutcome,
-        fields: Record<string, string> = {},
+        fields: Record<string, number | string> = {},
     ): void {
         this.options.logger.write(
             outcome === 'failed' ? 'warn' : 'info',

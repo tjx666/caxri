@@ -3,15 +3,11 @@ import type { TerminalKind } from '@caxri/protocol';
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
 import { sessionsByEnvironment } from '../../lib/environment-routing';
-import { queryClient } from '../../queries/client';
-import { removeSessionQueries } from '../../queries/session-queries';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { clearPendingSession } from '../../stores/dialogs';
 import { getBootstrap, selectSelectedProject } from '../../stores/selectors';
-import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
-import { forgetDeletedSessions } from '../closed-items/recording';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import {
     rememberActivitySessionProject,
@@ -101,9 +97,7 @@ async function wasDiscardedIfEmpty(sessionId: string): Promise<boolean> {
         .in(environmentId)
         .request('session.discardIfEmpty', { sessionId });
     if (!discarded) return false;
-    useSessionViewStore.getState().dropSessions([sessionId]);
-    forgetDeletedSessions([sessionId]);
-    removeSessionQueries(queryClient, [sessionId]);
+    // Per-Session Renderer state is released by `useDepartedSessionCleanup` once the refreshed list drops the Session.
     await refreshWorkbench();
     return true;
 }

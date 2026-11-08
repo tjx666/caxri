@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 
 import type { FullStateChangeReason } from '@caxri/protocol';
-import { CaxriError, errorMessage } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
+import { CaxriError } from '@caxri/protocol';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 /**
  * Server domain boundaries require cross-domain dependencies to enter through the owning domain root.
@@ -220,7 +220,7 @@ export async function createRootServices({
                 // eslint-disable-next-line unicorn/prefer-await -- sync callback signature
                 workbenchRoots.validateSession(sessionId).catch((error: unknown) =>
                     logger.write('error', logEventCatalog.workbenchRoots.validateSessionFailed, {
-                        fields: { sessionId, error: errorMessage(error, 'unknown') },
+                        fields: { sessionId, ...errorLogFields(error) },
                     }),
                 ),
         },

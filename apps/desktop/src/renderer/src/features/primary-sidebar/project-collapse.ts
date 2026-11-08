@@ -45,19 +45,26 @@ export function autoCollapseThresholdMs(
 export function parseProjectCollapseState(source: string | null): ProjectCollapseState {
     if (!source) return {};
     try {
-        const parsed: unknown = JSON.parse(source);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-        const state: ProjectCollapseState = {};
-        for (const [projectId, disclosure] of Object.entries(
-            parsed as Record<string, unknown>,
-        ).slice(0, MAX_PERSISTED_PROJECTS)) {
-            if (isProjectDisclosure(disclosure) && projectId.length <= MAX_PROJECT_ID_LENGTH)
-                state[projectId] = disclosure;
-        }
-        return state;
+        return parseProjectCollapseRecord(JSON.parse(source));
     } catch {
         return {};
     }
+}
+
+/**
+ * The stored record from an already parsed JSON value; anything that is not an object yields an empty record.
+ */
+export function parseProjectCollapseRecord(parsed: unknown): ProjectCollapseState {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const state: ProjectCollapseState = {};
+    for (const [projectId, disclosure] of Object.entries(parsed as Record<string, unknown>).slice(
+        0,
+        MAX_PERSISTED_PROJECTS,
+    )) {
+        if (isProjectDisclosure(disclosure) && projectId.length <= MAX_PROJECT_ID_LENGTH)
+            state[projectId] = disclosure;
+    }
+    return state;
 }
 
 /**

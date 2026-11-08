@@ -319,7 +319,11 @@ export function logControlRequestOutcome(
         correlationId: request.id,
         context: observationContext,
         durationMs,
-        fields: { ...fields, code: reply.error.code, error: reply.error.message },
+        fields: {
+            ...fields,
+            code: reply.error.code,
+            errorMessageLength: reply.error.message.length,
+        },
         ...(['CAPACITY', 'INTERNAL', 'TIMEOUT', 'UNAVAILABLE'].includes(reply.error.code) && {
             failure: {
                 code: reply.error.code,

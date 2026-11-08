@@ -1,9 +1,14 @@
 import process from 'node:process';
 
 import type { PtyUsage, ServerEvent, TerminalPtyAlert } from '@caxri/protocol';
-import { errorMessage, isPtyUsageHigh, PTY_USAGE_ALERT_RATIO } from '@caxri/protocol';
+import { isPtyUsageHigh, PTY_USAGE_ALERT_RATIO } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, samplePtyUsage, samplePtyUsageUpperBound } from '@caxri/system';
+import {
+    errorLogFields,
+    logEventCatalog,
+    samplePtyUsage,
+    samplePtyUsageUpperBound,
+} from '@caxri/system';
 
 import type { WatchHandle, WatchHub } from '../watch';
 import type { E2EPtyUsageOverride } from './e2e-pty-usage-override';
@@ -78,7 +83,7 @@ export class PtyUsageMonitor {
             return await (this.options.sampleUsage ?? samplePtyUsage)();
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminal.ptySampleFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             });
             return undefined;
         }
@@ -172,7 +177,7 @@ export class PtyUsageMonitor {
             usage = await this.usage();
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminal.ptySampleFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             });
             return;
         }

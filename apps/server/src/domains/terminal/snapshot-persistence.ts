@@ -1,11 +1,10 @@
 import type { TerminalSnapshot } from '@caxri/protocol';
 import {
     CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
-    errorMessage,
     terminalSnapshotSchema,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { TerminalStateStore } from './state-store';
 
@@ -32,7 +31,7 @@ export class TerminalSnapshotPersistence {
              * Snapshot persistence is recoverable and must never terminate the shared Server.
              */
             this.logger.write('warn', logEventCatalog.pty.snapshotFailed, {
-                fields: { terminalId, error: errorMessage(error, 'unknown') },
+                fields: { terminalId, ...errorLogFields(error) },
             });
         }
     }

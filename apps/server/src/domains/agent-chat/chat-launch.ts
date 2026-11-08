@@ -5,8 +5,13 @@ import type {
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError, errorMessage, isChatTerminal } from '@caxri/protocol';
-import { assertE2EAgentChatLaunch, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
+import { agentProviderCatalog, CaxriError, isChatTerminal } from '@caxri/protocol';
+import {
+    assertE2EAgentChatLaunch,
+    errorLogFields,
+    logEventCatalog,
+    readE2EAgentPolicy,
+} from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import { agentCommandEnvironment, readAgentTranscript } from '../agents';
@@ -197,7 +202,7 @@ export function chatStartFailure(
             reason: failure.reason,
             durationMs: Date.now() - startedAt,
             ...(!(error instanceof AgentChatStartError) && {
-                error: errorMessage(error, 'unknown'),
+                ...errorLogFields(error),
             }),
         },
     });
@@ -275,7 +280,7 @@ async function observeChatLifecycle(
             fields: {
                 terminalId: signal.terminalId,
                 reason: 'lifecycleFailed',
-                error: errorMessage(error, 'unknown'),
+                ...errorLogFields(error),
             },
         });
     }

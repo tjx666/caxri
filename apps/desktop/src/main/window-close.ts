@@ -1,5 +1,6 @@
-import { errorMessage, logEventCatalog } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/protocol';
+import type { ErrorLogFields, StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import type { BrowserWindow, Dialog } from 'electron';
 
 import type { RunningWork } from './confirmations';
@@ -19,7 +20,7 @@ interface WindowCloseOptions {
      * Server replies carry a result the close flow ignores; only rejection matters here.
      */
     detachAll: () => Promise<unknown>;
-    logFailure: (message: string) => void;
+    logFailure: (fields: ErrorLogFields) => void;
     terminateAll: () => Promise<unknown>;
 }
 
@@ -97,7 +98,7 @@ export async function resolveWindowClose(options: WindowCloseOptions): Promise<v
             await options.detachAll();
         }
     } catch (error) {
-        options.logFailure(errorMessage(error, 'Unknown close failure'));
+        options.logFailure(errorLogFields(error));
     }
     options.close();
 }
