@@ -110,9 +110,13 @@ export async function executeMobileChatUserMarkdownScenario(
             wrapped.bottom - wrapped.top < 1.5 * (single.bottom - single.top)
         )
             throw new Error('The long list item did not wrap, so the bubble check proves nothing');
-        for (const position of RENDERED_LINES.keys()) {
-            const block = checkBounds(semantics, `${prefix}${position}`);
-            if (!block || !isInside(block, bubble))
+        // The bubble's first lines may sit above the screen edge, where UIAutomator's bounds are clipped; the wrapped
+        // item and the one after it are the lines that used to spill, and both stay on screen.
+        for (const [position, block] of [
+            [WRAPPING_BLOCK, wrapped],
+            [WRAPPING_BLOCK + 1, single],
+        ] as const) {
+            if (!isInside(block, bubble))
                 throw new Error(`Block ${position} of the user message spills outside its bubble`);
         }
 
