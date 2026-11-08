@@ -3,10 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve({})),
-    dropSessions: vi.fn(),
     getBootstrap: vi.fn<() => BootstrapState | undefined>(),
     refreshWorkbench: vi.fn(() => Promise.resolve()),
-    removeSessionQueries: vi.fn(),
     selectSelectedProject: vi.fn(),
     // Mirrors the real funnel closely enough for these tests: it awaits the action so a test can wait on the same
     // promise `hideSelectedProject`/`deleteProject` fire-and-forget internally.
@@ -14,15 +12,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
-vi.mock('../../../queries/session-queries', () => ({
-    removeSessionQueries: mocks.removeSessionQueries,
-}));
 vi.mock('../../../stores/selectors', () => ({
     getBootstrap: mocks.getBootstrap,
     selectSelectedProject: mocks.selectSelectedProject,
-}));
-vi.mock('../../../stores/session-view', () => ({
-    useSessionViewStore: { getState: vi.fn(() => ({ dropSessions: mocks.dropSessions })) },
 }));
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbench }));
@@ -43,10 +35,8 @@ function bootstrapWith(projectIds: string[]): BootstrapState {
 describe('Project removal commands', () => {
     beforeEach(() => {
         mocks.caxriRequest.mockClear();
-        mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.refreshWorkbench.mockClear();
-        mocks.removeSessionQueries.mockClear();
         mocks.selectSelectedProject.mockReset();
         mocks.tryCommand.mockClear();
     });
@@ -94,15 +84,13 @@ describe('Project removal commands', () => {
             expect(mocks.caxriRequest).not.toHaveBeenCalled();
         });
 
-        it('drops the hidden Project (and its Sessions) from the Workbench', async () => {
+        it('refreshes the Workbench so the hidden Project (and its Sessions) leave it', async () => {
             const bootstrap = bootstrapWith(['clicked-project']);
             mocks.getBootstrap.mockReturnValue(bootstrap);
 
             hideSelectedProject('clicked-project');
             await mocks.tryCommand.mock.results[0]?.value;
 
-            expect(mocks.dropSessions).toHaveBeenCalledWith([]);
-            expect(mocks.removeSessionQueries).toHaveBeenCalled();
             expect(mocks.refreshWorkbench).toHaveBeenCalled();
         });
     });

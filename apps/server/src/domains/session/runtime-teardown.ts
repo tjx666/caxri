@@ -7,7 +7,9 @@ import type {
 } from '../terminal';
 
 /**
- * The per-Session runtime owners `createSessionRuntimeForgetter` retires when a Session is deleted or archived.
+ * The per-Session runtime owners `createSessionRuntimeForgetter` retires when a Session is deleted or its Project is
+ * deleted. Archiving does not call it: `parkSessions` (`parking-handlers.ts`) parks an archived Session and keeps its
+ * resumable state.
  */
 interface SessionRuntimeTeardownParts {
     agentChat: Pick<AgentChatService, 'closeSession'>;

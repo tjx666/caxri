@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { queryClient } from '../../../queries/client';
 import type { ToastKind, ToastOptions } from '../../../stores/toasts';
 
 const mocks = vi.hoisted(() => {
@@ -9,7 +8,6 @@ const mocks = vi.hoisted(() => {
         askAgentForProject: vi.fn(),
         caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve([])),
         closeCreateSessionMenu: vi.fn(),
-        dropSessions: vi.fn(),
         getBootstrap: vi.fn(),
         openCreateSessionMenu: vi.fn(),
         pendingProjectId: undefined as string | undefined,
@@ -25,7 +23,6 @@ const mocks = vi.hoisted(() => {
             promise: Promise.resolve(),
         })),
         refreshWorkbench: vi.fn(() => Promise.resolve()),
-        removeSessionQueries: vi.fn(),
         selectSelectedProject: vi.fn(),
         /**
          * Mirrors the real funnel's swallow-and-report contract rather than only forwarding `run`: an action offered
@@ -58,9 +55,6 @@ vi.mock('../../../queries/client', () => ({
         methods.includes(queryKey[0] as string),
     queryClient: { getQueriesData: () => [], getQueryData: mocks.getQueryData },
 }));
-vi.mock('../../../queries/session-queries', () => ({
-    removeSessionQueries: mocks.removeSessionQueries,
-}));
 vi.mock('../../../stores/chrome-layout', () => ({
     isPrimarySidebarShown: (state: { primarySidebarVisible: boolean }) =>
         state.primarySidebarVisible,
@@ -88,9 +82,6 @@ vi.mock('../../../stores/selectors', () => ({
     getSelectedSession: mocks.getSelectedSession,
     selectSelectedProject: mocks.selectSelectedProject,
     selectSelectedSession: vi.fn(),
-}));
-vi.mock('../../../stores/session-view', () => ({
-    useSessionViewStore: { getState: vi.fn(() => ({ dropSessions: mocks.dropSessions })) },
 }));
 vi.mock('../../../stores/toasts', () => ({
     pushToast: mocks.pushToast,
@@ -126,7 +117,6 @@ describe('Session actions', () => {
         mocks.askAgentForProject.mockClear();
         mocks.caxriRequest.mockClear();
         mocks.pushToast.mockClear();
-        mocks.dropSessions.mockClear();
         mocks.getBootstrap.mockReset();
         mocks.getQueryData.mockReset();
         mocks.getSelectedSession.mockReset();
@@ -134,7 +124,6 @@ describe('Session actions', () => {
         mocks.pushToast.mockClear();
         mocks.registerSessionCommandConvergence.mockClear();
         mocks.refreshWorkbench.mockClear();
-        mocks.removeSessionQueries.mockClear();
         mocks.selectSelectedProject.mockReset();
         mocks.tryCommand.mockClear();
         mocks.closeCreateSessionMenu.mockClear();
@@ -477,7 +466,7 @@ describe('Session actions', () => {
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toBeUndefined();
     });
 
-    it('cleans up stores and queries when Session deletion is confirmed', async () => {
+    it('refreshes the Workbench when Session deletion is confirmed, leaving per-Session cleanup to the list', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({});
 
         deleteSession('session-1');
@@ -486,8 +475,6 @@ describe('Session actions', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.delete', {
             sessionId: 'session-1',
         });
-        expect(mocks.dropSessions).toHaveBeenCalledWith(['session-1']);
-        expect(mocks.removeSessionQueries).toHaveBeenCalledWith(queryClient, ['session-1']);
         expect(mocks.refreshWorkbench).toHaveBeenCalled();
     });
 
@@ -497,8 +484,6 @@ describe('Session actions', () => {
         deleteSession('session-1');
         await mocks.tryCommand.mock.results[0]?.value;
 
-        expect(mocks.dropSessions).not.toHaveBeenCalled();
-        expect(mocks.removeSessionQueries).not.toHaveBeenCalled();
         expect(mocks.refreshWorkbench).not.toHaveBeenCalled();
     });
 
@@ -512,7 +497,6 @@ describe('Session actions', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.delete', {
             sessionId: 'session-2',
         });
-        expect(mocks.dropSessions).toHaveBeenCalledWith(['session-2']);
     });
 
     it('does nothing when no Session is selected', () => {
