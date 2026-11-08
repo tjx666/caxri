@@ -235,6 +235,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.project.browse',
         'mobile.project.add',
         'mobile.project.reorder',
+        'mobile.computer.rename',
         'mobile.files.write',
         'mobile.attention.answer',
         /**

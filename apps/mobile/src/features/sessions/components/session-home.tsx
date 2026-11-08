@@ -15,6 +15,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { ComputerRenameSheet } from '../../settings/computer-rename-sheet';
 import { useProjectReorder } from '../hooks/use-project-reorder';
 import { useRowMarkDone } from '../hooks/use-row-mark-done';
 import { useSessionManagement } from '../hooks/use-session-management';
@@ -91,6 +92,7 @@ export const SessionHome = ({
     const listReference = useRef<FlashListRef<SessionListRow>>(null);
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
+    const [isRenamingComputer, setIsRenamingComputer] = useState(false);
     const { clearError } = management;
     const openActions = useCallback(
         (session: MobileSessionItem): void => {
@@ -385,6 +387,9 @@ export const SessionHome = ({
                         : undefined
                 }
                 onOpenUsage={() => router.navigate(`/h/${encodeURIComponent(hostId)}/usage`)}
+                onRenameComputer={
+                    deviceRole === 'control' ? () => setIsRenamingComputer(true) : undefined
+                }
                 pageProgress={pageProgress}
                 projects={projectOrder.projects}
                 theme={theme}
@@ -421,6 +426,13 @@ export const SessionHome = ({
                 session={actionSession}
                 theme={theme}
             />
+            {isRenamingComputer ? (
+                <ComputerRenameSheet
+                    currentName={hostDisplayName}
+                    onClose={() => setIsRenamingComputer(false)}
+                    theme={theme}
+                />
+            ) : null}
         </View>
     );
 };

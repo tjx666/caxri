@@ -247,6 +247,19 @@ export const settingsSpec = [
     },
     {
         kind: 'string',
+        key: 'mobile.computerName',
+        title: 'Computer name',
+        description:
+            'The name paired phones show for this computer. Leave empty to use the system host name.',
+        category: 'mobile',
+        keywords: ['computer', 'device', 'host', 'name', 'rename', 'phone', 'paired'],
+        nullable: true,
+        maxLength: 100,
+        default: null,
+        placeholder: 'System host name',
+    },
+    {
+        kind: 'string',
         key: 'mobile.relayUrl',
         title: 'Relay server',
         description:

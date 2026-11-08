@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { connectionStatusLabel, connectionStatusView, deviceRoleDetails } from '../settings-model';
+import {
+    computerRenameDraft,
+    connectionStatusLabel,
+    connectionStatusView,
+    deviceRoleDetails,
+} from '../settings-model';
 
 describe('settings model', () => {
+    it('saves a trimmed computer name, restores the host name when empty, and skips an unchanged name', () => {
+        expect(computerRenameDraft('  Studio Mac  ', 'work-laptop')).toEqual({
+            name: 'Studio Mac',
+        });
+        expect(computerRenameDraft(' '.repeat(3), 'Studio Mac')).toEqual({ name: null });
+        expect(computerRenameDraft(' Studio Mac', 'Studio Mac')).toBeUndefined();
+    });
+
     it('names every role with the capability it adds', () => {
         expect(deviceRoleDetails('view').label).toBe('View');
         expect(deviceRoleDetails('reply').label).toBe('Reply');

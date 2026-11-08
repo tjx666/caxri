@@ -198,6 +198,21 @@ const nullableStringField = (spec: StringSettingSpec) =>
 
 const spec = settingsSpecByKey;
 
+/**
+ * C0/C1 controls plus the bidirectional embedding, override, and isolate characters (U+202A to U+202E, U+2066 to
+ * U+2069), the same set the mobile pairing contract refuses in a phone's own name.
+ */
+const hasControlCharacter = (value: string): boolean =>
+    [...value].some((character) => {
+        const code = character.codePointAt(0)!;
+        return (
+            code < 32 ||
+            (code >= 127 && code <= 159) ||
+            (code >= 0x20_2a && code <= 0x20_2e) ||
+            (code >= 0x20_66 && code <= 0x20_69)
+        );
+    });
+
 const isRelayUrlShape = (value: string): boolean => {
     let url: URL;
     try {
@@ -277,6 +292,14 @@ export const appSettingsSchema = z.object({
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'updates.skippedVersion': nullableStringField(spec['updates.skippedVersion']),
+    /**
+     * Shown as a title on every paired phone, so control and bidirectional-format characters are refused; they could
+     * break the line or reorder the surrounding text.
+     */
+    'mobile.computerName': nullableStringField(spec['mobile.computerName']).refine(
+        (value) => value === null || !hasControlCharacter(value),
+        'Computer names cannot contain control characters',
+    ),
     /**
      * Only the URL shape is checked here; Server Core validates it again with the Relay contract before dialing.
      */

@@ -69,6 +69,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.project.add'
     | 'mobile.project.addInternal'
     | 'mobile.project.reorder'
+    | 'mobile.computer.rename'
     | 'mobile.panels.list'
     | 'mobile.tree.children'
     | 'mobile.tree.executeCommand'
@@ -341,6 +342,9 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.project.reorder': () => {
             throw new CaxriError('FORBIDDEN', 'Reordering Projects requires a paired device');
+        },
+        'mobile.computer.rename': () => {
+            throw new CaxriError('FORBIDDEN', 'Renaming this computer requires a paired device');
         },
         /**
          * Panels and Conversation Tree read the Extension Host directly from the mobile access controller, which is the

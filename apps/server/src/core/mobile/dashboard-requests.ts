@@ -1,4 +1,4 @@
-import type { Principal } from '@caxri/protocol';
+import type { Principal, ServerRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../domain-service';
@@ -34,7 +34,7 @@ async function readRowContext(domainService: ServerDomainService) {
  * The Session home: every Project, Session, and Terminal the principal may see, narrowed to a paired device's granted
  * Projects before projection.
  */
-export async function readMobileDashboard(
+async function readMobileDashboard(
     domainService: ServerDomainService,
     principal: Principal,
     projection: DashboardProjection,
@@ -72,7 +72,7 @@ export async function readMobileDashboard(
  * One Session as the dashboard projects it, for a deep link or a Session screen refresh. `reauthorize` runs after the
  * reads so a revoke that lands meanwhile is not answered with the Session.
  */
-export async function showMobileSession(
+async function showMobileSession(
     domainService: ServerDomainService,
     principal: Extract<Principal, { kind: 'paired-device' }>,
     sessionId: string,
@@ -106,4 +106,40 @@ export async function showMobileSession(
     if (!projected) throw new CaxriError('NOT_FOUND', 'Session not found');
     reauthorize();
     return { session: projected };
+}
+
+/**
+ * The two reads that name the computer: the Session home and one Session's row. A paired device must still hold a role
+ * that allows the method; Desktop's own principal reads the home with no device role.
+ */
+export function invokeMobileDashboardRequest(
+    request: Extract<ServerRequest, { method: 'mobile.dashboard' | 'mobile.session.show' }>,
+    principal: Principal,
+    domainService: ServerDomainService,
+    context: Pick<DashboardProjection, 'hostDisplayName' | 'resolveAgentEndpoint'> & {
+        currentPairedPrincipal: (
+            principal: Principal,
+            method: string,
+        ) => Extract<Principal, { kind: 'paired-device' }>;
+    },
+) {
+    const { currentPairedPrincipal, ...projection } = context;
+    if (request.method === 'mobile.dashboard') {
+        const paired =
+            principal.kind === 'paired-device'
+                ? currentPairedPrincipal(principal, request.method)
+                : undefined;
+        return readMobileDashboard(domainService, principal, {
+            ...projection,
+            deviceRole: paired?.role ?? null,
+        });
+    }
+    const paired = currentPairedPrincipal(principal, request.method);
+    return showMobileSession(
+        domainService,
+        paired,
+        request.params.sessionId,
+        { ...projection, deviceRole: paired.role },
+        () => currentPairedPrincipal(paired, request.method),
+    );
 }

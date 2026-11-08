@@ -112,3 +112,21 @@ export const connectionStatusView = (
             return { detail: undefined, value: label };
     }
 };
+
+/**
+ * Longest computer name the Server accepts (`mobile.computerName`); the field stops typing here.
+ */
+export const COMPUTER_NAME_MAX_LENGTH = 100;
+
+/**
+ * What saving the rename field would send: the trimmed name, `null` for an empty field (back to the system host name),
+ * or `undefined` when the field still shows the current name and Save has nothing to do.
+ */
+export const computerRenameDraft = (
+    draft: string,
+    currentName: string,
+): { name: string | null } | undefined => {
+    const name = draft.trim();
+    if (name === currentName) return undefined;
+    return { name: name === '' ? null : name.slice(0, COMPUTER_NAME_MAX_LENGTH) };
+};

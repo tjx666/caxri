@@ -219,6 +219,7 @@ export const effectfulCommandRecovery = {
     'mobile.botInbox.reply': 'durable',
     'mobile.project.add': 'durable',
     'mobile.project.reorder': 'durable',
+    'mobile.computer.rename': 'durable',
     'mobile.files.write': 'memory',
     'mobile.update.prepare': 'memory',
     'mobile.desktopUpdate.download': 'memory',

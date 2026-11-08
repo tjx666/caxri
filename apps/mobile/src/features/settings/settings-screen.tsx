@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,6 +21,7 @@ import { isTermuxSupported } from '../device-actions/termux-native';
 import { TermuxSettingRow } from '../device-actions/termux-setting-row';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { allMobileSessions } from '../sessions/hooks/use-session-polling';
+import { ComputerRenameSheet } from './computer-rename-sheet';
 import { RoutePreferenceRow } from './route-preference-row';
 import { SettingsAboutSection } from './settings-about-section';
 import { connectionStatusView, deviceRoleDetails } from './settings-model';
@@ -39,6 +40,8 @@ export const SettingsScreen = () => {
     const { sessions } = useHostSessions();
     const role = sessions.deviceRole ? deviceRoleDetails(sessions.deviceRole, t) : null;
     const forget = useConfirmForgetComputer();
+    const [isRenaming, setIsRenaming] = useState(false);
+    const canRename = sessions.deviceRole === 'control';
     const desktopUpdate = useDesktopUpdate(sessions.deviceRole === 'control');
     const desktopUpdateRows = desktopUpdate.isObservable
         ? desktopUpdateView(desktopUpdate.result, desktopUpdate.phase, t)
@@ -67,6 +70,11 @@ export const SettingsScreen = () => {
             <ScrollView contentContainerStyle={styles.content}>
                 <SettingsSection theme={theme} title={t('settings.section.computer')}>
                     <SettingsRow
+                        {...(canRename && {
+                            accessibilityHint: t('settings.rename.hint'),
+                            onPress: () => setIsRenaming(true),
+                            showsChevron: true,
+                        })}
                         label={t('settings.name')}
                         testID="settings-computer-name"
                         theme={theme}
@@ -112,6 +120,13 @@ export const SettingsScreen = () => {
                     variant="danger"
                 />
             </ScrollView>
+            {isRenaming ? (
+                <ComputerRenameSheet
+                    currentName={sessions.hostDisplayName}
+                    onClose={() => setIsRenaming(false)}
+                    theme={theme}
+                />
+            ) : null}
             {forget.isOpen ? (
                 <ConfirmSheet
                     confirmLabel={t('connection.forget.confirm')}

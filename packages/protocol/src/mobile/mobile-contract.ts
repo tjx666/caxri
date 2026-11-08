@@ -32,6 +32,7 @@ import {
     mobileChangesListResultSchema,
     mobileChangesModeSchema,
 } from './mobile-changes-contract.js';
+import { mobileComputerMethods } from './mobile-computer-contract.js';
 import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
 import { mobileDesktopUpdateMethods } from './mobile-desktop-update-contract.js';
 import { mobileDeviceActionMethods } from './mobile-device-action-contract.js';
@@ -79,6 +80,7 @@ export * from './mobile-agent-usage-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-bot-inbox-contract.js';
 export * from './mobile-changes-contract.js';
+export * from './mobile-computer-contract.js';
 export * from './mobile-dashboard-session-contract.js';
 export * from './mobile-desktop-update-contract.js';
 export * from './mobile-device-action-contract.js';
@@ -429,6 +431,7 @@ export const mobileMethods = {
         params: mobileProjectReorderParametersSchema,
         result: z.null(),
     },
+    ...mobileComputerMethods,
     ...mobilePanelsMethods,
     ...mobilePullRequestMethods,
     ...mobileAgentUsageMethods,

@@ -138,6 +138,11 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.externalEditor.description':
         '“在外部编辑器中打开项目”使用的命令，例如 code 或 cursor。',
 
+    'settings.mobile.computerName.title': '电脑名称',
+    'settings.mobile.computerName.description':
+        '已配对的手机上显示的这台电脑的名字。留空则使用系统主机名。',
+    'settings.mobile.computerName.placeholder': '系统主机名',
+
     'settings.mobile.relayUrl.title': '中继服务器',
     'settings.mobile.relayUrl.description':
         'Caxri 中继的 ws:// 或 wss:// 地址。局域网地址都连不上时，已配对的手机会改走中继；流量始终端到端加密。留空则只使用局域网。',

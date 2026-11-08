@@ -146,6 +146,11 @@ export const settingsCatalog = {
     'settings.workbench.externalEditor.description':
         'Command for Open Project in External Editor, such as code or cursor.',
 
+    'settings.mobile.computerName.title': 'Computer name',
+    'settings.mobile.computerName.description':
+        'The name paired phones show for this computer. Leave empty to use the system host name.',
+    'settings.mobile.computerName.placeholder': 'System host name',
+
     'settings.mobile.relayUrl.title': 'Relay server',
     'settings.mobile.relayUrl.description':
         'ws:// or wss:// address of a Caxri Relay. Paired phones fall back to it when no local network address answers; traffic stays end-to-end encrypted. Leave empty to use local networks only.',
