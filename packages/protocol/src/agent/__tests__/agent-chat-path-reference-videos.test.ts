@@ -45,6 +45,20 @@ describe('agentChatMediaUrl', () => {
         expect(parseAgentChatMediaUrl('https://local/video?path=%2Fa.mov')).toBeUndefined();
         expect(parseAgentChatMediaUrl('not a url')).toBeUndefined();
     });
+
+    it('asks for the thumbnail of any absolute path, file or folder, but never a relative one', () => {
+        const pdf = '/Users/me/Downloads/季度预算说明.pdf';
+        expect(parseAgentChatMediaUrl(agentChatMediaUrl('thumbnail', pdf))).toEqual({
+            kind: 'thumbnail',
+            path: pdf,
+        });
+        expect(parseAgentChatMediaUrl(agentChatMediaUrl('thumbnail', '/repo/src/'))).toEqual({
+            kind: 'thumbnail',
+            path: '/repo/src/',
+        });
+        expect(parseAgentChatMediaUrl(agentChatMediaUrl('thumbnail', 'a.pdf'))).toBeUndefined();
+        expect(parseAgentChatMediaUrl(agentChatMediaUrl('poster', pdf))).toBeUndefined();
+    });
 });
 
 describe('agentChatMessageVideoPaths', () => {

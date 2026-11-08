@@ -1,15 +1,18 @@
 import type { AgentChatPathReference } from '@caxri/protocol';
 import { agentChatPathReferenceName } from '@caxri/protocol';
-import { File, Folder } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { openAgentChatPathReference } from '../agent-chat-commands';
+import { AgentChatFileThumbnail } from './file-thumbnail/agent-chat-file-thumbnail';
+import { agentChatFileTileName } from './file-thumbnail/agent-chat-file-tile-name';
 
 /**
- * The files and folders a sent message cites, as pills above its bubble; nothing when it cites none. The skills it
- * asked for show inside the bubble instead (`AgentChatSkillPill`). Clicking a folder opens it in Finder and clicking a
- * file shows it in its folder, as in the Codex app.
+ * The files and folders a sent message cites, as tiles above its bubble laid out like Finder's icon view: the QuickLook
+ * thumbnail (a PDF's first page, a folder's icon) over the name, shortened in the middle so the extension always shows
+ * (`agentChatFileTileName`); nothing when it cites none. The skills it asked for show inside the bubble instead
+ * (`AgentChatSkillPill`). Clicking a folder opens it in Finder and clicking a file shows it in its folder, as in the
+ * Codex app; the full path is on hover.
  */
 export function AgentChatPathReferenceChips({
     references,
@@ -21,26 +24,32 @@ export function AgentChatPathReferenceChips({
     return (
         <ul
             aria-label={t('agentChat.pathReference.label')}
-            className="m-0 flex max-w-[85%] list-none flex-wrap justify-end gap-1.5 p-0"
+            className="m-0 flex max-w-[85%] list-none flex-wrap justify-end gap-1 p-0"
         >
             {references.map((reference) => {
-                const Icon = reference.isDirectory ? Folder : File;
                 const name = agentChatPathReferenceName(reference);
                 const action = reference.isDirectory
                     ? 'agentChat.pathReference.openFolder'
                     : 'agentChat.pathReference.revealFile';
                 return (
-                    <li className="min-w-0" key={reference.path}>
+                    <li key={reference.path}>
                         <Tooltip content={t(action, { name: reference.path })}>
                             <button
                                 aria-label={t(action, { name })}
-                                className="flex h-7 max-w-60 min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-elevated px-2.5 text-[12px] text-foreground transition-colors hover:border-muted focus-visible:outline focus-visible:outline-accent"
+                                className="flex w-26 cursor-pointer flex-col items-center gap-1.5 rounded-md border-0 bg-transparent px-0.5 pt-2 pb-1.5 text-foreground transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent"
                                 data-agent-chat-path-reference={reference.path}
                                 type="button"
                                 onClick={() => openAgentChatPathReference(reference.path)}
                             >
-                                <Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
-                                <span className="truncate">{name}</span>
+                                <AgentChatFileThumbnail
+                                    className="size-16"
+                                    iconClassName="size-8"
+                                    key={reference.path}
+                                    reference={reference}
+                                />
+                                <span className="line-clamp-2 w-full text-center text-[12px] leading-4 wrap-anywhere">
+                                    {agentChatFileTileName(name)}
+                                </span>
                             </button>
                         </Tooltip>
                     </li>

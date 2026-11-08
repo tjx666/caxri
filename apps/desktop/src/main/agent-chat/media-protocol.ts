@@ -16,18 +16,23 @@ import { app, nativeImage, protocol } from 'electron';
  */
 const POSTER_SIZE = 480;
 /**
- * Posters kept in memory, keyed by the resolved file and its modification time, so scrolling a transcript back and
- * forth does not ask QuickLook again.
+ * A file or folder thumbnail's longest edge in pixels: a message's file tile is 64px, so this stays sharp at 2x.
  */
-const POSTER_CACHE_LIMIT = 64;
+const THUMBNAIL_SIZE = 256;
+/**
+ * Posters and thumbnails kept in memory, keyed by the resolved path, its modification time, and the size, so scrolling
+ * a transcript back and forth does not ask QuickLook again.
+ */
+const QUICK_LOOK_CACHE_LIMIT = 128;
 
-const posters = new Map<string, Uint8Array<ArrayBuffer>>();
+const quickLookImages = new Map<string, Uint8Array<ArrayBuffer>>();
 
 /**
  * Serves the videos a Chat message cites to the Renderer (`agentChatMediaUrl`): the file itself, answering range
  * requests so `<video>` can seek (`agentChatVideoByteRange`), and a poster frame QuickLook draws. Only an existing
  * regular file whose path, and resolved path, end in a video extension is served; anything else is a 404, so the scheme
- * cannot read an arbitrary file, including through a symlink named like a video. The path is not held to a Project
+ * cannot read an arbitrary file, including through a symlink named like a video. Any other cited file or folder gets
+ * only its QuickLook thumbnail, the PNG Finder's icon view shows, never its bytes. The path is not held to a Project
  * root: like a file chip's Show in Finder (`openAgentChatPathReference`), it is the user's own drop or pick, and a
  * screen recording usually sits on the Desktop. Electron accepts a privileged (streaming, fetchable) scheme only before
  * `ready`, so Main's entry calls this at module scope; the handler itself attaches once the app is ready.
@@ -53,7 +58,9 @@ export async function agentChatMediaResponse(request: Request): Promise<Response
     try {
         resolved = await realpath(target.path);
         const stats = await stat(resolved);
-        if (!stats.isFile() || !isAgentChatVideoPath(resolved))
+        if (target.kind === 'thumbnail') {
+            if (!stats.isFile() && !stats.isDirectory()) return new Response(null, { status: 404 });
+        } else if (!stats.isFile() || !isAgentChatVideoPath(resolved))
             return new Response(null, { status: 404 });
         modifiedAt = stats.mtimeMs;
         size = stats.size;
@@ -61,9 +68,13 @@ export async function agentChatMediaResponse(request: Request): Promise<Response
         return new Response(null, { status: 404 });
     }
     if (target.kind === 'video') return videoResponse(resolved, size, request.headers.get('range'));
-    const poster = await posterFor(resolved, modifiedAt);
-    if (!poster) return new Response(null, { status: 404 });
-    return new Response(poster, { headers: { 'content-type': 'image/png' } });
+    const image = await quickLookImage(
+        resolved,
+        modifiedAt,
+        target.kind === 'poster' ? POSTER_SIZE : THUMBNAIL_SIZE,
+    );
+    if (!image) return new Response(null, { status: 404 });
+    return new Response(image, { headers: { 'content-type': 'image/png' } });
 }
 
 function videoResponse(path: string, size: number, rangeHeader: string | null): Response {
@@ -94,29 +105,27 @@ function videoResponse(path: string, size: number, rangeHeader: string | null): 
     });
 }
 
-async function posterFor(
+async function quickLookImage(
     path: string,
     modifiedAt: number,
+    size: number,
 ): Promise<Uint8Array<ArrayBuffer> | undefined> {
-    const key = `${path}\0${modifiedAt}`;
-    const cached = posters.get(key);
+    const key = `${path}\0${modifiedAt}\0${size}`;
+    const cached = quickLookImages.get(key);
     if (cached) return cached;
     let image: Electron.NativeImage;
     try {
-        image = await nativeImage.createThumbnailFromPath(path, {
-            width: POSTER_SIZE,
-            height: POSTER_SIZE,
-        });
+        image = await nativeImage.createThumbnailFromPath(path, { width: size, height: size });
     } catch {
         // QuickLook has no preview for this file (an unsupported codec, a file still being written).
         return undefined;
     }
     if (image.isEmpty()) return undefined;
     const png = new Uint8Array(image.toPNG());
-    if (posters.size >= POSTER_CACHE_LIMIT) {
-        const oldest = posters.keys().next().value;
-        if (oldest !== undefined) posters.delete(oldest);
+    if (quickLookImages.size >= QUICK_LOOK_CACHE_LIMIT) {
+        const oldest = quickLookImages.keys().next().value;
+        if (oldest !== undefined) quickLookImages.delete(oldest);
     }
-    posters.set(key, png);
+    quickLookImages.set(key, png);
     return png;
 }

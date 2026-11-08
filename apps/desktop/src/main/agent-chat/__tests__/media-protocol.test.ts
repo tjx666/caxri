@@ -27,7 +27,11 @@ afterEach(async () => {
     await rm(fixture.directory, { recursive: true, force: true });
 });
 
-function request(kind: 'poster' | 'video', path: string, headers?: HeadersInit): Request {
+function request(
+    kind: 'poster' | 'thumbnail' | 'video',
+    path: string,
+    headers?: HeadersInit,
+): Request {
     // `Request` refuses a scheme it does not know, so the URL rides on a stand-in and the handler reads `url`.
     return { url: agentChatMediaUrl(kind, path), headers: new Headers(headers) } as Request;
 }
@@ -80,6 +84,37 @@ describe('agentChatMediaResponse', () => {
         expect((await agentChatMediaResponse(request('video', disguised))).status).toBe(404);
         expect((await agentChatMediaResponse(request('video', folder))).status).toBe(404);
         const gone = request('video', join(fixture.directory, 'gone.mov'));
+        expect((await agentChatMediaResponse(gone)).status).toBe(404);
+    });
+
+    it('answers any file or folder thumbnail with a QuickLook PNG, and never streams its bytes', async () => {
+        const pdf = join(fixture.directory, 'notes.pdf');
+        await writeFile(pdf, 'secret bytes');
+        const folder = join(fixture.directory, 'src');
+        await mkdir(folder);
+        electronMock.nativeImage.createThumbnailFromPath.mockResolvedValue({
+            isEmpty: () => false,
+            toPNG: () => Buffer.from([7, 8]),
+        });
+        const responses = await Promise.all(
+            [pdf, folder].map((path) => agentChatMediaResponse(request('thumbnail', path))),
+        );
+        const bodies = await Promise.all(responses.map((response) => response.arrayBuffer()));
+        expect(responses.map((response) => response.headers.get('content-type'))).toEqual([
+            'image/png',
+            'image/png',
+        ]);
+        expect(bodies.map((body) => [...new Uint8Array(body)])).toEqual([
+            [7, 8],
+            [7, 8],
+        ]);
+        expect(electronMock.nativeImage.createThumbnailFromPath).toHaveBeenCalledWith(pdf, {
+            width: 256,
+            height: 256,
+        });
+
+        expect((await agentChatMediaResponse(request('video', pdf))).status).toBe(400);
+        const gone = request('thumbnail', join(fixture.directory, 'gone.pdf'));
         expect((await agentChatMediaResponse(gone)).status).toBe(404);
     });
 });
