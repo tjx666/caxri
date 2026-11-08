@@ -274,17 +274,23 @@ async function probeRecording(path: string): Promise<{ times: number[]; width: n
 }
 
 /**
- * Decodes every frame of a recording inside the rows `top`..`bottom`, scaled down by `scale` in both directions. The
- * frames keep their own presentation times because `screenrecord` only writes a frame when the screen changes.
+ * Decodes every frame of a recording inside the rows `top`..`bottom` (and the columns `left`..`right`, the full width
+ * by default), scaled down by `scale` in both directions. The frames keep their own presentation times because
+ * `screenrecord` only writes a frame when the screen changes.
  */
 export async function readRecordingBand(
     path: string,
-    { bottom, top }: { bottom: number; top: number },
+    {
+        bottom,
+        left = 0,
+        right,
+        top,
+    }: { bottom: number; left?: number; right?: number; top: number },
     scale = 4,
 ): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry; scale: number }> {
     const { times, width: videoWidth } = await probeRecording(path);
     const cropHeight = Math.floor((bottom - top) / scale) * scale;
-    const cropWidth = Math.floor(videoWidth / scale) * scale;
+    const cropWidth = Math.floor(((right ?? videoWidth) - left) / scale) * scale;
     const geometry = { height: cropHeight / scale, width: cropWidth / scale };
     const decoded = await execFileAsync(
         'ffmpeg',
@@ -296,7 +302,7 @@ export async function readRecordingBand(
             '-fps_mode',
             'passthrough',
             '-vf',
-            `crop=${cropWidth}:${cropHeight}:0:${top},scale=${geometry.width}:${geometry.height}:flags=area,format=gray`,
+            `crop=${cropWidth}:${cropHeight}:${left}:${top},scale=${geometry.width}:${geometry.height}:flags=area,format=gray`,
             '-f',
             'rawvideo',
             'pipe:1',
@@ -312,4 +318,27 @@ export async function readRecordingBand(
         time,
     }));
     return { frames, geometry, scale };
+}
+
+/**
+ * The frames a recorded region drew while changing from its first picture to its last one: each frame that differs from
+ * both. A change applied in one commit draws none or one (a list's measuring pass); an animated change draws one per
+ * frame for its whole duration. `spanMs` runs from the first frame that left the first picture to the first frame that
+ * shows the last one.
+ */
+export function inBetweenFrames(frames: readonly GrayFrame[]): { count: number; spanMs: number } {
+    const final = frames.at(-1);
+    if (!final) throw new Error('Recording has no frames');
+    const first = frames[0];
+    const leftAt = frames.findIndex((frame) => isDifferent(frame, first));
+    if (leftAt === -1) return { count: 0, spanMs: 0 };
+    const settledAt = frames.findIndex(
+        (frame, index) => index >= leftAt && !isDifferent(frame, final),
+    );
+    const between = frames.slice(leftAt, settledAt);
+    return {
+        count: between.filter((frame) => isDifferent(frame, first) && isDifferent(frame, final))
+            .length,
+        spanMs: frames[settledAt].time - frames[leftAt].time,
+    };
 }

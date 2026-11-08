@@ -1,9 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, ReduceMotion } from 'react-native-reanimated';
 
 import { useTranslation } from '../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { useSavedAge } from './use-saved-age';
+
+const noteEntering = FadeIn.duration(160).reduceMotion(ReduceMotion.System);
+const noteExiting = FadeOut.duration(160).reduceMotion(ReduceMotion.System);
 
 const styles = StyleSheet.create({
     note: {
@@ -27,7 +31,8 @@ const styles = StyleSheet.create({
  * Tells the reader the messages below are the copy this phone saved, not a live read; renders nothing once live. It
  * floats over the top of the timeline instead of taking a row above it: the note leaves as the first live read lands,
  * and as a row it pulled every message up by its height in that same moment. Place it inside a positioned container
- * that wraps the timeline.
+ * that wraps the timeline. It fades in and out on the view that mounts and unmounts, so the live read replaces it
+ * without a one-frame pop.
  */
 export const SavedCopyNote = ({
     savedAt,
@@ -42,7 +47,13 @@ export const SavedCopyNote = ({
     const age = useSavedAge(savedAt ?? null);
     if (age === null) return null;
     return (
-        <View pointerEvents="none" style={styles.note} testID={testID}>
+        <Animated.View
+            entering={noteEntering}
+            exiting={noteExiting}
+            pointerEvents="none"
+            style={styles.note}
+            testID={testID}
+        >
             <View
                 style={[
                     styles.pill,
@@ -53,6 +64,6 @@ export const SavedCopyNote = ({
                     {t('sessions.savedCopy.messages', { saved: age })}
                 </Text>
             </View>
-        </View>
+        </Animated.View>
     );
 };
