@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { useRouter } from 'expo-router';
@@ -13,9 +14,11 @@ import {
     connectionBannerModel,
     connectionIslandLabel,
     connectionNoticeMessage,
+    createFirstShownTimes,
+    transientNoticeRemainingMs,
 } from '../session-notices';
-import { ConnectionIsland } from './connection-island';
 import { useHostSessions } from './host-sessions-provider';
+import { NoticeIsland } from './notice-island';
 
 /**
  * A notice kind `selectHomeNotice` can pick.
@@ -51,7 +54,7 @@ export const UpdateBanner = ({
 
 /**
  * The stale or unverified connection notice; split out of `SessionHomeNotice` like `UpdateBanner`. An automatic
- * reconnect floats as `ConnectionIsland` and takes no height; a notice the user must act on stays a banner.
+ * reconnect floats as `NoticeIsland` and takes no height; a notice the user must act on stays a banner.
  */
 export const ConnectionBanner = ({
     isListVisible,
@@ -96,12 +99,15 @@ export const ConnectionBanner = ({
     );
     if (model.presentation === 'island')
         return isSessionCovered ? null : (
-            <ConnectionIsland
+            <NoticeIsland
                 accessibilityLabel={message}
-                actionLabel={actionLabels[model.action]}
-                actionTestID="connection-retry-button"
+                action={{
+                    label: actionLabels[model.action],
+                    onPress: onAction,
+                    testID: 'connection-retry-button',
+                }}
+                isBusy
                 label={connectionIslandLabel(isSavedCopyShown ? saved : null, t, relayFailure)}
-                onAction={onAction}
                 testID="connection-stale-banner"
                 theme={theme}
                 wrapperTestID={isSavedCopyShown ? 'session-list-saved' : undefined}
@@ -129,7 +135,60 @@ export const ConnectionBanner = ({
 };
 
 /**
- * The Session list's own notices: a failed refresh with Retry, the saved-copy age, and the truncation count.
+ * First-draw times of the truncated island across every mounted Sessions screen; see `createFirstShownTimes`.
+ */
+const truncatedIslandFirstShown = createFirstShownTimes();
+
+/**
+ * The truncated-list notice as a floating island, shown for `TRUNCATED_NOTICE_VISIBLE_MS` once per count and then gone,
+ * so it neither pushes the list down nor sits over the header for good. Tapping it opens Session search, where the rest
+ * are. The parent keys it by the count, so a new count mounts a fresh island.
+ */
+const TruncatedIsland = ({
+    noticeKey,
+    shown,
+    theme,
+    total,
+}: {
+    noticeKey: string;
+    shown: number;
+    theme: MobileTheme;
+    total: number;
+}) => {
+    const { t } = useTranslation();
+    const { hostId } = useHostSessions();
+    const router = useRouter();
+    const [remainingMs] = useState(() => {
+        const now = Date.now();
+        return transientNoticeRemainingMs(truncatedIslandFirstShown(noticeKey, now), now);
+    });
+    const [isExpired, setIsExpired] = useState(remainingMs === 0);
+
+    useEffect(() => {
+        if (remainingMs === 0) return;
+        const timer = setTimeout(() => setIsExpired(true), remainingMs);
+        return () => clearTimeout(timer);
+    }, [remainingMs]);
+
+    if (isExpired) return null;
+    return (
+        <NoticeIsland
+            accessibilityLabel={t('sessions.home.truncated', { shown, total })}
+            action={{
+                label: t('sessions.search.open'),
+                onPress: () => router.navigate(`/h/${encodeURIComponent(hostId)}/search`),
+                testID: 'session-list-truncated-search',
+            }}
+            label={t('sessions.home.truncatedShort', { shown, total })}
+            testID="session-list-truncated"
+            theme={theme}
+        />
+    );
+};
+
+/**
+ * The Session list's own notices. A failed refresh with Retry stays a banner because it needs the user; the saved-copy
+ * age and the truncation count need nothing, so they float as islands and never move the list.
  */
 export const ListNotice = ({
     kind,
@@ -141,7 +200,7 @@ export const ListNotice = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const { sessions } = useHostSessions();
+    const { hostId, sessions } = useHostSessions();
     const { error, isLoading, refresh, sections } = sessions;
     switch (kind) {
         case 'list-error':
@@ -159,27 +218,31 @@ export const ListNotice = ({
                     tone="danger"
                 />
             );
-        case 'saved-copy':
+        case 'saved-copy': {
+            const message = t('sessions.home.savedCopy', { saved: saved ?? '' });
             return (
-                <NoticeBanner
-                    message={t('sessions.home.savedCopy', { saved: saved ?? '' })}
+                <NoticeIsland
+                    accessibilityLabel={message}
+                    isBusy
+                    label={message}
                     testID="session-list-saved"
                     theme={theme}
-                    tone="muted"
                 />
             );
-        case 'truncated':
+        }
+        case 'truncated': {
+            const shown = allMobileSessions(sections).length;
+            const noticeKey = `${hostId}:${shown}/${sections.total}`;
             return (
-                <NoticeBanner
-                    message={t('sessions.home.truncated', {
-                        shown: allMobileSessions(sections).length,
-                        total: sections.total,
-                    })}
-                    testID="session-list-truncated"
+                <TruncatedIsland
+                    key={noticeKey}
+                    noticeKey={noticeKey}
+                    shown={shown}
                     theme={theme}
-                    tone="muted"
+                    total={sections.total}
                 />
             );
+        }
         default:
             return null;
     }
