@@ -1,7 +1,7 @@
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { checkBounds, isInside, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import { checkBounds, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     mobileSemantics,
     observeMobileNode,
@@ -97,28 +97,24 @@ export async function executeMobileChatUserMarkdownScenario(
         }
         // Captured before judging, so a bubble that spills is on record as the reader saw it.
         await capture(environment, 'user-markdown-bubble', artifacts);
-        const bubble = checkBounds(
-            semantics,
-            `conversation-user-bubble-${prefix.slice('conversation-user-text-'.length, -'-'.length)}`,
-        );
-        if (!bubble) throw new Error('The user bubble is not laid out');
-        const wrapped = checkBounds(semantics, `${prefix}${WRAPPING_BLOCK}`);
-        const single = checkBounds(semantics, `${prefix}${WRAPPING_BLOCK + 1}`);
-        if (
-            !wrapped ||
-            !single ||
-            wrapped.bottom - wrapped.top < 1.5 * (single.bottom - single.top)
-        )
+        /**
+         * UIAutomator clips a view's reported bounds to its parent, so a line hanging below the bubble still reports
+         * bounds inside it; it shows instead as a line shorter than a whole one. The bubble's first lines may sit above
+         * the screen edge, so only the wrapped item and the one after it, the lines that used to spill, are judged.
+         */
+        const height = (position: number) => {
+            const bounds = checkBounds(semantics, `${prefix}${position}`);
+            return bounds ? bounds.bottom - bounds.top : 0;
+        };
+        const line = height(WRAPPING_BLOCK - 1);
+        if (line === 0)
+            throw new Error('The one-line list item before the long one is not laid out');
+        if (height(WRAPPING_BLOCK) < 1.5 * line)
             throw new Error('The long list item did not wrap, so the bubble check proves nothing');
-        // The bubble's first lines may sit above the screen edge, where UIAutomator's bounds are clipped; the wrapped
-        // item and the one after it are the lines that used to spill, and both stay on screen.
-        for (const [position, block] of [
-            [WRAPPING_BLOCK, wrapped],
-            [WRAPPING_BLOCK + 1, single],
-        ] as const) {
-            if (!isInside(block, bubble))
-                throw new Error(`Block ${position} of the user message spills outside its bubble`);
-        }
+        if (height(WRAPPING_BLOCK + 1) < line - 2)
+            throw new Error(
+                `Block ${WRAPPING_BLOCK + 1} of the user message is cut off below its bubble`,
+            );
 
         await finish(environment, artifacts, {
             renderedLines: RENDERED_LINES.length,
