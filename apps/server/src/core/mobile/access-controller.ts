@@ -139,7 +139,7 @@ export const openMobileAccessController = (options: {
             assertOpen();
             getExtensionService = resolveExtensionService;
             attachedDomainService = domainService;
-            computerName.refresh();
+            void computerName.refresh();
             gateway = new MobileGateway({
                 logger: options.logger,
                 adapters: { server: adapter },
@@ -220,7 +220,9 @@ export const openMobileAccessController = (options: {
         publish: (event) => {
             if (event.event === 'settings.changed') {
                 applyRelaySetting?.();
-                computerName.refresh();
+                // Phones re-read the dashboard on this event, so it waits until the follower holds the new name.
+                void computerName.refresh().then((changed) => changed && gateway?.publish(event));
+                return;
             }
             if (event.event === 'state.changed' && event.payload.kind === 'full')
                 followAllProjects?.();

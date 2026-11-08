@@ -10,8 +10,9 @@ export interface MobileComputerName {
     displayName: () => string;
     /**
      * Re-reads `mobile.computerName`; call it once the domain service is ready and on every `settings.changed`.
+     * Resolves whether the name phones show changed, so a rename made on the computer can redraw their dashboards.
      */
-    refresh: () => void;
+    refresh: () => Promise<boolean>;
     /**
      * Renames this computer through the bounded `settings.patch` path and answers the name phones now show. An empty
      * name restores the system host name.
@@ -29,23 +30,26 @@ export function createMobileComputerName(
 ): MobileComputerName {
     const fallback = mobileHostDisplayName(systemName);
     let customName: string | null = null;
-    let tail = Promise.resolve();
+    let tail = Promise.resolve(false);
     const displayName = (): string => customName ?? fallback;
     return {
         displayName,
         refresh: () => {
             const service = domainService();
-            if (!service) return;
+            if (!service) return Promise.resolve(false);
             const previous = tail;
-            tail = (async (): Promise<void> => {
+            tail = (async (): Promise<boolean> => {
                 await previous;
+                const before = displayName();
                 try {
                     const settings = await service.request('settings.get');
                     customName = settings.value['mobile.computerName'];
                 } catch {
                     // Settings report their own read failures; the phone keeps the last known name.
                 }
+                return displayName() !== before;
             })();
+            return tail;
         },
         rename: async (name) => {
             const service = domainService();

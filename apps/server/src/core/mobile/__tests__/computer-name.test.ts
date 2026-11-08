@@ -22,8 +22,17 @@ describe('mobile computer name', () => {
         const service = settingsService('Studio Mac');
         const name = createMobileComputerName(() => service as never, 'work-laptop.example.test');
         expect(name.displayName()).toBe('work-laptop');
-        name.refresh();
-        await vi.waitFor(() => expect(name.displayName()).toBe('Studio Mac'));
+        await expect(name.refresh()).resolves.toBe(true);
+        expect(name.displayName()).toBe('Studio Mac');
+    });
+
+    it('reports a change only when the name phones show differs, so other settings do not redraw dashboards', async () => {
+        const service = settingsService(null);
+        const name = createMobileComputerName(() => service as never, 'work-laptop');
+        await expect(name.refresh()).resolves.toBe(false);
+        await service.request('settings.patch', { changes: [{ value: 'Office Mac' }] });
+        await expect(name.refresh()).resolves.toBe(true);
+        await expect(name.refresh()).resolves.toBe(false);
     });
 
     it('renames through the bounded settings patch and restores the host name for an empty name', async () => {

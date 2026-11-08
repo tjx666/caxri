@@ -333,8 +333,9 @@ export class MobileGatewaySubscriptions {
         switch (resource.kind) {
             case 'dashboard': {
                 if (
-                    event.event === 'state.changed' ||
-                    event.event === 'sessionPullRequests.changed'
+                    ['state.changed', 'sessionPullRequests.changed', 'settings.changed'].includes(
+                        event.event,
+                    )
                 )
                     this.#deliver(subscription, event, { kind: 'dashboard.changed' });
                 break;

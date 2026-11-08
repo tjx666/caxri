@@ -282,8 +282,10 @@ to stop a Terminal or process. See [Mobile computer status](host-status.md).
 the computer, not only the caller. It writes the `mobile.computerName` setting through the bounded
 `settings.patch` path, so the phone never gains a general Settings write; Desktop edits the same
 setting under Settings, Mobile. An empty name restores the system host name. The method carries the
-`projects.write` capability a `control` device already holds rather than `settings.write`. See
-[the computer name follower](../../apps/server/src/core/mobile/computer-name.ts).
+`projects.write` capability a `control` device already holds rather than `settings.write`. When the
+name changes from either side, Server Core forwards `settings.changed` to dashboard subscriptions
+only after its follower holds the new name, so every paired phone redraws its header without a
+refresh. See [the computer name follower](../../apps/server/src/core/mobile/computer-name.ts).
 
 ## Chat videos from mobile
 
