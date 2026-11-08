@@ -112,7 +112,8 @@ const ACTION_LABEL = {
  * A pull request, issue, or acceptance report the Agent created or edited this turn, as Desktop's tracker card: the
  * tracker's mark in a tile, the title beside its reference, the body's first line, and what was done to it (led by a
  * Linear issue's state) with an external arrow, since a tap opens the page in the in-app browser. An issue's card has a
- * button beside it that starts the issue in a new Session (`/new-session`), as Desktop's does.
+ * button at its trailing edge, inside the border, that starts the issue in a new Session (`/new-session`), as Desktop's
+ * does.
  */
 export const AgentChatTrackerCard = ({
     artifact,
@@ -137,71 +138,77 @@ export const AgentChatTrackerCard = ({
     const excerpt = trackerExcerptText(artifact);
     const startHandoff = use(AgentChatHandoffStarter);
     const [isStarting, setStarting] = useState(false);
-    const card = (
-        <Card padded={false} theme={theme}>
-            <AgentChatResultRow
-                accessibilityLabel={
-                    artifact.status
-                        ? t('chat.tracker.cardLabelWithStatus', {
-                              action: label,
-                              reference,
-                              status: artifact.status.name,
-                              title: title ?? reference,
-                          })
-                        : t('chat.tracker.cardLabel', {
-                              action: label,
-                              reference,
-                              title: title ?? reference,
-                          })
-                }
-                accessibilityRole="link"
-                onPress={() => openLink(artifact.url)}
-                testID={`agent-chat-tracker-${artifact.reference}`}
-                theme={theme}
-                tile={<Mark color={theme.text} size={16} />}
-            >
-                <View style={styles.titleRow}>
-                    <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
-                        {title ?? reference}
-                    </Text>
-                    {title ? (
-                        <Text style={[styles.reference, { color: theme.muted }]}>{reference}</Text>
-                    ) : null}
-                </View>
-                {excerpt ? (
-                    <Text numberOfLines={1} style={[styles.excerpt, { color: theme.muted }]}>
-                        {excerpt}
-                    </Text>
+    const row = (
+        <AgentChatResultRow
+            accessibilityLabel={
+                artifact.status
+                    ? t('chat.tracker.cardLabelWithStatus', {
+                          action: label,
+                          reference,
+                          status: artifact.status.name,
+                          title: title ?? reference,
+                      })
+                    : t('chat.tracker.cardLabel', {
+                          action: label,
+                          reference,
+                          title: title ?? reference,
+                      })
+            }
+            accessibilityRole="link"
+            onPress={() => openLink(artifact.url)}
+            testID={`agent-chat-tracker-${artifact.reference}`}
+            theme={theme}
+            tile={<Mark color={theme.text} size={16} />}
+        >
+            <View style={styles.titleRow}>
+                <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
+                    {title ?? reference}
+                </Text>
+                {title ? (
+                    <Text style={[styles.reference, { color: theme.muted }]}>{reference}</Text>
                 ) : null}
-                <View style={styles.action}>
-                    {artifact.status ? (
-                        <>
-                            <StatusIcon color={theme[statusIcon.tone]} size={13} />
-                            <Text
-                                numberOfLines={1}
-                                style={[styles.caption, styles.status, { color: theme.text }]}
-                            >
-                                {artifact.status.name}
-                            </Text>
-                            <Text style={[styles.caption, { color: theme.muted }]}>·</Text>
-                        </>
-                    ) : (
-                        <KindIcon color={theme.muted} size={13} />
-                    )}
-                    <Text style={[styles.caption, { color: theme.muted }]}>{label}</Text>
-                    <ArrowUpRight color={theme.muted} size={13} />
-                </View>
-            </AgentChatResultRow>
-        </Card>
+            </View>
+            {excerpt ? (
+                <Text numberOfLines={1} style={[styles.excerpt, { color: theme.muted }]}>
+                    {excerpt}
+                </Text>
+            ) : null}
+            <View style={styles.action}>
+                {artifact.status ? (
+                    <>
+                        <StatusIcon color={theme[statusIcon.tone]} size={13} />
+                        <Text
+                            numberOfLines={1}
+                            style={[styles.caption, styles.status, { color: theme.text }]}
+                        >
+                            {artifact.status.name}
+                        </Text>
+                        <Text style={[styles.caption, { color: theme.muted }]}>·</Text>
+                    </>
+                ) : (
+                    <KindIcon color={theme.muted} size={13} />
+                )}
+                <Text style={[styles.caption, { color: theme.muted }]}>{label}</Text>
+                <ArrowUpRight color={theme.muted} size={13} />
+            </View>
+        </AgentChatResultRow>
     );
-    if (!startHandoff || artifact.kind !== 'issue') return card;
+    if (!startHandoff || artifact.kind !== 'issue') {
+        return (
+            <Card padded={false} theme={theme}>
+                {row}
+            </Card>
+        );
+    }
     const startLabel = t('chat.handoff.startIssue', { reference });
+    // The handoff button sits inside the card's border, beside the row rather than in it, as on Desktop: the row
+    // itself is the link that opens the issue, so the button stays a sibling with its own accessible name.
     return (
-        <View style={styles.withAction}>
-            <View style={styles.card}>{card}</View>
+        <Card padded={false} style={styles.withAction} theme={theme}>
+            <View style={styles.row}>{row}</View>
             <IconButton
                 accessibilityLabel={startLabel}
-                color={theme.primary}
+                color={theme.muted}
                 disabled={isStarting}
                 icon={MessageSquareShare}
                 onPress={() => {
@@ -214,13 +221,13 @@ export const AgentChatTrackerCard = ({
                 testID={`agent-chat-tracker-handoff-${artifact.reference}`}
                 theme={theme}
             />
-        </View>
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
-    withAction: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs },
-    card: { flex: 1, minWidth: 0 },
+    withAction: { alignItems: 'center', flexDirection: 'row', paddingRight: mobileSpace.xs },
+    row: { flex: 1, minWidth: 0 },
     titleRow: { alignItems: 'baseline', flexDirection: 'row', gap: mobileSpace.sm, minWidth: 0 },
     title: { ...mobileType.body, flexShrink: 1 },
     reference: { ...mobileType.caption, flexShrink: 0, fontFamily: MONOSPACE_FONT },
