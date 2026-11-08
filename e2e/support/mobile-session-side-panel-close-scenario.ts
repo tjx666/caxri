@@ -51,39 +51,47 @@ const isFinished = (snapshot: AgentChatSnapshot): boolean =>
  */
 const SCRIM_STRIP = 0.1;
 /**
- * The drawer itself, right of the scrim strip with a margin for its border.
+ * Where the open drawer begins, as a share of the width.
  */
-const DRAWER_FROM = 0.15;
+const DRAWER_LEFT = 0.12;
+/**
+ * The last part of the drawer's travel, as a share of its width. Once only this sliver remains on screen, too little of
+ * the drawer is left to match, so those frames are not judged.
+ */
+const DRAWER_TAIL = 0.15;
 /**
  * Pixels closer than this to the background are treated as empty, which removes video compression noise.
  */
 const INK_FLOOR = 24;
 /**
- * A frame whose drawer region carries this much more ink than both settled pictures shows two layers of text at once.
+ * Smallest share of the open drawer's ink that a moving frame must reproduce at the drawer's offset. A drawer that
+ * slides as one opaque picture reproduces nearly all of it; one that lost its own and its controls' backgrounds
+ * reproduces about half.
  */
-const GHOST_RATIO = 1.2;
+const MIN_DRAWER_MATCH = 0.75;
 /**
  * Smallest brightness difference between the open and closed scrim strip that the fade judgement can resolve.
  */
 const MIN_SCRIM_SPAN = 6;
 /**
- * Mean absolute luma difference over the drawer region above which a frame shows a picture other than a settled one.
+ * Mean absolute luma difference above which two pictures differ.
  */
 const DIFFERENT_PICTURE = 2;
 
-const regionDifference = (
+const columnsDifference = (
     a: GrayFrame,
     b: GrayFrame,
     { height, width }: FrameGeometry,
     from: number,
+    to: number,
 ): number => {
     let sum = 0;
     for (let row = 0; row < height; row += 1)
-        for (let column = from; column < width; column += 1) {
+        for (let column = from; column < to; column += 1) {
             const index = row * width + column;
             sum += Math.abs(a.data[index] - b.data[index]);
         }
-    return sum / (height * (width - from));
+    return sum / (height * (to - from));
 };
 
 const columnsMean = (
@@ -107,41 +115,63 @@ const backgroundOf = ({ data }: GrayFrame): number => {
     return mode;
 };
 
-const inkShare = (
-    { data }: GrayFrame,
-    { height, width }: FrameGeometry,
-    from: number,
-    background: number,
-): number => {
-    let ink = 0;
+/**
+ * The open drawer's ink pixels as row-major indices, and the best share of them a frame reproduces at any rightward
+ * offset.
+ */
+const drawerMatcher = (opened: GrayFrame, { height, width }: FrameGeometry, background: number) => {
+    const left = Math.ceil(width * DRAWER_LEFT);
+    const isInk = (value: number) => Math.abs(value - background) > INK_FLOOR;
+    const ink: Array<{ column: number; row: number }> = [];
     for (let row = 0; row < height; row += 1)
-        for (let column = from; column < width; column += 1)
-            if (Math.abs(data[row * width + column] - background) > INK_FLOOR) ink += 1;
-    return ink / (height * (width - from));
+        for (let column = left; column < width; column += 1)
+            if (isInk(opened.data[row * width + column])) ink.push({ column, row });
+    /**
+     * The share of the open drawer's ink a frame shows at `offset`, or `null` once too little of the drawer is left on
+     * screen to judge.
+     */
+    const matchAt = (data: Uint8Array, offset: number): number | null => {
+        const shown = ink.filter(({ column }) => column + offset < width);
+        if (shown.length < ink.length * DRAWER_TAIL) return null;
+        const matched = shown.filter(({ column, row }) =>
+            isInk(data[row * width + column + offset]),
+        ).length;
+        return matched / shown.length;
+    };
+    return ({ data }: GrayFrame): number => {
+        let best = 0;
+        for (let offset = 0; offset < width - left; offset += 1) {
+            const match = matchAt(data, offset);
+            if (match === null) break;
+            best = Math.max(best, match);
+        }
+        return best;
+    };
 };
 
 /**
- * Judges one recorded close of the phone drawer.
+ * Judges one recorded close of the phone drawer. The first frame shows the drawer open and the last shows it closed.
  *
- * - `scrimFadeFrames`: frames whose scrim strip sits between its open and closed brightness. A scrim that fades shows
- *   several; one that vanishes with its view shows none.
- * - `ghostFrames`: frames whose drawer region carries far more ink than either settled picture. The drawer is opaque
- *   while it slides, so only a drawer that lost its background lets the Session's text show through its own.
- * - `transitionFrames`: frames whose drawer region matches neither settled picture, so the drawer is visibly moving.
+ * - `movingFrames`: frames whose drawer area matches neither settled picture, so something visibly moves.
+ * - `tornFrames`: moving frames in which the drawer no longer reads as one picture at any offset. The drawer and the
+ *   Session share a background colour, so a drawer that lost its backgrounds looks the same size; what gives it away is
+ *   that the selected tab and filter pills lose their fills and the Session's text shows through between the drawer's.
+ * - `scrimFadeFrames`: frames whose scrim strip sits between its open and closed brightness.
  *
  * The close animation runs 220 ms and `screenrecord` delivers roughly 30 to 60 frames a second while the screen
- * changes, so a real fade or slide spans several frames; two fade frames and three moving frames are conservative
- * floors.
+ * changes, so a real slide or fade spans several frames; three moving and two fading frames are conservative floors.
  */
 export function analyseDrawerClose(
     frames: readonly GrayFrame[],
     geometry: FrameGeometry,
-): { ghostFrames: number; scrimFadeFrames: number; scrimSpan: number; transitionFrames: number } {
+): { movingFrames: number; scrimFadeFrames: number; scrimSpan: number; tornFrames: number } {
     const [opened] = frames;
     const closed = frames.at(-1);
     if (!closed) throw new Error('Recording has no frames');
-    const stripTo = Math.max(1, Math.floor(geometry.width * SCRIM_STRIP));
-    const drawerFrom = Math.floor(geometry.width * DRAWER_FROM);
+    const { width } = geometry;
+    const stripTo = Math.max(1, Math.floor(width * SCRIM_STRIP));
+    const left = Math.ceil(width * DRAWER_LEFT);
+    const tailFrom = width - Math.floor((width - left) * DRAWER_TAIL);
     const openLevel = columnsMean(opened, geometry, 0, stripTo);
     const closedLevel = columnsMean(closed, geometry, 0, stripTo);
     const low = Math.min(openLevel, closedLevel);
@@ -154,27 +184,21 @@ export function analyseDrawerClose(
         const level = columnsMean(frame, geometry, 0, stripTo);
         return level > low + span * 0.15 && level < low + span * 0.85;
     }).length;
-    const background = backgroundOf(closed);
-    const settledInk = Math.max(
-        inkShare(opened, geometry, drawerFrom, background),
-        inkShare(closed, geometry, drawerFrom, background),
-    );
-    const ghostFrames = frames.filter(
-        (frame) => inkShare(frame, geometry, drawerFrom, background) > settledInk * GHOST_RATIO,
-    ).length;
-    const transitionFrames = frames.filter(
+    const drawerMatch = drawerMatcher(opened, geometry, backgroundOf(closed));
+    const moving = frames.filter(
         (frame) =>
-            regionDifference(frame, opened, geometry, drawerFrom) > DIFFERENT_PICTURE &&
-            regionDifference(frame, closed, geometry, drawerFrom) > DIFFERENT_PICTURE,
-    ).length;
-    return { ghostFrames, scrimFadeFrames, scrimSpan: span, transitionFrames };
+            columnsDifference(frame, opened, geometry, left, width) > DIFFERENT_PICTURE &&
+            columnsDifference(frame, closed, geometry, left, tailFrom) > DIFFERENT_PICTURE,
+    );
+    const tornFrames = moving.filter((frame) => drawerMatch(frame) < MIN_DRAWER_MATCH).length;
+    return { movingFrames: moving.length, scrimFadeFrames, scrimSpan: span, tornFrames };
 }
 
 /**
  * `MOB-SIDE-PANEL-PHONE-03`: tapping the phone drawer's close button slides the drawer out to the right while its scrim
  * fades, the reverse of opening it. When the drawer relied on Reanimated's `exiting` animation, Android dropped the
  * drawer's and the scrim's backgrounds as soon as they unmounted, so the drawer's text slid away over the Session as a
- * transparent ghost and the scrim vanished in one frame.
+ * transparent ghost.
  */
 export async function executeMobileSidePanelCloseScenario(
     environment: MobileAndroidCaseEnvironment,
@@ -220,7 +244,7 @@ export async function executeMobileSidePanelCloseScenario(
         const video = join(analysis, 'close.mp4');
         await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
         const { frames, geometry } = await readRecordingBand(video, band);
-        const { ghostFrames, scrimFadeFrames, scrimSpan, transitionFrames } = analyseDrawerClose(
+        const { movingFrames, scrimFadeFrames, scrimSpan, tornFrames } = analyseDrawerClose(
             frames,
             geometry,
         );
@@ -229,16 +253,16 @@ export async function executeMobileSidePanelCloseScenario(
             artifacts,
             {
                 frames: frames.length,
-                ghostFrames,
                 motion: 'live',
+                movingFrames,
                 scrimFadeFrames,
                 scrimSpan: Number(scrimSpan.toFixed(1)),
-                transitionFrames,
+                tornFrames,
             },
             {
-                'the drawer moves over several frames': transitionFrames >= 3,
+                'the drawer moves over several frames': movingFrames >= 3,
                 'the scrim fades over several frames': scrimFadeFrames >= 2,
-                'the drawer stays opaque while it slides out': ghostFrames === 0,
+                'the drawer slides out as one opaque picture': tornFrames === 0,
             },
         );
     } finally {
