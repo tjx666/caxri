@@ -677,7 +677,9 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
   `operation` to `compacting`, stamps `operationStartedAt`, and raises `compactionStarted`; input
   sent meanwhile is queued, and a Desktop message on its way says it sends once the compaction
-  ends. Clearing `operation` clears its start. The `/compact` user bubble is hidden because the
+  ends. A bare `/compact` sent meanwhile, or while another bare `/compact` already waits in the
+  queue, is accepted and dropped (`queue_changed` reason `absorbed`) so a doubled send never
+  compacts twice in a row; `/compact` with instructions still queues. Clearing `operation` clears its start. The `/compact` user bubble is hidden because the
   compaction notice already represents it. While it runs, Desktop holds the reply's place at the
   end of the timeline with a compacting divider (`agentChatCompactionInTimeline`) showing how long
   it has run and, when the last message is still unanswered (and is not the `/compact` itself),

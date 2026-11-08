@@ -127,6 +127,25 @@ export async function deliverChatMessage(
 }
 
 /**
+ * Whether a bare `/compact` would only compact the conversation a second time in a row: a compaction is already
+ * running, or another bare `/compact` already waits in the queue. Queued, it would start a second compaction right
+ * after the first, spending time and quota on a context that was just summarized; a doubled click or key that sends the
+ * command twice ended exactly that way. A `/compact` with instructions still queues, since the user asked for a
+ * specific summary.
+ */
+function isRepeatedCompact(
+    state: ChatState,
+    name: string,
+    arguments_: string | undefined,
+): boolean {
+    if (name !== 'compact' || arguments_ !== undefined) return false;
+    return (
+        state.projection.snapshot.operation === 'compacting' ||
+        state.followUps.holdsBareCommand(name)
+    );
+}
+
+/**
  * Delivers one of the provider's slash commands from the head of the Chat's send chain. It waits in the follow-up queue
  * while a turn runs, unless the provider runs it beside the turn (`isImmediateCommand`) or has to stop the turn for it
  * (`stopsTurnForCommand`, labeled as the user's Stop).
@@ -140,6 +159,10 @@ export async function deliverChatCommand(
     if (!isAgentChatCommandListed(state.projection.snapshot, name))
         throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
     const trimmed = arguments_?.trim() ? arguments_ : undefined;
+    if (isRepeatedCompact(state, name, trimmed)) {
+        state.followUps.logAbsorbed();
+        return;
+    }
     if (session.stopsTurnForCommand?.(name, trimmed)) state.projection.noteStopRequest('user');
     else if (!session.isImmediateCommand?.(name) && state.followUps.mustWait()) {
         state.followUps.add({

@@ -34,6 +34,7 @@ type QueuePauseReason = NonNullable<AgentChatSnapshot['queuePauseReason']>;
  * Closed reasons for the `agent_chat.queue_changed` log.
  */
 type QueueChange =
+    | 'absorbed'
     | 'deliveryUnknown'
     | 'dispatched'
     | 'dispatchFailed'
@@ -359,6 +360,23 @@ export class ChatFollowUpQueue {
             snapshot.operation === 'compacting' ||
             (this.entries.length > 0 && this.pauseReason === undefined)
         );
+    }
+
+    /**
+     * Whether `name` already waits in the queue as a bare command, without arguments.
+     */
+    holdsBareCommand(name: string): boolean {
+        return this.entries.some(
+            (entry) =>
+                entry.kind === 'command' && entry.name === name && entry.arguments === undefined,
+        );
+    }
+
+    /**
+     * Records an input that was accepted but not queued, because it would only repeat work already running or queued.
+     */
+    logAbsorbed(): void {
+        this.log('absorbed');
     }
 
     add(entry: QueuedInput): void {
