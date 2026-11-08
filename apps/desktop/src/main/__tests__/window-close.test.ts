@@ -72,30 +72,24 @@ describe('resolveWindowClose', () => {
 });
 
 describe('windowClosePrompt', () => {
-    it('asks to close the window and names the running Terminals and Chats, not the Server', () => {
+    it('asks to close the window in one line and names the running Terminals and Chats in another', () => {
         expect(windowClosePrompt({ terminals: 1, chats: 0 })).toMatchObject({
             title: 'Close this window?',
-            message: 'Close this window while 1 Terminal is running?',
+            message: 'Close this window?',
+            detail: 'Running: 1 Terminal',
             buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
             cancelId: 2,
             defaultId: 0,
         });
-        const prompt = windowClosePrompt({ terminals: 1, chats: 2 });
-        expect(prompt.message).toBe('Close this window while 1 Terminal and 2 Chats are running?');
-        expect(prompt.detail).toContain('keeps them running in the background');
-        expect(prompt.detail).not.toContain('Server');
     });
 
     it.each([
-        [{ terminals: 0, chats: 1 }, 'Close this window while 1 Chat is running?'],
-        [{ terminals: 3, chats: 0 }, 'Close this window while 3 Terminals are running?'],
-        [{ terminals: 1, chats: 1 }, 'Close this window while 1 Terminal and 1 Chat are running?'],
-    ])(
-        'leaves out a kind with nothing running and agrees with the total (%o)',
-        (running, message) => {
-            expect(windowClosePrompt(running).message).toBe(message);
-        },
-    );
+        [{ terminals: 0, chats: 1 }, 'Running: 1 Chat'],
+        [{ terminals: 3, chats: 0 }, 'Running: 3 Terminals'],
+        [{ terminals: 1, chats: 2 }, 'Running: 1 Terminal and 2 Chats'],
+    ])('leaves out a kind with nothing running (%o)', (running, detail) => {
+        expect(windowClosePrompt(running).detail).toBe(detail);
+    });
 });
 
 describe('resolveWindowClose unsaved Editor buffers', () => {

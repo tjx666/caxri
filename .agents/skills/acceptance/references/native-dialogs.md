@@ -30,6 +30,10 @@ pattern already used by Caxri's focused Electron E2E specs. Against a running de
 `debug` skill's `drive-app.ts` steps instead: `stub-message-box <button index>` answers every
 confirmation, and `stub-folder-dialog <absolute path>` answers the folder picker.
 
+A change to native alert copy can still be checked against the real AppKit layout without showing
+the alert: `swift .agents/skills/acceptance/native/alert-layout.swift <message> <detail> [buttons...]`
+prints `centered` or `left-aligned` (DESIGN.md, Confirmations) and takes no focus.
+
 Use `CAXRI_TEST_ROOT_PATH` / `CAXRI_TEST_ROOT_PATHS` for Project selection. The Acceptance launcher
 supplies these by default, so setup never falls through to a folder chooser. For file import/export,
 stage a fixture and stub the Main dialog result to that exact path; exercise validation, error

@@ -127,39 +127,48 @@ export interface AppQuitPrompt {
     type: 'warning';
 }
 
-export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
-    const { otherClientCount, pendingReviewComments, running } = impact;
+/**
+ * The rarer consequences a quit or update restart also carries, one short line each. Either line wraps the alert into
+ * macOS 26's left-aligned layout; that is accepted because each names a real loss, while the common prompt stays
+ * centered.
+ */
+function quitImpactLines({ otherClientCount, pendingReviewComments }: AppQuitImpact): string[] {
     const reviewCount = pendingReviewComments?.count ?? 0;
-    const reviewDetail =
-        reviewCount === 0
-            ? ''
-            : `\n\n${t(
-                  reviewCount === 1 ? 'desktop.quit.reviewLossOne' : 'desktop.quit.reviewLossOther',
-                  { count: reviewCount },
-              )}`;
-    const otherClientDetail =
+    return [
         otherClientCount === 0
             ? ''
-            : `\n\n${t(
+            : t(
                   otherClientCount === 1
                       ? 'desktop.quit.otherClientsOne'
                       : 'desktop.quit.otherClientsOther',
                   { count: otherClientCount },
-              )}`;
+              ),
+        reviewCount === 0
+            ? ''
+            : t(reviewCount === 1 ? 'desktop.quit.reviewLossOne' : 'desktop.quit.reviewLossOther', {
+                  count: reviewCount,
+              }),
+    ].filter(Boolean);
+}
+
+/**
+ * The copy stays at one line for the message and one for the detail, like the delete confirmations in
+ * `confirmations.ts`: macOS 26 centers a native alert only while neither text wraps, and a paragraph explaining both
+ * choices flipped this sheet to a left-aligned layout. The button labels carry what each choice does.
+ */
+export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
     return {
         type: 'warning',
         title: t('desktop.quit.title'),
         /**
-         * The question lives in `message` because macOS sheets and alerts do not show `title`; the title is only for
-         * platforms that draw one.
+         * The question is repeated as the `message` because macOS sheets and alerts do not show `title`; the title is
+         * only for platforms that draw one.
          */
-        message: t(
-            runningWorkTotal(running) === 1
-                ? 'desktop.quit.messageOne'
-                : 'desktop.quit.messageOther',
-            { running: runningWorkPhrase(running) },
-        ),
-        detail: `${t('desktop.quit.detail')}${otherClientDetail}${reviewDetail}`,
+        message: t('desktop.quit.title'),
+        detail: [
+            t('desktop.runningWork.detail', { running: runningWorkPhrase(impact.running) }),
+            ...quitImpactLines(impact),
+        ].join('\n'),
         buttons: [
             t('desktop.quit.stopTasks'),
             t('desktop.quit.keepTasks'),
@@ -181,37 +190,19 @@ export function appQuitPrompt(impact: AppQuitImpact): AppQuitPrompt {
 export function updateRestartPrompt(
     impact: AppQuitImpact,
 ): Omit<AppQuitPrompt, 'buttons'> & { buttons: [string, string] } {
-    const { otherClientCount, pendingReviewComments, running } = impact;
-    const runningTotal = runningWorkTotal(running);
-    const reviewCount = pendingReviewComments?.count ?? 0;
-    const extras = [
-        otherClientCount === 0
-            ? ''
-            : t(
-                  otherClientCount === 1
-                      ? 'desktop.quit.otherClientsOne'
-                      : 'desktop.quit.otherClientsOther',
-                  { count: otherClientCount },
-              ),
-        reviewCount === 0
-            ? ''
-            : t(reviewCount === 1 ? 'desktop.quit.reviewLossOne' : 'desktop.quit.reviewLossOther', {
-                  count: reviewCount,
-              }),
-    ].filter(Boolean);
     return {
         type: 'warning',
         title: t('desktop.updateRestart.title'),
-        message:
-            runningTotal === 0
-                ? t('desktop.updateRestart.messageIdle')
-                : t(
-                      runningTotal === 1
-                          ? 'desktop.updateRestart.messageOne'
-                          : 'desktop.updateRestart.messageOther',
-                      { running: runningWorkPhrase(running) },
-                  ),
-        detail: [t('desktop.updateRestart.detail'), ...extras].join('\n\n'),
+        // One line each, for the centered layout described on `appQuitPrompt`.
+        message: t('desktop.updateRestart.title'),
+        detail: [
+            runningWorkTotal(impact.running) === 0
+                ? t('desktop.updateRestart.detail')
+                : t('desktop.updateRestart.stopsRunning', {
+                      running: runningWorkPhrase(impact.running),
+                  }),
+            ...quitImpactLines(impact),
+        ].join('\n'),
         buttons: [t('desktop.updateRestart.restart'), t('desktop.dialog.cancel')],
         /**
          * Cancel is both default and Escape target for the same reason as in `appQuitPrompt`: a mistaken Enter must not
@@ -267,21 +258,17 @@ export interface PendingReviewCommentsPrompt {
 export function pendingReviewCommentsPrompt(
     summary: GitReviewPendingSummary,
 ): PendingReviewCommentsPrompt {
-    const repoCount = summary.groups.length;
     return {
         type: 'warning',
         title: t('desktop.quit.reviewTitle'),
-        // The question is the message, as in `appQuitPrompt`: macOS does not show the title.
+        // The question is the message, as in `appQuitPrompt`: macOS does not show the title. One line each, likewise.
         message: t(
             summary.count === 1
                 ? 'desktop.quit.reviewMessageOne'
                 : 'desktop.quit.reviewMessageOther',
             { count: summary.count },
         ),
-        detail: t(
-            repoCount === 1 ? 'desktop.quit.reviewDetailOne' : 'desktop.quit.reviewDetailOther',
-            { count: repoCount },
-        ),
+        detail: t('desktop.quit.reviewDetail'),
         buttons: [t('desktop.quit.anyway'), t('desktop.dialog.cancel')],
         /**
          * Cancel stays the default, matching `appQuitPrompt`'s own reasoning: a mistaken Enter should recoverably keep

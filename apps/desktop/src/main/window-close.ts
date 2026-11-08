@@ -44,16 +44,12 @@ export function windowClosePrompt(running: RunningWork): WindowClosePrompt {
         type: 'warning',
         title: t('desktop.windowClose.title'),
         /**
-         * The question lives in `message` because macOS sheets do not show `title`; the title is only for platforms
-         * that draw one.
+         * The question is repeated as the `message` because macOS sheets do not show `title`. Message and detail stay
+         * one line each so macOS 26 keeps the sheet centered (see `appQuitPrompt`); the buttons say what each choice
+         * does.
          */
-        message: t(
-            runningWorkTotal(running) === 1
-                ? 'desktop.windowClose.messageOne'
-                : 'desktop.windowClose.messageOther',
-            { running: runningWorkPhrase(running) },
-        ),
-        detail: t('desktop.windowClose.detail'),
+        message: t('desktop.windowClose.title'),
+        detail: t('desktop.runningWork.detail', { running: runningWorkPhrase(running) }),
         buttons: [
             t('desktop.windowClose.keepRunning'),
             t('desktop.windowClose.terminate'),

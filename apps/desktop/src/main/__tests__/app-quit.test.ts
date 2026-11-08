@@ -483,8 +483,10 @@ describe('resolveAppQuit for Restart to Update', () => {
         expect(prompt.buttons).toEqual(['Restart and Update', 'Cancel']);
         expect(prompt.defaultId).toBe(1);
         expect(prompt.cancelId).toBe(1);
-        expect(prompt.message).toContain('Restart Caxri to update');
-        expect(prompt.detail).toContain('disconnect');
+        expect(prompt.message).toBe('Restart to Update?');
+        expect(prompt.detail).toBe(
+            '1 Terminal will stop.\n1 other client disconnects if tasks stop.',
+        );
     });
 });
 
