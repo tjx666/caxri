@@ -51,6 +51,15 @@ const HEADER_MATCH = 0.05;
  * frame missed 92% in the baseline recording; every aligned settled frame missed none.
  */
 const DIMMED_SHARE = 0.2;
+/**
+ * Share of the Agent band that must be on screen before a frame is judged. A sheet that has only just peeked in shows a
+ * few rows of the first card under the fixed gesture handle, too few to tell lit cards from dimmed ones.
+ */
+const MIN_BAND_VISIBLE = 0.6;
+/**
+ * The bottom of the screen the system gesture handle covers; it stays put while the sheet slides under it.
+ */
+const GESTURE_INSET = 0.04;
 
 interface Rows {
     bottom: number;
@@ -72,7 +81,7 @@ const inkMismatch = (
 ): number => {
     let ink = 0;
     let wrong = 0;
-    for (let y = rows.top; y < rows.bottom && y + shift < height; y += 1)
+    for (let y = rows.top; y < rows.bottom && y + shift < height * (1 - GESTURE_INSET); y += 1)
         for (let x = 0; x < width; x += 1) {
             const expected = settled.data[y * width + x];
             const actual = frame.data[(y + shift) * width + x];
@@ -117,7 +126,13 @@ const dimmedFrames = async (video: string, screenHeight: number, band: Rows) => 
             const mismatch = inkMismatch(frame, settled, width, height, background, header, shift);
             if (mismatch < best.mismatch) best = { mismatch, shift };
         }
-        if (best.mismatch > HEADER_MATCH) continue;
+        const visibleRows =
+            Math.min(cards.bottom, height * (1 - GESTURE_INSET) - best.shift) - cards.top;
+        if (
+            best.mismatch > HEADER_MATCH ||
+            visibleRows < (cards.bottom - cards.top) * MIN_BAND_VISIBLE
+        )
+            continue;
         const share = inkMismatch(frame, settled, width, height, background, cards, best.shift);
         if (share >= DIMMED_SHARE)
             dimmed.push({ share: Number(share.toFixed(3)), time: Math.round(frame.time) });
