@@ -15,8 +15,9 @@ const QUESTION = 'agent-chat-question-0-text';
  * `MOB-CHAT-QUESTION-MARKDOWN-01`: a question the Agent writes in Markdown (`ask markdown` in the fake Claude CLI:
  * bold, inline code, and a numbered list) reads in the phone's question card as Desktop's card shows it, rendered like
  * a reply instead of one bold block with its markers. The question runs past three lines, so it folds behind Show more,
- * which opens it in place inside the card. The screenshots carry the rendering, which the UI tree cannot show: the
- * Markdown's text runs carry no test IDs.
+ * which opens it in place inside the card. Once answered, the transcript's record of the question renders it the same
+ * way, at the record's smaller size. The screenshots carry the rendering, which the UI tree cannot show: the Markdown's
+ * text runs carry no test IDs.
  */
 export async function executeMobileChatQuestionMarkdownScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -66,6 +67,9 @@ export async function executeMobileChatQuestionMarkdownScenario(
                 !snapshot.activeTurnId &&
                 agentText(snapshot).includes('You chose'),
         );
+        // The transcript keeps the answered question, rendered in Markdown as Desktop's record shows it.
+        await waitForCheck(serial, 'agent-chat-answered-question-0');
+        await capture(environment, 'question-markdown-answered', artifacts);
 
         await finish(environment, artifacts, {
             status: 'passed',

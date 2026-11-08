@@ -36,7 +36,8 @@ selected Session plus a Session row menu entry; any of them can revoke it immedi
 when no phone is online. Question cards preserve Claude's grouped steps, single or multiple
 selections, and free-text answers. The question itself renders as Markdown, as a reply does and as
 Desktop's card renders it, folded to three lines behind Show more (two, without the toggle, while the
-keyboard is up). A `view` or `reply` device sees a read-only explanation and never
+keyboard is up); the transcript's record of an answered question renders it the same way at the record's
+smaller size. A `view` or `reply` device sees a read-only explanation and never
 the auto-allow control. The phone polls request status while foregrounded; handled and expired cards
 lose their controls. Tool inputs are reduced to a bounded display summary before crossing the hook
 socket. No question, command, or answer content enters diagnostics; every auto-allow still logs its

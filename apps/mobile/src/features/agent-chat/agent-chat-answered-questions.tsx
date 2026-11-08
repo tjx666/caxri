@@ -6,15 +6,16 @@ import { ChevronRight, CircleQuestionMark } from 'lucide-react-native';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
+import { AgentChatQuestionBody } from './agent-chat-question-body';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 
 type AnsweredEntry = Extract<AgentChatTimelineEntry, { kind: 'answered' }>;
 
 /**
- * An answered question request in the transcript, as Desktop records it: `Asked 3 questions` over each question and the
- * answer given (a multi-choice answer is comma separated; a skipped question reads `Skipped`). It starts expanded,
- * since the answers are what the next reply acts on, and the list owns the folded state by entry id so a recycled row
- * never carries another request's.
+ * An answered question request in the transcript, as Desktop records it: `Asked 3 questions` over each question, in
+ * Markdown like the card that asked it, and the answer given (a multi-choice answer is comma separated; a skipped
+ * question reads `Skipped`). It starts expanded, since the answers are what the next reply acts on, and the list owns
+ * the folded state by entry id so a recycled row never carries another request's.
  */
 export const AgentChatAnsweredQuestions = ({
     entry,
@@ -58,13 +59,12 @@ export const AgentChatAnsweredQuestions = ({
                 <View style={styles.list}>
                     {answers.map(({ answer, question }, index) => (
                         <View key={question} style={styles.item}>
-                            <Text
-                                selectable
-                                style={[styles.text, { color: theme.muted }]}
+                            <AgentChatQuestionBody
+                                isRecord
                                 testID={`agent-chat-answered-question-${index}`}
-                            >
-                                {question}
-                            </Text>
+                                text={question}
+                                theme={theme}
+                            />
                             <Text
                                 selectable
                                 style={[
