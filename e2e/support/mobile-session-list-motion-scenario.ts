@@ -21,6 +21,19 @@ import { inBetweenFrames, readRecordingBand } from './mobile-motion-analysis';
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Names the step a shared wait helper timed out in; its own error only says the Acceptance timed out.
+ */
+const labelled = async <T>(step: string, run: () => Promise<T>): Promise<T> => {
+    try {
+        return await run();
+    } catch (error) {
+        throw new Error(`${step}: ${error instanceof Error ? error.message : String(error)}`, {
+            cause: error,
+        });
+    }
+};
+
+/**
  * Fewest in-between frames that read as motion. A change applied in one commit draws at most one (FlashList's measuring
  * pass); the 120ms to 180ms fades draw about one per frame.
  */
@@ -186,21 +199,27 @@ export async function executeMobileSessionListMotionScenario(
 
         // The phone reads the Chat once online, so it keeps a saved copy to open offline.
         await chat.send({ text: 'hello' });
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
+        await labelled('fixture reply', () =>
+            waitForMobile(
+                () => chat.read(),
+                (snapshot) =>
+                    agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
+                60_000,
+            ),
         );
         // The finished reply moves the row to Needs attention; tap it only once it holds its new place.
-        await waitForMobile(
-            async () => JSON.stringify(await boundsOf(row)),
-            (() => {
-                let previous = '';
-                return (bounds: string) => {
-                    const isSettled = bounds === previous;
-                    previous = bounds;
-                    return isSettled;
-                };
-            })(),
+        await labelled('row settles', () =>
+            waitForMobile(
+                async () => JSON.stringify(await boundsOf(row)),
+                (() => {
+                    let previous = '';
+                    return (bounds: string) => {
+                        const isSettled = bounds === previous;
+                        previous = bounds;
+                        return isSettled;
+                    };
+                })(),
+            ),
         );
         await pause(1_000);
         await tapMobileCheck(serial, row);
@@ -210,7 +229,7 @@ export async function executeMobileSessionListMotionScenario(
             await capture(environment, 'chat-not-opened', artifacts);
             throw error;
         }
-        await waitForNoCheck(serial, 'agent-chat-saved');
+        await labelled('live Chat', () => waitForNoCheck(serial, 'agent-chat-saved'));
         await pause(READ_CACHE_SETTLE_MS);
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForCheck(serial, row);
@@ -218,7 +237,9 @@ export async function executeMobileSessionListMotionScenario(
         // 3. Offline over the list, the capsule carries the saved copy's age; opening the Session drops it.
         await setOnline(false);
         await pause(OUTAGE_MS);
-        await waitForCheck(serial, 'session-list-saved', 30_000);
+        await labelled('saved list offline', () =>
+            waitForCheck(serial, 'session-list-saved', 30_000),
+        );
         await capture(environment, 'capsule-over-list', artifacts);
         const labelChange = await filmChange(
             async () => capsuleLabel(await boundsOf('connection-stale-banner')),
@@ -226,7 +247,7 @@ export async function executeMobileSessionListMotionScenario(
                 await tapMobileCheck(serial, row);
             },
         );
-        await waitForCheck(serial, 'agent-chat-saved');
+        await labelled('saved Chat offline', () => waitForCheck(serial, 'agent-chat-saved'));
         await capture(environment, 'saved-chat-offline', artifacts);
 
         // 4. The network returns: the live read replaces the saved Chat, and its note and the capsule both leave.
@@ -236,8 +257,12 @@ export async function executeMobileSessionListMotionScenario(
             () => Promise.resolve([capsule, note]),
             async () => {
                 await setOnline(true);
-                await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
-                await waitForNoCheck(serial, 'agent-chat-saved', 60_000);
+                await labelled('capsule leaves', () =>
+                    waitForNoCheck(serial, 'connection-stale-banner', 60_000),
+                );
+                await labelled('saved note leaves', () =>
+                    waitForNoCheck(serial, 'agent-chat-saved', 60_000),
+                );
             },
         );
         await capture(environment, 'live-chat', artifacts);
