@@ -9,8 +9,10 @@ import type { AgentChatSessionHost } from '../../chat-provider';
 import { chatTextDigest, chatTurnFinalMessage } from '../../chat-turn-answer';
 import { ClaudeUsageLimitTracker } from '../../continuation/claude-usage-limit';
 import { ClaudeGoals } from '../../goals/claude-goals';
+import { isClaudeCompactCommand } from './input';
 import { claudeContextWindow, finishedClaudeTurn } from './items';
 import { claudeRateLimitEvent } from './plan-limits';
+import { startClaudeCompacting } from './system-notices';
 
 /**
  * Whether background work that holds the turn is still running: a subagent or workflow (both listed as `agent`), or a
@@ -195,7 +197,8 @@ export class ClaudeTurns {
 
     /**
      * Opens a turn. `prompt` is the exact text of the message that starts it, digested at this moment rather than when
-     * it was sent, because a message sent during a turn waits in the Chat's queue until that turn ends.
+     * it was sent, because a message sent during a turn waits in the Chat's queue until that turn ends. A `/compact`
+     * turn shows as compacting from its start (`startClaudeCompacting`).
      */
     begin(
         id: string,
@@ -215,6 +218,7 @@ export class ClaudeTurns {
             agentTurnId: id,
             ...(prompt !== undefined && { agentPromptDigest: chatTextDigest(prompt) }),
         });
+        if (prompt !== undefined && isClaudeCompactCommand(prompt)) startClaudeCompacting(host);
     }
 
     /**

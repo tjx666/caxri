@@ -464,6 +464,19 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(service.read(terminal.id).items.map((item) => item.type)).toEqual(['notice']);
     });
 
+    it('shows compaction from the moment /compact is sent, before Claude Code reports it', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await until((snapshot) => snapshot.status === 'ready');
+        const sentAt = Date.now();
+        await service.runCommand(terminal.id, 'compact', 'quiet');
+        const sent = service.read(terminal.id);
+        expect(sent.operation).toBe('compacting');
+        expect(sent.operationStartedAt).toBeGreaterThanOrEqual(sentAt);
+        // Claude Code ended the turn without ever reporting the compaction, so the Chat must not stay compacting.
+        const done = await until((snapshot) => !snapshot.activeTurnId);
+        expect(done.operation).toBeUndefined();
+    });
+
     it('drops the context usage to the compacted size after compacting a large context', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await until((snapshot) => snapshot.status === 'ready');

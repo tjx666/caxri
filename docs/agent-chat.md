@@ -675,7 +675,9 @@ shows both marks. Grok Build does not echo the `interjectionId`, which is not ne
   one waits; a slash command at the head during a turn still waits. A phone steers and queues the
   same way; see [Mobile](#mobile).
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
-  `operation` to `compacting`, stamps `operationStartedAt`, and raises `compactionStarted`; input
+  `operation` to `compacting`, stamps `operationStartedAt`, and raises `compactionStarted`. A
+  Claude Chat does so already when it sends `/compact`, since Claude Code may report `compacting`
+  a minute or more later, and clears it when the turn ends without the compaction's own end; input
   sent meanwhile is queued, and a Desktop message on its way says it sends once the compaction
   ends. A bare `/compact` sent meanwhile, or while another bare `/compact` already waits in the
   queue, is accepted and dropped (`queue_changed` reason `absorbed`) so a doubled send never
