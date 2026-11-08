@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     tabletPane: { flexGrow: 0, flexShrink: 0, width: 320 },
     newButton: {
         alignItems: 'center',
-        borderRadius: mobileRadius.lg,
+        borderRadius: mobileRadius.pill,
         bottom: mobileSpace.xl,
         height: 58,
         justifyContent: 'center',
@@ -373,6 +373,7 @@ export const SessionHome = ({
                 accessibilityHint={t('sessions.home.newSessionHint')}
                 accessibilityLabel={t('sessions.new.title')}
                 accessibilityRole="button"
+                android_ripple={layout === 'phone' ? { color: theme.primaryRipple } : undefined}
                 onPress={onNewSession}
                 style={
                     layout === 'phone'

@@ -318,21 +318,25 @@ export const SessionDetailHeader = ({
                     ) : (
                         <PreviewChip onOpen={openPreview} previews={previews} theme={theme} />
                     )}
-                    <SessionSidePanelButton
-                        changesCount={changesCount}
-                        isOpen={isSidePanelOpen}
-                        onPress={onToggleSidePanel}
-                        theme={theme}
-                    />
-                    <View collapsable={false} ref={menuAnchor}>
-                        <IconButton
-                            accessibilityLabel={t('sessions.detail.menu')}
-                            expanded={menu.isOpen}
-                            icon={EllipsisVertical}
-                            onPress={menu.open}
-                            testID="session-detail-menu"
+                    {/* The trailing pair skips the row's gap, so the two glyphs read as one toolbar group. */}
+                    <View style={styles.trailingActions}>
+                        <SessionSidePanelButton
+                            changesCount={changesCount}
+                            isOpen={isSidePanelOpen}
+                            onPress={onToggleSidePanel}
                             theme={theme}
                         />
+                        <View collapsable={false} ref={menuAnchor}>
+                            <IconButton
+                                accessibilityLabel={t('sessions.detail.menu')}
+                                expanded={menu.isOpen}
+                                icon={EllipsisVertical}
+                                onPress={menu.open}
+                                testID="session-detail-menu"
+                                theme={theme}
+                                variant="toolbar"
+                            />
+                        </View>
                     </View>
                 </View>
                 <PopoverMenu

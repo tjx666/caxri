@@ -132,6 +132,7 @@ export const SessionHomeHeader = ({
                     onPress={onOpenSearch}
                     testID="session-search-button"
                     theme={theme}
+                    variant="toolbar"
                 />
                 <View collapsable={false} ref={menuAnchor}>
                     <IconButton
@@ -142,6 +143,7 @@ export const SessionHomeHeader = ({
                         onPress={menu.open}
                         testID="computer-menu-button"
                         theme={theme}
+                        variant="toolbar"
                     />
                 </View>
             </View>

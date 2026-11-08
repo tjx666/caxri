@@ -196,7 +196,7 @@ no background of its own keeps its default dark text readable.
   expose provider lifecycle jargon.
 - Filter chips list granted Projects in Desktop order; `All` is the default. The choice survives
   navigation within the app session.
-- The New Session button sits bottom-right above the system gesture inset.
+- The New Session button is a round button that sits bottom-right above the system gesture inset.
 - The home has no title row: the phone pairs one computer, so its name would only cost a row. The
   computer menu names it in a caption above its actions (Agent usage, Computer status, Archived
   Sessions, Add Project, Settings), and a lost connection shows the stale-connection banner instead
@@ -643,7 +643,7 @@ feature finds one way to draw each job.
 | Job                                     | Component                                                  | Rule                                                                                                                                                                     |
 | --------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Text action                             | `Button`                                                   | `primary` once per screen, sheet, or card; `outline` for every other answer; `success` and `danger` only when the outcome is that state.                                 |
-| Glyph-only action                       | `IconButton`                                               | Mandatory accessible name; `onDisabledPress` explains a disabled control.                                                                                                |
+| Glyph-only action                       | `IconButton`                                               | Mandatory accessible name; `onDisabledPress` explains a disabled control; `toolbar` for a header's trailing actions; Android presses show a borderless ripple.           |
 | Bounded surface                         | `Card`                                                     | One radius, border, and fill. `attention` (amber border) only for what blocks the Agent on the user, so one thing on screen is loud.                                     |
 | Pill                                    | `Chip`                                                     | Project filters, header chips, path chips, inline card actions.                                                                                                          |
 | Group heading                           | `SectionLabel`                                             | Uppercase, muted, one size everywhere.                                                                                                                                   |
