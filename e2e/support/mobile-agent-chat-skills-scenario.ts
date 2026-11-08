@@ -10,6 +10,7 @@ import {
     checkBounds,
     hasCheck,
     hideChatKeyboard,
+    isInside,
     sendFromPhone,
     typeChatDraft,
     waitForCheck,
@@ -46,18 +47,6 @@ const MIN_TYPING_PART_DP = 20;
 
 const menuRows = (nodes: readonly MobileSemanticNode[]): number =>
     nodes.filter(({ checkId }) => /^agent-chat-command-\d+$/u.test(checkId)).length;
-
-/**
- * Whether `inner` lies wholly inside `outer`, so nothing of it is clipped by the edge of `outer`.
- */
-const isInside = (
-    inner: NonNullable<ReturnType<typeof checkBounds>>,
-    outer: NonNullable<ReturnType<typeof checkBounds>>,
-): boolean =>
-    inner.left >= outer.left &&
-    inner.right <= outer.right &&
-    inner.top >= outer.top &&
-    inner.bottom <= outer.bottom;
 
 /**
  * Which language the empty composer's placeholder is in. UIAutomator reports an empty field's hint as its text, so the
