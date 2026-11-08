@@ -342,6 +342,7 @@ export async function executeMobileSessionRowMarkDoneScenario(
         } catch (error) {
             throw new Error('Reopening the first row did not close the second', { cause: error });
         }
+        await capture(environment, 'first-row-reopened', artifacts);
 
         await tapMobileCheckByBounds(serial, markDone);
         try {
@@ -398,8 +399,15 @@ export async function executeMobileSessionRowMarkDoneScenario(
             throw new Error('A right swipe on a row no longer pages to the previous Project');
         }
         await capture(environment, 'right-swipe-paged-to-all', artifacts);
+        // Records why the other Needs attention row may lose its unread mark after the archive, without asserting it.
+        const settledState = await readState();
+        const remaining = settledState.sessions.find(({ id }) => id === fixture.allowedSessionId);
         await finish(environment, artifacts, {
             afterArchive: 'removed',
+            remainingAttention: remaining?.hasPendingAttention ? 'pending' : 'resolved',
+            remainingDesktopSelected:
+                settledState.selectedSessionId === fixture.allowedSessionId ? 'yes' : 'no',
+            remainingUnread: remaining?.hasUnread ? 'unread' : 'read',
             afterMarkDone: 'idle',
             idleRowDone: 'hidden',
             leftSwipePaged: 'no',

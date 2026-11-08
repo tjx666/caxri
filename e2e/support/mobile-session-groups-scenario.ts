@@ -268,8 +268,10 @@ export async function executeMobileSessionSwipeScenario(
         await waitForCheck(serial, 'session-group-idle');
 
         // A short, slow left drag on one row belongs to the row: it opens the row's Archive and never switches Project.
-        const settled = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
-        if (!settled) throw new Error('The idle Session row left the screen');
+        // The newest Session is the top row, fully on screen, so the opened row and its action read in the capture.
+        const dragged = ids.at(-1)!;
+        const settled = checkBounds(await mobileSemantics(serial), `session-row-${dragged}`);
+        if (!settled) throw new Error('The top idle Session row is not on screen');
         const rowY = String(Math.floor((settled.top + settled.bottom) / 2));
         const rowWidth = settled.right - settled.left;
         await adbShell(serial, [
@@ -283,10 +285,10 @@ export async function executeMobileSessionSwipeScenario(
         ]);
         await pause(SETTLE_MS);
         const afterRowDrag = await mobileSemantics(serial);
-        const opened = checkBounds(afterRowDrag, `session-row-${target}`);
+        const opened = checkBounds(afterRowDrag, `session-row-${dragged}`);
         if (!opened || opened.left >= settled.left)
             throw new Error('A left row drag did not open the row');
-        if (!checkBounds(afterRowDrag, `session-row-archive-${target}`))
+        if (!checkBounds(afterRowDrag, `session-row-archive-${dragged}`))
             throw new Error('The opened row shows no Archive action');
         if (!isFilterSelected(afterRowDrag, 'project-filter-all'))
             throw new Error('A short row drag switched Project');
@@ -303,10 +305,11 @@ export async function executeMobileSessionSwipeScenario(
         ]);
         await pause(SETTLE_MS);
         const closedNodes = await mobileSemantics(serial);
-        if (checkBounds(closedNodes, `session-row-${target}`)?.left !== settled.left)
+        if (checkBounds(closedNodes, `session-row-${dragged}`)?.left !== settled.left)
             throw new Error('A right drag did not close the open row');
         if (!isFilterSelected(closedNodes, 'project-filter-all'))
             throw new Error('Closing the open row switched Project');
+        await capture(environment, 'row-drag-closed', artifacts);
 
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
         await holdSwipeFollowingFinger(
