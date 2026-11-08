@@ -1,3 +1,5 @@
+import { draculaTheme } from '@caxri/protocol';
+
 import { FAKE_CODEX_WIDE_CODE } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-wide-code.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
@@ -7,13 +9,13 @@ import {
     checkBounds,
     hasCheck,
     hideChatKeyboard,
-    sendFromPhone,
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import type { androidBounds } from './mobile-android';
 import {
     adbShell,
+    mobileColorBounds,
     mobileRegionFingerprint,
     mobileSemantics,
     observeMobileNode,
@@ -32,10 +34,11 @@ const BLOCK_ID = 'conversation-fenced-code';
 const SWIPE_DP = 300;
 
 /**
- * The block's inside, clear of its border, so two fingerprints of it compare only what scrolled.
+ * The block's inside, clear of its border and of the scroll indicator a drag flashes along its bottom, so two
+ * fingerprints of it compare only the text: a drag the block snapped back from still showed that indicator.
  */
 const inner = (bounds: ScreenBounds): ScreenBounds => ({
-    bottom: bounds.bottom - 4,
+    bottom: bounds.bottom - 24,
     left: bounds.left + 4,
     right: bounds.right - 4,
     top: bounds.top + 4,
@@ -62,6 +65,26 @@ async function didSucceed(wait: Promise<unknown>): Promise<boolean> {
     }
 }
 
+/**
+ * The timeline on the 1080x2400 emulator between the header and the composer, left of the user's right-aligned bubble.
+ * The code block is the only thing in it drawn in the theme's border color.
+ */
+const TIMELINE_LEFT_REGION = { bottom: 1700, left: 0, right: 700, top: 320 };
+
+/**
+ * The code block's frame from its border pixels, stretched to the right edge the left region leaves out: the block
+ * spans the reply's width, which mirrors its left margin.
+ */
+async function blockByBorder(serial: string): Promise<ScreenBounds | undefined> {
+    const found = await mobileColorBounds(
+        serial,
+        TIMELINE_LEFT_REGION,
+        draculaTheme.colors.border,
+        4,
+    );
+    return found && { ...found, right: 1080 - found.left };
+}
+
 async function settle(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -83,32 +106,29 @@ export async function executeMobileChatCodeBlockScenario(
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-status-empty');
-        await sendFromPhone(serial, 'widecode');
-        await hideChatKeyboard(serial);
+        // Sent from the computer: the phone's own send is covered elsewhere and is not what this case checks.
+        await chat.send({ text: 'widecode' });
 
-        // The reply holds still after its block for a few seconds, so the layout reads through UIAutomator here.
+        // A running turn never lets UIAutomator idle, so while the reply streams the block is found by its border.
+        const start = await waitForMobile(
+            () => blockByBorder(serial),
+            (bounds) => bounds !== undefined,
+        );
+        if (!start) throw new Error('The wide code block is not on screen');
+        // Past the reply's quiet pause, its tail streams word by word for about fifteen seconds.
         await waitForMobile(
             () => chat.read(),
-            (snapshot) => agentText(snapshot).includes('resetsAt'),
+            (snapshot) => agentText(snapshot).includes('word'),
         );
-        await waitForCheck(serial, BLOCK_ID);
-        const atStart = await mobileSemantics(serial);
-        const start = checkBounds(atStart, BLOCK_ID);
-        if (!start) throw new Error('The wide code block is not on screen');
-        const isCopyHiddenAtStart = !hasCheck(atStart, `${BLOCK_ID}-copy`);
+        await settle(2000);
         const unscrolled = await mobileRegionFingerprint(serial, inner(start));
         await capture(environment, 'wide-code-streaming', artifacts);
-
-        // The tail starts streaming word by word; the drag lands while the reply still grows.
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => agentText(snapshot).includes('word3 '),
-        );
         await swipeBlockLeft(serial, start);
-        await settle(1500);
-        // Read where the block started: the growing tail may have moved it, so this is recorded rather than checked.
+        // Several words arrive in this time, each one a redraw of the reply.
+        await settle(2500);
         const duringStream = await mobileRegionFingerprint(serial, inner(start));
         await capture(environment, 'wide-code-swiped-while-streaming', artifacts);
+        const isStillStreaming = Boolean((await chat.read()).activeTurnId);
 
         await waitForMobile(
             () => chat.read(),
@@ -120,6 +140,7 @@ export async function executeMobileChatCodeBlockScenario(
         const atEnd = await mobileSemantics(serial);
         const end = checkBounds(atEnd, BLOCK_ID);
         if (!end) throw new Error('The wide code block left the screen');
+        const isCopyHiddenAtRest = !hasCheck(atEnd, `${BLOCK_ID}-copy`);
         const afterStream = await mobileRegionFingerprint(serial, inner(end));
         await capture(environment, 'wide-code-after-stream', artifacts);
 
@@ -128,7 +149,6 @@ export async function executeMobileChatCodeBlockScenario(
         await settle(1000);
         const afterRestSwipe = await mobileRegionFingerprint(serial, inner(end));
         await capture(environment, 'wide-code-swiped-at-rest', artifacts);
-        const isCopyHiddenAtRest = !hasCheck(await mobileSemantics(serial), `${BLOCK_ID}-copy`);
 
         // A tap on the block shows Copy; Copy takes the whole block.
         const x = String(end.left + 60);
@@ -178,13 +198,12 @@ export async function executeMobileChatCodeBlockScenario(
         await concludeScenario(
             environment,
             artifacts,
+            { codeBlock: 'wide-code' },
             {
-                codeBlock: 'wide-code',
-                changedRightAfterDragWhileStreaming: duringStream !== unscrolled,
-            },
-            {
-                'Copy hidden before a tap': isCopyHiddenAtStart && isCopyHiddenAtRest,
-                'block kept its sideways scroll through the stream': afterStream !== unscrolled,
+                'Copy hidden before a tap': isCopyHiddenAtRest,
+                'block scrolls sideways while the reply streams':
+                    isStillStreaming && duringStream !== unscrolled,
+                'block keeps its sideways scroll once the reply ends': afterStream === duringStream,
                 'block scrolls sideways at rest': afterRestSwipe !== afterStream,
                 'tap shows Copy': isCopyShownOnTap,
                 'Copy puts the whole block on the clipboard': isPasted,
