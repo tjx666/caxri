@@ -183,6 +183,7 @@ export async function executeMobileNewSessionOpenScenario(
     const fixture = await createMobileAcceptanceFixture({ mode: 'conversation', serial });
     const analysis = await mkdtemp(join(tmpdir(), 'caxri-new-session-open-'));
     let isDelayed = false;
+    let isPassed = false;
     try {
         if (!fixture.allowedSessionId) throw new Error('The allowed Session is unavailable');
         const row = `session-row-${fixture.allowedSessionId}`;
@@ -232,6 +233,7 @@ export async function executeMobileNewSessionOpenScenario(
             throw new Error(
                 `Opening New Session again showed dimmed frames: second open [${describe(secondOpen)}], after restart [${describe(afterRestart)}]; first open control [${describe(firstOpen)}]`,
             );
+        isPassed = true;
         await finish(environment, artifacts, {
             afterRestartDimmedFrames: 0,
             firstOpenDimmedFrames: firstOpen,
@@ -241,7 +243,9 @@ export async function executeMobileNewSessionOpenScenario(
         });
     } finally {
         if (isDelayed) await setEmulatorNetworkDelay(serial, 0);
-        await rm(analysis, { force: true, recursive: true });
+        // A failed run keeps its three recordings on the host, so the flagged frames can be inspected.
+        if (isPassed) await rm(analysis, { force: true, recursive: true });
+        else console.log(`MOB-NEW-OPEN-01 kept its recordings in ${analysis}`);
         await fixture.stop();
     }
 }
