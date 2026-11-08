@@ -213,6 +213,23 @@ const SessionActionsBody = ({
                                     {t('sessions.detail.reconnectForActions')}
                                 </Text>
                             )}
+                            {/*
+                             * Archive leads, then Pin, as Desktop's built-in Session menu orders them
+                             * (`defaultSessionMenuLayout`): closing out a Session is the most frequent action.
+                             */}
+                            <SheetAction
+                                busy={isBusy && management.pending?.action === 'archive'}
+                                disabled={!isConnected}
+                                icon={Archive}
+                                label={t('sessions.actions.archive')}
+                                onPress={() => {
+                                    void management.archive(session.id).then((done) => {
+                                        if (done) onClose();
+                                    });
+                                }}
+                                testID="session-action-archive"
+                                theme={theme}
+                            />
                             <SheetAction
                                 busy={isBusy && management.pending?.action === 'pin'}
                                 disabled={!isConnected}
@@ -272,19 +289,6 @@ const SessionActionsBody = ({
                                 onOpenSession={onOpenSession}
                                 onStep={setMode}
                                 session={session}
-                                theme={theme}
-                            />
-                            <SheetAction
-                                busy={isBusy && management.pending?.action === 'archive'}
-                                disabled={!isConnected}
-                                icon={Archive}
-                                label={t('sessions.actions.archive')}
-                                onPress={() => {
-                                    void management.archive(session.id).then((done) => {
-                                        if (done) onClose();
-                                    });
-                                }}
-                                testID="session-action-archive"
                                 theme={theme}
                             />
                             <View style={[styles.divider, { backgroundColor: theme.border }]} />
