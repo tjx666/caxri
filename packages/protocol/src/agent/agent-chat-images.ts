@@ -84,3 +84,36 @@ export function agentChatTextWithOffsetImages(
         number <= imageCount ? number + offset : undefined,
     );
 }
+
+/**
+ * `draft` without the placeholders of `tokens`, each taking one space beside it along so no double space is left.
+ */
+export function draftWithoutImagePlaceholders(draft: string, tokens: ReadonlySet<number>): string {
+    let next = draft;
+    // `reverse` on a fresh array rather than `toReversed`: the mobile app's Hermes runtime lacks ES2023 array methods.
+    // eslint-disable-next-line unicorn/no-array-reverse -- see above.
+    for (const { from, number, to } of agentChatImageTokenRanges(draft).reverse()) {
+        if (!tokens.has(number)) continue;
+        const end = next[to] === ' ' ? to + 1 : to;
+        const start = end === to && next[from - 1] === ' ' ? from - 1 : from;
+        next = next.slice(0, start) + next.slice(end);
+    }
+    return next;
+}
+
+/**
+ * The text a message is sent with: each placeholder of an attached image renumbered to that image's place among the
+ * images sent, as the terminal Agents count them. `images` gives each sent image's composer number in send order; a
+ * placeholder no sent image owns stays as typed.
+ */
+export function agentChatTextWithSentImageNumbers(
+    text: string,
+    images: ReadonlyArray<{ token?: number | undefined }>,
+): string {
+    const numbers = new Map<number, number>();
+    for (const [index, { token }] of images.entries())
+        if (token !== undefined) numbers.set(token, index + 1);
+    return numbers.size === 0
+        ? text
+        : agentChatTextWithRenumberedImages(text, (number) => numbers.get(number));
+}

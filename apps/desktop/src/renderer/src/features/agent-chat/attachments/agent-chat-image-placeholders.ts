@@ -1,4 +1,4 @@
-import { agentChatImageTokenRanges, agentChatTextWithRenumberedImages } from '@caxri/protocol';
+import { agentChatImageTokenRanges, draftWithoutImagePlaceholders } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import type { AgentChatComposerImagePill } from '../composer/agent-chat-composer-extensions';
@@ -85,20 +85,6 @@ export function attachmentsWithReattached(
 }
 
 /**
- * `draft` without the placeholders of `tokens`, each taking one space beside it along so no double space is left.
- */
-export function draftWithoutImagePlaceholders(draft: string, tokens: ReadonlySet<number>): string {
-    let next = draft;
-    for (const { from, number, to } of agentChatImageTokenRanges(draft).toReversed()) {
-        if (!tokens.has(number)) continue;
-        const end = next[to] === ' ' ? to + 1 : to;
-        const start = end === to && next[from - 1] === ' ' ? from - 1 : from;
-        next = next.slice(0, start) + next.slice(end);
-    }
-    return next;
-}
-
-/**
  * The edit that takes the placeholders of `tokens` out of `draft` (`draftWithoutImagePlaceholders`) as one change, with
  * the caret kept where it was relative to the text around it. `undefined` when the draft holds none of them.
  */
@@ -114,22 +100,6 @@ export function agentChatImagePlaceholderRemoval(
     if (caret <= from) return { from, to, text: insert, caret };
     const shift = insert.length - (to - from);
     return { from, to, text: insert, caret: caret >= to ? caret + shift : from + insert.length };
-}
-
-/**
- * The text a message is sent with: each placeholder of an attached image renumbered to that image's place among the
- * images sent, as the terminal Agents count them. A placeholder no attached image owns stays as typed.
- */
-export function agentChatTextWithSentImageNumbers(
-    text: string,
-    images: readonly AgentChatImageAttachment[],
-): string {
-    const numbers = new Map<number, number>();
-    for (const [index, { token }] of images.entries())
-        if (token !== undefined) numbers.set(token, index + 1);
-    return numbers.size === 0
-        ? text
-        : agentChatTextWithRenumberedImages(text, (number) => numbers.get(number));
 }
 
 /**

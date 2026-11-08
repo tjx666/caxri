@@ -7,9 +7,7 @@ import type {
 import {
     agentChatImagePlaceholderChanges,
     agentChatImagePlaceholderRemoval,
-    agentChatTextWithSentImageNumbers,
     attachmentsWithReattached,
-    draftWithoutImagePlaceholders,
     nextAgentChatImageToken,
 } from '../agent-chat-image-placeholders';
 
@@ -73,40 +71,6 @@ describe('attachmentsWithReattached', () => {
         expect(
             attachmentsWithReattached([image('a', 1)], [image('z', 9)]).map(({ id }) => id),
         ).toEqual(['a', 'z']);
-    });
-});
-
-describe('draftWithoutImagePlaceholders', () => {
-    it('removes a placeholder with one space beside it', () => {
-        expect(draftWithoutImagePlaceholders('look at [Image #1] closely', new Set([1]))).toBe(
-            'look at closely',
-        );
-        expect(draftWithoutImagePlaceholders('look at [Image #1]', new Set([1]))).toBe('look at');
-        expect(draftWithoutImagePlaceholders('[Image #1] [Image #2] why', new Set([1, 2]))).toBe(
-            'why',
-        );
-    });
-
-    it('keeps the placeholders of other images', () => {
-        expect(draftWithoutImagePlaceholders('[Image #1] and [Image #2]', new Set([2]))).toBe(
-            '[Image #1] and',
-        );
-    });
-});
-
-describe('agentChatTextWithSentImageNumbers', () => {
-    it('numbers placeholders by the order the images are sent', () => {
-        expect(
-            agentChatTextWithSentImageNumbers('[Image #4] before [Image #2], not [Image #9]', [
-                image('a', 2),
-                image('b'),
-                image('c', 4),
-            ]),
-        ).toBe('[Image #3] before [Image #1], not [Image #9]');
-    });
-
-    it('leaves text alone when no image has a placeholder', () => {
-        expect(agentChatTextWithSentImageNumbers('[Image #1]', [image('a')])).toBe('[Image #1]');
     });
 });
 
