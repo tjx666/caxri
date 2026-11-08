@@ -316,7 +316,7 @@ describe('followSupersedingRuns', () => {
         expect(isRunGood).toHaveBeenCalledWith('11');
     });
 
-    it('leaves a run alone when it was not cancelled by a newer push of the same branch', async () => {
+    it('reports a run cancelled before any job failed as unverified when no newer run contains it', async () => {
         const isRunGood = vi.fn(() => Promise.resolve(true));
         const notSuperseded = await followSupersedingRuns(cancelled, 'a', isRunGood, {
             contains: () => Promise.resolve(false),
@@ -331,7 +331,8 @@ describe('followSupersedingRuns', () => {
             readFailedJobs: noFailedJobs,
             wait: noWait,
         });
-        expect([notSuperseded, manuallyCancelled]).toEqual([undefined, undefined]);
+        // A manual cancel or a sibling's rerun proves nothing about the commit either, so neither reads as a failure.
+        expect([notSuperseded, manuallyCancelled]).toEqual(['unverified', 'unverified']);
         expect(isRunGood).not.toHaveBeenCalled();
     });
 

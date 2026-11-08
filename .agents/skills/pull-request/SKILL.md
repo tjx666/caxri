@@ -162,8 +162,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    other made required. A `main` run that a newer push cancelled before any job failed proves
    nothing either way: `--sha` follows the newer run that contains the merge, and only that run's
    success verifies it. A job that had already failed stays a failure, because a successor's
-   diff-relative gates (the source-size ratchet) compare against its own push. When every successor it follows is cancelled too, the merge is still unverified, not
-   failed: the watcher prints `UNVERIFIED` and exits 2; watch the next `main` run that contains it. Concurrent sessions, including other
+   diff-relative gates (the source-size ratchet) compare against its own push. When no successor exists yet or every successor it follows is cancelled too, the merge is still unverified, not
+   failed: the watcher prints `UNVERIFIED` and exits 2; watch the next `main` run that contains it. Never `gh run rerun` a cancelled
+   `main` push run: it shares the `ci-refs/heads/main` concurrency group, so the rerun cancels the newer run that already contains
+   the merge (rerunning #3839's run cancelled #3843's). Concurrent sessions, including other
    worktrees, share one GitHub poller
    through `~/.cache/caxri/ci-watch/`. A watcher reports the run attempt it was watching, so start a
    new one after `gh run rerun`. Failed jobs print an immediate console line; only a successful `Release macOS` run

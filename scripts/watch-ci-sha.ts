@@ -440,7 +440,9 @@ export async function followSupersedingRuns(
         if (hop === MAX_SUPERSEDING_HOPS) break;
         // eslint-disable-next-line no-await-in-loop -- see above
         const newer = await findSuccessor(origin, current);
-        if (!newer) return hop === 0 ? undefined : 'unverified';
+        // No newer run contains it yet: a run cancelled before any job failed (a sibling's rerun or a manual cancel
+        // in the shared `ci-<ref>` concurrency group) proves nothing about this commit, so it is unverified, not failed.
+        if (!newer) return 'unverified';
         console.log(
             `${run.name} (run ${current.id}) was cancelled by a newer push; following run ${newer.id} on ${newer.sha.slice(0, 9)}, which contains it`,
         );
@@ -453,8 +455,8 @@ export async function followSupersedingRuns(
 
 /**
  * Resolves `sha`, follows its runs with `isRunGood`, and prints each failed or unverified run by name. A run cancelled
- * by a newer push is replaced by that push's run of the same workflow; when every such successor was cancelled too, the
- * run is unverified rather than failed.
+ * by a newer push is replaced by that push's run of the same workflow; when no such successor exists or every one was
+ * cancelled too, the run is unverified rather than failed.
  */
 export async function followAndReport(
     sha: string,
@@ -475,7 +477,7 @@ export async function followAndReport(
         if (superseded === 'unverified') {
             unverified.push(run);
             console.error(
-                `UNVERIFIED: ${run.name} (run ${run.id}): every newer run that contained this commit was cancelled; watch the next main run`,
+                `UNVERIFIED: ${run.name} (run ${run.id}): cancelled before any job failed, and no newer run containing this commit finished; watch the next main run instead of rerunning this one`,
             );
             continue;
         }
