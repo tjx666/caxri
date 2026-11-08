@@ -165,8 +165,10 @@ export const SessionSidePanelButton = ({
  * would register after a Files view's and run before it, closing the drawer instead of leaving the open folder.
  * Rendered as the drawer's first child, it registers ahead of the view, and the view's own Back still runs first.
  */
-const SidePanelBack = ({ onClose }: { onClose: () => void }) => {
+const SidePanelBack = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+    // A drawer sliding out after its owner closed it leaves Back to the screen.
     useHardwareBack(() => {
+        if (!isOpen) return false;
         onClose();
         return true;
     });
@@ -285,13 +287,12 @@ export const SessionSidePanel = ({
                 {content}
             </View>
         );
-    const pointerEvents = drawer.isInteractive ? 'auto' : 'none';
     return (
         <>
             <Animated.View
                 style={[
                     StyleSheet.absoluteFill,
-                    { backgroundColor: theme.overlay, pointerEvents },
+                    { backgroundColor: theme.overlay },
                     drawer.scrimStyle,
                 ]}
             >
@@ -305,15 +306,15 @@ export const SessionSidePanel = ({
                 />
             </Animated.View>
             <Animated.View
-                accessibilityViewIsModal
+                accessibilityViewIsModal={isOpen}
                 style={[
                     styles.drawer,
-                    { backgroundColor: theme.background, borderColor: theme.border, pointerEvents },
+                    { backgroundColor: theme.background, borderColor: theme.border },
                     drawer.drawerStyle,
                 ]}
                 testID="session-side-panel"
             >
-                <SidePanelBack onClose={close} />
+                <SidePanelBack isOpen={isOpen} onClose={close} />
                 {content}
             </Animated.View>
         </>

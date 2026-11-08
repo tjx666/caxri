@@ -302,7 +302,11 @@ export const SessionDetail = ({
      * A phone's drawer stays mounted on the segment it showed while it slides out after closing.
      */
     const drawer = useDrawerPresence(isDrawerOpen ? sideSegment : null);
-    const renderSidePanel = (shown: SideSessionSegment, isOpen: boolean) => (
+    /**
+     * The drawer passes `isDocked` false even if the window just widened, so a drawer still sliding out stays an
+     * overlay instead of rendering beside the docked panel that replaces it.
+     */
+    const renderSidePanel = (shown: SideSessionSegment, isOpen: boolean, isDocked: boolean) => (
         <SessionSidePanel
             changesCount={changesCount}
             isAwaitingAnswer={isChatAwaitingBehindSidePanel({
@@ -310,7 +314,7 @@ export const SessionDetail = ({
                 isChat,
                 isCovered: isDrawerOpen,
             })}
-            isDocked={isSidePanelDocked}
+            isDocked={isDocked}
             isOpen={isOpen}
             onClose={closeSidePanel}
             onExited={drawer.onExited}
@@ -376,7 +380,9 @@ export const SessionDetail = ({
                     conversationTimeline={conversationTimeline}
                     deviceRole={deviceRole}
                     dockedSidePanel={
-                        isSidePanelDocked && sideSegment ? renderSidePanel(sideSegment, true) : null
+                        isSidePanelDocked && sideSegment
+                            ? renderSidePanel(sideSegment, true, true)
+                            : null
                     }
                     isConnected={isConnected}
                     isVisible={isVisible}
@@ -402,7 +408,7 @@ export const SessionDetail = ({
                     theme={theme}
                 />
             </View>
-            {drawer.shown ? renderSidePanel(drawer.shown, isDrawerOpen) : null}
+            {drawer.shown ? renderSidePanel(drawer.shown, isDrawerOpen, false) : null}
         </KeyboardAvoidingView>
     );
 };

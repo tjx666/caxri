@@ -70,6 +70,11 @@ const INK_FLOOR = 24;
  */
 const MIN_DRAWER_MATCH = 0.75;
 /**
+ * Below this share no part of the drawer is on screen any more: the frame only shows the scrim's last fade over the
+ * Session. A drawer that lost its backgrounds still reproduces about half its ink, so it stays well above this.
+ */
+const DRAWER_GONE = 0.2;
+/**
  * Smallest brightness difference between the open and closed scrim strip that the fade judgement can resolve.
  */
 const MIN_SCRIM_SPAN = 6;
@@ -153,9 +158,10 @@ const drawerMatcher = (opened: GrayFrame, { height, width }: FrameGeometry, back
  * Judges one recorded close of the phone drawer. The first frame shows the drawer open and the last shows it closed.
  *
  * - `movingFrames`: frames whose drawer area matches neither settled picture, so something visibly moves.
- * - `tornFrames`: moving frames in which the drawer no longer reads as one picture at any offset. The drawer and the
- *   Session share a background colour, so a drawer that lost its backgrounds looks the same size; what gives it away is
- *   that the selected tab and filter pills lose their fills and the Session's text shows through between the drawer's.
+ * - `tornFrames`: moving frames in which part of the drawer is still on screen but no longer reads as one picture at any
+ *   offset. The drawer and the Session share a background colour, so a drawer that lost its backgrounds looks the same
+ *   size; what gives it away is that the selected tab and filter pills lose their fills and the Session's text shows
+ *   through between the drawer's.
  * - `scrimFadeFrames`: frames whose scrim strip sits between its open and closed brightness.
  *
  * The close animation runs 220 ms and `screenrecord` delivers roughly 30 to 60 frames a second while the screen
@@ -190,7 +196,10 @@ export function analyseDrawerClose(
             columnsDifference(frame, opened, geometry, left, width) > DIFFERENT_PICTURE &&
             columnsDifference(frame, closed, geometry, left, tailFrom) > DIFFERENT_PICTURE,
     );
-    const tornFrames = moving.filter((frame) => drawerMatch(frame) < MIN_DRAWER_MATCH).length;
+    const tornFrames = moving.filter((frame) => {
+        const match = drawerMatch(frame);
+        return match >= DRAWER_GONE && match < MIN_DRAWER_MATCH;
+    }).length;
     return { movingFrames: moving.length, scrimFadeFrames, scrimSpan: span, tornFrames };
 }
 

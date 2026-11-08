@@ -24,8 +24,10 @@ export const useDrawerPresence = <T>(open: T | null): { onExited: () => void; sh
  * text away over the Session, as a transparent ghost, while the scrim vanished in one frame.
  *
  * `close` plays the slide before it calls `onClose`, so the re-render that closing causes runs after the drawer has
- * left rather than holding it still on screen first. A close the owner makes itself (`isOpen` turning false) slides out
- * the same way; `onExited` follows either once the drawer is off screen.
+ * left rather than holding it still on screen first. It also keeps its own closing flag in a shared value rather than
+ * React state: committing even that one re-render on Android stalled the slide for about 140 ms after its first frames.
+ * A close the owner makes itself (`isOpen` turning false) slides out the same way; `onExited` follows either once the
+ * drawer is off screen.
  */
 export const useDrawerMotion = ({
     durationMs,
@@ -40,35 +42,39 @@ export const useDrawerMotion = ({
 }) => {
     const { width } = useWindowDimensions();
     const progress = useSharedValue(0);
-    const [isClosing, setIsClosing] = useState(false);
+    const closing = useSharedValue(false);
     const exited = useEffectEvent(() => onExited());
     useEffect(() => {
+        if (isOpen) closing.set(false);
         progress.set(
             withTiming(isOpen ? 1 : 0, { duration: durationMs }, (finished) => {
                 if (finished && !isOpen) scheduleOnRN(exited);
             }),
         );
-    }, [durationMs, isOpen, progress]);
+    }, [closing, durationMs, isOpen, progress]);
     const close = (): void => {
-        if (isClosing) return;
-        setIsClosing(true);
+        if (closing.get()) return;
+        closing.set(true);
         progress.set(
             withTiming(0, { duration: durationMs }, (finished) => {
                 if (finished) scheduleOnRN(onClose);
             }),
         );
     };
+    /**
+     * A leaving drawer and its scrim let touches through to the Session.
+     */
+    const pointerEvents = (): 'auto' | 'none' => {
+        'worklet';
+        return isOpen && !closing.get() ? 'auto' : 'none';
+    };
     const drawerStyle = useAnimatedStyle(() => ({
+        pointerEvents: pointerEvents(),
         transform: [{ translateX: (1 - progress.get()) * width }],
     }));
-    const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.get() }));
-    return {
-        close,
-        drawerStyle,
-        /**
-         * Whether the drawer and its scrim take touches; a leaving drawer lets them through to the Session.
-         */
-        isInteractive: isOpen && !isClosing,
-        scrimStyle,
-    };
+    const scrimStyle = useAnimatedStyle(() => ({
+        opacity: progress.get(),
+        pointerEvents: pointerEvents(),
+    }));
+    return { close, drawerStyle, scrimStyle };
 };
