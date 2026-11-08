@@ -29,3 +29,21 @@ export function agentChatImageStepForKey(
     if (key === 'ArrowRight') return 'next';
     return undefined;
 }
+
+/**
+ * Whether a key press is Cmd+C (Ctrl+C elsewhere) with nothing else held and no text selected, which copies the shown
+ * image; with a selection it stays the browser's Copy.
+ */
+export function isAgentChatImageCopyKey(
+    event: { altKey: boolean; ctrlKey: boolean; key: string; metaKey: boolean; shiftKey: boolean },
+    { hasSelection }: { hasSelection: boolean },
+): boolean {
+    return (
+        event.key.toLowerCase() === 'c' &&
+        (event.metaKey || event.ctrlKey) &&
+        !(event.metaKey && event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        !hasSelection
+    );
+}

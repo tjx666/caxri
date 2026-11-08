@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatImageStepForKey, stepAgentChatImageIndex } from '../agent-chat-image-gallery';
+import {
+    agentChatImageStepForKey,
+    isAgentChatImageCopyKey,
+    stepAgentChatImageIndex,
+} from '../agent-chat-image-gallery';
 
 describe('stepAgentChatImageIndex', () => {
     it('moves one image either way', () => {
@@ -27,5 +31,27 @@ describe('agentChatImageStepForKey', () => {
     it('leaves the arrow keys to a zoomed-in picture that can pan sideways', () => {
         expect(agentChatImageStepForKey('ArrowLeft', { canScrollSideways: true })).toBeUndefined();
         expect(agentChatImageStepForKey('ArrowRight', { canScrollSideways: true })).toBeUndefined();
+    });
+});
+
+describe('isAgentChatImageCopyKey', () => {
+    const copy = { altKey: false, ctrlKey: false, key: 'c', metaKey: true, shiftKey: false };
+
+    it('takes Cmd+C or Ctrl+C with no text selected', () => {
+        expect(isAgentChatImageCopyKey(copy, { hasSelection: false })).toBe(true);
+        expect(
+            isAgentChatImageCopyKey(
+                { ...copy, ctrlKey: true, metaKey: false },
+                { hasSelection: false },
+            ),
+        ).toBe(true);
+    });
+
+    it('leaves Copy to the browser over a text selection or with other modifiers', () => {
+        expect(isAgentChatImageCopyKey(copy, { hasSelection: true })).toBe(false);
+        expect(isAgentChatImageCopyKey({ ...copy, shiftKey: true }, { hasSelection: false })).toBe(
+            false,
+        );
+        expect(isAgentChatImageCopyKey({ ...copy, key: 'v' }, { hasSelection: false })).toBe(false);
     });
 });
