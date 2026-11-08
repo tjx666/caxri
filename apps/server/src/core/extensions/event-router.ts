@@ -1,6 +1,6 @@
 import type { ServerEvent, ServerOperationRequest } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { ServerDomainService } from '../domain-service';
 import { routeActiveContextChange, routeExtensionDomainEvent } from './domain-events';
@@ -30,7 +30,7 @@ export function createExtensionEventRouter(options: ExtensionEventRouterOptions)
     const { domainService, logger } = options;
     const logFailure = (error: unknown): void =>
         logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
-            fields: { message: error instanceof Error ? error.message : String(error) },
+            fields: errorLogFields(error),
         });
     const isSessionWatched = (sessionId: string): boolean => {
         const visible = domainService.visibleSessionIds();

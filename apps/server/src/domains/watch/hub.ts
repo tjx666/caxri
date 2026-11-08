@@ -1,7 +1,7 @@
 import type { FileWatchLimitAlert } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 import parcelWatcher from '@parcel/watcher';
 
 import { isMustRescanAdvisory, watchFailureFields, WatchLimitAlerts } from './failures';
@@ -274,7 +274,7 @@ export class WatchHub {
         void Promise.resolve(entry.fallback.pollOnce())
             .catch((error: unknown) => {
                 this.logger?.write('warn', logEventCatalog.watchHub.pollFailed, {
-                    fields: { label: entry.label, error: errorMessage(error, 'unknown') },
+                    fields: { label: entry.label, ...errorLogFields(error) },
                 });
             })
             .finally(() => {
@@ -389,7 +389,7 @@ export class WatchHub {
                         this.logger?.write('warn', logEventCatalog.watchHub.watcherError, {
                             fields: {
                                 label: entry.label,
-                                error: errorMessage(error, 'unknown'),
+                                ...errorLogFields(error),
                             },
                         });
                         options.onError?.(error, entry);
@@ -583,7 +583,7 @@ export class WatchHub {
             this.logger?.write('warn', logEventCatalog.watchHub.fallbackActivationFailed, {
                 fields: {
                     label: entry.label,
-                    error: errorMessage(activationError, 'unknown'),
+                    ...errorLogFields(activationError),
                 },
             });
         }

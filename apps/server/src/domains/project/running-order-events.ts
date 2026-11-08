@@ -1,6 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
-import { errorMessage, logEventCatalog } from '@caxri/protocol';
+import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 
@@ -45,7 +46,7 @@ export function createProjectRunningOrderEvents(
         } catch (error) {
             // The triggering event was already delivered; a failed reorder must not interrupt its sender.
             logger.write('warn', logEventCatalog.database.projectRunningOrderFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             });
         }
     };

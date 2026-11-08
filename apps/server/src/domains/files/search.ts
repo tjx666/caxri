@@ -7,9 +7,9 @@ import type {
     ServerOperationParameters,
     ServerOperationResult,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
+import { AsyncSemaphore, errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { ResolveSessionPath } from './documents';
 import { isTraversalExcludedName } from './ignore-rules';
@@ -161,7 +161,7 @@ export class SearchService {
 
     private logSkipped(path: string, error: unknown): void {
         this.logger.write('debug', logEventCatalog.file.searchEntrySkipped, {
-            fields: { path, error: errorMessage(error, 'unknown') },
+            fields: { path, ...errorLogFields(error) },
         });
     }
 

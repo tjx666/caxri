@@ -1,6 +1,5 @@
-import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { FileService } from './files';
 import type { GitService } from './git';
@@ -28,7 +27,7 @@ async function updateWatch(
                 ? logEventCatalog.files.refreshWatchSessionFailed
                 : logEventCatalog.files.watchSessionFailed,
             {
-                fields: { sessionId: sessionId ?? 'none', error: errorMessage(error, 'unknown') },
+                fields: { sessionId: sessionId ?? 'none', ...errorLogFields(error) },
             },
         );
     }
@@ -86,7 +85,7 @@ export function createBackgroundTasks(
         // eslint-disable-next-line unicorn/prefer-await -- fire-and-forget helper, see comment above
         restoreInterruptedTerminals(sessionId, options).catch((error: unknown) =>
             logger.write('error', logEventCatalog.terminal.restoreInterruptedFailed, {
-                fields: { sessionId, error: errorMessage(error, 'unknown') },
+                fields: { sessionId, ...errorLogFields(error) },
             }),
         );
     }

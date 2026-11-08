@@ -11,10 +11,11 @@ import type {
     MobileHostSystem,
     TerminalProcessEntry,
 } from '@caxri/protocol';
-import { errorMessage, projectHostStatusForMobile } from '@caxri/protocol';
+import { projectHostStatusForMobile } from '@caxri/protocol';
 import type { ProcessTable, StructuredLogger, SystemMemory } from '@caxri/system';
 import {
     CpuUsageMeter,
+    errorLogFields,
     isPtyUsageScanCommand,
     logEventCatalog,
     sampleProcessTable,
@@ -190,7 +191,7 @@ export class HostStatusSampler {
         if (this.failing.has(part)) return;
         this.failing.add(part);
         this.options.logger?.write('warn', logEventCatalog.mobileGateway.hostStatusSampleFailed, {
-            fields: { part, error: errorMessage(error, 'unknown') },
+            fields: { part, ...errorLogFields(error) },
         });
     }
 

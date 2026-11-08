@@ -11,7 +11,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, extensionCommandResult, isExtensionViewReadOperation } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, SingleFlight } from '@caxri/system';
+import { errorLogFields, logEventCatalog, SingleFlight } from '@caxri/system';
 
 import type {
     ExtensionHostApiRequest,
@@ -188,7 +188,7 @@ export class ExtensionService extends EventTarget {
         // eslint-disable-next-line unicorn/prefer-await
         this.rebuildCatalog().catch((error: unknown) =>
             this.options.logger.write('error', logEventCatalog.extensionHost.catalogRebuildFailed, {
-                fields: { message: error instanceof Error ? error.message : String(error) },
+                fields: errorLogFields(error),
             }),
         );
     }
@@ -453,7 +453,7 @@ export class ExtensionService extends EventTarget {
                 await supervisor.start();
             } catch (error) {
                 this.options.logger.write('error', logEventCatalog.extensionHost.startFailed, {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
+                    fields: errorLogFields(error),
                 });
                 await this.rebuildCatalog();
             }

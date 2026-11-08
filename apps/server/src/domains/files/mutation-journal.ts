@@ -4,14 +4,9 @@ import type {
     MutableFileEntry,
     ServerEvent,
 } from '@caxri/protocol';
-import {
-    CaxriError,
-    errorMessage,
-    fileMutationOperationSchema,
-    isCaxriError,
-} from '@caxri/protocol';
+import { CaxriError, fileMutationOperationSchema, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 import { z } from 'zod';
 
 import { atomicWrite } from '../atomic-file';
@@ -484,7 +479,7 @@ export class FileMutationJournal {
                         'error',
                         logEventCatalog.file.operationCompletionRetryFailed,
                         {
-                            fields: { operationId, error: errorMessage(error, 'unknown') },
+                            fields: { operationId, ...errorLogFields(error) },
                         },
                     );
                 });
@@ -612,7 +607,7 @@ export class FileMutationJournal {
                         this.logger.write('error', logEventCatalog.file.operationCancelFailed, {
                             fields: {
                                 operationId: operation.id,
-                                error: errorMessage(error, 'unknown'),
+                                ...errorLogFields(error),
                             },
                         });
                     });

@@ -6,8 +6,9 @@ import type {
     ServerEvent,
     ServerOperationParameters,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage, logEventCatalog } from '@caxri/protocol';
+import { CaxriError, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 import { AgentSecretRequests } from './requests';
@@ -223,7 +224,7 @@ export class AgentSecretService {
             if (removed > 0) this.changed();
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.agentSecrets.projectPruned, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             });
         }
     }

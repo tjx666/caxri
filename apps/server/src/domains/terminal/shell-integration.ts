@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 import process from 'node:process';
 
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 export interface ShellIntegrationLaunch {
     args: string[];
@@ -283,7 +283,7 @@ export async function createShellIntegration(
         return await ShellIntegrationService.create(userDataPath);
     } catch (error: unknown) {
         logger.write('warn', logEventCatalog.pty.shellIntegrationUnavailable, {
-            fields: { error: error instanceof Error ? error.message : String(error) },
+            fields: errorLogFields(error),
         });
         return undefined;
     }

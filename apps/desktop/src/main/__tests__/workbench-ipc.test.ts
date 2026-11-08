@@ -305,7 +305,11 @@ describe('workbench IPC sender boundary', () => {
 
         expect(write).toHaveBeenCalledExactlyOnceWith('warn', 'ipc.request_failed', {
             correlationId: 'not-found-1',
-            fields: { code: 'NOT_FOUND', error: 'Session not found', method: 'sessions.select' },
+            fields: {
+                code: 'NOT_FOUND',
+                errorMessageLength: 'Session not found'.length,
+                method: 'sessions.select',
+            },
         });
     });
 
@@ -338,7 +342,7 @@ describe('workbench IPC sender boundary', () => {
             correlationId: 'validation-1',
             fields: {
                 code: 'VALIDATION',
-                error: 'Path contains a null byte',
+                errorMessageLength: 'Path contains a null byte'.length,
                 method: 'pathBrowser.list',
             },
         });
@@ -371,7 +375,11 @@ describe('workbench IPC sender boundary', () => {
 
         expect(write).toHaveBeenCalledExactlyOnceWith('error', 'ipc.request_failed', {
             correlationId: 'io-1',
-            fields: { code: 'IO', error: 'Disk read failed', method: 'files.read' },
+            fields: {
+                code: 'IO',
+                errorMessageLength: 'Disk read failed'.length,
+                method: 'files.read',
+            },
         });
     });
 
@@ -412,7 +420,7 @@ describe('workbench IPC sender boundary', () => {
                 correlationId: 'wake-1',
                 fields: {
                     code: 'UNAVAILABLE',
-                    error: 'Desktop is not connected to the Caxri Host',
+                    errorMessageLength: 'Desktop is not connected to the Caxri Host'.length,
                     method: 'sessions.list',
                 },
             });
@@ -446,7 +454,11 @@ describe('workbench IPC sender boundary', () => {
 
         expect(write).toHaveBeenCalledExactlyOnceWith('error', 'ipc.request_failed', {
             correlationId: 'io-2',
-            fields: { code: 'IO', error: 'Disk read failed', method: 'files.read' },
+            fields: {
+                code: 'IO',
+                errorMessageLength: 'Disk read failed'.length,
+                method: 'files.read',
+            },
         });
     });
 
@@ -489,7 +501,7 @@ describe('workbench IPC sender boundary', () => {
                 correlationId: 'wake-2',
                 fields: {
                     code: 'UNAVAILABLE',
-                    error: 'Desktop is not connected to the Caxri Host',
+                    errorMessageLength: 'Desktop is not connected to the Caxri Host'.length,
                     method: 'sessions.list',
                 },
             });

@@ -18,8 +18,8 @@ import type {
     ServerOperationArguments,
     ServerOperationResult,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage, isCaxriMethod, isDesktopServerOperation } from '@caxri/protocol';
-import { computeBuildFingerprint, logEventCatalog } from '@caxri/system';
+import { CaxriError, isCaxriMethod, isDesktopServerOperation } from '@caxri/protocol';
+import { computeBuildFingerprint, errorLogFields, logEventCatalog } from '@caxri/system';
 
 import { desktopCommandCallbackError } from '../desktop-command-scope';
 import { createDesktopEventClient, reconnectedEvent, runtimeStatusEvent } from './event-recovery';
@@ -316,7 +316,7 @@ export class DesktopServerConnection extends EventTarget {
                     'warn',
                     logEventCatalog.serverConnection.reconnectFailed,
                     {
-                        fields: { attempt, error: errorMessage(error, 'unknown') },
+                        fields: { attempt, ...errorLogFields(error) },
                     },
                 );
                 if (this.serverSupervisor.isFailed()) return;
@@ -340,7 +340,7 @@ export class DesktopServerConnection extends EventTarget {
                         'error',
                         logEventCatalog.serverConnection.desktopReadyFailed,
                         {
-                            fields: { error: errorMessage(error, 'unknown') },
+                            fields: errorLogFields(error),
                         },
                     );
                 }
@@ -355,7 +355,7 @@ export class DesktopServerConnection extends EventTarget {
                         this.options.logger.write(
                             'warn',
                             logEventCatalog.serverConnection.reconnectFailed,
-                            { fields: { attempt, error: errorMessage(error, 'unknown') } },
+                            { fields: { attempt, ...errorLogFields(error) } },
                         );
                         this.abandonAttachment(attached);
                         if (this.serverSupervisor.isFailed()) return;

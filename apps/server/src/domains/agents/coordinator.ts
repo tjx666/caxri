@@ -1,7 +1,7 @@
 import type { AgentOperation, AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
-import { errorMessage, isChatTerminal } from '@caxri/protocol';
+import { isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import { CoalescedScheduler } from '../coalesced-scheduler';
 import type { CaxriDatabase } from '../db';
@@ -292,7 +292,7 @@ export class AgentCoordinator {
              * A failed probe degrades Agent metadata to unknown; it never interrupts the Server.
              */
             this.logger.write('warn', logEventCatalog.agent.probeFailed, {
-                fields: { terminalId, error: errorMessage(error, 'unknown') },
+                fields: { terminalId, ...errorLogFields(error) },
             });
         }
     }

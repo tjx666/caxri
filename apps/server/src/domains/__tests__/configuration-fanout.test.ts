@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../config';
@@ -48,7 +49,7 @@ describe('ConfigurationService fan-out isolation', () => {
         expect(write).toHaveBeenCalledWith(
             'warn',
             logEventCatalog.configuration.settingsListenerFailed,
-            { fields: { error: 'settings listener failure' } },
+            { fields: errorLogFields(new Error('settings listener failure')) },
         );
         await service.close();
     });

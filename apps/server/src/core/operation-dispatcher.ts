@@ -8,7 +8,7 @@ import {
     workbenchRequestContextSchema,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { currentObservationContext, logEventCatalog } from '@caxri/system';
+import { currentObservationContext, errorStackFrames, logEventCatalog } from '@caxri/system';
 
 import type { DomainHandlers, DomainOperation } from '../domains/domain-services';
 import { requestActivity } from '../observability/request-activity';
@@ -155,13 +155,13 @@ export function createOperationDispatcher(
                             method: envelope.method,
                             code: wire.code,
                             ...delegationRequestLogFields(envelope.method, envelope.params),
-                            error: wire.message,
+                            errorMessageLength: wire.message.length,
                             /**
                              * Only unclassified faults justify a stack trace in the Server log.
                              */
                             stack:
                                 wire.code === 'INTERNAL' && normalizedError instanceof Error
-                                    ? (normalizedError.stack ?? null)
+                                    ? errorStackFrames(normalizedError)
                                     : null,
                         },
                     },

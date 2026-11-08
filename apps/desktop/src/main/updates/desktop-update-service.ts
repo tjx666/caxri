@@ -4,7 +4,7 @@ import process from 'node:process';
 import type { ProjectTransferExportResult, ServerEvent } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 import type { MessageBoxOptions } from 'electron';
 import { app, BrowserWindow, dialog, powerMonitor, shell } from 'electron';
 
@@ -177,7 +177,7 @@ export function createDesktopUpdateService(options: {
                     outcome: 'stage-failed',
                     version,
                     durationMs: Date.now() - startedAt,
-                    error: error instanceof Error ? error.message : String(error),
+                    ...errorLogFields(error),
                 });
                 return { installMode: 'manual' };
             }

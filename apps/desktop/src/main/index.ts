@@ -3,9 +3,9 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import type { Keybinding, ServerEvent } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { EventLoopMonitor } from '@caxri/system';
 import {
+    errorLogFields,
     installProcessErrorMonitor,
     logEventCatalog,
     readE2EAgentPolicy,
@@ -434,7 +434,7 @@ if (ownsProfileInstance) {
             // eslint-disable-next-line unicorn/prefer-await -- see comment above
             supervisor.markDesktopReady().catch((error: unknown) =>
                 mainLogger?.write('error', logEventCatalog.serverConnection.desktopReadyFailed, {
-                    fields: { error: errorMessage(error, 'unknown') },
+                    fields: errorLogFields(error),
                 }),
             );
         };

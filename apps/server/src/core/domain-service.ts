@@ -20,6 +20,7 @@ import {
     protocolEventEnvelopeSchema,
     toWireError,
 } from '@caxri/protocol';
+import { errorStackFrames } from '@caxri/system';
 
 import { createDomainServices } from '../domains/create-domain-services';
 import type { ServerCredentialStores } from '../domains/db';
@@ -237,10 +238,10 @@ export class ServerDomainService extends EventTarget {
                     fields: {
                         method,
                         code: wire.code,
-                        error: wire.message,
+                        errorMessageLength: wire.message.length,
                         stack:
                             wire.code === 'INTERNAL' && error instanceof Error
-                                ? (error.stack ?? null)
+                                ? errorStackFrames(error)
                                 : null,
                         transaction: 'durable-finalizer',
                     },

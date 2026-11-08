@@ -3,7 +3,7 @@ import { realpath } from 'node:fs/promises';
 import type { ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
@@ -99,7 +99,7 @@ export async function retireAgentWorkbenchProvenance(options: {
         options.logger.write('warn', logEventCatalog.agentEndpoint.retireFailed, {
             fields: {
                 terminalId: options.terminalId,
-                error: error instanceof Error ? error.message : String(error),
+                ...errorLogFields(error),
             },
         });
     }

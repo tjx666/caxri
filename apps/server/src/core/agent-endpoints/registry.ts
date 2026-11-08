@@ -23,10 +23,10 @@ import {
     agentEndpointRetireParamsSchema as agentEndpointRetireParametersSchema,
     capabilityIds,
     CaxriError,
-    errorMessage,
     logEventCatalog,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
 
 const ENDPOINT_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -234,7 +234,7 @@ export class AgentEndpointRegistry {
         // retirement; only the failure reason is logged, never the endpoint summary.
         notifyListeners(this.retiredListeners, record.summary, (error) =>
             this.logger?.write('warn', logEventCatalog.agentEndpoint.retiredListenerFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             }),
         );
     }
@@ -444,7 +444,7 @@ export class AgentEndpointRegistry {
                 this.logger?.write(
                     'warn',
                     logEventCatalog.agentEndpoint.messagingChangedListenerFailed,
-                    { fields: { error: errorMessage(error, 'unknown') } },
+                    { fields: errorLogFields(error) },
                 ),
         );
         return true;

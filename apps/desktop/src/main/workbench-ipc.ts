@@ -550,7 +550,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                                 correlationId: requestIdFromEnvelope(raw) ?? undefined,
                                 fields: {
                                     code: reply.error.code,
-                                    error: reply.error.message,
+                                    errorMessageLength: reply.error.message.length,
                                     method: methodFromEnvelope(raw),
                                 },
                             },
@@ -571,7 +571,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                                 correlationId: requestIdFromEnvelope(raw) ?? undefined,
                                 fields: {
                                     code: wire.code,
-                                    error: wire.message,
+                                    errorMessageLength: wire.message.length,
                                     method: methodFromEnvelope(raw),
                                 },
                             },

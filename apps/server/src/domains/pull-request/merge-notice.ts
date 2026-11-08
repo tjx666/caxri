@@ -1,6 +1,6 @@
-import { errorMessage, formatMergeNotice, isChatTerminal } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { formatMergeNotice, isChatTerminal } from '@caxri/protocol';
+import type { ErrorLogFields, StructuredLogger } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type { AgentChatService } from '../agent-chat';
@@ -113,12 +113,12 @@ export function createPullRequestMergeNotice(options: PullRequestMergeNoticeOpti
     ): Promise<MergeNoticeOutcome> => {
         const startedAt = performance.now();
         let outcome: MergeNoticeOutcome;
-        let error: string | undefined;
+        let failure: ErrorLogFields | undefined;
         try {
             outcome = await deliver(sessionId, url, request);
         } catch (error_) {
             outcome = 'failed';
-            error = errorMessage(error_, 'unknown');
+            failure = errorLogFields(error_);
         }
         if (outcome !== 'disabled')
             options.logger.write(
@@ -126,7 +126,7 @@ export function createPullRequestMergeNotice(options: PullRequestMergeNoticeOpti
                 logEventCatalog.git.mergeAgentNotice,
                 {
                     durationMs: performance.now() - startedAt,
-                    fields: { outcome, origin: request.origin, ...(error && { error }) },
+                    fields: { outcome, origin: request.origin, ...failure },
                 },
             );
         return outcome;

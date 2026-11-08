@@ -1,3 +1,4 @@
+import { errorLogFields } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { setMainLanguage } from '../locale';
@@ -64,7 +65,7 @@ describe('decideUnsavedEditors', () => {
 
         await expect(decideUnsavedEditors(target)).resolves.toBe('cancel');
 
-        expect(target.log).toHaveBeenCalledWith('saveFailed', 2, 'writeFailed');
+        expect(target.log).toHaveBeenCalledWith('saveFailed', 2, { reason: 'writeFailed' });
         expect(target.reveal).not.toHaveBeenCalled();
     });
 
@@ -73,7 +74,11 @@ describe('decideUnsavedEditors', () => {
 
         await expect(decideUnsavedEditors(target)).resolves.toBe('cancel');
 
-        expect(target.log).toHaveBeenCalledWith('saveFailed', 2, 'timed out');
+        expect(target.log).toHaveBeenCalledWith(
+            'saveFailed',
+            2,
+            errorLogFields(new Error('timed out')),
+        );
     });
 
     it("continues without saving on Don't Save", async () => {
@@ -161,7 +166,7 @@ describe('decideUnsavedEditors', () => {
 
         await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
 
-        expect(target.log).toHaveBeenCalledWith('saveFailed', 2, 'writeFailed');
+        expect(target.log).toHaveBeenCalledWith('saveFailed', 2, { reason: 'writeFailed' });
         expect(target.confirm).toHaveBeenCalledWith(expect.objectContaining({ count: 1 }));
         expect(target.log).toHaveBeenCalledWith('saved', 1);
     });
@@ -172,7 +177,11 @@ describe('decideUnsavedEditors', () => {
         await expect(decideUnsavedEditors(target)).resolves.toBe('continue');
 
         expect(target.confirm).not.toHaveBeenCalled();
-        expect(target.log).toHaveBeenCalledWith('readFailed', 0, 'no answer');
+        expect(target.log).toHaveBeenCalledWith(
+            'readFailed',
+            0,
+            errorLogFields(new Error('no answer')),
+        );
     });
 });
 

@@ -4,15 +4,11 @@ import { lstat, opendir, readlink, realpath, stat } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
 import type { FileEntry, ServerOperationParameters, ServerOperationResult } from '@caxri/protocol';
-import {
-    CaxriError,
-    errorMessage,
-    MAX_FILE_BROWSE_ENTRIES,
-    MAX_FILE_LIST_ENTRIES,
-} from '@caxri/protocol';
+import { CaxriError, MAX_FILE_BROWSE_ENTRIES, MAX_FILE_LIST_ENTRIES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     AsyncSemaphore,
+    errorLogFields,
     logEventCatalog,
     mapWithConcurrency,
     SingleFlight,
@@ -575,7 +571,7 @@ export class ListingService {
             return await this.decorateGitIgnored(sessionId, directory, names);
         } catch (error) {
             this.logger.write('debug', logEventCatalog.file.gitIgnoreUnavailable, {
-                fields: { directory, error: errorMessage(error, 'unknown') },
+                fields: { directory, ...errorLogFields(error) },
             });
             return { ignoredNames: new Set(), rulePaths: [] };
         }
@@ -600,7 +596,7 @@ export class ListingService {
                 this.logger.write('debug', logEventCatalog.file.listEntrySkipped, {
                     fields: {
                         path: entryPath,
-                        error: errorMessage(error, 'unknown'),
+                        ...errorLogFields(error),
                     },
                 });
             return undefined;

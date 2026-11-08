@@ -1,6 +1,6 @@
-import { CAXRI_PROTOCOL_VERSION, errorMessage, isCaxriError } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { DesktopServerConnection } from '../connection/server-connection';
 import type { StartupFailureReason } from './startup-failure';
@@ -100,7 +100,7 @@ export async function shouldContinueStartup(options: ServerStartupOptions): Prom
                 durationMs: performance.now() - startedAt,
                 fields: {
                     attempt,
-                    error: errorMessage(error, 'unknown'),
+                    ...errorLogFields(error),
                     reason: isIncompatible ? 'protocol-mismatch' : reason,
                 },
             });

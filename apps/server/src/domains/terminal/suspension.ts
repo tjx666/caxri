@@ -1,7 +1,6 @@
 import type { AppSettings, ServerEvent, TerminalRecord } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import { isLateMidTurnSignalAfterInterrupt, isMidTurnSignal, isStandaloneEscape } from '../agents';
@@ -229,7 +228,7 @@ export class TerminalSuspensionService {
             return true;
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminal.suspendFailed, {
-                fields: { error: errorMessage(error, 'unknown'), reason, terminalId },
+                fields: { ...errorLogFields(error), reason, terminalId },
             });
             return false;
         }
@@ -493,7 +492,7 @@ export class TerminalSuspensionService {
             await this.sweep();
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminal.suspendFailed, {
-                fields: { error: errorMessage(error, 'unknown'), reason: 'observation' },
+                fields: { ...errorLogFields(error), reason: 'observation' },
             });
         }
     }

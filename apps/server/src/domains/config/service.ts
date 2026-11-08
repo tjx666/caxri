@@ -31,7 +31,7 @@ import {
     pushRecentAgentAction,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, redactLogValue } from '@caxri/system';
+import { errorLogFields, logEventCatalog, redactLogValue } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
 
 import { atomicWrite } from '../atomic-file';
@@ -209,7 +209,7 @@ export class ConfigService {
         const message = detail.startsWith(`${fileName}:`) ? detail : `${fileName}: ${detail}`;
         this.errors.set(kind, message);
         this.logger?.write('warn', logEventCatalog.configuration.loadFailed, {
-            fields: { kind, error: message },
+            fields: { kind, ...errorLogFields(error) },
         });
         this.emitChange(kind, this.sourceFor(kind), message);
     }
@@ -310,7 +310,7 @@ export class ConfigService {
                 // eslint-disable-next-line unicorn/prefer-await -- sync timer callback, see comment above
                 this.onExternalChange(path).catch((error: unknown) =>
                     this.logger?.write('error', logEventCatalog.configuration.watchChangeFailed, {
-                        fields: { path, error: errorMessage(error, 'unknown') },
+                        fields: { path, ...errorLogFields(error) },
                     }),
                 );
             }, WATCH_SETTLE_DELAY_MS),
@@ -349,7 +349,7 @@ export class ConfigService {
     private emitWatcherError(error: Error): void {
         const message = `Configuration watcher failed: ${error.message}`;
         this.logger?.write('warn', logEventCatalog.configuration.watcherError, {
-            fields: { error: error.message },
+            fields: errorLogFields(error),
         });
         for (const kind of ['settings', 'keybindings', 'theme'] satisfies ConfigKind[]) {
             this.emitChange(kind, this.sourceFor(kind), message);
@@ -382,7 +382,7 @@ export class ConfigService {
         // settings change; only the failure reason is logged, never the settings payload.
         notifyListeners(this.settingsListeners, this.settings, (error) =>
             this.logger?.write('warn', logEventCatalog.configuration.settingsListenerFailed, {
-                fields: { error: errorMessage(error, 'unknown') },
+                fields: errorLogFields(error),
             }),
         );
     }
@@ -415,7 +415,7 @@ export class ConfigService {
                     await this.onExternalChange(path);
                 } catch (error) {
                     this.logger?.write('error', logEventCatalog.configuration.pollChangeFailed, {
-                        fields: { path, error: errorMessage(error, 'unknown') },
+                        fields: { path, ...errorLogFields(error) },
                     });
                 }
             }),

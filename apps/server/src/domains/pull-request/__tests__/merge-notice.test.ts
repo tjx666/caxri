@@ -1,4 +1,5 @@
 import { formatMergeNotice } from '@caxri/protocol';
+import { errorLogFields } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PullRequestMergeNoticeOptions } from '../merge-notice';
@@ -112,7 +113,9 @@ describe('createPullRequestMergeNotice', () => {
 
     it('turns a delivery error into a logged failure', async () => {
         const { notice, submitAgentExact, write } = harness({});
-        submitAgentExact.mockRejectedValueOnce(new Error('host gone'));
+        const error = new Error('host gone');
+        const failure = errorLogFields(error);
+        submitAgentExact.mockRejectedValueOnce(error);
 
         await expect(notice('session-1', URL, { origin: 'caxri' })).resolves.toBe('failed');
 
@@ -120,7 +123,11 @@ describe('createPullRequestMergeNotice', () => {
             'warn',
             expect.any(String),
             expect.objectContaining({
-                fields: { outcome: 'failed', origin: 'caxri', error: 'host gone' },
+                fields: {
+                    ...failure,
+                    outcome: 'failed',
+                    origin: 'caxri',
+                },
             }),
         );
     });

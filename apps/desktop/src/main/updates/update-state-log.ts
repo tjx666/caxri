@@ -2,16 +2,18 @@ import type { UpdateState } from '@caxri/protocol';
 
 /**
  * Structured-log fields for an `updates.state` transition. Error and unavailable states carry their diagnostic context
- * (`action`/`message`/`reason`); without them the log record degrades to an undiagnosable `{"status":"error"}` (#244).
+ * (`action`/`failureKind`/`reason`); without them the log record degrades to an undiagnosable `{"status":"error"}`
+ * (#244). The message text is never logged: it can embed a release URL or a failed command's stderr, and diagnostics
+ * bundles copy log fields verbatim, so only its length is recorded.
  */
-export function updateStateLogFields(state: UpdateState): Record<string, string | null> {
+export function updateStateLogFields(state: UpdateState): Record<string, number | string | null> {
     return {
         status: state.status,
         ...('version' in state && { version: state.version ?? null }),
         ...(state.status === 'error' && {
             action: state.action,
             failureKind: state.failureKind,
-            message: state.message,
+            messageLength: state.message.length,
         }),
         ...(state.status === 'unavailable' && {
             reason: state.reason,

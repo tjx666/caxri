@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { errorLogFields } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestProtocolRecoveryState } from '../../__tests__/support/protocol-recovery';
@@ -96,7 +97,7 @@ describe('Server Core stop steps', () => {
         expect(failed.fields).toEqual({
             reason: 'SIGTERM',
             step: 'domainServices',
-            message: 'domain close failed',
+            ...errorLogFields(new Error('domain close failed')),
         });
         expect(failed.durationMs).toBeGreaterThanOrEqual(0);
         expect(failed.failure).toMatchObject({

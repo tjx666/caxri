@@ -8,7 +8,7 @@ import type {
     SessionRecord,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, mapWithConcurrency, SingleFlight } from '@caxri/system';
+import { errorLogFields, logEventCatalog, mapWithConcurrency, SingleFlight } from '@caxri/system';
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
@@ -246,7 +246,7 @@ export class SessionPullRequestService {
         } catch (error) {
             this.logger.write('warn', logEventCatalog.sessionPullRequests.refreshFailed, {
                 durationMs: performance.now() - startedAt,
-                fields: { message: error instanceof Error ? error.message : String(error) },
+                fields: errorLogFields(error),
             });
         }
         if (changed.length > 0) this.announce(changed);
@@ -290,7 +290,7 @@ export class SessionPullRequestService {
                 onError: (error) =>
                     this.logger.write('debug', logEventCatalog.sessionPullRequests.refreshFailed, {
                         fields: {
-                            message: error instanceof Error ? error.message : String(error),
+                            ...errorLogFields(error),
                             sessionId: session.id,
                         },
                     }),
@@ -315,7 +315,7 @@ export class SessionPullRequestService {
             this.options.onPullRequestChanged?.(sessionId, previous, next);
         } catch (error) {
             this.logger.write('warn', logEventCatalog.sessionPullRequests.refreshFailed, {
-                fields: { message: error instanceof Error ? error.message : String(error) },
+                fields: errorLogFields(error),
             });
         }
     }
@@ -343,7 +343,7 @@ export class SessionPullRequestService {
         } catch (error) {
             this.logger.write('debug', logEventCatalog.sessionPullRequests.refreshFailed, {
                 fields: {
-                    message: error instanceof Error ? error.message : String(error),
+                    ...errorLogFields(error),
                     sessionId: session.id,
                 },
             });

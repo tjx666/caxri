@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 
 import type { CausalCapsule, CausalCapsuleInput, StructuredLogger } from '@caxri/system';
-import { BoundedCausalChain, logEventCatalog } from '@caxri/system';
+import { BoundedCausalChain, errorLogFields, logEventCatalog } from '@caxri/system';
 
 import { createBestEffortTeardown } from '../domains/best-effort-teardown';
 
@@ -72,7 +72,7 @@ export function createServerCoreStopSteps(
                         fields: {
                             reason,
                             step,
-                            message: error instanceof Error ? error.message : String(error),
+                            ...errorLogFields(error),
                         },
                         failure: stopFailure,
                     });

@@ -5,17 +5,12 @@ import { once } from 'node:events';
 import process from 'node:process';
 
 import type { CaxriErrorCode, TerminalSnapshot } from '@caxri/protocol';
-import {
-    CaxriError,
-    errorCodes,
-    errorMessage,
-    inspectExecArgv,
-    logLevelEnvironment,
-} from '@caxri/protocol';
+import { CaxriError, errorCodes, inspectExecArgv, logLevelEnvironment } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
     e2eAgentPolicyEnvironment,
+    errorLogFields,
     logEventCatalog,
     mergeObservationContext,
     safeProcessEnvironment,
@@ -305,7 +300,7 @@ export class TerminalHostSupervisor extends EventTarget {
         child.on('exit', (code, signal) => this.handleExit(owned, code ?? -1, signal));
         child.on('error', (error) =>
             this.options.logger.write('error', logEventCatalog.terminalHost.error, {
-                fields: { message: error.message },
+                fields: errorLogFields(error),
             }),
         );
         try {
@@ -586,7 +581,7 @@ export class TerminalHostSupervisor extends EventTarget {
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminalHost.shutdownFailed, {
                 fields: {
-                    error: errorMessage(error, 'unknown'),
+                    ...errorLogFields(error),
                     expectedSnapshotCount: liveTerminalCount,
                     timeoutMs,
                 },

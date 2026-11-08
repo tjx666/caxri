@@ -1,7 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog } from '@caxri/system';
+import { errorLogFields, logEventCatalog } from '@caxri/system';
 import { withTimeout } from '@caxri/utils';
 
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../agents';
@@ -251,7 +250,7 @@ export class AgentWorktreeAttribution {
             this.options.logger.write('debug', workbenchRootLogEvents.provenanceUnavailable, {
                 durationMs: performance.now() - startedAt,
                 fields: {
-                    error: errorMessage(error, 'unknown'),
+                    ...errorLogFields(error),
                     terminalId: baseline.terminalId,
                 },
             });
@@ -554,7 +553,7 @@ export class AgentWorktreeAttribution {
                 this.options.logger.write('debug', workbenchRootLogEvents.provenanceUnavailable, {
                     durationMs: performance.now() - startedAt,
                     fields: {
-                        error: errorMessage(error, 'unknown'),
+                        ...errorLogFields(error),
                         terminalId: scope.terminalId,
                     },
                 });

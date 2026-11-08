@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
 import type { DesktopRequest, ServerEvent } from '@caxri/protocol';
-import { CaxriError, errorMessage, logEventCatalog } from '@caxri/protocol';
+import { CaxriError, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { errorLogFields } from '@caxri/system';
 import type { BrowserWindow, Dialog, MessageBoxOptions } from 'electron';
 
 import { translateMain } from './locale';
@@ -209,9 +210,14 @@ export interface UnsavedEditorsDecisionOptions {
     discardAll: () => Promise<void>;
     inspect: () => Promise<UnsavedEditorsSummary>;
     /**
-     * One structured record per consultation. `error` is set only for the failure outcomes.
+     * One structured record per consultation. `detail` is set only for the failure outcomes and is content-free: a
+     * closed save-failure reason or {@link errorLogFields}, never error text.
      */
-    log: (outcome: UnsavedEditorsOutcome, count: number, error?: string) => void;
+    log: (
+        outcome: UnsavedEditorsOutcome,
+        count: number,
+        detail?: Record<string, number | string>,
+    ) => void;
     reveal: () => void;
     saveAll: (mode: UnsavedEditorsSaveMode) => Promise<UnsavedEditorsSaveResult>;
 }
@@ -222,7 +228,7 @@ async function inspectOrFailOpen(
     try {
         return await options.inspect();
     } catch (error) {
-        options.log('readFailed', 0, errorMessage(error, 'Unknown unsaved editor read failure'));
+        options.log('readFailed', 0, errorLogFields(error));
         return undefined;
     }
 }
@@ -242,13 +248,9 @@ async function didAutoSave(
             options.log('autoSaved', count);
             return true;
         }
-        options.log('saveFailed', count, result.reason);
+        options.log('saveFailed', count, { reason: result.reason });
     } catch (error) {
-        options.log(
-            'saveFailed',
-            count,
-            errorMessage(error, 'Unknown unsaved editor save failure'),
-        );
+        options.log('saveFailed', count, errorLogFields(error));
     }
     return false;
 }
@@ -275,11 +277,7 @@ export async function decideUnsavedEditors(
     try {
         choice = await options.confirm(summary);
     } catch (error) {
-        options.log(
-            'promptFailed',
-            summary.count,
-            errorMessage(error, 'Unknown unsaved editor prompt failure'),
-        );
+        options.log('promptFailed', summary.count, errorLogFields(error));
         return 'continue';
     }
     if (choice === 'cancel') {
@@ -303,13 +301,9 @@ export async function decideUnsavedEditors(
             options.log('saved', summary.count);
             return 'continue';
         }
-        options.log('saveFailed', summary.count, result.reason);
+        options.log('saveFailed', summary.count, { reason: result.reason });
     } catch (error) {
-        options.log(
-            'saveFailed',
-            summary.count,
-            errorMessage(error, 'Unknown unsaved editor save failure'),
-        );
+        options.log('saveFailed', summary.count, errorLogFields(error));
     }
     return 'cancel';
 }
@@ -387,13 +381,13 @@ export function createWorkbenchUnsavedEditors(options: WorkbenchUnsavedEditorsOp
                         dirtyAnswers.every(({ summary }) => summary.autoSave),
                 };
             },
-            log: (outcome, count, error) =>
+            log: (outcome, count, detail) =>
                 options
                     .logger()
                     ?.write(
                         outcome === 'readFailed' || outcome === 'promptFailed' ? 'warn' : 'info',
                         logEventCatalog.app.unsavedEditorsDecided,
-                        { fields: { purpose, outcome, count, ...(error && { error }) } },
+                        { fields: { purpose, outcome, count, ...detail } },
                     ),
             discardAll: async () => {
                 await Promise.allSettled([...dirty].map((key) => bridgeFor(key).discardAll()));
