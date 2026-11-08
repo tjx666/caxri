@@ -25,7 +25,7 @@ import {
 } from './report-blocked-reason';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
-import { reportCliHelp } from './report-help';
+import { isReportCommand, parseReportOptions, reportCliHelp, reportOption } from './report-help';
 import {
     errorCode,
     isInside,
@@ -82,8 +82,6 @@ type PlanItemInput = z.input<typeof planItemSchema>;
 type AcceptanceCase = z.infer<typeof caseSchema>;
 type CaseStatus = (typeof CASE_STATUSES)[number];
 type RequiredEvidenceType = (typeof REQUIRED_EVIDENCE_TYPES)[number];
-type OptionValue = string | true;
-type Options = Record<string, OptionValue>;
 export interface InitializeReportInput {
     branch?: string;
     commit?: string;
@@ -538,26 +536,6 @@ export async function finalizeReport(input: FinalizeReportInput) {
     return finalized;
 }
 
-function parseOptions(tokens: string[]): Options {
-    const options: Options = {};
-    for (let index = 0; index < tokens.length; index += 1) {
-        const token = tokens[index];
-        if (!token.startsWith('--')) throw new Error(`Expected an option, received: ${token}`);
-        const key = token.slice(2);
-        const next = tokens[index + 1];
-        options[key] = next && !next.startsWith('--') ? tokens[++index] : true;
-    }
-    return options;
-}
-
-function option(options: Options, key: string, isRequired = false): string | undefined {
-    const value = options[key];
-    if (isRequired && (typeof value !== 'string' || value.length === 0)) {
-        throw new Error(`Missing --${key}`);
-    }
-    return typeof value === 'string' ? value : undefined;
-}
-
 async function readPlan(path: string): Promise<PlanItem[]> {
     const value: unknown = JSON.parse(await readFile(resolve(path), 'utf8'));
     const plan = Array.isArray(value)
@@ -574,21 +552,16 @@ async function main(argv: string[]): Promise<void> {
         console.log(reportCliHelp());
         return;
     }
-    if (
-        command !== 'init' &&
-        command !== 'rebind-head' &&
-        command !== 'repair-lifecycle' &&
-        command !== 'finalize'
-    ) {
-        throw new Error(`Unknown command: ${command}`);
-    }
-    const options = parseOptions(tokens);
-    const directory = option(options, 'dir', true);
+    if (!isReportCommand(command)) throw new Error(`Unknown command: ${command}`);
+    const options = parseReportOptions(command, tokens);
+    const option = (key: string, isRequired = false) =>
+        reportOption(command, options, key, isRequired);
+    const directory = option('dir', true);
     if (!directory) throw new Error('Missing report directory');
 
     if (command === 'repair-lifecycle') {
-        const caseId = option(options, 'case-id', true);
-        const reason = option(options, 'reason', true);
+        const caseId = option('case-id', true);
+        const reason = option('reason', true);
         if (!caseId || !reason) throw new Error('Missing lifecycle repair input');
         const result = await repairCaseLifecycle(directory, { caseId, reason });
         console.log(JSON.stringify(result, null, 2));
@@ -596,17 +569,17 @@ async function main(argv: string[]): Promise<void> {
     }
 
     if (command === 'rebind-head') {
-        const commit = option(options, 'commit', true);
-        const entry = option(options, 'entry', true);
-        const fromCommit = option(options, 'from-commit', true);
-        const reason = option(options, 'reason', true);
+        const commit = option('commit', true);
+        const entry = option('entry', true);
+        const fromCommit = option('from-commit', true);
+        const reason = option('reason', true);
         if (!commit || !entry || !fromCommit || !reason) {
             throw new Error('Missing report head rebind input');
         }
         await rebindReportHead({
             allowFinalized: options['allow-finalized'] === true,
             ...(await resolveRebindHead(fromCommit, commit)),
-            createdAt: option(options, 'created-at'),
+            createdAt: option('created-at'),
             directory,
             entry,
             fromCommit,
@@ -616,22 +589,22 @@ async function main(argv: string[]): Promise<void> {
         return;
     }
 
-    const requirement = option(options, 'requirement', true);
+    const requirement = option('requirement', true);
     if (!requirement) throw new Error('Missing report requirement');
 
     if (command === 'init') {
-        const planPath = option(options, 'plan', true);
-        const title = option(options, 'title', true);
-        const entry = option(options, 'entry', true);
+        const planPath = option('plan', true);
+        const title = option('title', true);
+        const entry = option('entry', true);
         if (!planPath || !title || !entry) throw new Error('Missing report scaffold input');
-        const pullRequestRaw = option(options, 'pull-request');
+        const pullRequestRaw = option('pull-request');
         const pullRequest = pullRequestRaw === undefined ? undefined : Number(pullRequestRaw);
         if (pullRequest !== undefined && (!Number.isSafeInteger(pullRequest) || pullRequest <= 0)) {
             throw new Error('--pull-request must be a positive integer');
         }
         const path = await initializeReport({
-            branch: option(options, 'branch'),
-            commit: option(options, 'commit'),
+            branch: option('branch'),
+            commit: option('commit'),
             directory,
             entry,
             plan: await readPlan(planPath),
@@ -645,7 +618,7 @@ async function main(argv: string[]): Promise<void> {
     // `command` can only be 'finalize' here: 'help'/'--help' returned above, and 'init',
     // 'rebind-head', and 'repair-lifecycle' were each handled (and returned) by the branches above.
     const report = await finalizeReport({
-        conclusion: option(options, 'conclusion'),
+        conclusion: option('conclusion'),
         directory,
         requirement,
     });

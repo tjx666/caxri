@@ -83,6 +83,24 @@ steps, capture while the finger is down, then `UP`. Compare the held frame's reg
 before and the dropped state, and look at it to confirm the item is still held.
 `reorderProjectFilters` in `e2e/support/mobile-project-panels-scenarios.ts` is the reference.
 
+## Detecting an Android intermediate state that only shows while a sheet slides in
+
+**Situation:** A case must prove that a bottom sheet, such as New Session, no longer shows a dimmed
+loading state before its content settles. Under a realistic network delay the dimmed state lasts
+only while the sheet is still sliding up.
+
+**Does not work:** Counting held pictures (frames that stay unchanged for a while) with
+`heldPicturesBeforeFinalAt`. The sliding sheet moves every frame, so the dimmed state never holds
+and the probe passes on the broken build too. Comparing a fixed screen band with the settled frame
+fails the other way: every sliding frame differs. Judging a frame where the band has barely entered
+the screen also misfires, because the fixed system gesture handle covers that sliver.
+
+**Works:** Align each frame to the settled one by a header inside the moving sheet, then compare the
+content band at that shift. Skip frames where less than most of the band is on screen, and exclude
+the bottom gesture inset. Prove the probe can fail first: run it on the pre-fix code, and keep a
+control open that still shows the defect in the delivered run. `dimmedFrames` in
+`e2e/support/mobile-new-session-open-scenario.ts` is the reference.
+
 ## Assuming a native Android Photo Picker thumbnail has a resource ID
 
 **Situation:** A disposable Android 36 emulator has exactly one fixture-owned JPEG in the system
