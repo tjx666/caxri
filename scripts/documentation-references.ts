@@ -82,7 +82,7 @@ export function extractRelativeLinks(source: string): RelativeLinkTarget[] {
             const rawTarget = match[1].trim();
             const target = rawTarget.split(/\s+/, 1)[0];
             if (!target || target === '#') continue;
-            if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue; // any URI scheme (http(s), mailto, ...)
+            if (/^<?[a-z][a-z0-9+.-]*:/i.test(target)) continue; // any URI scheme (http(s), mailto, ...)
             const fragmentIndex = target.indexOf('#');
             links.push(
                 fragmentIndex === -1
@@ -145,6 +145,8 @@ export function decodeFragment(fragment: string): string {
 
 function isPlaceholderOrGlob(token: string): boolean {
     if (/[*?<>{}[\]$]|\.\.\.\B/.test(token)) return true;
+    // `NNNN` is the zero-padded sequence placeholder (e.g. `docs/adr/NNNN-slug.md`).
+    if (/(?:^|[/-])N{3,}(?:[-.]|$)/.test(token)) return true;
     // `example` is this repository's own illustrative-filename convention (see
     // `scripts/ci-path-policy.ts`'s `CI-E2E-Tests: ["e2e/example.e2e.ts"]` JSDoc and its test
     // fixtures), not a stale reference to a real spec.

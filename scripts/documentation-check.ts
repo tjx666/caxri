@@ -2,8 +2,9 @@
  * Validates the documentation contract defined by `.agents/skills/write-docs/SKILL.md`: closed-enum frontmatter on
  * every `docs/**\/*.md` file, `docs/README.md` index completeness, relative Markdown link targets and their `#heading`
  * anchors (same-document ones included), backticked repository paths, and backticked TypeScript source filenames
- * written without a repository root. `GLOSSARY.md` and `AGENTS.md` get link/path checks only: they carry no frontmatter
- * and are not part of the `docs/` index.
+ * written without a repository root. Agent skill Markdown (`.agents/skills`, `skills`) gets link and path checks only.
+ * `GLOSSARY.md` and `AGENTS.md` get link/path checks only: they carry no frontmatter and are not part of the `docs/`
+ * index.
  *
  * Every filesystem existence check walks each path segment through `readdir` instead of `existsSync`, because macOS's
  * default case-insensitive-but-preserving filesystem would silently accept a stale-cased reference (e.g.
@@ -53,6 +54,34 @@ const SKIP_PATH_CHECK_STATUSES = new Set<string>(['historical', 'superseded']);
 
 const DOCS_INDEX_RELATIVE_PATH = 'docs/README.md';
 const ALWAYS_CHECKED_ROOT_FILES = ['GLOSSARY.md', 'AGENTS.md'];
+
+/**
+ * Directories whose Markdown is Agent skill content: checked for links and backticked repository paths only, because
+ * skills carry no docs frontmatter and are not part of the `docs/` index.
+ */
+const SKILL_ROOTS = ['.agents/skills', 'skills'];
+
+/**
+ * Skill references that cite external repositories (competitor research), whose paths never exist here.
+ */
+const SKILL_PATH_CHECK_EXEMPT_PREFIXES = ['.agents/skills/competitors/references/'];
+
+export function isSkillMarkdown(relativePath: string): boolean {
+    return SKILL_ROOTS.some((root) => relativePath.startsWith(`${root}/`));
+}
+
+/**
+ * Returns the owning skill directory (`.agents/skills/<name>` or `skills/<name>`) that skill-relative citations such as
+ * `scripts/sync.sh` resolve against, or `null` for a file outside a skill.
+ */
+export function skillDirectoryOf(relativePath: string): string | null {
+    for (const root of SKILL_ROOTS) {
+        if (!relativePath.startsWith(`${root}/`)) continue;
+        const name = relativePath.slice(root.length + 1).split('/', 1)[0];
+        return name ? `${root}/${name}` : null;
+    }
+    return null;
+}
 
 export interface ParsedFrontmatter {
     kind?: string;
@@ -195,14 +224,18 @@ export async function isPathPresentCaseSensitive(
  * drifts.
  */
 export async function isGitIgnoredPath(repoRoot: string, relativePath: string): Promise<boolean> {
-    try {
-        await execFileAsync('git', ['check-ignore', '-q', relativePath], { cwd: repoRoot });
-        return true; // exit 0: at least the given path is ignored
-    } catch {
-        // exit 1 means "not ignored"; any other failure (no git, repoRoot is not a repository)
-        // fails closed by not suppressing the underlying existence issue.
-        return false;
+    // A directory-only rule (`/android/`) matches an absent path only with a trailing slash, so probe both shapes.
+    for (const candidate of [relativePath, `${relativePath}/`]) {
+        try {
+            // eslint-disable-next-line no-await-in-loop -- at most two probes, and the first hit short-circuits
+            await execFileAsync('git', ['check-ignore', '-q', candidate], { cwd: repoRoot });
+            return true; // exit 0: at least the given path is ignored
+        } catch {
+            // exit 1 means "not ignored"; any other failure (no git, repoRoot is not a repository)
+            // fails closed by not suppressing the underlying existence issue.
+        }
     }
+    return false;
 }
 
 async function isPathAcceptable(repoRoot: string, relativePath: string): Promise<boolean> {
@@ -284,11 +317,21 @@ export async function checkLinksAndPaths({
         }
     }
 
-    if (!shouldSkipPathChecks(source)) {
+    const isSkill = isSkillMarkdown(relativePath);
+    const skillDirectory = skillDirectoryOf(relativePath);
+    const isPathChecksExempt =
+        shouldSkipPathChecks(source) ||
+        SKILL_PATH_CHECK_EXEMPT_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
+    if (!isPathChecksExempt) {
         for (const token of extractBacktickedRepoPaths(source)) {
             if (frozenLines.has(token.line)) continue;
             // eslint-disable-next-line no-await-in-loop -- a doc has few citations; sequential keeps issues in document order
-            if (!(await isPathAcceptable(repoRoot, token.path))) {
+            let isPresent = await isPathAcceptable(repoRoot, token.path);
+            // A skill may cite its own files relative to its directory (e.g. `scripts/sync.sh`).
+            if (!isPresent && skillDirectory)
+                // eslint-disable-next-line no-await-in-loop -- same sequential walk as above
+                isPresent = await isPathAcceptable(repoRoot, `${skillDirectory}/${token.path}`);
+            if (!isPresent) {
                 issues.push({
                     file: relativePath,
                     line: token.line,
@@ -297,9 +340,12 @@ export async function checkLinksAndPaths({
             }
         }
 
-        const filenames = extractBacktickedSourceFilenames(source).filter(
-            (token) => !frozenLines.has(token.line),
-        );
+        // Skills get the path-existence check only; bare source filenames in skill prose are not validated.
+        const filenames = isSkill
+            ? []
+            : extractBacktickedSourceFilenames(source).filter(
+                  (token) => !frozenLines.has(token.line),
+              );
         let files: readonly string[] | null = null;
         if (filenames.length > 0)
             files = repoFiles === undefined ? await listRepoFiles(repoRoot) : repoFiles;
@@ -365,7 +411,17 @@ export async function defaultCheckedFiles(repoRoot: string): Promise<string[]> {
     const documentFiles = (
         await collectMarkdownFilesRecursive(join(repoRoot, 'docs'), repoRoot)
     ).toSorted((a, b) => a.localeCompare(b));
-    return [...documentFiles, ...ALWAYS_CHECKED_ROOT_FILES];
+    const skillFiles = (
+        await Promise.all(
+            SKILL_ROOTS.map((root) =>
+                collectMarkdownFilesRecursive(join(repoRoot, root), repoRoot),
+            ),
+        )
+    )
+        .flat()
+        .filter((path) => !path.includes('/node_modules/'))
+        .toSorted((a, b) => a.localeCompare(b));
+    return [...documentFiles, ...skillFiles, ...ALWAYS_CHECKED_ROOT_FILES];
 }
 
 export async function checkDocumentationFile(
