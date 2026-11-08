@@ -36,7 +36,8 @@ export const ComputerRenameSheet = ({
         if (!change || isSaving) return;
         setIsSaving(true);
         try {
-            await request('mobile.computer.rename', change);
+            const renamed = await request('mobile.computer.rename', change);
+            sessions.showHostDisplayName(renamed.hostDisplayName);
             await sessions.refresh();
             dismiss();
         } catch (error) {
