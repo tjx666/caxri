@@ -35,8 +35,19 @@ export const MARKDOWN_IT: MarkdownParser = {
 };
 
 /**
+ * Keys every node by its place in the tree and its type. The library keys each node with a fresh counter on every
+ * parse, so a reply that re-parsed (each streamed word, each fade redraw) remounted its whole tree: a code block's
+ * sideways scroll snapped back to the start under the reader's finger.
+ */
+const withPositionKeys = (nodes: ASTNode[], parentKey: string): ASTNode[] =>
+    nodes.map((node, index) => {
+        const key = `${parentKey}${index}_${node.type}`;
+        return { ...node, children: withPositionKeys(node.children, `${key}.`), key };
+    });
+
+/**
  * The library's own parse (the one `Markdown` runs on a string), kept so the reply can mark its fading text nodes
- * before handing the tree back.
+ * before handing the tree back, with keys that stay the same across parses of a growing reply.
  */
 export const parseMarkdown = (text: string): ASTNode[] => {
     let nodes: ASTNode[] = [];
@@ -48,5 +59,5 @@ export const parseMarkdown = (text: string): ASTNode[] => {
         },
         MARKDOWN_IT,
     );
-    return nodes;
+    return withPositionKeys(nodes, '');
 };

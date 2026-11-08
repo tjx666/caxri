@@ -21,6 +21,7 @@ const COPY_FEEDBACK_RESET_MS = 2000;
  */
 export const CopyButton = ({
     label: idleLabel,
+    onCopied,
     text,
     testID,
     theme,
@@ -30,6 +31,11 @@ export const CopyButton = ({
      * page apart. Defaults to "Copy"; the copied and failed states keep their own names.
      */
     label?: string;
+    /**
+     * Runs once a successful copy's confirmation has shown, for a parent that reveals Copy only on demand to hide it
+     * again.
+     */
+    onCopied?: () => void;
     /**
      * The text to copy, or a function that produces it on tap when building it costs more than a render should pay,
      * such as a quote's text re-parsed from a streaming reply.
@@ -46,9 +52,12 @@ export const CopyButton = ({
     const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
     useEffect(() => {
         if (status === 'idle') return;
-        const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
+        const timer = setTimeout(() => {
+            setStatus('idle');
+            if (status === 'copied') onCopied?.();
+        }, COPY_FEEDBACK_RESET_MS);
         return () => clearTimeout(timer);
-    }, [status]);
+    }, [onCopied, status]);
     const label = {
         copied: t('components.copied'),
         failed: t('components.copyFailed'),

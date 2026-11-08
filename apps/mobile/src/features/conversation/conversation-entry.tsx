@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { memo, use, useState } from 'react';
+import { memo, use, useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
@@ -9,7 +9,10 @@ import type { MobileTheme } from '../../theme/tokens';
 import { ConversationHandoffCard } from './conversation-handoff-card';
 import { ConversationMarkdown } from './conversation-markdown';
 import type { ConversationMessageTarget } from './conversation-message-actions';
-import { ConversationMessageActions } from './conversation-message-actions';
+import {
+    ConversationMessageActions,
+    ConversationMessageLongPress,
+} from './conversation-message-actions';
 import type { ConversationEntry as Entry } from './conversation-model';
 import { conversationTurnDivider } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
@@ -81,7 +84,8 @@ const ConversationAgentMessage = ({
 /**
  * A message that opens its actions on a long press, as chat apps do. Without actions it is a plain view. The text
  * inside is not `selectable`: on Android a selectable text claims the long press for its own selection, so the press
- * would never reach the actions; Select Text in the sheet offers selection instead.
+ * would never reach the actions; Select Text in the sheet offers selection instead. A control inside that takes its own
+ * presses forwards the long press through `ConversationMessageLongPress`.
  */
 const ConversationMessagePress = ({
     children,
@@ -96,6 +100,12 @@ const ConversationMessagePress = ({
 }) => {
     const { t } = useTranslation();
     const openActions = use(ConversationMessageActions);
+    const { id, role, text } = message;
+    // Stable while the message is, so a code block reading it does not redraw with every parent render.
+    const openMessage = useCallback(
+        () => openActions?.({ id, role, text }),
+        [id, openActions, role, text],
+    );
     if (!openActions)
         return (
             <View style={style} testID={testID}>
@@ -105,12 +115,14 @@ const ConversationMessagePress = ({
     return (
         <Pressable
             accessibilityActions={[{ name: 'longpress', label: t('conversation.message.actions') }]}
-            onAccessibilityAction={() => openActions(message)}
-            onLongPress={() => openActions(message)}
+            onAccessibilityAction={openMessage}
+            onLongPress={openMessage}
             style={style}
             testID={testID}
         >
-            {children}
+            <ConversationMessageLongPress value={openMessage}>
+                {children}
+            </ConversationMessageLongPress>
         </Pressable>
     );
 };
