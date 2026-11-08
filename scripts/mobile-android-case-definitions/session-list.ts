@@ -12,4 +12,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-list-nested-sessions',
     },
+    'MOB-SESSION-LIST-MOTION-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'session-list-motion',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

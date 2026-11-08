@@ -313,3 +313,26 @@ export async function readRecordingBand(
     }));
     return { frames, geometry, scale };
 }
+
+/**
+ * The frames a recorded region drew while changing from its first picture to its last one: each frame that differs from
+ * both. A change applied in one commit draws none or one (a list's measuring pass); an animated change draws one per
+ * frame for its whole duration. `spanMs` runs from the first frame that left the first picture to the first frame that
+ * shows the last one.
+ */
+export function inBetweenFrames(frames: readonly GrayFrame[]): { count: number; spanMs: number } {
+    const final = frames.at(-1);
+    if (!final) throw new Error('Recording has no frames');
+    const first = frames[0];
+    const leftAt = frames.findIndex((frame) => isDifferent(frame, first));
+    if (leftAt === -1) return { count: 0, spanMs: 0 };
+    const settledAt = frames.findIndex(
+        (frame, index) => index >= leftAt && !isDifferent(frame, final),
+    );
+    const between = frames.slice(leftAt, settledAt);
+    return {
+        count: between.filter((frame) => isDifferent(frame, first) && isDifferent(frame, final))
+            .length,
+        spanMs: frames[settledAt].time - frames[leftAt].time,
+    };
+}
