@@ -83,6 +83,19 @@ describe('settings spec and schema agreement', () => {
         ).toBe(false);
     });
 
+    it('names the computer by its host name unless the user picks a printable name', () => {
+        expect(appSettingsSchema.parse({})['mobile.computerName']).toBeNull();
+        expect(
+            appSettingsSchema.parse({ 'mobile.computerName': '  Studio Mac ' })[
+                'mobile.computerName'
+            ],
+        ).toBe('Studio Mac');
+        for (const name of ['line\nbreak', 'right‮left', 'x'.repeat(101)])
+            expect(appSettingsSchema.safeParse({ 'mobile.computerName': name }).success).toBe(
+                false,
+            );
+    });
+
     it('does not copy Terminal selections unless the user opts in', () => {
         expect(appSettingsFileSchema.parse({})['terminal.copyOnSelect']).toBe(false);
         expect(

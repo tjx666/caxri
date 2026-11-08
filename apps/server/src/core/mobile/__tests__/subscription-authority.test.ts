@@ -20,9 +20,10 @@ describe('isMobileSubscriptionEvent for the dashboard', () => {
             payload: {},
         } as unknown as ServerEvent);
 
-    it('redraws the Session list on state and pull request changes only', async () => {
+    it('redraws the Session list on state, pull request, and computer name changes only', async () => {
         await expect(forward('state.changed')).resolves.toBe(true);
         await expect(forward('sessionPullRequests.changed')).resolves.toBe(true);
+        await expect(forward('settings.changed')).resolves.toBe(true);
         await expect(forward('botInbox.changed')).resolves.toBe(false);
     });
 });

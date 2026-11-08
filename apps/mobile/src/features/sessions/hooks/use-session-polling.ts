@@ -227,6 +227,19 @@ export const useSessionPolling = (isVisible = true) => {
         await queryClient.invalidateQueries({ queryKey, exact: true });
     }, [isObservable, mode, queryClient, queryKey]);
 
+    /**
+     * Shows a computer name the phone just set at once. `refresh` does nothing while the Session list is hidden, as it
+     * is behind Settings, so the rename reply updates the last read instead of waiting for the next one.
+     */
+    const showHostDisplayName = useCallback(
+        (hostDisplayName: string): void => {
+            queryClient.setQueryData<MobileDashboardSnapshot>(queryKey, (current) =>
+                current ? { ...current, hostDisplayName } : current,
+            );
+        },
+        [queryClient, queryKey],
+    );
+
     const finishListInteraction = (): void => {
         setFrozenSections(null);
     };
@@ -253,5 +266,6 @@ export const useSessionPolling = (isVisible = true) => {
         selected: sessions.find((session) => session.id === selectedId) ?? null,
         selectedId,
         selectSession: setRequestedSelectedId,
+        showHostDisplayName,
     };
 };

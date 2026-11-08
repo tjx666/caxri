@@ -9,6 +9,7 @@ import {
     EllipsisVertical,
     FolderPlus,
     Gauge,
+    Pencil,
     Search,
     Settings,
 } from 'lucide-react-native';
@@ -61,6 +62,7 @@ export const SessionHomeHeader = ({
     onOpenSettings,
     onOpenStatus,
     onOpenUsage,
+    onRenameComputer,
     pageProgress,
     projects,
     theme,
@@ -92,6 +94,10 @@ export const SessionHomeHeader = ({
      * Opens the Agent usage screen: plan limits, output speed, and API status.
      */
     onOpenUsage: () => void;
+    /**
+     * Present only for a control device: renames this computer for every paired phone.
+     */
+    onRenameComputer?: () => void;
     /**
      * The Project pager's place in pages; the filters' highlight follows it.
      */
@@ -174,6 +180,18 @@ export const SessionHomeHeader = ({
                 >
                     {hostDisplayName}
                 </Text>
+                {onRenameComputer ? (
+                    <PopoverAction
+                        icon={Pencil}
+                        label={t('settings.rename.title')}
+                        onPress={() => {
+                            closeMenu();
+                            onRenameComputer();
+                        }}
+                        testID="rename-computer-action"
+                        theme={theme}
+                    />
+                ) : null}
                 <PopoverDivider theme={theme} />
                 <PopoverAction
                     accessibilityHint={t('usage.openHint')}

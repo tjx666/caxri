@@ -124,6 +124,7 @@ export const settingRowSources: SettingRowSource[] = [
             'local network',
         ]),
     },
+    specRow('mobile.computerName'),
     specRow('mobile.relayUrl', { advanced: true }),
     specRow('terminal.fontFamily'),
     specRow('terminal.fontSize'),

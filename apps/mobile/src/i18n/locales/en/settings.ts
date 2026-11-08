@@ -6,6 +6,12 @@ export const settings = {
     'settings.name': 'Name',
     'settings.releaseNotes': 'Release notes',
     'settings.releaseNotesHint': "Opens this version's release on GitHub.",
+    'settings.rename.detail':
+        'Every phone paired with this computer shows the new name. Leave it empty to use the system host name.',
+    'settings.rename.failed': "Couldn't rename this computer",
+    'settings.rename.hint': 'Opens a field to rename this computer.',
+    'settings.rename.save': 'Save',
+    'settings.rename.title': 'Rename computer',
     'settings.reportIssue': 'Report an issue',
     'settings.reportIssueHint': 'Opens a new GitHub issue.',
     'settings.role.control': 'Control',

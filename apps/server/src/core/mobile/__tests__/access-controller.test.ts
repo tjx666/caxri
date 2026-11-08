@@ -253,6 +253,7 @@ describe('MobileAccessController role and resource authority', () => {
             'mobile.project.browse',
             'mobile.project.add',
             'mobile.project.reorder',
+            'mobile.computer.rename',
         ]) {
             expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
             expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(false);

@@ -143,6 +143,7 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
     'terminal.osc52ClipboardWrite': true,
     'files.maxFileBytes': true,
     'updates.skippedVersion': true,
+    'mobile.computerName': true,
 });
 const settingsPatchKeySchema = z.enum([
     'notifications.worktreeFallback',
@@ -156,6 +157,7 @@ const settingsPatchKeySchema = z.enum([
     'terminal.osc52ClipboardWrite',
     'files.maxFileBytes',
     'updates.skippedVersion',
+    'mobile.computerName',
 ]);
 /**
  * Patch values reuse the bounded field schemas from `appSettingsSchema` with the `.default()` stripped: a patch must
@@ -216,6 +218,13 @@ export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
          * visible and clearable.
          */
         value: appSettingsSchema.shape['updates.skippedVersion'].unwrap(),
+    }),
+    z.object({
+        key: z.literal('mobile.computerName'),
+        /**
+         * Written by `mobile.computer.rename` from a control phone. Only a display label: it grants no authority.
+         */
+        value: appSettingsSchema.shape['mobile.computerName'].unwrap(),
     }),
 ]);
 export const settingsPatchParametersSchema = z.object({

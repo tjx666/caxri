@@ -204,6 +204,10 @@ const settingsProjection: SettingsProjection = {
     'workbench.externalEditor': (value) => (value === null ? null : redactCommandLine(value)),
     'updates.skippedVersion': exportAsIs,
     /**
+     * A name the user chose for their computer can identify them, so only whether one is set leaves the machine.
+     */
+    'mobile.computerName': (value) => (value === null ? null : { configured: true }),
+    /**
      * A self-hosted Relay address can name a private host, so only its presence and scheme leave the machine.
      */
     'mobile.relayUrl': (value) =>

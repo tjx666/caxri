@@ -81,8 +81,11 @@ export async function isMobileSubscriptionEvent(
 ): Promise<boolean> {
     switch (resource.kind) {
         case 'dashboard':
-            // The row marks the Session's pull request, so a pull request change redraws the list too.
-            return event.event === 'state.changed' || event.event === 'sessionPullRequests.changed';
+            // The row marks the Session's pull request, so a pull request change redraws the list too. The access
+            // controller forwards `settings.changed` only once the computer name in the header changed.
+            return ['state.changed', 'sessionPullRequests.changed', 'settings.changed'].includes(
+                event.event,
+            );
         case 'botInbox':
             return event.event === 'botInbox.changed';
         case 'deviceActions':

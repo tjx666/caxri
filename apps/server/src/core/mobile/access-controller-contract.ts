@@ -111,6 +111,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.project.browse'
             | 'mobile.project.add'
             | 'mobile.project.reorder'
+            | 'mobile.computer.rename'
             | 'mobile.panels.list'
             | 'mobile.agentUsage.read'
             | 'mobile.pullRequest.read'

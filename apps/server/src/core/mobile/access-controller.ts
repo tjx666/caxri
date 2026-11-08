@@ -25,14 +25,14 @@ import { createAllProjectsGrantFollower } from './all-projects-grant';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
-import { readMobileDashboard, showMobileSession } from './dashboard-requests';
+import { createMobileComputerName } from './computer-name';
+import { invokeMobileDashboardRequest } from './dashboard-requests';
 import { invokeMobileDesktopUpdateRequest } from './desktop-update-requests';
 import { invokeMobileDeviceActionRequest } from './device-action-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { createMobileExitReports } from './exit-report';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
-import { mobileHostDisplayName } from './host-display-name';
 import { createMobileHostStatusReader } from './host-status';
 import { createPairedPrincipalGuard } from './paired-principal-guard';
 import { invokeMobilePanelRequest } from './panel-requests';
@@ -83,7 +83,11 @@ export const openMobileAccessController = (options: {
     const registry = MobileDeviceRegistry.open({ store: options.store });
     let gateway: MobileGateway | undefined;
     let getExtensionService: (() => ExtensionService | undefined) | undefined;
-    const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
+    let attachedDomainService: ServerDomainService | undefined;
+    const computerName = createMobileComputerName(
+        () => attachedDomainService,
+        options.hostDisplayName ?? hostname(),
+    );
     const updateRequests = createMobileUpdateRequests(options.updateDirectory);
     const readAgentUsage = createMobileAgentUsageRequests({
         ...(options.logger && { logger: options.logger }),
@@ -134,6 +138,8 @@ export const openMobileAccessController = (options: {
         ) => {
             assertOpen();
             getExtensionService = resolveExtensionService;
+            attachedDomainService = domainService;
+            void computerName.refresh();
             gateway = new MobileGateway({
                 logger: options.logger,
                 adapters: { server: adapter },
@@ -212,7 +218,12 @@ export const openMobileAccessController = (options: {
                 await Promise.all([gateway?.close(), previews.clear(), videos.clear()]);
             }),
         publish: (event) => {
-            if (event.event === 'settings.changed') applyRelaySetting?.();
+            if (event.event === 'settings.changed') {
+                applyRelaySetting?.();
+                // Phones re-read the dashboard on this event, so it waits until the follower holds the new name.
+                void computerName.refresh().then((changed) => changed && gateway?.publish(event));
+                return;
+            }
             if (event.event === 'state.changed' && event.payload.kind === 'full')
                 followAllProjects?.();
             gateway?.publish(event);
@@ -271,27 +282,13 @@ export const openMobileAccessController = (options: {
                     });
                 case 'mobile.device.list':
                     return { devices: registry.list() };
-                case 'mobile.dashboard': {
-                    const paired =
-                        context.principal.kind === 'paired-device'
-                            ? currentPairedPrincipal(context.principal, request.method)
-                            : undefined;
-                    return readMobileDashboard(domainService, context.principal, {
-                        hostDisplayName,
-                        deviceRole: paired?.role ?? null,
+                case 'mobile.dashboard':
+                case 'mobile.session.show':
+                    return invokeMobileDashboardRequest(request, context.principal, domainService, {
+                        currentPairedPrincipal,
+                        hostDisplayName: computerName.displayName(),
                         resolveAgentEndpoint,
                     });
-                }
-                case 'mobile.session.show': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    return showMobileSession(
-                        domainService,
-                        principal,
-                        request.params.sessionId,
-                        { hostDisplayName, deviceRole: principal.role, resolveAgentEndpoint },
-                        () => currentPairedPrincipal(principal, request.method),
-                    );
-                }
                 case 'mobile.timeline.read':
                 case 'mobile.timeline.readMessage':
                     return readAsPaired(context.principal, request.method, (principal) =>
@@ -434,6 +431,12 @@ export const openMobileAccessController = (options: {
                                 activeGateway.createPairing(grant.projectIds, grant.allProjects),
                         );
                     });
+                }
+                case 'mobile.computer.rename': {
+                    currentPairedPrincipal(context.principal, request.method);
+                    return {
+                        hostDisplayName: await computerName.rename(request.params.name),
+                    };
                 }
                 case 'mobile.project.browse':
                 case 'mobile.project.add':
