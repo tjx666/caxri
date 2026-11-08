@@ -20,6 +20,43 @@ import { AgentChatTurnFold } from './agent-chat-turn-fold';
 import { AgentChatWorkGroup } from './agent-chat-work-group';
 
 /**
+ * A message row through the shared Conversation renderer, with what only Chat adds around the bubble: the files it
+ * cites, the steered mark, and a hand-off's target.
+ */
+const AgentChatMessageEntry = ({
+    entry,
+    theme,
+}: {
+    entry: Extract<Entry, { kind: 'message' }>;
+    theme: MobileTheme;
+}) => (
+    <ConversationEntry
+        entry={entry.message}
+        handoff={
+            entry.handoff
+                ? {
+                      footer: (
+                          <AgentChatHandoffTarget sentAt={entry.handoff.sentAt} theme={theme} />
+                      ),
+                      note: entry.handoff.note,
+                  }
+                : undefined
+        }
+        theme={theme}
+        userLeading={entry.isSteered ? <AgentChatSteeredMark theme={theme} /> : undefined}
+        userExtras={
+            entry.cited ? (
+                <AgentChatPathChips
+                    references={entry.cited.references}
+                    skills={entry.cited.skills}
+                    theme={theme}
+                />
+            ) : undefined
+        }
+    />
+);
+
+/**
  * One row of the phone's Chat timeline. Messages draw through the shared Conversation renderer, so a Chat's replies,
  * bubbles, and notices look like a terminal Agent's; work, a turn's artifacts, and its `Worked for` fold row are the
  * Chat's own, and so is a message still on its way. Memoized so a streamed patch redraws only the rows whose entry
@@ -58,37 +95,7 @@ export const AgentChatTimelineEntry = memo(
                 return <AgentChatFeedback item={entry.notice} provider={provider} theme={theme} />;
             }
             case 'message': {
-                return (
-                    <ConversationEntry
-                        entry={entry.message}
-                        handoff={
-                            entry.handoff
-                                ? {
-                                      footer: (
-                                          <AgentChatHandoffTarget
-                                              sentAt={entry.handoff.sentAt}
-                                              theme={theme}
-                                          />
-                                      ),
-                                      note: entry.handoff.note,
-                                  }
-                                : undefined
-                        }
-                        theme={theme}
-                        userLeading={
-                            entry.isSteered ? <AgentChatSteeredMark theme={theme} /> : undefined
-                        }
-                        userExtras={
-                            entry.cited ? (
-                                <AgentChatPathChips
-                                    references={entry.cited.references}
-                                    skills={entry.cited.skills}
-                                    theme={theme}
-                                />
-                            ) : undefined
-                        }
-                    />
-                );
+                return <AgentChatMessageEntry entry={entry} theme={theme} />;
             }
             case 'answered': {
                 return <AgentChatAnsweredQuestions entry={entry} onToggle={toggle} theme={theme} />;
