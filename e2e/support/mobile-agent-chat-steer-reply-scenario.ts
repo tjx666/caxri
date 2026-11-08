@@ -44,7 +44,12 @@ export async function executeMobileChatSteerReplyScenario(
         await chat.send({ text: 'Is a WebView slower? ponder', delivery: 'steer' });
         const running = await waitForMobile(
             () => chat.read(),
-            (snapshot) => Boolean(steerReplyThought(snapshot)),
+            // The two commands after the thought must be in view too, so the frame shows the thought kept out of them.
+            (snapshot) =>
+                Boolean(steerReplyThought(snapshot)) &&
+                snapshot.items.some(
+                    (item) => item.type === 'command' && item.command.includes('git log'),
+                ),
             30_000,
         );
         const thought = steerReplyThought(running);
