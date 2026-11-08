@@ -34,7 +34,9 @@ launch restarts; it is never persisted and never survives a Server restart. A gr
 its status on the mobile card area and on Desktop as an `Always Allow` status bar chip for the
 selected Session plus a Session row menu entry; any of them can revoke it immediately; the next request after a revoke goes back to a mobile card, or the native Claude prompt
 when no phone is online. Question cards preserve Claude's grouped steps, single or multiple
-selections, and free-text answers. A `view` or `reply` device sees a read-only explanation and never
+selections, and free-text answers. The question itself renders as Markdown, as a reply does and as
+Desktop's card renders it, folded to three lines behind Show more (two, without the toggle, while the
+keyboard is up). A `view` or `reply` device sees a read-only explanation and never
 the auto-allow control. The phone polls request status while foregrounded; handled and expired cards
 lose their controls. Tool inputs are reduced to a bounded display summary before crossing the hook
 socket. No question, command, or answer content enters diagnostics; every auto-allow still logs its
