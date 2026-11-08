@@ -1,15 +1,19 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, FadeOut, ReduceMotion } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Check, CircleAlert } from 'lucide-react-native';
 
 import { useTranslation } from '../i18n';
-import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../theme/scale';
+import {
+    chipHitSlop,
+    mobileControl,
+    mobileSpace,
+    mobileType,
+    PRESSED_OPACITY,
+} from '../theme/scale';
 import { useMobileTheme } from '../theme/use-mobile-theme';
-import { Button } from './button';
+import { IslandCapsule } from './island-capsule';
 import { toastAnnouncement, toastStore } from './toast-store';
 
 /**
@@ -30,21 +34,14 @@ const useIsScreenReaderOn = (): boolean => {
 };
 
 /**
- * Space kept free above the bottom safe area for the Chat Composer (its 52dp Send/Stop button plus padding), so a toast
- * never covers Send or Stop.
- */
-const COMPOSER_CLEARANCE = mobileControl.primary + mobileSpace.lg * 2 + mobileSpace.md;
-
-/**
- * Renders the app's one toast, mounted once in the root layout. A small card at the bottom, above the safe area and the
- * Composer; it takes no touches except on its action button (Undo after an archive), which stays a 48dp target. Android
- * reads it through a polite live region; iOS has none, so the sentence is announced once when it appears. Motion
- * follows the system's reduce-motion setting.
+ * Renders the app's one toast, mounted once in the root layout. It draws as the same top-center capsule as the Session
+ * notices (see `IslandCapsule`), so every transient message lands in one place and never covers the Composer's Send or
+ * Stop. It takes no touches except on its action (Undo after an archive), which reaches 48dp through its hit slop.
+ * Android reads it through a polite live region; iOS has none, so the sentence is announced once when it appears.
  */
 export const ToastHost = () => {
     const toast = useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot);
     const theme = useMobileTheme();
-    const insets = useSafeAreaInsets();
     const id = toast?.id;
     const { t } = useTranslation();
     const isScreenReaderOn = useIsScreenReaderOn();
@@ -65,59 +62,64 @@ export const ToastHost = () => {
     if (!toast) return null;
     const Icon = toast.tone === 'success' ? Check : CircleAlert;
     return (
-        <View
-            pointerEvents={toast.action ? 'box-none' : 'none'}
-            style={[styles.host, { bottom: insets.bottom + COMPOSER_CLEARANCE }]}
+        <IslandCapsule
+            accessibilityLiveRegion={isActionAnnounced ? 'none' : 'polite'}
+            isInteractive={Boolean(toast.action)}
+            key={toast.id}
+            testID="toast"
+            theme={theme}
         >
-            <Animated.View
-                accessibilityLiveRegion={isActionAnnounced ? 'none' : 'polite'}
-                entering={FadeInDown.duration(160).reduceMotion(ReduceMotion.System)}
-                exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)}
-                key={toast.id}
-                style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                testID="toast"
-            >
-                <Icon color={toast.tone === 'success' ? theme.success : theme.danger} size={18} />
+            <View style={styles.content}>
+                <Icon color={toast.tone === 'success' ? theme.success : theme.danger} size={16} />
                 <View style={styles.texts}>
-                    <Text style={[styles.message, { color: theme.text }]}>{toast.message}</Text>
+                    <Text numberOfLines={2} style={[styles.message, { color: theme.text }]}>
+                        {toast.message}
+                    </Text>
                     {toast.detail ? (
-                        <Text style={[styles.detail, { color: theme.muted }]}>{toast.detail}</Text>
+                        <Text numberOfLines={2} style={[styles.detail, { color: theme.muted }]}>
+                            {toast.detail}
+                        </Text>
                     ) : null}
                 </View>
                 {toast.action ? (
-                    <Button
-                        label={toast.action.label}
+                    <Pressable
+                        accessibilityLabel={toast.action.label}
+                        accessibilityRole="button"
+                        hitSlop={chipHitSlop}
                         onPress={() => toastStore.runAction(toast.id)}
+                        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
                         testID="toast-action"
-                        theme={theme}
-                        variant="secondary"
-                    />
+                    >
+                        <Text style={[styles.actionLabel, { color: theme.primary }]}>
+                            {toast.action.label}
+                        </Text>
+                    </Pressable>
                 ) : null}
-            </Animated.View>
-        </View>
+            </View>
+        </IslandCapsule>
     );
 };
 
 const styles = StyleSheet.create({
-    card: {
+    action: {
         alignItems: 'center',
-        borderRadius: mobileRadius.md,
-        borderWidth: 1,
+        height: mobileControl.chip,
+        justifyContent: 'center',
+        marginRight: -mobileSpace.xs,
+        paddingHorizontal: mobileSpace.sm,
+    },
+    actionLabel: { ...mobileType.meta, fontWeight: '600' },
+    content: {
+        alignItems: 'center',
         flexDirection: 'row',
-        gap: mobileSpace.md,
-        maxWidth: '100%',
-        paddingHorizontal: mobileSpace.lg,
-        paddingVertical: mobileSpace.md,
+        gap: mobileSpace.sm,
+        minHeight: mobileControl.chip,
+        paddingHorizontal: mobileSpace.md,
+        paddingVertical: mobileSpace.xxs,
     },
-    detail: { ...mobileType.meta },
-    host: {
-        alignItems: 'center',
-        left: 0,
-        paddingHorizontal: mobileSpace.lg,
-        position: 'absolute',
-        right: 0,
-    },
-    message: { ...mobileType.bodyStrong },
+    detail: { ...mobileType.caption },
+    message: { ...mobileType.meta, fontWeight: '600' },
+    pressed: { opacity: PRESSED_OPACITY },
     texts: { flexShrink: 1 },
 });
 
