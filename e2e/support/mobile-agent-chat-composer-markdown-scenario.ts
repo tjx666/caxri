@@ -7,19 +7,16 @@ import { insertMobileInputUnicode } from './mobile-unicode-input';
 
 /**
  * A draft with every look the composer renders while typing: bold and inline code in a line, a heading, a bullet, and a
- * quote. The cursor ends on the quote line, so its `> ` stays visible while every other marker is hidden.
+ * quote, then a plain last line. It is typed in one commit, so the cursor ends on the plain line, away from every
+ * marker; a second insert would tap the field first and drop the caret mid-draft.
  */
 const MARKDOWN_DRAFT = [
     '先看**迁移脚本**和 `0004` 文件',
     '# 下一步',
     '- 列表项',
     '> 引用的话',
+    '继续输入',
 ].join('\n');
-
-/**
- * A plain last line typed after the draft, moving the cursor off the quote so its marker hides too.
- */
-const PLAIN_LINE = '\n继续输入';
 
 /**
  * `MOB-CHAT-COMPOSER-MARKDOWN-01`: the composer renders Markdown as it is typed, as Desktop's composer does. Bold,
@@ -46,17 +43,10 @@ export async function executeMobileChatComposerMarkdownScenario(
             MARKDOWN_DRAFT,
             MARKDOWN_DRAFT,
         );
-        await capture(environment, 'composer-markdown-quote-line', artifacts);
-        await insertMobileInputUnicode(
-            serial,
-            'agent-chat-composer-input',
-            PLAIN_LINE,
-            MARKDOWN_DRAFT + PLAIN_LINE,
-        );
         // The field's text is the draft as typed: the rendering styles it but never rewrites it.
         const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
             kind: 'equals',
-            value: MARKDOWN_DRAFT + PLAIN_LINE,
+            value: MARKDOWN_DRAFT,
         });
         if (!draft.exists || draft.textMatches !== true)
             throw new Error('The composer no longer holds the Markdown draft exactly as typed');
