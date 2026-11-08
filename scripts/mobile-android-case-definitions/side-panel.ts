@@ -18,6 +18,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-content-switch-menu',
     },
+    'MOB-SIDE-PANEL-PHONE-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'session-side-panel-close',
+    },
     'MOB-SIDE-PANEL-TABLET-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
