@@ -432,7 +432,8 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
     state.usage = undefined;
     if (await didRunGoalCommand(scenarioIo, startedAt, text)) return;
     if (text.trimStart().startsWith('/compact')) {
-        system('status', { status: 'compacting' });
+        // `quiet` never reports `compacting`, as Claude Code does when it declines the command outright.
+        if (!text.includes('quiet')) system('status', { status: 'compacting' });
         if (text.includes('crash')) exitProcess(1);
         await runCompactCommand(scenarioIo, startedAt, text, state.isLargeContextTurn);
         // The summary replaced the large context, so later context reports start small again.

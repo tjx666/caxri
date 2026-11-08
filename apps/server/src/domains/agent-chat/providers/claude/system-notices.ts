@@ -58,16 +58,25 @@ function didClearCompacting(host: NoticeHost): boolean {
 }
 
 /**
+ * Marks the Chat compacting from now, unless it already is: a compaction keeps the start it was first marked with.
+ * Caxri marks it as soon as it sends `/compact`, since Claude Code may report `status: 'compacting'` only a minute or
+ * more later, and until then the Chat looked like an ordinary turn with no sign the compaction was on its way.
+ */
+export function startClaudeCompacting(host: NoticeHost): void {
+    if (host.read().operation === 'compacting') return;
+    host.apply([
+        { op: 'state', state: { operation: 'compacting', operationStartedAt: Date.now() } },
+    ]);
+    host.lifecycle({ phase: 'compactionStarted' });
+}
+
+/**
  * `system/status`: `compacting` while Claude Code summarizes the conversation, then back to `null` (or `requesting`)
  * with the compaction's result. A failed compaction leaves an error notice, since no `compact_boundary` follows it.
  */
 export function onClaudeStatus(host: NoticeHost, message: Json): void {
     if (message.status === 'compacting') {
-        if (host.read().operation === 'compacting') return;
-        host.apply([
-            { op: 'state', state: { operation: 'compacting', operationStartedAt: Date.now() } },
-        ]);
-        host.lifecycle({ phase: 'compactionStarted' });
+        startClaudeCompacting(host);
         return;
     }
     const wasCompacting = didClearCompacting(host);

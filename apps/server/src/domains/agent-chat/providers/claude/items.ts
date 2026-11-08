@@ -554,6 +554,11 @@ export function finishedClaudeTurn(
             ),
             requests: [],
             ...(snapshot.activeTurnId === id && { activeTurnId: null }),
+            /**
+             * A `/compact` marks the Chat compacting as soon as it is sent (`startClaudeCompacting`); a turn that ends
+             * without the compaction's own end (Claude Code declined it) must not leave the Chat compacting.
+             */
+            ...(snapshot.operation === 'compacting' && { operation: null }),
         },
     });
     return { ...(durationMs !== undefined && { durationMs }), operations };
