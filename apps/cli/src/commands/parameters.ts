@@ -93,10 +93,40 @@ export function logQuery(tokens: readonly string[]): Record<string, unknown> {
         const value = tokens[index + 1];
         if (!value || value.startsWith('--'))
             throw new CaxriError('VALIDATION', `${token} requires a value`);
-        result[key] = key === 'limit' ? Number(value) : value;
+        result[key] =
+            key === 'limit' ? Number(value) : key === 'since' ? normalizeSince(value) : value;
         index += 1;
     }
-    return logQueryParametersSchema.parse(result);
+    const parsed = logQueryParametersSchema.safeParse(result);
+    if (parsed.success) return parsed.data;
+    const detail = parsed.error.issues
+        .slice(0, 5)
+        .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+        .join('; ');
+    throw new CaxriError('VALIDATION', `Invalid logs query options: ${detail}`);
+}
+
+const RELATIVE_DURATION_UNIT_MS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
+
+/**
+ * Normalizes `--since` to the UTC `Z` form the protocol requires. Accepts a relative duration (`90m`, `72h`, `7d`,
+ * counted back from now) or any ISO-8601 timestamp, including one with a numeric offset such as `+08:00`.
+ */
+export function normalizeSince(value: string, now: number = Date.now()): string {
+    const relative = /^(\d+)([smhd])$/.exec(value);
+    if (relative) {
+        const at = now - Number(relative[1]) * RELATIVE_DURATION_UNIT_MS[relative[2] as 's'];
+        if (Number.isFinite(at)) return new Date(at).toISOString();
+    } else if (
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+    ) {
+        const at = Date.parse(value);
+        if (Number.isFinite(at)) return new Date(at).toISOString();
+    }
+    throw new CaxriError(
+        'VALIDATION',
+        '--since must be an ISO-8601 timestamp with a Z or numeric offset (for example 2026-11-05T00:00:00+08:00) or a relative duration such as 90m, 72h, or 7d',
+    );
 }
 
 export function eventRecovery(tokens: readonly string[]): Record<string, number> {

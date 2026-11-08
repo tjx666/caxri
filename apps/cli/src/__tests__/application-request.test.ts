@@ -116,6 +116,35 @@ describe('caxri request', () => {
         expect(server.request).not.toHaveBeenCalled();
     });
 
+    it('reports FORBIDDEN naming the capability for a dedicated command the caller is not offered', async () => {
+        const server = client({}, { capabilities: ['projects.read'], commands: [] });
+        const result = await run(['logs', 'query', '--limit', '1', '--json'], server);
+
+        expect(result.code).toBe(5);
+        const error = JSON.parse(result.stderr) as { code: string; details?: unknown };
+        expect(error.code).toBe('FORBIDDEN');
+        expect(JSON.stringify(error)).toContain('diagnostics.read');
+        expect(server.request).not.toHaveBeenCalled();
+    });
+
+    it('rejects an offset or relative --since without an internal error', async () => {
+        const server = client(
+            { records: [] },
+            { capabilities: ['diagnostics.read'], commands: ['logs.query'] },
+        );
+        const offset = await run(
+            ['logs', 'query', '--since', '2026-11-05T00:00:00+08:00', '--json'],
+            server,
+        );
+        expect(offset.code).toBe(0);
+        expect(server.request).toHaveBeenCalledWith(
+            'logs.query',
+            expect.objectContaining({ since: '2026-11-04T16:00:00.000Z' }),
+        );
+        const bad = await run(['logs', 'query', '--since', 'yesterday', '--json'], server);
+        expect((JSON.parse(bad.stderr) as { code: string }).code).toBe('VALIDATION');
+    });
+
     it('refuses an owner-only method for an Agent Endpoint credential', async () => {
         const server = client({});
         const result = await run(

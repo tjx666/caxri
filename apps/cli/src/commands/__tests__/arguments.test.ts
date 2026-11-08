@@ -2,6 +2,7 @@ import { CaxriError, MAX_DELEGATION_WAIT_TIMEOUT_MS, methods } from '@caxri/prot
 import { describe, expect, it } from 'vitest';
 
 import { assertCommandTimeout, commandTimeoutCeiling, parseCliArguments } from '../arguments';
+import { normalizeSince } from '../parameters';
 
 describe('parseCliArguments timeout bounds', () => {
     it('defers the --timeout range to the selected command and caps the derived connect deadline', () => {
@@ -205,5 +206,20 @@ describe('parseCliArguments -- separator', () => {
         expect(parsed.json).toBe(true);
         expect(parsed.help).toBe(false);
         expect(parsed.tokens).toEqual(['secret', 'exec', 'A', '--', 'cmd', '--json', '-h']);
+    });
+});
+
+describe('normalizeSince', () => {
+    it('converts offsets and relative durations to UTC', () => {
+        expect(normalizeSince('2026-11-05T00:00:00+08:00')).toBe('2026-11-04T16:00:00.000Z');
+        expect(normalizeSince('2026-11-05T00:00:00Z')).toBe('2026-11-05T00:00:00.000Z');
+        expect(normalizeSince('72h', Date.parse('2026-11-08T00:00:00Z'))).toBe(
+            '2026-11-05T00:00:00.000Z',
+        );
+    });
+
+    it('rejects malformed input with VALIDATION', () => {
+        for (const bad of ['yesterday', '2026-11-05', '72x', '2026-13-45T00:00:00Z'])
+            expect(() => normalizeSince(bad)).toThrow(CaxriError);
     });
 });
