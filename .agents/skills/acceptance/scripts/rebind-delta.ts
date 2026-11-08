@@ -58,3 +58,19 @@ export async function changedPathsBetween(
     }
     return stdout.split('\0').filter(Boolean);
 }
+
+/**
+ * The replacement head as its full object id plus the delta from the old one. The id is stored in full because the
+ * mobile runner compares the frozen commit with `git rev-parse HEAD`: a short SHA rebinds cleanly and then fails every
+ * later case run with a commit mismatch.
+ */
+export async function resolveRebindHead(
+    fromCommit: string,
+    commit: string,
+    gitRoot: string = PROJECT_ROOT,
+): Promise<{ changedPaths: string[]; commit: string }> {
+    return {
+        changedPaths: await changedPathsBetween(fromCommit, commit, gitRoot),
+        commit: await resolveCommit(commit, gitRoot),
+    };
+}
