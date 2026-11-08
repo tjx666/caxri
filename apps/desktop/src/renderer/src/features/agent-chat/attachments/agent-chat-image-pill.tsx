@@ -18,9 +18,13 @@ import { isAgentChatPlayableVideo, isPathInsideProject } from './agent-chat-path
 
 /**
  * The inline pills a sent message draws where the composer drew them while it was written.
+ *
+ * `indent-0` matters inside a list line: the line hangs its marker with a negative `text-indent`
+ * (`AgentChatUserMessageBody`), which the pill inherits, and its label (an anonymous flex item) would shift left over
+ * the icon by that many characters.
  */
 const PILL_CLASS_NAME =
-    'mx-px inline-flex h-4.5 items-center gap-1 rounded-sm bg-border/45 pr-1.5 pl-0.5 align-text-bottom text-[12px] leading-4.5 whitespace-nowrap';
+    'mx-px inline-flex h-4.5 items-center gap-1 rounded-sm bg-border/45 pr-1.5 pl-0.5 indent-0 align-text-bottom text-[12px] leading-4.5 whitespace-nowrap';
 
 /**
  * An image's `[Image #N]` placeholder in a sent message, drawn as the pill the composer showed while it was written:
