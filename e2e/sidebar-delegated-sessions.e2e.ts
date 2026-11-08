@@ -205,7 +205,7 @@ test('archiving a nested Session or its host returns what remains to its own Pro
         ).toBeUndefined();
 
         // Archiving the host leaves no listed ancestor: the nested Sessions become ordinary rows in their own Project,
-        // while the consult stays hidden because the archived host already read its answer.
+        // while the consult stays hidden: archiving its creator never gives a consult a row of its own.
         await pageRequest(page, 'session.archive', { sessionId: fixture.host });
         await expect(group).toHaveCount(0);
         const workerSessions = projectSessions(page, WORKER_PROJECT);
