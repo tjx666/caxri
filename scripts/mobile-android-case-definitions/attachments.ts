@@ -31,6 +31,14 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'composer-attachment-preview',
     },
+    'MOB-COMPOSER-VIDEO-COVER-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'composer-video-cover',
+    },
     'MOB-CHAT-VIDEO-02': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',
