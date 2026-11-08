@@ -22,6 +22,7 @@ import {
 } from './mobile-acceptance-ime';
 import { prepareMobileAppLocale } from './mobile-acceptance-locale';
 import { prepareMobileLiveMotion, withMobileReducedMotion } from './mobile-acceptance-motion';
+import { enableAndroidNetwork } from './mobile-acceptance-network';
 import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
     assertMobileAcceptanceCheckoutFrozen,
@@ -289,6 +290,7 @@ async function executeCase(
     try {
         assertAndroidResponsive(serial, adbRead);
         collapseAndroidStatusBar(adbRun);
+        enableAndroidNetwork(adbRun);
         adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile']);
         // The native-init guard reads only warnings logged after this point.
         adbRun(['logcat', '-c']);
@@ -393,6 +395,11 @@ async function executeCase(
             } catch (error) {
                 failure ??= error;
             }
+        }
+        try {
+            enableAndroidNetwork((arguments_) => adbRun(arguments_, overallDeadlineMs));
+        } catch (error) {
+            failure ??= error;
         }
         try {
             adbRun(['shell', 'pm', 'clear', 'com.caxri.mobile'], overallDeadlineMs);

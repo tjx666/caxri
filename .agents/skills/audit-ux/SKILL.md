@@ -252,6 +252,9 @@ The audit itself is read-only. When the user asks for implementation:
   `bun run check <all changed files> --lint --test --type`, run `bun run knip` when renderer or
   shared files changed, and only then commit: one cohesive commit per package, excluding
   pre-existing unrelated worktree changes.
+- Run the mobile emulator verification only after the mobile package is committed, from the same
+  worktree's clean HEAD: the Android Acceptance runner refuses an uncommitted tree, and copying the
+  changes into a throwaway clone verifies a commit that never ships.
 - Defer only new infrastructure or a large feature (e.g. toast action buttons for undo) as scoped
   follow-ups; do not improvise them mid-batch. Routine product choices were already decided in §4.
 - A render fix is verified by re-sampling the same scenario at the same instance state and
