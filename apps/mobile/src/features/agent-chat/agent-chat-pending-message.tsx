@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { AgentChatPendingWait } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
@@ -10,6 +10,7 @@ import { ConversationHandoffCard } from '../conversation/conversation-handoff-ca
 import { conversationStyles } from '../conversation/conversation-styles';
 import { conversationUserText } from '../conversation/conversation-user-text';
 import { ConversationUserWords } from '../conversation/conversation-user-words';
+import { AgentChatFlightTile } from './agent-chat-image-flights';
 import { AgentChatPathChips } from './agent-chat-path-chips';
 import { AgentChatSendingClock } from './agent-chat-sending-clock';
 
@@ -69,14 +70,13 @@ export const AgentChatPendingMessage = ({
                                 ]}
                             >
                                 {imageUris.map((uri, index) => (
-                                    <Image
+                                    <AgentChatFlightTile
                                         accessibilityLabel={t('chat.attachment', {
                                             number: index + 1,
                                         })}
                                         key={uri}
-                                        resizeMode="cover"
-                                        source={{ uri }}
                                         style={[styles.thumbnail, { borderColor: theme.border }]}
+                                        uri={uri}
                                     />
                                 ))}
                             </View>

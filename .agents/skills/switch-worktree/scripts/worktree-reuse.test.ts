@@ -98,6 +98,23 @@ describe('switch-worktree reuse', () => {
         await expect(git(root, 'rev-parse', '--verify', 'refs/heads/fix/second')).rejects.toThrow();
     });
 
+    it('reuses a squash-merged worktree after main edits the same lines again', async () => {
+        const root = await createFixture();
+        const path = await createMergedWorktree(root, 'feat/first-delivery');
+        await writeFile(join(root, 'feature.txt'), 'feature, revised\n', 'utf8');
+        await git(root, 'commit', '-am', 'revise feature');
+        await git(root, 'push', 'origin', 'main');
+
+        await reuseWorktree({
+            branch: 'fix/second-delivery',
+            cwd: root,
+            install: fakeInstall,
+            target: path,
+        });
+        expect(await git(path, 'branch', '--show-current')).toBe('fix/second-delivery');
+        expect(await readFile(join(path, 'feature.txt'), 'utf8')).toBe('feature, revised\n');
+    });
+
     it('refuses a branch that was pushed but never merged into origin/main', async () => {
         const root = await createFixture();
         const { path } = await addPlannedWorktree({

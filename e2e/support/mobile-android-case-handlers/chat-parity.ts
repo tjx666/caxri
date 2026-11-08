@@ -1,4 +1,6 @@
 import { executeMobileChatBareLinkScenario } from '../mobile-agent-chat-bare-link-scenario';
+import { executeMobileChatComposerImagesScenario } from '../mobile-agent-chat-composer-images-scenario';
+import { executeMobileChatComposerMarkdownScenario } from '../mobile-agent-chat-composer-markdown-scenario';
 import {
     executeMobileChatFileChipScenario,
     executeMobileChatFileLinkScenario,
@@ -18,6 +20,8 @@ export const handlers = {
     'MOB-CHAT-USER-LINK-01': executeMobileChatUserLinkScenario,
     'MOB-CHAT-USER-MARKDOWN-01': executeMobileChatUserMarkdownScenario,
     'MOB-CHAT-QUESTION-MARKDOWN-01': executeMobileChatQuestionMarkdownScenario,
+    'MOB-CHAT-COMPOSER-MARKDOWN-01': executeMobileChatComposerMarkdownScenario,
+    'MOB-CHAT-COMPOSER-IMAGES-01': executeMobileChatComposerImagesScenario,
     'MOB-CHAT-SLASH-01': executeMobileChatSlashScenario,
     'MOB-CHAT-MENTION-FILE-01': executeMobileChatMentionFileScenario,
     'MOB-CHAT-MENTION-SESSION-01': executeMobileChatMentionSessionScenario,

@@ -24,6 +24,11 @@
             "types": "./src/file-reference.ts",
             "import": "./dist/file-reference.js"
         },
+        "./live-preview-marks": {
+            "bun": "./src/live-preview-marks.ts",
+            "types": "./src/live-preview-marks.ts",
+            "import": "./dist/live-preview-marks.js"
+        },
         "./prose-web-links": {
             "bun": "./src/prose-web-links.ts",
             "types": "./src/prose-web-links.ts",

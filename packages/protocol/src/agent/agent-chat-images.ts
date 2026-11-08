@@ -33,7 +33,9 @@ export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSche
  * `[Image #N]`, numbered by the image's position in the message, and send the images beside the text; a Chat message
  * uses the same placeholder so the Agent reads each image where the user put it.
  */
-const IMAGE_TOKEN = /\[Image #(?<number>[1-9]\d{0,3})\]/gu;
+// A positional group, not a named one: on the mobile app's Hermes runtime a `matchAll` result has no `groups`, so every
+// number read as `NaN` there and an attached image lost its placeholder.
+const IMAGE_TOKEN = /\[Image #([1-9]\d{0,3})\]/gu;
 
 /**
  * The placeholder for the message's `number`th image, counting from 1.
@@ -50,7 +52,7 @@ export function agentChatImageTokenRanges(
 ): Array<{ number: number; from: number; to: number }> {
     // `Array.from` rather than iterator helpers: the mobile app's TypeScript lib does not declare them.
     return Array.from(text.matchAll(IMAGE_TOKEN), (match) => ({
-        number: Number(match.groups?.number),
+        number: Number(match[1]),
         from: match.index,
         to: match.index + match[0].length,
     }));
@@ -83,4 +85,37 @@ export function agentChatTextWithOffsetImages(
     return agentChatTextWithRenumberedImages(text, (number) =>
         number <= imageCount ? number + offset : undefined,
     );
+}
+
+/**
+ * `draft` without the placeholders of `tokens`, each taking one space beside it along so no double space is left.
+ */
+export function draftWithoutImagePlaceholders(draft: string, tokens: ReadonlySet<number>): string {
+    let next = draft;
+    // `reverse` on a fresh array rather than `toReversed`: the mobile app's Hermes runtime lacks ES2023 array methods.
+    // eslint-disable-next-line unicorn/no-array-reverse -- see above.
+    for (const { from, number, to } of agentChatImageTokenRanges(draft).reverse()) {
+        if (!tokens.has(number)) continue;
+        const end = next[to] === ' ' ? to + 1 : to;
+        const start = end === to && next[from - 1] === ' ' ? from - 1 : from;
+        next = next.slice(0, start) + next.slice(end);
+    }
+    return next;
+}
+
+/**
+ * The text a message is sent with: each placeholder of an attached image renumbered to that image's place among the
+ * images sent, as the terminal Agents count them. `images` gives each sent image's composer number in send order; a
+ * placeholder no sent image owns stays as typed.
+ */
+export function agentChatTextWithSentImageNumbers(
+    text: string,
+    images: ReadonlyArray<{ token?: number | undefined }>,
+): string {
+    const numbers = new Map<number, number>();
+    for (const [index, { token }] of images.entries())
+        if (token !== undefined) numbers.set(token, index + 1);
+    return numbers.size === 0
+        ? text
+        : agentChatTextWithRenumberedImages(text, (number) => numbers.get(number));
 }

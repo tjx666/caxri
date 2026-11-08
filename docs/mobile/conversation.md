@@ -82,6 +82,19 @@ without Chat image input, photos from the library and camera go as files and the
 is hidden. Unfinished uploads expire after two idle minutes and uploaded files after one hour; the
 composer marks a file older than 55 minutes as expired, and Retry uploads the phone's copy again.
 
+**Chat draft.** The Agent Chat composer renders its draft the way Desktop's composer does while it is
+typed: the native field holds the exact text and draws it as styled runs from the same live-preview
+marks (`@caxri/markdown/live-preview-marks`), so bold, inline code, headings, and quotes take their
+look and their markers fade away from the caret, while the message sent is what was typed. An image
+attached in a Chat is written into the draft as `[Image #N]` where the caret was and drawn as a
+pill; deleting the pill removes the image, removing the image deletes the pill, and Backspace takes
+a pill out whole. The numbers stay fixed while the draft is written and are renumbered by send
+order when the message goes, as the terminal Agents count them (`agentChatTextWithSentImageNumbers`).
+On Send each thumbnail, up to four, flies into its tile in the pending message (Desktop's 280 ms
+`--motion-image-send` on the emphasized curve), and the capsule eases its height changes; both
+follow the system's reduce-motion setting. A plain-text bullet stays `-` and a quote has no side
+bar, since a native text field draws only text runs.
+
 **Session usage.** The expanded Agent Chat composer's settings row ends with Desktop's context ring: a quiet
 neutral ring until the context reaches the share where compacting is suggested (85% of the window
 the provider compacts at), then the warning tone with the percentage. Before the provider reports a

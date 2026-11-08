@@ -1,12 +1,13 @@
 import type { RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { draftWithoutImagePlaceholders } from '@caxri/protocol';
+
 import { useTranslation } from '../../../i18n';
 import {
     agentChatComposerImagePills,
     agentChatImagePlaceholderChanges,
     agentChatImagePlaceholderRemoval,
-    draftWithoutImagePlaceholders,
     nextAgentChatImageToken,
 } from '../attachments/agent-chat-image-placeholders';
 import type { AgentChatComposerInput } from '../composer/agent-chat-composer-view';

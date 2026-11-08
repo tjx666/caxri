@@ -4,6 +4,7 @@ import type { AgentChatCommand, AgentChatMessageInput } from '@caxri/protocol';
 import {
     agentChatSessionHandoffMessage,
     agentChatTextWithPathReferences,
+    agentChatTextWithSentImageNumbers,
     agentProviderCatalog,
     parseAgentChatCommand,
 } from '@caxri/protocol';
@@ -16,7 +17,6 @@ import {
     didRunAgentChatCommand,
     didSendAgentChatMessage,
 } from '../agent-chat-commands';
-import { agentChatTextWithSentImageNumbers } from '../attachments/agent-chat-image-placeholders';
 import { retainAgentChatSentImageOriginals } from '../attachments/agent-chat-sent-image-originals';
 import { sendWithAgentChatImageFlight } from '../composer/send/agent-chat-sent-image-flight';
 import type { AgentChatAttachment } from '../composer-input/agent-chat-drafts';

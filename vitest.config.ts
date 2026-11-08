@@ -120,6 +120,10 @@ export const workspaceAliases = {
         import.meta.dirname,
         'packages/markdown/src/file-reference.ts',
     ),
+    '@caxri/markdown/live-preview-marks': resolve(
+        import.meta.dirname,
+        'packages/markdown/src/live-preview-marks.ts',
+    ),
     '@caxri/markdown/prose-web-links': resolve(
         import.meta.dirname,
         'packages/markdown/src/prose-web-links.ts',

@@ -9,6 +9,7 @@ import { Spinner } from '../../../components/spinner';
 import { useTranslation } from '../../../i18n';
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
+import { registerImageFlightSource } from '../../agent-chat/agent-chat-image-flight-store';
 import { LocalImageViewer } from '../../agent-chat/agent-chat-image-viewer';
 import { insertComposerSuggestion } from '../composer-suggestions';
 import { fileAttachmentPreview } from '../file-attachment-store';
@@ -171,7 +172,16 @@ export const SessionComposerAttachments = ({
                                     style={styles.image}
                                     testID={`session-image-open-${index}`}
                                 >
-                                    <Image source={{ uri: attachment.uri }} style={styles.image} />
+                                    <Image
+                                        ref={(view) => {
+                                            // Where a sent image's flight into the Chat's pending message starts.
+                                            registerImageFlightSource(attachment.uri, view);
+                                            return () =>
+                                                registerImageFlightSource(attachment.uri, null);
+                                        }}
+                                        source={{ uri: attachment.uri }}
+                                        style={styles.image}
+                                    />
                                 </Pressable>
                                 {attachment.state === 'preparing' ||
                                 attachment.state === 'uploading' ? (

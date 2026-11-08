@@ -128,11 +128,13 @@ export const packageBoundaries: readonly PackageBoundary[] = [
          * `markdown-it` linkifier the phone already bundles for replies. `./blocks` lets it copy a quote as Desktop
          * does (`blocksPlainText`) without the HTML renderer and streaming parser the package entry also carries.
          * `./user-message-blocks` lets it lay a sent message out as Desktop's bubble does, with only the Lezer parser.
+         * `./live-preview-marks` lets its composer style a draft as Desktop's editor does, with the same parser.
          */
         publicSubpaths: [
             '.',
             './blocks',
             './file-reference',
+            './live-preview-marks',
             './prose-web-links',
             './user-message-blocks',
         ],
