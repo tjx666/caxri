@@ -432,11 +432,12 @@ export const openMobileAccessController = (options: {
                         );
                     });
                 }
+                case 'mobile.computer.routes':
                 case 'mobile.computer.rename': {
                     currentPairedPrincipal(context.principal, request.method);
-                    return {
-                        hostDisplayName: await computerName.rename(request.params.name),
-                    };
+                    if (request.method === 'mobile.computer.routes')
+                        return activeGateway.currentRoutes();
+                    return { hostDisplayName: await computerName.rename(request.params.name) };
                 }
                 case 'mobile.project.browse':
                 case 'mobile.project.add':

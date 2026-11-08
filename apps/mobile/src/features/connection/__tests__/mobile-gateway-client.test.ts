@@ -1,6 +1,7 @@
 import { mobileClientCloseReasons, nobleMobileFrameCipher } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
+import { createMobileDirectEndpoints } from '../direct-endpoint';
 import type { MobileGatewayRouteKind } from '../gateway-routes';
 import { SHORT_DIRECT_ROUTE_GRACE_MS } from '../gateway-routes';
 import type { MobileGatewayRuntime, MobileReconnectError } from '../mobile-gateway-client';
@@ -465,6 +466,37 @@ describe('mobile gateway client', () => {
         socket().sendReady();
         await expect(reply).resolves.toEqual(expect.objectContaining({ view: 'paired-device' }));
         expect(saved).toEqual(['direct']);
+        connection.close('unmounted');
+    });
+
+    it('dials the address the computer last reported and asks for its current one', async () => {
+        const { runtime, socket } = reconnectThrough();
+        const urls: string[] = [];
+        const directEndpoints = createMobileDirectEndpoints({
+            getItemAsync: () => Promise.resolve(null),
+            setItemAsync: () => Promise.resolve(),
+        });
+        directEndpoints.save(mobileCredential.serverId, {
+            addresses: ['192.168.5.5'],
+            port: mobileCredential.port,
+        });
+        const { store } = memoryStore();
+        const connection = await reconnectMobileGateway(
+            mobileCredential,
+            {
+                ...runtime,
+                directEndpoints,
+                openWebSocket: (url) => {
+                    urls.push(url);
+                    return runtime.openWebSocket(url);
+                },
+            },
+            store,
+        );
+        await flushTasks();
+
+        expect(urls).toEqual([`ws://192.168.5.5:${mobileCredential.port}/mobile`]);
+        expect(socket().received).toEqual(['confirm', 'request']);
         connection.close('unmounted');
     });
 

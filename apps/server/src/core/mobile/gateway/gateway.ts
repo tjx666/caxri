@@ -1,6 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { IncomingMessage, Server } from 'node:http';
-import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { Socket } from 'node:net';
 
 import {
@@ -20,19 +19,13 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
 import type WebSocket from 'ws';
-import { WebSocketServer } from 'ws';
+import type { WebSocketServer } from 'ws';
 
 import type { MobileDeviceSummary } from '../device-registry';
 import { MobileRelayRoute } from '../relay';
 import type { MobileUpdateSource } from '../update-bundle';
-import { selectMobileGatewayAddresses } from './address-selection';
-import {
-    admitMobileTcpConnection,
-    hasMobileSocketCapacity,
-    isAllowedMobilePeer,
-    MAXIMUM_MOBILE_CONNECTIONS,
-    mobileUpgradeFailure,
-} from './admission';
+import { hasMobileSocketCapacity } from './admission';
+import { MobileAdvertisedAddresses } from './advertised-addresses';
 import { hasMobileAttentionRecipient } from './attention-recipient';
 import type { AuthenticateConnectionDependencies } from './authenticate-connection';
 import { authenticateConnection, connectionOptions } from './authenticate-connection';
@@ -48,6 +41,7 @@ import type { MobileGatewayOptions } from './gateway-options';
 import type { GatewaySession } from './gateway-session';
 import { beginMobileHandshake, versionMismatchFrame } from './handshake';
 import { handshakeTimingFields } from './handshake-timing';
+import { createMobileGatewayListener } from './listener';
 import { MobilePairingLedger } from './pairing-ledger';
 import { adoptCurrentPairedPrincipal, currentPrincipalAdapter } from './principal-grant';
 import { sendRevokedAndClose } from './revoked-close';
@@ -106,7 +100,7 @@ export class MobileGateway {
      * Pairs actions pushed to a connected phone (`caxri device`) with the phone's answer.
      */
     readonly deviceActions: DeviceActionBroker;
-    #addresses?: string[];
+    readonly #addresses: MobileAdvertisedAddresses;
     #handshakes = 0;
     #port?: number;
     #server?: Server;
@@ -115,6 +109,8 @@ export class MobileGateway {
     constructor(options: MobileGatewayOptions) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
+        const { selectAddress } = options;
+        this.#addresses = new MobileAdvertisedAddresses(selectAddress && (() => [selectAddress()]));
         this.#handshakeTimeoutMs = options.handshakeTimeoutMs ?? HANDSHAKE_TIMEOUT_MS;
         this.#diagnostics = new MobileGatewayDiagnostics(options.logger, this.#now);
         this.#sourceAttempts = new SourceAttemptLimiter({ now: this.#now });
@@ -169,7 +165,7 @@ export class MobileGateway {
         const relay = this.#relay.status();
         return {
             enabled: Boolean(this.#server?.listening),
-            ...(this.#addresses?.[0] && { address: this.#addresses[0] }),
+            ...(this.#addresses.current?.[0] && { address: this.#addresses.current[0] }),
             ...(this.#port && { port: this.#port }),
             pairedDeviceCount: this.#options.registry.list().filter((device) => !device.revokedAt)
                 .length,
@@ -251,65 +247,23 @@ export class MobileGateway {
 
     async enable(): Promise<MobileAccessStatus> {
         if (this.#server?.listening) return this.status();
-        const addresses = this.#options.selectAddress
-            ? [this.#options.selectAddress()]
-            : selectMobileGatewayAddresses();
-        const sourceAddress =
-            this.#options.sourceAddress ?? ((socket: Socket) => socket.remoteAddress);
-        const webSocketServer = new WebSocketServer({
-            maxPayload: MOBILE_GATEWAY_MAX_WIRE_BYTES,
-            noServer: true,
-            perMessageDeflate: false,
+        const addresses = this.#addresses.read();
+        const { server, webSocketServer } = createMobileGatewayListener({
+            sourceAddress: this.#options.sourceAddress ?? ((socket) => socket.remoteAddress),
+            timeoutMs: this.#handshakeTimeoutMs,
+            handleRequest: (request, response) => this.#updateDownloads.handle(request, response),
+            canAdmitSource: (remoteAddress) => this.#sourceAttempts.admit(remoteAddress),
+            onRejected: (reason) => this.#diagnostics.failure(reason),
+            tcpSockets: this.#tcpSockets,
+            load: () => ({ connections: this.#sockets.size, handshakes: this.#handshakes }),
+            onConnection: (socket, localAddress) => this.#accept(socket, localAddress),
         });
-        const server = createServer({ maxHeaderSize: 8 * 1_024 }, (request, response) => {
-            if (!isAllowedMobilePeer(sourceAddress(request.socket), request.socket.localAddress)) {
-                request.socket.destroy();
-                return;
-            }
-            if (this.#updateDownloads.handle(request, response)) return;
-            response.writeHead(404, { Connection: 'close' }).end();
-        });
-        server.headersTimeout = this.#handshakeTimeoutMs;
-        server.requestTimeout = this.#handshakeTimeoutMs;
-        server.keepAliveTimeout = 1_000;
-        server.maxConnections = MAXIMUM_MOBILE_CONNECTIONS;
-        server.on('drop', () => this.#diagnostics.failure('admissionCapacity'));
-        server.on('connection', (socket) => {
-            const remoteAddress = sourceAddress(socket);
-            admitMobileTcpConnection(socket, {
-                canAdmitSource: () => this.#sourceAttempts.admit(remoteAddress ?? 'unknown'),
-                onRejected: (reason) => this.#diagnostics.failure(reason),
-                remoteAddress,
-                sockets: this.#tcpSockets,
-                timeoutMs: this.#handshakeTimeoutMs,
-            });
-        });
-        server.on('upgrade', (request, socket, head) => {
-            const rejection = mobileUpgradeFailure(
-                request,
-                sourceAddress(request.socket),
-                this.#sockets.size,
-                this.#handshakes,
-            );
-            if (rejection) {
-                this.#diagnostics.failure(rejection);
-                socket.destroy();
-                return;
-            }
-            (socket as Socket).setTimeout(0);
-            webSocketServer.handleUpgrade(request, socket, head, (connection) => {
-                webSocketServer.emit('connection', connection, request);
-            });
-        });
-        webSocketServer.on('connection', (socket, request: IncomingMessage) =>
-            this.#accept(socket, request.socket.localAddress),
-        );
         const port = await bindMobileGatewayServer({
             registry: this.#options.registry,
             server,
             webSocketServer,
         });
-        this.#addresses = addresses;
+        this.#addresses.adopt(addresses);
         this.#port = port;
         this.#server = server;
         this.#webSocketServer = webSocketServer;
@@ -318,9 +272,16 @@ export class MobileGateway {
         return this.status();
     }
 
-    createPairing(projectIds: string[], isAllProjects = false) {
-        if (!this.#server?.listening || !this.#addresses || !this.#port)
+    currentRoutes(): { addresses: string[]; port: number } {
+        if (!this.#server?.listening || !this.#port)
             throw new CaxriError('UNAVAILABLE', 'Mobile access is disabled');
+        return { addresses: this.#addresses.refresh(), port: this.#port };
+    }
+
+    createPairing(projectIds: string[], isAllProjects = false) {
+        if (!this.#server?.listening || !this.#addresses.current || !this.#port)
+            throw new CaxriError('UNAVAILABLE', 'Mobile access is disabled');
+        const addresses = this.#addresses.refresh();
         const pairing = this.#pairings.create({ allProjects: isAllProjects, projectIds });
         this.#diagnostics.pairingOutcome('started');
         this.#relay.syncGrants();
@@ -329,7 +290,7 @@ export class MobileGateway {
             expiresAt: pairing.expiresAt,
             pairingLink: serializeMobilePairingLink({
                 version: MOBILE_TRANSPORT_VERSION,
-                addresses: this.#addresses,
+                addresses,
                 port: this.#port,
                 serverId: this.#options.protocolIdentity.serverId,
                 pairingId: pairing.pairingId,
@@ -397,7 +358,7 @@ export class MobileGateway {
         this.#notifyConnectionCount();
         const server = this.#server;
         this.#server = undefined;
-        this.#addresses = undefined;
+        this.#addresses.clear();
         this.#port = undefined;
         if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
         this.#webSocketServer?.close();

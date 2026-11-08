@@ -22,6 +22,11 @@ const mobileEveryRoleMethods = [
      */
     'mobile.diagnostics.reportExit',
     /**
+     * The computer's current private addresses, which every pairing link already carried; a phone needs them to reach
+     * the computer directly after it changed networks.
+     */
+    'mobile.computer.routes',
+    /**
      * Answering an action the computer pushed to this phone reports what the phone itself did; it reads no Desktop
      * data.
      */
