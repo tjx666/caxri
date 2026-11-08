@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electron = vi.hoisted(() => ({
@@ -6,15 +8,17 @@ const electron = vi.hoisted(() => ({
     >(() => Promise.resolve([])),
     write: vi.fn<(items: unknown[]) => Promise<void>>(() => Promise.resolve()),
     writeText: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()),
+    createFromDataURL:
+        vi.fn<(dataUrl: string) => { isEmpty: () => boolean; toPNG: () => Buffer }>(),
 }));
 
 vi.mock('electron', () => ({
     clipboard: { read: electron.read, write: electron.write, writeText: electron.writeText },
     ClipboardItem: class {
-        constructor(readonly items: Record<string, string>) {}
+        constructor(readonly items: Record<string, unknown>) {}
     },
     dialog: {},
-    nativeImage: {},
+    nativeImage: { createFromDataURL: electron.createFromDataURL },
     shell: {},
 }));
 
@@ -61,6 +65,45 @@ describe('Main clipboard writes', () => {
             { items: { 'text/plain': '| a |', 'text/html': '<table></table>' } },
         ]);
         expect(electron.writeText).not.toHaveBeenCalled();
+    });
+});
+
+describe('Main clipboard images', () => {
+    it('writes a decoded image as PNG, whatever format it arrived in', async () => {
+        electron.createFromDataURL.mockReturnValueOnce({
+            isEmpty: () => false,
+            toPNG: () => Buffer.from([0x89, 0x50]),
+        });
+        await expect(
+            handle({
+                method: 'clipboard.writeImage',
+                params: { dataUrl: 'data:image/jpeg;base64,/9j/' },
+            }),
+        ).resolves.toBeNull();
+        expect(electron.createFromDataURL).toHaveBeenCalledExactlyOnceWith(
+            'data:image/jpeg;base64,/9j/',
+        );
+        const [[[item]]] = electron.write.mock.calls as unknown as [
+            [[{ items: { 'image/png': Blob } }]],
+        ];
+        expect(Object.keys(item.items)).toStrictEqual(['image/png']);
+        expect([...new Uint8Array(await item.items['image/png'].arrayBuffer())]).toStrictEqual([
+            0x89, 0x50,
+        ]);
+    });
+
+    it('refuses a payload that does not decode, leaving the clipboard alone', async () => {
+        electron.createFromDataURL.mockReturnValueOnce({
+            isEmpty: () => true,
+            toPNG: () => Buffer.alloc(0),
+        });
+        await expect(
+            handle({
+                method: 'clipboard.writeImage',
+                params: { dataUrl: 'data:image/png;base64,AA' },
+            }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(electron.write).not.toHaveBeenCalled();
     });
 });
 

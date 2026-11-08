@@ -98,6 +98,9 @@ export const agentChatTimeline = {
     'agentChat.message.previewImage': 'Preview {{label}}',
     'agentChat.message.previousImage': 'Previous image',
     'agentChat.message.nextImage': 'Next image',
+    'agentChat.message.copyImage': 'Copy Image',
+    'agentChat.message.imageCopied': 'Image copied',
+    'agentChat.message.imageCopyFailed': 'Unable to copy the image',
     'agentChat.message.imagePosition': '{{position}} / {{count}}',
     'agentChat.message.playVideo': 'Play {{name}}',
     'agentChat.message.videoUnplayable':
