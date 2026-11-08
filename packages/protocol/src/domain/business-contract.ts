@@ -143,6 +143,7 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
     'terminal.osc52ClipboardWrite': true,
     'files.maxFileBytes': true,
     'updates.skippedVersion': true,
+    'mobile.computerName': true,
 });
 const settingsPatchKeySchema = z.enum([
     'notifications.worktreeFallback',

@@ -38,7 +38,7 @@ export async function executeMobileComputerRenameScenario(
     const fixture = await createMobileAcceptanceFixture({ mode: 'empty', serial });
     const client = await connectToServer(join(fixture.testDirectory, 'user-data'), 5_000);
     const readComputerName = async (): Promise<string | null> => {
-        const settings: MethodResult<'settings.get'> = await client.request('settings.get');
+        const settings: MethodResult<'settings.inspect'> = await client.request('settings.inspect');
         // Read through a record so the case also runs on the pre-change build that lacks the key (its baseline round).
         const value = (settings.value as Record<string, unknown>)['mobile.computerName'];
         return typeof value === 'string' ? value : null;
