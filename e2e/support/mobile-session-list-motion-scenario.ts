@@ -9,6 +9,7 @@ import { capture, finish } from './mobile-agent-actions-scenarios';
 import { agentText, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     androidBounds,
+    coldStartMobileApp,
     copyMobileFramebufferRecording,
     mobileSemantics,
     setMobileNetworkAvailable,
@@ -42,10 +43,6 @@ const MIN_IN_BETWEEN_FRAMES = 3;
  * How long each filmed change is watched: the push from Desktop, the animation, and a settled tail.
  */
 const WATCH_MS = 3_000;
-/**
- * An outage long enough that the Reconnecting capsule must appear.
- */
-const OUTAGE_MS = 9_000;
 /**
  * Downscale factor for the analysed bands: half resolution keeps a fading 1px text stroke visible to the comparison.
  */
@@ -235,10 +232,15 @@ export async function executeMobileSessionListMotionScenario(
         await waitForCheck(serial, row);
 
         // 3. Offline over the list, the capsule carries the saved copy's age; opening the Session drops it.
+        // Only a list opened from the saved copy carries its age, so the app restarts without a network, as after the
+        // phone was away for a while.
         await setOnline(false);
-        await pause(OUTAGE_MS);
+        await coldStartMobileApp(serial);
         await labelled('saved list offline', () =>
-            waitForCheck(serial, 'session-list-saved', 30_000),
+            waitForCheck(serial, 'session-list-saved', 60_000),
+        );
+        await labelled('capsule offline', () =>
+            waitForCheck(serial, 'connection-stale-banner', 60_000),
         );
         await capture(environment, 'capsule-over-list', artifacts);
         const labelChange = await filmChange(
