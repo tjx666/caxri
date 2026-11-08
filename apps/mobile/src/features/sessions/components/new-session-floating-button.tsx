@@ -21,14 +21,19 @@ const styles = StyleSheet.create({
         width: SIZE,
     },
     /**
-     * Clips the press ripple to the circle; without it the bounded ripple fills the square layout box.
+     * Clips the press ripple to the circle. Android draws a bounded ripple as the Pressable's own background layer,
+     * which the Pressable's own `overflow` does not clip, so a parent has to.
      */
-    button: {
-        alignItems: 'center',
+    clip: {
         borderRadius: mobileRadius.pill,
         height: SIZE,
-        justifyContent: 'center',
         overflow: 'hidden',
+        width: SIZE,
+    },
+    button: {
+        alignItems: 'center',
+        height: SIZE,
+        justifyContent: 'center',
         width: SIZE,
     },
 });
@@ -51,17 +56,19 @@ export const NewSessionFloatingButton = ({
                 { backgroundColor: theme.primary, boxShadow: `0px 4px 12px ${theme.shadow}` },
             ]}
         >
-            <Pressable
-                accessibilityHint={t('sessions.home.newSessionHint')}
-                accessibilityLabel={t('sessions.new.title')}
-                accessibilityRole="button"
-                android_ripple={{ color: theme.primaryRipple }}
-                onPress={onPress}
-                style={[styles.button, { backgroundColor: theme.primary }]}
-                testID="new-session-button"
-            >
-                <Plus color={theme.primaryForeground} size={28} strokeWidth={2.25} />
-            </Pressable>
+            <View style={styles.clip}>
+                <Pressable
+                    accessibilityHint={t('sessions.home.newSessionHint')}
+                    accessibilityLabel={t('sessions.new.title')}
+                    accessibilityRole="button"
+                    android_ripple={{ color: theme.primaryRipple }}
+                    onPress={onPress}
+                    style={styles.button}
+                    testID="new-session-button"
+                >
+                    <Plus color={theme.primaryForeground} size={28} strokeWidth={2.25} />
+                </Pressable>
+            </View>
         </View>
     );
 };
