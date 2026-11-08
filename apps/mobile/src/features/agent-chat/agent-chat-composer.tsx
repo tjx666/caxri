@@ -19,6 +19,7 @@ import { SessionComposerAttachments } from '../sessions/components/session-compo
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { useFileAttachments } from '../sessions/hooks/use-file-attachments';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
+import { useIsAttachmentStripShown } from '../sessions/hooks/use-is-attachment-strip-shown';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
 import type { MobileAgentChatSessionCommand } from './agent-chat-app-commands';
 import { AgentChatCommandList } from './agent-chat-command-list';
@@ -315,6 +316,9 @@ export const AgentChatComposer = ({
         ...imageLimits,
         files: { add: files.add, imagesAsFiles: !supportsImages, remaining: files.remaining },
     });
+    const isAttachmentStripShown = useIsAttachmentStripShown(
+        images.attachments.length > 0 || files.attachments.length > 0,
+    );
     const [isChoosingImage, setChoosingImage] = useState(false);
     const [isFocused, setFocused] = useState(false);
     const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
@@ -427,7 +431,7 @@ export const AgentChatComposer = ({
         menu.matches !== undefined || menu.notice !== undefined || mentions.rows !== undefined;
     const isExpanded =
         agentChatComposerLayout({
-            hasAttachments: images.attachments.length > 0 || files.attachments.length > 0,
+            hasAttachments: isAttachmentStripShown,
             hasText: draft.length > 0,
             isEditing: editing !== undefined,
             isFocused,

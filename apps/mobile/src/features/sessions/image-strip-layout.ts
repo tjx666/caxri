@@ -16,6 +16,10 @@ export const IMAGE_STRIP_REMOVE_OVERHANG =
  */
 export const IMAGE_STRIP_CELL = IMAGE_STRIP_THUMBNAIL + IMAGE_STRIP_REMOVE_OVERHANG;
 export const IMAGE_STRIP_CELL_GAP = 1;
+/**
+ * How long a removed thumbnail or file card takes to fade out of the strip.
+ */
+export const IMAGE_STRIP_EXIT_MS = 120;
 
 export interface StripRect {
     left: number;
