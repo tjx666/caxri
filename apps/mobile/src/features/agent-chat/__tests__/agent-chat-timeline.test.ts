@@ -1,12 +1,8 @@
 import type { AgentChatItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import {
-    buildAgentChatTimeline,
-    toggleAgentChatExpansion,
-    withAgentChatAwaitingReply,
-    withAgentChatPendingEntries,
-} from '../agent-chat-timeline';
+import { buildAgentChatTimeline, withAgentChatPendingEntries } from '../agent-chat-timeline';
+import { toggleAgentChatExpansion } from '../agent-chat-turn-expansion';
 
 type Timeline = Parameters<typeof buildAgentChatTimeline>[0];
 
@@ -491,61 +487,25 @@ describe('toggleAgentChatExpansion', () => {
     });
 });
 
-describe('withAgentChatPendingEntries', () => {
-    it('ends the timeline with recorded answers, then the messages still on their way', () => {
-        const built = buildAgentChatTimeline({ items: [], turns: [] });
-        expect(withAgentChatPendingEntries(built, { notices: [], timeline: [] })).toBe(built);
-        const entries = withAgentChatPendingEntries(built, {
-            notices: [
-                { id: 'answer:r1', type: 'notice', kind: 'answered', message: 'Color: Blue' },
+describe('steered messages', () => {
+    it('marks a message steered into a running turn, and only that one', () => {
+        const entries = buildAgentChatTimeline({
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: 'Start.' },
+                {
+                    id: 'u2',
+                    turnId: 't1',
+                    type: 'userMessage',
+                    text: 'Also this.',
+                    delivery: 'steered',
+                },
             ],
-            timeline: [{ id: 'p1', text: 'Run the tests', imageUris: ['file:///a.jpg'] }],
+            turns: [{ id: 't1', status: 'running' }],
+            activeTurnId: 't1',
         });
-        expect(entries.map((entry) => [entry.kind, entry.id])).toEqual([
-            ['message', 'pending:answer:r1'],
-            ['pending', 'pending:p1'],
-        ]);
-        expect(entries.at(-1)).toMatchObject({
-            text: 'Run the tests',
-            imageUris: ['file:///a.jpg'],
-        });
-    });
-});
-
-describe('withAgentChatAwaitingReply', () => {
-    const prompt = {
-        kind: 'message',
-        id: 'u1',
-        message: { id: 'u1', type: 'userMessage', text: 'hi' },
-    } as const;
-    const reply = {
-        kind: 'message',
-        id: 'a1',
-        message: { id: 'a1', type: 'agentMessage', text: 'hello' },
-    } as const;
-    const running = { activeTurnId: 't1', requests: [] };
-
-    it('holds the reply place under the prompt while the running turn shows nothing', () => {
-        expect(withAgentChatAwaitingReply([prompt], running).map(({ kind }) => kind)).toEqual([
-            'message',
-            'awaiting',
-        ]);
-    });
-
-    it('shows nothing once the turn has output, is idle, asks, or compacts', () => {
-        const entries = [prompt];
-        expect(withAgentChatAwaitingReply([prompt, reply], running)).toHaveLength(2);
-        expect(withAgentChatAwaitingReply(entries, { requests: [] })).toBe(entries);
-        expect(withAgentChatAwaitingReply(entries, undefined)).toBe(entries);
-        expect(withAgentChatAwaitingReply(entries, { ...running, operation: 'compacting' })).toBe(
-            entries,
-        );
         expect(
-            withAgentChatAwaitingReply(entries, {
-                ...running,
-                requests: [{ id: 'r1' } as never],
-            }),
-        ).toBe(entries);
+            entries.map((entry) => entry.kind === 'message' && entry.isSteered === true),
+        ).toEqual([false, true]);
     });
 });
 

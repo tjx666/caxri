@@ -1,11 +1,8 @@
 import type { AgentChatItem } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import {
-    agentChatRunningTurnIds,
-    buildAgentChatTimeline,
-    holdEndedTurnsOpen,
-} from '../agent-chat-timeline';
+import { buildAgentChatTimeline } from '../agent-chat-timeline';
+import { agentChatRunningTurnIds, holdEndedTurnsOpen } from '../agent-chat-turn-expansion';
 
 const command = (id: string): AgentChatItem => ({
     id,

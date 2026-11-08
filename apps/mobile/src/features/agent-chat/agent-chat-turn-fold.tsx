@@ -9,7 +9,7 @@ import { mobileControl, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles } from '../conversation/conversation-styles';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import { agentChatTurnTone } from './agent-chat-timeline';
+import { agentChatTurnTone } from './agent-chat-turn-tone';
 import { AgentChatWorkGroup } from './agent-chat-work-group';
 
 type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;

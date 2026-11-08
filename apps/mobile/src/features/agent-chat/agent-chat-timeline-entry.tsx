@@ -13,6 +13,7 @@ import { AgentChatPathChips } from './agent-chat-path-chips';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
 import { AgentChatReplyActionBar } from './agent-chat-reply-action-bar';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
+import { AgentChatSteeredMark } from './agent-chat-steered-mark';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
 import { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
@@ -74,6 +75,9 @@ export const AgentChatTimelineEntry = memo(
                                 : undefined
                         }
                         theme={theme}
+                        userLeading={
+                            entry.isSteered ? <AgentChatSteeredMark theme={theme} /> : undefined
+                        }
                         userExtras={
                             entry.cited ? (
                                 <AgentChatPathChips
@@ -144,6 +148,7 @@ export const AgentChatTimelineEntry = memo(
                         imageUris={entry.imageUris}
                         text={entry.text}
                         theme={theme}
+                        wait={entry.wait}
                     />
                 );
             }

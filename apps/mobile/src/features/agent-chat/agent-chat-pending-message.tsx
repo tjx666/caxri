@@ -1,6 +1,7 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
+import type { AgentChatPendingWait } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
@@ -10,24 +11,28 @@ import { conversationStyles } from '../conversation/conversation-styles';
 import { conversationUserText } from '../conversation/conversation-user-text';
 import { ConversationUserWords } from '../conversation/conversation-user-words';
 import { AgentChatPathChips } from './agent-chat-path-chips';
+import { AgentChatSendingClock } from './agent-chat-sending-clock';
 
 const THUMBNAIL_SIZE = 96;
 
 /**
- * A message on its way, laid out like the user message it becomes but faded, with Desktop's `Sending…` caption and none
- * of its actions, since nothing can act on a message the conversation does not hold yet. Its images show from the
- * prepared JPEGs still on the phone, and the files it cites show as the chips the sent message will have.
+ * A message on its way, laid out like the user message it becomes but faded, with Desktop's turning sending clock under
+ * it (`AgentChatSendingClock`, which names what it waits for) and none of its actions, since nothing can act on a
+ * message the conversation does not hold yet. Its images show from the prepared JPEGs still on the phone, and the files
+ * it cites show as the chips the sent message will have.
  */
 export const AgentChatPendingMessage = ({
     id,
     imageUris,
     text,
     theme,
+    wait,
 }: {
     id: string;
     imageUris: readonly string[];
     text: string;
     theme: MobileTheme;
+    wait: AgentChatPendingWait;
 }) => {
     const { t } = useTranslation();
     const cited = parseAgentChatPathReferences(text);
@@ -36,56 +41,56 @@ export const AgentChatPendingMessage = ({
     return (
         <View
             accessibilityState={{ busy: true }}
-            style={[conversationStyles.message, conversationStyles.userRow, styles.pending]}
+            style={[conversationStyles.message, conversationStyles.userRow]}
             testID={`agent-chat-pending-${id}`}
         >
-            {/* No card can show a video before the message is sent, so its chip stands in until then. */}
-            <AgentChatPathChips
-                hasVideoChips
-                references={cited.references}
-                skills={cited.skills}
-                theme={theme}
-            />
-            {cited.text.length > 0 || imageUris.length > 0 ? (
-                <View style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}>
-                    {cited.text.length === 0 ? null : user.kind === 'handoff' ? (
-                        <ConversationHandoffCard note={user.note} theme={theme} />
-                    ) : (
-                        <ConversationUserWords blocks={user.blocks} theme={theme} />
-                    )}
-                    {imageUris.length > 0 ? (
-                        <View
-                            style={[
-                                styles.images,
-                                cited.text.length > 0 && conversationStyles.userAttachments,
-                            ]}
-                        >
-                            {imageUris.map((uri, index) => (
-                                <Image
-                                    accessibilityLabel={t('chat.attachment', { number: index + 1 })}
-                                    key={uri}
-                                    resizeMode="cover"
-                                    source={{ uri }}
-                                    style={[styles.thumbnail, { borderColor: theme.border }]}
-                                />
-                            ))}
-                        </View>
-                    ) : null}
-                </View>
-            ) : null}
-            <Text
-                accessibilityLiveRegion="polite"
-                style={[styles.caption, { color: theme.muted }]}
-                testID="agent-chat-pending-sending"
-            >
-                {t('chat.sending')}
-            </Text>
+            <View style={[conversationStyles.userRow, styles.pending]}>
+                {/* No card can show a video before the message is sent, so its chip stands in until then. */}
+                <AgentChatPathChips
+                    hasVideoChips
+                    references={cited.references}
+                    skills={cited.skills}
+                    theme={theme}
+                />
+                {cited.text.length > 0 || imageUris.length > 0 ? (
+                    <View
+                        style={[conversationStyles.userBubble, { backgroundColor: theme.surface }]}
+                    >
+                        {cited.text.length === 0 ? null : user.kind === 'handoff' ? (
+                            <ConversationHandoffCard note={user.note} theme={theme} />
+                        ) : (
+                            <ConversationUserWords blocks={user.blocks} theme={theme} />
+                        )}
+                        {imageUris.length > 0 ? (
+                            <View
+                                style={[
+                                    styles.images,
+                                    cited.text.length > 0 && conversationStyles.userAttachments,
+                                ]}
+                            >
+                                {imageUris.map((uri, index) => (
+                                    <Image
+                                        accessibilityLabel={t('chat.attachment', {
+                                            number: index + 1,
+                                        })}
+                                        key={uri}
+                                        resizeMode="cover"
+                                        source={{ uri }}
+                                        style={[styles.thumbnail, { borderColor: theme.border }]}
+                                    />
+                                ))}
+                            </View>
+                        ) : null}
+                    </View>
+                ) : null}
+            </View>
+            <AgentChatSendingClock theme={theme} wait={wait} />
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    pending: { opacity: 0.6 },
+    pending: { alignSelf: 'stretch', opacity: 0.6 },
     images: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     thumbnail: {
         borderRadius: 12,
@@ -93,6 +98,5 @@ const styles = StyleSheet.create({
         height: THUMBNAIL_SIZE,
         width: THUMBNAIL_SIZE,
     },
-    caption: { fontSize: 11, lineHeight: 16, marginTop: -2 },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

@@ -1,6 +1,7 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import {
     AGENT_CHAT_PENDING_ACCEPTED_TTL_MS,
+    agentChatPendingWait,
     MAX_AGENT_CHAT_TEXT_LENGTH,
     pairAgentChatPendingMessages,
 } from '@caxri/protocol';
@@ -8,7 +9,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     addAgentChatPendingAnswer,
-    agentChatPendingWait,
     expireAgentChatPendingMessage,
     pruneAgentChatPending,
     selectAgentChatPendingAnswers,

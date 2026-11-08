@@ -7,6 +7,7 @@ import {
     AGENT_CHAT_PENDING_ACCEPTED_TTL_MS,
     agentChatPendingKnownIds,
     agentChatPendingPlacement,
+    agentChatPendingWait,
     unsettledAgentChatPendingAnswers,
     unsettledAgentChatPendingMessages,
 } from '@caxri/protocol';
@@ -15,32 +16,11 @@ import { createStore } from '../../../lib/store';
 
 /**
  * A message the user sent that the projection does not show yet, with the thumbnails the Desktop timeline previews.
- * Where it lands and when the projection takes over follow the shared rules in `@caxri/protocol`
- * (`agentChatPendingPlacement`, `isAgentChatPendingMessageSettled`).
+ * Where it lands, what it waits for, and when the projection takes over follow the shared rules in `@caxri/protocol`
+ * (`agentChatPendingPlacement`, `agentChatPendingWait`, `isAgentChatPendingMessageSettled`).
  */
 export interface AgentChatPendingMessage extends AgentChatPendingMessageBase {
     images: ReadonlyArray<{ thumbnail: string }>;
-    /**
-     * What the message waits for, decided when it was sent (see {@link agentChatPendingWait}).
-     */
-    wait?: AgentChatPendingWait;
-}
-
-/**
- * What a message on its way is waiting for, for the hint behind its sending clock: the context compaction in progress
- * (the provider records input that arrived meanwhile only once it ends), the running turn's current step when it steers
- * that turn (Codex records steered input only once the step ends), the Agent starting or resuming (a stopped Chat
- * resumes on its next message), or plain delivery.
- */
-export type AgentChatPendingWait = 'compaction' | 'step' | 'start' | 'delivery';
-
-export function agentChatPendingWait(
-    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'status'> | undefined,
-    delivery: 'queue' | 'steer' | undefined,
-): AgentChatPendingWait {
-    if (snapshot?.operation === 'compacting') return 'compaction';
-    if (delivery === 'steer' && snapshot?.activeTurnId) return 'step';
-    return snapshot?.status === 'ready' || snapshot?.status === 'failed' ? 'delivery' : 'start';
 }
 
 interface AgentChatPendingState {

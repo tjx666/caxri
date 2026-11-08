@@ -512,14 +512,15 @@ export async function executeMobileChatComposerScenario(
         await waitForNoCheck(serial, 'agent-chat-activity');
 
         /**
-         * Sending (#1895): the fake never answers nor records a `lost` message, so the phone's optimistic row stays
-         * `Sending…` until Server Core gives up on the provider, then the text returns to the composer with the error.
+         * Sending (#1895): the fake never answers nor records a `lost` message, so the phone's optimistic row keeps its
+         * sending clock until Server Core gives up on the provider, then the text returns to the composer with the
+         * error.
          */
         await sendFromPhone(serial, 'lost');
-        await waitForCheck(serial, 'agent-chat-pending-sending');
+        await waitForCheck(serial, 'agent-chat-sending-delivery');
         await capture(environment, 'sending', artifacts);
         await waitForCheck(serial, 'agent-chat-composer-error', 120_000);
-        await waitForNoCheck(serial, 'agent-chat-pending-sending');
+        await waitForNoCheck(serial, 'agent-chat-sending-delivery');
         const returned = await observeMobileNode(serial, 'agent-chat-composer-input', {
             kind: 'equals',
             value: 'lost',

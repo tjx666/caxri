@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentChatTurnTone, buildAgentChatTimeline } from '../agent-chat-timeline';
+import { buildAgentChatTimeline } from '../agent-chat-timeline';
+import { agentChatTurnTone } from '../agent-chat-turn-tone';
 
 describe('agentChatTurnTone', () => {
     it('tones a failed turn as danger and a stopped one as a warning', () => {

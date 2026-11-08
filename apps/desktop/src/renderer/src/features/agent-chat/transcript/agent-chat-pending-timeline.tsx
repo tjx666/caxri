@@ -1,3 +1,4 @@
+import type { AgentChatPendingWait } from '@caxri/protocol';
 import { parseAgentChatPathReferences } from '@caxri/protocol';
 
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -6,7 +7,7 @@ import { AgentChatPathReferenceChips } from '../attachments/agent-chat-path-refe
 import type { useAgentChatPending } from '../hooks/use-agent-chat-pending';
 import { AgentChatUserMessageBubble } from '../messages/agent-chat-user-message';
 import { AgentChatSessionHandoffBubble } from '../session-handoff/agent-chat-session-handoff-bubble';
-import type { AgentChatPendingMessage, AgentChatPendingWait } from './agent-chat-pending';
+import type { AgentChatPendingMessage } from './agent-chat-pending';
 import { AgentChatAskingQuestions } from './questions/agent-chat-answered-questions';
 import { AgentChatTimelineEntryView } from './timeline/agent-chat-timeline-entry-view';
 
