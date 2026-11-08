@@ -280,12 +280,11 @@ describe('describeUpdateStatus', () => {
     };
     const now = Date.UTC(2026, 0, 2, 12, 0, 0);
 
-    it('names the resume time and says a manual check does not wait for it', () => {
+    it('names when the limit clears and does not promise that a retry gets past it', () => {
         const copy = describeUpdateStatus(rateLimited, { now, t: translate });
-        expect(copy.title).toBe('Update checks are paused');
-        expect(copy.description).toContain('rate limited by GitHub');
-        expect(copy.description).toContain('Automatic checks resume after');
-        expect(copy.description).toContain('without waiting');
+        expect(copy.title).toBe('GitHub is limiting update checks');
+        expect(copy.description).toContain('The limit clears after');
+        expect(copy.description).toContain('may hit the same limit');
     });
 
     it('renders the rate-limit cause in the interface language', () => {
@@ -295,8 +294,8 @@ describe('describeUpdateStatus', () => {
             'zh-CN',
         );
         const copy = describeUpdateStatus(rateLimited, { now, t: zh });
-        expect(copy.description).toContain('GitHub 暂时限制了更新检查的频率');
-        expect(copy.description).not.toContain('rate limited');
+        expect(copy.description).toContain('GitHub 暂时限制了当前网络的更新检查频率');
+        expect(copy.description).not.toContain('rate limiting');
     });
 
     it('still explains the pause when GitHub reported no deadline', () => {
@@ -304,13 +303,12 @@ describe('describeUpdateStatus', () => {
             { ...rateLimited, retryAt: undefined },
             { now, t: translate },
         );
-        expect(copy.description).toContain('resume once the limit clears');
-        expect(copy.description).toContain('without waiting');
+        expect(copy.description).toContain('The limit clears on its own.');
     });
 
     it('does not promise a resume time that already passed', () => {
         const copy = describeUpdateStatus(rateLimited, { now: rateLimited.retryAt, t: translate });
-        expect(copy.description).toContain('resume once the limit clears');
+        expect(copy.description).toContain('The limit clears on its own.');
     });
 
     it('leaves a non-rate-limited unavailable state on its own reason', () => {

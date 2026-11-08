@@ -8,6 +8,7 @@ import {
     removeTemporaryDirectories,
     temporaryDirectory,
 } from '../../__tests__/support/update-service-harness';
+import { LATEST_RELEASE_URL } from '../update-github-release';
 import { UpdateService } from '../updates';
 
 afterEach(removeTemporaryDirectories);
@@ -152,5 +153,18 @@ describe('a newer release while an update is ready', () => {
 
         expect(harness.states).toEqual([]);
         expect(harness.service.getState()).toMatchObject({ status: 'ready', version: '0.0.4' });
+    });
+
+    it('finds a newer release through the release page while the API is rate limited', async () => {
+        const harness = await stagedService();
+        const serve = releaseFetch('0.0.5', new TextEncoder().encode('newer dmg'));
+        harness.point((input) =>
+            input === LATEST_RELEASE_URL
+                ? Promise.resolve(new Response(null, { status: 403 }))
+                : serve(input),
+        );
+        await harness.service.check({ background: true });
+
+        expect(harness.service.getState()).toMatchObject({ status: 'ready', version: '0.0.5' });
     });
 });

@@ -2,7 +2,6 @@ import { compareStableVersions } from '@caxri/protocol';
 
 import type { AvailableRelease } from '../update-download';
 import { downloadVerifiedUpdate } from '../update-download';
-import { isRateLimitedStatus, rateLimitResumeAt } from '../update-github-release';
 import type { PreparedInstall, UpdateFetch } from '../update-service-contract';
 
 /**
@@ -30,17 +29,10 @@ export interface SupersedeDependencies {
      */
     previous: PreparedInstall;
     /**
-     * Validates a successful `releases/latest` answer and returns the newer release, or `undefined` when there is none.
+     * Finds the latest release newer than this build, or `undefined` when there is none or GitHub could not say (an
+     * unpublished feed, or both the API and the release page rate limited).
      */
-    readLatest: (response: Response) => Promise<AvailableRelease | undefined>;
-    /**
-     * Records the rate-limit reset GitHub reported for the silent look.
-     */
-    recordRateLimit: (until: number | undefined) => void;
-    /**
-     * Fetches `releases/latest`.
-     */
-    requestLatest: () => Promise<Response>;
+    discoverLatest: () => Promise<AvailableRelease | undefined>;
     staged: AvailableRelease;
     stagedPath: string;
 }
@@ -65,13 +57,7 @@ export async function supersedeStagedUpdate(
     let failedVersion = dependencies.failedVersion;
     const keep = (): SupersedeResult => ({ kind: 'keep', failedVersion });
     try {
-        const response = await dependencies.requestLatest();
-        if (isRateLimitedStatus(response.status)) {
-            dependencies.recordRateLimit(rateLimitResumeAt(response, dependencies.now()));
-            return keep();
-        }
-        if (response.status === 404) return keep();
-        const newer = await dependencies.readLatest(response);
+        const newer = await dependencies.discoverLatest();
         if (!newer || compareStableVersions(newer.version, dependencies.staged.version) <= 0)
             return keep();
         if (newer.version === failedVersion) return keep();

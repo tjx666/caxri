@@ -8,6 +8,17 @@ import { MAX_CHECKSUM_BYTES, MAX_DMG_BYTES, UpdateFailure } from './update-trans
 
 export const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
 
+/**
+ * The web page behind the same "latest stable release" answer. GitHub serves it as a `302` to `/releases/tag/v<x.y.z>`
+ * and, unlike `api.github.com`, does not bill it against the anonymous 60-requests-an-hour API quota. That quota is
+ * keyed by the public IP, so a proxy exit or office NAT shared with other anonymous API callers can stay exhausted for
+ * the whole hour regardless of how rarely Caxri itself checks; the redirect keeps discovery working through it.
+ */
+export const LATEST_RELEASE_PAGE_URL = 'https://github.com/tjx666/caxri/releases/latest';
+
+const RELEASE_TAG_PATH = /^\/tjx666\/caxri\/releases\/tag\/v([^/]+)$/;
+const RELEASE_DOWNLOAD_BASE = 'https://github.com/tjx666/caxri/releases/download';
+
 const releaseAssetSchema = z.object({
     name: z.string(),
     size: z.number().int().nonnegative(),
@@ -144,5 +155,47 @@ export function parseLatestRelease(
         checksumUrl: checksum.browser_download_url,
         ...(releaseUrl && { releaseUrl }),
         ...(dmg.size > 0 && { expectedBytes: dmg.size }),
+    };
+}
+
+/**
+ * Reads the latest stable release from {@link LATEST_RELEASE_PAGE_URL}'s redirect `location` and returns it when it is
+ * newer than `currentVersion`, or `undefined` when it is not. Throws when the redirect does not name a stable release
+ * tag of this repository.
+ *
+ * The page carries no asset list, so the DMG and checksum URLs are derived from the same `releases/download/v<x.y.z>`
+ * pattern `parseLatestRelease` requires of the API's URLs, and `expectedBytes` is left out. Nothing is trusted less:
+ * the download still verifies the DMG against the published checksum and the size cap, and a release still missing an
+ * asset fails that download instead of the check.
+ */
+export function parseLatestReleaseRedirect(
+    location: string | null,
+    currentVersion: string,
+    sourceMapFlavor: SourceMapFlavor,
+): AvailableRelease | undefined {
+    let parsed: URL;
+    try {
+        parsed = new URL(location ?? '', LATEST_RELEASE_PAGE_URL);
+    } catch {
+        throw new Error('GitHub returned an invalid latest release redirect.');
+    }
+    const tag =
+        parsed.protocol === 'https:' && parsed.hostname === 'github.com'
+            ? RELEASE_TAG_PATH.exec(parsed.pathname)
+            : null;
+    if (!location || !tag) throw new Error('GitHub returned an invalid latest release redirect.');
+    const version = decodeURIComponent(tag[1]);
+    assertStableVersion(version);
+    assertStableVersion(currentVersion);
+    if (compareStableVersions(version, currentVersion) <= 0) return undefined;
+
+    const fileName = releaseDmgFileName(version, sourceMapFlavor);
+    const releaseUrl = releasePageUrl(parsed.href);
+    return {
+        version,
+        fileName,
+        dmgUrl: `${RELEASE_DOWNLOAD_BASE}/v${version}/${fileName}`,
+        checksumUrl: `${RELEASE_DOWNLOAD_BASE}/v${version}/${fileName}.sha256`,
+        ...(releaseUrl && { releaseUrl }),
     };
 }

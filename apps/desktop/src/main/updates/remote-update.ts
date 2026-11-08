@@ -82,7 +82,7 @@ export function createRemoteUpdateControl(options: RemoteUpdateControlOptions) {
                 return service.getState();
             case 'check':
                 // `check` publishes `checking` before it returns, so the state read below already shows it.
-                void service.check({ manual: true }).catch(() => {});
+                void service.check().catch(() => {});
                 return service.getState();
             case 'download':
                 // Like `check`, `download` publishes `downloading` before it returns.

@@ -50,10 +50,10 @@ export interface UpdateStatusCopy {
 /**
  * Title and supporting sentence for the update dialog.
  *
- * The rate-limited `unavailable` case is the one that earns its own branch: a plain "unavailable" with a disabled
- * button tells the user neither how long the pause lasts nor that the button they cannot press is exactly the one that
- * would get past it. A manual check bypasses the recorded window, so the copy says so and the action stays live:
- * deliberately unlike the Project Status budget rows, where retrying is the very request the limiter is refusing.
+ * The rate-limited `unavailable` case is the one that earns its own branch: Main reports it only after both the API and
+ * its release page fallback were limited, so the copy names when the limit clears and, rather than promising that a
+ * retry gets past it, says a retry before then may be limited too. The action stays live because a retry still asks the
+ * release page again, which recovers from a brief limit or a failed request.
  *
  * A component passes its `useTranslation()` `t` so a language change re-renders the copy.
  */
@@ -152,7 +152,7 @@ export function describeUpdateStatus(
 /**
  * `true` while the dialog's primary action can still reach GitHub. Only the two causes a retry cannot fix (an
  * unpackaged build, and a release feed that is not published yet) disable it; a rate limit does not, because a manual
- * check bypasses the recorded window.
+ * check asks the release page again (see `describeUpdateStatus`).
  */
 export function canRetryUpdateCheck(state: UpdateState | undefined): boolean {
     return state?.status !== 'unavailable' || state.reason === 'rate-limited';
