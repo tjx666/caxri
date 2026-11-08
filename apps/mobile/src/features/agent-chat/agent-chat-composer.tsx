@@ -41,6 +41,8 @@ import {
     agentChatComposerSubmission,
     agentChatDisabledReason,
 } from './agent-chat-model';
+import { agentChatOfferedPromptSuggestion } from './agent-chat-prompt-suggestion';
+import { AgentChatPromptSuggestionChip } from './agent-chat-prompt-suggestion-chip';
 import { AgentChatSettingsRow, AgentChatSettingsSheets } from './agent-chat-settings';
 import { AgentChatContextNotice } from './context/agent-chat-context-notice';
 import type { AgentChatController } from './use-agent-chat';
@@ -455,6 +457,13 @@ export const AgentChatComposer = ({
             />
         </>
     );
+    const promptSuggestion = agentChatOfferedPromptSuggestion({
+        draft,
+        isEditable,
+        isEditing: editing !== undefined,
+        isMenuOpen,
+        snapshot: chat.snapshot,
+    });
     const statusReason = composerStatusReason({
         availabilityReason: availability.reason,
         editWaitReason,
@@ -498,6 +507,16 @@ export const AgentChatComposer = ({
                 reason={statusReason}
                 theme={theme}
             />
+            {promptSuggestion === undefined ? null : (
+                <AgentChatPromptSuggestionChip
+                    onUse={(suggestion) => {
+                        draftInput.setDraft(suggestion);
+                        inputReference.current?.focus();
+                    }}
+                    suggestion={promptSuggestion}
+                    theme={theme}
+                />
+            )}
             <AgentChatComposerCapsule
                 add={
                     // Images never return to an edit (`agentChatMessageEditAvailability`), so it offers none to add.
