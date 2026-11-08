@@ -1,12 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-    FadeIn,
-    FadeOut,
-    LinearTransition,
-    SlideInRight,
-    SlideOutRight,
-} from 'react-native-reanimated';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
 import { FileDiff, PanelRight, X } from 'lucide-react-native';
@@ -19,6 +13,7 @@ import { PRESSED_OPACITY } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
+import { useDrawerMotion } from '../hooks/use-drawer-motion';
 import { useSegmentEntering } from '../hooks/use-segment-entering';
 import type { SideSessionSegment } from '../session-ui-state';
 import { isPanelSessionSegment, panelIdOfSegment } from '../session-ui-state';
@@ -170,8 +165,10 @@ export const SessionSidePanelButton = ({
  * would register after a Files view's and run before it, closing the drawer instead of leaving the open folder.
  * Rendered as the drawer's first child, it registers ahead of the view, and the view's own Back still runs first.
  */
-const SidePanelBack = ({ onClose }: { onClose: () => void }) => {
+const SidePanelBack = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+    // A drawer sliding out after its owner closed it leaves Back to the screen.
     useHardwareBack(() => {
+        if (!isOpen) return false;
         onClose();
         return true;
     });
@@ -189,7 +186,9 @@ export const SessionSidePanel = ({
     children,
     isAwaitingAnswer,
     isDocked,
+    isOpen,
     onClose,
+    onExited,
     onSegmentChange,
     panels,
     segment,
@@ -206,7 +205,15 @@ export const SessionSidePanel = ({
      */
     isAwaitingAnswer: boolean;
     isDocked: boolean;
+    /**
+     * False while a phone's drawer slides out after its owner closed it; a docked panel is always open.
+     */
+    isOpen: boolean;
     onClose: () => void;
+    /**
+     * Called once a phone's drawer has slid off screen after closing, so its owner can unmount it.
+     */
+    onExited: () => void;
     onSegmentChange: (segment: SideSessionSegment) => void;
     panels: readonly Panel[] | undefined;
     segment: SideSessionSegment;
@@ -218,6 +225,9 @@ export const SessionSidePanel = ({
 }) => {
     const { t } = useTranslation();
     const { entering } = useSegmentEntering(segment, segments);
+    const drawer = useDrawerMotion({ durationMs: DRAWER_MS, isOpen, onClose, onExited });
+    // A docked panel just goes; the drawer slides out first.
+    const close = isDocked ? onClose : drawer.close;
     const closeLabel = isAwaitingAnswer
         ? `${t('sessions.sidePanel.close')}, ${t('sessions.segment.awaitingAnswer')}`
         : t('sessions.sidePanel.close');
@@ -248,7 +258,7 @@ export const SessionSidePanel = ({
                     <IconButton
                         accessibilityLabel={closeLabel}
                         icon={X}
-                        onPress={onClose}
+                        onPress={close}
                         testID="session-side-panel-close"
                         theme={theme}
                     />
@@ -280,30 +290,31 @@ export const SessionSidePanel = ({
     return (
         <>
             <Animated.View
-                entering={FadeIn.duration(DRAWER_MS)}
-                exiting={FadeOut.duration(DRAWER_MS)}
-                style={[StyleSheet.absoluteFill, { backgroundColor: theme.overlay }]}
+                style={[
+                    StyleSheet.absoluteFill,
+                    { backgroundColor: theme.overlay },
+                    drawer.scrimStyle,
+                ]}
             >
                 {/* The close button is the accessible way out; the scrim is only the tap-away target. */}
                 <Pressable
                     accessible={false}
                     importantForAccessibility="no"
-                    onPress={onClose}
+                    onPress={close}
                     style={StyleSheet.absoluteFill}
                     testID="session-side-panel-scrim"
                 />
             </Animated.View>
             <Animated.View
-                accessibilityViewIsModal
-                entering={SlideInRight.duration(DRAWER_MS)}
-                exiting={SlideOutRight.duration(DRAWER_MS)}
+                accessibilityViewIsModal={isOpen}
                 style={[
                     styles.drawer,
                     { backgroundColor: theme.background, borderColor: theme.border },
+                    drawer.drawerStyle,
                 ]}
                 testID="session-side-panel"
             >
-                <SidePanelBack onClose={onClose} />
+                <SidePanelBack isOpen={isOpen} onClose={close} />
                 {content}
             </Animated.View>
         </>

@@ -17,6 +17,7 @@ import { useChangesList } from '../../changes/use-changes';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import { ProjectPanelView } from '../../panels/panels-view';
 import { useSessionPanels } from '../../panels/use-panels';
+import { useDrawerPresence } from '../hooks/use-drawer-motion';
 import type { SessionMenuActions } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
 import type {
@@ -297,7 +298,15 @@ export const SessionDetail = ({
         onDraftChange(text);
         onRequestComposerFocus();
     };
-    const sidePanel = sideSegment ? (
+    /**
+     * A phone's drawer stays mounted on the segment it showed while it slides out after closing.
+     */
+    const drawer = useDrawerPresence(isDrawerOpen ? sideSegment : null);
+    /**
+     * The drawer passes `isDocked` false even if the window just widened, so a drawer still sliding out stays an
+     * overlay instead of rendering beside the docked panel that replaces it.
+     */
+    const renderSidePanel = (shown: SideSessionSegment, isOpen: boolean, isDocked: boolean) => (
         <SessionSidePanel
             changesCount={changesCount}
             isAwaitingAnswer={isChatAwaitingBehindSidePanel({
@@ -305,11 +314,13 @@ export const SessionDetail = ({
                 isChat,
                 isCovered: isDrawerOpen,
             })}
-            isDocked={isSidePanelDocked}
+            isDocked={isDocked}
+            isOpen={isOpen}
             onClose={closeSidePanel}
+            onExited={drawer.onExited}
             onSegmentChange={onSegmentChange}
             panels={panels.panels}
-            segment={sideSegment}
+            segment={shown}
             segments={sideSegments}
             theme={theme}
         >
@@ -319,12 +330,12 @@ export const SessionDetail = ({
                 deviceRole={deviceRole}
                 onSegmentChange={onSegmentChange}
                 panels={panels}
-                segment={sideSegment}
+                segment={shown}
                 session={session}
                 theme={theme}
             />
         </SessionSidePanel>
-    ) : null;
+    );
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -368,7 +379,11 @@ export const SessionDetail = ({
                     contentSegments={contentSegments}
                     conversationTimeline={conversationTimeline}
                     deviceRole={deviceRole}
-                    dockedSidePanel={isSidePanelDocked ? sidePanel : null}
+                    dockedSidePanel={
+                        isSidePanelDocked && sideSegment
+                            ? renderSidePanel(sideSegment, true, true)
+                            : null
+                    }
                     isConnected={isConnected}
                     isVisible={isVisible}
                     onEditMessage={editMessage}
@@ -393,7 +408,7 @@ export const SessionDetail = ({
                     theme={theme}
                 />
             </View>
-            {isDrawerOpen ? sidePanel : null}
+            {drawer.shown ? renderSidePanel(drawer.shown, isDrawerOpen, false) : null}
         </KeyboardAvoidingView>
     );
 };
