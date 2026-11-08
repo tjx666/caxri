@@ -33,7 +33,11 @@ export const AgentChatHintMark = ({
             testID={testID}
         >
             {isShown ? (
-                <Text numberOfLines={2} style={[styles.hint, { color: theme.muted }]}>
+                <Text
+                    numberOfLines={4}
+                    style={[styles.hint, { color: theme.muted }]}
+                    testID={testID ? `${testID}-hint` : undefined}
+                >
                     {hint}
                 </Text>
             ) : null}

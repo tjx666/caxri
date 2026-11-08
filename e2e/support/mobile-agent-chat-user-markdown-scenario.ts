@@ -154,11 +154,12 @@ export async function executeMobileChatUserMarkdownScenario(
         const lineBounds = listLine && androidBounds(listLine.bounds);
         if (!screen || !lineBounds) throw new Error('The list-only bubble is not on screen');
         const share = (lineBounds.right - lineBounds.left) / (screen.right - screen.left);
+        // Captured before the check so a squeezed bubble is on record too.
+        await capture(environment, 'user-markdown-list-only-bubble', artifacts);
         if (share < LIST_LINE_MIN_SHARE)
             throw new Error(
                 `A list-only bubble squeezes its first line to ${Math.round(share * 100)}% of the screen`,
             );
-        await capture(environment, 'user-markdown-list-only-bubble', artifacts);
 
         await finish(environment, artifacts, {
             listLineShare: Number(share.toFixed(2)),
