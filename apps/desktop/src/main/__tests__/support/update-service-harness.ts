@@ -5,6 +5,8 @@ import { join } from 'node:path';
 
 import { vi } from 'vitest';
 
+import { LATEST_RELEASE_PAGE_URL } from '../../updates/update-github-release';
+
 const temporaryDirectories: string[] = [];
 
 /**
@@ -50,6 +52,19 @@ export function releaseResponse(version: string, dmg: Uint8Array, names?: string
     });
 }
 
+/**
+ * GitHub's answer for the release page fallback: a redirect to the latest stable tag.
+ */
+export function releasePageRedirect(version: string): Response {
+    return new Response(null, {
+        status: 302,
+        headers: { location: `https://github.com/tjx666/caxri/releases/tag/v${version}` },
+    });
+}
+
+/**
+ * Serves `version` from both the releases API and the release page, plus its DMG and checksum.
+ */
 export function releaseFetch(
     version: string,
     dmg: Uint8Array,
@@ -57,6 +72,7 @@ export function releaseFetch(
 ) {
     const fileName = `Caxri-${version}-arm64.dmg`;
     return vi.fn((input: string): Promise<Response> => {
+        if (input === LATEST_RELEASE_PAGE_URL) return Promise.resolve(releasePageRedirect(version));
         if (input.includes('/releases/latest'))
             return Promise.resolve(releaseResponse(version, dmg));
         if (input.endsWith('.sha256'))

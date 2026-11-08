@@ -48,11 +48,11 @@ export const updates = {
         'The Caxri release feed is not publicly available yet.',
     'updates.status.unavailable.unpackaged':
         'Update checks are available in packaged Caxri builds.',
-    'updates.status.paused.title': 'Update checks are paused',
+    'updates.status.paused.title': 'GitHub is limiting update checks',
     'updates.status.paused.description':
-        'Update checks are rate limited by GitHub right now. {{resume}} Checking now asks GitHub anyway, without waiting.',
-    'updates.status.paused.resumesAt': 'Automatic checks resume after {{time}}.',
-    'updates.status.paused.resumesLater': 'Automatic checks resume once the limit clears.',
+        'GitHub is rate limiting update checks from this network right now. {{resume}} Checking again before then may hit the same limit.',
+    'updates.status.paused.resumesAt': 'The limit clears after {{time}}.',
+    'updates.status.paused.resumesLater': 'The limit clears on its own.',
     'updates.status.upToDate.title': 'Caxri is up to date',
     'updates.status.upToDate.description': 'You are running the latest version, {{version}}.',
     'updates.status.available.title': 'Caxri {{version}} is available',

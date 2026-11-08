@@ -30,7 +30,7 @@ describe('Acceptance update discovery', () => {
         service.startAutomaticCheck({ isE2E: true });
         await vi.waitFor(() => expect(service.getState().status).toBe('available'));
         // A manual check after the launch check re-reads the served state rather than consuming the fixture again.
-        await expect(service.check({ manual: true })).resolves.toMatchObject({
+        await expect(service.check()).resolves.toMatchObject({
             status: 'available',
             version: '999.0.0',
         });
@@ -51,7 +51,7 @@ describe('Acceptance update discovery', () => {
 
     it('completes the fixture download at once and keeps opening and installing disabled', async () => {
         const { fetch, openPath, service } = acceptanceService();
-        await service.check({ manual: true });
+        await service.check();
 
         // The ready state is what raises the update notification after a real background download.
         await expect(service.download()).resolves.toMatchObject({
@@ -73,10 +73,10 @@ describe('Acceptance update discovery', () => {
 
     it('keeps the served release when a check follows the fixture download', async () => {
         const { discover, service } = acceptanceService();
-        await service.check({ manual: true });
+        await service.check();
         await service.download();
 
-        await expect(service.check({ manual: true })).resolves.toMatchObject({
+        await expect(service.check()).resolves.toMatchObject({
             status: 'ready',
             version: '999.0.0',
             fileName: 'Caxri-999.0.0-arm64.dmg',

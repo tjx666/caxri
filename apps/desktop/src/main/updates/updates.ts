@@ -7,35 +7,23 @@ import {
     shouldRunBackgroundCheck,
     shouldStartAutomaticUpdateCheck,
 } from './discovery/background-check';
+import { LatestReleaseFinder } from './discovery/latest-release';
 import { supersedeStagedUpdate } from './discovery/supersede';
 import type { AvailableRelease } from './update-download';
 import { downloadVerifiedUpdate } from './update-download';
-import {
-    assertStableVersion,
-    isRateLimitedStatus,
-    LATEST_RELEASE_URL,
-    parseLatestRelease,
-    rateLimitResumeAt,
-} from './update-github-release';
+import { assertStableVersion } from './update-github-release';
 import type {
     AcceptanceUpdateDiscovery,
     PreparedInstall,
     UpdateFetch,
     UpdateServiceOptions,
 } from './update-service-contract';
-import {
-    assertSuccessfulResponse,
-    MAX_RELEASE_RESPONSE_BYTES,
-    readBoundedResponse,
-    readUpdateNetwork,
-    updateErrorMessage,
-    updateFailureKind,
-} from './update-transport';
+import { readUpdateNetwork, updateErrorMessage, updateFailureKind } from './update-transport';
 
-const CHECK_TIMEOUT_MS = 15_000;
 export class UpdateService {
     private readonly fetch: UpdateFetch;
     private readonly now: () => number;
+    private readonly latestRelease: LatestReleaseFinder;
     private state: UpdateState;
     private release: AvailableRelease | undefined;
     private readyPath: string | undefined;
@@ -55,11 +43,6 @@ export class UpdateService {
     private checkPromise: Promise<UpdateState> | undefined;
     private downloadPromise: Promise<UpdateState> | undefined;
     private downloadController: AbortController | undefined;
-    /**
-     * Epoch millis before which `check()` skips the network call because GitHub already rate-limited the previous
-     * attempt. `undefined` when no rate limit is currently known.
-     */
-    private rateLimitedUntil: number | undefined;
     /**
      * The `status:version` pairs a window has already offered the user in this app process, recorded by
      * `acknowledge()`. Keyed by status as well because `available` and `ready` are separate offers: the first asks
@@ -84,6 +67,12 @@ export class UpdateService {
         const fetch = options.fetch ?? globalThis.fetch;
         this.fetch = (input, init) => readUpdateNetwork(() => fetch(input, init));
         this.now = options.now ?? Date.now;
+        this.latestRelease = new LatestReleaseFinder({
+            currentVersion: options.currentVersion,
+            fetch: this.fetch,
+            now: this.now,
+            sourceMapFlavor: options.sourceMapFlavor ?? 'include',
+        });
         this.state = this.stampLaunch({ status: 'idle', currentVersion: options.currentVersion });
     }
 
@@ -109,69 +98,26 @@ export class UpdateService {
         return launchStamped;
     }
 
-    /**
-     * Validates a successful `releases/latest` answer and returns the release when it is newer than this build, or
-     * `undefined` when it is not. Throws on malformed or untrusted metadata. Shared by the visible check and the silent
-     * look for a newer release while one is already staged.
-     */
-    private async readLatestRelease(response: Response): Promise<AvailableRelease | undefined> {
-        assertSuccessfulResponse(response, 'The GitHub release check');
-        // A successful, non-rate-limited response means the previous rate limit (if any) has cleared.
-        this.rateLimitedUntil = undefined;
-        const source = new TextDecoder().decode(
-            await readBoundedResponse(response, MAX_RELEASE_RESPONSE_BYTES),
-        );
-        return parseLatestRelease(
-            source,
-            this.options.currentVersion,
-            this.options.sourceMapFlavor ?? 'include',
-        );
-    }
-
-    private requestLatestRelease(): Promise<Response> {
-        return this.fetch(LATEST_RELEASE_URL, {
-            signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-            headers: {
-                'Accept': 'application/vnd.github+json',
-                'User-Agent': `Caxri/${this.options.currentVersion}`,
-                'X-GitHub-Api-Version': '2022-11-28',
-            },
-        });
-    }
-
     private async performCheck(): Promise<UpdateState> {
         try {
-            const response = await this.requestLatestRelease();
-            // While the repository is private, the anonymous releases API returns 404 for every
-            // check. That is an expected pre-release condition, not a fault, so it degrades to
-            // `unavailable` instead of surfacing a permanent error on every launch (#244).
-            if (response.status === 404) {
+            const discovery = await this.latestRelease.discover();
+            if (discovery.kind !== 'release') {
                 this.release = undefined;
                 this.readyPath = undefined;
                 return this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: 'feed-unavailable',
+                    ...(discovery.kind === 'rate-limited'
+                        ? {
+                              reason: 'rate-limited',
+                              ...(discovery.retryAt !== undefined && {
+                                  retryAt: discovery.retryAt,
+                              }),
+                          }
+                        : { reason: 'feed-unavailable' }),
                 });
             }
-            // GitHub's anonymous release API is subject to both a per-hour primary limit (403) and a
-            // burst secondary limit (429). Both are expected, temporary conditions rather than a
-            // Caxri defect, so this degrades to `unavailable` the same way the 404 pre-release case
-            // does above (#244), and remembers when it is safe to retry so a repeated automatic check
-            // does not immediately re-trigger the same limit.
-            if (isRateLimitedStatus(response.status)) {
-                this.release = undefined;
-                this.readyPath = undefined;
-                this.rateLimitedUntil = rateLimitResumeAt(response, this.now());
-                return this.publish({
-                    status: 'unavailable',
-                    currentVersion: this.options.currentVersion,
-                    reason: 'rate-limited',
-                    ...(this.rateLimitedUntil !== undefined && { retryAt: this.rateLimitedUntil }),
-                });
-            }
-            assertSuccessfulResponse(response, 'The GitHub release check');
-            const release = await this.readLatestRelease(response);
+            const { release } = discovery;
             if (!release) {
                 this.release = undefined;
                 this.readyPath = undefined;
@@ -292,11 +238,10 @@ export class UpdateService {
             now: this.now,
             prepareInstall: (input) => this.options.prepareInstall?.(input),
             previous: this.prepared,
-            readLatest: (response) => this.readLatestRelease(response),
-            recordRateLimit: (until) => {
-                this.rateLimitedUntil = until;
+            discoverLatest: async () => {
+                const discovery = await this.latestRelease.discover();
+                return discovery.kind === 'release' ? discovery.release : undefined;
             },
-            requestLatest: () => this.requestLatestRelease(),
             staged,
             stagedPath,
         });
@@ -390,10 +335,10 @@ export class UpdateService {
     }
 
     /**
-     * `manual` marks a user-initiated check. It bypasses the locally recorded rate-limit window because the user
-     * explicitly accepted a fresh network round trip; the automatic launch check keeps honoring the window.
+     * Inside a recorded GitHub API rate-limit window every check, automatic or user-initiated, skips the API and asks
+     * the release page instead (see `LatestReleaseFinder`).
      */
-    check(options: { background?: boolean; manual?: boolean } = {}): Promise<UpdateState> {
+    check(options: { background?: boolean } = {}): Promise<UpdateState> {
         if (this.checkPromise) return this.checkPromise;
         if (this.downloadPromise) return Promise.resolve(this.state);
         // A staged update stays put until the restart or quit that installs it: a visible re-check would replace
@@ -420,27 +365,6 @@ export class UpdateService {
                     reason: 'unpackaged',
                 }),
             );
-        /**
-         * Skip the network call entirely while still inside a previously recorded GitHub rate-limit window (see
-         * `performCheck`'s 403/429 handling). This is what keeps the automatic launch check from immediately
-         * re-triggering the same limit; a later `check()` call after the window elapses tries the network again.
-         */
-        if (
-            !options.manual &&
-            this.rateLimitedUntil !== undefined &&
-            this.now() < this.rateLimitedUntil
-        ) {
-            // A background re-check inside the window must not replace a visible `available` or `up-to-date` state.
-            if (options.background) return Promise.resolve(this.state);
-            return Promise.resolve(
-                this.publish({
-                    status: 'unavailable',
-                    currentVersion: this.options.currentVersion,
-                    reason: 'rate-limited',
-                    retryAt: this.rateLimitedUntil,
-                }),
-            );
-        }
 
         this.lastCheckAttemptAt = this.now();
         if (isStaged && this.release) {

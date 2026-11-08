@@ -12,7 +12,11 @@ shows the state and asks for the next step.
 ## Flow
 
 1. **Check.** Main asks GitHub for the latest release at launch, every 15 minutes, and after a wake
-   from sleep (`updates.ts`). A rate-limited answer pauses discovery until GitHub's reset time.
+   from sleep (`updates.ts`). The anonymous API quota is keyed by the public IP, so a shared proxy
+   or NAT can exhaust it regardless of Caxri. A rate-limited answer makes discovery skip the API
+   until GitHub's reset time and read the `github.com/.../releases/latest` redirect instead, which
+   that quota does not cover (`discovery/latest-release.ts`). Only when that page fails too does the
+   state become `unavailable` with reason `rate-limited`.
 2. **Download in the background.** When a newer release is `available`, the Renderer starts the
    download once per version and app process, unless the user skipped that version or the
    **Check for Updates** dialog is open. Cancelling keeps it cancelled for the rest of the run.
