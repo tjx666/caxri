@@ -316,9 +316,6 @@ export const AgentChatComposer = ({
         ...imageLimits,
         files: { add: files.add, imagesAsFiles: !supportsImages, remaining: files.remaining },
     });
-    const isAttachmentStripShown = useIsAttachmentStripShown(
-        images.attachments.length > 0 || files.attachments.length > 0,
-    );
     const [isChoosingImage, setChoosingImage] = useState(false);
     const [isFocused, setFocused] = useState(false);
     const handoffSource = useAgentChatHandoffSource(sessionId, providerId);
@@ -431,7 +428,9 @@ export const AgentChatComposer = ({
         menu.matches !== undefined || menu.notice !== undefined || mentions.rows !== undefined;
     const isExpanded =
         agentChatComposerLayout({
-            hasAttachments: isAttachmentStripShown,
+            hasAttachments: useIsAttachmentStripShown(
+                images.attachments.length + files.attachments.length > 0,
+            ),
             hasText: draft.length > 0,
             isEditing: editing !== undefined,
             isFocused,
