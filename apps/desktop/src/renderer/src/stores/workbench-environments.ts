@@ -9,6 +9,7 @@ import {
     routingGeneration,
     settleForgottenRecords,
 } from '../lib/environment-routing';
+import { createSharedLocalState } from '../lib/local-storage';
 import { composedReadMeter } from './composed-read-diagnostics';
 import { environmentIdOf, setSelectedEnvironment, useEnvironmentStore } from './environment';
 
@@ -18,12 +19,16 @@ import { environmentIdOf, setSelectedEnvironment, useEnvironmentStore } from './
  */
 const ACTIVE_ENVIRONMENT_KEY = 'caxri.workbench.activeEnvironment';
 
+/**
+ * Per-window by design: which machine a window shows follows that window's own selection, so a window never subscribes
+ * and the entry only seeds the next window that opens (docs/client-local-data.md).
+ */
+const activeEnvironmentState = createSharedLocalState(ACTIVE_ENVIRONMENT_KEY, (stored: unknown) =>
+    typeof stored === 'string' ? stored : undefined,
+);
+
 function readActiveEnvironment(): string | undefined {
-    try {
-        return localStorage.getItem(ACTIVE_ENVIRONMENT_KEY) ?? undefined;
-    } catch {
-        return undefined;
-    }
+    return activeEnvironmentState.read();
 }
 
 const snapshots = {
@@ -95,12 +100,7 @@ export function noteSessionSelection(sessionId: string): void {
 
 function setActiveEnvironment(environmentId: string | undefined): void {
     snapshots.active = environmentId;
-    try {
-        if (environmentId === undefined) localStorage.removeItem(ACTIVE_ENVIRONMENT_KEY);
-        else localStorage.setItem(ACTIVE_ENVIRONMENT_KEY, environmentId);
-    } catch {
-        // Storage is a convenience; the selection itself is the Server's.
-    }
+    activeEnvironmentState.write(environmentId);
 }
 
 /**

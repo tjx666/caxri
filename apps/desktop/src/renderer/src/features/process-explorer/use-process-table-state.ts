@@ -1,25 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { createSharedLocalState } from '../../lib/local-storage';
 import type { ProcessColumnKey, ProcessTableState } from './process-columns';
 import {
     clampProcessColumnWidth,
-    DEFAULT_PROCESS_SORT,
     nextProcessSort,
     parseProcessTableState,
     PROCESS_TABLE_STATE_STORAGE_KEY,
-    serializeProcessTableState,
 } from './process-columns';
 
-function isBrowser(): boolean {
-    // DOM types declare these globals as always present, but this module also loads in Vitest's Node environment.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-    return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
-}
-
-function readPersistedState(): ProcessTableState {
-    if (!isBrowser()) return { sort: DEFAULT_PROCESS_SORT, widths: {} };
-    return parseProcessTableState(localStorage.getItem(PROCESS_TABLE_STATE_STORAGE_KEY));
-}
+/**
+ * Shared by every window of the profile (docs/client-local-data.md) but never subscribed: the Process Explorer is one
+ * window whose table the user is dragging, so a live update from another instance would fight the drag. The entry only
+ * seeds the next window that opens.
+ */
+const sharedTableState = createSharedLocalState(
+    PROCESS_TABLE_STATE_STORAGE_KEY,
+    parseProcessTableState,
+);
 
 export interface ProcessTableStateController extends ProcessTableState {
     /**
@@ -36,18 +34,10 @@ export interface ProcessTableStateController extends ProcessTableState {
  * Session state.
  */
 export function useProcessTableState(): ProcessTableStateController {
-    const [state, setState] = useState<ProcessTableState>(readPersistedState);
+    const [state, setState] = useState<ProcessTableState>(sharedTableState.read);
 
     useEffect(() => {
-        if (!isBrowser()) return;
-        try {
-            localStorage.setItem(
-                PROCESS_TABLE_STATE_STORAGE_KEY,
-                serializeProcessTableState(state),
-            );
-        } catch {
-            // Storage-disabled windows keep the layout for this Renderer lifetime only.
-        }
+        sharedTableState.write(state);
     }, [state]);
 
     const toggleSort = useCallback((column: ProcessColumnKey): void => {

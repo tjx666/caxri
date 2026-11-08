@@ -1,16 +1,19 @@
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 import type { BenchmarkDraft } from './benchmark-selection';
-import { draftFromPreferences, serializeDraftPreferences } from './benchmark-selection';
+import { draftFromPreferences, draftPreferencesOf } from './benchmark-selection';
 
 const DRAFT_PREFERENCES_STORAGE_KEY = 'caxri.benchmark.draftPreferences';
 
-function readPreferences(): string | null {
-    try {
-        return localStorage.getItem(DRAFT_PREFERENCES_STORAGE_KEY);
-    } catch {
-        return null;
-    }
-}
+/**
+ * Shared by every window of the profile (docs/client-local-data.md) but never subscribed: the entry is one value
+ * written when a run starts, and applying another window's write live would overwrite the half-written draft this
+ * window is editing. The next page that opens seeds from it.
+ */
+const sharedPreferences = createSharedLocalState(
+    DRAFT_PREFERENCES_STORAGE_KEY,
+    draftFromPreferences,
+);
 
 /**
  * Which board the page shows: the New run form or one run.
@@ -34,7 +37,7 @@ interface BenchmarkPageState {
 
 export const useBenchmarkPageStore = createStore<BenchmarkPageState>('benchmarkPage', (set) => ({
     selection: { kind: 'new' },
-    draft: draftFromPreferences(readPreferences()),
+    draft: sharedPreferences.read(),
     setSelection: (selection) => set({ selection }),
     setDraft: (draft) =>
         set((state) => ({ draft: typeof draft === 'function' ? draft(state.draft) : draft })),
@@ -45,9 +48,5 @@ export const useBenchmarkPageStore = createStore<BenchmarkPageState>('benchmarkP
  * a window with storage disabled simply starts from defaults next time.
  */
 export function rememberDraftPreferences(draft: BenchmarkDraft): void {
-    try {
-        localStorage.setItem(DRAFT_PREFERENCES_STORAGE_KEY, serializeDraftPreferences(draft));
-    } catch {
-        // Storage-disabled windows keep the choices for this Renderer lifetime only.
-    }
+    sharedPreferences.write(draftPreferencesOf(draft));
 }

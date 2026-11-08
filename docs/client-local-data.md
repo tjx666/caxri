@@ -104,6 +104,61 @@ filter it keeps the names that match (prefix, then substring, then in-order lett
 the directory and Project-wide results, which omit files already listed. A typed path
 (`src/`, `/`, `~`) shows no recent files.
 
+### Desktop view state in `localStorage`
+
+Rebuildable presentation state (disclosure, filters, last choices, Portal items) lives in the
+Renderer's `localStorage`. Every Workbench window of the profile (the main window, torn-off Session
+windows, SSH Host windows) shares that one `localStorage`, so a store must not read its value once at
+startup and later write the whole blob back from memory: that silently reverts what another window
+wrote meanwhile. Collapse Project A in the main window and Project B in a second window, and the
+whole-blob write of the second window brings A back after a restart.
+
+The contract, implemented once by `createSharedLocalState` in
+`apps/desktop/src/renderer/src/lib/local-storage.ts`:
+
+- **Write only what changed.** `patch` re-reads the stored object at write time and sets or removes
+  just the named fields, so keyed records (collapse maps, Portal items per Session) keep what other
+  windows wrote. A value that is deliberately one scalar uses `write`.
+- **Follow other windows.** `subscribe` receives the `storage` event, which the browser raises only
+  in the other documents of the profile, and the listener updates memory without writing. Applying a
+  delivered value therefore cannot echo back.
+- **Judge only what the window can see.** An entry owned by a machine (Portal items record their
+  `storageScopeOf` scope) is pruned only when the window lists that machine, so an SSH Host window
+  never deletes this Mac's entries, nor the reverse.
+
+Shared by every window (patch plus subscribe, so other windows follow): the Project tree and Pinned
+group disclosure, the Activity group disclosure, the Usage filters, the last New Session Agent
+choice, the Caxri Bot board and Inbox (visibility, scope, width), the Portal items per Session, the
+Settings "show advanced" flag, the Terminal usage guard dismissals (a record patched per provider),
+and the Activity New Session Project choice. The Claude Windows default notice record is shared
+without a subscription: it is re-read at the moment of announcing, so the window that announces first
+writes the account and the others then see it as told.
+
+Per-window by design (read at start, never subscribed, last writer wins for the same field). The entry
+only seeds the next window that opens:
+
+- **Chrome layout** (sidebar widths, Panel height, visibility, Panel view, Activity mode): sizes and
+  visibility belong to the window that shows them, and a change in one window must not resize or hide
+  another.
+- **Zen Mode** (`caxri.zen-mode`): an overlay tied to that window's own native full screen. The entry
+  only restores Zen after a restart.
+- **Active machine** (`caxri.workbench.activeEnvironment`): which machine a window shows follows that
+  window's own Session selection.
+- **Performance Monitor mode and card position**: switching the mode in one window must not open or
+  close the monitor in another. The Process Explorer table layout and the Benchmark New run
+  preferences are read once when their window or page opens; a live update would fight a column drag
+  or overwrite a half-written draft.
+- **Startup background** (`caxri.startupBackground.<scheme>`): written by the Workbench appearance hook
+  and read once by the `startup-background` entry module before the bundle runs.
+- **Recent commands and recent files**: lists re-read at every record, so another window's entry is
+  kept; the palette and the dialog read them on open and need no subscription.
+
+No Renderer store reads or writes `localStorage` directly: `createSharedLocalState` is the only way
+(its raw helpers are private to `lib/local-storage.ts`), and `removeLocalStorageEntriesByPrefix`
+retires keys an older build wrote. The one other user of the storage is the composer's device-store
+backend (`lib/local-storage-device-store.ts`, see above), which is an input store with its own
+write-through contract rather than view state.
+
 ### SSH Host disconnect
 
 While an SSH Host reconnects, the Workbench keeps its last snapshot of that Host's Projects, so they

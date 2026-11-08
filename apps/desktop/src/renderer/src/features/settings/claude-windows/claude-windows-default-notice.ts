@@ -1,7 +1,7 @@
 import type { ClaudeWindowState } from '@caxri/protocol';
 
 import { translate } from '../../../i18n';
-import { readLocalStorageJson, writeLocalStorageJson } from '../../../lib/local-storage';
+import { createSharedLocalState } from '../../../lib/local-storage';
 import { subscribeCaxriQuery } from '../../../queries/client';
 import { pushToast, tryCommand } from '../../../stores/toasts';
 import { updateClaudeWindows } from './claude-windows-client';
@@ -22,6 +22,13 @@ export function parseAnnouncedAccounts(stored: unknown): string[] {
         ? stored.filter((key): key is string => typeof key === 'string')
         : [];
 }
+
+/**
+ * Shared by every window of the profile (docs/client-local-data.md). Each window subscribes to the same status push, so
+ * the record is re-read at the moment of announcing: the window that announces first writes the account, and the others
+ * then see it as told instead of showing a second toast.
+ */
+const sharedAnnounced = createSharedLocalState(ANNOUNCED_STORAGE_KEY, parseAnnouncedAccounts);
 
 /**
  * The account key to tell about the keeper, or undefined when there is nothing to say. Only the plan default needs a
@@ -59,13 +66,10 @@ export async function turnOffClaudeWindows(accountKey: string): Promise<void> {
  */
 export function subscribeClaudeWindowsDefaultNotice(): () => void {
     return subscribeCaxriQuery('claudeWindow.status', { refresh: false }, (state) => {
-        const announced = parseAnnouncedAccounts(readLocalStorageJson(ANNOUNCED_STORAGE_KEY));
+        const announced = sharedAnnounced.read();
         const accountKey = claudeWindowsAccountToAnnounce(state, announced);
         if (!accountKey) return;
-        writeLocalStorageJson(
-            ANNOUNCED_STORAGE_KEY,
-            [...announced, accountKey].slice(-MAX_ANNOUNCED_ACCOUNTS),
-        );
+        sharedAnnounced.write([...announced, accountKey].slice(-MAX_ANNOUNCED_ACCOUNTS));
         pushToast('info', translate('settings.claudeWindows.defaultNotice'), {
             persist: true,
             dismissOnSuccess: true,

@@ -1,6 +1,6 @@
 import { clamp } from 'es-toolkit';
 
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 import type { BotBoardScope } from './bot-board';
 
@@ -39,8 +39,7 @@ export function botBoardScope(stored: unknown): BotBoardScope {
 
 interface BotBoardUiState {
     /**
-     * Whether the Sessions board column on the left is open; remembered across launches of this window, open by
-     * default.
+     * Whether the Sessions board column on the left is open; remembered across launches, open by default.
      */
     isVisible: boolean;
     /**
@@ -54,24 +53,38 @@ interface BotBoardUiState {
     width: number;
 }
 
-export const useBotBoardUiStore = createStore<BotBoardUiState>('caxri-bot-board', () => ({
-    isVisible: isBotBoardVisible(readLocalStorageJson(VISIBILITY_STORAGE_KEY)),
-    scope: botBoardScope(readLocalStorageJson(SCOPE_STORAGE_KEY)),
-    width: botBoardWidth(readLocalStorageJson(WIDTH_STORAGE_KEY)),
-}));
+/**
+ * Each field has its own key, so a write never carries another field's stale value. Shared by every window of the
+ * profile (docs/client-local-data.md): a width dragged in one window is the user's width in the others.
+ */
+const sharedVisibility = createSharedLocalState(VISIBILITY_STORAGE_KEY, isBotBoardVisible);
+const sharedWidth = createSharedLocalState(WIDTH_STORAGE_KEY, botBoardWidth);
+const sharedScope = createSharedLocalState(SCOPE_STORAGE_KEY, botBoardScope);
+
+export const useBotBoardUiStore = createStore<BotBoardUiState>('caxri-bot-board', (set) => {
+    // Live as long as the store. They update memory only, so another window's change never writes back.
+    sharedVisibility.subscribe((isVisible) => set({ isVisible }));
+    sharedWidth.subscribe((width) => set({ width }));
+    sharedScope.subscribe((scope) => set({ scope }));
+    return {
+        isVisible: sharedVisibility.read(),
+        scope: sharedScope.read(),
+        width: sharedWidth.read(),
+    };
+});
 
 export function setBotBoardVisible(isVisible: boolean): void {
     useBotBoardUiStore.setState({ isVisible });
-    writeLocalStorageJson(VISIBILITY_STORAGE_KEY, isVisible);
+    sharedVisibility.write(isVisible);
 }
 
 export function setBotBoardWidth(width: number): void {
     const next = botBoardWidth(width);
     useBotBoardUiStore.setState({ width: next });
-    writeLocalStorageJson(WIDTH_STORAGE_KEY, next);
+    sharedWidth.write(next);
 }
 
 export function setBotBoardScope(scope: BotBoardScope): void {
     useBotBoardUiStore.setState({ scope });
-    writeLocalStorageJson(SCOPE_STORAGE_KEY, scope);
+    sharedScope.write(scope);
 }

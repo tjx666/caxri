@@ -1,7 +1,7 @@
 import type { AgentProvider, UsageRange, UsageScope } from '@caxri/protocol';
 import { agentProviderIds, usageRangeIds, usageScopeIds } from '@caxri/protocol';
 
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { createStore } from '../../lib/store';
 import type { UsageCustomRange } from './usage-custom-range';
 import { parseUsageCustomRange } from './usage-custom-range';
@@ -61,15 +61,24 @@ export function parseUsageFilters(stored: unknown): UsageFilters {
     };
 }
 
-export const useUsageFilterStore = createStore<UsageFilters>('usage-filters', () =>
-    parseUsageFilters(readLocalStorageJson(FILTERS_STORAGE_KEY)),
-);
+/**
+ * Shared by every window of the profile (docs/client-local-data.md): the page's last slice is the user's, not one
+ * window's, so a change in one window patches only the fields it changed and reaches the others live.
+ */
+const sharedFilters = createSharedLocalState(FILTERS_STORAGE_KEY, parseUsageFilters);
+
+export const useUsageFilterStore = createStore<UsageFilters>('usage-filters', (set) => {
+    // Lives as long as the store. It updates memory only, so another window's change never writes back.
+    sharedFilters.subscribe((filters) => set(filters));
+    return sharedFilters.read();
+});
 
 /**
  * Applies and remembers a choice the user made in the page header.
  */
 export function rememberUsageFilters(change: Partial<UsageFilters>): void {
     useUsageFilterStore.setState(change);
-    const { agent, custom, range, scope } = useUsageFilterStore.getState();
-    writeLocalStorageJson(FILTERS_STORAGE_KEY, { agent, custom, range, scope });
+    // Only the changed fields are written, so a range picked in another window is not reverted by an Agent pick here.
+    // A `custom` of `undefined` is a removal.
+    sharedFilters.patch(change);
 }

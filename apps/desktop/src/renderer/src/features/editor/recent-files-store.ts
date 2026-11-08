@@ -1,5 +1,5 @@
 import { environmentOfProject } from '../../lib/environment-routing';
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 import { storageScopeOf } from '../../stores/environment';
 import { forgetRecentFile, parseRecentFiles, recordRecentFile } from './recent-files';
 
@@ -16,20 +16,27 @@ function storageKey(workbenchRootProjectId: string): string {
     return `${STORAGE_KEY_PREFIX}:${scope}:${workbenchRootProjectId}`;
 }
 
+/**
+ * The entry is shared by every window of the profile (docs/client-local-data.md). Each call re-reads it, never caching,
+ * so a file another window opened meanwhile stays in the list; the dialog reads when it opens, so it needs no
+ * subscription.
+ */
+function sharedRecentFiles(workbenchRootProjectId: string) {
+    return createSharedLocalState(storageKey(workbenchRootProjectId), parseRecentFiles);
+}
+
 export function readRecentFiles(workbenchRootProjectId: string): string[] {
-    return parseRecentFiles(readLocalStorageJson(storageKey(workbenchRootProjectId)));
+    return sharedRecentFiles(workbenchRootProjectId).read();
 }
 
 export function rememberRecentFile(workbenchRootProjectId: string, path: string): void {
-    writeLocalStorageJson(
-        storageKey(workbenchRootProjectId),
+    sharedRecentFiles(workbenchRootProjectId).write(
         recordRecentFile(readRecentFiles(workbenchRootProjectId), path),
     );
 }
 
 export function dropRecentFile(workbenchRootProjectId: string, path: string): void {
-    writeLocalStorageJson(
-        storageKey(workbenchRootProjectId),
+    sharedRecentFiles(workbenchRootProjectId).write(
         forgetRecentFile(readRecentFiles(workbenchRootProjectId), path),
     );
 }

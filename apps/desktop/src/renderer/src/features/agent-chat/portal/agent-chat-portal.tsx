@@ -20,13 +20,19 @@ import {
     useChromeLayoutStore,
 } from '../../../stores/chrome-layout';
 import { useDialogStore } from '../../../stores/dialogs';
-import { useSelectedSessionId, useSessions, useTerminals } from '../../../stores/selectors';
+import {
+    useProjects,
+    useSelectedSessionId,
+    useSessions,
+    useTerminals,
+} from '../../../stores/selectors';
 import { EditorSurface } from '../../editor/editor-surface';
 import { PaneViewSessionProvider } from '../../workbench/pane-view-session';
 import { PanelDivider } from '../../workbench/panel-divider';
 import { besideChatTabTerminalId } from '../tasks/beside-chat-layout';
 import { PortalHeader } from './portal-header';
 import { portalTabId, shouldFocusPortalOnOpen } from './portal-keys';
+import { portalSessionDeletion } from './portal-persistence';
 import { useIsPortalMaximized, usePortalItems, usePortalStore } from './portal-store';
 
 /**
@@ -187,18 +193,18 @@ function PortalResizeEdge({ width }: { width: number }) {
 
 /**
  * Drops Portal items whose Chat is gone, so closing a Chat never leaves its subagent floating over another one, and
- * forgets the items of deleted Sessions.
+ * forgets the items of deleted Sessions (only those of machines this window lists; see `portalSessionDeletion`).
  */
 function useRetainLivePortalItems(sessionId: string | undefined): void {
     const terminals = useTerminals();
     const sessions = useSessions();
+    const projects = useProjects();
     // Items restored from the last run name Chats the workbench snapshot has not delivered yet; judging them against
     // an empty Terminal list would drop every one, so retention waits for the snapshot.
     useEffect(() => {
-        if (!sessions) return;
-        const liveSessions = new Set(sessions.map((session) => session.id));
-        usePortalStore.getState().pruneSessions((id) => liveSessions.has(id));
-    }, [sessions]);
+        if (!sessions || !projects) return;
+        usePortalStore.getState().pruneSessions(portalSessionDeletion({ projects, sessions }));
+    }, [projects, sessions]);
     useEffect(() => {
         if (!sessionId || !sessions) return;
         const live = new Set(terminals.map((terminal) => terminal.id));

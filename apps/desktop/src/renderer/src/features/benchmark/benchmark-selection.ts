@@ -171,20 +171,17 @@ const draftPreferencesSchema = z.object({
  * What a new run remembers from the last one started: the chosen Entries, judge, check, and execution settings, but
  * never the prompt or the Project, which belong to that one task.
  */
-export function serializeDraftPreferences(draft: BenchmarkDraft): string {
+export function draftPreferencesOf(
+    draft: BenchmarkDraft,
+): Omit<BenchmarkDraft, 'prompt' | 'projectId'> {
     const { entries, repeats, concurrency, timeoutMinutes, checkCommand, judge } = draft;
-    return JSON.stringify({ entries, repeats, concurrency, timeoutMinutes, checkCommand, judge });
+    return { entries, repeats, concurrency, timeoutMinutes, checkCommand, judge };
 }
 
 /**
- * A new draft seeded from {@link serializeDraftPreferences}, or the empty draft when nothing valid was saved.
+ * A new draft seeded from {@link draftPreferencesOf}, or the empty draft when nothing valid was saved.
  */
-export function draftFromPreferences(saved: string | null): BenchmarkDraft {
-    if (!saved) return emptyDraft();
-    try {
-        const parsed = draftPreferencesSchema.safeParse(JSON.parse(saved));
-        return parsed.success ? { ...emptyDraft(), ...parsed.data } : emptyDraft();
-    } catch {
-        return emptyDraft();
-    }
+export function draftFromPreferences(saved: unknown): BenchmarkDraft {
+    const parsed = draftPreferencesSchema.safeParse(saved);
+    return parsed.success ? { ...emptyDraft(), ...parsed.data } : emptyDraft();
 }

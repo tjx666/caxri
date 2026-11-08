@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+
+import { createSharedLocalState } from '../../../lib/local-storage';
+import { createStore } from '../../../lib/store';
 
 /**
  * Separate from the Project collapse record on purpose. That one is reconciled against the live Project catalog and
@@ -7,15 +10,29 @@ import { useCallback, useEffect, useState } from 'react';
  */
 const STORAGE_KEY = 'caxri.primary-sidebar-pinned-collapsed';
 
-function isBrowser(): boolean {
-    // DOM types declare these globals as always present, but this module also loads in Vitest's Node environment.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-    return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
+/**
+ * Shared by every window of the profile (docs/client-local-data.md): collapsing the Pinned group in one window
+ * collapses it in the others and after a restart.
+ */
+const sharedCollapsed = createSharedLocalState(
+    STORAGE_KEY,
+    (raw) => raw === true || raw === 'true',
+);
+
+interface PinnedCollapseState {
+    isCollapsed: boolean;
 }
 
-function wasCollapsed(): boolean {
-    if (!isBrowser()) return false;
-    return localStorage.getItem(STORAGE_KEY) === 'true';
+const usePinnedCollapseStore = createStore<PinnedCollapseState>('pinned-collapse', (set) => {
+    // Lives as long as the store. It updates memory only, so another window's change never writes back.
+    sharedCollapsed.subscribe((isCollapsed) => set({ isCollapsed }));
+    return { isCollapsed: sharedCollapsed.read() };
+});
+
+function setCollapsed(isCollapsed: boolean): void {
+    if (usePinnedCollapseStore.getState().isCollapsed === isCollapsed) return;
+    usePinnedCollapseStore.setState({ isCollapsed });
+    sharedCollapsed.write(isCollapsed);
 }
 
 /**
@@ -27,17 +44,12 @@ export function usePinnedCollapse(): {
     expanded: boolean;
     toggle: () => void;
 } {
-    const [collapsed, setCollapsed] = useState(wasCollapsed);
-    useEffect(() => {
-        if (!isBrowser()) return;
-        try {
-            localStorage.setItem(STORAGE_KEY, String(collapsed));
-        } catch {
-            // Storage-disabled windows keep the disclosure state for this Renderer lifetime.
-        }
-    }, [collapsed]);
-    const toggle = useCallback(() => setCollapsed((current) => !current), []);
+    const isCollapsed = usePinnedCollapseStore((state) => state.isCollapsed);
+    const toggle = useCallback(
+        () => setCollapsed(!usePinnedCollapseStore.getState().isCollapsed),
+        [],
+    );
     // For commands that must put a pinned Session's row on screen before acting on it, such as `session.rename`.
     const expand = useCallback(() => setCollapsed(false), []);
-    return { expand, expanded: !collapsed, toggle };
+    return { expand, expanded: !isCollapsed, toggle };
 }

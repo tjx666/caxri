@@ -14,17 +14,17 @@ import {
 
 describe('botInboxWidth', () => {
     it('restores a stored width inside the bounds', () => {
-        expect(botInboxWidth('400')).toBe(400);
+        expect(botInboxWidth(400)).toBe(400);
     });
 
     it('falls back to the default for a missing or malformed value', () => {
-        expect(botInboxWidth(null)).toBe(BOT_INBOX_DEFAULT_WIDTH);
+        expect(botInboxWidth(undefined)).toBe(BOT_INBOX_DEFAULT_WIDTH);
         expect(botInboxWidth('wide')).toBe(BOT_INBOX_DEFAULT_WIDTH);
     });
 
     it('clamps a width from an older bound back into range', () => {
-        expect(botInboxWidth('90')).toBe(BOT_INBOX_MIN_WIDTH);
-        expect(botInboxWidth('2000')).toBe(BOT_INBOX_MAX_WIDTH);
+        expect(botInboxWidth(90)).toBe(BOT_INBOX_MIN_WIDTH);
+        expect(botInboxWidth(2000)).toBe(BOT_INBOX_MAX_WIDTH);
     });
 });
 

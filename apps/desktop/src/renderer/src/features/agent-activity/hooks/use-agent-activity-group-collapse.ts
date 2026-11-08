@@ -1,33 +1,45 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SESSION_ACTIVITY_GROUP_ORDER } from '@caxri/protocol';
 
+import { createSharedLocalState } from '../../../lib/local-storage';
 import { usePinnedCollapse } from '../../primary-sidebar/hooks/use-pinned-collapse';
 import { groupsToAutoExpand } from '../agent-activity-auto-expand';
 import type { AgentActivityGroupId } from '../agent-activity-rows';
 
+/**
+ * A record `{ [groupId]: true }` rather than a list, so two windows that collapse different groups each patch their own
+ * field instead of overwriting one list. An older list-shaped entry is not a record and reads as nothing collapsed.
+ */
 const STORAGE_KEY = 'caxri.agent-activity-collapsed-groups';
 
 type StatusGroupId = Exclude<AgentActivityGroupId, 'pinned'>;
 
 const STATUS_GROUP_IDS: ReadonlySet<string> = new Set(SESSION_ACTIVITY_GROUP_ORDER);
 
-function isBrowser(): boolean {
-    // DOM types declare these globals as always present, but this module also loads in Vitest's Node environment.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
-    return typeof window !== 'undefined' && globalThis.localStorage !== undefined;
+function parseCollapsedStatusGroups(raw: unknown): StatusGroupId[] {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    return Object.entries(raw)
+        .filter(([id, isCollapsed]) => isCollapsed === true && STATUS_GROUP_IDS.has(id))
+        .map(([id]) => id as StatusGroupId);
 }
 
-function readCollapsedStatusGroups(): StatusGroupId[] {
-    if (!isBrowser()) return [];
-    try {
-        const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-        return Array.isArray(parsed)
-            ? parsed.filter((id): id is StatusGroupId => STATUS_GROUP_IDS.has(id as string))
-            : [];
-    } catch {
-        return [];
-    }
+/**
+ * Shared by every window of the profile (docs/client-local-data.md).
+ */
+const sharedCollapsedGroups = createSharedLocalState(STORAGE_KEY, parseCollapsedStatusGroups);
+
+/**
+ * The groups whose collapsed state differs between this window and the stored record, as the fields to patch.
+ */
+function collapsedGroupChanges(
+    persisted: readonly StatusGroupId[],
+    current: readonly StatusGroupId[],
+): Record<string, true | undefined> {
+    const changes: Record<string, true | undefined> = {};
+    for (const id of current) if (!persisted.includes(id)) changes[id] = true;
+    for (const id of persisted) if (!current.includes(id)) changes[id] = undefined;
+    return changes;
 }
 
 /**
@@ -43,15 +55,27 @@ export function useAgentActivityGroupCollapse(): {
     toggle: (groupId: AgentActivityGroupId) => void;
 } {
     const pinned = usePinnedCollapse();
-    const [collapsedStatusGroups, setCollapsedStatusGroups] =
-        useState<StatusGroupId[]>(readCollapsedStatusGroups);
+    // Kept as component state, not a store: the auto-expand hook below reopens a group during render, which may only
+    // touch this component's own state.
+    const [collapsedStatusGroups, setCollapsedStatusGroups] = useState<StatusGroupId[]>(
+        sharedCollapsedGroups.read,
+    );
+    const persisted = useRef(collapsedStatusGroups);
+    // Another window's change lands in memory only; `persisted` moves with it so the effect below finds no difference
+    // and never writes it back.
+    useEffect(
+        () =>
+            sharedCollapsedGroups.subscribe((groups) => {
+                persisted.current = groups;
+                setCollapsedStatusGroups(groups);
+            }),
+        [],
+    );
+    // Patches only the groups this window changed, so a group collapsed in another window meanwhile stays collapsed.
     useEffect(() => {
-        if (!isBrowser()) return;
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsedStatusGroups));
-        } catch {
-            // Storage-disabled windows keep the disclosure state for this Renderer lifetime.
-        }
+        const changes = collapsedGroupChanges(persisted.current, collapsedStatusGroups);
+        if (Object.keys(changes).length === 0) return;
+        persisted.current = sharedCollapsedGroups.patch(changes);
     }, [collapsedStatusGroups]);
     const collapsedGroupIds = useMemo(
         () =>

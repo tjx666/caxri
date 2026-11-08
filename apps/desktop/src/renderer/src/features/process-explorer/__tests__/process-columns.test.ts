@@ -7,7 +7,6 @@ import {
     PROCESS_COLUMN_MAX_WIDTH,
     processColumnWidthStyle,
     resolveProcessColumnWidths,
-    serializeProcessTableState,
 } from '../process-columns';
 
 describe('resolveProcessColumnWidths', () => {
@@ -76,28 +75,27 @@ describe('nextProcessSort', () => {
 });
 
 describe('parseProcessTableState', () => {
-    it('round-trips a serialized state', () => {
+    it('accepts a stored state', () => {
         const state = {
             sort: { column: 'memory', direction: 'descending' },
             widths: { name: 300 },
         } as const;
 
-        expect(parseProcessTableState(serializeProcessTableState(state))).toEqual(state);
+        expect(parseProcessTableState(state)).toEqual(state);
     });
 
-    it('falls back to the defaults for absent, unparsable, or invalid storage', () => {
+    it('falls back to the defaults for absent or invalid storage', () => {
         const fallback = { sort: DEFAULT_PROCESS_SORT, widths: {} };
 
-        expect(parseProcessTableState(null)).toEqual(fallback);
-        expect(parseProcessTableState('{ not json')).toEqual(fallback);
-        expect(parseProcessTableState('{"sort":{"column":"threads","direction":"up"}}')).toEqual(
+        expect(parseProcessTableState(undefined)).toEqual(fallback);
+        expect(parseProcessTableState({ sort: { column: 'threads', direction: 'up' } })).toEqual(
             fallback,
         );
-        expect(parseProcessTableState('{"widths":{"cpu":"wide"}}')).toEqual(fallback);
+        expect(parseProcessTableState({ widths: { cpu: 'wide' } })).toEqual(fallback);
     });
 
     it('clamps a persisted width that would push the other columns off screen', () => {
-        expect(parseProcessTableState('{"widths":{"name":99999,"pid":1}}').widths).toEqual({
+        expect(parseProcessTableState({ widths: { name: 99999, pid: 1 } }).widths).toEqual({
             name: PROCESS_COLUMN_MAX_WIDTH,
             pid: 56,
         });

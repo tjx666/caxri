@@ -1,4 +1,4 @@
-import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createSharedLocalState } from '../../lib/local-storage';
 
 const STORAGE_KEY = 'caxri.palette.recent-commands';
 
@@ -37,13 +37,19 @@ export function visibleRecentCommands(
     return recent.filter((id) => visibleCommandIds.has(id));
 }
 
+/**
+ * Shared by every window of the profile (docs/client-local-data.md). The list is re-read at each record, never cached,
+ * so a command another window ran meanwhile is kept; the palette reads it when it opens, so it needs no subscription.
+ */
+const sharedRecent = createSharedLocalState(STORAGE_KEY, parseRecentCommands);
+
 export function loadRecentCommands(): string[] {
-    return parseRecentCommands(readLocalStorageJson(STORAGE_KEY));
+    return sharedRecent.read();
 }
 
 /**
  * Records a command the user ran from the palette. Device-local presentation state, so it stays in the Renderer.
  */
 export function recordRecentCommand(commandId: string): void {
-    writeLocalStorageJson(STORAGE_KEY, pushRecentCommand(loadRecentCommands(), commandId));
+    sharedRecent.write(pushRecentCommand(loadRecentCommands(), commandId));
 }

@@ -42,6 +42,8 @@ describe('currentAgentChatComposerScope', () => {
             },
         };
         const deleteDatabase = vi.fn();
+        // The shared storage helper only touches `localStorage` inside a browser window.
+        vi.stubGlobal('window', {});
         vi.stubGlobal('localStorage', storage);
         vi.stubGlobal('indexedDB', { deleteDatabase });
         indexEnvironmentSnapshot(

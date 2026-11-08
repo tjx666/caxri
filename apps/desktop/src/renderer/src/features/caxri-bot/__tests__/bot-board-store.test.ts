@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { installSharedProfile } from '../../../lib/__tests__/local-storage-profile';
 import {
     BOT_BOARD_DEFAULT_WIDTH,
     BOT_BOARD_MAX_WIDTH,
@@ -16,13 +17,7 @@ const STORAGE_KEY = 'caxri.bot.board-visible';
  * reads storage when its module loads, which is when the Caxri Bot window opens, so each case loads a fresh copy.
  */
 function stubStorage(entries: Map<string, string>): void {
-    vi.stubGlobal('window', {});
-    vi.stubGlobal('localStorage', {
-        getItem: (key: string) => entries.get(key) ?? null,
-        setItem: (key: string, value: string) => {
-            entries.set(key, value);
-        },
-    });
+    installSharedProfile(entries);
 }
 
 async function openWindow() {
