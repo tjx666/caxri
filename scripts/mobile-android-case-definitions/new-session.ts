@@ -29,6 +29,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'new-session-project-switch',
     },
+    'MOB-NEW-OPEN-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'new-session-open-saved-availability',
+    },
     'MOB-PARTIAL-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
