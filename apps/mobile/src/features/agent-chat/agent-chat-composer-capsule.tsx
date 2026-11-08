@@ -32,7 +32,9 @@ const rowAppear = FadeIn.duration(160)
  *
  * Each row animates its own frame on the capsule's curve: the capsule's frame grows upward while its rows are laid out
  * at their final offsets, so a row left static would hang below the capsule's bottom edge until the resize ends. Moving
- * the rows down by the same amount the frame moves up keeps the bottom row still on screen.
+ * the rows down by the same amount the frame moves up keeps the bottom row still on screen. The capsule and the input's
+ * row clip to their animating frames, as Desktop's composer clips its growing field, so the new lines are revealed
+ * instead of drawing over the second row before the input's row catches up.
  */
 export const AgentChatComposerCapsule = ({
     add,
@@ -56,13 +58,14 @@ export const AgentChatComposerCapsule = ({
         layout={capsuleResize}
         style={[
             sessionDetailStyles.capsule,
+            styles.clip,
             { backgroundColor: theme.surface, borderColor: theme.border },
         ]}
         testID="agent-chat-composer-capsule"
     >
         <Animated.View
             layout={capsuleResize}
-            style={isExpanded ? null : sessionDetailStyles.composerRow}
+            style={[styles.clip, isExpanded ? null : sessionDetailStyles.composerRow]}
         >
             {isExpanded ? null : add}
             {input}
@@ -83,6 +86,7 @@ export const AgentChatComposerCapsule = ({
 );
 
 const styles = StyleSheet.create({
+    clip: { overflow: 'hidden' },
     /**
      * Takes the row's spare width so the send controls stay at the trailing edge; the model chip shrinks first.
      */
