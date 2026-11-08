@@ -30,6 +30,12 @@ export function createMobileComputerName(
 ): MobileComputerName {
     const fallback = mobileHostDisplayName(systemName);
     let customName: string | null = null;
+    /**
+     * The name the last refresh reported. Change detection compares against it rather than against the name before the
+     * read, because `rename` updates `customName` on its own: a refresh that started after that would otherwise see no
+     * change and leave every other paired phone on the old name.
+     */
+    let reported = fallback;
     let tail = Promise.resolve(false);
     const displayName = (): string => customName ?? fallback;
     return {
@@ -40,14 +46,15 @@ export function createMobileComputerName(
             const previous = tail;
             tail = (async (): Promise<boolean> => {
                 await previous;
-                const before = displayName();
                 try {
                     const settings = await service.request('settings.get');
                     customName = settings.value['mobile.computerName'];
                 } catch {
                     // Settings report their own read failures; the phone keeps the last known name.
                 }
-                return displayName() !== before;
+                const isChanged = displayName() !== reported;
+                reported = displayName();
+                return isChanged;
             })();
             return tail;
         },

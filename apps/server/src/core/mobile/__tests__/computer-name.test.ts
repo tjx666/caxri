@@ -35,6 +35,15 @@ describe('mobile computer name', () => {
         await expect(name.refresh()).resolves.toBe(false);
     });
 
+    it('still reports a phone rename to the refresh that follows it, so other paired phones redraw', async () => {
+        const service = settingsService(null);
+        const name = createMobileComputerName(() => service as never, 'work-laptop');
+        await name.refresh();
+        await name.rename('Studio Mac');
+        await expect(name.refresh()).resolves.toBe(true);
+        await expect(name.refresh()).resolves.toBe(false);
+    });
+
     it('renames through the bounded settings patch and restores the host name for an empty name', async () => {
         const service = settingsService(null);
         const name = createMobileComputerName(() => service as never, 'work-laptop');
