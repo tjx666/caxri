@@ -100,9 +100,11 @@ has each Bash call refused by the worktree isolation, and both live layers come 
 
 Visual phase:
 
-- Launch through the `acceptance` skill's sanctioned scripts (start-electron / capture-renderer /
-  stop-electron) with an isolated `CAXRI_USER_DATA_DIR` and a temp `CAXRI_TEST_ROOT_PATH`; never a
-  second Electron instance, never bypassing the lease.
+- Launch with the `debug` skill's
+  `fake-agent-development-environment.ts <evidence temp dir> --provider claude --dev` (isolated
+  profile, temp test root, fake Agents, the desktop lease through `switch-worktree dev`) and drive
+  it with `drive-app.ts`; never a second Electron instance, never bypassing the lease. Acceptance's
+  `start-electron.ts` needs a built bundle and a frozen report plan an audit does not have.
 - Give it the concrete surface list derived from the scope (which dialogs to open, which menus to
   right-click, which settings tabs to scroll) rather than "look around".
 - Evidence (screenshots, render tables, recordings) goes to one per-run directory outside `/tmp`,
@@ -139,19 +141,24 @@ targets `9224` through `bun run .agents/skills/debug/scripts/worktree-browser.ts
   full settings source (`settings.get`).
 - Click through every surface in scope with the owner's real data: menus, dialogs, Settings tabs,
   hover cards, long lists, and the Sessions the scope's commits changed. Leave existing Sessions'
-  content untouched: no sending, renaming, archiving, Mark as Done, or deleting.
-- Create at most one new Session per Agent type (Shell, Claude Code, Codex, Grok Build,
-  Antigravity) in an existing Project when a surface needs a fresh one, record each id, and send no
-  prompt: a real Agent spends the owner's quota and writes a real transcript.
-- Clean up before the log layer: delete each created Session with
-  `caxri request session.delete --params '{"sessionId":"<id>"}'` (the Renderer's `session.delete`
-  opens Main's native confirmation and hangs CDP), restore every recorded value, then compare
-  `app.bootstrap` and `settings.get` against `before.json` and report any difference as unrestored.
-- Log layer: read the production logs with `caxri logs query --since <scope start> --level warn`
-  plus a bounded `jq` aggregation over `server-core.jsonl`, `desktop.jsonl`, `extension-host.jsonl`,
-  and `terminal-host.jsonl` (`ipc.request` by `method` with count and p95 `durationMs`; errors by
-  `event` and reason). Each log finding names the user-visible symptom it implies or says it is
-  unknown.
+  content untouched: no sending, renaming, archiving, Mark as Done, or deleting. Opening one stamps
+  its last visit and clears its unread mark, so open only Idle Sessions that are already read.
+- Create at most one new Session per Agent type (Claude Code, Codex, Grok Build, Antigravity) in an
+  existing Project when a surface needs a fresh one, opened in Chat, record each id, and send no
+  prompt: a real Agent spends the owner's quota and writes a real transcript. Do not create a Shell
+  Session; it has no confirmation-free removal.
+- Clean up before the log layer: from the Renderer, call
+  `window.caxri.request('session.discardIfEmpty', { sessionId })` for each created Session and
+  require `discarded: true`. `session.delete` and `session.archive` need the `desktop` capability no
+  CLI caller has, and the Renderer's `session.delete` opens Main's native confirmation, which hangs
+  CDP. Restore every recorded value, then compare `app.bootstrap` and `settings.get` against
+  `before.json` and report any difference or undiscarded Session as unrestored.
+- Log layer: aggregate the production logs with bounded `jq` over `server-core.jsonl`,
+  `desktop.jsonl`, `extension-host.jsonl`, and `terminal-host.jsonl` plus their rotated `.1`–`.3`
+  generations (`ipc.request` lines carrying `principal`, by `method` with count, p95 `durationMs`
+  and `queueMs`; `warn`/`error` by `event` and reason). Rotation can leave `server-core` short of
+  the scope window: state the covered range. An Agent's `caxri logs query` lacks `diagnostics.read`.
+  Each log finding names the user-visible symptom it implies or says it is unknown.
 - Production screenshots carry the owner's real data: they stay in the local evidence directory
   and never go into an issue, PR, or other public artifact (`oss-confidentiality`).
 
