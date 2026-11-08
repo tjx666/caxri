@@ -1,5 +1,6 @@
 import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
 import { CaxriError } from '@caxri/protocol';
+import { errorLogFields } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -267,7 +268,7 @@ describe('Desktop Server connection recovery', () => {
 
         await vi.advanceTimersByTimeAsync(500);
         expect(logger.write).toHaveBeenCalledWith('warn', 'server_connection.reconnect_failed', {
-            fields: { attempt: 1, error: 'host is still down' },
+            fields: { attempt: 1, ...errorLogFields(new Error('host is still down')) },
         });
 
         const replacement = mockServerRound();
@@ -346,7 +347,7 @@ describe('Desktop Server connection recovery', () => {
         expect(failing.request).toHaveBeenCalledTimes(1);
         expect(failing.close).toHaveBeenCalled();
         expect(logger.write).toHaveBeenCalledWith('warn', 'server_connection.reconnect_failed', {
-            fields: { attempt: 1, error: 'recover failed once' },
+            fields: { attempt: 1, ...errorLogFields(new Error('recover failed once')) },
         });
         expect(logger.write).not.toHaveBeenCalledWith(
             'info',
