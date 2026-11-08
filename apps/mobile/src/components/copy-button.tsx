@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import * as Clipboard from 'expo-clipboard';
@@ -50,14 +50,15 @@ export const CopyButton = ({
 }) => {
     const { t } = useTranslation();
     const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
+    const notifyCopied = useEffectEvent(() => onCopied?.());
     useEffect(() => {
         if (status === 'idle') return;
         const timer = setTimeout(() => {
             setStatus('idle');
-            if (status === 'copied') onCopied?.();
+            if (status === 'copied') notifyCopied();
         }, COPY_FEEDBACK_RESET_MS);
         return () => clearTimeout(timer);
-    }, [onCopied, status]);
+    }, [status]);
     const label = {
         copied: t('components.copied'),
         failed: t('components.copyFailed'),
