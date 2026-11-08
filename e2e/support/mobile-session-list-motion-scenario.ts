@@ -32,22 +32,47 @@ const WATCH_MS = 3_000;
  * An outage long enough that the Reconnecting capsule must appear.
  */
 const OUTAGE_MS = 9_000;
+/**
+ * Downscale factor for the analysed bands: half resolution keeps a fading 1px text stroke visible to the comparison.
+ */
+const ANALYSIS_SCALE = 2;
+/**
+ * Share of a row's width judged from its leading edge. The trailing status glyph may spin, which would read as motion
+ * on its own.
+ */
+const ROW_JUDGED_SHARE = 0.75;
 
 type Recording = Awaited<ReturnType<typeof startMobileFramebufferRecording>>;
 interface Band {
     bottom: number;
+    left: number;
+    right: number;
     top: number;
 }
 
 /**
- * `MOB-SESSION-LIST-MOTION-01`: Session rows and the Reconnecting capsule animate instead of popping.
+ * The capsule's label area: inside its border and right of its spinner, which turns the whole time the capsule shows.
+ * The spinner and its padding take about 1.3 capsule heights.
+ */
+const capsuleLabel = ({ bottom, left, right, top }: Band): Band => ({
+    bottom: bottom - 4,
+    left: left + Math.round((bottom - top) * 1.3),
+    right: right - 12,
+    top: top + 4,
+});
+
+/**
+ * `MOB-SESSION-LIST-MOTION-01` (#3815): Session rows and the Reconnecting capsule animate instead of popping.
  *
  * 1. A Session created on Desktop fades into the phone's list while the existing row slides down to make room.
  * 2. Archiving it on Desktop fades it out while the remaining row slides back up.
- * 3. When the network returns, the Reconnecting capsule fades out instead of vanishing in one frame.
+ * 3. Opening a Session while offline drops the saved copy's age from the capsule's label; the new label fades in while the
+ *    capsule narrows, instead of swapping in one frame.
+ * 4. When the network returns, the capsule fades out instead of vanishing in one frame. The runner keeps this last
+ *    recording as the evidence video.
  *
- * Each change is filmed on its own and judged by the frames drawn between its first and last picture. A last, unjudged
- * recording films the capsule's label change as a Session opens while offline, and its exit, as the evidence video.
+ * Each change is filmed on its own and judged by the frames drawn between its first and last picture, inside a band
+ * that holds still apart from that change.
  */
 export async function executeMobileSessionListMotionScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -63,27 +88,29 @@ export async function executeMobileSessionListMotionScenario(
         await setMobileNetworkAvailable(serial, isOnline);
         network.isOffline = !isOnline;
     };
-    const boundsOf = async (checkId: string) => {
+    const boundsOf = async (checkId: string): Promise<Band> => {
         const node = (await mobileSemantics(serial)).find((entry) => entry.checkId === checkId);
         const bounds = node && androidBounds(node.bounds);
         if (!bounds) throw new Error(`${checkId} is not laid out`);
         return bounds;
     };
     /**
-     * Films `act` and counts the frames drawn between the band's first and last picture.
+     * Films `act`, then counts the frames drawn between the first and last picture of the band `bandOf` returns once
+     * `act` has finished.
      */
-    const filmChange = async (band: Band, act: () => Promise<void>) => {
+    const filmChange = async (bandOf: () => Promise<Band>, act: () => Promise<void>) => {
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await pause(500);
         await act();
         await pause(WATCH_MS);
         await recording.stop();
         recording = undefined;
+        const band = await bandOf();
         const analysis = await mkdtemp(join(tmpdir(), 'caxri-session-list-motion-'));
         try {
             const video = join(analysis, 'segment.mp4');
             await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-            return inBetweenFrames((await readRecordingBand(video, band, 2)).frames);
+            return inBetweenFrames((await readRecordingBand(video, band, ANALYSIS_SCALE)).frames);
         } finally {
             await rm(analysis, { force: true, recursive: true });
         }
@@ -98,11 +125,17 @@ export async function executeMobileSessionListMotionScenario(
         await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
         const first = await boundsOf(row);
         // The slot the existing row holds now and the one below it, where it moves once a newer Session lists above.
-        const rows: Band = { bottom: first.bottom + (first.bottom - first.top), top: first.top };
+        const rows: Band = {
+            bottom: first.bottom + (first.bottom - first.top),
+            left: first.left,
+            right: first.left + Math.round((first.right - first.left) * ROW_JUDGED_SHARE),
+            top: first.top,
+        };
+        const rowBand = () => Promise.resolve(rows);
 
         // 1. A Session created on Desktop enters the list.
         let createdId = '';
-        const enter = await filmChange(rows, async () => {
+        const enter = await filmChange(rowBand, async () => {
             createdId = (
                 await pageRequest<{ session: { id: string } }>(page, 'session.create', {
                     defaultAgent: 'codex',
@@ -115,40 +148,37 @@ export async function executeMobileSessionListMotionScenario(
         await capture(environment, 'session-entered', artifacts);
 
         // 2. Archiving it on Desktop takes it out of the list.
-        const leave = await filmChange(rows, async () => {
+        const leave = await filmChange(rowBand, async () => {
             await pageRequest(page, 'session.archive', { sessionId: createdId });
         });
         await waitForNoCheck(serial, `session-row-${createdId}`);
         await capture(environment, 'session-left', artifacts);
 
-        // 3. The Reconnecting capsule leaves when the network returns.
+        // 3. Offline over the list, the capsule carries the saved copy's age; opening a Session drops it.
         await setOnline(false);
         await pause(OUTAGE_MS);
-        await waitForCheck(serial, 'connection-stale-banner', 30_000);
-        const capsule = await boundsOf('connection-stale-banner');
-        await capture(environment, 'capsule-shown', artifacts);
-        const island: Band = { bottom: capsule.bottom + 8, top: Math.max(0, capsule.top - 8) };
-        const capsuleExit = await filmChange(island, async () => {
-            await setOnline(true);
-            await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
-        });
-
-        // Evidence video: the capsule over the list, its label as a Session opens, and its exit as the network returns.
-        await setOnline(false);
-        await pause(OUTAGE_MS);
-        await waitForCheck(serial, 'connection-stale-banner', 30_000);
-        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
-        await pause(1_000);
-        await tapMobileCheck(serial, row);
-        await pause(2_000);
+        await waitForCheck(serial, 'session-list-saved', 30_000);
+        await capture(environment, 'capsule-over-list', artifacts);
+        const labelChange = await filmChange(
+            async () => capsuleLabel(await boundsOf('connection-stale-banner')),
+            async () => {
+                await tapMobileCheck(serial, row);
+            },
+        );
         await capture(environment, 'capsule-in-session', artifacts);
-        await setOnline(true);
-        await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
-        await pause(1_500);
-        await recording.stop();
-        recording = undefined;
 
-        const results = { capsuleExit, enter, leave };
+        // 4. The capsule leaves when the network returns.
+        const capsule = capsuleLabel(await boundsOf('connection-stale-banner'));
+        const capsuleExit = await filmChange(
+            () => Promise.resolve(capsule),
+            async () => {
+                await setOnline(true);
+                await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
+            },
+        );
+        await capture(environment, 'capsule-gone', artifacts);
+
+        const results = { capsuleExit, enter, labelChange, leave };
         const still = Object.entries(results).filter(
             ([, { count }]) => count < MIN_IN_BETWEEN_FRAMES,
         );
@@ -161,6 +191,8 @@ export async function executeMobileSessionListMotionScenario(
             capsuleExitMs: Math.round(capsuleExit.spanMs),
             enterInBetweenFrames: enter.count,
             enterMs: Math.round(enter.spanMs),
+            labelChangeInBetweenFrames: labelChange.count,
+            labelChangeMs: Math.round(labelChange.spanMs),
             leaveInBetweenFrames: leave.count,
             leaveMs: Math.round(leave.spanMs),
             status: 'passed',

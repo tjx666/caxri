@@ -274,17 +274,23 @@ async function probeRecording(path: string): Promise<{ times: number[]; width: n
 }
 
 /**
- * Decodes every frame of a recording inside the rows `top`..`bottom`, scaled down by `scale` in both directions. The
- * frames keep their own presentation times because `screenrecord` only writes a frame when the screen changes.
+ * Decodes every frame of a recording inside the rows `top`..`bottom` (and the columns `left`..`right`, the full width
+ * by default), scaled down by `scale` in both directions. The frames keep their own presentation times because
+ * `screenrecord` only writes a frame when the screen changes.
  */
 export async function readRecordingBand(
     path: string,
-    { bottom, top }: { bottom: number; top: number },
+    {
+        bottom,
+        left = 0,
+        right,
+        top,
+    }: { bottom: number; left?: number; right?: number; top: number },
     scale = 4,
 ): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry; scale: number }> {
     const { times, width: videoWidth } = await probeRecording(path);
     const cropHeight = Math.floor((bottom - top) / scale) * scale;
-    const cropWidth = Math.floor(videoWidth / scale) * scale;
+    const cropWidth = Math.floor(((right ?? videoWidth) - left) / scale) * scale;
     const geometry = { height: cropHeight / scale, width: cropWidth / scale };
     const decoded = await execFileAsync(
         'ffmpeg',
@@ -296,7 +302,7 @@ export async function readRecordingBand(
             '-fps_mode',
             'passthrough',
             '-vf',
-            `crop=${cropWidth}:${cropHeight}:0:${top},scale=${geometry.width}:${geometry.height}:flags=area,format=gray`,
+            `crop=${cropWidth}:${cropHeight}:${left}:${top},scale=${geometry.width}:${geometry.height}:flags=area,format=gray`,
             '-f',
             'rawvideo',
             'pipe:1',
