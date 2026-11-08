@@ -1578,7 +1578,10 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   (`agent-chat-path-references.ts`), so the Agent reads each from disk with its own tools and no
   file contents are inlined. Every Client parses that block back: the transcript, the pending row,
   the queue, the message rail, prompt history, Copy, Edit, and Fork show only the typed words, and a
-  sent message shows each reference as a chip under its images. Clicking a chip calls the Desktop
+  sent message shows each reference above its bubble as a tile laid out like Finder's icon view: the
+  QuickLook thumbnail (a document's first page, an audio file's note, a folder's icon) over the
+  name, shortened in the middle so the extension always shows (`agentChatFileTileName`). The
+  composer's file and folder cards show the same thumbnail in their icon tile. Clicking a tile calls the Desktop
   method `agentChat.openPathReference`, which opens a folder in Finder and reveals a file (or an
   app-like bundle such as `.app`, which opening would launch) in its folder. A Files entry, an
   Editor tab dragged with Option held, or a Project dragged from inside Caxri is inserted at the
@@ -1594,7 +1597,8 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   plays and seeks the file, with Show in Finder when Chromium cannot decode it. Main serves the
   poster (a QuickLook thumbnail) and the video's byte ranges over the `caxri-media:` scheme only
   for an existing regular file whose path and resolved path both end in a video extension
-  (`main/agent-chat/media-protocol.ts`). An SSH Host window treats a video like any other local
+  (`main/agent-chat/media-protocol.ts`); for any other cited file or folder it serves only the
+  QuickLook thumbnail PNG. An SSH Host window treats a video like any other local
   file, since the Agent there cannot read it.
 - **Caxri skill.** Caxri skill in `+` attaches a skill card to the tray (an icon tile, `Caxri
 skill`, and `Skill`), so a request such as "open a Session for this" needs no prompt about the

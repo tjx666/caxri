@@ -258,9 +258,11 @@ export const AGENT_CHAT_MEDIA_SCHEME = 'caxri-media';
 const VIDEO_EXTENSIONS = new Set(['m4v', 'mov', 'mp4', 'ogv', 'webm']);
 
 /**
- * What a media URL asks for: the video itself, streamed with range requests, or its poster frame as a PNG.
+ * What a media URL asks for: the video itself, streamed with range requests, or its poster frame as a PNG; or the
+ * thumbnail QuickLook draws for any cited file or folder, the picture Finder's icon view shows (a document's first
+ * page, a folder's icon), also a PNG. A thumbnail never carries the file's bytes, so it is not limited to videos.
  */
-export type AgentChatMediaKind = 'poster' | 'video';
+export type AgentChatMediaKind = 'poster' | 'thumbnail' | 'video';
 
 /**
  * Whether `path` names a video the Chat previews and plays, judged by its extension.
@@ -272,14 +274,15 @@ export function isAgentChatVideoPath(path: string): boolean {
 }
 
 /**
- * The URL that serves the video at the absolute `path`, or its poster frame.
+ * The URL that serves the video at the absolute `path`, its poster frame, or any file's or folder's thumbnail.
  */
 export function agentChatMediaUrl(kind: AgentChatMediaKind, path: string): string {
     return `${AGENT_CHAT_MEDIA_SCHEME}://local/${kind}?path=${encodeURIComponent(path)}`;
 }
 
 /**
- * The request a media URL makes, or `undefined` when it is not one `agentChatMediaUrl` writes for a video path.
+ * The request a media URL makes, or `undefined` when it is not one `agentChatMediaUrl` writes: a thumbnail of any
+ * absolute path, or a video or poster of a video path.
  */
 export function parseAgentChatMediaUrl(
     url: string,
@@ -294,8 +297,9 @@ export function parseAgentChatMediaUrl(
         return undefined;
     const kind = parsed.pathname.slice(1);
     const path = parsed.searchParams.get('path');
-    if ((kind !== 'poster' && kind !== 'video') || !path?.startsWith('/')) return undefined;
-    if (!isAgentChatVideoPath(path)) return undefined;
+    if ((kind !== 'poster' && kind !== 'thumbnail' && kind !== 'video') || !path?.startsWith('/'))
+        return undefined;
+    if (kind !== 'thumbnail' && !isAgentChatVideoPath(path)) return undefined;
     return { kind, path };
 }
 

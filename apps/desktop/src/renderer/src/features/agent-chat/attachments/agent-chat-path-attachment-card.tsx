@@ -2,12 +2,13 @@ import type { ReactNode } from 'react';
 
 import type { AgentChatPathReference } from '@caxri/protocol';
 import { agentChatPathReferenceName } from '@caxri/protocol';
-import { File, Folder, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
+import { AgentChatFileThumbnail } from './file-thumbnail/agent-chat-file-thumbnail';
 
 /**
  * The round Remove button on an attachment's top-right corner, shared by image thumbnails and file or folder cards.
@@ -36,8 +37,9 @@ export function AgentChatAttachmentRemoveButton({
 }
 
 /**
- * A file or folder attached to the message being written, as the Codex app shows one: an icon tile, the name, and
- * whether it is a folder or a file, with the full path on hover. The message cites it by path when sent.
+ * A file or folder attached to the message being written, as the Codex app shows one: a tile with its QuickLook
+ * thumbnail (`AgentChatFileThumbnail`, the same picture the sent message shows), the name, and whether it is a folder
+ * or a file, with the full path on hover. The message cites it by path when sent.
  */
 export function AgentChatPathAttachmentCard({
     reference,
@@ -49,14 +51,16 @@ export function AgentChatPathAttachmentCard({
     onRemove: () => void;
 }) {
     const { t } = useTranslation();
-    const Icon = reference.isDirectory ? Folder : File;
     return (
         <div className="relative" data-agent-chat-path-attachment={reference.path}>
             <Tooltip content={reference.path}>
                 <div className="flex h-14 max-w-60 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-elevated pr-4 pl-2">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
-                        <Icon aria-hidden="true" className="size-5" />
-                    </span>
+                    <AgentChatFileThumbnail
+                        className="size-10 rounded-md bg-background p-1"
+                        iconClassName="size-5"
+                        key={reference.path}
+                        reference={reference}
+                    />
                     <span className="flex min-w-0 flex-col">
                         <span className="truncate text-[13px] leading-5 font-medium text-foreground">
                             {agentChatPathReferenceName(reference)}

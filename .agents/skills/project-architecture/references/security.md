@@ -208,7 +208,7 @@ It is classified `local-only` in `apps/desktop/src/main/environment-method-polic
 window cannot trigger it, because the path would name a file on the remote machine, not the
 machine whose Finder opens. User-facing behavior is in [Agent Chat](../../../../docs/agent-chat.md).
 
-## Chat video media scheme
+## Chat media scheme
 
 `caxri-media:` (`apps/desktop/src/main/agent-chat/media-protocol.ts`) serves a video a Chat
 message cites to the Renderer: its QuickLook poster frame and the file itself, streamed with range
@@ -217,8 +217,11 @@ file channel's read cap, which is why a scheme exists at all. Main serves a path
 requested path and its `realpath` both end in a video extension (`isAgentChatVideoPath`) and the
 target is a regular file; anything else answers 400 or 404, so the scheme cannot read arbitrary
 files, including through a symlink named like a video. Like the path opener, the path is not held
-to a Project root because it is the user's own drop or pick. An SSH Host window never builds these
-URLs (`isAgentChatPlayableVideo`), since its paths name files on the remote machine.
+to a Project root because it is the user's own drop or pick. A `thumbnail` request is the one
+exception to the video-extension rule: it accepts any existing file or folder, because it answers
+only the PNG QuickLook draws (the picture Finder's icon view shows) and never the file's bytes. An
+SSH Host window never builds these URLs (`isAgentChatPlayableVideo`, `isOsFileReferenceRefused`),
+since its paths name files on the remote machine.
 
 ## Accepted test seams
 
