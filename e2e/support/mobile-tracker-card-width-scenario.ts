@@ -23,13 +23,19 @@ const ISSUE_HANDOFF = 'agent-chat-tracker-handoff-ENG-12';
  */
 const MAX_SWIPES = 4;
 
+/**
+ * Device pixels two edges of the same layout column may differ by after dp-to-pixel rounding.
+ */
+const EDGE_TOLERANCE_PX = 2;
+
 const isIdle = (snapshot: AgentChatSnapshot): boolean =>
     !snapshot.activeTurnId && snapshot.turns.every((turn) => turn.status !== 'running');
 
 /**
  * `MOB-CHAT-TRACKER-CARD-01`: a finished turn shows a pull request card and an issue card. The issue card's "start in a
  * new Session" button sits inside the card's border, so the issue card is as wide as its siblings. Before the fix the
- * button sat outside the card and narrowed it, its trailing edge reaching past the pull request card's row.
+ * button sat outside the card and narrowed it, its trailing edge reaching past the pull request card's row (which ends
+ * one border inside its card); inside the card it ends at least one border and the card's trailing inset short of it.
  */
 export async function executeMobileTrackerCardWidthScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -70,7 +76,8 @@ export async function executeMobileTrackerCardWidthScenario(
         const { handoff, issue, pull } = rows;
         if (!pull || !issue || !handoff) throw new Error('The tracker cards are not on screen');
         await capture(environment, 'tracker-cards', artifacts);
-        if (issue.left !== pull.left) throw new Error('The issue card is offset from its siblings');
+        if (Math.abs(issue.left - pull.left) > EDGE_TOLERANCE_PX)
+            throw new Error('The issue card is offset from its siblings');
         const observed = {
             handoffRight: handoff.right,
             issueLeft: issue.left,
