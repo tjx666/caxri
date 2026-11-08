@@ -19,6 +19,7 @@ import { imageAttachmentAccessibilityLabel } from '../image-attachment-store';
 import {
     IMAGE_STRIP_CELL,
     IMAGE_STRIP_CELL_GAP,
+    IMAGE_STRIP_EXIT_MS,
     IMAGE_STRIP_REMOVE_CIRCLE,
     IMAGE_STRIP_REMOVE_OVERHANG,
     IMAGE_STRIP_REMOVE_TARGET,
@@ -156,7 +157,7 @@ export const SessionComposerAttachments = ({
                     return (
                         <Animated.View
                             entering={FadeIn.duration(160)}
-                            exiting={FadeOut.duration(120)}
+                            exiting={FadeOut.duration(IMAGE_STRIP_EXIT_MS)}
                             key={attachment.id}
                             layout={LinearTransition.duration(180)}
                             style={styles.attachment}
@@ -245,7 +246,7 @@ export const SessionComposerAttachments = ({
                 {files.attachments.map((file) => (
                     <Animated.View
                         entering={FadeIn.duration(160)}
-                        exiting={FadeOut.duration(120)}
+                        exiting={FadeOut.duration(IMAGE_STRIP_EXIT_MS)}
                         key={file.id}
                         layout={LinearTransition.duration(180)}
                     >
