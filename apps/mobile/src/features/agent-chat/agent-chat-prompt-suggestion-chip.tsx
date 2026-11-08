@@ -1,4 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { RefObject } from 'react';
+import type { TextInputInstance } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { Sparkles } from 'lucide-react-native';
@@ -6,21 +8,29 @@ import { Sparkles } from 'lucide-react-native';
 import { Chip } from '../../components/chip';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { agentChatOfferedPromptSuggestion } from './agent-chat-prompt-suggestion';
 
 /**
- * The provider's suggested next message right above the capsule (`agentChatOfferedPromptSuggestion`). Tapping it fills
- * the input without sending, the phone's stand-in for Desktop's Tab in an empty input, so the user can still edit it.
+ * The provider's suggested next message right above the capsule, while the composer offers one
+ * (`agentChatOfferedPromptSuggestion`). Tapping it fills the input without sending, the phone's stand-in for Desktop's
+ * Tab in an empty input, so the user can still edit it.
  */
 export const AgentChatPromptSuggestionChip = ({
-    onUse,
-    suggestion,
+    inputReference,
+    onDraftChange,
     theme,
-}: {
-    onUse: (suggestion: string) => void;
-    suggestion: string;
+    ...state
+}: Parameters<typeof agentChatOfferedPromptSuggestion>[0] & {
+    /**
+     * The composer's input, focused once the suggestion fills it so the user can edit it right away.
+     */
+    inputReference: RefObject<TextInputInstance | null>;
+    onDraftChange: (draft: string) => void;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const suggestion = agentChatOfferedPromptSuggestion(state);
+    if (suggestion === undefined) return null;
     return (
         <View style={styles.row}>
             <Chip
@@ -28,7 +38,10 @@ export const AgentChatPromptSuggestionChip = ({
                 accessibilityLabel={t('chat.promptSuggestion.label', { suggestion })}
                 icon={Sparkles}
                 label={suggestion}
-                onPress={() => onUse(suggestion)}
+                onPress={() => {
+                    onDraftChange(suggestion);
+                    inputReference.current?.focus();
+                }}
                 testID="agent-chat-prompt-suggestion"
                 theme={theme}
                 tint={theme.muted}
