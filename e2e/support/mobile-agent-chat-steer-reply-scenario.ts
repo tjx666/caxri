@@ -70,6 +70,9 @@ export async function executeMobileChatSteerReplyScenario(
             isOpen = false;
         }
         await capture(environment, 'finished-steer-reply', artifacts);
+        // The steered mark names itself on tap, the phone's stand-in for Desktop's hover tooltip.
+        await tapMobileCheck(serial, 'agent-chat-steered');
+        await capture(environment, 'steered-hint', artifacts);
         await finish(environment, artifacts, {
             outcome: isOpen ? 'thought-open' : 'thought-folded',
             status: isOpen ? 'passed' : 'failed',

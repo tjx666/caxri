@@ -519,6 +519,9 @@ export async function executeMobileChatComposerScenario(
         await sendFromPhone(serial, 'lost');
         await waitForCheck(serial, 'agent-chat-sending-delivery');
         await capture(environment, 'sending', artifacts);
+        // The clock says what the send waits for on tap, in place of Desktop's hover tooltip.
+        await tapMobileCheckByBounds(serial, 'agent-chat-sending-delivery');
+        await capture(environment, 'sending-hint', artifacts);
         await waitForCheck(serial, 'agent-chat-composer-error', 120_000);
         await waitForNoCheck(serial, 'agent-chat-sending-delivery');
         const returned = await observeMobileNode(serial, 'agent-chat-composer-input', {
