@@ -32,9 +32,11 @@ const inlineStyles = (theme: MobileTheme): Record<Inline, TextStyle> => ({
 
 /**
  * Syntax hidden away from the cursor. A native field cannot drop characters it holds, so they shrink to a sliver and
- * turn transparent; the cursor reaching them reveals them again (`agentChatComposerSpans`).
+ * turn invisible; the cursor reaching them reveals them again (`agentChatComposerSpans`). The alpha is 1/255 rather
+ * than 0: Android's field reads a fully transparent color (the integer 0) as no color and drew each marker as a dot in
+ * the text color.
  */
-const HIDDEN: TextStyle = { color: 'transparent', fontSize: 1 };
+const HIDDEN: TextStyle = { color: '#00000001', fontSize: 1 };
 
 /**
  * The draft as styled runs, the text field's children in place of its `value`.

@@ -33,7 +33,9 @@ export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSche
  * `[Image #N]`, numbered by the image's position in the message, and send the images beside the text; a Chat message
  * uses the same placeholder so the Agent reads each image where the user put it.
  */
-const IMAGE_TOKEN = /\[Image #(?<number>[1-9]\d{0,3})\]/gu;
+// A positional group, not a named one: on the mobile app's Hermes runtime a `matchAll` result has no `groups`, so every
+// number read as `NaN` there and an attached image lost its placeholder.
+const IMAGE_TOKEN = /\[Image #([1-9]\d{0,3})\]/gu;
 
 /**
  * The placeholder for the message's `number`th image, counting from 1.
@@ -50,7 +52,7 @@ export function agentChatImageTokenRanges(
 ): Array<{ number: number; from: number; to: number }> {
     // `Array.from` rather than iterator helpers: the mobile app's TypeScript lib does not declare them.
     return Array.from(text.matchAll(IMAGE_TOKEN), (match) => ({
-        number: Number(match.groups?.number),
+        number: Number(match[1]),
         from: match.index,
         to: match.index + match[0].length,
     }));
