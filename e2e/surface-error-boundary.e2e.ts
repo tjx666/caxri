@@ -1,10 +1,18 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { fakeClaudeChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, VISIBLE_TERMINAL_INPUT } from './support/helpers.ts';
+import {
+    closeAppQuietly,
+    createProjectSession,
+    createShellSession,
+    launchCaxri,
+    VISIBLE_SESSION,
+    VISIBLE_TERMINAL_INPUT,
+} from './support/helpers.ts';
 import { openSettingsPage } from './support/settings.ts';
 
 /**
@@ -86,6 +94,48 @@ test('a surface render failure stays local to its surface', async () => {
         } catch {
             // Ignore close failures; the assertions above already produced the test result.
         }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A render failure inside one composer strip section (goal, plan, delegated Sessions, background work, queue) shows an
+ * inline fault row in the strip while the transcript and the message box stay mounted, with no reload.
+ */
+test('a composer strip section render failure leaves the transcript and message box mounted', async () => {
+    // The caught render error is logged by React and again by the boundary; Main mirrors both.
+    allowE2EErrors([
+        { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 2 },
+        { source: 'desktop', event: 'renderer.console_error', code: 'CONSOLE_ERROR', count: 2 },
+    ]);
+    const created = await mkdtemp(join(tmpdir(), 'caxri-strip-boundary-e2e-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        // Armed before the Chat exists, so the first strip section that mounts takes the fault.
+        await page.evaluate((key) => sessionStorage.setItem(key, 'chat-strip'), SURFACE_FAULT_KEY);
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const failure = chat
+            .getByRole('alert')
+            .filter({ hasText: 'This item could not be displayed.' });
+        await expect(failure).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Something went wrong' })).toBeHidden();
+        // The message box still works: the Chat's own boundary did not take over.
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('still here');
+        await message.press('Enter');
+        await expect(chat.getByText('You said: still here')).toBeVisible();
+        await failure.getByRole('button', { name: 'Retry' }).click();
+        await expect(failure).toBeHidden();
+    } finally {
+        await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
     }
 });

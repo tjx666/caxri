@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { AgentChatActivity, AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol';
 
+import { SurfaceErrorBoundary } from '../../../components/surface-error-boundary';
 import { useTranslation } from '../../../i18n';
 import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
 import type { AgentChatWorkingActivity } from '../activity/agent-chat-goal-row';
@@ -20,6 +21,28 @@ import {
     agentChatLatestTurnStart,
     agentChatPlanSection,
 } from './strip/agent-chat-strip-sections';
+
+/**
+ * Guards one strip section. A section that throws while rendering shows an inline fault row in its slot while the
+ * transcript, the composer input, and the other sections keep working; without it the throw reached the whole-Chat
+ * boundary and replaced transcript and composer with its fault view. The boundary renders no wrapper element, so the
+ * strip's `data-agent-chat-composer-strip-row` collapse rule is unaffected.
+ */
+function AgentChatStripSection({
+    children,
+    name,
+    terminalId,
+}: {
+    children: ReactNode;
+    name: string;
+    terminalId: string;
+}) {
+    return (
+        <SurfaceErrorBoundary layout="inline" resetKey={`${terminalId}:${name}`} scope="chat-strip">
+            {children}
+        </SurfaceErrorBoundary>
+    );
+}
 
 /**
  * The strip on the composer card's top edge, inset from its corners like a tab, so the Chat's state reads as separate
@@ -101,48 +124,62 @@ export function AgentChatComposerStrip({
                 {work && agentChatBackgroundWorkCounts(work, t).join(', ')}
             </span>
             <div className="max-h-64 overflow-y-auto">
-                <AgentChatDelegationOriginRow
-                    isBusy={isTurnRunning || pendingQueue.length > 0 || (queue?.length ?? 0) > 0}
-                    terminalId={terminalId}
-                />
-                <AgentChatIndependentOriginRow terminalId={terminalId} />
-                <AgentChatGoalBar
-                    goal={snapshot?.goal}
-                    goalUsage={snapshot?.goalUsage}
-                    liveActivity={goalActivity}
-                    terminalId={terminalId}
-                    turnId={activeTurnId}
-                    turns={snapshot?.turns}
-                />
-                {plan && (
-                    <AgentChatPlanSection
-                        isTurnRunning={isTurnRunning}
-                        section={plan}
+                <AgentChatStripSection name="delegation-origin" terminalId={terminalId}>
+                    <AgentChatDelegationOriginRow
+                        isBusy={
+                            isTurnRunning || pendingQueue.length > 0 || (queue?.length ?? 0) > 0
+                        }
                         terminalId={terminalId}
                     />
+                    <AgentChatIndependentOriginRow terminalId={terminalId} />
+                </AgentChatStripSection>
+                <AgentChatStripSection name="goal" terminalId={terminalId}>
+                    <AgentChatGoalBar
+                        goal={snapshot?.goal}
+                        goalUsage={snapshot?.goalUsage}
+                        liveActivity={goalActivity}
+                        terminalId={terminalId}
+                        turnId={activeTurnId}
+                        turns={snapshot?.turns}
+                    />
+                </AgentChatStripSection>
+                {plan && (
+                    <AgentChatStripSection name="plan" terminalId={terminalId}>
+                        <AgentChatPlanSection
+                            isTurnRunning={isTurnRunning}
+                            section={plan}
+                            terminalId={terminalId}
+                        />
+                    </AgentChatStripSection>
                 )}
                 {isShown && canShowDelegated && (
-                    <AgentChatDelegatedSessionsSection terminalId={terminalId} />
+                    <AgentChatStripSection name="delegated" terminalId={terminalId}>
+                        <AgentChatDelegatedSessionsSection terminalId={terminalId} />
+                    </AgentChatStripSection>
                 )}
                 {work && (
-                    <AgentChatBackgroundWorkSection
-                        terminalId={terminalId}
-                        work={work}
-                        onOpenTask={onOpenTask}
-                    />
+                    <AgentChatStripSection name="background-work" terminalId={terminalId}>
+                        <AgentChatBackgroundWorkSection
+                            terminalId={terminalId}
+                            work={work}
+                            onOpenTask={onOpenTask}
+                        />
+                    </AgentChatStripSection>
                 )}
-                <AgentChatQueueList
-                    isTurnRunning={isTurnRunning}
-                    pending={pendingQueue}
-                    queue={queue}
-                    snapshot={{
-                        queuePaused: isQueuePaused,
-                        queuePauseReason: snapshot?.queuePauseReason,
-                    }}
-                    terminalId={terminalId}
-                    onAction={onQueueAction}
-                    onEdit={onQueueEdit}
-                />
+                <AgentChatStripSection name="queue" terminalId={terminalId}>
+                    <AgentChatQueueList
+                        isTurnRunning={isTurnRunning}
+                        pending={pendingQueue}
+                        queue={queue}
+                        snapshot={{
+                            queuePaused: isQueuePaused,
+                            queuePauseReason: snapshot?.queuePauseReason,
+                        }}
+                        terminalId={terminalId}
+                        onAction={onQueueAction}
+                        onEdit={onQueueEdit}
+                    />
+                </AgentChatStripSection>
             </div>
             {children}
         </div>
