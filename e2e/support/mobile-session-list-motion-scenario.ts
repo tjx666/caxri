@@ -190,8 +190,26 @@ export async function executeMobileSessionListMotionScenario(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
+        // The finished reply moves the row to Needs attention; tap it only once it holds its new place.
+        await waitForMobile(
+            async () => JSON.stringify(await boundsOf(row)),
+            (() => {
+                let previous = '';
+                return (bounds: string) => {
+                    const isSettled = bounds === previous;
+                    previous = bounds;
+                    return isSettled;
+                };
+            })(),
+        );
+        await pause(1_000);
         await tapMobileCheck(serial, row);
-        await waitForCheck(serial, 'agent-chat');
+        try {
+            await waitForCheck(serial, 'agent-chat');
+        } catch (error) {
+            await capture(environment, 'chat-not-opened', artifacts);
+            throw error;
+        }
         await waitForNoCheck(serial, 'agent-chat-saved');
         await pause(READ_CACHE_SETTLE_MS);
         await tapMobileCheck(serial, 'session-detail-back');
