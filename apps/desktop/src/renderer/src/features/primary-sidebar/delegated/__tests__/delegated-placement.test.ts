@@ -163,22 +163,13 @@ describe('placeDelegatedSessions', () => {
         { name: 'running', overrides: { agentActivityState: 'running' as const } },
         { name: 'waiting', overrides: { agentActivityState: 'waiting' as const } },
         { name: 'unread', overrides: { hasPendingAttention: true, hasUnread: true } },
-    ])('keeps a row for a $name consult whose creator is archived', ({ overrides }) => {
+    ])('keeps a $name consult out of the tree once its creator is archived', ({ overrides }) => {
         const placement = place([
             session('archived-asker', 'alpha', { archivedAt: 5 }),
             createdBy('live-consult', 'alpha', 'archived-asker', 'consult', overrides),
         ]);
-        expect(placement.byId.get('live-consult')).toEqual({ kind: 'row' });
-    });
-
-    it('retires a read consult whose creator is archived even before it is marked Done', () => {
-        const placement = place([
-            session('archived-asker', 'alpha', { archivedAt: 5 }),
-            createdBy('read-consult', 'alpha', 'archived-asker', 'consult', {
-                hasPendingAttention: true,
-            }),
-        ]);
-        expect(placement.byId.has('read-consult')).toBe(false);
+        expect(placement.byId.has('live-consult')).toBe(false);
+        expect(ids(placement.rows)).not.toContain('live-consult');
     });
 
     it('treats a creator that is missing from the records like a deleted one', () => {
