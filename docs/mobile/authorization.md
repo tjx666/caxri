@@ -287,6 +287,11 @@ name changes from either side, Server Core forwards `settings.changed` to dashbo
 only after its follower holds the new name, so every paired phone redraws its header without a
 refresh. See [the computer name follower](../../apps/server/src/core/mobile/computer-name.ts).
 
+This name is independent of the display name Desktop shows for This Mac under Settings, SSH Host.
+That label is a per-Desktop viewer preference stored by Desktop Main, while `mobile.computerName`
+is the identity Server Core advertises to its phones, including when no Desktop is attached.
+Changing one does not change the other.
+
 ## Chat videos from mobile
 
 `mobile.video.read` and `mobile.video.open` are open to every role, but serve only a video that the
