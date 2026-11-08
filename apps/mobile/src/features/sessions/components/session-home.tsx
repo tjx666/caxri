@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
 import { useTranslation } from '../../../i18n';
-import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
+import { mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
@@ -27,6 +27,7 @@ import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
 import { canMarkDoneFromRow } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
+import { NewSessionFloatingButton } from './new-session-floating-button';
 import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionChatRequests } from './session-chat-requests';
 import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
@@ -46,16 +47,6 @@ const styles = StyleSheet.create({
     pane: { minWidth: 0 },
     phonePane: { flex: 1 },
     tabletPane: { flexGrow: 0, flexShrink: 0, width: 320 },
-    newButton: {
-        alignItems: 'center',
-        borderRadius: mobileRadius.pill,
-        bottom: mobileSpace.xl,
-        height: 58,
-        justifyContent: 'center',
-        position: 'absolute',
-        right: mobileSpace.lg,
-        width: 58,
-    },
     tabletNewButton: {
         alignItems: 'center',
         borderTopWidth: StyleSheet.hairlineWidth,
@@ -369,36 +360,23 @@ export const SessionHome = ({
                 progress={pageProgress}
                 renderPage={renderPage}
             />
-            <Pressable
-                accessibilityHint={t('sessions.home.newSessionHint')}
-                accessibilityLabel={t('sessions.new.title')}
-                accessibilityRole="button"
-                android_ripple={layout === 'phone' ? { color: theme.primaryRipple } : undefined}
-                onPress={onNewSession}
-                style={
-                    layout === 'phone'
-                        ? [
-                              styles.newButton,
-                              {
-                                  backgroundColor: theme.primary,
-                                  boxShadow: `0px 4px 12px ${theme.shadow}`,
-                              },
-                          ]
-                        : [styles.tabletNewButton, { borderColor: theme.border }]
-                }
-                testID="new-session-button"
-            >
-                <Plus
-                    color={layout === 'phone' ? theme.primaryForeground : theme.primary}
-                    size={layout === 'phone' ? 28 : 20}
-                    strokeWidth={2.25}
-                />
-                {layout === 'phone' ? null : (
+            {layout === 'phone' ? (
+                <NewSessionFloatingButton onPress={onNewSession} theme={theme} />
+            ) : (
+                <Pressable
+                    accessibilityHint={t('sessions.home.newSessionHint')}
+                    accessibilityLabel={t('sessions.new.title')}
+                    accessibilityRole="button"
+                    onPress={onNewSession}
+                    style={[styles.tabletNewButton, { borderColor: theme.border }]}
+                    testID="new-session-button"
+                >
+                    <Plus color={theme.primary} size={20} strokeWidth={2.25} />
                     <Text style={[styles.tabletNewText, { color: theme.primary }]}>
                         {t('sessions.new.title')}
                     </Text>
-                )}
-            </Pressable>
+                </Pressable>
+            )}
             <SessionActionsSheet
                 management={management}
                 onClose={() => setActionSession(null)}
