@@ -5,7 +5,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import type { AgentChatTrackerArtifact, AgentChatTrackerStatusType } from '@caxri/protocol';
-import { trackerExcerptText, trackerReferenceText } from '@caxri/protocol';
 import type { LucideProps } from 'lucide-react-native';
 import {
     ArrowUpRight,
@@ -31,6 +30,7 @@ import { mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { AgentChatHandoffStarter, agentChatIssueHandoffDraft } from './agent-chat-handoff';
 import { AgentChatResultRow } from './agent-chat-result-row';
+import { trackerExcerptLabel, trackerReferenceLabel } from './agent-chat-tracker-labels';
 
 interface MarkProperties {
     color: string;
@@ -134,8 +134,8 @@ export const AgentChatTrackerCard = ({
     const title =
         artifact.title ??
         (artifact.kind === 'acceptance' ? t('chat.tracker.acceptanceTitle') : undefined);
-    const reference = trackerReferenceText(artifact);
-    const excerpt = trackerExcerptText(artifact);
+    const reference = trackerReferenceLabel(artifact, t);
+    const excerpt = trackerExcerptLabel(artifact, t);
     const startHandoff = use(AgentChatHandoffStarter);
     const [isStarting, setStarting] = useState(false);
     const row = (

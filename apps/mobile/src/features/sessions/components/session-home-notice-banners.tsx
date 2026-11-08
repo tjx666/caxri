@@ -15,6 +15,8 @@ import {
     connectionIslandLabel,
     connectionNoticeMessage,
     createFirstShownTimes,
+    PINNED_RECONNECT_PERSIST_MS,
+    pinnedRouteOf,
     transientNoticeRemainingMs,
 } from '../session-notices';
 import { useHostSessions } from './host-sessions-provider';
@@ -24,6 +26,20 @@ import { NoticeIsland } from './notice-island';
  * A notice kind `selectHomeNotice` can pick.
  */
 export type HomeNoticeKind = NonNullable<ReturnType<typeof selectHomeNotice>>;
+
+/**
+ * Whether a pinned connection has kept reconnecting for {@link PINNED_RECONNECT_PERSIST_MS} since the notice mounted.
+ * The notice only mounts while the connection is stale, so its lifetime is the outage's.
+ */
+const useHasPinnedReconnectPersisted = (isPinned: boolean): boolean => {
+    const [hasPersisted, setHasPersisted] = useState(false);
+    useEffect(() => {
+        if (!isPinned) return;
+        const timer = setTimeout(() => setHasPersisted(true), PINNED_RECONNECT_PERSIST_MS);
+        return () => clearTimeout(timer);
+    }, [isPinned]);
+    return isPinned && hasPersisted;
+};
 
 /**
  * The update notice with its Install or Retry and Later actions; split out of `SessionHomeNotice` to keep its control
@@ -77,10 +93,12 @@ export const ConnectionBanner = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const { relayFailure } = useMobileClient();
+    const { relayFailure, routePreference } = useMobileClient();
+    const pinnedRoute = pinnedRouteOf(routePreference);
+    const hasReconnectPersisted = useHasPinnedReconnectPersisted(pinnedRoute !== null);
     const { hostId } = useHostSessions();
     const router = useRouter();
-    const model = connectionBannerModel(status, relayFailure);
+    const model = connectionBannerModel(status, relayFailure, pinnedRoute, hasReconnectPersisted);
     const actionLabels = {
         reconnect: t('sessions.banner.reconnectNow'),
         retry: t('common.retry'),
@@ -107,7 +125,12 @@ export const ConnectionBanner = ({
                     testID: 'connection-retry-button',
                 }}
                 isBusy
-                label={connectionIslandLabel(isSavedCopyShown ? saved : null, t, relayFailure)}
+                label={connectionIslandLabel(
+                    isSavedCopyShown ? saved : null,
+                    t,
+                    relayFailure,
+                    pinnedRoute,
+                )}
                 testID="connection-stale-banner"
                 theme={theme}
                 wrapperTestID={isSavedCopyShown ? 'session-list-saved' : undefined}

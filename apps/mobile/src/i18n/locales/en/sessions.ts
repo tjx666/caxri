@@ -76,6 +76,9 @@ export const sessions = {
         'Caxri on your computer is offline. Open Caxri on your computer; this phone reconnects automatically.',
     'sessions.banner.relayUnauthorized':
         'The Relay does not accept this phone. On your computer, open Caxri Settings → Mobile to check it is not Revoked, or pair again with Create pairing code.',
+    'sessions.banner.pinned': '{{method}} only · {{label}}',
+    'sessions.banner.pinnedDirect': 'Direct',
+    'sessions.banner.pinnedRelay': 'Relay',
     'sessions.banner.relayBusyShort': 'Relay busy, retrying…',
     'sessions.banner.relayBusy': 'The Relay is busy. Retrying automatically.',
     'sessions.composer.agentNotRunning': 'The primary Agent is not running.',

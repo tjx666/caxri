@@ -22,15 +22,18 @@ import { agentChatApprovalFiles, agentChatApprovalRows } from './agent-chat-mode
 import { AgentChatQuestionForm } from './agent-chat-question-form';
 import type { RequestActions } from './agent-chat-request-parts';
 import { ClampedText } from './agent-chat-request-parts';
+import { agentChatRequestPathLabel } from './agent-chat-request-path';
 
 type ApprovalRequest = Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>;
 
 const ApprovalBody = ({
     items,
+    projectRoot,
     request,
     theme,
 }: {
     items: readonly AgentChatItem[];
+    projectRoot?: string;
     request: ApprovalRequest;
     theme: MobileTheme;
 }) => {
@@ -57,8 +60,14 @@ const ApprovalBody = ({
                 />
             ) : null}
             {request.kind === 'command' && request.cwd ? (
-                <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
-                    {t('chat.request.cwd', { cwd: request.cwd })}
+                <Text
+                    accessibilityLabel={t('chat.request.cwd', { cwd: request.cwd })}
+                    numberOfLines={1}
+                    style={[styles.meta, { color: theme.muted }]}
+                >
+                    {t('chat.request.cwd', {
+                        cwd: agentChatRequestPathLabel(request.cwd, projectRoot),
+                    })}
                 </Text>
             ) : null}
             {files.length > 0 ? (
@@ -87,12 +96,14 @@ const ApprovalContent = ({
     actions,
     items,
     notice,
+    projectRoot,
     request,
     theme,
 }: {
     actions: RequestActions;
     items: readonly AgentChatItem[];
     notice: ReactNode;
+    projectRoot?: string;
     request: ApprovalRequest;
     theme: MobileTheme;
 }) => {
@@ -106,7 +117,12 @@ const ApprovalContent = ({
                 persistentScrollbar
                 style={styles.scroll}
             >
-                <ApprovalBody items={items} request={request} theme={theme} />
+                <ApprovalBody
+                    items={items}
+                    projectRoot={projectRoot}
+                    request={request}
+                    theme={theme}
+                />
             </ScrollView>
             {notice}
             {actions.isShowsActions ? (
@@ -154,6 +170,7 @@ export const AgentChatRequestCard = ({
     items,
     onRespond,
     positionLabel,
+    projectRoot,
     provider,
     request,
     theme,
@@ -165,6 +182,11 @@ export const AgentChatRequestCard = ({
      * `1 of N` while other requests wait behind this one in the dock.
      */
     positionLabel?: string;
+    /**
+     * The Project root a command's working directory is shown relative to; without it the card shows the path's last
+     * two segments.
+     */
+    projectRoot?: string;
     provider: string;
     request: AgentChatRequest;
     theme: MobileTheme;
@@ -226,6 +248,7 @@ export const AgentChatRequestCard = ({
                     actions={actions}
                     items={items}
                     notice={notice}
+                    projectRoot={projectRoot}
                     request={request}
                     theme={theme}
                 />
