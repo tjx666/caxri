@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
 import { connectToServer } from '@caxri/client/supervise';
-import type { MethodResult } from '@caxri/protocol';
+import type { MethodResult, ServerOperationParameters } from '@caxri/protocol';
 
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
@@ -14,6 +14,8 @@ import { adbShell, observeMobileNode, tapMobileCheck, waitForMobile } from './mo
  */
 const FIXTURE_HOST_NAME = 'Caxri Test Host';
 const NEW_NAME = 'Studio Mac';
+const DESKTOP_NAME = 'Office Mac';
+const DESKTOP_NAME_KEY = 'mobile.computerName';
 
 async function expectHostName(serial: string, name: string): Promise<void> {
     await waitForMobile(
@@ -74,9 +76,31 @@ export async function executeMobileComputerRenameScenario(
         await tapMobileCheck(serial, 'computer-rename-save');
         await waitForNoCheck(serial, 'computer-rename-sheet');
         await waitForMobile(readComputerName, (name) => name === null, 15_000);
+        await waitForMobile(
+            () =>
+                observeMobileNode(serial, 'settings-computer-name', {
+                    kind: 'includes',
+                    value: FIXTURE_HOST_NAME,
+                }),
+            (observation) => observation.textMatches === true,
+            15_000,
+        );
         await capture(environment, 'settings-restored', artifacts);
 
+        // A name set on the computer (Desktop Settings writes the same setting) must reach the phone as well, through
+        // the Server's `settings.changed` refresh rather than the phone's own rename reply.
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await expectHostName(serial, FIXTURE_HOST_NAME);
+        // Cast: the pre-change build (the baseline round) has no such key; that round stops at the menu anyway.
+        await client.request('settings.patch', {
+            changes: [{ key: DESKTOP_NAME_KEY, value: DESKTOP_NAME }],
+            dryRun: false,
+        } as unknown as ServerOperationParameters<'settings.patch'>);
+        await expectHostName(serial, DESKTOP_NAME);
+        await capture(environment, 'home-desktop-renamed', artifacts);
+
         await finish(environment, artifacts, {
+            desktopNameReachedPhone: true,
             renamedOnPhone: true,
             restoredHostName: true,
             savedName,
