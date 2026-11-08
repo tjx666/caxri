@@ -15,6 +15,7 @@ import { disposeAllThenRethrow } from '@caxri/utils';
 import type { ShutdownReason } from '../db';
 import { shutdownOutcome } from '../db';
 import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
+import { AgentProcessStateEmitter } from './agent-process-state';
 import { AgentStartWaiters } from './agent-start-waiters';
 import { logTerminalAttach } from './attach-log';
 import type {
@@ -60,7 +61,7 @@ export class TerminalManager {
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onShellRetired?: TerminalManagerOptions['onShellRetired'];
     private readonly isPtyExhausted?: TerminalManagerOptions['isPtyExhausted'];
-    private readonly onAgentStateChanged?: TerminalManagerOptions['onAgentStateChanged'];
+    private readonly agentStates: AgentProcessStateEmitter;
     private readonly onOutputActivity?: TerminalManagerOptions['onOutputActivity'];
     private readonly onStateChanged?: TerminalManagerOptions['onStateChanged'];
     private readonly onInput?: TerminalManagerOptions['onInput'];
@@ -83,7 +84,11 @@ export class TerminalManager {
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onShellRetired = options.onShellRetired;
         this.isPtyExhausted = options.isPtyExhausted;
-        this.onAgentStateChanged = options.onAgentStateChanged;
+        this.agentStates = new AgentProcessStateEmitter(
+            database,
+            emit,
+            options.onAgentStateChanged,
+        );
         this.onOutputActivity = options.onOutputActivity;
         this.onStateChanged = options.onStateChanged;
         this.onInput = options.onInput;
@@ -154,34 +159,6 @@ export class TerminalManager {
         }
     }
 
-    private emitAgentState(
-        terminalId: string,
-        state: ProcessState,
-        cause?: TerminalLifecycleCause,
-    ): void {
-        if (!this.database.getTerminal(terminalId)) return;
-        this.database.updateAgentProcessState(terminalId, state);
-        this.onAgentStateChanged?.(terminalId, state, cause);
-        this.emit({
-            event: 'state.changed',
-            payload: { kind: 'records', sessionIds: [], terminalIds: [terminalId] },
-        });
-    }
-
-    private emitAgentExitState(terminalId: string, state: 'dead' | 'stopped'): void {
-        if (!this.database.getTerminal(terminalId)) return;
-        const changedSessionId = this.database.updateAgentProcessExitState(terminalId, state);
-        this.onAgentStateChanged?.(terminalId, state);
-        this.emit({
-            event: 'state.changed',
-            payload: {
-                kind: 'records',
-                sessionIds: changedSessionId ? [changedSessionId] : [],
-                terminalIds: [terminalId],
-            },
-        });
-    }
-
     private async onAgentStarted(terminalId: string, launchId: string): Promise<void> {
         if (this.agentLaunches.get(terminalId) !== launchId) return;
         try {
@@ -196,13 +173,13 @@ export class TerminalManager {
                     ? this.agentOutputRecoverySettings?.(terminal.provider)
                     : undefined,
             );
-            this.emitAgentState(terminalId, 'running');
+            this.agentStates.change(terminalId, 'running');
             this.agentStarts.settle(terminalId, launchId, true);
         } catch (error) {
             this.execution.signalAgentExact(terminalId, launchId, 'SIGHUP');
             if (this.agentLaunches.get(terminalId) === launchId) {
                 this.agentLaunches.delete(terminalId);
-                this.emitAgentState(terminalId, 'failed');
+                this.agentStates.change(terminalId, 'failed');
             }
             this.agentStarts.settle(terminalId, launchId, false);
             await this.retireCoreLifecycle(terminalId, launchId);
@@ -220,7 +197,7 @@ export class TerminalManager {
         this.agentStarts.settle(event.terminalId, event.launchId, false);
         this.execution.configureOutputRecovery(event.terminalId, undefined);
         const state = event.exitCode === 0 && !event.signal ? 'stopped' : 'dead';
-        this.emitAgentExitState(event.terminalId, state);
+        this.agentStates.exit(event.terminalId, state);
         await this.retireCoreLifecycle(event.terminalId, event.launchId);
     }
 
@@ -296,7 +273,7 @@ export class TerminalManager {
             state &&
             (launchId || (isClosesPendingLaunch && this.database.getTerminal(terminalId)?.provider))
         )
-            this.emitAgentState(terminalId, state, cause);
+            this.agentStates.change(terminalId, state, cause);
         // eslint-disable-next-line unicorn/prefer-await -- synchronous execution retirement cannot await Core cleanup
         this.retireCoreLifecycle(terminalId, launchId).catch((error: unknown) =>
             this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
@@ -545,8 +522,13 @@ export class TerminalManager {
         expectedAgentLaunchId: string,
         text: string,
         signal?: AbortSignal,
+        /**
+         * `delegation` marks a message Caxri itself sends (a merge notice), which, like `writeAgentExact`'s, is not
+         * recorded as user input and so never takes a delegated task over.
+         */
+        origin: 'human' | 'delegation' = 'human',
     ): Promise<'accepted' | 'rejected' | 'unknown'> {
-        this.observeUserInput(terminalId, text, 'human');
+        if (origin === 'human') this.observeUserInput(terminalId, text, 'human');
         return this.execution.submitAgentExact(
             terminalId,
             expectedSessionId,

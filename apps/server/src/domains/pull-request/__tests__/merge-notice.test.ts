@@ -41,7 +41,7 @@ function harness(overrides: {
 }
 
 describe('createPullRequestMergeNotice', () => {
-    it("submits the merged link to the Session's primary PTY Agent, pinned to its launch", async () => {
+    it("submits the merged link to the Session's primary PTY Agent, pinned to its launch and not as user input", async () => {
         const { notice, submitAgentExact, write } = harness({});
 
         await expect(notice('session-1', URL, { origin: 'caxri' })).resolves.toBe('sent');
@@ -51,6 +51,8 @@ describe('createPullRequestMergeNotice', () => {
             'session-1',
             'launch-1',
             formatMergeNotice(URL),
+            undefined,
+            'delegation',
         );
         expect(formatMergeNotice(URL)).toContain(URL);
         expect(write).toHaveBeenCalledWith(
@@ -60,7 +62,7 @@ describe('createPullRequestMergeNotice', () => {
         );
     });
 
-    it('sends a Chat Agent an ordinary turn', async () => {
+    it('sends a Chat Agent an ordinary turn that is not user input, so no delegated task is taken over', async () => {
         const { notice, send, submitAgentExact } = harness({
             terminal: {
                 id: 'terminal-1',
@@ -72,7 +74,12 @@ describe('createPullRequestMergeNotice', () => {
 
         await expect(notice('session-1', URL, { origin: 'caxri' })).resolves.toBe('sent');
 
-        expect(send).toHaveBeenCalledWith('terminal-1', { text: formatMergeNotice(URL) });
+        expect(send).toHaveBeenCalledWith(
+            'terminal-1',
+            { text: formatMergeNotice(URL) },
+            'queue',
+            'delegation',
+        );
         expect(submitAgentExact).not.toHaveBeenCalled();
     });
 
