@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    NON_RECENT_COMMAND_IDS,
     parseRecentCommands,
     pushRecentCommand,
     RECENT_COMMANDS_LIMIT,
@@ -33,5 +34,17 @@ describe('parseRecentCommands', () => {
 describe('visibleRecentCommands', () => {
     it('drops commands that are not offered right now, keeping order', () => {
         expect(visibleRecentCommands(['a', 'b', 'c'], new Set(['c', 'a']))).toEqual(['a', 'c']);
+    });
+});
+
+describe('bulk and disruptive commands', () => {
+    it('are never recorded as recent', () => {
+        expect(pushRecentCommand(['a'], 'session.interruptAndCompact')).toEqual(['a']);
+    });
+
+    it('drop out of an already persisted list so a bare Enter cannot run them', () => {
+        const ids = ['session.interruptAndCompact', 'a', 'session.enterAirplaneMode'];
+        expect(visibleRecentCommands(ids, new Set(ids))).toEqual(['a']);
+        expect(NON_RECENT_COMMAND_IDS.has('session.compactWarm')).toBe(true);
     });
 });

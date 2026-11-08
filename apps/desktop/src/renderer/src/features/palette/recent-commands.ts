@@ -1,3 +1,5 @@
+import type { CommandId } from '@caxri/protocol';
+
 import { createSharedLocalState } from '../../lib/local-storage';
 
 const STORAGE_KEY = 'caxri.palette.recent-commands';
@@ -10,10 +12,23 @@ const STORAGE_KEY = 'caxri.palette.recent-commands';
 export const RECENT_COMMANDS_LIMIT = 5;
 
 /**
+ * Bulk or disruptive commands that never join the Recently Used group. With an empty query the first row is
+ * pre-highlighted, so a recent copy of one of these would let a bare Enter interrupt, compact, or restore every Session
+ * at once. They stay reachable by typing their name.
+ */
+export const NON_RECENT_COMMAND_IDS: ReadonlySet<string> = new Set<CommandId>([
+    'session.compactWarm',
+    'session.enterAirplaneMode',
+    'session.interruptAndCompact',
+    'session.restoreQuitStopped',
+]);
+
+/**
  * Moves `commandId` to the front of the list and keeps the newest {@link RECENT_COMMANDS_LIMIT}, so running a command
- * again promotes it instead of listing it twice.
+ * again promotes it instead of listing it twice. A command in {@link NON_RECENT_COMMAND_IDS} is not recorded.
  */
 export function pushRecentCommand(recent: readonly string[], commandId: string): string[] {
+    if (NON_RECENT_COMMAND_IDS.has(commandId)) return [...recent];
     return [commandId, ...recent.filter((id) => id !== commandId)].slice(0, RECENT_COMMANDS_LIMIT);
 }
 
@@ -34,7 +49,7 @@ export function visibleRecentCommands(
     recent: readonly string[],
     visibleCommandIds: ReadonlySet<string>,
 ): string[] {
-    return recent.filter((id) => visibleCommandIds.has(id));
+    return recent.filter((id) => visibleCommandIds.has(id) && !NON_RECENT_COMMAND_IDS.has(id));
 }
 
 /**
