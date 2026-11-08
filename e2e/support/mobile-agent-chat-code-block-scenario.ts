@@ -106,6 +106,8 @@ export async function executeMobileChatCodeBlockScenario(
         );
         await swipeBlockLeft(serial, start);
         await settle(1500);
+        // Read where the block started: the growing tail may have moved it, so this is recorded rather than checked.
+        const duringStream = await mobileRegionFingerprint(serial, inner(start));
         await capture(environment, 'wide-code-swiped-while-streaming', artifacts);
 
         await waitForMobile(
@@ -176,7 +178,10 @@ export async function executeMobileChatCodeBlockScenario(
         await concludeScenario(
             environment,
             artifacts,
-            { codeBlock: 'wide-code' },
+            {
+                codeBlock: 'wide-code',
+                changedRightAfterDragWhileStreaming: duringStream !== unscrolled,
+            },
             {
                 'Copy hidden before a tap': isCopyHiddenAtStart && isCopyHiddenAtRest,
                 'block kept its sideways scroll through the stream': afterStream !== unscrolled,
