@@ -512,14 +512,28 @@ export async function executeMobileChatComposerScenario(
         await waitForNoCheck(serial, 'agent-chat-activity');
 
         /**
-         * Sending (#1895): the fake never answers nor records a `lost` message, so the phone's optimistic row stays
-         * `Sending…` until Server Core gives up on the provider, then the text returns to the composer with the error.
+         * Sending (#1895): the fake never answers nor records a `lost` message, so the phone's optimistic row keeps its
+         * sending clock until Server Core gives up on the provider, then the text returns to the composer with the
+         * error.
          */
         await sendFromPhone(serial, 'lost');
-        await waitForCheck(serial, 'agent-chat-pending-sending');
+        await waitForCheck(serial, 'agent-chat-sending-delivery');
         await capture(environment, 'sending', artifacts);
+        /**
+         * The clock says what the send waits for on tap, in place of Desktop's hover tooltip. The composer still holds
+         * focus after the send, and the timeline spends a first tap on dismissing the keyboard, as it does for any of
+         * its controls, so a second tap reaches the clock when the first did not.
+         */
+        await tapMobileCheckByBounds(serial, 'agent-chat-sending-delivery');
+        try {
+            await waitForCheck(serial, 'agent-chat-sending-delivery-hint', 3000);
+        } catch {
+            await tapMobileCheckByBounds(serial, 'agent-chat-sending-delivery');
+            await waitForCheck(serial, 'agent-chat-sending-delivery-hint');
+        }
+        await capture(environment, 'sending-hint', artifacts);
         await waitForCheck(serial, 'agent-chat-composer-error', 120_000);
-        await waitForNoCheck(serial, 'agent-chat-pending-sending');
+        await waitForNoCheck(serial, 'agent-chat-sending-delivery');
         const returned = await observeMobileNode(serial, 'agent-chat-composer-input', {
             kind: 'equals',
             value: 'lost',

@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { AgentChatTask, AgentChatWorkItem } from '@caxri/protocol';
 import {
     agentChatFileChangesStat,
+    agentChatReasoningTitle,
     agentChatTaskActivity,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
@@ -15,8 +16,10 @@ import {
 
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
+import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffStat } from '../changes/changes-diff-stat';
+import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import { conversationStyles } from '../conversation/conversation-styles';
 import { ConversationToolGroupView } from '../conversation/conversation-tool-group';
 import { ConversationStatusGlyph } from '../conversation/conversation-tool-icon';
@@ -173,11 +176,39 @@ const AgentChatWorkRow = memo(
 );
 
 /**
+ * The thought the Agent answered a steered message with, drawn open under its row because it is the only answer the
+ * user gets (Desktop's `isDefaultExpanded`). Tapping the row folds it instead of opening the sheet, since the row
+ * already shows what the sheet would.
+ */
+const SteerReplyThought = ({
+    item,
+    theme,
+}: {
+    item: Extract<AgentChatWorkItem, { type: 'reasoning' }>;
+    theme: MobileTheme;
+}) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    const toggle = useCallback(() => setIsExpanded((value) => !value), []);
+    const body = agentChatReasoningTitle(item.text).body;
+    return (
+        <>
+            <AgentChatWorkRow item={item} onPress={toggle} theme={theme} />
+            {isExpanded && body ? (
+                <View style={styles.thought} testID={`agent-chat-steer-reply-${item.id}`}>
+                    <ConversationMarkdown text={body} theme={theme} />
+                </View>
+            ) : null}
+        </>
+    );
+};
+
+/**
  * Chat work in a stable summary, with live and failure status visible while folded. A row opens its detail in a sheet.
  */
 export const AgentChatWorkGroup = ({
     id,
     isOpen = false,
+    isSteerReply = false,
     rows,
     summarized,
     theme,
@@ -187,6 +218,10 @@ export const AgentChatWorkGroup = ({
      * Whether the next tool call can still join this run (see the timeline's `work` entry).
      */
     isOpen?: boolean;
+    /**
+     * Whether the rows are a steer's reply thought (see the timeline's `work` entry), drawn open.
+     */
+    isSteerReply?: boolean;
     rows: readonly AgentChatWorkItem[];
     summarized: readonly AgentChatWorkItem[];
     theme: MobileTheme;
@@ -250,7 +285,11 @@ export const AgentChatWorkGroup = ({
                                 : null
                         }
                     >
-                        <AgentChatWorkRow item={item} onPress={select} theme={theme} />
+                        {isSteerReply && item.type === 'reasoning' ? (
+                            <SteerReplyThought item={item} theme={theme} />
+                        ) : (
+                            <AgentChatWorkRow item={item} onPress={select} theme={theme} />
+                        )}
                     </View>
                 ))}
             </View>
@@ -265,6 +304,7 @@ export const AgentChatWorkGroup = ({
 
 const styles = StyleSheet.create({
     fact: { fontSize: 12, fontVariant: ['tabular-nums'] },
+    thought: { paddingBottom: mobileSpace.md, paddingHorizontal: mobileSpace.md },
     taskFacts: { alignItems: 'center', flexDirection: 'row', gap: 6 },
     tag: { borderRadius: 4, fontSize: 11, overflow: 'hidden', paddingHorizontal: 4 },
     exit: { fontFamily: MONOSPACE_FONT, fontSize: 11, fontVariant: ['tabular-nums'] },

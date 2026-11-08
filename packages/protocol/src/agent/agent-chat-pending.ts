@@ -45,6 +45,10 @@ export interface AgentChatPendingMessageBase {
      * {@link agentChatPendingView}).
      */
     replaces?: string;
+    /**
+     * What the message waits for, decided when it was sent (see {@link agentChatPendingWait}).
+     */
+    wait?: AgentChatPendingWait;
 }
 
 /**
@@ -152,6 +156,23 @@ export function agentChatPendingPlacement(
         snapshot?.operation === 'compacting' ||
         ((snapshot?.queue?.length ?? 0) > 0 && !snapshot?.queuePaused);
     return isMustWait || hasPendingAhead ? 'queue' : 'timeline';
+}
+
+/**
+ * What a message on its way is waiting for, for the hint behind its sending clock: the context compaction in progress
+ * (the provider records input that arrived meanwhile only once it ends), the running turn's current step when it steers
+ * that turn (Codex records steered input only once the step ends), the Agent starting or resuming (a stopped Chat
+ * resumes on its next message), or plain delivery.
+ */
+export type AgentChatPendingWait = 'compaction' | 'step' | 'start' | 'delivery';
+
+export function agentChatPendingWait(
+    snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'status'> | undefined,
+    delivery: 'queue' | 'steer' | undefined,
+): AgentChatPendingWait {
+    if (snapshot?.operation === 'compacting') return 'compaction';
+    if (delivery === 'steer' && snapshot?.activeTurnId) return 'step';
+    return snapshot?.status === 'ready' || snapshot?.status === 'failed' ? 'delivery' : 'start';
 }
 
 interface ProjectedEntry {

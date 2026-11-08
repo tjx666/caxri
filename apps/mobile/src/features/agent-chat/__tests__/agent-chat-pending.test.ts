@@ -60,6 +60,22 @@ describe('AgentChatPendingStore', () => {
         expect(store.get(agentChatPendingKey('scope', 'other')).messages).toEqual([]);
     });
 
+    it('records what each send waits for, as Desktop does', () => {
+        const store = new AgentChatPendingStore();
+        store.show(KEY, snapshot(), message('a'));
+        store.show(KEY, snapshot({ activeTurnId: 't1' }), {
+            ...message('b', 'Also lint'),
+            delivery: 'steer',
+        });
+        store.show(KEY, snapshot({ status: 'stopped' }), message('c', 'Resume'));
+        expect(store.get(KEY).messages.map(({ id, wait }) => [id, wait])).toEqual([
+            ['a', 'delivery'],
+            // A steer joins the running turn once its current step ends.
+            ['b', 'step'],
+            ['c', 'start'],
+        ]);
+    });
+
     it('counts a slash command as a send without showing a pending row', () => {
         const store = new AgentChatPendingStore();
         const listener = vi.fn();

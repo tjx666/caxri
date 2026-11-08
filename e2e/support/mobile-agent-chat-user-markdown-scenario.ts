@@ -3,6 +3,7 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { checkBounds, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
+    androidBounds,
     mobileSemantics,
     observeMobileNode,
     tapMobileCheck,
@@ -29,6 +30,21 @@ const MARKDOWN_MESSAGE = [
     `3. ${WRAPPING_ITEM}`,
     '4. 输入框高度变化动画',
 ].join('\n');
+
+/**
+ * A message that is only a numbered list, so no plain line widens the bubble: the list content alone must size it.
+ */
+const LIST_ONLY_MESSAGE = [
+    '1. 先对比几家开源网关的路由、限流和计费能力',
+    '2. 再估算自研需要的人力和维护成本',
+].join('\n');
+
+/**
+ * The narrowest a list line of {@link LIST_ONLY_MESSAGE} may draw, as a share of the screen. Each line runs longer than
+ * the bubble's 85% limit, so it should wrap at that limit; before the fix its content measured as zero wide and the
+ * bubble shrank to the number, leaving one character per line.
+ */
+const LIST_LINE_MIN_SHARE = 0.5;
 
 /**
  * The text each block of the bubble shows once its Markdown markers are hidden, in block order. Each is its own native
@@ -116,7 +132,37 @@ export async function executeMobileChatUserMarkdownScenario(
                 `Block ${WRAPPING_BLOCK + 1} of the user message is cut off below its bubble`,
             );
 
+        const listLineIds = new Set(
+            semantics.map(({ checkId }) => checkId).filter((id) => id.startsWith(prefix)),
+        );
+        await chat.send({ text: LIST_ONLY_MESSAGE });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                !snapshot.activeTurnId &&
+                snapshot.items.filter((item) => item.type === 'agentMessage').length >= 2,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        const after = await mobileSemantics(serial);
+        const screen = androidBounds(
+            after.find(({ checkId }) => checkId === 'conversation-view')?.bounds ?? '',
+        );
+        const listLine = after.find(
+            ({ checkId }) =>
+                /^conversation-user-text-.+-0$/u.test(checkId) && !listLineIds.has(checkId),
+        );
+        const lineBounds = listLine && androidBounds(listLine.bounds);
+        if (!screen || !lineBounds) throw new Error('The list-only bubble is not on screen');
+        const share = (lineBounds.right - lineBounds.left) / (screen.right - screen.left);
+        // Captured before the check so a squeezed bubble is on record too.
+        await capture(environment, 'user-markdown-list-only-bubble', artifacts);
+        if (share < LIST_LINE_MIN_SHARE)
+            throw new Error(
+                `A list-only bubble squeezes its first line to ${Math.round(share * 100)}% of the screen`,
+            );
+
         await finish(environment, artifacts, {
+            listLineShare: Number(share.toFixed(2)),
             renderedLines: RENDERED_LINES.length,
             status: 'passed',
         });

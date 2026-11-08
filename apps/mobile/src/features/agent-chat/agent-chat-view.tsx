@@ -46,16 +46,18 @@ import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
 import {
-    agentChatRunningTurnIds,
     buildAgentChatTimeline,
-    holdEndedTurnsOpen,
     isAgentChatTurnStart,
-    toggleAgentChatExpansion,
     withAgentChatAwaitingReply,
     withAgentChatPendingEntries,
 } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import { agentChatFormerEntryIds } from './agent-chat-timeline-work';
+import {
+    agentChatRunningTurnIds,
+    holdEndedTurnsOpen,
+    toggleAgentChatExpansion,
+} from './agent-chat-turn-expansion';
 import {
     agentChatUsageActionBlockedReason,
     AgentChatUsageActionScope,

@@ -3,7 +3,7 @@ import { agentChatTurnLabel, summarizeAgentToolGroup } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
-import { agentChatTurnTone } from '../agent-chat/agent-chat-timeline';
+import { agentChatTurnTone } from '../agent-chat/agent-chat-turn-tone';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 type TurnBoundary = Extract<AgentTimelineItem, { type: 'turnBoundary' }>;

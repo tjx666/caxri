@@ -124,11 +124,13 @@ const ConversationUserMessage = ({
     handoff,
     theme,
     userExtras,
+    userLeading,
 }: {
     entry: Extract<Entry, { type: 'userMessage' }>;
     handoff?: { footer?: ReactNode; note: string };
     theme: MobileTheme;
     userExtras?: ReactNode;
+    userLeading?: ReactNode;
 }) => {
     const renderUserAttachments = use(ConversationUserAttachments);
     const attachments = renderUserAttachments?.(entry.id) ?? null;
@@ -146,27 +148,34 @@ const ConversationUserMessage = ({
                 theme={theme}
             />
         );
+    const bubble =
+        attachments || hasText ? (
+            <ConversationMessagePress
+                message={{
+                    id: entry.id,
+                    role: 'user',
+                    text: conversationActionText(entry.text),
+                }}
+                style={[styles.userBubble, { backgroundColor: theme.surface }]}
+                testID={`conversation-user-bubble-${entry.id}`}
+            >
+                {hasText ? words : null}
+                {attachments ? (
+                    <View style={hasText ? styles.userAttachments : undefined}>{attachments}</View>
+                ) : null}
+            </ConversationMessagePress>
+        ) : null;
     return (
         <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>
             {userExtras}
-            {attachments || hasText ? (
-                <ConversationMessagePress
-                    message={{
-                        id: entry.id,
-                        role: 'user',
-                        text: conversationActionText(entry.text),
-                    }}
-                    style={[styles.userBubble, { backgroundColor: theme.surface }]}
-                    testID={`conversation-user-bubble-${entry.id}`}
-                >
-                    {hasText ? words : null}
-                    {attachments ? (
-                        <View style={hasText ? styles.userAttachments : undefined}>
-                            {attachments}
-                        </View>
-                    ) : null}
-                </ConversationMessagePress>
-            ) : null}
+            {bubble && userLeading ? (
+                <View style={styles.userLeadingRow}>
+                    {userLeading}
+                    {bubble}
+                </View>
+            ) : (
+                bubble
+            )}
         </View>
     );
 };
@@ -177,6 +186,7 @@ export const ConversationEntry = memo(
         theme,
         handoff,
         userExtras,
+        userLeading,
     }: {
         entry: Entry;
         theme: MobileTheme;
@@ -190,6 +200,11 @@ export const ConversationEntry = memo(
          * Drawn above a user message's bubble, such as the files an Agent Chat message cites.
          */
         userExtras?: ReactNode;
+        /**
+         * Drawn beside a user message's bubble, before it, such as the mark of an Agent Chat message steered into a
+         * running turn.
+         */
+        userLeading?: ReactNode;
     }) => {
         const { t } = useTranslation();
         const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
@@ -211,6 +226,7 @@ export const ConversationEntry = memo(
                     handoff={handoff}
                     theme={theme}
                     userExtras={userExtras}
+                    userLeading={userLeading}
                 />
             );
         if (entry.type === 'systemEvent')

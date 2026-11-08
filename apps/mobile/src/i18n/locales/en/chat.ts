@@ -411,6 +411,9 @@ export const chat = {
     'chat.sendFailure.rejected': 'Your message was not sent. Try again.',
     'chat.sendFailure.unknown': "Couldn't confirm delivery. Check the Chat before sending again.",
     'chat.sending': 'Sending…',
+    'chat.sendingAfterCompaction': 'Sends once the context finishes compacting',
+    'chat.sendingAfterStart': 'Sends once the Agent starts',
+    'chat.sendingAfterStep': 'Sends when the current step finishes',
     'chat.settings.close': 'Close Chat settings',
     'chat.settings.title': 'Chat settings',
     'chat.settings.triggerHint':
@@ -419,6 +422,7 @@ export const chat = {
     'chat.showMore': 'Show more',
     'chat.stale': 'This Chat could not be updated. Showing the last loaded messages.',
     'chat.starting': 'Starting {{provider}}…',
+    'chat.steeredHint': 'Steered: sent while the Agent was working, so it joined the running turn',
     'chat.tasks.back': 'Back to background work',
     'chat.tasks.backgroundShell': 'Background shell',
     'chat.tasks.backgroundWork': 'Background work',

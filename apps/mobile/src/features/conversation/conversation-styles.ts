@@ -30,6 +30,13 @@ export const conversationStyles = StyleSheet.create({
     entry: { paddingBottom: mobileSpace.lg },
     message: { maxWidth: 680, width: '100%', alignSelf: 'center' },
     userRow: { alignItems: 'flex-end', gap: mobileSpace.sm },
+    userLeadingRow: {
+        alignItems: 'flex-start',
+        alignSelf: 'stretch',
+        flexDirection: 'row',
+        gap: 6,
+        justifyContent: 'flex-end',
+    },
     userBubble: {
         borderRadius: mobileRadius.lg,
         maxWidth: '85%',

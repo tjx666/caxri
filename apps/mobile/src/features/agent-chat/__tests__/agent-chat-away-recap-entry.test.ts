@@ -44,6 +44,7 @@ describe('withAgentChatAwayRecap', () => {
             id: 'p1',
             text: 'next',
             imageUris: [],
+            wait: 'delivery',
         };
         expect(withAgentChatAwayRecap([reply, pending], snapshot as never, undefined)).toEqual([
             reply,

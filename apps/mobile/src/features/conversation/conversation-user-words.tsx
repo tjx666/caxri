@@ -17,7 +17,8 @@ type Run = Block['runs'][number];
 const styles = StyleSheet.create({
     /**
      * `flexShrink`, not `flex: 1`: the bubble sizes to its content, and a zero flex basis made Yoga size it for the
-     * unwrapped line, so a wrapped list item spilled below the bubble.
+     * unwrapped line, so a wrapped list item spilled below the bubble, and a message that is only a list measured as
+     * wide as its numbers and wrapped one character per line.
      */
     listContent: { flexShrink: 1 },
     listLine: { flexDirection: 'row' },

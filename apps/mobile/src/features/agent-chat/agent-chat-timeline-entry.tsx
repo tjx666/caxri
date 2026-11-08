@@ -13,10 +13,48 @@ import { AgentChatPathChips } from './agent-chat-path-chips';
 import { AgentChatPendingMessage } from './agent-chat-pending-message';
 import { AgentChatReplyActionBar } from './agent-chat-reply-action-bar';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
+import { AgentChatSteeredMark } from './agent-chat-steered-mark';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
 import { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
 import { AgentChatWorkGroup } from './agent-chat-work-group';
+
+/**
+ * A message row through the shared Conversation renderer, with what only Chat adds around the bubble: the files it
+ * cites, the steered mark, and a hand-off's target.
+ */
+const AgentChatMessageEntry = ({
+    entry,
+    theme,
+}: {
+    entry: Extract<Entry, { kind: 'message' }>;
+    theme: MobileTheme;
+}) => (
+    <ConversationEntry
+        entry={entry.message}
+        handoff={
+            entry.handoff
+                ? {
+                      footer: (
+                          <AgentChatHandoffTarget sentAt={entry.handoff.sentAt} theme={theme} />
+                      ),
+                      note: entry.handoff.note,
+                  }
+                : undefined
+        }
+        theme={theme}
+        userLeading={entry.isSteered ? <AgentChatSteeredMark theme={theme} /> : undefined}
+        userExtras={
+            entry.cited ? (
+                <AgentChatPathChips
+                    references={entry.cited.references}
+                    skills={entry.cited.skills}
+                    theme={theme}
+                />
+            ) : undefined
+        }
+    />
+);
 
 /**
  * One row of the phone's Chat timeline. Messages draw through the shared Conversation renderer, so a Chat's replies,
@@ -57,34 +95,7 @@ export const AgentChatTimelineEntry = memo(
                 return <AgentChatFeedback item={entry.notice} provider={provider} theme={theme} />;
             }
             case 'message': {
-                return (
-                    <ConversationEntry
-                        entry={entry.message}
-                        handoff={
-                            entry.handoff
-                                ? {
-                                      footer: (
-                                          <AgentChatHandoffTarget
-                                              sentAt={entry.handoff.sentAt}
-                                              theme={theme}
-                                          />
-                                      ),
-                                      note: entry.handoff.note,
-                                  }
-                                : undefined
-                        }
-                        theme={theme}
-                        userExtras={
-                            entry.cited ? (
-                                <AgentChatPathChips
-                                    references={entry.cited.references}
-                                    skills={entry.cited.skills}
-                                    theme={theme}
-                                />
-                            ) : undefined
-                        }
-                    />
-                );
+                return <AgentChatMessageEntry entry={entry} theme={theme} />;
             }
             case 'answered': {
                 return <AgentChatAnsweredQuestions entry={entry} onToggle={toggle} theme={theme} />;
@@ -116,6 +127,7 @@ export const AgentChatTimelineEntry = memo(
                     <AgentChatWorkGroup
                         id={entry.id}
                         isOpen={entry.isOpen}
+                        isSteerReply={entry.isSteerReply}
                         rows={entry.rows}
                         summarized={entry.summarized}
                         theme={theme}
@@ -143,6 +155,7 @@ export const AgentChatTimelineEntry = memo(
                         imageUris={entry.imageUris}
                         text={entry.text}
                         theme={theme}
+                        wait={entry.wait}
                     />
                 );
             }

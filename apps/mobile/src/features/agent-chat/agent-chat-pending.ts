@@ -11,6 +11,7 @@ import {
     agentChatPendingKnownIds,
     agentChatPendingKnownQueueLength,
     agentChatPendingPlacement,
+    agentChatPendingWait,
     unsettledAgentChatPendingAnswers,
     unsettledAgentChatPendingMessages,
 } from '@caxri/protocol';
@@ -112,6 +113,11 @@ export class AgentChatPendingStore {
                               )
                             : 'timeline',
                     ...(message.replaces !== undefined && { replaces: message.replaces }),
+                    // An edit restarts the Agent on the rewound conversation before it sends.
+                    wait:
+                        message.replaces === undefined
+                            ? agentChatPendingWait(snapshot, message.delivery)
+                            : 'start',
                     knownIds: agentChatPendingKnownIds(snapshot),
                     knownQueueLength: agentChatPendingKnownQueueLength(snapshot),
                 },
