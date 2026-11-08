@@ -59,7 +59,8 @@ export interface PullRequestMergeNoticeOptions {
  * merge whose `mergedAt` falls inside one of the Session's Agent turns is skipped because the Agent did it itself.
  *
  * Delivery is best effort and never fails the merge that already happened: a PTY Agent receives a fenced submit pinned
- * to its current launch, a Chat Agent receives an ordinary turn, and every other case is only logged.
+ * to its current launch, a Chat Agent receives an ordinary turn, and every other case is only logged. Neither counts as
+ * user input, so a delegated child is not taken over by the news of its own merge.
  */
 export function createPullRequestMergeNotice(options: PullRequestMergeNoticeOptions) {
     const notified = new Map<string, true>();
@@ -86,8 +87,10 @@ export function createPullRequestMergeNotice(options: PullRequestMergeNoticeOpti
         if (!terminalId || terminal?.sessionId !== sessionId || !terminal.provider)
             return 'no-agent';
         const text = formatMergeNotice(url);
+        // Caxri writes the notice, not a person: `delegation` keeps it from taking a delegated child's task over, the
+        // way a Caxri Bot completion notice is delivered.
         if (isChatTerminal(terminal)) {
-            await options.agentChat.send(terminalId, { text });
+            await options.agentChat.send(terminalId, { text }, 'queue', 'delegation');
             return 'sent';
         }
         const launchId = options.terminals.agentLaunchId(terminalId);
@@ -97,6 +100,8 @@ export function createPullRequestMergeNotice(options: PullRequestMergeNoticeOpti
             sessionId,
             launchId,
             text,
+            undefined,
+            'delegation',
         );
         return result === 'accepted' ? 'sent' : result;
     };

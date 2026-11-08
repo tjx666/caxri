@@ -264,8 +264,8 @@ export class AgentChatService {
     /**
      * Sends a message. While a turn runs it steers that turn when asked to, and otherwise waits in the queue; a message
      * also waits behind earlier queued ones so the queue keeps its order. A `human` message (any Client, review
-     * comment, merge notice, or bug report) takes a delegated Chat over, as PTY input does; only delegation's own input
-     * opts out.
+     * comment, or bug report) takes a delegated Chat over, as PTY input does; delegation's own input and messages Caxri
+     * writes itself (a Caxri Bot completion notice, a pull request merge notice) opt out.
      */
     async send(
         terminalId: string,

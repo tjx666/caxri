@@ -16,8 +16,8 @@ it('retains draft-input ownership while excluding native protocol replies, mouse
     const onInput = vi.fn();
     const manager = createTestTerminalManager(database, () => {}, logger, { onInput });
     try {
-        const id = database.createSession(database.createProject(directory).id, 'shell').terminal!
-            .id;
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const id = created.terminal!.id;
         manager.write(id, '\u{1B}[?1;2c');
         // Scrolling a mouse-tracking Agent such as Codex only reads it.
         manager.writeAgentExact(id, '\u{1B}[<64;40;12M', 'launch');
@@ -27,6 +27,17 @@ it('retains draft-input ownership while excluding native protocol replies, mouse
             'launch',
             'delegation',
         );
+        // A Caxri-written submission such as a merge notice is not the user typing either.
+        await expect(
+            manager.submitAgentExact(
+                id,
+                created.session.id,
+                'launch',
+                'Merged',
+                undefined,
+                'delegation',
+            ),
+        ).resolves.toBeDefined();
         expect(manager.inputEpoch(id)).toBe(0);
         expect(onInput).not.toHaveBeenCalled();
         manager.write(id, 'Unsubmitted synthetic draft');

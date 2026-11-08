@@ -1303,9 +1303,10 @@ default surface.
   against that launch again when it reaches the head of the Chat's send chain
   (`ChatDelegationLinks.sendToLaunch`) and never starts a provider, so a launch suspended meanwhile
   reports it undelivered. Every `AgentChatService.send` is human input by default and takes over
-  like typing into a PTY: a Client message, a Git review send, a pull request merge notice, or a
-  bug report. Only the delegation pointer, a dispatch prompt, and a Caxri Bot completion notice
-  (written with `origin: 'delegation'` on a PTY) opt out. Rewinding, running a command,
+  like typing into a PTY: a Client message, a Git review send, or a bug report. Only the delegation
+  pointer, a dispatch prompt, a Caxri Bot completion notice, and a pull request merge notice
+  (written with `origin: 'delegation'` on a PTY too) opt out, so a child is never taken over by the
+  news that its own pull request merged. Rewinding, running a command,
   interrupting, or sending a queued message from the Chat also takes over; answering an approval
   does not, and neither does the delegating Agent's [parent approval](#parent-approval).
 - **Exact resume.** `--resume-from` on a child whose Chat is still live replaces that Chat's own
