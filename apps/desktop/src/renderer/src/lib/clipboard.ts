@@ -36,6 +36,14 @@ export async function writeClipboardContent(content: ClipboardContent): Promise<
 }
 
 /**
+ * Puts an image the window already shows on the system clipboard as PNG, from its `data:image/...` URL. Main decodes
+ * and converts it, so a JPEG or WebP pastes anywhere a PNG does.
+ */
+export async function writeClipboardImage(dataUrl: string): Promise<void> {
+    await caxri.request('clipboard.writeImage', { dataUrl });
+}
+
+/**
  * The files Finder put on the system clipboard, as absolute paths on this Mac, or none.
  */
 export async function readClipboardFilePaths(): Promise<string[]> {

@@ -277,6 +277,7 @@ export const effectfulCommandRecovery = {
      * A copy answers one gesture; replaying it after a reconnect would overwrite whatever the user copied since.
      */
     'clipboard.write': 'none',
+    'clipboard.writeImage': 'none',
     'caxriBot.clearData': 'durable',
     'caxriBot.open': 'durable',
     'caxriBot.openFileLink': 'memory',

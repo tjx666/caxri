@@ -5,7 +5,10 @@ import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { Button } from '../../../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../../components/ui/dialog';
 import { Skeleton } from '../../../../components/ui/skeleton';
-import { useTranslation } from '../../../../i18n';
+import { useContextMenu } from '../../../../hooks/use-context-menu';
+import { translate, useTranslation } from '../../../../i18n';
+import { writeClipboardImage } from '../../../../lib/clipboard';
+import { pushToast, tryCommand } from '../../../../stores/toasts';
 import { PreviewZoomView } from '../../../preview/preview-zoom-view';
 import {
     useAgentChatImageOriginal,
@@ -60,6 +63,12 @@ export function AgentChatImagePreviewDialog({
                 // The popup itself, not the first button: the picture is what the user opened, and a focus ring on
                 // Previous would read as a selection. The arrow keys still reach the handler below.
                 initialFocus={popup}
+                // React bubbles events through portals, so without this a right-click anywhere in the preview opened
+                // the menu of the message the preview came from. The image claims its own menu below.
+                onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }}
                 className="flex h-[min(800px,calc(100vh-64px))] max-h-none w-[min(1100px,calc(100vw-64px))] flex-col overflow-hidden"
                 onKeyDown={(event) => {
                     const focused = event.target;
@@ -149,6 +158,16 @@ function PreviewImage({
         isEnabled: !hasAgentChatSentImageOriginal(thumbnail),
     });
     const source = sent ?? original ?? thumbnail ?? restored.thumbnail;
+    const onContextMenu = useContextMenu(() =>
+        source
+            ? [
+                  {
+                      label: translate('agentChat.message.copyImage'),
+                      onSelect: () => copyImageFromMenu(source),
+                  },
+              ]
+            : [],
+    );
     if (!source)
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-6 text-muted">
@@ -176,7 +195,19 @@ function PreviewImage({
                 className="caxri-image-preview-canvas block max-w-none"
                 draggable={false}
                 src={source}
+                onContextMenu={onContextMenu}
             />
         </PreviewZoomView>
     );
+}
+
+/**
+ * Copies the image at the size the preview shows it (the original once read, else the thumbnail), with a toast
+ * confirming it, since a native menu entry has no check mark to turn into.
+ */
+function copyImageFromMenu(source: string): void {
+    void tryCommand(translate('agentChat.message.imageCopyFailed'), async () => {
+        await writeClipboardImage(source);
+        pushToast('success', translate('agentChat.message.imageCopied'));
+    });
 }

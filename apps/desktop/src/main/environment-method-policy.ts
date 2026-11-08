@@ -45,6 +45,10 @@ const environmentMethodScopes = {
      */
     'clipboard.write': 'any',
     /**
+     * Like copied text, the image is already in the window and lands on the Mac showing it.
+     */
+    'clipboard.writeImage': 'any',
+    /**
      * The paths name files on the Mac showing the window, which an SSH Host's Server cannot read.
      */
     'clipboard.readFilePaths': 'local-only',

@@ -130,6 +130,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'bot.task.create': 'ordered',
     'bot.task.update': 'ordered',
     'clipboard.write': 'ordered',
+    'clipboard.writeImage': 'ordered',
     'contextMenu.show': 'ordered',
     'delegationImport.pick': 'ordered',
     'desktop.focus': 'ordered',
