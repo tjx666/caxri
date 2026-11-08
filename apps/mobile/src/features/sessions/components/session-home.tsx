@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSharedValue } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
+import { showToast } from '../../../components/toast-store';
 import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -25,7 +27,7 @@ import type { SessionListRow } from '../session-list-groups';
 import { sessionListRows } from '../session-list-groups';
 import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
-import { canMarkDoneFromRow } from '../session-model';
+import { sessionRowSwipeActions } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionChatRequests } from './session-chat-requests';
@@ -124,6 +126,29 @@ export const SessionHome = ({
     const { markDone: markRowDone, pendingIds: markingDoneIds } = useRowMarkDone({
         onRefresh: refresh,
     });
+    const { archive: archiveSession, pending: managementPending } = management;
+    /**
+     * A swipe has no sheet to show a failure in, so it shows as a toast; a success shows the usual Undo toast.
+     */
+    const archiveRow = useCallback(
+        (session: MobileSessionItem): void => {
+            void archiveSession(session.id, {
+                onError: (message) => showToast('error', message),
+            });
+        },
+        [archiveSession],
+    );
+    const archivingId =
+        managementPending?.action === 'archive' ? managementPending.sessionId : null;
+    /**
+     * The row whose swipe actions are open. Opening another row or scrolling the list closes it, so at most one row
+     * shows its actions and a recycled list cell never carries an open row onto another Session.
+     */
+    const openRowReference = useRef<SwipeableMethods | null>(null);
+    const handleSwipeOpen = useCallback((row: SwipeableMethods): void => {
+        if (openRowReference.current !== row) openRowReference.current?.close();
+        openRowReference.current = row;
+    }, []);
     const beginInteractionReference = useRef(beginListInteraction);
     const finishInteractionReference = useRef(finishListInteraction);
     const listInteractionReference = useRef<ReturnType<typeof createSessionListInteraction> | null>(
@@ -186,6 +211,8 @@ export const SessionHome = ({
         (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
             if (hasRestoredScroll.current)
                 listScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+            openRowReference.current?.close();
+            openRowReference.current = null;
             listInteractionReference.current?.scroll();
         },
         [listScrollOffsetRef],
@@ -234,19 +261,26 @@ export const SessionHome = ({
             ) : (
                 <View>
                     <SessionRow
-                        isMarkingDone={markingDoneIds.has(item.session.id)}
-                        now={now}
-                        onLongPress={deviceRole === 'control' ? openActions : undefined}
-                        onMarkDone={
-                            canMarkDoneFromRow(item.session, deviceRole, savedAt !== null)
-                                ? markRowDone
-                                : undefined
+                        isActionPending={
+                            markingDoneIds.has(item.session.id) || archivingId === item.session.id
                         }
+                        // A recycled list cell must not keep another Session's swipe position.
+                        key={item.session.id}
+                        now={now}
+                        onArchive={archiveRow}
+                        onLongPress={deviceRole === 'control' ? openActions : undefined}
+                        onMarkDone={markRowDone}
                         onPress={onOpenSession}
+                        onSwipeOpen={handleSwipeOpen}
                         savedAt={savedAt}
                         selected={item.session.id === selectedId && layout !== 'phone'}
                         session={item.session}
                         showProject={shouldShowProject}
+                        swipeActions={sessionRowSwipeActions(
+                            item.session,
+                            deviceRole,
+                            savedAt !== null,
+                        )}
                         theme={theme}
                     />
                     {/* A pinned waiting Session is listed again under Waiting; its cards show there, once. */}
@@ -271,7 +305,10 @@ export const SessionHome = ({
                 </View>
             ),
         [
+            archiveRow,
+            archivingId,
             deviceRole,
+            handleSwipeOpen,
             layout,
             now,
             onOpenSession,

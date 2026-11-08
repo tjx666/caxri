@@ -97,9 +97,9 @@ export const canMarkSessionDone = (session: Pick<MobileSession, 'hasPendingAtten
     session.hasPendingAttention;
 
 /**
- * Whether a Session row offers its Mark as Done check, the phone's counterpart of the check on a Desktop Activity Needs
- * attention row. It needs Pending Attention to resolve, a live list (a saved copy's attention generation may already be
- * stale), and a device granted `session.markDone`, which only the reply and control roles carry.
+ * Whether a Session row offers Mark as Done, the phone's counterpart of the check on a Desktop Activity Needs attention
+ * row. It needs Pending Attention to resolve, a live list (a saved copy's attention generation may already be stale),
+ * and a device granted `session.markDone`, which only the reply and control roles carry.
  */
 export const canMarkDoneFromRow = (
     session: Pick<MobileSession, 'hasPendingAttention'>,
@@ -107,6 +107,22 @@ export const canMarkDoneFromRow = (
     isSaved: boolean,
 ): boolean =>
     !isSaved && (deviceRole === 'reply' || deviceRole === 'control') && canMarkSessionDone(session);
+
+export type SessionRowSwipeAction = 'archive' | 'markDone';
+
+/**
+ * The actions a left swipe on a Session row reveals, in order from the row toward the trailing edge. Mark as Done
+ * follows `canMarkDoneFromRow`; Archive needs a live list and the control role, the same gate as the long-press sheet's
+ * Archive. An empty list means the row does not swipe, so the drag stays with the Project pager.
+ */
+export const sessionRowSwipeActions = (
+    session: Pick<MobileSession, 'hasPendingAttention'>,
+    deviceRole: MobileDeviceRole | null,
+    isSaved: boolean,
+): SessionRowSwipeAction[] => [
+    ...(canMarkDoneFromRow(session, deviceRole, isSaved) ? (['markDone'] as const) : []),
+    ...(!isSaved && deviceRole === 'control' ? (['archive'] as const) : []),
+];
 
 const orderFacts = (session: MobileSession) => ({
     attentionResolvedAt: session.attentionResolvedAt,

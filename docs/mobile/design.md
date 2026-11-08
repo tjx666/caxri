@@ -176,9 +176,8 @@ no background of its own keeps its default dark text readable.
   [Activity view](../activity-view.md)). Pinned Sessions keep Desktop's pinned order; a pinned
   Session that needs attention, is working, waiting, or failed is listed again in that group. Rows
   inside a group follow Desktop's in-group order (newest arrival in the group first), and the row's
-  age reads the Session activity clock. A row with Pending Attention carries a trailing Mark as Done
-  check, Desktop's Activity row check: a phone has no hover, so it stays on screen, and it shows only
-  on a live list for a device with reply or control access. The
+  age reads the Session activity clock. The row keeps no trailing buttons; its actions sit behind
+  a left swipe (see the swipe rule below). The
   one difference from Desktop: a finished Session past the 15-minute window moves to `IDLE`
   instead of leaving, because the home list is the phone's only Session list.
 - Tapping a group heading collapses the group to its heading with its Session count and opens it
@@ -205,14 +204,22 @@ no background of its own keeps its default dark text readable.
   Inbox has open items and opens it; with none it is absent rather than an empty menu entry.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- Swiping the list left or right, including its empty state, pages to the next or previous Project
+- Swiping the list left or right, including its empty state, outside a swipeable row's own left drag, pages to the next or previous Project
   filter in chip order (All first), like the paged main tabs of WeChat for Android: the whole list
   follows the finger one to one and the neighboring Project's real list slides in from the edge.
   Release past `20%` of the width or on a fling settles on that page in `240ms`; a shorter drag
   springs back. Either end resists at `30%` of the drag and springs back instead of wrapping. A
   chip tap jumps without animation, and a newly shown Project starts at the top of its list. The
   swipe starts only after `24dp` of sideways travel and gives way to a scroll that moves `16dp`
-  vertically first, so a vertical scroll that drifts sideways keeps scrolling (`MOB-CHAT-27`). The filter strip scrolls to center the selected chip. Rows have no swipe action: archive from the long-press actions sheet.
+  vertically first, so a vertical scroll that drifts sideways keeps scrolling (`MOB-CHAT-27`). The filter strip scrolls to center the selected chip.
+- Swiping a Session row left reveals its actions: **Done** (Mark as Done, Desktop's Activity row
+  check) while it has Pending Attention, then **Archive**. Done needs reply or control access and
+  Archive needs control, both on a live list; a row with neither does not swipe. Only a tap on an
+  action runs it, Archive offers the usual Undo toast, and one row is open at a time (opening
+  another row or scrolling closes it). A left drag that starts on a swipeable row belongs to the
+  row, so paging to the next Project from there goes through a chip tap or a drag on a group
+  heading or the list's empty space; a right drag on a closed row still pages back, and on an open row closes it
+  (`MOB-SESSION-ROW-MARK-DONE-01`). The screen reader reaches the same actions on the row.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 
 ## Session screen

@@ -1,14 +1,17 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { useSharedValue } from 'react-native-reanimated';
 
-import { Check, FolderTree } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
+import { Archive, Check, FolderTree } from 'lucide-react-native';
 
 import { AgentAvatar } from '../../../components/agent-icon';
-import { IconButton } from '../../../components/icon-button';
 import { useTranslation } from '../../../i18n';
-import { mobileRadius, mobileSpace, mobileType } from '../../../theme/scale';
+import { mobileRadius, mobileSpace, mobileType, PRESSED_OPACITY } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
-import type { MobileSessionItem } from '../session-model';
+import type { MobileSessionItem, SessionRowSwipeAction } from '../session-model';
 import {
     sessionAgeLabel,
     sessionAgentLabel,
@@ -25,6 +28,20 @@ import { SessionStatusGlyph } from './session-status-glyph';
  */
 const WORKTREE_MIN_CHARACTERS = 6;
 
+const SWIPE_ACTION_WIDTH = 76;
+/**
+ * How far a left drag travels before the row takes it. The library default (10dp) let the sideways drift of an ordinary
+ * upward flick open the row and freeze the list (#2540); at 20dp the list's own vertical slop (8dp) wins any mostly
+ * vertical drag first. It stays below the Project pager's 24dp, so a left drag that starts on a swipeable row reveals
+ * its actions instead of paging to the next Project.
+ */
+const SWIPE_ACTIVATION_DP = 20;
+/**
+ * A right drag on a closed row never activates the row's swipe, so it falls through to the Project pager and pages to
+ * the previous Project. Once the row is open, a right drag closes it instead.
+ */
+const SWIPE_CLOSED_RIGHT_OFFSET = Number.MAX_SAFE_INTEGER;
+
 const styles = StyleSheet.create({
     accent: {
         borderRadius: 2,
@@ -37,11 +54,6 @@ const styles = StyleSheet.create({
     copy: { flex: 1, gap: mobileSpace.xxs, minWidth: 0 },
     age: { ...mobileType.meta, flexShrink: 0 },
     meta: { ...mobileType.meta, flexShrink: 1 },
-    /**
-     * The 44dp check would make the row taller than its 64dp minimum with the vertical padding, so it pulls into that
-     * padding (and the trailing one) instead of growing the row.
-     */
-    markDone: { marginRight: -mobileSpace.sm, marginVertical: -mobileSpace.md },
     metaLine: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.xs, minWidth: 0 },
     worktree: { alignItems: 'center', flexDirection: 'row', gap: 2 },
     /**
@@ -69,38 +81,92 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         minWidth: 20,
     },
+    swipeAction: {
+        alignItems: 'center',
+        gap: 4,
+        justifyContent: 'center',
+        width: SWIPE_ACTION_WIDTH,
+    },
+    swipeActions: { flexDirection: 'row' },
+    swipeActionText: { ...mobileType.meta, fontWeight: '700' },
     title: { ...mobileType.bodyStrong, fontWeight: '500' },
     unreadTitle: { fontWeight: '700' },
 });
 
+const SwipeAction = ({
+    accessibilityLabel,
+    background,
+    disabled,
+    foreground,
+    icon: Icon,
+    label,
+    onPress,
+    testID,
+}: {
+    accessibilityLabel: string;
+    background: string;
+    disabled: boolean;
+    foreground: string;
+    icon: LucideIcon;
+    label: string;
+    onPress: () => void;
+    testID: string;
+}) => (
+    <Pressable
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        style={({ pressed }) => [
+            styles.swipeAction,
+            { backgroundColor: background, opacity: pressed || disabled ? PRESSED_OPACITY : 1 },
+        ]}
+        testID={testID}
+    >
+        <Icon color={foreground} size={20} strokeWidth={2.25} />
+        <Text style={[styles.swipeActionText, { color: foreground }]}>{label}</Text>
+    </Pressable>
+);
+
+/**
+ * One Session in the home list. Swiping it left reveals its row actions (`sessionRowSwipeActions`): Mark as Done, which
+ * resolves its Pending Attention as the check on a Desktop Activity row does, and Archive. Only a tap on an action runs
+ * it, so a stray swipe changes nothing, and the screen reader reaches the same actions on the row itself. A row with no
+ * actions does not swipe, which leaves every sideways drag to the Project pager. The trailing swipe actions follow the
+ * T3 Code and monocode phone thread lists, and leaving a right drag to the pager around the row follows monocode.
+ */
 export const SessionRow = ({
-    isMarkingDone = false,
+    isActionPending = false,
     now,
+    onArchive,
     onLongPress,
     onMarkDone,
     onPress,
+    onSwipeOpen,
     savedAt,
     selected,
     session,
     showProject,
+    swipeActions,
     theme,
 }: {
     /**
-     * Whether this row's Mark as Done request is in flight, which disables the check so a second tap sends nothing.
+     * Whether a swipe action on this row is in flight, which disables the actions so a second tap sends nothing.
      */
-    isMarkingDone?: boolean;
+    isActionPending?: boolean;
     now: number;
+    onArchive: (session: MobileSessionItem) => void;
     /**
      * Present only for a control device, which may rename and archive Sessions.
      */
     onLongPress?: (session: MobileSessionItem) => void;
-    /**
-     * Present only while the row may be marked done (`canMarkDoneFromRow`): a trailing check resolves its Pending
-     * Attention so it leaves Needs attention, as the check on a Desktop Activity row does. A phone has no hover, so the
-     * check stays on screen instead of appearing over the status slot.
-     */
-    onMarkDone?: (session: MobileSessionItem) => void;
+    onMarkDone: (session: MobileSessionItem) => void;
     onPress: (sessionId: string) => void;
+    /**
+     * Called as the row's actions open, so the list can close the row that was open before: one row is open at a time.
+     */
+    onSwipeOpen?: (row: SwipeableMethods) => void;
     /**
      * When the list is the copy saved on this phone, so the row's state is only as fresh as that copy.
      */
@@ -111,16 +177,28 @@ export const SessionRow = ({
      * A Project filter already names the Project, so rows drop it to keep one line of metadata short.
      */
     showProject: boolean;
+    swipeActions: readonly SessionRowSwipeAction[];
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
     const title = sessionTitleForDisplay(session.title, t);
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
+    const swipeable = useRef<SwipeableMethods>(null);
+    const dragOffsetFromLeft = useSharedValue(SWIPE_CLOSED_RIGHT_OFFSET);
+    const canMarkDone = swipeActions.includes('markDone');
+    const canArchive = swipeActions.includes('archive');
+    const runAction = useCallback(
+        (action: (session: MobileSessionItem) => void) => {
+            swipeable.current?.close();
+            action(session);
+        },
+        [session],
+    );
     const age = sessionAgeLabel(session.sessionActivityAt, now, t);
     const stateLabel = sessionStateLabel(session.stateLabel, savedAt, now, t);
     const pullRequest = sessionRowPullRequest(session, savedAt !== null, t);
     const worktree = session.worktreeTitle;
-    return (
+    const row = (
         <Pressable
             accessibilityHint={t('sessions.row.openHint')}
             accessibilityLabel={[
@@ -132,15 +210,19 @@ export const SessionRow = ({
             ].join(', ')}
             accessibilityActions={[
                 ...(onLongPress ? [{ name: 'longpress', label: t('sessions.row.actions') }] : []),
-                ...(onMarkDone ? [{ name: 'markDone', label: t('sessions.detail.markDone') }] : []),
+                ...(canMarkDone
+                    ? [{ name: 'markDone', label: t('sessions.detail.markDone') }]
+                    : []),
+                ...(canArchive ? [{ name: 'archive', label: t('sessions.actions.archive') }] : []),
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected }}
             delayLongPress={350}
             onAccessibilityAction={({ nativeEvent }) => {
                 if (nativeEvent.actionName === 'longpress') onLongPress?.(session);
-                else if (!isMarkingDone && nativeEvent.actionName === 'markDone')
-                    onMarkDone?.(session);
+                else if (isActionPending) return;
+                else if (canMarkDone && nativeEvent.actionName === 'markDone') onMarkDone(session);
+                else if (canArchive && nativeEvent.actionName === 'archive') onArchive(session);
             }}
             onLongPress={onLongPress ? () => onLongPress(session) : undefined}
             onPress={handlePress}
@@ -219,20 +301,54 @@ export const SessionRow = ({
                     theme={theme}
                 />
             </View>
-            {onMarkDone ? (
-                <View style={styles.markDone}>
-                    <IconButton
-                        accessibilityLabel={t('sessions.row.markDone', { title })}
-                        color={theme.muted}
-                        disabled={isMarkingDone}
-                        icon={Check}
-                        onPress={() => onMarkDone(session)}
-                        size={20}
-                        testID={`session-row-mark-done-${session.id}`}
-                        theme={theme}
-                    />
-                </View>
-            ) : null}
         </Pressable>
+    );
+    if (swipeActions.length === 0) return row;
+    return (
+        <ReanimatedSwipeable
+            childrenContainerStyle={{ backgroundColor: theme.background }}
+            dragOffsetFromLeft={dragOffsetFromLeft}
+            dragOffsetFromRight={-SWIPE_ACTIVATION_DP}
+            friction={1}
+            onSwipeableWillClose={() => dragOffsetFromLeft.set(SWIPE_CLOSED_RIGHT_OFFSET)}
+            onSwipeableWillOpen={() => {
+                dragOffsetFromLeft.set(SWIPE_ACTIVATION_DP);
+                if (swipeable.current) onSwipeOpen?.(swipeable.current);
+            }}
+            overshootRight={false}
+            ref={swipeable}
+            renderRightActions={() => (
+                <View style={styles.swipeActions}>
+                    {canMarkDone ? (
+                        <SwipeAction
+                            accessibilityLabel={t('sessions.row.markDone', { title })}
+                            background={theme.success}
+                            disabled={isActionPending}
+                            foreground={theme.background}
+                            icon={Check}
+                            label={t('sessions.row.done')}
+                            onPress={() => runAction(onMarkDone)}
+                            testID={`session-row-mark-done-${session.id}`}
+                        />
+                    ) : null}
+                    {canArchive ? (
+                        <SwipeAction
+                            accessibilityLabel={t('sessions.row.archive', { title })}
+                            background={theme.elevated}
+                            disabled={isActionPending}
+                            foreground={theme.text}
+                            icon={Archive}
+                            label={t('sessions.actions.archive')}
+                            onPress={() => runAction(onArchive)}
+                            testID={`session-row-archive-${session.id}`}
+                        />
+                    ) : null}
+                </View>
+            )}
+            rightThreshold={SWIPE_ACTION_WIDTH / 2}
+            testID={`session-row-swipe-${session.id}`}
+        >
+            {row}
+        </ReanimatedSwipeable>
     );
 };

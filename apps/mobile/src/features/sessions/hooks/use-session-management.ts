@@ -51,6 +51,7 @@ export const useSessionManagement = () => {
             send: () => Promise<Result>,
             fallback: string,
             shouldRefresh: boolean,
+            onError: (message: string) => void = setError,
         ): Promise<Result | null> => {
             setPending({ action, sessionId });
             setError(null);
@@ -59,7 +60,7 @@ export const useSessionManagement = () => {
                 if (shouldRefresh) await sessions.refresh();
                 return result;
             } catch (error_) {
-                setError(sessionManagementErrorMessage(error_, fallback));
+                onError(sessionManagementErrorMessage(error_, fallback));
                 return null;
             } finally {
                 setPending(null);
@@ -73,9 +74,16 @@ export const useSessionManagement = () => {
             sessionId: string,
             send: () => Promise<unknown>,
             fallback: string,
+            onError?: (message: string) => void,
         ): Promise<boolean> =>
-            (await attempt(action, sessionId, async () => (await send(), true), fallback, true)) ??
-            false,
+            (await attempt(
+                action,
+                sessionId,
+                async () => (await send(), true),
+                fallback,
+                true,
+                onError,
+            )) ?? false,
         [attempt],
     );
     const rename = useCallback(
@@ -88,13 +96,17 @@ export const useSessionManagement = () => {
             ),
         [request, run, t],
     );
+    /**
+     * `onError` replaces the hook's `error` for a caller with no sheet to show it in, such as a row's swipe action.
+     */
     const archive = useCallback(
-        async (sessionId: string) => {
+        async (sessionId: string, options: { onError?: (message: string) => void } = {}) => {
             const isArchived = await run(
                 'archive',
                 sessionId,
                 () => request('mobile.session.archive', { sessionId }),
                 t('sessions.manage.archiveFailed'),
+                options.onError,
             );
             // The Undo outlives the sheet that archived, so it talks to the client and the list directly rather than
             // through this hook's `pending` and `error`.

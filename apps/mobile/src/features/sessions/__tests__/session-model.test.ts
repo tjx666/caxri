@@ -5,6 +5,7 @@ import {
     buildMobileSessionSections,
     canMarkSessionDone,
     isMobileTerminalStopped,
+    sessionRowSwipeActions,
 } from '../session-model';
 
 const terminal: MobileTerminal = {
@@ -261,5 +262,33 @@ describe('mobile session model', () => {
             sessions: [{ ...waiting, primaryTerminal: terminal }],
         });
         expect(ended.groups.attention).toHaveLength(1);
+    });
+});
+
+describe('sessionRowSwipeActions', () => {
+    it('offers Mark as Done and Archive to a control device on a live list', () => {
+        expect(sessionRowSwipeActions({ hasPendingAttention: true }, 'control', false)).toEqual([
+            'markDone',
+            'archive',
+        ]);
+    });
+
+    it('offers only Archive once nothing needs attention', () => {
+        expect(sessionRowSwipeActions({ hasPendingAttention: false }, 'control', false)).toEqual([
+            'archive',
+        ]);
+    });
+
+    it('offers a reply device only Mark as Done', () => {
+        expect(sessionRowSwipeActions({ hasPendingAttention: true }, 'reply', false)).toEqual([
+            'markDone',
+        ]);
+        expect(sessionRowSwipeActions({ hasPendingAttention: false }, 'reply', false)).toEqual([]);
+    });
+
+    it('offers nothing on a saved list or to a read-only device', () => {
+        expect(sessionRowSwipeActions({ hasPendingAttention: true }, 'control', true)).toEqual([]);
+        expect(sessionRowSwipeActions({ hasPendingAttention: true }, 'view', false)).toEqual([]);
+        expect(sessionRowSwipeActions({ hasPendingAttention: true }, null, false)).toEqual([]);
     });
 });
