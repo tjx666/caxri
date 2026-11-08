@@ -658,7 +658,7 @@ feature finds one way to draw each job.
 | Pushed screen header                    | `ScreenHeader`                                             | `back` or `close`, fixed for the screen's life.                                                                                                                          |
 | Remote state                            | `ScreenState`                                              | `loading`, `empty`, `error`, `offline`; an offline state always offers a way back.                                                                                       |
 | Top notice                              | `NoticeBanner`                                             | At most one per screen, the most severe state.                                                                                                                           |
-| Self-clearing connection notice         | `ConnectionIsland`                                         | Automatic reconnect only: a capsule floating over the top center, no layout height; tap reconnects now. Notices needing the user stay `NoticeBanner`.                    |
+| Notice needing nothing from the user    | `NoticeIsland`                                             | Floating top-center capsule, no layout height: reconnecting (tap reconnects), saved list copy, truncated list (4 s once per count; tap searches).                        |
 | Confirmation                            | `ConfirmSheet`                                             | Replaces the system `Alert`; the button names the verb; `danger` only when something is lost.                                                                            |
 | Result feedback                         | `Toast` (`showToast`)                                      | One transient card, a new one replaces the old; results only (copied, could not open), ~3 s, errors 6 s, one action such as Undo 8 s. Confirmation stays `ConfirmSheet`. |
 | Menu on a tapped control                | `PopoverMenu` + `PopoverAction`                            | Short anchored menus (a header's ⋮, a chip's choices).                                                                                                                   |
@@ -726,7 +726,7 @@ A cold start or a phone without a connection shows what the phone last read inst
 the Session list, and the newest messages of recently opened Conversations and Chats. It is a read
 cache only; nothing is sent from it (see the offline outbox under [Deferred](#deferred)).
 
-- Each saved copy is labeled: `Showing Sessions saved 5m ago.` above the list and
+- Each saved copy is labeled: `Showing Sessions saved 5m ago.` in an island over the list and
   `Showing messages saved 5m ago.` at the top of a Conversation or Chat, above any state notice.
   The app-wide `Reconnecting…` notice and every disabled mutation keep explaining why it is not
   live. While the screen below labels its saved copy, the banner's body reads only `Replies are

@@ -165,6 +165,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.home.savedCopy': '显示的是{{saved}}的会话。',
     'sessions.home.settings': '设置',
     'sessions.home.truncated': '显示 {{total}} 个会话中的 {{shown}} 个。可通过搜索找到其余会话。',
+    'sessions.home.truncatedShort': '{{shown}}/{{total}} 个会话 · 搜索其余',
     'sessions.home.unverifiedBody': '请重试连接，或忘记此设备后重新配对。',
     'sessions.home.unverifiedTitle': '会话不可用',
     'sessions.home.versionMismatchBody': '此应用与电脑上的 Caxri 版本一致后，会话会显示在这里。',

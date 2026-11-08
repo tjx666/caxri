@@ -5,6 +5,7 @@ import {
     connectionBannerModel,
     connectionIslandLabel,
     connectionNoticeMessage,
+    createFirstShownTimes,
     createHomeNoticeSelections,
     drawnHomeNotice,
     HOME_NOTICE_SETTLE_MS,
@@ -13,6 +14,8 @@ import {
     isConnectionBannerShown,
     isSessionListErrorShown,
     selectHomeNotice,
+    transientNoticeRemainingMs,
+    TRUNCATED_NOTICE_VISIBLE_MS,
     waitingHomeNotice,
 } from '../session-notices';
 
@@ -296,5 +299,20 @@ describe('createHomeNoticeSelections', () => {
         selections.release('saved-copy');
         expect(selections.since('saved-copy')).toBeNull();
         expect(selections.acquire('saved-copy', 9_000)).toBe(9_000);
+    });
+});
+
+describe('transient truncated island', () => {
+    it('keeps the first draw time per count, so the island does not return when the list comes back into view', () => {
+        const firstShown = createFirstShownTimes();
+        expect(firstShown('host:64/65', 1_000)).toBe(1_000);
+        expect(firstShown('host:64/65', 9_000)).toBe(1_000);
+        expect(firstShown('host:64/66', 9_000)).toBe(9_000);
+    });
+
+    it('gives a redrawn island only what is left of its time', () => {
+        expect(transientNoticeRemainingMs(1_000, 1_000)).toBe(TRUNCATED_NOTICE_VISIBLE_MS);
+        expect(transientNoticeRemainingMs(1_000, 2_500)).toBe(TRUNCATED_NOTICE_VISIBLE_MS - 1_500);
+        expect(transientNoticeRemainingMs(1_000, 1_000 + TRUNCATED_NOTICE_VISIBLE_MS + 1)).toBe(0);
     });
 });

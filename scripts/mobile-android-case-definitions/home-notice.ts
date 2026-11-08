@@ -17,4 +17,11 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-home-reconnect-notice',
     },
+    'MOB-SESSION-NOTICE-ISLAND-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'session-home-truncated-island',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

@@ -26,9 +26,10 @@ const homeNoticeFamily: Record<HomeNoticeKind, 'connection' | 'list' | 'update'>
 /**
  * The one notice across the top of Session home. Connection, update, list failure, saved copy, and truncation can all
  * be true at once; `homeNoticeCandidates` orders them and Session home keeps only the most severe so the bars never
- * stack above the list. The saved copy's age rides inside the stale connection message. A notice that usually clears
- * within a moment waits `useSettledHomeNotice`'s delay first, so a quick startup does not push the list down and back
- * up.
+ * stack above the list. Notices that need nothing from the user float as a `NoticeIsland` and take no height; only
+ * those the user must act on push the list down as a banner. The saved copy's age rides inside the stale connection
+ * message. A notice that usually clears within a moment waits `useSettledHomeNotice`'s delay first, so a quick startup
+ * does not push the list down and back up.
  */
 export const SessionHomeNotice = ({
     connection,

@@ -173,6 +173,7 @@ export const sessions = {
     'sessions.home.savedCopy': 'Showing Sessions {{saved}}.',
     'sessions.home.settings': 'Settings',
     'sessions.home.truncated': 'Showing {{shown}} of {{total}} Sessions. Search to find the rest.',
+    'sessions.home.truncatedShort': '{{shown}} of {{total}} Sessions · Search the rest',
     'sessions.home.unverifiedBody': 'Retry the connection, or forget this device and pair again.',
     'sessions.home.unverifiedTitle': 'Sessions unavailable',
     'sessions.home.versionMismatchBody':

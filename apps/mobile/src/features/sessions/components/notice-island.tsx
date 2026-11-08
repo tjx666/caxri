@@ -14,17 +14,17 @@ import {
 import type { MobileTheme } from '../../../theme/tokens';
 
 /**
- * The automatic-reconnect notice as a small capsule floating over the top center of the screen, like a Dynamic Island.
- * It takes no layout height, so the list and the Session underneath never move when it appears or clears. Only the
- * capsule takes touches; pressing it runs its action (Reconnect now) through a 48dp target, and its accessible name
- * reads the full notice sentence. Motion follows the system's reduce-motion setting.
+ * A notice that needs nothing from the user, drawn as a small capsule floating over the top center of the screen like a
+ * Dynamic Island: an automatic reconnect, the saved copy on screen, or a truncated Session list. It takes no layout
+ * height, so the list and the Session underneath never move when it appears or clears. Only the capsule takes touches;
+ * pressing it runs its shortcut (Reconnect now, Search) through a 48dp target, and its accessible name reads the full
+ * notice sentence. Motion follows the system's reduce-motion setting.
  */
-export const ConnectionIsland = ({
+export const NoticeIsland = ({
     accessibilityLabel,
-    actionLabel,
-    actionTestID,
+    action,
+    isBusy = false,
     label,
-    onAction,
     testID,
     theme,
     wrapperTestID,
@@ -33,10 +33,15 @@ export const ConnectionIsland = ({
      * The full notice sentence, which the short label abbreviates.
      */
     accessibilityLabel: string;
-    actionLabel: string;
-    actionTestID: string;
+    /**
+     * The shortcut a tap runs. Without one the capsule is read-only and lets taps through to the header below it.
+     */
+    action?: { label: string; onPress: () => void; testID: string };
+    /**
+     * Shows a spinner before the label for work the app is already doing, such as reconnecting.
+     */
+    isBusy?: boolean;
     label: string;
-    onAction: () => void;
     testID: string;
     theme: MobileTheme;
     /**
@@ -45,6 +50,14 @@ export const ConnectionIsland = ({
     wrapperTestID?: string;
 }) => {
     const insets = useSafeAreaInsets();
+    const content = (
+        <>
+            {isBusy ? <ActivityIndicator color={theme.muted} size="small" /> : null}
+            <Text numberOfLines={1} style={[styles.label, { color: theme.text }]}>
+                {label}
+            </Text>
+        </>
+    );
     return (
         <View
             collapsable={false}
@@ -55,6 +68,7 @@ export const ConnectionIsland = ({
             <Animated.View
                 entering={FadeInUp.duration(160).reduceMotion(ReduceMotion.System)}
                 exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)}
+                pointerEvents={action ? 'auto' : 'none'}
                 style={[
                     styles.capsule,
                     {
@@ -65,20 +79,23 @@ export const ConnectionIsland = ({
                 ]}
                 testID={testID}
             >
-                <Pressable
-                    accessibilityHint={actionLabel}
-                    accessibilityLabel={accessibilityLabel}
-                    accessibilityRole="button"
-                    hitSlop={chipHitSlop}
-                    onPress={onAction}
-                    style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
-                    testID={actionTestID}
-                >
-                    <ActivityIndicator color={theme.muted} size="small" />
-                    <Text numberOfLines={1} style={[styles.label, { color: theme.text }]}>
-                        {label}
-                    </Text>
-                </Pressable>
+                {action ? (
+                    <Pressable
+                        accessibilityHint={action.label}
+                        accessibilityLabel={accessibilityLabel}
+                        accessibilityRole="button"
+                        hitSlop={chipHitSlop}
+                        onPress={action.onPress}
+                        style={({ pressed }) => [styles.content, pressed && styles.pressed]}
+                        testID={action.testID}
+                    >
+                        {content}
+                    </Pressable>
+                ) : (
+                    <View accessibilityLabel={accessibilityLabel} accessible style={styles.content}>
+                        {content}
+                    </View>
+                )}
             </Animated.View>
         </View>
     );
@@ -99,7 +116,7 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     label: { ...mobileType.meta, flexShrink: 1 },
-    pressable: {
+    content: {
         alignItems: 'center',
         flexDirection: 'row',
         gap: mobileSpace.sm,
