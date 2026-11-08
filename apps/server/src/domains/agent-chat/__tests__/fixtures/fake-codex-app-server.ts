@@ -8,11 +8,12 @@
  * `thread/compact/start` runs a compaction turn that stays in progress briefly and cannot be steered. `turn/steer`
  * echoes the steered message into the running turn; a steered message containing `late` ends the turn first, so the
  * steer loses that race, one containing `refuse` is rejected outright, and one containing `answer` gets its own command
- * and reply inside the running turn. A started or steered message containing `stall` is recorded at once but answered
- * only after {@link STALL_MS}, as a loaded Codex answers past Caxri's request timeout; one containing `lost` is never
- * answered nor recorded. `thread/turns/list` returns the newest turns with their items, and `thread/items/list` the
- * newest items with when each started. `model/list` offers two models, and a `turn/start` that names a model, effort,
- * or service tier saves it on the thread, as Codex does, so a resumed thread reports the last choice.
+ * and reply inside the running turn, while one containing `ponder` is answered only in a thought followed by two
+ * commands. A started or steered message containing `stall` is recorded at once but answered only after
+ * {@link STALL_MS}, as a loaded Codex answers past Caxri's request timeout; one containing `lost` is never answered nor
+ * recorded. `thread/turns/list` returns the newest turns with their items, and `thread/items/list` the newest items
+ * with when each started. `model/list` offers two models, and a `turn/start` that names a model, effort, or service
+ * tier saves it on the thread, as Codex does, so a resumed thread reports the last choice.
  *
  * With `FAKE_CODEX_SCRIPT`, a message equal to a scripted turn's prompt plays that turn (`fake-codex-script.ts`).
  *
@@ -57,7 +58,7 @@ import { forkThread, revertThread, unsubscribeThread } from './fake-codex-rewind
 import { fakeCodexScript, findScriptedTurn, playScriptedTurn } from './fake-codex-script.ts';
 import { didHandleSideRequest } from './fake-codex-side.ts';
 import { didHandleSkillsListRequest } from './fake-codex-skills.ts';
-import { answerSteeredMessage } from './fake-codex-steer.ts';
+import { answerSteeredMessage, thinkAboutSteeredMessage } from './fake-codex-steer.ts';
 import { didHandleTaskRequest, wakeFakeWait } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
@@ -432,6 +433,7 @@ function handle(message: RpcMessage) {
                 completeItem(turn, user);
                 wakeFakeWait();
                 if (text.includes('answer')) answerSteeredMessage(io, turn, text);
+                else if (text.includes('ponder')) thinkAboutSteeredMessage(io, turn);
             };
             if (turn.deferredSteers) turn.deferredSteers.push(record);
             else record();

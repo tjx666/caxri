@@ -16,6 +16,7 @@ import {
     agentChatFinalReplyId,
     agentChatFoldTiming,
     agentChatNoticeMessage,
+    agentChatSteerReplyThoughtIds,
     agentChatTurnLabel,
     collectAgentChatTurnArtifacts,
     collectAgentChatWebSources,
@@ -32,7 +33,7 @@ import { translate } from '../../i18n';
 import type { AgentChatAwayRecapEntry } from './agent-chat-away-recap-entry';
 import { delegationEntry } from './agent-chat-delegation-entries';
 import type { AgentChatWorkEntry } from './agent-chat-timeline-work';
-import { agentChatWorkEntry } from './agent-chat-timeline-work';
+import { agentChatWorkEntries } from './agent-chat-timeline-work';
 
 /**
  * A message the shared Conversation renderer draws as it draws a terminal Agent's: the user's bubble, a Markdown reply,
@@ -237,19 +238,19 @@ function messageEntry(
 }
 
 /**
- * Visible items as entries, consecutive work grouped into one `work` entry.
+ * Visible items as entries, consecutive work grouped into `work` entries (`agentChatWorkEntries`).
  */
 function groupEntries(
     visible: readonly AgentChatItem[],
     t: Translate,
     taskItemIds: ReadonlySet<string>,
-    isRunning = false,
+    isRunning: boolean,
+    steerReplies: ReadonlySet<string>,
 ): AgentChatTimelineEntry[] {
     const entries: AgentChatTimelineEntry[] = [];
     let work: AgentChatWorkItem[] = [];
     const flush = (isOpen = false): void => {
-        const entry = agentChatWorkEntry(work, taskItemIds, isOpen);
-        if (entry) entries.push({ kind: 'work', ...entry });
+        entries.push(...agentChatWorkEntries(work, taskItemIds, isOpen, steerReplies));
         work = [];
     };
     for (const item of visible) {
@@ -301,6 +302,7 @@ function finishedTurnEntries(
 ): AgentChatTimelineEntry[] {
     const finalReplyId = agentChatFinalReplyId(visible);
     const parts = foldAgentChatTurn(visible, finalReplyId);
+    const steerReplies = agentChatSteerReplyThoughtIds(visible);
     const foldKey = (segment: AgentChatTurnFoldSegment): string =>
         agentChatFoldKey(turn.id, segment.index);
     /**
@@ -378,14 +380,15 @@ function finishedTurnEntries(
                 ),
                 ...(subagents.length > 0 && { subagents }),
             });
-            if (isExpanded) entries.push(...groupEntries(part.items, t, taskItemIds));
+            if (isExpanded)
+                entries.push(...groupEntries(part.items, t, taskItemIds, false, steerReplies));
             continue;
         }
         if (isNeedsOutcomeRow && part.segment.closesTurn && part.item.id === finalReplyId) {
             entries.push(row(undefined, closing));
             isNeedsOutcomeRow = false;
         }
-        entries.push(...groupEntries([part.item], t, taskItemIds));
+        entries.push(...groupEntries([part.item], t, taskItemIds, false, steerReplies));
         if (part.item.id === finalReplyId) entries.push(...artifactsEntry, ...replyActionsEntry);
     }
     if (isNeedsOutcomeRow) entries.push(row(undefined, closing));
@@ -441,6 +444,7 @@ export function buildAgentChatTimeline(
                       t,
                       taskItemIds,
                       turnId !== undefined && turnId === activeTurnId,
+                      agentChatSteerReplyThoughtIds(visible),
                   )),
         );
         start = end;

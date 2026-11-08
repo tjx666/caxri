@@ -13,6 +13,11 @@ export interface AgentChatWorkEntry {
      */
     isOpen?: true;
     /**
+     * The thought the Agent answered a steered message with instead of a reply (`agentChatSteerReplyThoughtIds`), kept
+     * out of the tool calls after it and shown expanded so the answer is seen, as on Desktop.
+     */
+    isSteerReply?: true;
+    /**
      * Every item of the run, before thoughts merge, so the list can keep the row's id when an older page adds items in
      * front of it (`agentChatFormerEntryIds`).
      */
@@ -29,10 +34,11 @@ const agentChatWorkEntryId = (itemId: string): string => `work:${itemId}`;
  * summary of one call adds nothing over the call itself, so that call becomes its own row, as on Desktop. The running
  * turn's trailing run (`isOpen`) keeps its summary, so a second call joining it does not reshape the row.
  */
-export function agentChatWorkEntry(
+function agentChatWorkEntry(
     work: readonly AgentChatWorkItem[],
     taskItemIds: ReadonlySet<string>,
     isOpen: boolean,
+    isSteerReply: boolean,
 ): Omit<AgentChatWorkEntry, 'kind'> | undefined {
     const first = work.at(0);
     if (!first) return undefined;
@@ -44,9 +50,39 @@ export function agentChatWorkEntry(
         id: agentChatWorkEntryId(first.id),
         itemIds: work.map((item) => item.id),
         ...(isOpen && { isOpen: true as const }),
+        ...(isSteerReply && { isSteerReply: true as const }),
         summarized: isSingle ? [] : split.summarized,
         rows: isSingle ? [...split.summarized, ...split.rows] : split.rows,
     };
+}
+
+/**
+ * A run of consecutive work as `work` entries. A steer's reply thought (`steerReplies`, from
+ * `agentChatSteerReplyThoughtIds`) gets its own entry, so it shows open instead of joining the summary of the tool
+ * calls after it, as on Desktop. Only the last entry can be the open one.
+ */
+export function agentChatWorkEntries(
+    work: readonly AgentChatWorkItem[],
+    taskItemIds: ReadonlySet<string>,
+    isOpen: boolean,
+    steerReplies: ReadonlySet<string>,
+): AgentChatWorkEntry[] {
+    const runs: Array<{ isSteerReply: boolean; items: AgentChatWorkItem[] }> = [];
+    for (const item of work) {
+        const isSteerReply = steerReplies.has(item.id);
+        const last = runs.at(-1);
+        if (last?.isSteerReply === isSteerReply) last.items.push(item);
+        else runs.push({ isSteerReply, items: [item] });
+    }
+    return runs.flatMap((run, index) => {
+        const entry = agentChatWorkEntry(
+            run.items,
+            taskItemIds,
+            isOpen && index === runs.length - 1,
+            run.isSteerReply,
+        );
+        return entry ? [{ kind: 'work' as const, ...entry }] : [];
+    });
 }
 
 /**

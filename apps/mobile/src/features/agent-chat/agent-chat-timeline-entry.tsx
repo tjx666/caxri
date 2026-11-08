@@ -116,6 +116,7 @@ export const AgentChatTimelineEntry = memo(
                     <AgentChatWorkGroup
                         id={entry.id}
                         isOpen={entry.isOpen}
+                        isSteerReply={entry.isSteerReply}
                         rows={entry.rows}
                         summarized={entry.summarized}
                         theme={theme}
