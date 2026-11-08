@@ -45,6 +45,39 @@ export async function isWorktreeHeadPreserved(worktree: WorktreeRecord): Promise
 }
 
 /**
+ * True when some `origin/main` commit since the fork point held HEAD's exact content for every path the branch changed:
+ * the squash commit itself. `isHeadContentInMain` misses this once a later main commit edits the same lines, because
+ * the three-way merge then conflicts. A later revert still counts, which is acceptable for reuse because the old branch
+ * and its commits are kept.
+ */
+async function wasHeadSquashedIntoMain(path: string): Promise<boolean> {
+    try {
+        const base = (await runCapture('git', ['merge-base', 'HEAD', 'origin/main'], path)).trim();
+        const changed = (await runCapture('git', ['diff', '--name-only', base, 'HEAD'], path))
+            .split('\n')
+            .filter(Boolean);
+        if (changed.length === 0) return false;
+        const candidates = (
+            await runCapture(
+                'git',
+                ['log', '--format=%H', `${base}..origin/main`, '--', ...changed],
+                path,
+            )
+        )
+            .split('\n')
+            .filter(Boolean);
+        const differences = await Promise.all(
+            candidates.map((commit) =>
+                runCapture('git', ['diff', '--name-only', commit, 'HEAD', '--', ...changed], path),
+            ),
+        );
+        return differences.some((difference) => !difference.trim());
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Stricter than `isWorktreeHeadPreserved`: a branch pushed to origin but never merged still holds an unfinished
  * delivery, so reusing its checkout requires the HEAD content to be in `origin/main` itself.
  */
@@ -53,7 +86,7 @@ export async function isWorktreeHeadMerged(path: string): Promise<boolean> {
         await runCapture('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main'], path);
         return true;
     } catch {
-        return isHeadContentInMain(path);
+        return (await isHeadContentInMain(path)) || wasHeadSquashedIntoMain(path);
     }
 }
 
