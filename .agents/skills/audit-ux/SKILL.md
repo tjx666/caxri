@@ -1,7 +1,7 @@
 ---
 name: audit-ux
-description: Audit Caxri's user-visible experience with context-isolated subagents, real macOS Electron screenshots, and per-scenario render counts (first paint, Session/Panel/tab switches, Refresh clicks, tree expansion), then synthesize a prioritized optimization list. Always takes an explicit scope argument, such as a time window ("last 2 days"), a commit count or rev-range ("last 15 commits", "HEAD~5..HEAD"), or a UI surface ("settings dialog", "terminal", "file tree"). Use when asked to review UX changes in recent commits, audit a page or feature's interaction quality, check a surface for wasted re-renders, find UX optimization points, or 优化/审查 a UI surface; also use for the UX pass after a large feature lands. Not a bug hunt and not a code-correctness review; use deep-review for merge readiness.
-argument-hint: '<last N days | last N commits | <rev-range> | <surface>> [--no-desktop] [--fix]'
+description: Audit Caxri's user-visible experience with context-isolated subagents, real macOS Electron screenshots, a CDP walkthrough of the installed production app, production log analysis, and per-scenario render counts (first paint, Session/Panel/tab switches, Refresh clicks, tree expansion), then synthesize a prioritized optimization list. Always takes an explicit scope argument, such as a time window ("last 2 days"), a commit count or rev-range ("last 15 commits", "HEAD~5..HEAD"), or a UI surface ("settings dialog", "terminal", "file tree"). Use when asked to review UX changes in recent commits, audit a page or feature's interaction quality, check a surface for wasted re-renders, find UX optimization points, or 优化/审查 a UI surface; also use for the UX pass after a large feature lands. Not a bug hunt and not a code-correctness review; use deep-review for merge readiness.
+argument-hint: '<last N days | last N commits | <rev-range> | <surface>> [--no-desktop] [--no-production] [--fix]'
 ---
 
 # Audit Caxri UX
@@ -36,7 +36,7 @@ terminal, file tree, new surfaces...). One package = one subagent = one cohesive
 product; 3–6 packages is typical. A surface scope is usually a single package plus the live
 inspection.
 
-## 2. Three evidence layers: a verdict must come from a layer that can see it
+## 2. Evidence layers: a verdict must come from a layer that can see it
 
 - **Code layer**: interaction wiring, missing states, feedback gaps, a11y attributes, keyboard
   paths, copy quality, token usage. Evidence is `file:line`.
@@ -47,6 +47,14 @@ inspection.
   Panel, or a work tab, clicking Refresh, expanding the file tree. Evidence is a per-instance
   render-count table for a named scenario, from
   [references/render-layer.md](references/render-layer.md).
+- **Production layer**: the installed `/Applications/Caxri.app` with the owner's real Projects,
+  Sessions, and history: states no fixture reproduces (long Session lists, real Agent usage, many
+  worktrees, stale data). Evidence is a screenshot taken over CDP on `9224` and viewed with the
+  Read tool.
+- **Log layer**: the production profile's `~/Library/Application Support/Caxri/logs/*.jsonl` over
+  the scope window: `warn`/`error` events, failure classifications, slow or repeated `ipc.request`
+  methods, restarts, reconnect loops. Evidence is the event name, count, time range, and
+  `correlationId`, never message content.
 
 Never tick a visual verdict off the code (a `underline: true` decoration may only render on hover:
 the code layer cannot know), and never diagnose a missing state machine from a screenshot. A
@@ -55,13 +63,14 @@ tell you how often it actually ran; that is the render layer's job, and it is th
 findings the user feels as sluggishness rather than sees as a defect. When two layers disagree,
 that disagreement is itself a finding; the root agent resolves it by reading the evidence together.
 
-`--no-desktop` (or an unavailable desktop lease) skips both live layers; the report must then mark
-every visual and render claim as code-inferred and unverified.
+`--no-desktop` (or an unavailable desktop lease) skips the visual and render layers;
+`--no-production` skips the production and log layers. The report must then mark every claim
+those layers would have checked as code-inferred and unverified.
 
 ## 3. Dispatch subagents in one wave
 
-Launch all reviewers and the one desktop agent concurrently. Review agents are read-only and need
-isolated context: give each a self-contained prompt, and do not leak another package's findings or
+Launch all reviewers, the one desktop agent, and the one production agent concurrently. Review
+agents are read-only and need isolated context: give each a self-contained prompt, and do not leak another package's findings or
 your own suspicions into it.
 
 **Per-theme review agent**: the prompt must carry these elements, learned the hard way:
@@ -120,13 +129,39 @@ arming flag, the collector, and the traps:
 - Every render finding must name the avoidable cause: the prop, state, context, or hook that
   moved. Counts alone go into the report as observations, never into a fix batch.
 
+**Production agent**: exactly one, running the production layer and then the log layer. It
+drives the installed app the owner is using, so it may run beside the desktop agent: every call
+targets `9224` through `bun run .agents/skills/debug/scripts/worktree-browser.ts --packaged`
+(`eval`, `click`, `hover`, `screenshot`), never synthesized OS input or a focus change.
+
+- Before the first mutation, write a restore point to `<evidence>/production/before.json`: the
+  selected Project and Session, open Panel and secondary-sidebar tabs, work tabs, theme, and the
+  full settings source (`settings.get`).
+- Click through every surface in scope with the owner's real data: menus, dialogs, Settings tabs,
+  hover cards, long lists, and the Sessions the scope's commits changed. Leave existing Sessions'
+  content untouched: no sending, renaming, archiving, Mark as Done, or deleting.
+- Create at most one new Session per Agent type (Shell, Claude Code, Codex, Grok Build,
+  Antigravity) in an existing Project when a surface needs a fresh one, record each id, and send no
+  prompt: a real Agent spends the owner's quota and writes a real transcript.
+- Clean up before the log layer: delete each created Session with
+  `caxri request session.delete --params '{"sessionId":"<id>"}'` (the Renderer's `session.delete`
+  opens Main's native confirmation and hangs CDP), restore every recorded value, then compare
+  `app.bootstrap` and `settings.get` against `before.json` and report any difference as unrestored.
+- Log layer: read the production logs with `caxri logs query --since <scope start> --level warn`
+  plus a bounded `jq` aggregation over `server-core.jsonl`, `desktop.jsonl`, `extension-host.jsonl`,
+  and `terminal-host.jsonl` (`ipc.request` by `method` with count and p95 `durationMs`; errors by
+  `event` and reason). Each log finding names the user-visible symptom it implies or says it is
+  unknown.
+- Production screenshots carry the owner's real data: they stay in the local evidence directory
+  and never go into an issue, PR, or other public artifact (`oss-confidentiality`).
+
 **Mobile agent**: when the scope touches `apps/mobile`, one more agent runs the `acceptance`
 skill's Android surface on the disposable emulator and captures every mobile surface in scope,
 including offline, empty, and error states. A mobile visual verdict read off the code is
 unverified: one audit's "hardcoded English Done" was rendered translated on the emulator.
 
-Both phases end with an explicit "surfaces and scenarios not verified" list; a silent gap reads as
-coverage. An item enters that list only after **two concrete methods** were tried, each recorded
+Every live phase (visual, render, production, log, mobile) ends with an explicit "surfaces and
+scenarios not verified" list; a silent gap reads as coverage. An item enters that list only after **two concrete methods** were tried, each recorded
 with its command and failure output. "Automation cannot reach it" is the start of the work, not
 the verdict. Try the existing mechanisms first:
 
@@ -178,7 +213,8 @@ Do not paste subagent output through. Merge, then:
 Final reply in the conversation language; code, paths, and UI strings stay English.
 
 1. Which layers ran, the resolved scope (commit list or surface), the screenshot directory, and the
-   render scenarios sampled with the fixture shape their counts describe.
+   render scenarios sampled with the fixture shape their counts describe, the production surfaces
+   walked with the Sessions created and their cleanup result, and the log window read.
 2. Findings by priority, each with `file:line`, screenshot path, and/or scenario counts, current
    behavior, why it falls short, and the concrete improvement. A render finding states the
    scenario, the observed and expected counts, and the named cause.
