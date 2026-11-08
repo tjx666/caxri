@@ -177,7 +177,9 @@ How it works:
    `size-baseline-<kind>` (30 days).
 3. `.github/workflows/pr-report-comment.yml` runs on `workflow_run` after CI, from `main`, with
    the only `pull-requests: write` token in this flow. `scripts/ci-size-comment.ts` resolves the
-   pull request from the head branch and SHA (fork runs carry no pull request association), finds
+   pull request from the head branch and exact SHA (fork runs carry no pull request association),
+   open or already merged, since a pull request merged on `guards` alone closes before its full CI
+   run finishes; one closed without merging gets no comment. It then finds
    the nearest `size-baseline-<kind>` among the 30 commits at or before the merge base (cancelled
    `main` runs and release commits leave gaps), and upserts the comment marked
    `<!-- caxri-pr-report:v1 -->`. A missing baseline shows absolute sizes only.

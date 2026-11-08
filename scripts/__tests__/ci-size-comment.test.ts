@@ -6,6 +6,7 @@ import {
     formatSizeChange,
     pickBaseline,
     renderComment,
+    selectReportPull,
     summarizeChatSwitch,
 } from '../ci-size-comment';
 import type { SizeReport } from '../ci-size-report';
@@ -25,6 +26,32 @@ const desktop = (sha: string, renderer: number): SizeReport => ({
 });
 
 describe('ci-size-comment', () => {
+    it('reports on an open or already merged pull request with the exact head', () => {
+        const pull = (
+            number: number,
+            sha: string,
+            state: 'closed' | 'open',
+            mergedAt: string | null = null,
+            repo = 'owner/caxri',
+        ) => ({ head: { repo: { full_name: repo }, sha }, merged_at: mergedAt, number, state });
+
+        // Merged on `guards` alone before the full CI run finished.
+        const merged = pull(3, HEAD, 'closed', '2026-11-08T12:21:41Z');
+        expect(
+            selectReportPull(
+                [pull(1, BASE, 'closed', '2026-01-01T00:00:00Z'), merged],
+                HEAD,
+                'owner/caxri',
+            ),
+        ).toBe(merged);
+        const open = pull(4, HEAD, 'open');
+        expect(selectReportPull([open], HEAD, 'owner/caxri')).toBe(open);
+        expect(selectReportPull([pull(5, HEAD, 'closed')], HEAD, 'owner/caxri')).toBeUndefined();
+        expect(
+            selectReportPull([pull(6, HEAD, 'open', null, 'fork/caxri')], HEAD, 'owner/caxri'),
+        ).toBeUndefined();
+    });
+
     it('formats byte counts and signed changes', () => {
         expect(formatBytes(512)).toBe('512 B');
         expect(formatBytes(1_536)).toBe('1.5 KiB');
