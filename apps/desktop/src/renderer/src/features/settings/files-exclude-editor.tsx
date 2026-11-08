@@ -91,6 +91,7 @@ export function FilesExcludeEditor({
                 />
                 <Button
                     aria-label={t('settings.excludeEditor.add')}
+                    className="shrink-0 whitespace-nowrap"
                     disabled={!draft.trim()}
                     size="sm"
                     variant="secondary"

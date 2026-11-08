@@ -1,5 +1,9 @@
 import type { AgentProvider, AppSettings, DelegationType } from '@caxri/protocol';
-import { delegationEffortSchema, isDelegationEffortSupported } from '@caxri/protocol';
+import {
+    defaultDelegationTypeBinding,
+    delegationEffortSchema,
+    isDelegationEffortSupported,
+} from '@caxri/protocol';
 
 type DelegationSettings = AppSettings['agents.delegation'];
 
@@ -45,14 +49,29 @@ function withSupportedEffort(binding: TypeBinding): TypeBinding {
 }
 
 /**
+ * The binding a type runs on in this scope: the stored one, or the built-in default that applies when none is stored.
+ * Both the unbound controls' placeholders and "Add an override" start from it, so they cannot disagree.
+ */
+export function resolveTypeBinding(
+    type: DelegationType,
+    binding: TypeBinding | undefined,
+    caller: AgentProvider | undefined,
+): TypeBinding {
+    return binding ?? defaultDelegationTypeBinding(type, caller);
+}
+
+/**
  * The binding after the user picks another Agent. A model name belongs to one Agent, so it is cleared; the effort stays
- * only when the new Agent accepts it.
+ * only when the new Agent accepts it. Picking the Agent an unbound type already runs on (`defaultBinding`) keeps that
+ * default's tuned model and effort instead of silently dropping them.
  */
 export function changeBindingProvider(
     binding: TypeBinding | undefined,
     provider: AgentProvider,
+    defaultBinding?: TypeBinding,
 ): TypeBinding {
     if (binding?.provider === provider) return binding;
+    if (!binding && defaultBinding?.provider === provider) return defaultBinding;
     return withSupportedEffort({ provider, ...(binding?.effort && { effort: binding.effort }) });
 }
 

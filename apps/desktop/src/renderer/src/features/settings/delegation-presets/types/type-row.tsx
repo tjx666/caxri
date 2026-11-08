@@ -1,11 +1,7 @@
 import { useState } from 'react';
 
 import type { AgentProvider, AppSettings, DelegationType } from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    agentProviderIds,
-    defaultDelegationTypeBinding,
-} from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { ChevronRight, X } from 'lucide-react';
 
 import { Button } from '../../../../components/ui/button';
@@ -16,10 +12,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../../../components/ui/select';
+import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
 import { AgentIdentityIcon } from '../../../../icons/agents/agent-identity-icon';
 import type { TypeBinding } from './binding';
-import { setTypeBinding } from './binding';
+import { resolveTypeBinding, setTypeBinding } from './binding';
 import { BindingControls } from './binding-controls';
 
 type DelegationSettings = AppSettings['agents.delegation'];
@@ -72,15 +69,20 @@ export function TypeRow({ type, value, onChange }: TypeRowProperties) {
         >
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <span className="flex min-w-0 items-center gap-2 text-[12px]">
-                    <span className="shrink-0 text-foreground">{typeName}</span>
-                    <span className="shrink-0 font-mono text-[11px] text-muted">
-                        {`--type ${type}`}
-                    </span>
+                    <Tooltip content={t('settings.delegationTypes.cliFlag', { type })}>
+                        <span
+                            className={`shrink-0 text-foreground ${FOCUSABLE_TOOLTIP_TRIGGER_CLASS}`}
+                            tabIndex={0}
+                        >
+                            {typeName}
+                        </span>
+                    </Tooltip>
                 </span>
                 <div className="w-full max-w-[28rem] min-w-64 flex-1">
                     <BindingControls
                         label={typeName}
                         binding={base}
+                        defaultBinding={resolveTypeBinding(type, undefined, undefined)}
                         noneLabel={t('settings.delegationTypes.useDefault')}
                         onChange={(binding) =>
                             onChange(setTypeBinding(value, type, {}, binding), 'types')
@@ -176,7 +178,7 @@ export function TypeRow({ type, value, onChange }: TypeRowProperties) {
                                         value,
                                         type,
                                         { caller },
-                                        base ?? defaultDelegationTypeBinding(type, caller),
+                                        resolveTypeBinding(type, base, caller),
                                     ),
                                     'callers',
                                 );

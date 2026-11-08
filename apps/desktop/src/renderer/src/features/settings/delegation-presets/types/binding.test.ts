@@ -6,6 +6,7 @@ import {
     changeBindingEffort,
     changeBindingModel,
     changeBindingProvider,
+    resolveTypeBinding,
     setTypeBinding,
     supportedEfforts,
 } from './binding';
@@ -103,4 +104,21 @@ it('drops a caller left empty when its last override is removed', () => {
         prepend: 'hello',
         exclude: [],
     });
+});
+
+it('keeps the default model and effort when an unbound type picks the default Agent', () => {
+    const fallback = resolveTypeBinding('review', undefined, undefined);
+    expect(changeBindingProvider(undefined, fallback.provider, fallback)).toEqual(fallback);
+    expect(fallback.model).toBeDefined();
+});
+
+it('starts bare when an unbound type picks an Agent other than the default', () => {
+    const fallback = resolveTypeBinding('review', undefined, undefined);
+    expect(changeBindingProvider(undefined, 'grok', fallback)).toEqual({ provider: 'grok' });
+});
+
+it('resolves the stored binding before the default', () => {
+    const stored = { provider: 'claude', effort: 'max' } as const;
+    expect(resolveTypeBinding('review', stored, undefined)).toBe(stored);
+    expect(resolveTypeBinding('review', undefined, 'codex').provider).toBe('claude');
 });

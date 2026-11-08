@@ -120,7 +120,13 @@ export function RuleListForm({
                         add();
                     }}
                 />
-                <Button disabled={!draft.trim()} size="sm" variant="secondary" onClick={add}>
+                <Button
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={!draft.trim()}
+                    size="sm"
+                    variant="secondary"
+                    onClick={add}
+                >
                     {t('common.add')}
                 </Button>
             </div>
