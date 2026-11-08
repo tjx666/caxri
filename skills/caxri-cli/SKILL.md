@@ -315,7 +315,7 @@ with `--type` set to `second-opinion`, `review`, `computer-use`, or `x-search`.
 
 Caxri picks the Agent from Settings: by default a second opinion and a review go to the other vendor
 (Codex, or Claude when you are Codex), computer use goes to Codex, and an X search goes to Grok,
-the only Agent with native real-time X search. `agent delegate presets
+the only Agent with native real-time X search, each on a fixed default model and effort. `agent delegate presets
 --project <id> --session <id>` lists the binding each type has for you in `types`; add `--provider` (with optional `--model` and
 `--effort`) only when the user names the Agent.
 

@@ -4,7 +4,7 @@ import type { AgentProvider, AppSettings, DelegationType } from '@caxri/protocol
 import {
     agentProviderCatalog,
     agentProviderIds,
-    defaultDelegationTypeProvider,
+    defaultDelegationTypeBinding,
 } from '@caxri/protocol';
 import { ChevronRight, X } from 'lucide-react';
 
@@ -176,9 +176,7 @@ export function TypeRow({ type, value, onChange }: TypeRowProperties) {
                                         value,
                                         type,
                                         { caller },
-                                        base ?? {
-                                            provider: defaultDelegationTypeProvider(type, caller),
-                                        },
+                                        base ?? defaultDelegationTypeBinding(type, caller),
                                     ),
                                     'callers',
                                 );

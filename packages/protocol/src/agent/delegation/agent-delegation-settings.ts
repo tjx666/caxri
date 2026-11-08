@@ -91,18 +91,40 @@ export const delegationTypeSchema = z.enum(DELEGATION_TYPES);
 export type DelegationType = z.infer<typeof delegationTypeSchema>;
 
 /**
- * The Agent a type runs on when neither the caller's nor the base Settings bind it. A second opinion and a review are
- * worth most from another vendor, so a Codex caller asks Claude and every other caller asks Codex. Computer use runs on
- * Codex, whose bundled Computer Use plugin drives Chrome and desktop apps. X search runs on Grok, the only hosted Agent
- * with native real-time X search.
+ * The provider, model, and effort a type runs on when neither the caller's nor the base Settings bind it. A second
+ * opinion and a review are worth most from another vendor, so a Codex caller asks Claude and every other caller asks
+ * Codex. Computer use runs on Codex, whose bundled Computer Use plugin drives Chrome and desktop apps. X search runs on
+ * Grok, the only hosted Agent with native real-time X search.
+ *
+ * The models and efforts are the ones dianjiang's `review`, `second-opinion`, `operate-desktop`, and `search-twitter`
+ * presets settled on in use, so a type works as well out of the box as the preset it replaced: a review at `high` stays
+ * fast on large diffs, a second opinion is worth `xhigh` because it is asked for only on an expensive call, and
+ * computer use and X search need speed more than depth. Update them when a provider's recommended model moves on.
+ *
+ * @see https://github.com/tjx666/dianjiang
  */
-export function defaultDelegationTypeProvider(
+export function defaultDelegationTypeBinding(
     type: DelegationType,
     caller: z.infer<typeof delegationProviderSchema> | undefined,
-): z.infer<typeof delegationProviderSchema> {
-    if (type === 'computer-use') return 'codex';
-    if (type === 'x-search') return 'grok';
-    return caller === 'codex' ? 'claude' : 'codex';
+): {
+    provider: z.infer<typeof delegationProviderSchema>;
+    model: string;
+    effort: z.infer<typeof delegationEffortSchema>;
+} {
+    switch (type) {
+        case 'computer-use':
+            return { provider: 'codex', model: 'gpt-6.1-terra', effort: 'medium' };
+        case 'x-search':
+            return { provider: 'grok', model: 'grok-4.7', effort: 'medium' };
+        case 'review':
+            return caller === 'codex'
+                ? { provider: 'claude', model: 'sonnet', effort: 'xhigh' }
+                : { provider: 'codex', model: 'gpt-6.1-sol', effort: 'high' };
+        case 'second-opinion':
+            return caller === 'codex'
+                ? { provider: 'claude', model: 'opus', effort: 'high' }
+                : { provider: 'codex', model: 'gpt-6.1-sol', effort: 'xhigh' };
+    }
 }
 
 export const delegationSelectionSchema = z.strictObject({
@@ -149,8 +171,7 @@ export const agentDelegationSettingsSchema = z
             .default(DEFAULT_DELEGATION_DEPTH),
         presets: z.array(delegationPresetSchema).max(MAX_DELEGATION_PRESETS).default([]),
         /**
-         * The base binding per type; an unbound type runs on {@link defaultDelegationTypeProvider} with its native model
-         * and effort.
+         * The base binding per type; an unbound type runs on {@link defaultDelegationTypeBinding}.
          */
         types: typeBindingsSchema.default({}),
         callers: z.partialRecord(delegationProviderSchema, callerSchema).default({}),

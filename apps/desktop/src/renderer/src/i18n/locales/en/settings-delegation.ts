@@ -4,10 +4,11 @@ export const settingsDelegation = {
         'Which Agent, model and effort a second opinion, a review, computer use, or an X search runs on, with optional overrides per calling Agent, and your own named presets. Presets can be imported from dianjiang.',
     'settings.delegationTypes.title': 'Delegation types',
     'settings.delegationTypes.default.second-opinion':
-        'The other vendor: Codex, or Claude when Codex asks',
-    'settings.delegationTypes.default.review': 'The other vendor: Codex, or Claude when Codex asks',
-    'settings.delegationTypes.default.computer-use': 'Codex',
-    'settings.delegationTypes.default.x-search': 'Grok',
+        'The other vendor: Codex · gpt-6.1-sol · xhigh, or Claude · opus · high when Codex asks',
+    'settings.delegationTypes.default.review':
+        'The other vendor: Codex · gpt-6.1-sol · high, or Claude · sonnet · xhigh when Codex asks',
+    'settings.delegationTypes.default.computer-use': 'Codex · gpt-6.1-terra · medium',
+    'settings.delegationTypes.default.x-search': 'Grok · grok-4.7 · medium',
     'settings.delegationTypes.byCaller': 'By calling Agent',
     'settings.delegationTypes.useDefault': 'Default',
     'settings.delegationTypes.sameAsBase': 'Same as above',
