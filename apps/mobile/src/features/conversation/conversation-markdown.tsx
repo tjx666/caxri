@@ -137,6 +137,11 @@ const prosePathRuns = (content: string): Array<{ file?: string; text: string }> 
 };
 
 /**
+ * Stretches a short code block's tap target across the block, so a tap right of its longest line still shows Copy.
+ */
+const CODE_BLOCK_CONTENT_STYLE: ViewStyle = { flexGrow: 1 };
+
+/**
  * A code block in a reply: monospace and scrolled sideways rather than wrapped. Copy stays hidden so it never covers
  * the code or takes its room: a tap on the block shows it in the corner, and a tap again or a finished copy hides it,
  * as chat apps keep per-block actions out of the way on a phone. A long press still opens the message's actions
@@ -176,14 +181,21 @@ const ConversationCodeBlock = ({
             }}
             testID={testID}
         >
-            <Pressable
-                accessibilityActions={[{ label: t('components.copyCode'), name: 'activate' }]}
-                accessibilityState={{ expanded: isCopyShown }}
-                onAccessibilityAction={toggleCopy}
-                onLongPress={openMessage ?? undefined}
-                onPress={toggleCopy}
+            {/* The tap target sits inside the scroll view, not around it: wrapped around it, a drag that began while
+                the reply streamed landed as a tap instead of a scroll. */}
+            <ScrollView
+                contentContainerStyle={CODE_BLOCK_CONTENT_STYLE}
+                horizontal
+                showsHorizontalScrollIndicator
             >
-                <ScrollView horizontal showsHorizontalScrollIndicator>
+                <Pressable
+                    accessibilityActions={[{ label: t('components.copyCode'), name: 'activate' }]}
+                    accessibilityState={{ expanded: isCopyShown }}
+                    onAccessibilityAction={toggleCopy}
+                    onLongPress={openMessage ?? undefined}
+                    onPress={toggleCopy}
+                    style={CODE_BLOCK_CONTENT_STYLE}
+                >
                     <Text
                         style={{
                             color: theme.text,
@@ -194,8 +206,8 @@ const ConversationCodeBlock = ({
                     >
                         {language ? <HighlightedCode code={text} language={language} /> : text}
                     </Text>
-                </ScrollView>
-            </Pressable>
+                </Pressable>
+            </ScrollView>
             {/* A sibling of the tap target rather than its child, so a screen reader reaches it on its own. */}
             {isCopyShown ? (
                 <CopyButton

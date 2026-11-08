@@ -34,13 +34,14 @@ const BLOCK_ID = 'conversation-fenced-code';
 const SWIPE_DP = 300;
 
 /**
- * The block's inside, clear of its border and of the scroll indicator a drag flashes along its bottom, so two
- * fingerprints of it compare only the text: a drag the block snapped back from still showed that indicator.
+ * The block's inside, clear of its border, of the scroll indicator a drag flashes along its bottom, and of the Copy
+ * corner, so two fingerprints of it compare only the text: a drag the block snapped back from still showed that
+ * indicator, and a drag taken as a tap showed Copy.
  */
 const inner = (bounds: ScreenBounds): ScreenBounds => ({
     bottom: bounds.bottom - 24,
     left: bounds.left + 4,
-    right: bounds.right - 4,
+    right: bounds.right - 120,
     top: bounds.top + 4,
 });
 
@@ -85,6 +86,16 @@ async function blockByBorder(serial: string): Promise<ScreenBounds | undefined> 
     return found && { ...found, right: 1080 - found.left };
 }
 
+/**
+ * The block's text as a fingerprint, framed by the block where it is now: the reply's end moves the whole reply down a
+ * pixel, which a frame taken earlier would read as a scroll.
+ */
+async function blockFingerprint(serial: string): Promise<string> {
+    const bounds = await blockByBorder(serial);
+    if (!bounds) throw new Error('The wide code block left the screen');
+    return mobileRegionFingerprint(serial, inner(bounds));
+}
+
 async function settle(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -121,12 +132,12 @@ export async function executeMobileChatCodeBlockScenario(
             (snapshot) => agentText(snapshot).includes('word'),
         );
         await settle(2000);
-        const unscrolled = await mobileRegionFingerprint(serial, inner(start));
+        const unscrolled = await blockFingerprint(serial);
         await capture(environment, 'wide-code-streaming', artifacts);
         await swipeBlockLeft(serial, start);
         // Several words arrive in this time, each one a redraw of the reply.
         await settle(2500);
-        const duringStream = await mobileRegionFingerprint(serial, inner(start));
+        const duringStream = await blockFingerprint(serial);
         await capture(environment, 'wide-code-swiped-while-streaming', artifacts);
         const isStillStreaming = Boolean((await chat.read()).activeTurnId);
 
@@ -141,13 +152,13 @@ export async function executeMobileChatCodeBlockScenario(
         const end = checkBounds(atEnd, BLOCK_ID);
         if (!end) throw new Error('The wide code block left the screen');
         const isCopyHiddenAtRest = !hasCheck(atEnd, `${BLOCK_ID}-copy`);
-        const afterStream = await mobileRegionFingerprint(serial, inner(end));
+        const afterStream = await blockFingerprint(serial);
         await capture(environment, 'wide-code-after-stream', artifacts);
 
         // At rest, another drag moves the block further.
         await swipeBlockLeft(serial, end);
         await settle(1000);
-        const afterRestSwipe = await mobileRegionFingerprint(serial, inner(end));
+        const afterRestSwipe = await blockFingerprint(serial);
         await capture(environment, 'wide-code-swiped-at-rest', artifacts);
 
         // A tap on the block shows Copy; Copy takes the whole block.
