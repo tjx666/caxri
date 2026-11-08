@@ -723,4 +723,28 @@ export default defineConfig(
             'unicorn/prefer-promise-with-resolvers': 'off',
         },
     },
+    /**
+     * RN 0.88 leaves Android's native LayoutAnimation driver off under Fabric (`ReactNativeFeatureFlagsDefaults.kt`),
+     * so `LayoutAnimation.configureNext` reaches native and draws no transition. The Session list's first motion
+     * attempt (#3815) shipped zero animated frames this way. Remove the ban only after an Android Acceptance shows the
+     * driver enabled.
+     */
+    {
+        files: ['apps/mobile/app/**/*.{ts,tsx}', 'apps/mobile/src/**/*.{ts,tsx}'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    paths: [
+                        {
+                            importNames: ['LayoutAnimation'],
+                            message:
+                                'Android Fabric does not run LayoutAnimation in this app. Use Reanimated entering/exiting/layout; for FlashList rows follow apps/mobile/src/features/sessions/components/session-list-cell.tsx.',
+                            name: 'react-native',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 );
