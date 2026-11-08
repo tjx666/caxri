@@ -211,6 +211,7 @@ export const netSocketImporters: readonly string[] = [
     'apps/server/src/core/mobile/gateway/admission.ts',
     'apps/server/src/core/mobile/gateway/gateway-options.ts',
     'apps/server/src/core/mobile/gateway/gateway.ts',
+    'apps/server/src/core/mobile/gateway/listener.ts',
     'apps/server/src/core/mobile/preview/proxy.ts',
 ];
 

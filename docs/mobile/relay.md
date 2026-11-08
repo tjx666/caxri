@@ -70,6 +70,14 @@ after three consecutive successes, with the Relay session at least 60 seconds ol
 flight, it closes with `route-upgrade` and reconnects directly. Recovery after any switch uses the
 transport's subscribe-then-snapshot rule, so a running Agent is unaffected.
 
+The direct addresses a pairing link carries are the ones the computer had at pairing time, and they go
+stale once it joins another network. After every connection, over either route, the phone reads the
+computer's current private addresses with `mobile.computer.routes` and dials those from then on,
+remembered across app restarts (`apps/mobile/src/features/connection/direct-endpoint.ts`). Each
+direct-route probe re-reads them over the Relay first, so a computer that changed networks mid-session
+is probed at its new address. The Server reads its interfaces again for every such request and every
+new pairing link; its listener is bound to all interfaces, so a newly gained address already answers.
+
 The race above is the **Automatic** connection method. Settings > This device > Connection method
 can pin reconnects to **Direct** (direct addresses only, never the Relay) or **Relay** (the Relay
 only, even on the same network). A pinned method races only its own routes and never runs the

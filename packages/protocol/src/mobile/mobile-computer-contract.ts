@@ -16,9 +16,28 @@ const mobileComputerRenameResultSchema = z.strictObject({
 });
 
 /**
+ * The direct endpoints this computer listens on right now: its private LAN and Tailscale IPv4 addresses, best first,
+ * and the gateway port. The phone validates each address against its own private-network rules before dialing one.
+ */
+const mobileComputerRoutesResultSchema = z.strictObject({
+    addresses: z.array(z.ipv4()).min(1).max(8),
+    port: z.number().int().min(1).max(65_535),
+});
+
+/**
  * The paired computer's own identity as phones see it.
  */
 export const mobileComputerMethods = {
+    /**
+     * A pairing link carries the addresses the computer had at pairing time, which go stale once it joins another
+     * network. Every role reads the current ones after connecting (over the Relay too), so a direct path works again
+     * without pairing anew. It reveals only this computer's private addresses, which the pairing link already did.
+     */
+    'mobile.computer.routes': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({}).default({}),
+        result: mobileComputerRoutesResultSchema,
+    },
     /**
      * Renames this computer for every paired phone by writing `mobile.computerName`. It carries `projects.write`, the
      * grant that already arranges this computer's Projects, rather than `settings.write`, which no phone holds; the

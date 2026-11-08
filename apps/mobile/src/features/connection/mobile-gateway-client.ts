@@ -12,6 +12,8 @@ import {
 } from '@caxri/mobile-transport';
 
 import type { MobileCredential, MobileCredentialStore } from './credential-store';
+import type { MobileDirectEndpoints } from './direct-endpoint';
+import { refreshDirectEndpoint, resolveDirectEndpoint } from './direct-endpoint';
 import { isDirectRouteReachable, pairedGatewayRoutes } from './gateway-routes';
 import type { MobileGatewayConnectionOptions } from './mobile-gateway-connection';
 import { MobileGatewayConnection } from './mobile-gateway-connection';
@@ -57,6 +59,10 @@ export interface MobileGatewayRuntime {
      */
     routeHints?: MobileRouteHints;
     /**
+     * The computer's last reported direct addresses, which replace the paired ones once known; absent in tests.
+     */
+    directEndpoints?: MobileDirectEndpoints;
+    /**
      * The user's pinned path for reconnects; absent in tests, where every route races.
      */
     routePreference?: MobileRoutePreferenceStore;
@@ -82,17 +88,38 @@ const hasUnsupportedPairingLinkVersion = (source: string): boolean => {
 };
 
 /**
- * Only `auto` moves a Relay session back to a direct path; a pinned path stays where the user put it.
+ * Reads the computer's current direct endpoint over this connection and remembers it.
+ */
+const refreshEndpointOver = (
+    connection: MobileGatewayConnection,
+    credential: MobileCredential,
+    runtime: MobileGatewayRuntime,
+): Promise<void> =>
+    refreshDirectEndpoint({
+        endpoints: runtime.directEndpoints,
+        read: () => connection.request('mobile.computer.routes'),
+        serverId: credential.serverId,
+    });
+
+/**
+ * Only `auto` moves a Relay session back to a direct path; a pinned path stays where the user put it. Each probe first
+ * re-reads the computer's endpoint over the Relay, so a computer that changed networks during the session is probed at
+ * its new address. `connection` is late-bound because the probe is configured before the connection exists.
  */
 const directProbeOptions = (
     credential: MobileCredential,
     runtime: MobileGatewayRuntime,
     preference: MobileRoutePreference,
+    connection: () => MobileGatewayConnection | undefined,
 ): MobileGatewayConnectionOptions =>
     preference === 'auto'
         ? {
-              directProbe: () =>
-                  isDirectRouteReachable(credential.addresses, credential.port, runtime),
+              directProbe: async () => {
+                  const current = connection();
+                  if (current) await refreshEndpointOver(current, credential, runtime);
+                  const endpoint = await resolveDirectEndpoint(credential, runtime.directEndpoints);
+                  return isDirectRouteReachable(endpoint.addresses, endpoint.port, runtime);
+              },
           }
         : {};
 
@@ -157,20 +184,20 @@ export const pairMobileGateway = async (input: {
         );
         if (input.signal?.aborted) throw new Error('Pairing attempt was cancelled.');
         dispose();
-        return {
-            connection: new MobileGatewayConnection(
-                session,
-                async () => {
-                    await input.store.clearIfCurrent(credential);
-                },
-                directProbeOptions(
-                    credential,
-                    input.runtime,
-                    await loadRoutePreference(input.runtime),
-                ),
+        const connection: MobileGatewayConnection = new MobileGatewayConnection(
+            session,
+            async () => {
+                await input.store.clearIfCurrent(credential);
+            },
+            directProbeOptions(
+                credential,
+                input.runtime,
+                await loadRoutePreference(input.runtime),
+                () => connection,
             ),
-            credential,
-        };
+        );
+        void refreshEndpointOver(connection, credential, input.runtime);
+        return { connection, credential };
     } catch (error) {
         dispose();
         session.reader.close();
@@ -186,8 +213,9 @@ export const reconnectMobileGateway = async (
 ): Promise<MobileGatewayConnection> => {
     const clientSecretKey = runtime.randomBytes(X25519_KEY_BYTES);
     const clientNonce = runtime.randomBytes(HANDSHAKE_NONCE_BYTES);
+    const endpoint = await resolveDirectEndpoint(credential, runtime.directEndpoints);
     const [directGraceMs, preference] = await Promise.all([
-        reconnectDirectGrace({ ...runtime, ...credential }),
+        reconnectDirectGrace({ ...runtime, ...credential, ...endpoint }),
         loadRoutePreference(runtime),
     ]);
     let session: EstablishedSession;
@@ -197,6 +225,7 @@ export const reconnectMobileGateway = async (
             routes: routesForPreference(
                 pairedGatewayRoutes({
                     ...credential,
+                    ...endpoint,
                     purpose: 'device',
                     secret: credential.credential,
                 }),
@@ -222,13 +251,13 @@ export const reconnectMobileGateway = async (
         if (error instanceof MobileServerVerificationError) throw new MobileReconnectError();
         throw error;
     }
-    return new MobileGatewayConnection(
+    const connection: MobileGatewayConnection = new MobileGatewayConnection(
         session,
         async () => {
             await store.clearIfCurrent(credential);
         },
         {
-            ...directProbeOptions(credential, runtime, preference),
+            ...directProbeOptions(credential, runtime, preference, () => connection),
             expectReady: {
                 deviceId: credential.deviceId,
                 generation: credential.generation,
@@ -236,4 +265,7 @@ export const reconnectMobileGateway = async (
             },
         },
     );
+    // Sent right behind the handshake like any first request; the Server answers it once `ready` is out.
+    void refreshEndpointOver(connection, credential, runtime);
+    return connection;
 };

@@ -7,6 +7,11 @@ const fastMobileReadMethods: ReadonlySet<CaxriMethod> = new Set([
     'mobile.agent.availability',
     'mobile.botInbox.list',
     'mobile.host.status',
+    /**
+     * Read right after every connection and on each direct-route probe; as a mutation it would hold back the Relay to
+     * direct upgrade it serves.
+     */
+    'mobile.computer.routes',
     'terminal.preview',
 ]);
 

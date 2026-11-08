@@ -70,6 +70,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.project.addInternal'
     | 'mobile.project.reorder'
     | 'mobile.computer.rename'
+    | 'mobile.computer.routes'
     | 'mobile.panels.list'
     | 'mobile.tree.children'
     | 'mobile.tree.executeCommand'
@@ -345,6 +346,12 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.computer.rename': () => {
             throw new CaxriError('FORBIDDEN', 'Renaming this computer requires a paired device');
+        },
+        /**
+         * The gateway that knows the listening addresses lives in the mobile access controller.
+         */
+        'mobile.computer.routes': () => {
+            throw new CaxriError('FORBIDDEN', 'Reading direct routes requires a paired device');
         },
         /**
          * Panels and Conversation Tree read the Extension Host directly from the mobile access controller, which is the
