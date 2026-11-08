@@ -8,7 +8,7 @@ import {
     swipeTimelineTowardEarlier,
     waitForCheck,
 } from './mobile-agent-chat-helpers';
-import { androidBounds, mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
+import { mobileNativeControlBounds, tapMobileCheck, waitForMobile } from './mobile-android';
 
 /**
  * The fake Codex `artifacts` turn opens `acme/widgets#42` and files the Linear issue `ENG-12`, whose card carries the
@@ -56,12 +56,16 @@ export async function executeMobileTrackerCardWidthScenario(
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${sessionId}`);
         await waitForCheck(serial, 'agent-chat');
-        const readRows = async () => {
-            const nodes = await mobileSemantics(serial);
-            const find = (id: string) =>
-                androidBounds(nodes.find(({ checkId }) => checkId === id)?.bounds ?? '');
-            return { handoff: find(ISSUE_HANDOFF), issue: find(ISSUE_ROW), pull: find(PULL_ROW) };
-        };
+        /**
+         * The tracker testIDs carry `#` and uppercase keys, which the semantic check-id helper does not expose, so the
+         * rows are read by their exact Android resource id instead.
+         */
+        const find = (resourceId: string) => mobileNativeControlBounds(serial, { resourceId });
+        const readRows = async () => ({
+            handoff: await find(ISSUE_HANDOFF),
+            issue: await find(ISSUE_ROW),
+            pull: await find(PULL_ROW),
+        });
         let rows = await readRows();
         for (
             let swipe = 0;
