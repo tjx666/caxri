@@ -58,6 +58,8 @@ import { reopenableConversations } from './session-agent-history-entries';
 import { resolveSessionCreator } from './session-creator';
 import type { SessionMenuSlots } from './session-menu-arrangement';
 import { arrangeSessionMenu } from './session-menu-arrangement';
+import type { MenuReadResult } from './session-menu-reads';
+import { botHandoverEntryKind, LastKnownReads, resolveMenuRead } from './session-menu-reads';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
 const FORK_BLOCKER_REASONS = {
@@ -157,72 +159,85 @@ export function SessionRowMenu({
  */
 const MENU_READ_TIMEOUT_MS = 300;
 
+const lastKnownAutoAllow = new LastKnownReads<boolean>();
+const lastKnownManaged = new LastKnownReads<boolean>();
+const lastKnownReopenable = new LastKnownReads<SessionAgentHistoryEntry[]>();
+
 /**
- * Reads Server state the bootstrap `SessionRecord` does not carry, only when the menu opens rather than for every row
- * in the tree. A failed or timed-out read answers `false`, which hides the entry it gates instead of blocking the
- * menu.
+ * Runs one Server read bounded by `MENU_READ_TIMEOUT_MS`, remembers a successful answer in `memory`, and reports a
+ * failed or timed-out read as `timedOut` so the caller falls back to the last-known value (see `resolveMenuRead`).
  */
-async function isConfirmedInTime(isTrue: () => Promise<boolean>): Promise<boolean> {
+async function boundedMenuRead<T>(
+    sessionId: string,
+    memory: LastKnownReads<T>,
+    read: () => Promise<T>,
+): Promise<MenuReadResult<T>> {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<false>((resolve) => {
-        timer = setTimeout(() => resolve(false), MENU_READ_TIMEOUT_MS);
+    const timeout = new Promise<{ timedOut: true }>((resolve) => {
+        timer = setTimeout(() => resolve({ timedOut: true }), MENU_READ_TIMEOUT_MS);
     });
+    // A read that loses the race still lands later; remembering it keeps the next open correct. The inner catch also
+    // keeps that late rejection from going unhandled.
+    const remembered = (async (): Promise<MenuReadResult<T>> => {
+        try {
+            const value = await read();
+            memory.set(sessionId, value);
+            return { timedOut: false, value };
+        } catch {
+            return { timedOut: true };
+        }
+    })();
     try {
-        return await Promise.race([isTrue(), timeout]);
+        return await Promise.race([remembered, timeout]);
     } catch {
-        return false;
+        return { timedOut: true };
     } finally {
         clearTimeout(timer);
     }
 }
 
 /**
- * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant.
+ * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant. A timed-out read keeps the last-known
+ * answer, so a granted Session does not lose "Turn off Always allow"; with none known the entry stays hidden.
  */
 async function isPermissionAutoAllowGranted(sessionId: string): Promise<boolean> {
-    return isConfirmedInTime(
+    const result = await boundedMenuRead(
+        sessionId,
+        lastKnownAutoAllow,
         async () =>
             (await fetchCaxriQuery('session.permissionAutoAllowStatus', { sessionId })).granted,
     );
+    return resolveMenuRead(result, lastKnownAutoAllow.get(sessionId), false);
 }
 
 /**
- * Whether Caxri Bot manages the Session, which decides between Hand Over and Take Back. An unanswered read offers Hand
- * Over, which the Server refuses as `already_managed` if it was wrong. The set changes without a Workbench record
- * change (Caxri Bot takes a Session, or human input takes it back), so every open reads it fresh.
+ * Whether Caxri Bot manages the Session, which decides between Hand Over and Take Back. The set changes without a
+ * Workbench record change (Caxri Bot takes a Session, or human input takes it back), so every open reads it fresh. A
+ * timed-out read uses the last-known answer; with none known the menu offers neither rather than guess.
  */
-async function isBotManaged(sessionId: string): Promise<boolean> {
-    return isConfirmedInTime(async () =>
+async function botHandoverKind(sessionId: string): Promise<'handOver' | 'takeBack' | 'none'> {
+    const result = await boundedMenuRead(sessionId, lastKnownManaged, async () =>
         (await fetchCaxriQuery('bot.managedSessions', {}, { staleTime: 0 })).sessionIds.includes(
             sessionId,
         ),
     );
+    return botHandoverEntryKind(result, lastKnownManaged.get(sessionId));
 }
 
 /**
  * The Session's Agent conversations that can be brought back, read when the menu opens. This submenu is the only way
- * back to a closed conversation; an unanswered read hides it instead of blocking the menu.
+ * back to a closed conversation; an unanswered read reuses the last-known list, and hides it when none is known.
  */
 async function readReopenableConversations(sessionId: string): Promise<SessionAgentHistoryEntry[]> {
-    const read = async (): Promise<SessionAgentHistoryEntry[]> => {
+    const result = await boundedMenuRead(sessionId, lastKnownReopenable, async () => {
         const { entries } = await fetchCaxriQuery(
             'session.agentHistory',
             { sessionId },
             { staleTime: 0 },
         );
         return reopenableConversations(entries);
-    };
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<SessionAgentHistoryEntry[]>((resolve) => {
-        timer = setTimeout(() => resolve([]), MENU_READ_TIMEOUT_MS);
     });
-    try {
-        return await Promise.race([read(), timeout]);
-    } catch {
-        return [];
-    } finally {
-        clearTimeout(timer);
-    }
+    return resolveMenuRead(result, lastKnownReopenable.get(sessionId), []);
 }
 
 function reopenConversationMenuEntry(
@@ -294,14 +309,15 @@ async function sessionRowMenu({
      * as it is: navigating must not restore an archived one.
      */
     const creator = resolveSessionCreator(session, sessions, undefined);
-    const [isAutoAllowGranted, isResumable, isManaged, reopenable, continueEntry] =
-        await Promise.all([
+    const [isAutoAllowGranted, isResumable, botKind, reopenable, continueEntry] = await Promise.all(
+        [
             isPermissionAutoAllowGranted(session.id),
             isAgentConversationResumable(primaryTerminal),
-            isBotManaged(session.id),
+            botHandoverKind(session.id),
             readReopenableConversations(session.id),
             readAgentChatContinueMenuEntry(primaryTerminal),
-        ]);
+        ],
+    );
     const forkBlocker = sessionForkBlocker(primaryTerminal);
     const isLocal = environmentOfSession(session.id) === undefined;
     /**
@@ -385,15 +401,16 @@ async function sessionRowMenu({
         /**
          * Hand Over opens the picker with this Session selected, so the user can add a note or more Sessions first.
          */
-        handOverToBot: isManaged
-            ? {
-                  label: translate('primarySidebar.sessionMenu.takeBackFromBot'),
-                  onSelect: () => takeBackFromBot(session.id),
-              }
-            : {
-                  label: translate('primarySidebar.sessionMenu.handOverToBot'),
-                  onSelect: () => openBotHandover([session.id]),
-              },
+        handOverToBot:
+            botKind === 'takeBack'
+                ? {
+                      label: translate('primarySidebar.sessionMenu.takeBackFromBot'),
+                      onSelect: () => takeBackFromBot(session.id),
+                  }
+                : botKind === 'handOver' && {
+                      label: translate('primarySidebar.sessionMenu.handOverToBot'),
+                      onSelect: () => openBotHandover([session.id]),
+                  },
         // Never the Session this window shows (the window would be empty) or one another window already has open.
         openInNewWindow: canOpenSessionInNewWindow(getBootstrap(), session.id) && {
             label: translate('primarySidebar.sessionMenu.openInNewWindow'),

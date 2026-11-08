@@ -1022,10 +1022,13 @@ for as long as the item waits on the user, and running spins an arc. The breathi
 pulse on an HTML wrapper, which the compositor runs off the main thread, with every attention glyph
 on one shared phase, like the running arcs: a scale-and-fade ripple left running endlessly kept the
 Renderer busy, so the ripple still plays only three times when an unread event arrives and three
-more whenever the window regains focus. A Needs attention row in the Activity view and in the
-Project tree carries the same breathing glyph until it is marked Done, so the two list bodies never
-disagree about what still needs the user. The collapsed Project heading's static warning dot
-summarizes the same rows. The motion belongs to the status glyph, never the Agent mark itself;
+more whenever the window regains focus. The two list bodies share the glyph but not the clearing
+rule. The Activity view is a queue the user works through, so a Needs attention row keeps its
+breathing glyph after the Session is read, until Mark as Done or a new turn clears it. The Project
+tree, its collapsed heading's static warning dot and counts, the hover card, and the MRU switcher
+offer no queue, so they clear the glyph once the Session is read and show it only for unread
+attention. A read Session that is not yet Done therefore appears in Activity but without an amber
+glyph in the tree; that difference is intentional (`pendingAttention` in `session-status.ts`). The motion belongs to the status glyph, never the Agent mark itself;
 swapping among the three list projections remains instant.
 
 A streaming Agent Chat reply is a content-motion exception, as in the Codex app: each run of

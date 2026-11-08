@@ -113,7 +113,12 @@ function UpdateActions({
             );
         case 'check':
             return (
-                <Button onClick={checkForUpdates} disabled={!canRetryUpdateCheck(state)}>
+                <Button
+                    // Up to date is a resting state, not a call to action; only a failed check promotes Retry.
+                    variant={state?.status === 'error' ? 'default' : 'secondary'}
+                    onClick={checkForUpdates}
+                    disabled={!canRetryUpdateCheck(state)}
+                >
                     <RefreshCw aria-hidden="true" size={14} />
                     {t(state?.status === 'error' ? 'common.retry' : 'updates.action.checkAgain')}
                 </Button>

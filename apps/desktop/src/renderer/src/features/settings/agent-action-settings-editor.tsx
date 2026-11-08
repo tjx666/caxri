@@ -220,6 +220,7 @@ export function AgentActionSettingsEditor({
                 />
                 <Button
                     aria-label={t('settings.agentActionsEditor.add')}
+                    className="shrink-0 whitespace-nowrap"
                     disabled={!isValidDraft || !hasCapacity}
                     size="sm"
                     variant="secondary"

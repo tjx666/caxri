@@ -36,7 +36,7 @@ export function providerSettingRows(provider: AgentProvider): SettingRowSource[]
             id: `agents.${provider}.hooks`,
             advanced: true,
             titleKey: 'settings.row.providerHooks.title',
-            descriptionKey: 'settings.row.providerHooks.description',
+            descriptionKey: `settings.row.providerHooks.description.${provider}`,
             binding: { type: 'provider-toggle', provider, field: 'hooks' },
             searchTerms: lower(['lifecycle hooks', 'unread', 'background', ...providerTerms]),
         },
@@ -87,14 +87,23 @@ export function providerSettingRows(provider: AgentProvider): SettingRowSource[]
                   } satisfies SettingRowSource,
               ]
             : []),
-        {
-            ...shared,
-            id: `agents.${provider}.skill`,
-            titleKey: 'settings.row.providerSkill.title',
-            descriptionKey: 'settings.row.providerSkill.description',
-            binding: { type: 'provider-skill-health', provider },
-            searchTerms: lower(['skill', 'cli', 'health', 'install', ...providerTerms]),
-        },
+        /**
+         * The Actions row says "{{provider}} does not support commands and Skills" for a provider without the `actions`
+         * capability, so the Caxri CLI skill block with install commands would contradict it. Hide it for the same
+         * capability.
+         */
+        ...(agentProviderCatalog[provider].capabilities.actions
+            ? [
+                  {
+                      ...shared,
+                      id: `agents.${provider}.skill`,
+                      titleKey: 'settings.row.providerSkill.title',
+                      descriptionKey: 'settings.row.providerSkill.description',
+                      binding: { type: 'provider-skill-health', provider },
+                      searchTerms: lower(['skill', 'cli', 'health', 'install', ...providerTerms]),
+                  } satisfies SettingRowSource,
+              ]
+            : []),
         {
             ...shared,
             id: `agents.${provider}.executable`,

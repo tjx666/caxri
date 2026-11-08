@@ -17,10 +17,10 @@ const isContaining = (outer: StripRect, inner: StripRect): boolean =>
     inner.bottom <= outer.bottom;
 
 describe('composer image strip layout', () => {
-    it('gives each remove button a 44dp target over its own thumbnail corner', () => {
+    it('gives each remove button a 48dp target over its own thumbnail corner', () => {
         const target = imageStripRemoveTargetRect(0);
-        expect(target.right - target.left).toBeGreaterThanOrEqual(44);
-        expect(target.bottom - target.top).toBeGreaterThanOrEqual(44);
+        expect(target.right - target.left).toBeGreaterThanOrEqual(48);
+        expect(target.bottom - target.top).toBeGreaterThanOrEqual(48);
         expect(isOverlapping(target, imageStripThumbnailRect(0))).toBe(true);
     });
 

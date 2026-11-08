@@ -77,6 +77,9 @@ export const sessions: TranslatedNamespace<typeof source> = {
         '电脑上的 Caxri 当前离线。请在电脑上打开 Caxri，这台手机会自动重新连接。',
     'sessions.banner.relayUnauthorized':
         '中继不接受这台手机。请在电脑上打开 Caxri 的“设置 → 移动设备”，确认它没有被撤销，或点击“生成配对码”重新配对。',
+    'sessions.banner.pinned': '仅{{method}} · {{label}}',
+    'sessions.banner.pinnedDirect': '直连',
+    'sessions.banner.pinnedRelay': '中继',
     'sessions.banner.relayBusyShort': '中继繁忙，正在重试…',
     'sessions.banner.relayBusy': '中继繁忙，正在自动重试。',
     'sessions.composer.agentNotRunning': '主 Agent 未在运行。',

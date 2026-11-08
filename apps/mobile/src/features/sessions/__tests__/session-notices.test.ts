@@ -13,6 +13,7 @@ import {
     homeNoticeSettleDelay,
     isConnectionBannerShown,
     isSessionListErrorShown,
+    pinnedRouteOf,
     selectHomeNotice,
     transientNoticeRemainingMs,
     TRUNCATED_NOTICE_VISIBLE_MS,
@@ -172,6 +173,32 @@ describe('connection banner model', () => {
             presentation: 'banner',
             tone: 'warning',
         });
+    });
+});
+
+describe('pinned connection method', () => {
+    it('names the pinned method in the island label', () => {
+        expect(connectionIslandLabel(null, undefined, null, 'direct')).toBe(
+            'Direct only · Reconnecting…',
+        );
+        expect(connectionIslandLabel('5m ago', undefined, null, 'relay')).toBe(
+            'Relay only · Reconnecting… · 5m ago',
+        );
+        expect(connectionIslandLabel(null, undefined, 'busy', 'direct')).toBe(
+            'Relay busy, retrying…',
+        );
+    });
+
+    it('points a persistent pinned reconnect at the connection method setting', () => {
+        expect(connectionBannerModel('stale', null, 'direct', false).action).toBe('reconnect');
+        expect(connectionBannerModel('stale', null, 'direct', true)).toEqual({
+            action: 'settings',
+            presentation: 'island',
+            tone: 'muted',
+        });
+        expect(connectionBannerModel('stale', null, null, true).action).toBe('reconnect');
+        expect(pinnedRouteOf('auto')).toBeNull();
+        expect(pinnedRouteOf('relay')).toBe('relay');
     });
 });
 

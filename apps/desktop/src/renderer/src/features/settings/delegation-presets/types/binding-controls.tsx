@@ -18,6 +18,7 @@ import {
     changeBindingProvider,
     supportedEfforts,
 } from './binding';
+import { useModelDraft } from './use-model-draft';
 
 /**
  * Select item value standing for "no binding" (Agent) or "no choice" (effort); Base UI items need a non-null value.
@@ -31,6 +32,11 @@ interface BindingControlsProperties {
      */
     label: string;
     binding: TypeBinding | undefined;
+    /**
+     * What an unbound type runs on. Its model and effort fill the disabled controls as placeholders, so they agree with
+     * the hint line beside them.
+     */
+    defaultBinding?: TypeBinding;
     /**
      * Wording of the Agent choice that removes the binding: the built-in default for a base binding, the base binding
      * for a caller override.
@@ -49,12 +55,16 @@ interface BindingControlsProperties {
 export function BindingControls({
     label,
     binding,
+    defaultBinding,
     noneLabel,
     onChange,
 }: BindingControlsProperties) {
     const { t } = useTranslation();
     const providerLabel = (provider: AgentProvider | undefined) =>
         provider === undefined ? noneLabel : agentProviderCatalog[provider].displayName;
+    const { commit: commitModel, setDraft } = useModelDraft(binding?.model, (text) => {
+        if (binding) onChange(changeBindingModel(binding, text));
+    });
     const efforts = binding ? supportedEfforts(binding.provider, binding.model) : [];
     return (
         <div className="flex min-w-0 items-center gap-1.5">
@@ -65,7 +75,7 @@ export function BindingControls({
                     onChange(
                         next === NONE
                             ? undefined
-                            : changeBindingProvider(binding, next as AgentProvider),
+                            : changeBindingProvider(binding, next as AgentProvider, defaultBinding),
                     );
                 }}
             >
@@ -100,13 +110,13 @@ export function BindingControls({
                 className="min-w-0 flex-1"
                 defaultValue={binding?.model ?? ''}
                 disabled={!binding}
-                placeholder={t('settings.delegationPresets.defaultModel')}
+                placeholder={
+                    binding ? t('settings.delegationPresets.defaultModel') : defaultBinding?.model
+                }
                 size="dense"
                 spellCheck={false}
-                onBlur={(event) => {
-                    if (binding && event.currentTarget.value.trim() !== (binding.model ?? ''))
-                        onChange(changeBindingModel(binding, event.currentTarget.value));
-                }}
+                onBlur={commitModel}
+                onChange={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={(event) => {
                     if (event.key === 'Enter') event.currentTarget.blur();
                 }}
@@ -129,7 +139,9 @@ export function BindingControls({
                     className={TRIGGER_CLASS_NAME}
                 >
                     <SelectValue>
-                        {binding?.effort ?? t('settings.delegationPresets.defaultEffort')}
+                        {binding?.effort ??
+                            defaultBinding?.effort ??
+                            t('settings.delegationPresets.defaultEffort')}
                     </SelectValue>
                 </SelectTrigger>
                 <SelectContent>

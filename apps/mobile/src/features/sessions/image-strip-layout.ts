@@ -1,12 +1,12 @@
 /**
- * Geometry of the composer's image strip (`SessionComposerAttachments`). The remove button is a 44dp touch target, the
- * platform minimum, around a 22dp circle that overhangs its thumbnail's top right corner by 6dp. The target is centered
+ * Geometry of the composer's image strip (`SessionComposerAttachments`). The remove button is a 48dp touch target, the
+ * Material minimum, around a 22dp circle that overhangs its thumbnail's top right corner by 6dp. The target is centered
  * on the circle, so it reaches `IMAGE_STRIP_REMOVE_OVERHANG` past the thumbnail's top and right edges. Android delivers
  * no touch outside a parent's bounds, so each strip cell grows by that overhang toward the top and the end and holds
  * its whole target; cells sit one point apart, so a target never covers the next thumbnail or its target.
  */
 export const IMAGE_STRIP_THUMBNAIL = 64;
-export const IMAGE_STRIP_REMOVE_TARGET = 44;
+export const IMAGE_STRIP_REMOVE_TARGET = 48;
 export const IMAGE_STRIP_REMOVE_CIRCLE = 22;
 const REMOVE_CIRCLE_OVERHANG = 6;
 export const IMAGE_STRIP_REMOVE_OVERHANG =

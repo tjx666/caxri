@@ -1,10 +1,11 @@
 import { useRef } from 'react';
 
-import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, ImageIcon } from 'lucide-react';
 
 import { Button } from '../../../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../../components/ui/dialog';
 import { Skeleton } from '../../../../components/ui/skeleton';
+import { Tooltip } from '../../../../components/ui/tooltip';
 import { useContextMenu } from '../../../../hooks/use-context-menu';
 import { translate, useTranslation } from '../../../../i18n';
 import { writeClipboardImage } from '../../../../lib/clipboard';
@@ -19,12 +20,17 @@ import {
     hasAgentChatSentImageOriginal,
 } from '../agent-chat-sent-image-originals';
 import type { AgentChatImageStep } from './agent-chat-image-gallery';
-import { agentChatImageStepForKey, stepAgentChatImageIndex } from './agent-chat-image-gallery';
+import {
+    agentChatImageStepForKey,
+    isAgentChatImageCopyKey,
+    stepAgentChatImageIndex,
+} from './agent-chat-image-gallery';
 
 /**
  * The larger preview of one message's images. It zooms and pans like the file preview (`PreviewZoomView`), and with
  * more than one image it counts them and steps between them with its buttons or Left and Right, stopping at either end.
- * Each image opens at Fit, so one image's zoom never carries over to the next.
+ * Each image opens at Fit, so one image's zoom never carries over to the next. The header's Copy button and Cmd+C (with
+ * no text selected) copy the shown image, as the right-click menu on the zoom canvas does.
  */
 export function AgentChatImagePreviewDialog({
     count,
@@ -54,6 +60,10 @@ export function AgentChatImagePreviewDialog({
     const { t } = useTranslation();
     const popup = useRef<HTMLDivElement>(null);
     const hasGallery = count > 1;
+    const picture = usePreviewSource(index, message, thumbnails[index]);
+    const copy = () => {
+        if (picture.source) copyImageFromMenu(picture.source);
+    };
     const step = (direction: AgentChatImageStep) =>
         onIndexChange(stepAgentChatImageIndex(index, count, direction));
     return (
@@ -72,6 +82,16 @@ export function AgentChatImagePreviewDialog({
                 className="flex h-[min(800px,calc(100vh-64px))] max-h-none w-[min(1100px,calc(100vw-64px))] flex-col overflow-hidden"
                 onKeyDown={(event) => {
                     const focused = event.target;
+                    if (
+                        picture.source &&
+                        isAgentChatImageCopyKey(event, {
+                            hasSelection: (getSelection()?.toString() ?? '') !== '',
+                        })
+                    ) {
+                        event.preventDefault();
+                        copy();
+                        return;
+                    }
                     // React bubbles events through portals, so the zoom menu's own arrow keys arrive here too.
                     if (
                         !hasGallery ||
@@ -121,14 +141,24 @@ export function AgentChatImagePreviewDialog({
                             </Button>
                         </div>
                     )}
+                    {picture.source && (
+                        <Tooltip content={t('agentChat.message.copyImage')} shortcut="cmd+c">
+                            <Button
+                                aria-label={t('agentChat.message.copyImage')}
+                                size="icon"
+                                variant="ghost"
+                                onClick={copy}
+                            >
+                                <Copy aria-hidden="true" className="size-4" />
+                            </Button>
+                        </Tooltip>
+                    )}
                 </DialogHeader>
                 <PreviewImage
                     // A new image mounts a fresh zoom view, which opens it at Fit.
                     key={index}
-                    index={index}
                     label={labelFor(index)}
-                    message={message}
-                    thumbnail={thumbnails[index]}
+                    picture={picture}
                     viewStateKey={viewStateKey}
                 />
             </DialogContent>
@@ -136,20 +166,15 @@ export function AgentChatImagePreviewDialog({
     );
 }
 
-function PreviewImage({
-    index,
-    label,
-    message,
-    thumbnail,
-    viewStateKey,
-}: {
-    index: number;
-    label: string;
-    message: { terminalId: string; itemId: string } | undefined;
-    thumbnail: string | undefined;
-    viewStateKey: string;
-}) {
-    const { t } = useTranslation();
+/**
+ * The image shown for `index`: the sent original, else the one read from the provider's record, else the thumbnail.
+ * Lives in the dialog so the header's Copy button reads the same source the canvas shows.
+ */
+function usePreviewSource(
+    index: number,
+    message: { terminalId: string; itemId: string } | undefined,
+    thumbnail: string | undefined,
+): { source: string | undefined; status: 'idle' | 'loading' | 'ready' | 'unavailable' } {
     const record = message && { ...message, index };
     const restored = useAgentChatImageThumbnail(thumbnail ? undefined : record);
     // The data URL is megabytes long, so it is built only while the preview shows it.
@@ -157,7 +182,22 @@ function PreviewImage({
     const original = useAgentChatImageOriginal(record, {
         isEnabled: !hasAgentChatSentImageOriginal(thumbnail),
     });
-    const source = sent ?? original ?? thumbnail ?? restored.thumbnail;
+    return {
+        source: sent ?? original ?? thumbnail ?? restored.thumbnail,
+        status: restored.status,
+    };
+}
+
+function PreviewImage({
+    label,
+    picture: { source, status },
+    viewStateKey,
+}: {
+    label: string;
+    picture: ReturnType<typeof usePreviewSource>;
+    viewStateKey: string;
+}) {
+    const { t } = useTranslation();
     const onContextMenu = useContextMenu(() =>
         source
             ? [
@@ -171,7 +211,7 @@ function PreviewImage({
     if (!source)
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-6 text-muted">
-                {restored.status === 'unavailable' ? (
+                {status === 'unavailable' ? (
                     <div aria-label={label} className="flex flex-col items-center gap-2" role="img">
                         <ImageIcon aria-hidden="true" className="size-6" />
                         <span className="text-[12px]">
@@ -188,16 +228,18 @@ function PreviewImage({
             </div>
         );
     return (
-        <PreviewZoomView className="bg-background" viewStateKey={viewStateKey}>
-            {/* Natural size: the zoom view scales it. Not draggable, so a drag pans instead of lifting the image. */}
-            <img
-                alt={label}
-                className="caxri-image-preview-canvas block max-w-none"
-                draggable={false}
-                src={source}
-                onContextMenu={onContextMenu}
-            />
-        </PreviewZoomView>
+        // The whole canvas claims the menu, not only the picture, so a right-click on the margin around it copies too.
+        <div className="flex min-h-0 flex-1 flex-col" onContextMenu={onContextMenu}>
+            <PreviewZoomView className="bg-background" viewStateKey={viewStateKey}>
+                {/* Natural size: the zoom view scales it. Not draggable, so a drag pans instead of lifting the image. */}
+                <img
+                    alt={label}
+                    className="caxri-image-preview-canvas block max-w-none"
+                    draggable={false}
+                    src={source}
+                />
+            </PreviewZoomView>
+        </div>
     );
 }
 

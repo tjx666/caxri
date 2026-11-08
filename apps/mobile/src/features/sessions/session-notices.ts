@@ -2,6 +2,7 @@ import type { Translate } from '../../i18n';
 import { translate } from '../../i18n';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 import type { MobileRelayFailureKind } from '../connection/relay-failure';
+import type { MobileRoutePreference } from '../connection/route-preference';
 
 /**
  * Whether the app-wide connection banner explains the screen. A version mismatch has its own update banner instead.
@@ -44,6 +45,8 @@ export const connectionNoticeMessage = (
 export const connectionBannerModel = (
     status: 'stale' | 'unverified',
     relayFailure: MobileRelayFailureKind | null = null,
+    pinnedRoute: PinnedRoute | null = null,
+    hasReconnectPersisted = false,
 ): {
     action: 'reconnect' | 'retry' | 'settings';
     presentation: 'banner' | 'island';
@@ -55,8 +58,24 @@ export const connectionBannerModel = (
         return { action: 'settings', presentation: 'banner', tone: 'warning' };
     if (relayFailure === 'host-offline')
         return { action: 'reconnect', presentation: 'banner', tone: 'warning' };
+    // A pinned path cannot fall back to the other one, so a reconnect that keeps failing is fixed in Settings.
+    if (pinnedRoute !== null && hasReconnectPersisted)
+        return { action: 'settings', presentation: 'island', tone: 'muted' };
     return { action: 'reconnect', presentation: 'island', tone: 'muted' };
 };
+
+/**
+ * A connection method the user pinned; `auto` is not pinned because it races both paths.
+ */
+export type PinnedRoute = Exclude<MobileRoutePreference, 'auto'>;
+
+export const pinnedRouteOf = (preference: MobileRoutePreference): PinnedRoute | null =>
+    preference === 'auto' ? null : preference;
+
+/**
+ * How long a pinned connection keeps reconnecting before the capsule offers the connection method setting.
+ */
+export const PINNED_RECONNECT_PERSIST_MS = 15_000;
 
 /**
  * The connection island's short label: the state in a few words, plus the saved copy's age when the Session list on
@@ -66,11 +85,19 @@ export const connectionIslandLabel = (
     savedLabel: string | null,
     t: Translate = translate,
     relayFailure: MobileRelayFailureKind | null = null,
+    pinnedRoute: PinnedRoute | null = null,
 ): string => {
     if (relayFailure === 'busy') return t('sessions.banner.relayBusyShort');
-    return savedLabel === null
-        ? t('sessions.banner.reconnecting')
-        : t('sessions.banner.reconnectingSaved', { saved: savedLabel });
+    const label =
+        savedLabel === null
+            ? t('sessions.banner.reconnecting')
+            : t('sessions.banner.reconnectingSaved', { saved: savedLabel });
+    // Names the pinned method so the user can tell why the app does not switch to the other path.
+    if (pinnedRoute === null) return label;
+    const method = t(
+        pinnedRoute === 'direct' ? 'sessions.banner.pinnedDirect' : 'sessions.banner.pinnedRelay',
+    );
+    return t('sessions.banner.pinned', { label, method });
 };
 
 /**

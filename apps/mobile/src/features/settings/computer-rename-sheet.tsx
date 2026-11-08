@@ -1,10 +1,9 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BottomSheet, SheetTitle } from '../../components/bottom-sheet';
 import { Button } from '../../components/button';
-import { showToast } from '../../components/toast-store';
 import { useTranslation } from '../../i18n';
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
@@ -31,17 +30,20 @@ export const ComputerRenameSheet = ({
     const { sessions } = useHostSessions();
     const [draft, setDraft] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const change = computerRenameDraft(draft, currentName);
     const save = async (dismiss: () => void): Promise<void> => {
         if (!change || isSaving) return;
         setIsSaving(true);
+        setError(null);
         try {
             const renamed = await request('mobile.computer.rename', change);
             sessions.showHostDisplayName(renamed.hostDisplayName);
             await sessions.refresh();
             dismiss();
-        } catch (error) {
-            showToast('error', mobileErrorMessage(error, t('settings.rename.failed'), t));
+        } catch (error_) {
+            // Shown inline: on Android this sheet's Modal sits above the root ToastHost, so a toast would be invisible.
+            setError(mobileErrorMessage(error_, t('settings.rename.failed'), t));
         } finally {
             setIsSaving(false);
         }
@@ -64,7 +66,10 @@ export const ComputerRenameSheet = ({
                         accessibilityLabel={t('settings.name')}
                         autoFocus
                         maxLength={COMPUTER_NAME_MAX_LENGTH}
-                        onChangeText={setDraft}
+                        onChangeText={(text) => {
+                            setDraft(text);
+                            setError(null);
+                        }}
                         onSubmitEditing={() => {
                             void save(dismiss);
                         }}
@@ -83,6 +88,15 @@ export const ComputerRenameSheet = ({
                         testID="computer-rename-input"
                         value={draft}
                     />
+                    {error ? (
+                        <Text
+                            accessibilityLiveRegion="polite"
+                            style={[styles.error, { color: theme.danger }]}
+                            testID="computer-rename-error"
+                        >
+                            {error}
+                        </Text>
+                    ) : null}
                     <View style={styles.buttons}>
                         <Button
                             label={t('common.cancel')}
@@ -120,6 +134,7 @@ const styles = StyleSheet.create({
         minHeight: mobileControl.row,
         paddingHorizontal: mobileSpace.lg,
     },
+    error: mobileType.meta,
     buttons: { flexDirection: 'row', gap: mobileSpace.md },
     button: { flex: 1 },
 });

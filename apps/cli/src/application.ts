@@ -539,12 +539,7 @@ export async function runCli(
                 'This command requires the CLI version bundled with the active Caxri Server',
                 { cliVersion: CLI_VERSION, hostVersion: client.serverVersion ?? 'unknown' },
             );
-        if (generic) assertMethodOffered(command.method, client.welcome);
-        else if (!client.welcome.commands.includes(command.method))
-            throw new CaxriError(
-                'CONFLICT',
-                `The Caxri Server does not support command ${command.method}`,
-            );
+        assertMethodOffered(command.method, client.welcome);
         if (command.stream)
             return await streamRemote(command, parameters, client, mode, io, options);
         if (command.run) {

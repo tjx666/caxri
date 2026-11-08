@@ -43,10 +43,13 @@ export function hookHealthFor(
                   kind: 'active',
                   installedSchema: status.kind === 'newer' ? status.installedSchema : currentSchema,
               }
-            : {
+            : /**
+               * No `message`: Settings renders its own localized "Not in effect until your next Agent session" for this state, and
+               * server prose would show untranslated English inside a localized row.
+               */
+              {
                   kind: 'installedPending',
                   installedSchema: status.kind === 'newer' ? status.installedSchema : currentSchema,
-                  message: 'Installed. Review and trust the hook in the Agent CLI if prompted.',
               };
     if (status.kind === 'absent') return { kind: 'notInstalled' };
     if (status.kind === 'stale')
