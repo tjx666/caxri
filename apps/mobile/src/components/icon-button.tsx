@@ -4,6 +4,7 @@ import { Pressable } from 'react-native';
 import type { LucideProps } from 'lucide-react-native';
 
 import type { MobileTheme } from '../theme/tokens';
+import { iconPressFeedback } from './icon-press-feedback';
 
 /**
  * A glyph-only control with a 44dp touch target, expanded by a 4dp `hitSlop` on every edge. The accessible name is
@@ -21,6 +22,7 @@ export const IconButton = ({
     size = 22,
     testID,
     theme,
+    variant = 'default',
 }: {
     accessibilityHint?: string;
     accessibilityLabel: string;
@@ -37,25 +39,34 @@ export const IconButton = ({
     size?: number;
     testID?: string;
     theme: MobileTheme;
-}) => (
-    <Pressable
-        accessibilityHint={accessibilityHint}
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        accessibilityState={{ disabled, expanded }}
-        disabled={disabled && !onDisabledPress}
-        hitSlop={4}
-        onPress={disabled ? onDisabledPress : onPress}
-        style={({ pressed }) => ({
-            alignItems: 'center',
-            borderRadius: 24,
-            height: 44,
-            justifyContent: 'center',
-            opacity: disabled ? 0.38 : pressed ? 0.6 : 1,
-            width: 44,
-        })}
-        testID={testID}
-    >
-        <Icon color={color ?? theme.text} size={size} strokeWidth={2} />
-    </Pressable>
-);
+    /**
+     * `toolbar` narrows the layout box to 40dp for a header's trailing actions, so two neighboring glyphs do not read
+     * as spaced apart; its `hitSlop` keeps the 48dp target.
+     */
+    variant?: 'default' | 'toolbar';
+}) => {
+    const feedback = iconPressFeedback(theme);
+    return (
+        <Pressable
+            accessibilityHint={accessibilityHint}
+            accessibilityLabel={accessibilityLabel}
+            accessibilityRole="button"
+            accessibilityState={{ disabled, expanded }}
+            android_ripple={disabled ? undefined : feedback.android_ripple}
+            disabled={disabled && !onDisabledPress}
+            hitSlop={4}
+            onPress={disabled ? onDisabledPress : onPress}
+            style={({ pressed }) => ({
+                alignItems: 'center',
+                borderRadius: 24,
+                height: 44,
+                justifyContent: 'center',
+                opacity: disabled ? 0.38 : pressed ? feedback.pressedOpacity : 1,
+                width: variant === 'toolbar' ? 40 : 44,
+            })}
+            testID={testID}
+        >
+            <Icon color={color ?? theme.text} size={size} strokeWidth={2} />
+        </Pressable>
+    );
+};

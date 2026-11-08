@@ -24,6 +24,10 @@ export const sessionDetailStyles = StyleSheet.create({
         gap: mobileSpace.xs,
         minHeight: mobileControl.primary,
     },
+    trailingActions: {
+        alignItems: 'center',
+        flexDirection: 'row',
+    },
     titleGroup: {
         alignItems: 'center',
         flex: 1,

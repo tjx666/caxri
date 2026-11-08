@@ -6,10 +6,10 @@ import type { LucideIcon } from 'lucide-react-native';
 import { FileDiff, PanelRight, X } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
+import { iconPressFeedback } from '../../../components/icon-press-feedback';
 import type { Translate } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { useHardwareBack } from '../../../lib/use-hardware-back';
-import { PRESSED_OPACITY } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
@@ -121,6 +121,7 @@ export const SessionSidePanelButton = ({
 }) => {
     const { t } = useTranslation();
     const count = changesBadge(changesCount);
+    const feedback = iconPressFeedback(theme);
     return (
         <Pressable
             accessibilityLabel={
@@ -130,12 +131,13 @@ export const SessionSidePanelButton = ({
             }
             accessibilityRole="button"
             accessibilityState={{ expanded: isOpen }}
+            android_ripple={feedback.android_ripple}
             hitSlop={4}
             onPress={onPress}
             style={({ pressed }) => [
                 styles.panelButton,
                 isOpen ? { backgroundColor: theme.surface } : null,
-                { opacity: pressed ? PRESSED_OPACITY : 1 },
+                { opacity: pressed ? feedback.pressedOpacity : 1 },
             ]}
             testID="session-panel-button"
         >

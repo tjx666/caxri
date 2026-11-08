@@ -8,7 +8,10 @@ export const sessionSidePanelStyles = StyleSheet.create({
         borderRadius: mobileRadius.pill,
         height: 44,
         justifyContent: 'center',
-        width: 44,
+        /**
+         * Matches a toolbar `IconButton`, so it sits as close to the menu as the home header's actions do.
+         */
+        width: 40,
     },
     /**
      * Sits on the glyph's top-right corner, ringed in the header's background so it stays legible over the icon.

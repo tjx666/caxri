@@ -14,4 +14,5 @@ export const handlers = {
     'MOB-UI-09': executeMobileUiAuditScenario,
     'MOB-UI-10': executeMobileUiAuditScenario,
     'MOB-UI-DESKTOP-UPDATE-01': executeMobileUiAuditScenario,
+    'MOB-UI-HEADER-ACTIONS-01': executeMobileUiAuditScenario,
 } satisfies Record<string, MobileAndroidCaseHandler>;

@@ -64,6 +64,16 @@ export interface MobileTheme {
     primary: string;
     primaryForeground: string;
     /**
+     * The Android press ripple over a `primary` fill, such as the New Session button: a darkening wash, because a light
+     * one would vanish on the bright fill.
+     */
+    primaryRipple: string;
+    /**
+     * The Android press ripple of a glyph-only control on `background` or `surface`, strong enough to read on a dark
+     * header where the platform default barely shows.
+     */
+    ripple: string;
+    /**
      * The near-opaque backdrop of a full-screen media viewer, so an image reads against black regardless of theme.
      */
     scrim: string;
@@ -115,6 +125,8 @@ export const mobileTheme = {
     overlay: 'rgba(0, 0, 0, 0.5)',
     primary: draculaTheme.colors.accent,
     primaryForeground: draculaTheme.colors.background,
+    primaryRipple: 'rgba(0, 0, 0, 0.2)',
+    ripple: 'rgba(255, 255, 255, 0.2)',
     scrim: 'rgba(0, 0, 0, 0.94)',
     scrimControl: 'rgba(255, 255, 255, 0.16)',
     selection: draculaTheme.colors.selection,

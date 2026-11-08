@@ -15,6 +15,7 @@ import {
     openSessionSidePanel,
     showSessionContent,
 } from './mobile-session-panel';
+import { headerActions } from './mobile-ui-audit-header-actions';
 import type { UiAuditScenarioEnvironment } from './mobile-ui-audit-support';
 import { assertStaysAbsent, capture, finish, hasCheck, waitFor } from './mobile-ui-audit-support';
 
@@ -513,6 +514,9 @@ export async function executeMobileUiAuditScenario(
             case 'MOB-UI-09':
             case 'MOB-UI-10':
                 await hostStatus(environment, artifacts, sessionId);
+                break;
+            case 'MOB-UI-HEADER-ACTIONS-01':
+                await headerActions(environment, artifacts, sessionId);
                 break;
             case 'MOB-SESSION-SEARCH-01':
             case 'MOB-SESSION-SEARCH-ZH-01':
