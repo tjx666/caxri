@@ -294,6 +294,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.route.opening': '正在打开会话…',
     'sessions.route.reconnect': '请重新连接以打开此会话。',
     'sessions.row.actions': '会话操作',
+    'sessions.row.archive': '归档「{{title}}」',
+    'sessions.row.done': '已处理',
     'sessions.row.markDone': '将「{{title}}」标为已处理',
     'sessions.row.openHint': '打开此会话。',
     'sessions.savedCopy.messages': '显示的是{{saved}}的消息。',

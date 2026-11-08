@@ -20,10 +20,11 @@ import {
 const IDLE_SESSION_COUNT = 11;
 
 /**
- * Sideways drift during a vertical drag, short of the list's 24dp Project swipe activation, so a scroll that wanders a
- * little must keep scrolling instead of switching Project.
+ * Sideways drift during a vertical drag: past a swipeable row's 20dp activation but short of the list's 24dp Project
+ * swipe activation, so a scroll that wanders that far must keep scrolling instead of opening a row (#2540) or switching
+ * Project.
  */
-const DRIFT_DP = 16;
+const DRIFT_DP = 22;
 
 /**
  * Long enough for a released swipe's settle animation and the filter switch after it to land.
@@ -62,14 +63,26 @@ const isFilterSelected = (nodes: MobileSemanticNode[], checkId: string): boolean
     nodes.some((node) => node.checkId === checkId && node.selected);
 
 /**
- * Drags across the middle of the Session list from `fromShare` to `toShare` of its width, inside the system Back
- * gesture edges.
+ * The height at which a page swipe crosses the list: the Idle group heading's middle. A control device can swipe every
+ * Session row open, and a left drag that starts on such a row belongs to the row, so a page swipe goes across the
+ * heading instead.
+ */
+function pagingY(nodes: MobileSemanticNode[]): number {
+    const heading = checkBounds(nodes, 'session-group-idle');
+    if (!heading) throw new Error('The Idle group heading is not laid out');
+    return Math.floor((heading.top + heading.bottom) / 2);
+}
+
+/**
+ * Drags across the Session list from `fromShare` to `toShare` of its width, inside the system Back gesture edges, at
+ * {@link pagingY}.
  */
 async function swipeList(serial: string, fromShare: number, toShare: number): Promise<void> {
-    const list = checkBounds(await mobileSemantics(serial), 'session-list');
+    const nodes = await mobileSemantics(serial);
+    const list = checkBounds(nodes, 'session-list');
     if (!list) throw new Error('The Session list is not laid out');
     const width = list.right - list.left;
-    const y = String(Math.floor((list.top + list.bottom) / 2));
+    const y = String(pagingY(nodes));
     await adbShell(serial, [
         'input',
         'swipe',
@@ -111,7 +124,7 @@ async function holdSwipeFollowingFinger(
     if ((await mobileRegionFingerprint(serial, list)) !== resting)
         throw new Error('The Session list is not stable at rest');
     const width = list.right - list.left;
-    const y = Math.floor((list.top + list.bottom) / 2);
+    const y = pagingY(restingNodes);
     const fromX = Math.floor(list.left + width * fromShare);
     const toX = Math.floor(list.left + width * toShare);
     const steps = 12;
@@ -254,9 +267,11 @@ export async function executeMobileSessionSwipeScenario(
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForCheck(serial, 'session-group-idle');
 
-        // A short, slow drag on one row: past the old Archive reveal (half its 84dp action) but short of a Project switch.
-        const settled = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
-        if (!settled) throw new Error('The idle Session row left the screen');
+        // A short, slow left drag on one row belongs to the row: it opens the row's Archive and never switches Project.
+        // The newest Session is the top row, fully on screen, so the opened row and its action read in the capture.
+        const dragged = ids.at(-1)!;
+        const settled = checkBounds(await mobileSemantics(serial), `session-row-${dragged}`);
+        if (!settled) throw new Error('The top idle Session row is not on screen');
         const rowY = String(Math.floor((settled.top + settled.bottom) / 2));
         const rowWidth = settled.right - settled.left;
         await adbShell(serial, [
@@ -270,13 +285,31 @@ export async function executeMobileSessionSwipeScenario(
         ]);
         await pause(SETTLE_MS);
         const afterRowDrag = await mobileSemantics(serial);
-        if (afterRowDrag.some(({ checkId }) => checkId.startsWith('session-swipe-archive-')))
-            throw new Error('A row swipe still revealed Archive');
-        if (checkBounds(afterRowDrag, `session-row-${target}`)?.left !== settled.left)
-            throw new Error('A row swipe left the row shifted sideways');
+        const opened = checkBounds(afterRowDrag, `session-row-${dragged}`);
+        if (!opened || opened.left >= settled.left)
+            throw new Error('A left row drag did not open the row');
+        if (!checkBounds(afterRowDrag, `session-row-archive-${dragged}`))
+            throw new Error('The opened row shows no Archive action');
         if (!isFilterSelected(afterRowDrag, 'project-filter-all'))
             throw new Error('A short row drag switched Project');
         await capture(environment, 'short-row-drag', artifacts);
+        // A right drag on the open row closes it rather than paging.
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            String(Math.floor(settled.left + rowWidth * 0.3)),
+            rowY,
+            String(Math.floor(settled.left + rowWidth * 0.6)),
+            rowY,
+            '300',
+        ]);
+        await pause(SETTLE_MS);
+        const closedNodes = await mobileSemantics(serial);
+        if (checkBounds(closedNodes, `session-row-${dragged}`)?.left !== settled.left)
+            throw new Error('A right drag did not close the open row');
+        if (!isFilterSelected(closedNodes, 'project-filter-all'))
+            throw new Error('Closing the open row switched Project');
+        await capture(environment, 'row-drag-closed', artifacts);
 
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
         await holdSwipeFollowingFinger(
@@ -323,7 +356,7 @@ export async function executeMobileSessionSwipeScenario(
             heldSwipeHighlight: 'leaves-current-chip-and-reaches-next-chip',
             leftSwipe: 'all-to-project',
             leftSwipeAtLastProject: 'stayed',
-            shortRowDrag: 'no-archive-no-switch',
+            shortRowDrag: 'opened-archive-no-switch-right-drag-closed',
             rightSwipe: 'project-to-all',
             status: 'passed',
         });

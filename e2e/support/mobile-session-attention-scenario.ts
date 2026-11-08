@@ -6,7 +6,13 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { checkBounds, waitForCheck } from './mobile-agent-chat-helpers';
 import type { MobileSemanticNode } from './mobile-android';
-import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
+import {
+    adbShell,
+    mobileSemantics,
+    tapMobileCheck,
+    tapMobileCheckByBounds,
+    waitForMobile,
+} from './mobile-android';
 import type { AttentionCommand } from './mobile-attention-fixture';
 
 const GROUPS: readonly SessionActivityGroupId[] = ['attention', 'working', 'idle'];
@@ -200,9 +206,45 @@ export async function executeMobileSessionAttentionScenario(
 }
 
 /**
- * `MOB-SESSION-ROW-MARK-DONE-01`: a Needs attention row carries a Mark as Done check, the phone's counterpart of the
- * check on a Desktop Activity row. Tapping it resolves the Session without opening it, so the row moves to the top of
- * Idle, while a Session without Pending Attention shows no check.
+ * Drags across a Session row's middle between two fractions of its width; the start stays clear of the screen edges,
+ * which belong to the system Back gesture.
+ */
+async function swipeRow(
+    serial: string,
+    sessionId: string,
+    from: number,
+    to: number,
+): Promise<void> {
+    const row = checkBounds(await mobileSemantics(serial), `session-row-${sessionId}`);
+    if (!row) throw new Error('The Session row is not laid out');
+    const width = row.right - row.left;
+    const y = String(Math.floor((row.top + row.bottom) / 2));
+    await adbShell(serial, [
+        'input',
+        'swipe',
+        String(Math.floor(row.left + width * from)),
+        y,
+        String(Math.floor(row.left + width * to)),
+        y,
+        '300',
+    ]);
+}
+
+/**
+ * The left swipe that reveals a row's actions.
+ */
+const swipeRowLeft = (serial: string, sessionId: string) => swipeRow(serial, sessionId, 0.9, 0.4);
+
+/**
+ * A right swipe across a closed row, which belongs to the Project pager.
+ */
+const swipeRowRight = (serial: string, sessionId: string) =>
+    swipeRow(serial, sessionId, 0.15, 0.85);
+
+/**
+ * `MOB-SESSION-ROW-MARK-DONE-01`: swiping a Needs attention row left reveals Mark as Done and Archive, the phone's
+ * counterpart of the check on a Desktop Activity row. Done resolves the Session without opening it, so the row moves to
+ * the top of Idle; a Session without Pending Attention reveals only Archive, which archives it from the list.
  */
 export async function executeMobileSessionRowMarkDoneScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -234,32 +276,143 @@ export async function executeMobileSessionRowMarkDoneScenario(
         } catch {
             throw new Error('The finished Session never held Pending Attention');
         }
+        // Work on the Project's own page, so a left drag that paged would visibly leave it.
+        const projectChip = `project-filter-${fixture.allowedProjectId}`;
+        await tapMobileCheckByBounds(serial, projectChip);
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => nodes.find(({ checkId }) => checkId === projectChip)?.selected === true,
+            15_000,
+        );
         await waitForRowGroup(serial, finished, 'attention');
         await waitForRowGroup(serial, shell, 'idle');
         const markDone = `session-row-mark-done-${finished}`;
-        await waitForCheck(serial, markDone);
-        if (checkBounds(await mobileSemantics(serial), `session-row-mark-done-${shell}`))
-            throw new Error('An idle Session row shows the Mark as Done check');
-        await capture(environment, 'attention-row-check', artifacts);
+        const restingLeft = checkBounds(
+            await mobileSemantics(serial),
+            `session-row-${finished}`,
+        )?.left;
+        await capture(environment, 'attention-row-resting', artifacts);
+        await swipeRowLeft(serial, finished);
+        try {
+            await waitForCheck(serial, `session-row-archive-${finished}`, 10_000);
+            await waitForCheck(serial, markDone, 10_000);
+        } catch (error) {
+            await capture(environment, 'attention-row-swipe-missing', artifacts);
+            throw new Error('A left swipe on a Needs attention row revealed no row actions', {
+                cause: error,
+            });
+        }
+        const swiped = await mobileSemantics(serial);
+        const swipedLeft = checkBounds(swiped, `session-row-${finished}`)?.left;
+        if (restingLeft === undefined || swipedLeft === undefined || swipedLeft >= restingLeft)
+            throw new Error('The left swipe did not slide the row open');
+        if (swiped.find(({ checkId }) => checkId === projectChip)?.selected !== true)
+            throw new Error('The left swipe on a row paged away from the Project');
+        await capture(environment, 'attention-row-swiped', artifacts);
 
-        await tapMobileCheck(serial, markDone);
+        // One row is open at a time: opening the idle row closes the Needs attention row, and opening it again closes
+        // the idle row.
+        const shellResting = checkBounds(swiped, `session-row-${shell}`)?.left;
+        await swipeRowLeft(serial, shell);
+        try {
+            await waitForMobile(
+                () => mobileSemantics(serial),
+                (nodes) => {
+                    const shellLeft = checkBounds(nodes, `session-row-${shell}`)?.left;
+                    return (
+                        checkBounds(nodes, `session-row-${finished}`)?.left === restingLeft &&
+                        shellResting !== undefined &&
+                        shellLeft !== undefined &&
+                        shellLeft < shellResting
+                    );
+                },
+                10_000,
+            );
+        } catch (error) {
+            throw new Error('Opening a second row did not close the first', { cause: error });
+        }
+        await capture(environment, 'second-row-opened', artifacts);
+        await swipeRowLeft(serial, finished);
+        try {
+            await waitForMobile(
+                () => mobileSemantics(serial),
+                (nodes) => checkBounds(nodes, `session-row-${shell}`)?.left === shellResting,
+                10_000,
+            );
+        } catch (error) {
+            throw new Error('Reopening the first row did not close the second', { cause: error });
+        }
+        await capture(environment, 'first-row-reopened', artifacts);
+
+        await tapMobileCheckByBounds(serial, markDone);
         try {
             await waitForMobile(readState, (state) => pending(state) === false, 30_000);
         } catch {
-            throw new Error('The row check never resolved Pending Attention');
+            throw new Error('Mark as Done never resolved Pending Attention');
         }
         await waitForRowGroup(serial, finished, 'idle');
         const after = await mobileSemantics(serial);
-        if (checkBounds(after, markDone)) throw new Error('The resolved row still shows the check');
+        if (checkBounds(after, markDone))
+            throw new Error('The resolved row still offers Mark as Done');
         if (checkBounds(after, 'session-detail-back'))
-            throw new Error('Tapping the check opened the Session');
+            throw new Error('Mark as Done opened the Session');
         if (!isAbove(after, finished, shell))
             throw new Error('The Session marked done is not at the top of Idle');
         await capture(environment, 'marked-done-in-idle', artifacts);
+
+        await swipeRowLeft(serial, shell);
+        const archive = `session-row-archive-${shell}`;
+        await waitForCheck(serial, archive);
+        if (checkBounds(await mobileSemantics(serial), `session-row-mark-done-${shell}`))
+            throw new Error('An idle Session row offers Mark as Done');
+        await capture(environment, 'idle-row-swiped', artifacts);
+        await tapMobileCheckByBounds(serial, archive);
+        try {
+            await waitForMobile(
+                readState,
+                (state) => state.sessions.find(({ id }) => id === shell)?.archivedAt !== undefined,
+                30_000,
+            );
+        } catch {
+            throw new Error('The swipe Archive never archived the Session');
+        }
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !checkBounds(nodes, `session-row-${shell}`),
+            30_000,
+        );
+        // The swipe archives with the same Undo toast as the long-press sheet, which lasts eight seconds.
+        await waitForCheck(serial, 'toast-action', 5000);
+        await capture(environment, 'idle-row-archived-with-undo', artifacts);
+
+        // A right drag on a closed row is not the row's own, so the pager still takes it back to All.
+        await swipeRowRight(serial, finished);
+        try {
+            await waitForMobile(
+                () => mobileSemantics(serial),
+                (nodes) =>
+                    nodes.find(({ checkId }) => checkId === 'project-filter-all')?.selected ===
+                    true,
+                15_000,
+            );
+        } catch {
+            throw new Error('A right swipe on a row no longer pages to the previous Project');
+        }
+        await capture(environment, 'right-swipe-paged-to-all', artifacts);
+        // Records why the other Needs attention row may lose its unread mark after the archive, without asserting it.
+        const settledState = await readState();
+        const remaining = settledState.sessions.find(({ id }) => id === fixture.allowedSessionId);
         await finish(environment, artifacts, {
+            afterArchive: 'removed',
+            remainingAttention: remaining?.hasPendingAttention ? 'pending' : 'resolved',
+            remainingDesktopSelected:
+                settledState.selectedSessionId === fixture.allowedSessionId ? 'yes' : 'no',
+            remainingUnread: remaining?.hasUnread ? 'unread' : 'read',
             afterMarkDone: 'idle',
-            idleRowCheck: 'hidden',
+            idleRowDone: 'hidden',
+            leftSwipePaged: 'no',
             openedDetail: 'no',
+            rightSwipePaged: 'yes',
             status: 'passed',
         });
     } finally {

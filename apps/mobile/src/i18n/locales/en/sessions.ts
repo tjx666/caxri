@@ -309,6 +309,8 @@ export const sessions = {
     'sessions.route.opening': 'Opening Session…',
     'sessions.route.reconnect': 'Reconnect to open this Session.',
     'sessions.row.actions': 'Session actions',
+    'sessions.row.archive': 'Archive {{title}}',
+    'sessions.row.done': 'Done',
     'sessions.row.markDone': 'Mark {{title}} as Done',
     'sessions.row.openHint': 'Opens this Session.',
     'sessions.savedCopy.messages': 'Showing messages {{saved}}.',

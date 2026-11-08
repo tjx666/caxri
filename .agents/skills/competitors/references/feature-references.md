@@ -147,6 +147,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Open work-group shimmer**: The running turn's latest work group keeps its active sweep between calls, not only while one is in flight (`work-live` stays `active` after its command completes). Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/agent-chat-work-group.tsx`.
 - **Side pane minimum width**: A 360px minimum for the pane beside the Chat, as for its right panel. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tasks/beside-chat-layout.ts`.
 - **Portal over the right side bar**: Its right panel opens as a sheet over the content on a narrow window instead of squeezing the Chat; Caxri's Portal always floats that way, at the right side bar's position, with a resizable edge. Evidence: `apps/desktop/src/renderer/src/features/agent-chat/portal/agent-chat-portal.tsx`; `docs/agent-chat.md`.
+- **Mobile Session row swipe actions**: A left swipe on a thread row reveals trailing row actions (Archive) instead of always-visible buttons; Caxri's reveal Mark as Done and Archive. Evidence: `apps/mobile/src/features/sessions/components/session-row.tsx`.
 - **Long paste saved as a file**: 32 KiB threshold. Evidence: `docs/agent-chat.md`; `packages/protocol/src/agent/agent-chat-contract.ts`.
 - **Turn review, folding, work log**: Turn review and folding (with the Codex app). Evidence: `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/desktop/src/renderer/src/features/agent-chat/turns/agent-chat-turn-review-tab.tsx`.
 - **Steered message fold segments**: Each message steered into a running turn starts its own fold and keeps its own last reply visible, timed per segment. Evidence: `packages/protocol/src/agent/agent-chat-turn-fold.ts`; `apps/mobile/src/features/agent-chat/agent-chat-timeline.ts`.
@@ -330,6 +331,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 ## monocode (MIT)
 
+- **Row swipe beside a pager**: A session row claims only a left drag for its actions and leaves a right drag to the page around it, so a swipeable row inside a pager still pages back. Evidence: `apps/mobile/src/features/sessions/components/session-row.tsx`.
 - **Worktree glyph**: A folder-tree icon (two folders joined by a tree line) for a linked worktree, replacing the VS Code `worktree` codicon. Evidence: `apps/desktop/src/renderer/src/features/status-bar/workbench-root-picker.tsx`.
 
 ## QuickTUI (closed product reference)
