@@ -108,9 +108,9 @@ async function scrollDraftToTop(serial: string): Promise<void> {
 
 /**
  * `MOB-CHAT-10`: the phone's Codex Chat composer and timeline. It covers the permission trigger and sheet, fenced code
- * highlighted by language with Copy in each block's corner, a finished multi-step turn folded behind `Worked for` with
- * a failed command's exit code, following the user's own send to the latest message, slash commands, the visible Queue
- * button, editing a long queued message, editing a queued message that cites a file in place, a message shown as
+ * highlighted by language with Copy shown on a tap on the block, a finished multi-step turn folded behind `Worked for`
+ * with a failed command's exit code, following the user's own send to the latest message, slash commands, the visible
+ * Queue button, editing a long queued message, editing a queued message that cites a file in place, a message shown as
  * `Sending…` before Server Core accepts it, and a draft taller than the composer.
  */
 export async function executeMobileChatComposerScenario(
@@ -187,7 +187,7 @@ export async function executeMobileChatComposerScenario(
         // system selection toolbar no longer opens over the sheet. The toolbar is a popup UIAutomator does not list, so
         // the screenshot shows its absence once a selection would have settled.
         // The reply follows to its end, so the timeline scrolls back until the first block, the `ts` one, has its top
-        // (and the Copy button there) inside the timeline below the header.
+        // inside the timeline below the header.
         await scrollTimelineUntil(serial, async () => {
             const nodes = await mobileSemantics(serial);
             const frame = checkBounds(nodes, 'conversation-view');
@@ -208,7 +208,7 @@ export async function executeMobileChatComposerScenario(
         await new Promise((resolve) => setTimeout(resolve, 1500));
         await capture(environment, 'code-block-long-press', artifacts);
         const hasSheet = hasCheck(await mobileSemantics(serial), 'conversation-message-sheet');
-        if (!hasSheet || !hasCheck(beforePress, 'conversation-fenced-code-copy')) {
+        if (!hasSheet || hasCheck(beforePress, 'conversation-fenced-code-copy')) {
             // Keeps the frames citable in a failed baseline round, as the runner binds the manifest either way.
             await writeJsonAtomic(environment.artifactManifestPath, {
                 artifacts,
@@ -216,15 +216,17 @@ export async function executeMobileChatComposerScenario(
             });
             throw new Error(
                 hasSheet
-                    ? 'A code block shows no Copy button'
+                    ? 'A code block shows Copy before a tap'
                     : 'A long press on a code block did not open the message sheet',
             );
         }
         await tapMobileCheckByBounds(serial, 'conversation-message-cancel');
         await waitForNoCheck(serial, 'conversation-message-sheet');
 
-        // Copy in a code block's corner copies the whole block: the tap lands on the first block, the `ts` one, and
-        // pasting into the composer proves what reached the clipboard.
+        // A tap on a code block shows Copy in its corner (#3877), and Copy takes the whole block: the taps land on the
+        // first block, the `ts` one, and pasting into the composer proves what reached the clipboard.
+        await adbShell(serial, ['input', 'tap', pressX, pressY]);
+        await waitForCheck(serial, 'conversation-fenced-code-copy');
         await tapMobileCheckByBounds(serial, 'conversation-fenced-code-copy', {
             viewport: 'conversation-view',
         });

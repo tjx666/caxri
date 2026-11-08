@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { createContext, memo, use, useCallback, useEffect, useMemo, useState } from 'react';
 import type { TextStyle, ViewStyle } from 'react-native';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import {
     fileLinkTarget,
@@ -21,6 +21,7 @@ import { fenceLanguage } from '../panels/file-language';
 import { ConversationFileOpener } from './conversation-file-opener';
 import { MARKDOWN_IT, parseMarkdown } from './conversation-markdown-parser';
 import { CONVERSATION_MARKDOWN, CONVERSATION_MARKDOWN_COMPACT } from './conversation-markdown-size';
+import { ConversationMessageLongPress } from './conversation-message-actions';
 import {
     isQuoteWorthCopying,
     quoteIndexOf,
@@ -75,32 +76,29 @@ export interface ConversationMarkdownReveal {
 }
 
 /**
- * The tree a reply renders: its plain text, or while it streams in, its parsed tree with the text that just arrived
- * marked to fade in (`fading_text`). Every redraw re-parses the reply and the library mints new keys, so the reveal
- * lives here, by the order of text nodes, rather than in the rendered tree. A paused stream keeps redrawing until its
- * last run is opaque. Times come from the caller and the redraw timer, since a render must not read the clock.
+ * The tree a reply renders, parsed with keys that hold across parses (`parseMarkdown`), and while it streams in, with
+ * the text that just arrived marked to fade in (`fading_text`). The reveal follows the order of text nodes rather than
+ * the rendered tree. A paused stream keeps redrawing until its last run is opaque. Times come from the caller and the
+ * redraw timer, since a render must not read the clock.
  */
 function useRevealingMarkdown(
     text: string,
     reveal: ConversationMarkdownReveal | undefined,
-): string | ASTNode[] {
-    const isRevealing = reveal !== undefined && text.length <= TEXT_REVEAL_MAX_LENGTH;
-    const nodes = useMemo(
-        () => (isRevealing ? parseMarkdown(text) : undefined),
-        [isRevealing, text],
-    );
+): ASTNode[] {
+    const revealing = text.length <= TEXT_REVEAL_MAX_LENGTH ? reveal : undefined;
+    // Parsed here rather than by the library even without a reveal, so every node keeps its key across parses.
+    const nodes = useMemo(() => parseMarkdown(text), [text]);
     const [state, setState] = useState<ConversationTextReveal>();
     const [redrawnAt, setRedrawnAt] = useState(0);
     const now = Math.max(reveal?.textShownAt ?? 0, redrawnAt);
-    const current =
-        nodes && reveal
-            ? nextConversationTextReveal(
-                  state,
-                  markdownTextNodes(nodes).map((node) => node.content),
-                  reveal.textShownAt,
-                  reveal.since,
-              )
-            : undefined;
+    const current = revealing
+        ? nextConversationTextReveal(
+              state,
+              markdownTextNodes(nodes).map((node) => node.content),
+              revealing.textShownAt,
+              revealing.since,
+          )
+        : undefined;
     // Derived from the previous render, as React documents for state that follows a prop.
     if (current !== state) setState(current);
     const isFading = current !== undefined && isConversationTextFading(current, now);
@@ -111,7 +109,7 @@ function useRevealingMarkdown(
         const timer = setTimeout(() => setRedrawnAt(performance.now()), FADE_REDRAW_MS);
         return () => clearTimeout(timer);
     });
-    return nodes && current ? withFadingTextNodes(nodes, current, now) : text;
+    return current ? withFadingTextNodes(nodes, current, now) : nodes;
 }
 
 /**
@@ -139,11 +137,18 @@ const prosePathRuns = (content: string): Array<{ file?: string; text: string }> 
 };
 
 /**
- * A code block in a reply: monospace and scrolled sideways rather than wrapped, with Copy in its corner. A known
- * language paints through `HighlightedCode`, which is memoized on the code and language, so a streamed reply
- * re-tokenizes only the block still growing; anything else stays one plain color. The text is not `selectable`: inside
- * a message row the long press belongs to the message's actions (`ConversationMessagePress`), and a selectable block
- * opened the system selection toolbar on top of that sheet.
+ * Stretches a short code block's tap target across the block, so a tap right of its longest line still shows Copy.
+ */
+const CODE_BLOCK_CONTENT_STYLE: ViewStyle = { flexGrow: 1 };
+
+/**
+ * A code block in a reply: monospace and scrolled sideways rather than wrapped. Copy stays hidden so it never covers
+ * the code or takes its room: a tap on the block shows it in the corner, and a tap again or a finished copy hides it,
+ * as chat apps keep per-block actions out of the way on a phone. A long press still opens the message's actions
+ * (`ConversationMessageLongPress`), since the tap target would otherwise swallow it. A known language paints through
+ * `HighlightedCode`, which is memoized on the code and language, so a streamed reply re-tokenizes only the block still
+ * growing; anything else stays one plain color. The text is not `selectable`: a selectable block opened the system
+ * selection toolbar on top of the message sheet.
  */
 const ConversationCodeBlock = ({
     code,
@@ -159,6 +164,10 @@ const ConversationCodeBlock = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const openMessage = use(ConversationMessageLongPress);
+    const [isCopyShown, setIsCopyShown] = useState(false);
+    const toggleCopy = useCallback(() => setIsCopyShown((isShown) => !isShown), []);
+    const hideCopy = useCallback(() => setIsCopyShown(false), []);
     const text = code.replace(/\n$/u, '');
     return (
         <View
@@ -172,26 +181,43 @@ const ConversationCodeBlock = ({
             }}
             testID={testID}
         >
-            <ScrollView horizontal showsHorizontalScrollIndicator>
-                <Text
-                    style={{
-                        color: theme.text,
-                        fontFamily: monospace,
-                        fontSize: 13,
-                        padding: 12,
-                        // Lets a scrolled-to-the-end first line clear the Copy button.
-                        paddingRight: 44,
-                    }}
+            {/* The tap target sits inside the scroll view, not around it: wrapped around it, a drag that began while
+                the reply streamed landed as a tap instead of a scroll. */}
+            <ScrollView
+                contentContainerStyle={CODE_BLOCK_CONTENT_STYLE}
+                horizontal
+                showsHorizontalScrollIndicator
+            >
+                <Pressable
+                    accessibilityActions={[{ label: t('components.copyCode'), name: 'activate' }]}
+                    accessibilityState={{ expanded: isCopyShown }}
+                    onAccessibilityAction={toggleCopy}
+                    onLongPress={openMessage ?? undefined}
+                    onPress={toggleCopy}
+                    style={CODE_BLOCK_CONTENT_STYLE}
                 >
-                    {language ? <HighlightedCode code={text} language={language} /> : text}
-                </Text>
+                    <Text
+                        style={{
+                            color: theme.text,
+                            fontFamily: monospace,
+                            fontSize: 13,
+                            padding: 12,
+                        }}
+                    >
+                        {language ? <HighlightedCode code={text} language={language} /> : text}
+                    </Text>
+                </Pressable>
             </ScrollView>
-            <CopyButton
-                label={t('components.copyCode')}
-                testID={`${testID}-copy`}
-                text={text}
-                theme={theme}
-            />
+            {/* A sibling of the tap target rather than its child, so a screen reader reaches it on its own. */}
+            {isCopyShown ? (
+                <CopyButton
+                    label={t('components.copyCode')}
+                    onCopied={hideCopy}
+                    testID={`${testID}-copy`}
+                    text={text}
+                    theme={theme}
+                />
+            ) : null}
         </View>
     );
 };
@@ -336,6 +362,13 @@ export const ConversationMarkdown = memo(
         );
         const rules = useMemo<RenderRules>(
             () => ({
+                // The library keys its root afresh on every render, which remounted the whole reply and snapped a
+                // scrolled code block back to its start; a fixed key keeps the tree mounted.
+                body: (_node, children, _parents, styles) => (
+                    <View key="body" style={styles._VIEW_SAFE_body}>
+                        {children}
+                    </View>
+                ),
                 image: () => null,
                 blockquote: (node, children, _parents, styles) => (
                     <ConversationQuote

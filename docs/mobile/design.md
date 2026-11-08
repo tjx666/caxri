@@ -390,8 +390,10 @@ parses provider files.
 
 - User messages: right-aligned bubbles on the raised surface color, max 85% width.
 - Agent replies: full-width Markdown, rendered natively. Code blocks scroll horizontally and never
-  wrap, and carry a Copy button (named `Copy code`) in their top-right corner that copies the whole
-  block; inline code uses the monospace face. A block quote carries `Copy quote` the same way only
+  wrap, including while the reply still streams. Their Copy button (named `Copy code`) stays hidden
+  and takes no room until a tap on the block shows it in the top-right corner; it copies the whole
+  block and hides again after copying or another tap, while a long press still opens the message
+  sheet. Inline code uses the monospace face. A block quote carries `Copy quote` the same way only
   when it spans several lines or exceeds 120 characters; a shorter quote keeps its full width.
 - Long-pressing a user bubble or an Agent reply opens a message sheet: `Copy Message` copies its
   whole text (a reply as its Markdown source), and `Select Text` shows that text selectable so any

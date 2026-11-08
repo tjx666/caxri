@@ -37,4 +37,13 @@ describe('conversation markdown parser', () => {
         expect(links(parseMarkdown('Open example.com or `https://example.com`.'))).toEqual([]);
         expect(links(parseMarkdown('```\nhttps://example.com\n```'))).toEqual([]);
     });
+
+    it('keys a node by its position, so a reparse or a streamed append keeps a code block mounted', () => {
+        const keys = (nodes: ASTNode[]): string[] =>
+            nodes.flatMap((node) => [node.key, ...keys(node.children)]);
+        const text = 'The limits:\n\n```\nadmin sets member limit\n```\n\n';
+        expect(keys(parseMarkdown(text))).toEqual(keys(parseMarkdown(text)));
+        const fenceKey = (nodes: ASTNode[]) => nodes.find((node) => node.type === 'fence')?.key;
+        expect(fenceKey(parseMarkdown(`${text}word1 word2`))).toBe(fenceKey(parseMarkdown(text)));
+    });
 });

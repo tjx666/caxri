@@ -17,3 +17,10 @@ export interface ConversationMessageTarget {
 export const ConversationMessageActions = createContext<
     ((message: ConversationMessageTarget) => void) | null
 >(null);
+
+/**
+ * Opens the actions of the message around it, for a control inside a message that takes its own presses (a code block
+ * that shows Copy on a tap) and so would otherwise swallow the long press the message listens for. Unset outside a
+ * message with actions.
+ */
+export const ConversationMessageLongPress = createContext<(() => void) | null>(null);

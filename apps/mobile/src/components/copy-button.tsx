@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import * as Clipboard from 'expo-clipboard';
@@ -21,6 +21,7 @@ const COPY_FEEDBACK_RESET_MS = 2000;
  */
 export const CopyButton = ({
     label: idleLabel,
+    onCopied,
     text,
     testID,
     theme,
@@ -30,6 +31,11 @@ export const CopyButton = ({
      * page apart. Defaults to "Copy"; the copied and failed states keep their own names.
      */
     label?: string;
+    /**
+     * Runs once a successful copy's confirmation has shown, for a parent that reveals Copy only on demand to hide it
+     * again.
+     */
+    onCopied?: () => void;
     /**
      * The text to copy, or a function that produces it on tap when building it costs more than a render should pay,
      * such as a quote's text re-parsed from a streaming reply.
@@ -44,9 +50,13 @@ export const CopyButton = ({
 }) => {
     const { t } = useTranslation();
     const [status, setStatus] = useState<'copied' | 'failed' | 'idle'>('idle');
+    const notifyCopied = useEffectEvent(() => onCopied?.());
     useEffect(() => {
         if (status === 'idle') return;
-        const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_RESET_MS);
+        const timer = setTimeout(() => {
+            setStatus('idle');
+            if (status === 'copied') notifyCopied();
+        }, COPY_FEEDBACK_RESET_MS);
         return () => clearTimeout(timer);
     }, [status]);
     const label = {
