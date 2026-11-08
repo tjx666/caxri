@@ -36,9 +36,11 @@ function collapsedGroupChanges(
     persisted: readonly StatusGroupId[],
     current: readonly StatusGroupId[],
 ): Record<string, true | undefined> {
+    const before = new Set(persisted);
+    const after = new Set(current);
     const changes: Record<string, true | undefined> = {};
-    for (const id of current) if (!persisted.includes(id)) changes[id] = true;
-    for (const id of persisted) if (!current.includes(id)) changes[id] = undefined;
+    for (const id of after.difference(before)) changes[id] = true;
+    for (const id of before.difference(after)) changes[id] = undefined;
     return changes;
 }
 
