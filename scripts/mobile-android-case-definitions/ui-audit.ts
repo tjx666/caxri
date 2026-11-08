@@ -46,6 +46,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'ui-audit-desktop-update',
     },
+    'MOB-UI-HEADER-ACTIONS-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-header-actions',
+    },
     'MOB-UI-08': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

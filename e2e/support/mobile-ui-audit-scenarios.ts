@@ -10,6 +10,7 @@ import {
 } from './mobile-android';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import { executeMobileDesktopUpdateSettings } from './mobile-desktop-update-scenario';
+import { captureScenarioFrame } from './mobile-scenario-capture';
 import {
     closeSessionSidePanel,
     openSessionSidePanel,
@@ -459,6 +460,62 @@ async function sessionSearch(
 }
 
 /**
+ * Holds a finger on a control and captures the frame mid-press, so the evidence shows the Android ripple rather than
+ * the settled state. The bounds are read before the gesture starts, because a semantic dump during the hold would
+ * outlast the wait before the capture.
+ */
+async function captureWhilePressed(
+    environment: UiAuditScenarioEnvironment,
+    checkId: string,
+    label: string,
+    artifacts: string[],
+): Promise<void> {
+    const nodes = await mobileSemantics(environment.serial);
+    const target = nodes.find((node) => node.checkId === checkId);
+    const bounds = target && androidBounds(target.bounds);
+    if (!bounds) throw new Error(`UI audit Acceptance did not reach ${checkId}`);
+    const x = String(Math.floor((bounds.left + bounds.right) / 2));
+    const y = String(Math.floor((bounds.top + bounds.bottom) / 2));
+    const hold = adbShell(environment.serial, ['input', 'swipe', x, y, x, y, '3000']);
+    await new Promise((resolve) => {
+        setTimeout(resolve, 700);
+    });
+    await captureScenarioFrame(environment, label, artifacts);
+    await hold;
+}
+
+/**
+ * The home header's trailing actions and the round New Session button, then the Session detail header's trailing
+ * actions, each settled and mid-press.
+ */
+async function headerActions(
+    environment: UiAuditScenarioEnvironment,
+    artifacts: string[],
+    sessionId: string,
+) {
+    const { serial } = environment;
+    await capture(environment, 'home', artifacts, 'new-session-button');
+    await captureWhilePressed(
+        environment,
+        'session-search-button',
+        'home-search-pressed',
+        artifacts,
+    );
+    // Releasing the hold opens search; Back returns to the list.
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-search-input'));
+    await adbShell(serial, ['input', 'keyevent', '4']);
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'new-session-button'));
+    await captureWhilePressed(environment, 'new-session-button', 'new-session-pressed', artifacts);
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'new-session-agent-claude'));
+    await adbShell(serial, ['input', 'keyevent', '4']);
+    await waitFor(serial, (nodes) => hasCheck(nodes, `session-row-${sessionId}`));
+    await openSession(serial, sessionId);
+    await capture(environment, 'detail', artifacts, 'session-detail-menu');
+    await captureWhilePressed(environment, 'session-detail-menu', 'detail-menu-pressed', artifacts);
+    await finish(environment, artifacts, { status: 'passed' });
+}
+
+/**
  * Runs the synthetic Acceptance cases for the page-by-page mobile UI audit.
  */
 export async function executeMobileUiAuditScenario(
@@ -513,6 +570,9 @@ export async function executeMobileUiAuditScenario(
             case 'MOB-UI-09':
             case 'MOB-UI-10':
                 await hostStatus(environment, artifacts, sessionId);
+                break;
+            case 'MOB-UI-HEADER-ACTIONS-01':
+                await headerActions(environment, artifacts, sessionId);
                 break;
             case 'MOB-SESSION-SEARCH-01':
             case 'MOB-SESSION-SEARCH-ZH-01':
