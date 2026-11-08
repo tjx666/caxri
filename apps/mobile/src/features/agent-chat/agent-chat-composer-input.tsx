@@ -1,18 +1,23 @@
 import type { RefObject } from 'react';
+import { useMemo, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
 import { TextInput } from 'react-native';
 
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
+import { AgentChatComposerDraft } from './agent-chat-composer-draft';
+import { agentChatComposerSpans } from './agent-chat-composer-spans';
 
 /**
  * The Chat's message field: Return inserts a new line, and the placeholder says whether a message starts a turn or
- * joins the running one.
+ * joins the running one. The draft renders its Markdown as it is typed, as Desktop's composer does: the field holds the
+ * exact text and draws it as styled runs (`agentChatComposerSpans`), so the message sent is what was typed.
  */
 export const AgentChatComposerInput = ({
     draft,
     focusComposer,
+    imagePlaceholders,
     inputReference,
     isEditable,
     isExpanded,
@@ -25,6 +30,14 @@ export const AgentChatComposerInput = ({
 }: {
     draft: string;
     focusComposer: boolean | undefined;
+    /**
+     * The draft's `[Image #N]` pills: which numbers attached images own, where the caret is, and whole-pill deletion.
+     */
+    imagePlaceholders: {
+        edited: (next: string) => string;
+        onCursorChange: (offset: number) => void;
+        owned: ReadonlySet<number>;
+    };
     inputReference: RefObject<TextInputInstance | null>;
     isEditable: boolean;
     /**
@@ -42,6 +55,11 @@ export const AgentChatComposerInput = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const [selection, setSelection] = useState({ end: draft.length, start: draft.length });
+    const spans = useMemo(
+        () => agentChatComposerSpans(draft, selection, imagePlaceholders.owned),
+        [draft, imagePlaceholders.owned, selection],
+    );
     return (
         <TextInput
             accessibilityHint={t(
@@ -52,7 +70,11 @@ export const AgentChatComposerInput = ({
             multiline
             numberOfLines={6}
             onBlur={() => onFocusChange(false)}
-            onChangeText={onDraftChange}
+            onChangeText={(next) => onDraftChange(imagePlaceholders.edited(next))}
+            onSelectionChange={(event) => {
+                setSelection(event.nativeEvent.selection);
+                imagePlaceholders.onCursorChange(event.nativeEvent.selection.end);
+            }}
             onFocus={() => {
                 onFocusChange(true);
                 if (focusComposer) onComposerFocused?.();
@@ -75,7 +97,8 @@ export const AgentChatComposerInput = ({
             ]}
             testID="agent-chat-composer-input"
             textAlignVertical="top"
-            value={draft}
-        />
+        >
+            <AgentChatComposerDraft spans={spans} theme={theme} />
+        </TextInput>
     );
 };

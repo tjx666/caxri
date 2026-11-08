@@ -9,6 +9,7 @@ import { useTranslation } from '../../../i18n';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileAgentChatSessionCommand } from '../../agent-chat/agent-chat-app-commands';
 import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
+import { AgentChatImageFlights } from '../../agent-chat/agent-chat-image-flights';
 import { useReleaseMessageEdit } from '../../agent-chat/use-release-message-edit';
 import { useSessionAgentChat } from '../../agent-chat/use-session-agent-chat';
 import { ChangesPanel } from '../../changes/changes-panel';
@@ -407,6 +408,7 @@ export const SessionDetail = ({
                     session={session}
                     theme={theme}
                 />
+                <AgentChatImageFlights isVisible={isVisible} />
             </View>
             {drawer.shown ? renderSidePanel(drawer.shown, isDrawerOpen, false) : null}
         </KeyboardAvoidingView>

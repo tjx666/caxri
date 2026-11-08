@@ -261,6 +261,17 @@ const composerStatusReason = ({
  * matching the Desktop composer. A message sent during a turn steers it, as Desktop's Enter does; the Queue button
  * beside it (or holding Steer) queues it for the turn's end instead, the phone's stand-in for Desktop's ⌘Enter.
  */
+/**
+ * Why an edit cannot send yet: it waits for the running turn (or a compaction) to end, as on Desktop; Core would refuse
+ * it.
+ */
+const agentChatEditWaitReason = (
+    chat: AgentChatController,
+    isRunning: boolean,
+    t: Translate,
+): string | undefined =>
+    isRunning || chat.snapshot?.operation === 'compacting' ? t('chat.edit.stopToSend') : undefined;
+
 export const AgentChatComposer = ({
     chat,
     deviceRole,
@@ -359,6 +370,7 @@ export const AgentChatComposer = ({
         chooseCommand,
         confirmsSendAsText,
         error,
+        imagePlaceholders,
         isRunningCommand,
         isSendingEdit,
         isStopping,
@@ -384,13 +396,7 @@ export const AgentChatComposer = ({
         onDraftChange: draftInput.setDraft,
         sessionId,
     });
-    /**
-     * An edit waits for the running turn (or a compaction) to end, as on Desktop; Core would refuse it.
-     */
-    const editWaitReason =
-        editing && (isRunning || chat.snapshot?.operation === 'compacting')
-            ? t('chat.edit.stopToSend')
-            : undefined;
+    const editWaitReason = editing ? agentChatEditWaitReason(chat, isRunning, t) : undefined;
     const inputReference = useFocusRequest({
         focusComposer,
         isEditable,
@@ -518,6 +524,7 @@ export const AgentChatComposer = ({
                         isExpanded={isExpanded}
                         isRunning={isRunning}
                         onComposerFocused={onComposerFocused}
+                        imagePlaceholders={imagePlaceholders}
                         onDraftChange={draftInput.onChangeText}
                         onFocusChange={setFocused}
                         provider={provider}

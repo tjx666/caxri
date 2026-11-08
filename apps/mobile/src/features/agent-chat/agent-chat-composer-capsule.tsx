@@ -1,10 +1,19 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles } from '../sessions/components/session-detail-styles';
+
+/**
+ * The capsule's height change as the draft gains or loses a line, or the capsule expands: short, on Desktop's enter
+ * curve (`--motion-ease-enter`), so the field answers each keystroke at once and still settles softly.
+ */
+const capsuleResize = LinearTransition.duration(160)
+    .easing(Easing.bezier(0.23, 1, 0.32, 1))
+    .reduceMotion(ReduceMotion.System);
 
 /**
  * The Chat composer's capsule in its two layouts (`agentChatComposerLayout`). Collapsed, it is one row: `+`, the input,
@@ -31,7 +40,8 @@ export const AgentChatComposerCapsule = ({
     settings: ReactNode;
     theme: MobileTheme;
 }) => (
-    <View
+    <Animated.View
+        layout={capsuleResize}
         style={[
             sessionDetailStyles.capsule,
             { backgroundColor: theme.surface, borderColor: theme.border },
@@ -50,7 +60,7 @@ export const AgentChatComposerCapsule = ({
                 {send}
             </View>
         ) : null}
-    </View>
+    </Animated.View>
 );
 
 const styles = StyleSheet.create({

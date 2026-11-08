@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AgentAction } from '@caxri/protocol';
 import {
@@ -16,11 +17,13 @@ import type { useImageAttachments } from '../sessions/hooks/use-image-attachment
 import { shouldHoldAgentChatSendAsText } from './agent-chat-commands';
 import type { AgentChatHandoffSource } from './agent-chat-handoff';
 import { agentChatHandoffText } from './agent-chat-handoff';
+import { prepareImageFlights } from './agent-chat-image-flight-store';
 import { isAgentChatStopping } from './agent-chat-model';
 import { sendAgentChatMessageOptimistically } from './agent-chat-pending';
 import type { AgentChatController } from './use-agent-chat';
 import type { useAgentChatAppCommands } from './use-agent-chat-app-commands';
 import { useAgentChatCommandRun } from './use-agent-chat-command-run';
+import { useAgentChatImagePlaceholders } from './use-agent-chat-image-placeholders';
 
 /**
  * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its error state. A message
@@ -66,6 +69,13 @@ export const useAgentChatComposerAction = ({
     provider: string;
 }) => {
     const { t } = useTranslation();
+    const isReducedMotion = useReducedMotion();
+    const imagePlaceholders = useAgentChatImagePlaceholders({
+        draft,
+        imageIds: images.attachments.map((image) => image.id),
+        remove: images.remove,
+        setDraft: onDraftChange,
+    });
     const [stoppingTurnId, setStoppingTurnId] = useState<string>();
     const [error, setError] = useState<string | null>(null);
     const [isSendingEdit, setSendingEdit] = useState(false);
@@ -174,8 +184,13 @@ export const useAgentChatComposerAction = ({
         }
         if (chat.pendingKey === null) return;
         const text = draft.trim();
-        const sentText = handoff ?? text;
         const sentImages = images.attachments;
+        const sentText =
+            handoff ??
+            imagePlaceholders.sentText(
+                text,
+                sentImages.map((image) => image.id),
+            );
         const references = images.readyChatImages;
         const sentFiles = files.attachments;
         const message = agentChatTextWithPathReferences(
@@ -183,6 +198,8 @@ export const useAgentChatComposerAction = ({
             files.readyPaths.map((path) => ({ path, isDirectory: false })),
             provider,
         );
+        // Measured before the composer clears, so each thumbnail flies from where it was into the pending message.
+        if (!isReducedMotion) await prepareImageFlights(sentImages.map((image) => image.uri));
         await sendAgentChatMessageOptimistically({
             clearComposer: () => {
                 onDraftChange('');
@@ -219,6 +236,10 @@ export const useAgentChatComposerAction = ({
         chooseCommand,
         confirmsSendAsText: confirmedDraft === draft,
         error,
+        /**
+         * The draft's `[Image #N]` pills, for the field to draw and edit.
+         */
+        imagePlaceholders,
         isRunningCommand: commands.isRunning,
         isSendingEdit,
         isStopping,
