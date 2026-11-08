@@ -88,6 +88,7 @@ export function SessionActivityCard({
     delegatedBy,
     delegationFailed = false,
     inPinnedGroup,
+    pendingAttention = false,
     project,
     pullRequest,
     pullRequestUnavailable,
@@ -117,6 +118,11 @@ export function SessionActivityCard({
      * Session is pinned: the pin has no mark of its own.
      */
     inPinnedGroup?: boolean;
+    /**
+     * Restates read Pending Attention until Mark as Done, matching the row glyph (see `sessionStatus`). Only the
+     * Activity view passes it.
+     */
+    pendingAttention?: boolean;
     /**
      * The owning Project, as the fields the card shows.
      */
@@ -166,6 +172,7 @@ export function SessionActivityCard({
     const statusLine = sessionCardStatusLine(session, terminal, t, {
         approvalPending,
         delegationFailed,
+        pendingAttention,
     });
     // The list's status slot collapses every attention kind into one signal; the description names the exact one.
     const unreadSentence = session.hasUnread

@@ -26,13 +26,14 @@ const STATUS_SLOT_CLASS: Record<Exclude<SessionStatus['kind'], 'default'>, strin
 
 /**
  * The lifecycle glyph shared by the PrimarySidebar's Project tree (right edge, where Codex and most chat lists put it),
- * the Activity view (ahead of the title), and the MRU switcher: Pending Attention breathes in amber until it is marked
- * Done and pings on arrival while unread, running spins, a detached Agent shows a static unplugged glyph, and a Chat
- * waiting for a usage limit to reset shows a clock. The leading Agent icon stays a plain brand-color mark, so its color
- * alone tells Agents apart.
+ * the Activity view (ahead of the title), and the MRU switcher: attention breathes in amber and pings on arrival while
+ * unread (in the Activity view, read Pending Attention keeps breathing until it is marked Done), running spins, a
+ * detached Agent shows a static unplugged glyph, and a Chat waiting for a usage limit to reset shows a clock. The
+ * leading Agent icon stays a plain brand-color mark, so its color alone tells Agents apart.
  *
  * Lifecycle outranks delivery: while a signal shows, the Session's pull request glyph (the `fallback`) steps aside and
- * stays reachable from the hover card and the row menu. It returns the moment the Agent settles and is marked Done.
+ * stays reachable from the hover card and the row menu. It returns the moment the Agent settles and its attention
+ * clears.
  *
  * A settled Session keeps the element in the DOM (its `data-session-status` is the contract lifecycle assertions read)
  * but collapses it to nothing, so callers that right-align their glyphs do not strand a neighbour a slot short of the
@@ -43,6 +44,7 @@ export function SessionStatusIndicator({
     approvalPending,
     delegationFailed,
     fallback,
+    pendingAttention,
     reserveSlot = false,
     session,
     terminal,
@@ -62,6 +64,10 @@ export function SessionStatusIndicator({
      */
     fallback?: ReactNode;
     /**
+     * Keeps a read Session amber until it is marked Done (see `sessionStatus`). Only the Activity view passes it.
+     */
+    pendingAttention?: boolean;
+    /**
      * Renders the settled state as a 14px placeholder rather than collapsing it. Use it when a neighbouring
      * variable-width column (the MRU switcher's relative timestamp) would otherwise shift as the status appears.
      */
@@ -74,6 +80,7 @@ export function SessionStatusIndicator({
     const status = sessionStatus(session, terminal ?? {}, t, {
         approvalPending,
         delegationFailed,
+        pendingAttention,
     });
     if (status.kind === 'default')
         return (

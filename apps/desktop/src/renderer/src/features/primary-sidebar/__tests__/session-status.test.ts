@@ -67,12 +67,15 @@ describe('Session list status', () => {
         });
     });
 
-    it('keeps read Pending Attention amber until Mark as Done, without the arrival ripple', () => {
+    it('clears read attention outside the Activity view, which keeps it until Mark as Done', () => {
         const read = sessionSource('completed', {
             hasPendingAttention: true,
             lastAttentionKind: 'completed',
         });
-        expect(sessionStatus(read, {}, translate)).toEqual({
+        // The Project tree, its heading counts, and the MRU switcher clear the cue once the Session is opened.
+        expect(sessionStatus(read, {}, translate)).toEqual({ kind: 'default' });
+        // The Activity view keeps it amber, without the arrival ripple.
+        expect(sessionStatus(read, {}, translate, { pendingAttention: true })).toEqual({
             ariaDescription: 'The Agent finished its latest turn.',
             ariaLabel: 'Needs attention, finished',
             isPending: true,
@@ -80,12 +83,16 @@ describe('Session list status', () => {
             variant: 'result',
         });
         expect(
-            sessionStatus(sessionSource('idle', { hasPendingAttention: true }), {}, translate),
+            sessionStatus(sessionSource('idle', { hasPendingAttention: true }), {}, translate, {
+                pendingAttention: true,
+            }),
         ).toMatchObject({ ariaLabel: 'Needs attention', isPending: true });
         // Mark as Done (or a new turn) resolves it.
-        expect(sessionStatus({ ...read, hasPendingAttention: false }, {}, translate)).toEqual({
-            kind: 'default',
-        });
+        expect(
+            sessionStatus({ ...read, hasPendingAttention: false }, {}, translate, {
+                pendingAttention: true,
+            }),
+        ).toEqual({ kind: 'default' });
     });
 
     it('shows the wait for a usage limit ahead of unread attention and a failed turn', () => {
@@ -404,7 +411,7 @@ describe('summarizeSessionStatuses', () => {
             // Running outranks unread, so this Session counts as running only.
             sessionSource('running', { hasUnread: true, lastAttentionKind: 'completed' }),
             sessionSource('idle'),
-            // Read but not marked Done still counts as attention.
+            // Read but not marked Done is settled in the Project tree, so the heading leaves it out.
             sessionSource('idle', { hasPendingAttention: true, lastAttentionKind: 'completed' }),
             sessionSource('idle'),
         ];
@@ -416,7 +423,7 @@ describe('summarizeSessionStatuses', () => {
                     session === compacting ? { agentOperation: 'compacting' } : undefined,
                 translate,
             ),
-        ).toEqual({ attention: 2, running: 3 });
+        ).toEqual({ attention: 1, running: 3 });
     });
 
     it('leaves a detached Agent out of the running count', () => {

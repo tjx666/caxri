@@ -280,6 +280,7 @@ export function AgentActivityRowTrigger({
                     status={
                         isRenaming ? undefined : (
                             <SessionStatusIndicator
+                                pendingAttention
                                 reserveSlot
                                 session={session}
                                 terminal={terminal}
