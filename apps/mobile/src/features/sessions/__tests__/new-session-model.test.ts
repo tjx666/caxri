@@ -346,4 +346,29 @@ describe('New Session availability across a Project switch', () => {
             }),
         ).toBeUndefined();
     });
+
+    it('opens on the saved answer for this pairing until the live read arrives', () => {
+        const saved = { agents: ['saved'] };
+        const base = {
+            connectionScopeKey: 'scope-a',
+            isReadEnabled: true,
+            previous: undefined,
+            previousScopeKey: undefined,
+            saved: { scope: 'scope-a', value: saved },
+        };
+        expect(newSessionAvailabilityPlaceholder(base)).toBe(saved);
+        const previous = { agents: ['previous Project'] };
+        expect(
+            newSessionAvailabilityPlaceholder({ ...base, previous, previousScopeKey: 'scope-a' }),
+        ).toBe(previous);
+        expect(
+            newSessionAvailabilityPlaceholder({
+                ...base,
+                saved: { scope: 'scope-b', value: saved },
+            }),
+        ).toBeUndefined();
+        expect(
+            newSessionAvailabilityPlaceholder({ ...base, isReadEnabled: false }),
+        ).toBeUndefined();
+    });
 });

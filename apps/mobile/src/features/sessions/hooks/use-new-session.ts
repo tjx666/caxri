@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { MethodResult } from '@caxri/protocol';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,6 +36,8 @@ export const useNewSession = () => {
         newSessionCreateState,
         newSessionSelection,
         requestComposerFocus,
+        saveAgentAvailability,
+        savedAgentAvailability,
         sessions,
         setNewSessionAgent,
         setNewSessionCreateState,
@@ -82,12 +84,18 @@ export const useNewSession = () => {
                 isReadEnabled: isAvailabilityReadEnabled,
                 previous,
                 previousScopeKey: previousQuery?.queryKey[2],
+                saved: savedAgentAvailability,
             }),
         refetchOnReconnect: false,
         refetchOnWindowFocus: false,
         retry: false,
         staleTime: 0,
     });
+    const liveAvailability = availability.isPlaceholderData ? undefined : availability.data;
+    useEffect(() => {
+        if (liveAvailability && connectionScopeKey !== null)
+            saveAgentAvailability(connectionScopeKey, liveAvailability);
+    }, [connectionScopeKey, liveAvailability, saveAgentAvailability]);
     const agents = availability.data?.agents ?? [];
     const selectedAgent = availableNewSessionAgent(newSessionSelection.agent, agents);
     const defaultSurface = newSessionDefaultSurface(availability.data?.openAgentsInChat);
@@ -136,7 +144,7 @@ export const useNewSession = () => {
         try {
             let launch = { agent: selectedAgent, surface: selectedSurface };
             if (availability.isPlaceholderData) {
-                // The cards still show the previous Project's answer; wait for this Project's own read (query
+                // The cards still show the previous Project's or the saved answer; wait for this Project's own read (query
                 // joins the one in flight) so a stale answer never launches an Agent this Project cannot run.
                 let fresh: MethodResult<'mobile.agent.availability'>;
                 try {

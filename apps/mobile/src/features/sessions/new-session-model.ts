@@ -228,24 +228,30 @@ export const confirmNewSessionLaunch = ({
         : null;
 
 /**
- * The previous Project's availability answer, kept on screen while the newly selected Project's read is in flight. Only
- * a read that is actually running on the same paired connection may borrow it: offline, the read is held back, and a
- * borrowed answer would show stale Agents as available instead of the reconnect hint.
+ * What the Agent cards show while the selected Project's availability read is in flight: the previous Project's answer
+ * when switching Project, else the answer this pairing saved last time, so opening New Session shows the Agents as they
+ * were instead of dimming every card for one round trip. Only a read that is actually running on the same paired
+ * connection may borrow either: offline, the read is held back, and a borrowed answer would show stale Agents as
+ * available instead of the reconnect hint. Like any placeholder, a saved answer never launches a Session by itself;
+ * Create re-checks the live answer with {@link confirmNewSessionLaunch}.
  */
 export const newSessionAvailabilityPlaceholder = <T>({
     connectionScopeKey,
     isReadEnabled,
     previous,
     previousScopeKey,
+    saved,
 }: {
     connectionScopeKey: string | null;
     isReadEnabled: boolean;
     previous: T | undefined;
     previousScopeKey: unknown;
-}): T | undefined =>
-    isReadEnabled && connectionScopeKey !== null && previousScopeKey === connectionScopeKey
-        ? previous
-        : undefined;
+    saved?: { scope: string; value: T } | null;
+}): T | undefined => {
+    if (!isReadEnabled || connectionScopeKey === null) return undefined;
+    if (previous !== undefined && previousScopeKey === connectionScopeKey) return previous;
+    return saved?.scope === connectionScopeKey ? saved.value : undefined;
+};
 
 /**
  * Availability is read only while connected. Offline, before any answer arrived, the read is held back rather than in
