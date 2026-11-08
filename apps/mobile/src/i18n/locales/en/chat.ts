@@ -349,6 +349,8 @@ export const chat = {
         'Plan: {{completed}} of {{total}} steps done. Current step: {{current}}',
     'chat.plan.title': 'Plan',
     'chat.providerFallback': 'the Agent',
+    'chat.promptSuggestion.label': 'Suggested message: {{suggestion}}',
+    'chat.promptSuggestion.useHint': 'Fills the message field so you can edit or send it.',
     'chat.question.answerLabel': 'Answer: {{question}}',
     'chat.question.back': 'Back',
     'chat.question.next': 'Next',

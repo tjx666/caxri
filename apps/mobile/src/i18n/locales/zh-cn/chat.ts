@@ -330,6 +330,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.plan.progressCurrent': '计划：已完成 {{completed}}/{{total}} 步。当前步骤：{{current}}',
     'chat.plan.title': '计划',
     'chat.providerFallback': 'Agent',
+    'chat.promptSuggestion.label': '建议消息：{{suggestion}}',
+    'chat.promptSuggestion.useHint': '填入输入框，可修改后再发送。',
     'chat.question.answerLabel': '回答：{{question}}',
     'chat.question.back': '上一个',
     'chat.question.next': '下一个',

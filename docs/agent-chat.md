@@ -1855,6 +1855,10 @@ Caxri adds no setting of its own. Codex has no counterpart, so a Codex Chat offe
   "Edit from here" keep their own placeholder instead (`agentChatOfferedPromptSuggestion`). Tab in
   the empty input puts the suggestion in it as an edit (Cmd+Z takes it out) without sending it; with
   any text, or with a modifier, Tab keeps its usual meaning (`isAgentChatAcceptSuggestionKey`).
+- **Mobile.** The phone has no Tab, so its composer shows the suggestion as a chip right above the
+  capsule instead of a placeholder; tapping it fills the input and focuses it without sending. It
+  appears under the same rules: the input is empty and can send, and no edit, command menu, or
+  mention list holds it (`apps/mobile/src/features/agent-chat/agent-chat-prompt-suggestion.ts`).
 
 ## Context usage and cache
 

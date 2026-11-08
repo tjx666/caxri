@@ -22,7 +22,6 @@ import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { useIsAttachmentStripShown } from '../sessions/hooks/use-is-attachment-strip-shown';
 import { imageAttachmentBudgetNote } from '../sessions/image-attachment-store';
 import type { MobileAgentChatSessionCommand } from './agent-chat-app-commands';
-import { AgentChatCommandList } from './agent-chat-command-list';
 import { agentChatMenuMatches, agentChatSkillNotice } from './agent-chat-commands';
 import {
     AddButton,
@@ -31,9 +30,9 @@ import {
 } from './agent-chat-composer-buttons';
 import { AgentChatComposerCapsule } from './agent-chat-composer-capsule';
 import { AgentChatComposerInput } from './agent-chat-composer-input';
+import { AgentChatComposerMenus } from './agent-chat-composer-menus';
 import { AgentChatUsageNotices } from './agent-chat-credits-notice';
 import { AgentChatEditBanner } from './agent-chat-edit-banner';
-import { AgentChatMentionList } from './agent-chat-mention-list';
 import {
     agentChatComposerAvailability,
     agentChatComposerLayout,
@@ -41,6 +40,7 @@ import {
     agentChatComposerSubmission,
     agentChatDisabledReason,
 } from './agent-chat-model';
+import { AgentChatPromptSuggestionChip } from './agent-chat-prompt-suggestion-chip';
 import { AgentChatSettingsRow, AgentChatSettingsSheets } from './agent-chat-settings';
 import { AgentChatContextNotice } from './context/agent-chat-context-notice';
 import type { AgentChatController } from './use-agent-chat';
@@ -472,23 +472,12 @@ export const AgentChatComposer = ({
                 theme={theme}
             />
             <SessionComposerAttachments files={files} images={images} theme={theme} />
-            <AgentChatCommandList
+            <AgentChatComposerMenus
                 confirmsSendAsText={confirmsSendAsText}
                 isEnabled={isEditable}
-                matches={menu.matches}
-                notice={menu.notice}
-                onChoose={chooseCommand}
-                theme={theme}
-            />
-            <AgentChatMentionList
-                isEnabled={isEditable}
-                isError={mentions.isError}
-                isSearching={mentions.isSearching}
-                onChoose={(row) => {
-                    void mentions.choose(row);
-                }}
-                preparingSessionId={mentions.preparingSessionId}
-                rows={mentions.rows}
+                menu={menu}
+                mentions={mentions}
+                onChooseCommand={chooseCommand}
                 theme={theme}
             />
             <AgentChatComposerStatus
@@ -496,6 +485,16 @@ export const AgentChatComposer = ({
                 isStopping={isStopping}
                 provider={provider}
                 reason={statusReason}
+                theme={theme}
+            />
+            <AgentChatPromptSuggestionChip
+                draft={draft}
+                isEditable={isEditable}
+                isEditing={editing !== undefined}
+                isMenuOpen={isMenuOpen}
+                inputReference={inputReference}
+                onDraftChange={draftInput.setDraft}
+                snapshot={chat.snapshot}
                 theme={theme}
             />
             <AgentChatComposerCapsule
