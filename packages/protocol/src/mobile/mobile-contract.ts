@@ -196,7 +196,7 @@ const mobileAgentAvailabilitySchema = z.strictObject({
     available: z.boolean(),
     reason: z.string().min(1).max(200).optional(),
 });
-const mobileAgentAvailabilityResultSchema = z.strictObject({
+export const mobileAgentAvailabilityResultSchema = z.strictObject({
     /**
      * One entry per Terminal kind, so a newly catalogued Agent extends the list instead of failing the response.
      */

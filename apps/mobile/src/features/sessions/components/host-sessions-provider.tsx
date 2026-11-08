@@ -4,8 +4,11 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { usePathname } from 'expo-router';
 
+import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useSavedPanels } from '../../panels/use-panels';
 import { isDashboardRouteVisible } from '../dashboard-query';
+import type { SavedAgentAvailability } from '../hooks/use-saved-agent-availability';
+import { useSavedAgentAvailability } from '../hooks/use-saved-agent-availability';
 import { useSavedDrafts } from '../hooks/use-saved-drafts';
 import { useSessionPolling } from '../hooks/use-session-polling';
 import type { NewSessionCreateState, NewSessionSelection } from '../new-session-model';
@@ -33,6 +36,11 @@ interface HostSessionsContextValue {
     sessions: ReturnType<typeof useSessionPolling>;
     ui: HostSessionUiState;
     newSessionSelection: NewSessionSelection;
+    /**
+     * The last Agent availability answer this pairing read, shown on New Session while its own read is in flight.
+     */
+    savedAgentAvailability: SavedAgentAvailability | null;
+    saveAgentAvailability: ReturnType<typeof useSavedAgentAvailability>['save'];
     newSessionCreateState: NewSessionCreateState;
     focusComposerSessionId: string | null;
     consumeComposerFocus: (sessionId: string) => void;
@@ -75,6 +83,9 @@ export const HostSessionsProvider = ({
     );
     useSavedDrafts(ui.draftBySession, setUi);
     useSavedPanels();
+    const { connectionScopeKey } = useMobileClient();
+    const { save: saveAgentAvailability, saved: savedAgentAvailability } =
+        useSavedAgentAvailability(connectionScopeKey);
     const [newSessionSelection, setNewSessionSelection] = useState(emptyNewSessionSelection);
     const [newSessionCreateState, setNewSessionCreateState] = useState<NewSessionCreateState>({
         kind: 'idle',
@@ -129,6 +140,8 @@ export const HostSessionsProvider = ({
             sessions,
             ui,
             newSessionSelection,
+            savedAgentAvailability,
+            saveAgentAvailability,
             newSessionCreateState,
             focusComposerSessionId,
             consumeComposerFocus,
@@ -149,6 +162,8 @@ export const HostSessionsProvider = ({
             sessions,
             ui,
             newSessionSelection,
+            savedAgentAvailability,
+            saveAgentAvailability,
             newSessionCreateState,
             focusComposerSessionId,
             consumeComposerFocus,

@@ -3,6 +3,7 @@ import type {
     AgentChatSnapshot,
     AgentTimelineItem,
     DeviceStoreEntry,
+    MethodResult,
     MobileDashboardResult,
 } from '@caxri/protocol';
 import {
@@ -10,6 +11,7 @@ import {
     agentTimelineItemSchema,
     findAgentChatModel,
     findAgentChatNamedModel,
+    mobileAgentAvailabilityResultSchema,
     mobileDashboardResultSchema,
 } from '@caxri/protocol';
 import { z } from 'zod';
@@ -30,6 +32,7 @@ export const READ_CACHE_MAX_ITEMS = 50;
 export const READ_CACHE_MAX_CONVERSATIONS = 20;
 
 export type ReadCacheKey =
+    | { kind: 'agentAvailability' }
     | { kind: 'dashboard' }
     | { kind: 'drafts' }
     | { kind: 'panels' }
@@ -40,6 +43,9 @@ export type ReadCacheEntry<Value> = DeviceStoreEntry<Value>;
 
 export const readCacheFileName = (key: ReadCacheKey): string => {
     switch (key.kind) {
+        case 'agentAvailability': {
+            return 'agent-availability.json';
+        }
         case 'dashboard': {
             return 'dashboard.json';
         }
@@ -70,6 +76,13 @@ export const liveReadSaveScope = (
     readScope: string | undefined,
     currentScope: string | null,
 ): string | null => (readScope !== undefined && readScope === currentScope ? readScope : null);
+
+/**
+ * The New Session screen's last Agent availability answer, so its Agent cards open on that answer instead of a
+ * "Checking availability…" placeholder that lights up one round trip later.
+ */
+export const cachedAgentAvailabilitySchema: z.ZodType<MethodResult<'mobile.agent.availability'>> =
+    mobileAgentAvailabilityResultSchema;
 
 export const cachedDashboardSchema: z.ZodType<MobileDashboardResult> = mobileDashboardResultSchema;
 
