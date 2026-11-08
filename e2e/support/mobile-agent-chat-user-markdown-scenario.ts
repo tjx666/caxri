@@ -10,21 +10,24 @@ import {
 } from './mobile-android';
 
 /**
- * A list item long enough to wrap inside the bubble's 85% width. The bubble sizes to its content, and a list line that
- * measured its words unwrapped left the wrapped line, and every block after it, hanging below the bubble.
+ * A numbered item long enough to wrap inside the bubble's 85% width. The bubble sizes to its content, and a list line
+ * that measured its words unwrapped left the wrapped line, and the item after it, hanging below the bubble.
  */
 const WRAPPING_ITEM = '点击发送时图片的 view transition 从输入框飞进刚发出的消息气泡里';
 
 /**
- * A user message with every block Desktop's bubble renders: bold and inline code in a line, a quote, and a bullet list
- * whose middle item wraps.
+ * A user message with every block Desktop's bubble renders: bold and inline code in a line, a quote, a bullet list, and
+ * a numbered list whose third item wraps, as in the report that found the overflow.
  */
 const MARKDOWN_MESSAGE = [
     '这个是写了**迁移脚本**?看 `0004` 文件',
     '> 迁移给现有渠道各建一份凭证',
     '- 第一项',
-    `- ${WRAPPING_ITEM}`,
     '- 第二项',
+    '1. 输入时所见即所得',
+    '2. 内联图片显示',
+    `3. ${WRAPPING_ITEM}`,
+    '4. 输入框高度变化动画',
 ].join('\n');
 
 /**
@@ -36,9 +39,17 @@ const RENDERED_LINES = [
     '这个是写了迁移脚本?看 0004 文件',
     '迁移给现有渠道各建一份凭证',
     '第一项',
-    WRAPPING_ITEM,
     '第二项',
+    '输入时所见即所得',
+    '内联图片显示',
+    WRAPPING_ITEM,
+    '输入框高度变化动画',
 ] as const;
+
+/**
+ * The block of `RENDERED_LINES` that must wrap, so the containment check below proves the case it was written for.
+ */
+const WRAPPING_BLOCK = RENDERED_LINES.indexOf(WRAPPING_ITEM);
 
 /**
  * `MOB-CHAT-USER-MARKDOWN-01`: the user's own message reads as Desktop's bubble shows it. Bold and inline code lose
@@ -84,17 +95,26 @@ export async function executeMobileChatUserMarkdownScenario(
             if (!line.exists || line.textMatches !== true)
                 throw new Error(`The user bubble does not show "${text}" with its markers hidden`);
         }
+        // Captured before judging, so a bubble that spills is on record as the reader saw it.
+        await capture(environment, 'user-markdown-bubble', artifacts);
         const bubble = checkBounds(
             semantics,
             `conversation-user-bubble-${prefix.slice('conversation-user-text-'.length, -'-'.length)}`,
         );
         if (!bubble) throw new Error('The user bubble is not laid out');
+        const wrapped = checkBounds(semantics, `${prefix}${WRAPPING_BLOCK}`);
+        const single = checkBounds(semantics, `${prefix}${WRAPPING_BLOCK + 1}`);
+        if (
+            !wrapped ||
+            !single ||
+            wrapped.bottom - wrapped.top < 1.5 * (single.bottom - single.top)
+        )
+            throw new Error('The long list item did not wrap, so the bubble check proves nothing');
         for (const position of RENDERED_LINES.keys()) {
             const block = checkBounds(semantics, `${prefix}${position}`);
             if (!block || !isInside(block, bubble))
                 throw new Error(`Block ${position} of the user message spills outside its bubble`);
         }
-        await capture(environment, 'user-markdown-bubble', artifacts);
 
         await finish(environment, artifacts, {
             renderedLines: RENDERED_LINES.length,

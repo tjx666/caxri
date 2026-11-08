@@ -1,13 +1,7 @@
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import {
-    agentText,
-    checkBounds,
-    hasCheck,
-    isInside,
-    waitForCheck,
-} from './mobile-agent-chat-helpers';
+import { agentText, checkBounds, isInside, waitForCheck } from './mobile-agent-chat-helpers';
 import {
     mobileSemantics,
     tapMobileCheck,
@@ -20,9 +14,9 @@ const QUESTION = 'agent-chat-question-0-text';
 /**
  * `MOB-CHAT-QUESTION-MARKDOWN-01`: a question the Agent writes in Markdown (`ask markdown` in the fake Claude CLI:
  * bold, inline code, and a numbered list) reads in the phone's question card as Desktop's card shows it, rendered like
- * a reply instead of one bold block with its markers. A question past three lines folds behind Show more, which opens
- * it in place. The screenshots carry the rendering; the bounds prove the folded and opened question both stay in the
- * card.
+ * a reply instead of one bold block with its markers. The question runs past three lines, so it folds behind Show more,
+ * which opens it in place inside the card. The screenshots carry the rendering, which the UI tree cannot show: the
+ * Markdown's text runs carry no test IDs.
  */
 export async function executeMobileChatQuestionMarkdownScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -44,34 +38,25 @@ export async function executeMobileChatQuestionMarkdownScenario(
         await chat.send({ text: 'ask markdown' });
         await waitForCheck(serial, 'agent-chat-question-0-option-0');
 
-        const assertInCard = async (state: string) => {
-            const nodes = await mobileSemantics(serial);
-            const card = checkBounds(nodes, 'agent-chat-request');
-            const question = checkBounds(nodes, QUESTION);
-            if (!card || !question) throw new Error(`The question card is not laid out (${state})`);
-            if (!isInside(question, card))
-                throw new Error(`The ${state} question spills outside its card`);
-            return nodes;
-        };
-        const folded = await assertInCard('folded');
+        // The fixture question runs past three lines, so the card folds it behind Show more.
+        await waitForCheck(serial, `${QUESTION}-toggle`);
         await capture(environment, 'question-markdown-folded', artifacts);
+        const folded = checkBounds(await mobileSemantics(serial), QUESTION);
+        if (!folded) throw new Error('The folded question is not laid out');
 
-        const isFoldable = hasCheck(folded, `${QUESTION}-toggle`);
-        if (isFoldable) {
-            await tapMobileCheckByBounds(serial, `${QUESTION}-toggle`);
-            await waitForMobile(
-                () => mobileSemantics(serial),
-                (nodes) => {
-                    const before = checkBounds(folded, QUESTION);
-                    const after = checkBounds(nodes, QUESTION);
-                    return Boolean(
-                        before && after && after.bottom - after.top > before.bottom - before.top,
-                    );
-                },
-            );
-            await assertInCard('opened');
-            await capture(environment, 'question-markdown-opened', artifacts);
-        }
+        await tapMobileCheckByBounds(serial, `${QUESTION}-toggle`);
+        const opened = await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => {
+                const after = checkBounds(nodes, QUESTION);
+                return Boolean(after && after.bottom - after.top > folded.bottom - folded.top);
+            },
+        );
+        await capture(environment, 'question-markdown-opened', artifacts);
+        const card = checkBounds(opened, 'agent-chat-request');
+        const question = checkBounds(opened, QUESTION);
+        if (!card || !question || !isInside(question, card))
+            throw new Error('The opened question spills outside its card');
 
         await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-0');
         await waitForMobile(
@@ -83,7 +68,6 @@ export async function executeMobileChatQuestionMarkdownScenario(
         );
 
         await finish(environment, artifacts, {
-            folded: isFoldable,
             status: 'passed',
         });
     } finally {

@@ -11,13 +11,15 @@ import type { FakeClaudeIo } from './fake-claude-io.ts';
 
 /**
  * A question written in Markdown, as Agents often ask: bold, inline code, and a numbered list, which the question card
- * renders as it renders a reply.
+ * renders as it renders a reply. It runs past the card's three folded lines, so the card offers Show more.
  */
 const FAKE_CLAUDE_MARKDOWN_QUESTION = [
     'How should the **migration** roll out to `main`?',
     '',
     '1. Back up the database',
     '2. Run the migration',
+    '3. Check the error rate for an hour',
+    '4. Remove the old columns',
 ].join('\n');
 
 type Json = Record<string, unknown>;
