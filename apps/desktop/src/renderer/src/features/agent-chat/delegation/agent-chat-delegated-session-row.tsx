@@ -22,37 +22,57 @@ import { DelegationRetryControls } from '../../delegation/delegation-retry-contr
 import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
 import { SessionPullRequestIndicator } from '../../primary-sidebar/session-pull-request-indicator';
 import { sessionTitleForDisplay } from '../../session/session-title';
-import { delegatedSessionLine, delegationPrFilesLabel } from './agent-chat-delegated-sessions';
+import {
+    delegatedOwnPullRequest,
+    delegatedSessionLine,
+    delegationPrFilesLabel,
+} from './agent-chat-delegated-sessions';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import type { DelegatedCostLabel } from './cost/agent-chat-delegated-cost';
 import { useCanOpenDelegatedChild } from './hooks/use-can-open-delegated-child';
 import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 /**
- * A finished task's pull request, with the whole pull request's file count. Mounted only for a completed row, so a row
- * that is still working does not subscribe to the pull request snapshot. Shows nothing without a discovered pull
- * request; the file count is left out when GitHub reported none.
+ * A finished task's own pull request as a compact `#N` link on the summary line's right edge, under the cost and
+ * elapsed columns, so the row stays two lines tall. It is the button's sibling, absolutely placed, because a link
+ * nested inside the row's button would be invalid interactive content. The trailing columns reserve its width
+ * (`min-w-14`). Shows nothing when the task has no pull request or reports the delegating Session's own
+ * (`delegatedOwnPullRequest`). Mounted only for a completed row, so a row still working does not subscribe to the pull
+ * request snapshot.
  */
-function DelegatedResultMeta({ sessionId }: { sessionId: string }) {
+function DelegatedPullRequestLink({
+    parentSessionId,
+    sessionId,
+}: {
+    parentSessionId: string;
+    sessionId: string;
+}) {
     const { t } = useTranslation();
-    const { pullRequest } = useSessionPullRequest(sessionId);
+    const { pullRequest: child } = useSessionPullRequest(sessionId);
+    const { pullRequest: parent } = useSessionPullRequest(parentSessionId);
+    const pullRequest = delegatedOwnPullRequest(child, parent);
     if (!pullRequest) return null;
-    const files = delegationPrFilesLabel(pullRequest.changedFiles, t);
+    const label = [
+        t('delegation.strip.openPullRequest', { number: pullRequest.number }),
+        delegationPrFilesLabel(pullRequest.changedFiles, t),
+    ]
+        .filter(Boolean)
+        .join(' · ');
     return (
-        <span className="flex min-w-0 items-center gap-1.5 pl-8 text-[12px] leading-5 text-muted">
-            <SessionPullRequestIndicator pullRequest={pullRequest} />
+        <Tooltip content={label}>
             <button
-                className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                aria-label={label}
+                className="absolute top-[22px] right-[30px] flex h-5 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[12px] leading-5 text-accent tabular-nums underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={() => {
                     // openExternalUrl reports its own rejection through the callback.
                     void openExternalUrl(pullRequest.url, (message) => pushToast('error', message));
                 }}
             >
-                {t('delegation.strip.openPullRequest', { number: pullRequest.number })}
+                <SessionPullRequestIndicator pullRequest={pullRequest} />
+                {`#${pullRequest.number}`}
             </button>
-            {files && <span className="shrink-0 tabular-nums">{files}</span>}
-        </span>
+        </Tooltip>
     );
 }
 
@@ -131,13 +151,21 @@ function DelegatedSessionRowContent({
                     {line.kind === 'status' && line.detail && ` · ${line.detail}`}
                 </span>
             </span>
-            {cost && (
-                <span className="shrink-0 tabular-nums">
-                    <span aria-hidden="true">{cost.text}</span>
-                    <span className="sr-only">{cost.description}</span>
-                </span>
-            )}
-            {elapsed && <span className="shrink-0 tabular-nums">{elapsed}</span>}
+            {/* A completed row reserves the width its pull request link takes on the line below. */}
+            <span
+                className={cn(
+                    'flex shrink-0 justify-end gap-2 tabular-nums',
+                    entry.status === 'completed' && 'min-w-14',
+                )}
+            >
+                {cost && (
+                    <span>
+                        <span aria-hidden="true">{cost.text}</span>
+                        <span className="sr-only">{cost.description}</span>
+                    </span>
+                )}
+                {elapsed && <span>{elapsed}</span>}
+            </span>
             <AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />
         </>
     );
@@ -148,16 +176,17 @@ const ROW_CLASS_NAME =
 
 /**
  * One child Session in the Delegated Sessions strip: the Agent, the child's title and Project, what it is doing or what
- * it produced, how long it ran, and the state glyph. The whole row opens the child; a pull request link sits under it
- * and a failed task's Retry action sit under it as their own controls. The button has no `aria-label` of its own: its
- * content (title, Project, step or summary, elapsed time, and the glyph's label) names it, so assistive technology
- * hears what a sighted user reads. A child the Workbench no longer lists (deleted, or in a hidden Project), or a failed
- * one that never launched a Terminal, stays as a plain row.
+ * it produced, how long it ran, and the state glyph. The whole row opens the child; its own pull request link sits on
+ * the summary line's right edge and a failed task's Retry action sits under it, each as its own control. The button has
+ * no `aria-label` of its own: its content (title, Project, step or summary, elapsed time, and the glyph's label) names
+ * it, so assistive technology hears what a sighted user reads. A child the Workbench no longer lists (deleted, or in a
+ * hidden Project), or a failed one that never launched a Terminal, stays as a plain row.
  */
 export function AgentChatDelegatedSessionRow({
     attempt,
     cost,
     entry,
+    parentSessionId,
     viaSessionId,
 }: {
     /**
@@ -169,6 +198,10 @@ export function AgentChatDelegatedSessionRow({
      */
     cost?: DelegatedCostLabel;
     entry: AgentDelegationSession;
+    /**
+     * The Session whose Chat shows the strip; a task's pull request that is also this Session's is not repeated.
+     */
+    parentSessionId?: string;
     /**
      * The direct child this row sits under, for a deeper Session the roll-up lists; absent for a direct child.
      */
@@ -201,7 +234,10 @@ export function AgentChatDelegatedSessionRow({
         />
     );
     return (
-        <li className="flex min-w-0 flex-col" data-agent-chat-delegated-session={entry.sessionId}>
+        <li
+            className="relative flex min-w-0 flex-col"
+            data-agent-chat-delegated-session={entry.sessionId}
+        >
             {isOpenable ? (
                 <Tooltip content={presetSummary} disabled={presetSummary === undefined}>
                     <button
@@ -218,8 +254,11 @@ export function AgentChatDelegatedSessionRow({
             ) : (
                 <div className={ROW_CLASS_NAME}>{content}</div>
             )}
-            {entry.status === 'completed' && session && (
-                <DelegatedResultMeta sessionId={entry.sessionId} />
+            {entry.status === 'completed' && session && parentSessionId && (
+                <DelegatedPullRequestLink
+                    parentSessionId={parentSessionId}
+                    sessionId={entry.sessionId}
+                />
             )}
             {session && (
                 <DelegationRetryControls
