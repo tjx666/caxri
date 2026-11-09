@@ -19,7 +19,14 @@ import {
 } from '../agent-notification-runtime';
 import { createAgentNotificationCoordinator } from '../agent-notifications';
 
-function harness(sessions: Array<{ archivedAt?: number; id: string }>) {
+function harness(
+    sessions: Array<{
+        archivedAt?: number;
+        createdByRelation?: 'consult' | 'delegated';
+        createdBySessionId?: string;
+        id: string;
+    }>,
+) {
     const calls: string[] = [];
     const focusMainWindow = vi.fn(() => {
         calls.push('focus');
@@ -94,5 +101,51 @@ describe('Agent notification activation', () => {
 
         expect(test.calls).toEqual(['focus', 'app.bootstrap']);
         expect(test.request).not.toHaveBeenCalledWith('session.select', expect.anything());
+    });
+
+    it('selects the asking Chat when a consult notification is clicked', async () => {
+        const test = harness([
+            { id: 'parent' },
+            { id: 'review', createdByRelation: 'consult', createdBySessionId: 'parent' },
+            { id: 'nested', createdByRelation: 'consult', createdBySessionId: 'review' },
+        ]);
+
+        await activateAgentNotificationSession(test.options, 'nested');
+
+        expect(test.request).toHaveBeenLastCalledWith('session.select', {
+            sessionId: 'parent',
+            windowKey: 'main',
+        });
+    });
+
+    it.each([
+        ['archived', [{ id: 'parent', archivedAt: 10 }]],
+        ['deleted', []],
+    ])('selects the consult itself when its creator is %s', async (_state, creators) => {
+        const test = harness([
+            ...creators,
+            { id: 'review', createdByRelation: 'consult', createdBySessionId: 'parent' },
+        ]);
+
+        await activateAgentNotificationSession(test.options, 'review');
+
+        expect(test.request).toHaveBeenLastCalledWith('session.select', {
+            sessionId: 'review',
+            windowKey: 'main',
+        });
+    });
+
+    it('selects a delegated Session itself', async () => {
+        const test = harness([
+            { id: 'parent' },
+            { id: 'task', createdByRelation: 'delegated', createdBySessionId: 'parent' },
+        ]);
+
+        await activateAgentNotificationSession(test.options, 'task');
+
+        expect(test.request).toHaveBeenLastCalledWith('session.select', {
+            sessionId: 'task',
+            windowKey: 'main',
+        });
     });
 });
