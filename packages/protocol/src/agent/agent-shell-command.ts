@@ -1,5 +1,7 @@
 import type { AgentShellCliAction } from './tool-rows/shell/agent-shell-cli.js';
 import { describeCliStep, optionValue } from './tool-rows/shell/agent-shell-cli.js';
+import type { SearchPatternDialect } from './tool-rows/shell/agent-shell-search-pattern.js';
+import { searchPatternTerms } from './tool-rows/shell/agent-shell-search-pattern.js';
 
 /**
  * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project,
@@ -14,7 +16,17 @@ export type AgentShellCommandAction =
      * `isFileNames` when the pattern filters a file listing (`rg --files src | rg '\.test\.ts$'`) rather than file
      * contents.
      */
-    | { kind: 'search'; pattern: string; path?: string; isFileNames?: boolean }
+    | {
+          kind: 'search';
+          pattern: string;
+          /**
+           * What the pattern looks for, as a person reads it: `grep "foo\|bar\.ts"` searches `foo` and `bar.ts`. See
+           * `searchPatternTerms`.
+           */
+          terms: string[];
+          path?: string;
+          isFileNames?: boolean;
+      }
     | { kind: 'list'; path?: string }
     /**
      * `targets` are the test files or directories the run names; `command` is the run without wrappers such as `rtk`.
@@ -265,6 +277,24 @@ function positionals(
     return pattern === undefined ? { values } : { values, pattern };
 }
 
+/**
+ * Which regular expression syntax a search command reads its pattern in. Short flags may be clustered (`grep -rnE`).
+ */
+function searchDialect(name: string, arguments_: readonly string[]): SearchPatternDialect {
+    const hasFlag = (short: string, long: readonly string[]): boolean =>
+        arguments_.some(
+            (argument) =>
+                long.includes(argument) ||
+                (/^-[A-Za-z]+$/u.test(argument) && argument.includes(short)),
+        );
+    if (name === 'ag' || name === 'ack') return hasFlag('Q', ['--literal']) ? 'fixed' : 'extended';
+    if (hasFlag('F', ['--fixed-strings'])) return 'fixed';
+    if (name !== 'grep') return 'extended';
+    return hasFlag('E', ['--extended-regexp']) || hasFlag('P', ['--perl-regexp'])
+        ? 'extended'
+        : 'basic';
+}
+
 function describeStage(words: readonly string[]): ExploreAction | null {
     const [name = '', ...arguments_] = words;
     const { values, pattern: optionPattern } = positionals(name, arguments_);
@@ -282,8 +312,11 @@ function describeStage(words: readonly string[]): ExploreAction | null {
         }
         const pattern = optionPattern ?? values.at(0);
         if (pattern === undefined) return null;
+        const terms = searchPatternTerms(pattern, searchDialect(name, arguments_));
         const path = values.at(optionPattern === undefined ? 1 : 0);
-        return path === undefined ? { kind: 'search', pattern } : { kind: 'search', pattern, path };
+        return path === undefined
+            ? { kind: 'search', pattern, terms }
+            : { kind: 'search', pattern, terms, path };
     }
     if (LIST_COMMANDS.has(name)) {
         const path = values.at(0);
@@ -312,6 +345,7 @@ function describeExplorePipeline(stages: readonly string[][]): ExploreAction | n
         filtered = {
             kind: 'search',
             pattern: filter.pattern,
+            terms: filter.terms,
             ...(filtered.path !== undefined && { path: filtered.path }),
             isFileNames: true,
         };
