@@ -50,7 +50,7 @@ async function compose() {
     const interruptTerminal = vi.fn<AgentDelegationService['interruptTerminal']>();
     const observeChatProgress = vi.fn<AgentDelegationService['observeChatProgress']>();
     const send = vi.fn<ChatServiceInput['send']>();
-    const service = createAgentChatService({
+    const { agentChat: service } = createAgentChatService({
         agentRuntime: {
             dispatchState: { observe: vi.fn() },
             usageGuards: { subscribe: vi.fn() },

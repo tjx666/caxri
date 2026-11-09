@@ -24,7 +24,6 @@ function options(instructions?: string) {
         sessionId: 'session-1',
         spawn: vi.fn(),
         canUseTool: vi.fn(),
-        hooks: {},
     });
 }
 

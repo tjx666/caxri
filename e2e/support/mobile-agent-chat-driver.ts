@@ -12,9 +12,15 @@ export interface MobileAgentChatDriver {
      */
     cancelUsageWait(): Promise<void>;
     /**
-     * Changes the Chat's next-turn choices (such as plan mode) through the paired Desktop's public Chat action.
+     * Changes the Chat's next-turn choices (plan mode, or the model picker's model, effort, and Reset to default)
+     * through the paired Desktop's public Chat action.
      */
-    configure(change: { planMode: boolean }): Promise<void>;
+    configure(change: {
+        planMode?: boolean;
+        model?: string;
+        effort?: string;
+        resetChoice?: true;
+    }): Promise<void>;
     interrupt(): Promise<void>;
     read(): Promise<AgentChatSnapshot>;
     /**

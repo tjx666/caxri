@@ -33,7 +33,6 @@ import type {
     ChatSideExchange,
     ChatTaskHistory,
 } from '../../chat-provider';
-import { AgentChatStartError } from '../../chat-provider';
 import { isClaudeGoalClearDuringTurn } from '../../goals/claude-goals';
 import { claudeHistoryOperations } from '../../history/claude-history';
 import { didClaudeInterruptTimeout, stopClaudeTurn } from '../../interrupt/claude-interrupt';
@@ -61,7 +60,6 @@ import { claudeAssistantItems } from './items';
 import { readClaudeMcpServer } from './mcp-servers';
 import {
     claudeChatModels,
-    claudeEffortHooks,
     claudeFastMode,
     ClaudeFastModeGate,
     claudeInitState,
@@ -73,8 +71,12 @@ import { ClaudePlanLimits } from './plan-limits';
 import { claudeExactTurnRefusal, ClaudeSteers, claudeTimeout, PromptQueue } from './prompt-queue';
 import { ClaudeRequestBroker } from './requests';
 import { reportClaudeSessionEnd } from './session-end';
-import { claudeQueryOptions, claudeStartError, spawnClaudeProcess } from './session-open';
-import { withClaudeShellHooks } from './shell-hooks';
+import {
+    claudeQueryOptions,
+    claudeStartError,
+    readClaudeResumeTranscript,
+    spawnClaudeProcess,
+} from './session-open';
 import { ClaudeStream } from './stream';
 import { readClaudeTaskHistory } from './subagent-transcript';
 import {
@@ -361,10 +363,13 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.onEnd();
     }
 
-    private reportAppliedSettings(stream: Query): void {
-        void readClaudeAppliedSettings(stream)
-            .then((operations) => !this.isEnded && this.options.apply(operations))
-            .catch(() => {});
+    private async reportAppliedSettings(stream: Query): Promise<void> {
+        try {
+            const operations = await readClaudeAppliedSettings(stream);
+            if (!this.isEnded) this.options.apply(operations);
+        } catch {
+            // The picker keeps what it showed; the next switch reads the settings again.
+        }
     }
 
     /**
@@ -409,20 +414,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
     async start(): Promise<'resumed' | 'started'> {
         const resumeId = this.isSessionBound ? this.sessionId : undefined;
         const { resumeAt } = this.options;
-        const transcript = resumeId ? await this.options.readTranscript() : undefined;
-        if (resumeId && !transcript)
-            throw new AgentChatStartError(
-                'resume_failed',
-                'Claude could not find this conversation',
-            );
-        /**
-         * The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
-         */
-        const { query } = await import('@anthropic-ai/claude-agent-sdk');
-        const hooks = withClaudeShellHooks(
-            claudeEffortHooks((operations) => this.options.apply(operations)),
-            (event) => this.options.observeLifecycle(event),
-        );
+        // The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
+        const [transcript, { query }] = await Promise.all([
+            readClaudeResumeTranscript(this.options, resumeId),
+            import('@anthropic-ai/claude-agent-sdk'),
+        ]);
         const stream = query({
             prompt: this.prompts,
             options: claudeQueryOptions({
@@ -433,7 +429,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 sessionId: this.sessionId,
                 spawn: (spawnOptions) => this.spawn(spawnOptions),
                 canUseTool: async (...arguments_) => this.requests.canUseTool(...arguments_),
-                hooks,
             }),
         });
         this.query = stream;
@@ -444,23 +439,28 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 INITIALIZE_TIMEOUT_MS,
                 claudeTimeout,
             );
+            /**
+             * The history replay opens with a reset, which drops the Fast mode, effort, and ultracode the reports below
+             * name, so it goes first.
+             */
+            if (transcript)
+                this.options.apply(
+                    claudeHistoryOperations(transcript.content, transcript.truncated, resumeAt),
+                );
             this.commands.report(initialized.commands);
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
             this.options.apply(this.fastMode.report(claudeFastMode(initialized)));
             // Learns whether extra usage is on, which decides whether the Fast mode toggle is offered.
             void this.planLimits.read(stream);
-            this.reportAppliedSettings(stream);
+            // Awaited, so the Chat's stored choice is restored against the effort and ultracode Claude Code applies.
+            await this.reportAppliedSettings(stream);
             this.permissions.report();
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
             throw claudeStartError(spawnErrorCode, resumeId !== undefined);
         }
-        if (transcript)
-            this.options.apply(
-                claudeHistoryOperations(transcript.content, transcript.truncated, resumeAt),
-            );
         return resumeId ? 'resumed' : 'started';
     }
 
@@ -512,7 +512,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             (operations) => this.options.apply(operations),
         );
         // A model switch can move the effort too, to the new model's default or to none, and can withdraw ultracode.
-        this.reportAppliedSettings(stream);
+        void this.reportAppliedSettings(stream);
     }
 
     appliedPermission() {

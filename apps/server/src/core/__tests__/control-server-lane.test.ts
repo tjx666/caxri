@@ -91,6 +91,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'agentChat.stopTask': 'ordered',
     'agentChat.takeQueued': 'ordered',
     'agentChat.usageLimitWait': 'ordered',
+    'agentChat.writeDefaults': 'ordered',
     'caxriBot.clearData': 'ordered',
     'caxriBot.open': 'ordered',
     'caxriBot.openFileLink': 'ordered',

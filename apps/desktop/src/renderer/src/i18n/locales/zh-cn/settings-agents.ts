@@ -88,4 +88,21 @@ export const settingsAgents: TranslatedNamespace<typeof source> = {
     'settings.agentActionsEditor.invalidInvocation':
         '请输入以 / 或 $ 开头、不含空格的完整调用方式。',
     'settings.agentActionsEditor.atCapacity': '请先移除一项覆盖设置，再添加新的命令或 Skill。',
+    // 默认模型（Agent Chat 全局默认）
+    'settings.chatDefaults.loading': '正在读取 {{provider}} 的设置…',
+    'settings.chatDefaults.loadFailed': '无法读取 {{provider}} 的设置。',
+    'settings.chatDefaults.saveFailed': '无法保存默认模型',
+    'settings.chatDefaults.model': '模型',
+    'settings.chatDefaults.effort': '推理强度',
+    'settings.chatDefaults.agentModel': '{{provider}} 默认',
+    'settings.chatDefaults.modelEffort': '模型默认',
+    'settings.chatDefaults.ultracode': 'Ultracode',
+    'settings.chatDefaults.ultracodeDescription':
+        '任意推理强度下均可使用多 Agent 工作流，仅限支持的模型',
+    'settings.chatDefaults.ultracodeValue.on': '开启 Ultracode',
+    'settings.chatDefaults.ultracodeValue.off': '关闭 Ultracode',
+    'settings.chatDefaults.noModels': '打开一次 {{provider}} 对话后即可从模型列表中选择。',
+    'settings.chatDefaults.override.launchArgs': '初始参数设置了 {{value}}，新对话会以它为准。',
+    'settings.chatDefaults.override.environment': '环境变量设置了 {{value}}，新对话会以它为准。',
+    'settings.chatDefaults.file': '保存在 {{file}}，{{provider}} 命令行也会读取它。',
 };

@@ -57,12 +57,19 @@ export function AgentChatModelMenu({
     terminalId,
 }: {
     snapshot:
-        Pick<AgentChatSnapshot, 'effort' | 'fast' | 'model' | 'models' | 'ultracode'> | undefined;
+        | Pick<
+              AgentChatSnapshot,
+              'customChoice' | 'effort' | 'fast' | 'model' | 'models' | 'ultracode'
+          >
+        | undefined;
     terminalId: string;
 }) {
     const { t } = useTranslation();
     const [view, setView] = useState<AgentChatModelPickerView>('effort');
-    const { configure, isPending, snapshot } = useAgentChatModelSelection(reported, terminalId);
+    const { configure, isPending, reset, snapshot } = useAgentChatModelSelection(
+        reported,
+        terminalId,
+    );
     const label = agentChatModelLabel(snapshot);
     const showOpeningView = (): void => {
         if (!snapshot) return;
@@ -158,10 +165,12 @@ export function AgentChatModelMenu({
                         configure={configure}
                         effort={snapshot.effort}
                         fast={fast}
+                        isCustom={snapshot.customChoice === true}
                         model={current}
                         modelName={modelName}
                         ultracode={ultracode}
                         onChooseModel={() => setView('models')}
+                        onReset={reset}
                     />
                 ) : (
                     <AgentChatModelList

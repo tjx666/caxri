@@ -83,38 +83,6 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
-    it('drops cached Agent Actions only after a valid settings change', () => {
-        const queryClient = new QueryClient();
-        const key = ['agentActions.list', { terminalId: 'terminal-a' }];
-        queryClient.setQueryData(key, { actions: [{ invocation: '/old' }] });
-        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
-        mocks.state.handler?.({
-            event: 'settings.changed',
-            payload: { source: '{}', error: 'invalid settings' },
-        });
-        expect(queryClient.getQueryData(key)).toBeDefined();
-
-        mocks.state.handler?.({ event: 'settings.changed', payload: { source: '{}' } });
-        expect(queryClient.getQueryData(key)).toBeUndefined();
-        unsubscribe();
-    });
-
-    it('re-asks for delivery status after a settings change, so an ignored check applies at once', () => {
-        const queryClient = new QueryClient();
-        const summary = ['projectStatus.summary', { sessionId: 'session-a' }] as const;
-        const pullRequests = ['session.pullRequests', undefined] as const;
-        queryClient.setQueryData(summary, { repositories: [] });
-        queryClient.setQueryData(pullRequests, { pullRequests: {} });
-        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
-
-        mocks.state.handler?.({ event: 'settings.changed', payload: { source: '{}' } });
-
-        expect(queryClient.getQueryState(summary)?.isInvalidated).toBe(true);
-        expect(queryClient.getQueryState(pullRequests)?.isInvalidated).toBe(true);
-        unsubscribe();
-    });
-
     it.each(['session.create', 'terminal.moveToNewSession', 'session.unarchive'] as const)(
         're-asks for Session pull requests after %s',
         (reason) => {

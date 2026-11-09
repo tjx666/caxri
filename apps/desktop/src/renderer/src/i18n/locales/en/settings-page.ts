@@ -160,4 +160,7 @@ export const settingsPage = {
     'settings.row.providerArgs.description':
         'Passed on every launch. Write flags the way you would on the command line; a flag and its value can share a line.',
     'settings.row.providerArgs.label': '{{provider}} initial arguments',
+    'settings.row.chatDefaults.title': 'Default model',
+    'settings.row.chatDefaults.description':
+        "The model and reasoning effort new Chats start with, and what a Chat's Reset to default goes back to. Switching in a Chat's picker changes only that Chat.",
 } as const;

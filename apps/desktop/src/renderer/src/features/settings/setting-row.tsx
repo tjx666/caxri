@@ -19,6 +19,7 @@ import { TranslucentSidebarStatus } from '../primary-sidebar/translucent-sidebar
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { AgentSecretsForm } from './agent-secrets/agent-secrets-form';
 import { ArchivedSessionsEntry } from './archived-sessions-entry';
+import { ChatDefaultsForm } from './chat-defaults/chat-defaults-form';
 import { ClaudeWindowsForm } from './claude-windows/claude-windows-form';
 import { DelegationFieldControl } from './delegation-field-control';
 import { DelegationPresetsSection } from './delegation-presets/delegation-presets-section';
@@ -405,6 +406,8 @@ function rowControl(
                     />
                 ),
             };
+        case 'provider-chat-defaults':
+            return { control: <ChatDefaultsForm provider={binding.provider} /> };
         case 'provider-skill-health':
             return {
                 control: (

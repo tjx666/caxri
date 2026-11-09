@@ -346,6 +346,22 @@ describe('Agent Chat reducer: tasks, queue, and operation state', () => {
         expect(snapshot.usage).toBeUndefined();
     });
 
+    it("keeps the Chat's own model choice across a conversation reset and clears it with null", () => {
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'state',
+            state: { customChoice: true, effort: 'high' },
+        });
+        snapshot = applyAgentChatOperation(snapshot, { op: 'reset' });
+        expect(snapshot).toMatchObject({ customChoice: true });
+        expect(snapshot.effort).toBeUndefined();
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'state',
+            state: { customChoice: null },
+        });
+        expect(snapshot).not.toHaveProperty('customChoice');
+        expect(agentChatSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    });
+
     it('keeps the permission a provider runs with across a conversation reset', () => {
         // A resumed Claude Code reports its level before its history replay resets the Chat, and reports it only once.
         let snapshot = applyAgentChatOperation(empty(), {

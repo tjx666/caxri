@@ -26,6 +26,7 @@ import { chatSessionLogCallbacks } from './chat-session-logs';
 import { chatStateStore } from './chat-state-store';
 import type { ChatState, ChatTerminal } from './chat-states';
 import { requireOpenChatSession } from './chat-states';
+import { restoreChatChoice } from './model-choice/chat-choice';
 
 /**
  * What starting a Chat's provider process needs from the service that owns it.
@@ -211,6 +212,12 @@ async function startChat(
         session = created;
         state.session = created;
         const mode = await runWithObservationContext(runContext, () => created.start());
+        if (!isCurrent()) {
+            await session.close();
+            return;
+        }
+        // Before ready, so the first turn after a restart, suspension, or crash already runs on the Chat's own choice.
+        await restoreChatChoice(host, terminalId, provider, created, state);
         if (!isCurrent()) {
             await session.close();
             return;

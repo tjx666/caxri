@@ -3,6 +3,7 @@ import { canUseAgentChat, CaxriError } from '@caxri/protocol';
 
 import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
+import { AgentChatStateModel } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager, TerminalSuspensionService } from '../terminal';
 import { terminalDirectoryIdentity } from '../terminal';
@@ -10,9 +11,10 @@ import { terminalDirectoryIdentity } from '../terminal';
 /**
  * A "Fork from here" Chat keeps the source Chat's stored permission level and plan mode in place of the Project default
  * it was created with, so a fork of a narrowed Chat stays as narrow as its source. A source that stored no choice (no
- * level and plan mode off, the same columns as none) leaves the fork on the current Project default.
+ * level and plan mode off, the same columns as none) leaves the fork on the current Project default. Its model choice
+ * comes along too, so the fork starts on the source Chat's model and effort instead of the global default.
  */
-export function inheritChatPermission(
+export function inheritChatSettings(
     database: CaxriDatabase,
     sourceTerminalId: string,
     terminalId: string,
@@ -20,6 +22,9 @@ export function inheritChatPermission(
     const stored = database.getChatPermission(sourceTerminalId);
     if (stored && (stored.permissionMode !== undefined || stored.planMode))
         database.setChatPermission(terminalId, stored);
+    // The fork continues the same conversation, so it keeps the model and effort the source Chat was switched to.
+    const choices = new AgentChatStateModel(database.database);
+    choices.setChoice(terminalId, choices.choice(sourceTerminalId));
 }
 
 /**
@@ -83,7 +88,7 @@ export function createSessionCreator(dependencies: {
             selectionOptions(selection),
         );
         const terminal = database.createTerminal(session.id, kind, cwd, 'chat');
-        if (fork) inheritChatPermission(database, fork.sourceTerminalId, terminal.id);
+        if (fork) inheritChatSettings(database, fork.sourceTerminalId, terminal.id);
         // Bound before the start, which then resumes the forked record instead of opening a new conversation.
         if (kind !== 'shell' && fork?.agentSessionId)
             database.rebindAgentSession(terminal.id, kind, fork.agentSessionId);

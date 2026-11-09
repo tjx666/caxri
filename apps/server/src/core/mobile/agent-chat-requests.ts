@@ -399,6 +399,8 @@ export async function invokeMobileAgentChatRequest(
                     ...(request.params.ultracode !== undefined && {
                         ultracode: request.params.ultracode,
                     }),
+                    ...(request.params.fast !== undefined && { fast: request.params.fast }),
+                    ...(request.params.resetChoice && { resetChoice: true }),
                     ...(permissionMode !== undefined && { permissionMode }),
                     ...(planMode !== undefined && { planMode }),
                 },

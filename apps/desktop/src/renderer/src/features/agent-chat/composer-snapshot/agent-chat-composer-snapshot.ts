@@ -23,6 +23,7 @@ import { isAgentChatBusy } from '../transcript/agent-chat-presentation';
 type AgentChatComposerSnapshot = Pick<
     AgentChatSnapshot,
     | 'activeTurnId'
+    | 'customChoice'
     | 'effort'
     | 'fast'
     | 'goal'
@@ -103,6 +104,7 @@ export function selectAgentChatComposerView(
         sendBlock: agentChatSendBlock(snapshot, context.processState),
         snapshot: snapshot && {
             activeTurnId: snapshot.activeTurnId,
+            customChoice: snapshot.customChoice,
             effort: snapshot.effort,
             fast: snapshot.fast,
             goal: snapshot.goal,

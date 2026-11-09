@@ -220,10 +220,11 @@ export function applyAgentChatOperation(
         case 'reset': {
             /**
              * Commands, models, MCP servers, and the permission level and plan mode describe the running provider, and
-             * the follow-up queue, the usage guard, and the idle compaction hold belong to Server Core; none is part of
-             * the conversation being replaced. A resumed Claude Code reports its models and permission before its
-             * history replay resets the Chat, and reports the permission again only when it changes, so dropping them
-             * here hid the model picker and showed "Custom" for the permission on every resumed Chat.
+             * the follow-up queue, the usage guard, the Chat's own model choice, and the idle compaction hold belong to
+             * Server Core; none is part of the conversation being replaced. A resumed Claude Code reports its models
+             * and permission before its history replay resets the Chat, and reports the permission again only when it
+             * changes, so dropping them here hid the model picker and showed "Custom" for the permission on every
+             * resumed Chat.
              */
             return {
                 ...emptyAgentChatSnapshot(snapshot.terminalId),
@@ -238,6 +239,7 @@ export function applyAgentChatOperation(
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
                 ...(snapshot.queuePauseReason && { queuePauseReason: snapshot.queuePauseReason }),
                 ...(snapshot.usageGuard && { usageGuard: snapshot.usageGuard }),
+                ...(snapshot.customChoice && { customChoice: snapshot.customChoice }),
                 ...(snapshot.idleCompactionHold && {
                     idleCompactionHold: snapshot.idleCompactionHold,
                 }),
@@ -282,6 +284,8 @@ export function applyAgentChatOperation(
             if (state.effort !== undefined) next.effort = state.effort ?? undefined;
             if (state.ultracode !== undefined) next.ultracode = state.ultracode ?? undefined;
             if (state.fast !== undefined) next.fast = state.fast ?? undefined;
+            if (state.customChoice !== undefined)
+                next.customChoice = state.customChoice ?? undefined;
             if (state.permissionMode !== undefined)
                 next.permissionMode = state.permissionMode ?? undefined;
             if (state.planMode !== undefined) next.planMode = state.planMode ?? undefined;
@@ -317,6 +321,7 @@ export function applyAgentChatOperation(
                 'effort',
                 'ultracode',
                 'fast',
+                'customChoice',
                 'permissionMode',
                 'planMode',
                 'usage',

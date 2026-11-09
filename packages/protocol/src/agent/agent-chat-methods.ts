@@ -30,6 +30,7 @@ import { agentChatVersionMethods } from './agent-chat-rewind.js';
 import { agentChatTaskSnapshotSchema } from './agent-chat-task-contract.js';
 import { agentChatContinuationTargetSchema } from './agent-usage-continuation.js';
 import { agentProviderSchema } from './agents.js';
+import { agentChatDefaultsMethods } from './defaults/agent-chat-defaults.js';
 import {
     agentChatImageInputSchema,
     agentChatImageMethods,
@@ -170,6 +171,12 @@ export const agentChatMethods = {
                 fast: z.boolean().optional(),
                 permissionMode: agentChatPermissionModeSchema.optional(),
                 planMode: z.boolean().optional(),
+                /**
+                 * Drops the Chat's own model, effort, ultracode, and Fast mode choice and applies the global default
+                 * (the launch settings, then the Agent's own config file) again. It cannot be combined with a model
+                 * switch in the same request.
+                 */
+                resetChoice: z.literal(true).optional(),
             })
             .refine(
                 (change) =>
@@ -178,11 +185,21 @@ export const agentChatMethods = {
                     change.ultracode !== undefined ||
                     change.fast !== undefined ||
                     change.permissionMode !== undefined ||
-                    change.planMode !== undefined,
+                    change.planMode !== undefined ||
+                    change.resetChoice !== undefined,
                 {
                     message:
-                        'Choose a model, an effort, ultracode, Fast mode, a permission level, or plan mode',
+                        'Choose a model, an effort, ultracode, Fast mode, a permission level, plan mode, or a reset',
                 },
+            )
+            .refine(
+                (change) =>
+                    change.resetChoice === undefined ||
+                    (change.model === undefined &&
+                        change.effort === undefined &&
+                        change.ultracode === undefined &&
+                        change.fast === undefined),
+                { message: 'Reset the model choice on its own, without a model or effort switch' },
             ),
         result: z.null(),
     },
@@ -208,6 +225,7 @@ export const agentChatMethods = {
     },
     ...agentChatVersionMethods,
     ...agentChatImageMethods,
+    ...agentChatDefaultsMethods,
     /**
      * "Fork from here": copies the conversation up to just before user message `itemId` into a new Agent Session
      * through the provider's own fork, then opens it as a Chat in a new Session of the same Project and cwd, without

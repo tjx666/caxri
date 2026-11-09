@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '../../../i18n';
 import {
     agentChatConfigureFailureMessage,
-    agentChatEffortReset,
     agentChatEffortStop,
     agentChatMenuModel,
     agentChatModelTriggerText,
@@ -120,14 +119,5 @@ describe('the effort panel', () => {
         expect(agentChatEffortStop(deep, 'ultra')).toBe(1);
         expect(agentChatEffortStop(deep, undefined)).toBe(1);
         expect(agentChatEffortStop({ ...deep, defaultEffort: undefined }, 'ultra')).toBe(0);
-    });
-
-    it('resets to the default effort only when the model names one it is not already on', () => {
-        expect(agentChatEffortReset(deep, 'medium')).toBe('high');
-        expect(agentChatEffortReset(deep, 'high')).toBeUndefined();
-        expect(
-            agentChatEffortReset({ ...deep, defaultEffort: undefined }, 'medium'),
-        ).toBeUndefined();
-        expect(agentChatEffortReset({ ...deep, defaultEffort: 'max' }, 'medium')).toBeUndefined();
     });
 });

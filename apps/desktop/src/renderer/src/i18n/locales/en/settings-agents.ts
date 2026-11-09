@@ -97,4 +97,23 @@ export const settingsAgents = {
         'Use an exact invocation starting with / or $, without spaces.',
     'settings.agentActionsEditor.atCapacity':
         'Remove an override before adding another command or skill.',
+    // Default model (Agent Chat global default)
+    'settings.chatDefaults.loading': 'Reading {{provider}} settings…',
+    'settings.chatDefaults.loadFailed': 'Could not read {{provider}} settings.',
+    'settings.chatDefaults.saveFailed': 'Unable to save the default model',
+    'settings.chatDefaults.model': 'Model',
+    'settings.chatDefaults.effort': 'Reasoning effort',
+    'settings.chatDefaults.agentModel': '{{provider}} default',
+    'settings.chatDefaults.modelEffort': "The model's default",
+    'settings.chatDefaults.ultracode': 'Ultracode',
+    'settings.chatDefaults.ultracodeDescription':
+        'Multi-agent workflows at any effort, on models that offer it',
+    'settings.chatDefaults.ultracodeValue.on': 'Ultracode on',
+    'settings.chatDefaults.ultracodeValue.off': 'Ultracode off',
+    'settings.chatDefaults.noModels': 'Open a {{provider}} Chat once to choose from its models.',
+    'settings.chatDefaults.override.launchArgs':
+        'Initial arguments set {{value}}, so new Chats use that instead.',
+    'settings.chatDefaults.override.environment':
+        'An environment variable sets {{value}}, so new Chats use that instead.',
+    'settings.chatDefaults.file': 'Saved in {{file}}, which the {{provider}} CLI reads too.',
 } as const;

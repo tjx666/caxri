@@ -22,8 +22,8 @@ class ForkRefusal extends CaxriError {}
 /**
  * The Chat a fork opens: a new Session of the source's Project whose Chat Terminal runs the same provider in the same
  * cwd, bound to `agentSessionId` before it starts so the start resumes the forked record. Without an id the new Chat
- * starts a conversation of its own. The new Chat Terminal inherits the stored permission level and plan mode of
- * `sourceTerminalId`; a source without a stored choice leaves the new Chat on the Project default.
+ * starts a conversation of its own. The new Chat Terminal inherits the stored permission level, plan mode, and model
+ * choice of `sourceTerminalId`; a source without a stored choice leaves the new Chat on the defaults.
  */
 interface ChatForkSession {
     projectId: string;

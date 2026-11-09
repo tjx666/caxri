@@ -393,7 +393,8 @@ export class TerminalsModel {
      * Moves a parked Agent Terminal onto a different provider for a new conversation, keeping its ID. Unlike
      * {@link switchAgentProvider}, which records an Agent the user already launched in the PTY, nothing runs here yet:
      * the caller stopped the previous process and relaunches afterwards. Everything the previous provider owned is
-     * dropped with it: the conversation binding, the transcript location, and a Chat's provider-specific permission.
+     * dropped with it: the conversation binding, the transcript location, and a Chat's provider-specific permission and
+     * model choice.
      */
     replaceAgentProvider(
         id: string,
@@ -412,6 +413,10 @@ export class TerminalsModel {
                     agentCwd: null,
                     chatPermissionMode: null,
                     chatPlanMode: null,
+                    chatModel: null,
+                    chatEffort: null,
+                    chatUltracode: null,
+                    chatFast: null,
                     updatedAt: now,
                 })
                 .where(

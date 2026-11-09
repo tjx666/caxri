@@ -1,6 +1,8 @@
 import {
     agentChatAutoContinueSchema,
+    agentChatDefaultsProviderSchema,
     agentChatHandoffSchema,
+    agentChatModelSchema,
     agentProviderSchema,
     agentUsageGuardSchema,
     agentUsageLimitWindowSchema,
@@ -127,6 +129,14 @@ const appStateValueSchemas = {
      * for the rest of the day on Desktop and the phone alike. See `usage/usage-notice-dismissals.ts`.
      */
     planPaceDismissals: z.partialRecord(agentProviderSchema, z.number().int().positive()),
+    /**
+     * The models a Chat of each Agent listed last, so Settings can offer them for the global default before a Chat of
+     * that Agent runs again. See `agent-chat/model-choice/chat-defaults.ts`.
+     */
+    agentChatModels: z.partialRecord(
+        agentChatDefaultsProviderSchema,
+        z.array(agentChatModelSchema).max(50),
+    ),
     /**
      * When the user last dismissed each provider's credits notice, from any Client, so it stays hidden for a day. See
      * `usage/usage-notice-dismissals.ts`.

@@ -93,6 +93,11 @@ describe('claudeChatSettings', () => {
             disallowedTools: ['WebFetch'],
         });
     });
+
+    it('carries --effort, which a Chat used to drop, and ignores an effort Claude Code does not know', () => {
+        expect(claudeChatSettings(launch(['--effort', 'max']))).toMatchObject({ effort: 'max' });
+        expect(claudeChatSettings(launch(['--effort=turbo']))).not.toHaveProperty('effort');
+    });
 });
 
 describe('grokChatSettings', () => {

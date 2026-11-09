@@ -81,6 +81,10 @@ export async function fixture(
             database: CaxriDatabase,
             logger: StructuredLogger,
         ) => ChatUsageLimitWaits;
+        /**
+         * The global model default a picker reset goes back to; omitted, the provider's own default.
+         */
+        defaults?: AgentChatServiceOptions['defaults'];
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -164,6 +168,7 @@ export async function fixture(
             isStartFenced: options.isStartFenced,
             usage,
             usageLimitWaits,
+            defaults: options.defaults,
         });
     const service = createService();
     /**

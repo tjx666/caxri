@@ -73,6 +73,7 @@ export {
     resolveClaudeConfigDirectory,
 } from './providers/claude/paths';
 export { readClaudeRateLimitTier } from './providers/claude/rate-limit-tier';
+export { callCodexAppServer } from './providers/codex/app-server-call';
 export { hasForeverCodexCache, readCodexAuthMode } from './providers/codex/cache-auth';
 export { probeOpenCodexSessionIds } from './providers/codex/open-sessions';
 export { resolveCodexHome } from './providers/codex/paths';

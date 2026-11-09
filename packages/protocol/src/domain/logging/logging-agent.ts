@@ -75,11 +75,19 @@ export const agentChatLogEvents = {
      */
     forkReleaseFailed: 'agent_chat.fork_release_failed',
     /**
-     * A model, effort, or Fast mode switch from the picker saved as the provider's default for new Chats (Codex
-     * `config/batchWrite`), with a closed `outcome` (`saved`, `overridden` when a higher-priority config layer still
-     * wins, `failed`), the provider, and the comma-joined config `keys` it wrote. Never carries the values.
+     * A global model, effort, or ultracode default written from Settings to the Agent's own config file (Claude Code's
+     * `settings.json`, Codex's `config.toml`), with a closed `outcome` (`written`, `failed`), the provider, and the
+     * comma-joined `keys` it changed. Never carries the values or the path.
      */
-    defaultsSaved: 'agent_chat.defaults_saved',
+    defaultsWritten: 'agent_chat.defaults_written',
+    /**
+     * A Chat's model choice applied to its provider: its own choice when the provider starts (`trigger: 'start'`), or
+     * the global default after the picker's reset (`trigger: 'reset'`). Carries a closed `outcome` (`applied`,
+     * `unchanged` when the provider already matched, `deferred` when the provider listed no models so the choice waits
+     * for the next start, `failed`), the provider, the comma-joined `keys` it sent, and the comma-joined `dropped` keys
+     * the provider no longer accepts (a retired model, an effort the model lost). Never carries the values.
+     */
+    choiceApplied: 'agent_chat.choice_applied',
     /**
      * One side question (`/btw`) with a closed `outcome` (`answered`, `refused`, `failed`), a closed `reason` when it
      * was not answered (`unsupported`, `notRunning`, `timeout`, `empty`, `providerError`, else null), the provider, how

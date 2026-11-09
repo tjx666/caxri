@@ -338,6 +338,15 @@ export const terminals = sqliteTable(
          * The transcript record a rewound Claude Chat resumes from, until its first new turn.
          */
         chatResumeRecordId: text('chat_resume_record_id'),
+        /**
+         * The Chat's own model, effort, ultracode, and Fast mode choice from its model picker, restored on every
+         * provider start. Each column is null while the Chat follows the global default (the launch settings, then the
+         * Agent's own config file); `0` is an explicit "off", not "unset".
+         */
+        chatModel: text('chat_model'),
+        chatEffort: text('chat_effort'),
+        chatUltracode: integer('chat_ultracode'),
+        chatFast: integer('chat_fast'),
     },
     (table) => [
         /**

@@ -127,6 +127,13 @@
             "when": 1794075873897,
             "tag": "0017_session_turn_started_at",
             "breakpoints": true
+        },
+        {
+            "idx": 18,
+            "version": "6",
+            "when": 1794194973940,
+            "tag": "0018_chat_model_choice",
+            "breakpoints": true
         }
     ]
 }

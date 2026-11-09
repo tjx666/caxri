@@ -82,17 +82,3 @@ export function agentChatEffortStop(model: AgentChatModel, effort: string | unde
     const fallback = model.defaultEffort ? model.efforts.indexOf(model.defaultEffort) : -1;
     return Math.max(fallback, 0);
 }
-
-/**
- * The effort Reset to default switches to: the model's default, or nothing when the model names none or already uses
- * it, which disables the button.
- */
-export function agentChatEffortReset(
-    model: AgentChatModel,
-    effort: string | undefined,
-): string | undefined {
-    const { defaultEffort } = model;
-    if (!defaultEffort || defaultEffort === effort || !model.efforts.includes(defaultEffort))
-        return undefined;
-    return defaultEffort;
-}

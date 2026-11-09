@@ -7,7 +7,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { Mock } from 'vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { inheritChatPermission } from '../../session/creation';
+import { inheritChatSettings } from '../../session/creation';
 import type { CreateForkSession } from '../chat-fork';
 import { forkClaudeSession } from '../rewind/claude-rewind';
 import { fixture } from './chat-service-fixture';
@@ -59,7 +59,7 @@ async function threeTurns(provider: Provider) {
         ({ projectId, provider: kind, cwd, agentSessionId, sourceTerminalId }) => {
             const { session } = context.database.createSession(projectId, null);
             const terminal = context.database.createTerminal(session.id, kind, cwd, 'chat');
-            inheritChatPermission(context.database, sourceTerminalId, terminal.id);
+            inheritChatSettings(context.database, sourceTerminalId, terminal.id);
             if (agentSessionId)
                 context.database.rebindAgentSession(terminal.id, kind, agentSessionId);
             return Promise.resolve({ sessionId: session.id, terminalId: terminal.id });
