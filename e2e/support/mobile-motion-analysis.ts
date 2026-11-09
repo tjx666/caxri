@@ -273,21 +273,24 @@ async function probeRecording(path: string): Promise<{ times: number[]; width: n
     return { times: probed.map(({ pts_time: time }) => Number(time) * 1000), width };
 }
 
+interface RecordingBand {
+    bottom: number;
+    left?: number;
+    right?: number;
+    top: number;
+}
+
 /**
- * Decodes every frame of a recording inside the rows `top`..`bottom` (and the columns `left`..`right`, the full width
- * by default), scaled down by `scale` in both directions. The frames keep their own presentation times because
- * `screenrecord` only writes a frame when the screen changes.
+ * Decodes every frame of a recording inside `band` in the given ffmpeg pixel format, scaled down by `scale` in both
+ * directions. The frames keep their own presentation times because `screenrecord` only writes a frame when the screen
+ * changes.
  */
-export async function readRecordingBand(
+async function decodeRecordingBand(
     path: string,
-    {
-        bottom,
-        left = 0,
-        right,
-        top,
-    }: { bottom: number; left?: number; right?: number; top: number },
-    scale = 4,
-): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry; scale: number }> {
+    { bottom, left = 0, right, top }: RecordingBand,
+    scale: number,
+    format: 'gray' | 'rgb24',
+): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry }> {
     const { times, width: videoWidth } = await probeRecording(path);
     const cropHeight = Math.floor((bottom - top) / scale) * scale;
     const cropWidth = Math.floor(((right ?? videoWidth) - left) / scale) * scale;
@@ -302,14 +305,14 @@ export async function readRecordingBand(
             '-fps_mode',
             'passthrough',
             '-vf',
-            `crop=${cropWidth}:${cropHeight}:${left}:${top},scale=${geometry.width}:${geometry.height}:flags=area,format=gray`,
+            `crop=${cropWidth}:${cropHeight}:${left}:${top},scale=${geometry.width}:${geometry.height}:flags=area,format=${format}`,
             '-f',
             'rawvideo',
             'pipe:1',
         ],
         { encoding: 'buffer', maxBuffer: 1024 * 1024 * 1024 },
     );
-    const frameBytes = geometry.width * geometry.height;
+    const frameBytes = geometry.width * geometry.height * (format === 'gray' ? 1 : 3);
     const count = decoded.stdout.length / frameBytes;
     if (!Number.isSafeInteger(count) || count !== times.length)
         throw new Error('Recording frames do not match their timestamps');
@@ -317,7 +320,41 @@ export async function readRecordingBand(
         data: new Uint8Array(decoded.stdout.subarray(index * frameBytes, (index + 1) * frameBytes)),
         time,
     }));
-    return { frames, geometry, scale };
+    return { frames, geometry };
+}
+
+/**
+ * Decodes every frame of a recording inside the rows `top`..`bottom` (and the columns `left`..`right`, the full width
+ * by default) in grayscale, scaled down by `scale` in both directions.
+ */
+export async function readRecordingBand(
+    path: string,
+    band: RecordingBand,
+    scale = 4,
+): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry; scale: number }> {
+    return { ...(await decodeRecordingBand(path, band, scale, 'gray')), scale };
+}
+
+/**
+ * The most pixels any frame of a recorded band draws in a strongly green hue (green leading red and blue by more than
+ * `margin`), with that frame's time. The dark themes draw nothing that green in a Session row's text or chrome, so a
+ * count above a few pixels means a green surface showed through.
+ */
+export async function peakGreenPixels(
+    path: string,
+    band: RecordingBand,
+    margin = 48,
+): Promise<{ pixels: number; time: number }> {
+    const { frames } = await decodeRecordingBand(path, band, 2, 'rgb24');
+    let peak = { pixels: 0, time: 0 };
+    for (const { data, time } of frames) {
+        let pixels = 0;
+        for (let index = 0; index < data.length; index += 3) {
+            if (data[index + 1] - Math.max(data[index], data[index + 2]) > margin) pixels += 1;
+        }
+        if (pixels > peak.pixels) peak = { pixels, time };
+    }
+    return peak;
 }
 
 /**

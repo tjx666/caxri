@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { BootstrapState, SessionActivityGroupId, SessionRecord } from '@caxri/protocol';
 
 import { pageRequest } from './helpers';
@@ -8,12 +12,15 @@ import { checkBounds, waitForCheck } from './mobile-agent-chat-helpers';
 import type { MobileSemanticNode } from './mobile-android';
 import {
     adbShell,
+    copyMobileFramebufferRecording,
     mobileSemantics,
+    startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
 import type { AttentionCommand } from './mobile-attention-fixture';
+import { peakGreenPixels } from './mobile-motion-analysis';
 
 const GROUPS: readonly SessionActivityGroupId[] = ['attention', 'working', 'idle'];
 
@@ -416,6 +423,97 @@ export async function executeMobileSessionRowMarkDoneScenario(
             status: 'passed',
         });
     } finally {
+        await fixture.stop();
+    }
+}
+
+/**
+ * Share of a row's width the green check reads, from its leading edge: it covers the hidden Mark as Done action and
+ * leaves out the trailing status glyph.
+ */
+const ROW_JUDGED_SHARE = 0.75;
+/**
+ * Green pixels (at half resolution) a frame of the leaving row may draw before the hidden action counts as visible.
+ * Anti-aliased edges of other glyphs stay well under it.
+ */
+const MAX_GREEN_PIXELS = 20;
+
+/**
+ * `MOB-SESSION-ROW-SWIPE-HIDDEN-01`: a closed row never shows its hidden swipe actions. A Needs attention row keeps a
+ * green Mark as Done action behind it; when the row fades out of the list (here archived from Desktop, as a refresh at
+ * launch does to any row that left), the fade must not let that green show through the row.
+ */
+export async function executeMobileSessionRowSwipeHiddenScenario(
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
+    artifacts: string[],
+): Promise<void> {
+    const { remoteVideoPath, serial } = environment;
+    if (!remoteVideoPath)
+        throw new Error('MOB-SESSION-ROW-SWIPE-HIDDEN-01 judges the row from its recording');
+    const fixture = await createMobileAcceptanceFixture({ mode: 'attention', serial });
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    try {
+        const { page } = fixture.running;
+        if (!fixture.allowedSessionId) throw new Error('Attention fixture Session is unavailable');
+        await fixture.pair();
+        const finished = (
+            await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+                projectId: fixture.allowedProjectId,
+                defaultAgent: 'claude',
+            })
+        ).session.id;
+        const readState = () => pageRequest<BootstrapState>(page, 'app.bootstrap');
+        try {
+            await waitForMobile(
+                readState,
+                (state) =>
+                    state.sessions.find(({ id }) => id === finished)?.hasPendingAttention === true,
+                30_000,
+            );
+        } catch {
+            throw new Error('The finished Session never held Pending Attention');
+        }
+        await waitForRowGroup(serial, finished, 'attention');
+        const row = checkBounds(await mobileSemantics(serial), `session-row-${finished}`);
+        if (!row) throw new Error('The Needs attention row is not laid out');
+        await capture(environment, 'attention-row-resting', artifacts);
+
+        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await pageRequest(page, 'session.archive', { sessionId: finished });
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await recording.stop();
+        recording = undefined;
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !checkBounds(nodes, `session-row-${finished}`),
+            30_000,
+        );
+        const analysis = await mkdtemp(join(tmpdir(), 'caxri-session-row-swipe-'));
+        let peak: Awaited<ReturnType<typeof peakGreenPixels>>;
+        try {
+            const video = join(analysis, 'segment.mp4');
+            await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
+            peak = await peakGreenPixels(video, {
+                bottom: row.bottom,
+                left: row.left,
+                right: row.left + Math.round((row.right - row.left) * ROW_JUDGED_SHARE),
+                top: row.top,
+            });
+        } finally {
+            await rm(analysis, { force: true, recursive: true });
+        }
+        await capture(environment, 'attention-row-left', artifacts);
+        if (peak.pixels > MAX_GREEN_PIXELS)
+            throw new Error(
+                `The leaving row showed its hidden Mark as Done action: ${peak.pixels} green pixels at ${Math.round(peak.time)}ms`,
+            );
+        await finish(environment, artifacts, {
+            peakGreenPixels: peak.pixels,
+            status: 'passed',
+        });
+    } finally {
+        await recording?.stop();
         await fixture.stop();
     }
 }
