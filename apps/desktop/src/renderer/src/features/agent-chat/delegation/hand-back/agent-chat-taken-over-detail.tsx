@@ -1,6 +1,6 @@
 import { useTranslation } from '../../../../i18n';
-import { AgentChatOriginParentLink } from '../agent-chat-origin-parent-link';
 import { useDelegationOrigin } from '../hooks/use-delegation-origin';
+import { AgentChatOriginParentLink } from '../origin/agent-chat-origin-parent-link';
 import type { HandBackProperties } from './agent-chat-hand-back-properties';
 import { useHandBackView } from './use-hand-back-view';
 

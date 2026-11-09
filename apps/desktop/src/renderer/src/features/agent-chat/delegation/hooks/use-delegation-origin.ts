@@ -27,6 +27,7 @@ type DelegationOriginTask = Pick<
     | 'controlChanges'
     | 'delegationId'
     | 'failure'
+    | 'failureResetsAt'
     | 'provider'
     | 'retriedAs'
     | 'retryScheduledFor'
@@ -70,9 +71,16 @@ const NONE: DelegationOriginState = {
  * no change of the takeover time (`DelegationLiveContext`) and reads the latest when it is shown again.
  */
 export function useDelegationOrigin(terminalId: string): DelegationOriginState {
+    return useSessionDelegationOrigin(useTerminal(terminalId)?.sessionId);
+}
+
+/**
+ * {@link useDelegationOrigin} for a Session rather than one of its Chats, for a surface with no Terminal to name: the
+ * empty Session page of a task that failed before it launched.
+ */
+export function useSessionDelegationOrigin(sessionId: string | undefined): DelegationOriginState {
     const canShow = useCanShowDelegatedSessions();
     const isLive = useIsDelegationLive();
-    const sessionId = useTerminal(terminalId)?.sessionId;
     const session = useSessionById(sessionId);
     const parent = useSessionById(session?.createdBySessionId);
     const isDelegatedChild =
@@ -96,6 +104,7 @@ export function useDelegationOrigin(terminalId: string): DelegationOriginState {
                         controlChanges: entry.controlChanges,
                         delegationId: entry.delegationId,
                         failure: entry.failure,
+                        failureResetsAt: entry.failureResetsAt,
                         provider: entry.provider,
                         retriedAs: entry.retriedAs,
                         retryScheduledFor: entry.retryScheduledFor,

@@ -1,7 +1,7 @@
 import { Tooltip } from '@/components/ui/tooltip';
 
-import { useTranslation } from '../../../i18n';
-import { openSession } from '../../session/session-commands';
+import { useTranslation } from '../../../../i18n';
+import { openSession } from '../../../session/session-commands';
 
 /**
  * The parent Session's name inside an origin row's sentence ("Delegated by <name>", "Started from <name>"). The name is

@@ -3,8 +3,8 @@ import { Forward } from 'lucide-react';
 import { useTranslation } from '../../../../i18n';
 import { useSessionById, useTerminal } from '../../../../stores/selectors';
 import { sessionTitleForDisplay } from '../../../session/session-title';
-import { AgentChatOriginParentLink } from '../agent-chat-origin-parent-link';
 import { useCanShowDelegatedSessions } from '../hooks/use-can-show-delegated-sessions';
+import { AgentChatOriginParentLink } from '../origin/agent-chat-origin-parent-link';
 import { independentOrigin } from './agent-chat-independent-origin';
 
 /**

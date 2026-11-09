@@ -20,6 +20,11 @@ import { useTranslation } from '../../i18n';
 import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useSessionState, useTerminal } from '../../stores/selectors';
+import { agentChatHostCapabilities } from '../agent-chat/agent-chat-host';
+import { CanShowDelegatedSessionsContext } from '../agent-chat/delegation/hooks/use-can-show-delegated-sessions';
+import { useSessionDelegationOrigin } from '../agent-chat/delegation/hooks/use-delegation-origin';
+import { DelegationLiveContext } from '../agent-chat/delegation/hooks/use-is-delegation-live';
+import { AgentChatDelegationFailedPane } from '../agent-chat/delegation/origin/agent-chat-delegation-failed-pane';
 import { AgentChatTerminalContent } from '../agent-chat/tasks/agent-chat-terminal-content';
 import { EditorSurface } from '../editor/editor-surface';
 import { useIsSecondarySidebarShown } from '../secondary-sidebar/secondary-sidebar-visibility';
@@ -34,7 +39,11 @@ import { PaneMountPortal } from './pane-mount-portal';
 import { reconcilePaneMounts } from './pane-mounts';
 import { PaneTabBar } from './pane-tab-bar';
 import { PaneViewLayoutSignalProvider } from './pane-view-layout-signal';
-import { PaneViewSessionProvider, usePaneViewSession } from './pane-view-session';
+import {
+    PaneViewSessionProvider,
+    usePaneViewSession,
+    usePaneViewSessionId,
+} from './pane-view-session';
 import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
@@ -90,8 +99,15 @@ function isLeadingBarWindowWide(node: PaneLayoutNode): boolean {
     return node.direction !== 'horizontal' && isLeadingBarWindowWide(node.first);
 }
 
+const WORKBENCH_CAPABILITIES = agentChatHostCapabilities('workbench');
+
 function EmptyPane() {
     const { t } = useTranslation();
+    const sessionId = usePaneViewSessionId();
+    const failedTask = useSessionDelegationOrigin(sessionId).task;
+    // A delegated task that failed before launching leaves its Session empty; say why instead of offering a Terminal.
+    if (sessionId && failedTask?.status === 'failed')
+        return <AgentChatDelegationFailedPane sessionId={sessionId} task={failedTask} />;
     return (
         <Empty className="empty-work h-full flex-1">
             <EmptyMedia>
@@ -119,7 +135,17 @@ function PaneContent({
     const tab = pane.tabs.find((candidate) => candidate.id === pane.activeTabId) ?? pane.tabs.at(0);
     const terminalId = tab?.resource.kind === 'terminal' ? tab.resource.terminalId : undefined;
     const terminal = useTerminal(terminalId ?? '');
-    if (!tab) return <EmptyPane />;
+    if (!tab)
+        return (
+            // The same gates a Chat in this pane gets, so an empty delegated Session can read why its task failed.
+            <CanShowDelegatedSessionsContext
+                value={WORKBENCH_CAPABILITIES.canShowDelegatedSessions}
+            >
+                <DelegationLiveContext value={isVisible}>
+                    <EmptyPane />
+                </DelegationLiveContext>
+            </CanShowDelegatedSessionsContext>
+        );
     if (tab.resource.kind === 'terminal') {
         if (!terminal) return null;
         if (isChatTerminal(terminal))
