@@ -199,8 +199,17 @@ describe('Session archive and restore notices', () => {
         );
     });
 
-    it('archives the selected Session through the same path', async () => {
+    /**
+     * Archiving is frequent, so even the open Session archives silently: a notice per archive filled the notification
+     * center with entries nobody needed. Reopen Closed Item is the way back.
+     */
+    it('archives the open Session through the same path without a notice', async () => {
         mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
+        mocks.getBootstrap.mockReturnValue({
+            sessions: [{ id: 'session-2', title: 'docs' }],
+            settings: {},
+            terminals: [],
+        });
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-2', title: 'docs' });
 
         archiveSelectedSession();
@@ -210,6 +219,7 @@ describe('Session archive and restore notices', () => {
             sessionId: 'session-2',
         });
         expect(mocks.recordClosedSession).toHaveBeenCalledExactlyOnceWith('session-2');
+        expect(mocks.pushToast).not.toHaveBeenCalled();
     });
 
     it('records an explicit restore as a named notice, the way an archive is recorded', async () => {

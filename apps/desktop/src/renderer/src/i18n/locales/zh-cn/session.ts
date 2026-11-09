@@ -168,7 +168,6 @@ export const session: TranslatedNamespace<typeof source> = {
     'session.notice.restoredUntitled': '已恢复会话',
     'session.notice.restoredCount': '已恢复 {{count}} 个会话',
     'session.notice.undoArchive': '撤销归档 {{title}}',
-    'session.notice.archived': '已归档 {{title}}',
     'session.notice.quotedName': '“{{title}}”',
     'session.notice.autoArchivedSession': '会话',
     'session.notice.autoArchivedMerged': '因拉取请求已合并，已归档{{session}}',

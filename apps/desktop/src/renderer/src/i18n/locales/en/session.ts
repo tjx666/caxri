@@ -173,7 +173,6 @@ export const session = {
     'session.notice.restoredUntitled': 'Restored Session',
     'session.notice.restoredCount': 'Restored {{count}} Sessions',
     'session.notice.undoArchive': 'Undo archiving {{title}}',
-    'session.notice.archived': 'Archived {{title}}',
     'session.notice.quotedName': '"{{title}}"',
     'session.notice.autoArchivedSession': 'Session',
     'session.notice.autoArchivedMerged': 'Archived {{session}} because its pull request was merged',
