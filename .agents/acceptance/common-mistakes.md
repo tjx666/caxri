@@ -101,6 +101,22 @@ the bottom gesture inset. Prove the probe can fail first: run it on the pre-fix 
 control open that still shows the defect in the delivered run. `dimmedFrames` in
 `e2e/support/mobile-new-session-open-scenario.ts` is the reference.
 
+## Detecting hidden content that shows through an Android fade by its expected color
+
+**Situation:** A case must prove that content hidden behind an opaque surface, such as a Session
+row's swipe actions, never shows while a list fades the row in or out. Android applies a parent's
+opacity to each child, so the half-faded row lets the hidden content through for a few frames.
+
+**Does not work:** Counting pixels near the hidden content's resting color. Through the fade, the
+green Mark as Done action draws at about rgb(45, 88, 67), far from its resting green, and which
+action leaks depends on timing: archiving clears attention, so the grey Archive action can leak
+instead. The color probe reported 0 pixels on frames that visibly showed the leak.
+
+**Works:** Pick a band that only the hidden content occupies, and count per frame the pixels that
+differ from the band's resting first frame, whatever their color. Prove the probe can fail on the
+pre-fix build first. `bandDeparturePeak` in `e2e/support/mobile-motion-analysis.ts`, used by
+`executeMobileSessionRowSwipeHiddenScenario`, is the reference.
+
 ## Assuming a native Android Photo Picker thumbnail has a resource ID
 
 **Situation:** A disposable Android 36 emulator has exactly one fixture-owned JPEG in the system
