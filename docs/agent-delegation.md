@@ -1459,7 +1459,9 @@ that decide which Sessions take which place.
   alone and still list it after its host.
 - **Consult.** A `consult` Session takes no row while a Session above it is listed, and none once its
   creator is archived: the asking work is done and its answer was read. It shows
-  nested only while it is the selected Session, and the command palette still finds it.
+  nested only while it is the selected Session, and the command palette still finds it. The Activity
+  view applies the same rule: it lists a consult only while the Project tree gives it a row, so a
+  finished second opinion never lands in Needs attention or the attention badge.
 - **Grouping.** The Session keeps its own `projectId`. Only the sidebar's grouping moves: a nested
   Session counts toward its host's group for collapsed-heading rollups and auto-collapse
   protection, and its row names its own Project.

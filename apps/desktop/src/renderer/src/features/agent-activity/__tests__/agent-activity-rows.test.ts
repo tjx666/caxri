@@ -60,6 +60,7 @@ function terminal(sessionId: string, overrides: Partial<TerminalRecord> = {}): T
 function groupsOf(sessions: readonly SessionRecord[], terminals: readonly TerminalRecord[] = []) {
     return agentActivityGroups({
         projects: [project('alpha'), project('beta')],
+        selectedSessionId: undefined,
         sessions,
         terminals,
     });
@@ -225,6 +226,41 @@ describe('agentActivityGroups', () => {
         const groups = groupsOf([pending('one', { projectId: 'beta' })]);
         expect(groups[0].rows[0].project.title).toBe('beta');
     });
+
+    /**
+     * A consult (a second opinion, a review) answers the Chat that asked for it, which is its only entry; the Project
+     * tree gives it no row, so the queue must not list it either (issue caxri#3881).
+     */
+    it('lists no consult the Project tree hides, except the selected one', () => {
+        const sessions = [
+            pending('asker'),
+            pending('consult', { createdByRelation: 'consult', createdBySessionId: 'asker' }),
+            session('retired-consult', {
+                createdByRelation: 'consult',
+                createdBySessionId: 'archived-asker',
+                agentActivityState: 'running',
+            }),
+            session('archived-asker', { archivedAt: NOW }),
+            pending('delegated', { createdByRelation: 'delegated', createdBySessionId: 'asker' }),
+        ];
+        const ids = (selectedSessionId: string | undefined) =>
+            agentActivityGroups({
+                projects: [project('alpha')],
+                selectedSessionId,
+                sessions,
+                terminals: [],
+            }).flatMap((group) => idsOf(group));
+
+        expect(ids(undefined).toSorted((left, right) => left.localeCompare(right))).toEqual([
+            'asker',
+            'delegated',
+        ]);
+        expect(ids('consult').toSorted((left, right) => left.localeCompare(right))).toEqual([
+            'asker',
+            'consult',
+            'delegated',
+        ]);
+    });
 });
 
 describe('agentActivityHeadingPresentation', () => {
@@ -331,9 +367,21 @@ describe('agentAttentionCount', () => {
             pending('still-running', { agentActivityState: 'running' }),
             session('quiet'),
         ];
-        const groups = agentActivityGroups({ projects, sessions, terminals: [] });
+        const groups = agentActivityGroups({
+            projects,
+            selectedSessionId: undefined,
+            sessions,
+            terminals: [],
+        });
 
-        expect(agentAttentionCount(projects, sessions, [])).toBe(3);
+        expect(
+            agentAttentionCount({
+                projects,
+                selectedSessionId: undefined,
+                sessions,
+                terminals: [],
+            }),
+        ).toBe(3);
         expect(groups.find((group) => group.id === 'attention')?.rows).toHaveLength(3);
     });
 
@@ -344,7 +392,14 @@ describe('agentAttentionCount', () => {
             terminal('limited', { usageLimitWaitAt: NOW }),
         ];
 
-        expect(agentAttentionCount(projects, sessions, terminals)).toBe(1);
+        expect(
+            agentAttentionCount({
+                projects,
+                selectedSessionId: undefined,
+                sessions,
+                terminals,
+            }),
+        ).toBe(1);
     });
 
     /**
@@ -358,10 +413,48 @@ describe('agentAttentionCount', () => {
             pending('counted'),
         ];
 
-        expect(agentAttentionCount(projects, sessions, [])).toBe(1);
+        expect(
+            agentAttentionCount({
+                projects,
+                selectedSessionId: undefined,
+                sessions,
+                terminals: [],
+            }),
+        ).toBe(1);
+    });
+
+    it('does not count a consult the queue hides', () => {
+        const sessions = [
+            pending('asker'),
+            pending('consult', { createdByRelation: 'consult', createdBySessionId: 'asker' }),
+        ];
+
+        expect(
+            agentAttentionCount({
+                projects,
+                selectedSessionId: undefined,
+                sessions,
+                terminals: [],
+            }),
+        ).toBe(1);
+        expect(
+            agentAttentionCount({
+                projects,
+                selectedSessionId: 'consult',
+                sessions,
+                terminals: [],
+            }),
+        ).toBe(2);
     });
 
     it('is zero with nothing pending', () => {
-        expect(agentAttentionCount(projects, [session('quiet')], [])).toBe(0);
+        expect(
+            agentAttentionCount({
+                projects,
+                selectedSessionId: undefined,
+                sessions: [session('quiet')],
+                terminals: [],
+            }),
+        ).toBe(0);
     });
 });

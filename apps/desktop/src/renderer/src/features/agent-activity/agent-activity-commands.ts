@@ -19,6 +19,7 @@ export function focusNextAttentionSession(): void {
     if (!bootstrap) return;
     const groups = agentActivityGroups({
         projects: topLevelProjects(bootstrap.projects),
+        selectedSessionId: bootstrap.selectedSessionId,
         sessions: bootstrap.sessions,
         terminals: bootstrap.terminals,
     });

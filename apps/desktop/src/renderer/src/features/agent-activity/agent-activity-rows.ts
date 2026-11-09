@@ -16,6 +16,7 @@ import {
 } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
+import { placeDelegatedSessions } from '../primary-sidebar/delegated/delegated-placement';
 import {
     indexedSessionAgentTerminal,
     sessionTerminalIndex,
@@ -104,14 +105,57 @@ function groupForSession(
     });
 }
 
+interface AgentActivityInput {
+    projects: readonly ProjectRecord[];
+    /**
+     * The selected Session, which stays listed even when it is a consult the queue otherwise hides.
+     */
+    selectedSessionId: string | undefined;
+    sessions: readonly SessionRecord[];
+    terminals: readonly TerminalRecord[];
+}
+
+const isAlwaysListed = (): boolean => true;
+
+/**
+ * Whether the queue lists a Session as far as consults go: a `consult` Session is listed only when the Project tree
+ * gives it a row (`placeDelegatedSessions`), so a second opinion or review that the tree hides under the Chat that
+ * asked for it, or retires with its archived creator, never lands in Needs attention (issue caxri#3881). The asking
+ * Chat's Delegated Sessions strip and Side View are its entry; the selected one stays listed so the selection is
+ * visible. Other relations are untouched: a `delegated` Session nests in the tree but is the user's work to watch, so
+ * the flat queue lists it.
+ *
+ * The placement is computed only when an active consult exists, so the common store without one pays nothing.
+ */
+function consultListing(
+    projects: readonly ProjectRecord[],
+    sessions: readonly SessionRecord[],
+    selectedSessionId: string | undefined,
+): (session: SessionRecord) => boolean {
+    if (
+        sessions.every(
+            (session) =>
+                !(session.createdByRelation === 'consult' && session.archivedAt === undefined),
+        )
+    ) {
+        return isAlwaysListed;
+    }
+    const { byId } = placeDelegatedSessions({ projects, selectedSessionId, sessions });
+    return (session) => {
+        if (session.createdByRelation !== 'consult') return true;
+        const placement = byId.get(session.id);
+        return placement !== undefined && placement.kind !== 'hidden';
+    };
+}
+
 /**
  * Projects every Project's active Sessions into one flat, attention-first list: Needs attention, Working, Idle.
  *
  * Archived Sessions are excluded, and a Session whose Project is not in `projects` is dropped: the PrimarySidebar hides
  * auto-registered worktree Projects, and a row naming a Project the user never added would be unreachable from here.
- * Rows inside a status group follow `compareSessionActivityGroupRows`, shared with the phone. Pinned Sessions also get
- * a leading `pinned` group (see `PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS` for which ones stay in their status group
- * too).
+ * Consults the Project tree hides are dropped too (see `consultListing`). Rows inside a status group follow
+ * `compareSessionActivityGroupRows`, shared with the phone. Pinned Sessions also get a leading `pinned` group (see
+ * `PINNED_DUPLICATE_SESSION_ACTIVITY_GROUPS` for which ones stay in their status group too).
  *
  * Terminals are grouped by Session once per call, so one projection is linear in Sessions plus Terminals. It has two
  * callers and neither runs while the queue is off screen: `AgentActivityView` exists only while the Primary Side Bar
@@ -121,14 +165,12 @@ function groupForSession(
  */
 export function agentActivityGroups({
     projects,
+    selectedSessionId,
     sessions,
     terminals,
-}: {
-    projects: readonly ProjectRecord[];
-    sessions: readonly SessionRecord[];
-    terminals: readonly TerminalRecord[];
-}): AgentActivityGroup[] {
+}: AgentActivityInput): AgentActivityGroup[] {
     const projectsById = new Map(projects.map((project) => [project.id, project]));
+    const isListed = consultListing(projects, sessions, selectedSessionId);
     const terminalsBySession = sessionTerminalIndex(terminals);
     const entriesByGroup = new Map<
         AgentActivityStatusGroupId,
@@ -138,7 +180,7 @@ export function agentActivityGroups({
     for (const session of sessions) {
         if (session.archivedAt !== undefined) continue;
         const project = projectsById.get(session.projectId);
-        if (project === undefined) continue;
+        if (project === undefined || !isListed(session)) continue;
         const terminal = indexedSessionAgentTerminal(session, terminalsBySession);
         const groupId = groupForSession(session, terminal);
         const isBackgroundWait = terminal?.agentOperation === 'background';
@@ -244,11 +286,12 @@ export function agentActivityRenameRow(
  * Reading a Session does not clear it; only marking it Done, a new turn, or the question being answered elsewhere does.
  * Terminals are indexed only when some Session is pending, so the common idle store pays nothing for them.
  */
-export function agentAttentionCount(
-    projects: readonly ProjectRecord[],
-    sessions: readonly SessionRecord[],
-    terminals: readonly TerminalRecord[],
-): number {
+export function agentAttentionCount({
+    projects,
+    selectedSessionId,
+    sessions,
+    terminals,
+}: AgentActivityInput): number {
     const projectIds = new Set(projects.map((project) => project.id));
     const pending = sessions.filter(
         (session) =>
@@ -257,11 +300,15 @@ export function agentAttentionCount(
             projectIds.has(session.projectId),
     );
     if (pending.length === 0) return 0;
+    const isListed = pending.some((session) => session.createdByRelation === 'consult')
+        ? consultListing(projects, sessions, selectedSessionId)
+        : isAlwaysListed;
     const terminalsBySession = sessionTerminalIndex(terminals);
     return pending.filter(
         (session) =>
+            isListed(session) &&
             groupForSession(session, indexedSessionAgentTerminal(session, terminalsBySession)) ===
-            'attention',
+                'attention',
     ).length;
 }
 

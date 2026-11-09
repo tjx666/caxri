@@ -180,8 +180,9 @@ export function placeDelegatedSessions({
     /**
      * A consult whose creator is archived: a consult never takes a Project tree row of its own (the asking Chat's Side
      * View is its entry), and archiving the creator does not give it one, whatever its state. Its answer was for the
-     * archived work. The Activity view and the command palette still list it, unarchiving the creator hides it under
-     * the creator again, and the selected one keeps a row so the selection stays visible.
+     * archived work. The Activity view follows this placement too (`agent-activity-rows.ts`); the command palette still
+     * lists it, unarchiving the creator hides it under the creator again, and the selected one keeps a row so the
+     * selection stays visible.
      */
     const retiredConsults = new Set(
         sessions

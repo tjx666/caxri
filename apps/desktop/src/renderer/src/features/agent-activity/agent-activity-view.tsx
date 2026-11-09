@@ -90,10 +90,11 @@ export function AgentActivityView() {
                 // Auto-registered worktree Projects are hidden from the PrimarySidebar's top level, so naming one here
                 // would point at a row the user has no other way to reach.
                 projects: topLevelProjects(allProjects ?? NO_RECORDS),
+                selectedSessionId,
                 sessions,
                 terminals,
             }),
-        [allProjects, sessions, terminals],
+        [allProjects, selectedSessionId, sessions, terminals],
     );
     const rows = useMemo(
         () =>
