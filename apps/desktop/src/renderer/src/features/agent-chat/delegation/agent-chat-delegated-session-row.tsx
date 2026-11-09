@@ -8,7 +8,7 @@ import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
-import { useHasSessionTerminal, useProjectById, useSessionById } from '../../../stores/selectors';
+import { useProjectById, useSessionById } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
 import {
     delegationCopy,
@@ -25,7 +25,8 @@ import { sessionTitleForDisplay } from '../../session/session-title';
 import { delegatedSessionLine, delegationPrFilesLabel } from './agent-chat-delegated-sessions';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import type { DelegatedCostLabel } from './cost/agent-chat-delegated-cost';
-import { canOpenDelegatedChild, openDelegatedChild } from './side-view/delegated-child-opener';
+import { useCanOpenDelegatedChild } from './hooks/use-can-open-delegated-child';
+import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 /**
  * A finished task's pull request, with the whole pull request's file count. Mounted only for a completed row, so a row
@@ -177,10 +178,7 @@ export function AgentChatDelegatedSessionRow({
     const session = useSessionById(entry.sessionId);
     const viaSession = useSessionById(viaSessionId);
     const project = useProjectById(session?.projectId);
-    const hasTerminal = useHasSessionTerminal(entry.sessionId);
-    const isOpenable =
-        session !== undefined &&
-        canOpenDelegatedChild({ hasTerminal, isFailed: entry.status === 'failed' });
+    const isOpenable = useCanOpenDelegatedChild(entry.sessionId, entry.status === 'failed');
     const title = session
         ? sessionTitleForDisplay(session.title, t)
         : t('delegation.strip.unavailable');

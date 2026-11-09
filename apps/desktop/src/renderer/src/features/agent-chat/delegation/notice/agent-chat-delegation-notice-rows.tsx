@@ -14,9 +14,10 @@ import {
 
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
-import { useHasSessionTerminal, useSessionById } from '../../../../stores/selectors';
+import { useSessionById } from '../../../../stores/selectors';
 import { sessionTitleForDisplay } from '../../../session/session-title';
-import { canOpenDelegatedChild, openDelegatedChild } from '../side-view/delegated-child-opener';
+import { useCanOpenDelegatedChild } from '../hooks/use-can-open-delegated-child';
+import { openDelegatedChild } from '../side-view/delegated-child-opener';
 import { noticeEventKey, noticeRowKey } from './agent-chat-delegation-notice';
 
 const ICONS: Record<DelegationNoticeEvent, LucideIcon> = {
@@ -49,7 +50,7 @@ const ROW_CLASS_NAME =
 function DelegationNoticeRow({ item }: { item: AgentChatDelegationNotice['items'][number] }) {
     const { t } = useTranslation();
     const session = useSessionById(item.sessionId);
-    const hasTerminal = useHasSessionTerminal(item.sessionId);
+    const isOpenable = useCanOpenDelegatedChild(item.sessionId, item.event === 'failed');
     const Icon = ICONS[item.event];
     const status = t(noticeEventKey(item.event));
     const title = session ? sessionTitleForDisplay(session.title, t) : undefined;
@@ -70,10 +71,7 @@ function DelegationNoticeRow({ item }: { item: AgentChatDelegationNotice['items'
             <span className="shrink-0">{status}</span>
         </>
     );
-    const isOpenable =
-        title !== undefined &&
-        canOpenDelegatedChild({ hasTerminal, isFailed: item.event === 'failed' });
-    return !isOpenable ? (
+    return !isOpenable || title === undefined ? (
         <div className={ROW_CLASS_NAME} data-agent-chat-delegation-notice-item={item.delegationId}>
             {content}
         </div>
