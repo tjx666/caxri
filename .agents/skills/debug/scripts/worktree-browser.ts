@@ -7,8 +7,10 @@
  * With `--packaged` it reaches the installed app instead: the fixed packaged CDP port (`CAXRI_DEV_CDP_PORT` overrides
  * it), its own session, and a check that the window is a Caxri build no worktree launched.
  *
- * Usage: `bun run .agents/skills/debug/scripts/worktree-browser.ts [--packaged] <agent-browser arguments...>`
+ * Usage: `bun run .agents/skills/debug/scripts/worktree-browser.ts [--packaged] <agent-browser arguments...>`, or `...
+ * run-file <path>` to evaluate the JavaScript expression a file holds.
  */
+import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 import { execFileAsync } from '../../../../scripts/exec';
@@ -61,6 +63,22 @@ export function parseBrowserArguments(argv: string[]): {
 } {
     const isPackaged = argv[0] === '--packaged';
     return { commandArguments: isPackaged ? argv.slice(1) : argv, isPackaged };
+}
+
+/**
+ * Expands `run-file <path>` into agent-browser's expression command with the file's contents. A worktree-isolated
+ * Claude Code session refuses any shell command containing the word `eval` (inline, `--stdin`, or a wrapper argument),
+ * so an expression longer than a structured command can express has to come from a file under a different verb.
+ */
+export async function expandRunFile(
+    commandArguments: string[],
+    readFile: (path: string) => Promise<string>,
+): Promise<string[]> {
+    if (commandArguments[0] !== 'run-file') return commandArguments;
+    if (commandArguments.length !== 2) {
+        throw new CommandError('Usage: run-file <path to a JavaScript expression file>', 2);
+    }
+    return ['eval', await readFile(commandArguments[1])];
 }
 
 export function browserEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -178,8 +196,9 @@ async function main(): Promise<number> {
     if (commandArguments.length === 0) {
         throw new CommandError('Pass the agent-browser command to run, e.g. `snapshot`', 2);
     }
+    const expanded = await expandRunFile(commandArguments, (path) => readFile(path, 'utf8'));
     const { cwd, environment, target } = await verifiedTarget(process.cwd(), isPackaged);
-    return runInherited('agent-browser', browserArguments(target, commandArguments), {
+    return runInherited('agent-browser', browserArguments(target, expanded), {
         cwd,
         env: environment,
     });

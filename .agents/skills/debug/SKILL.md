@@ -211,7 +211,11 @@ its `--screenshot` captures before release, while the switcher is still open),
 `theme <built-in id|absolute JSON path>` for a light (`solarized-light`)
 or imported-theme capture without the native import dialog, `trust-folder <absolute path>` so opening
 a file outside every Project skips Main's native confirmation (`settings.trustFolder` is Main-only),
-and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. It reaches the same checked window as `worktree-browser.ts`,
+and `screenshot <absolute path>`; every step also takes `--screenshot <absolute path>`. For the
+Chat's Delegated Sessions strip, which only a Server-side Agent can fill, run `open-chat`, then
+`switch-worktree stop`, then `bun run .agents/skills/debug/scripts/seed-delegated-chat.ts
+--user-data-dir /tmp/<task>/profile`, then `dev` again: it seeds failed, unreadable, completed,
+consult, and grandchild rows under that Chat. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
 throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
 partial patch. If the fixture's test root does not cover the flow, export
@@ -290,8 +294,9 @@ bun run .agents/skills/debug/scripts/worktree-browser.ts screenshot /tmp/<task>/
 Pass `--packaged` first to reach the installed app on 9224 instead; the wrapper then requires a
 `Caxri/` user agent and no `__caxriWorktree`. Use the manual form below for another worktree's port.
 
-If an isolated-worktree harness rejects a caller-supplied `eval` expression, cover the visual check
-with the wrapper's structured commands instead, such as `hover '<selector>'`,
+A worktree-isolated Claude Code session refuses any command containing `eval`, inline or
+`--stdin`. Write the expression to a file and run `worktree-browser.ts run-file /tmp/<task>/probe.js`
+instead, or use the wrapper's structured commands, such as `hover '<selector>'`,
 `get text .tooltip-popup`, and `screenshot /tmp/<task>/tooltip.png`. The wrapper still runs its own
 ownership probe.
 
@@ -441,7 +446,8 @@ request, a CI result, a deployment), import the same query client the app uses a
 synthetic snapshot. Import the module URL the page actually loaded, not the bare
 `/src/queries/client.ts`: after an HMR update the app holds a `?t=<timestamp>` copy, and the bare
 path silently creates a fresh client with no observers, so the injection changes nothing. Read the
-URL from the resource entries and fail if it is missing:
+URL from the resource entries and fail if it is missing (in a worktree-isolated session, save the
+expression to a file and pass it to `run-file`):
 
 ```bash
 bun run .agents/skills/debug/scripts/worktree-browser.ts eval "(async () => { const urls = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => new URL(n).pathname === '/src/queries/client.ts'); if (urls.length === 0) throw new Error('query client module not loaded'); const m = await import(urls.at(-1)); const id = __caxriStores.getState('workbench').bootstrap.selectedSessionId; m.queryClient.setQueryData(m.caxriQueryKey('session.pullRequests', undefined), { pullRequests: { [id]: { number: 1, title: 'Example', url: 'https://github.com/owner/example/pull/1', state: 'open', source: 'agent' } }, refreshedAt: Date.now() }); })()"

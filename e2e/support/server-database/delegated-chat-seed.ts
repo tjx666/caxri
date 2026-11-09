@@ -69,8 +69,9 @@ export function run(input: Input): DeepDelegatedChatSeed | DelegatedChatSeed | n
     const database = new CaxriDatabase(join(input.userData, 'caxri.db'));
     try {
         const now = Date.now();
-        // The blocked phase runs on a database the children phase already filled, so its IDs start elsewhere.
-        let sequence = input.phase === 'blocked' ? 100 : 0;
+        // The blocked and deep phases can run on a database the children phase already filled (the debug skill's
+        // `seed-delegated-chat.ts` runs children then deep), so each phase's IDs start in their own range.
+        let sequence = { blocked: 100, children: 0, deep: 200 }[input.phase];
         const create = (
             title: string,
             relation: SessionRelation,
