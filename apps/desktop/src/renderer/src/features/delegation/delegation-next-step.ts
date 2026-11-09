@@ -28,6 +28,7 @@ const FAILURE_NEXT_STEPS: Readonly<
     output_limit: ['retry'],
     startup_not_ready: ['retry'],
     launch_failed: ['retry'],
+    capacity_exhausted: ['retry'],
     provider_failed: ['retry'],
     submission_unconfirmed: ['openSession'],
     startup_waiting: ['openSession'],

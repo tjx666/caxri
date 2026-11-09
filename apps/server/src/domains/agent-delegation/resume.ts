@@ -8,7 +8,7 @@ import { CaxriError, isChatTerminal, isDelegationActive } from '@caxri/protocol'
 import type { StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
 import { isCaxriBotCaller } from './admission';
-import { canChatCorrelateTask } from './chat-child';
+import { canChatCorrelateTask, dispatchLaunchFailure } from './chat-child';
 import type { DelegationHandBacks } from './handback/service';
 import { delegationResumeLaunch, prepareDelegationFollowUp } from './launch';
 import type { DelegationFollowUpRejection, DelegationResumeRejection } from './rejection';
@@ -101,7 +101,7 @@ async function launchExactResume(
             },
         },
     );
-    if (dispatched.status === 'failed') host.fail(id, 'launch_failed');
+    if (dispatched.status === 'failed') host.fail(id, dispatchLaunchFailure(dispatched.failure));
     return host.owned(id).receipt;
 }
 

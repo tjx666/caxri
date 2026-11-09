@@ -38,6 +38,7 @@ const historyFailures = closedValues<NonNullable<AgentDelegationReceipt['failure
     'caller_stopped',
     'target_not_ready',
     'target_busy',
+    'capacity_exhausted',
 ]);
 const edgeRelations = closedValues<SessionRelation>()([
     'delegated',

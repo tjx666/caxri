@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CaxriError } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDispatchService } from '../../agent-dispatch';
@@ -236,6 +237,43 @@ describe('AgentDelegationService with a forced surface', () => {
         expect(chat.service.status(chat.id, owner).surface).toBe('chat');
         const terminal = await fixture({ opensAgentsInChat: () => false });
         expect(terminal.service.status(terminal.id, owner).surface).toBe('pty');
+    });
+
+    it('fails a child refused at Terminal capacity as capacity_exhausted, not launch_failed', async () => {
+        const refused = vi.fn<AgentDispatchService['start']>(() =>
+            Promise.reject(
+                new CaxriError('CAPACITY', 'Caxri supports at most 32 Terminals', {
+                    reason: 'terminal_capacity_global',
+                }),
+            ),
+        );
+        const chat = await fixture({ dispatch: { start: refused, resume: vi.fn() } });
+        expect(chat.service.status(chat.id, owner)).toMatchObject({
+            status: 'failed',
+            failure: 'capacity_exhausted',
+        });
+
+        // A full pane layout is `CAPACITY` too, but closing a Terminal would not free it.
+        const paneFull = vi.fn<AgentDispatchService['start']>(() =>
+            Promise.reject(new CaxriError('CAPACITY', 'No space for another visible Agent pane')),
+        );
+        const pane = await fixture({ dispatch: { start: paneFull, resume: vi.fn() } });
+        expect(pane.service.status(pane.id, owner).failure).toBe('launch_failed');
+
+        const failed = vi.fn<AgentDispatchService['start']>(() =>
+            Promise.resolve({
+                status: 'failed',
+                failure: { code: 'CAPACITY', reason: 'launch_failed' },
+            } as Awaited<ReturnType<AgentDispatchService['start']>>),
+        );
+        const terminal = await fixture(
+            { dispatch: { start: failed, resume: vi.fn() } },
+            { surface: 'pty' },
+        );
+        expect(terminal.service.status(terminal.id, owner)).toMatchObject({
+            status: 'failed',
+            failure: 'capacity_exhausted',
+        });
     });
 
     it('fails a forced Terminal child as hooks_required when its hooks are off', async () => {

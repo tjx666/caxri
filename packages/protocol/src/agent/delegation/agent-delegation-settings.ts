@@ -331,4 +331,9 @@ export const agentDelegationFailureSchema = z.enum([
     'caller_stopped',
     'target_not_ready',
     'target_busy',
+    /**
+     * Caxri already runs as many live Terminals as it supports (globally or in the target Session), so the child never
+     * started. Closing an idle Session or Agent frees a slot; nothing was launched.
+     */
+    'capacity_exhausted',
 ]);

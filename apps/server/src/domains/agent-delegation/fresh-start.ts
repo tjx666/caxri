@@ -8,7 +8,7 @@ import { CaxriError, isDelegationActive } from '@caxri/protocol';
 import type { StoredAgentDelegation } from '../db';
 import type { DelegationAuthority } from './admission';
 import { delegationPaneCaller } from './admission';
-import { delegationChildLaunch } from './chat-child';
+import { delegationChildLaunch, dispatchLaunchFailure } from './chat-child';
 import { prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import type { ExactResumeHost } from './resume';
@@ -94,6 +94,6 @@ export async function startFreshTask(
             },
         },
     );
-    if (dispatched.status === 'failed') host.fail(id, 'launch_failed');
+    if (dispatched.status === 'failed') host.fail(id, dispatchLaunchFailure(dispatched.failure));
     return undefined;
 }

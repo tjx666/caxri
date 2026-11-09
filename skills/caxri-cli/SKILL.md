@@ -416,6 +416,8 @@ the only Agent with native real-time X search, each on a fixed default model and
   in Chat) needs its provider's Caxri lifecycle hooks, which are off by default. Without them the
   task fails as `hooks_required` before anything launches: ask the owner to turn them on in
   Settings, then retry. Never install global hooks or relax a Provider sandbox yourself.
+  `capacity_exhausted` means Caxri already runs as many live Terminals as it supports, so nothing
+  launched: tell the owner, who can close a Session or Terminal they no longer need, then retry.
   Provider usage is optional: omitted counters are unknown. Grok's `provider-task` scope may include
   native children; Claude and Codex report `main-thread` scope.
 

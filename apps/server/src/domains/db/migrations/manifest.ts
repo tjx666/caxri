@@ -21,6 +21,7 @@ import delegationHandBackTriggerMigrationSql from './0015_delegation_hand_back_t
 import delegationOwnerConversationMigrationSql from './0016_delegation_owner_conversation.sql?raw';
 import sessionTurnStartedAtMigrationSql from './0017_session_turn_started_at.sql?raw';
 import chatModelChoiceMigrationSql from './0018_chat_model_choice.sql?raw';
+import delegationHistoryCapacityExhaustedMigrationSql from './0019_delegation_history_capacity_exhausted.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -85,6 +86,10 @@ export const migrationManifest = [
     { tag: '0016_delegation_owner_conversation', sql: delegationOwnerConversationMigrationSql },
     { tag: '0017_session_turn_started_at', sql: sessionTurnStartedAtMigrationSql },
     { tag: '0018_chat_model_choice', sql: chatModelChoiceMigrationSql },
+    {
+        tag: '0019_delegation_history_capacity_exhausted',
+        sql: delegationHistoryCapacityExhaustedMigrationSql,
+    },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

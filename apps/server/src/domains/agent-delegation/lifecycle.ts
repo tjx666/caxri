@@ -20,7 +20,7 @@ export function canFailDelegation(
 ): boolean {
     return (
         isDelegationActive(record.receipt) ||
-        (failure === 'launch_failed' &&
+        ((failure === 'launch_failed' || failure === 'capacity_exhausted') &&
             !record.turnId &&
             record.receipt.failure === 'target_changed' &&
             record.receipt.status === 'interrupted')
