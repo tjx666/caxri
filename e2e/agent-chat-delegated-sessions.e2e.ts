@@ -418,7 +418,7 @@ test('the owner retries a failed delegated task from the strip and the Agent tha
  * seeded).
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the strip states the estimated cost of a delegated Chat per row and in the header, with ~ while it runs', async ({}, testInfo) => {
+test('the strip states the estimated cost of a delegated Chat per row and in the header, and notes while it runs that it may grow', async ({}, testInfo) => {
     const chat = await launchDelegatingChat('caxri-delegated-cost-');
     try {
         const { page } = chat.running;
@@ -457,18 +457,20 @@ test('the strip states the estimated cost of a delegated Chat per row and in the
             threadId: threadId!,
         });
 
-        // While the child runs, the figure is marked `~` on the row and in the header.
+        // While the child runs, the figure carries no `~` marker; only its description says it may still grow.
         const rowCost = row.locator('span[aria-hidden="true"]', { hasText: '$' });
-        await expect(rowCost).toHaveText(/^~\$\d+\.\d\d$/u, { timeout: 45_000 });
-        await expect(strip).toContainText(/delegated · ~\$\d+\.\d\d/u);
-        await page.screenshot({ path: testInfo.outputPath('delegated-cost-running.png') });
-
-        // Released, the child settles and the same figure loses the marker.
-        await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
-        await expect(row).toContainText(CHILD_SUMMARY);
         await expect(rowCost).toHaveText(/^\$\d+\.\d\d$/u, { timeout: 45_000 });
+        await expect(row).toContainText('Still running; the figure may grow.');
         await expect(strip).toContainText(/delegated · \$\d+\.\d\d/u);
         await expect(strip).not.toContainText('~');
+        await page.screenshot({ path: testInfo.outputPath('delegated-cost-running.png') });
+
+        // Released, the child settles and the description drops the running note.
+        await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
+        await expect(row).toContainText(CHILD_SUMMARY);
+        await expect(row).not.toContainText('Still running', { timeout: 45_000 });
+        await expect(rowCost).toHaveText(/^\$\d+\.\d\d$/u);
+        await expect(strip).toContainText(/delegated · \$\d+\.\d\d/u);
         await page.screenshot({ path: testInfo.outputPath('delegated-cost-settled.png') });
 
         // The header's figure and the row's agree, and hovering the header states the basis.
