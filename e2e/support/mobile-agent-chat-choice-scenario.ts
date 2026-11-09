@@ -6,7 +6,6 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     agentText,
-    expandChatComposer,
     sendFromPhone,
     waitForCheck,
     waitForNoCheck,
@@ -19,17 +18,6 @@ import { mobileSemantics, tapMobileCheckByBounds, waitForMobile } from './mobile
  */
 const isOpus = (snapshot: AgentChatSnapshot): boolean =>
     snapshot.model === 'opus' || snapshot.model === 'fake-claude-opus';
-
-/**
- * Sends from the expanded composer. Typed at once into the collapsed composer the sheet left behind, the word landed
- * while the capsule was still expanding; in repeated runs its second row (the send control) never appeared and every
- * later UIAutomator read failed. Waiting for that row first, as `MOB-CHAT-04` does, keeps the send on a settled
- * composer.
- */
-async function sendFromPhoneExpanded(serial: string, word: string): Promise<void> {
-    await expandChatComposer(serial, 'agent-chat-model-button');
-    await sendFromPhone(serial, word);
-}
 
 /**
  * `MOB-CHAT-CHOICE-01` (#3880): a Chat's own model choice stays in sync on the phone and survives a provider restart.
@@ -134,7 +122,7 @@ export async function executeMobileChatChoiceScenario(
          *    message runs on the Chat's choice. A Chat is suspended only by the idle sweep (`terminal.suspend` parks
          *    PTYs), and every provider start takes the same restore path.
          */
-        await sendFromPhoneExpanded(serial, 'hello');
+        await sendFromPhone(serial, 'hello');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
@@ -154,7 +142,7 @@ export async function executeMobileChatChoiceScenario(
             () => choiceApplied('start'),
             (records) => records.length > restoresBefore,
         );
-        await sendFromPhoneExpanded(serial, 'again');
+        await sendFromPhone(serial, 'again');
         const resumed = await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: again') && !snapshot.activeTurnId,

@@ -30,6 +30,7 @@ import { fakeConversationAgent } from './mobile-conversation-agent-fixture';
 import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
 import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
 import { waitForPairedDevice as waitForPairedDeviceOn } from './mobile-paired-device';
+import { captureFinalFrame } from './mobile-scenario-capture';
 import type { SyntheticMenuState } from './mobile-synthetic-menu-state';
 import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
 import { runServerDatabase as runServerDatabase } from './run-server-database';
@@ -225,6 +226,7 @@ export async function createMobileAcceptanceFixture(
         if (isStopped) return;
         isStopped = true;
         let failure: unknown;
+        await captureFinalFrame(input.serial);
         try {
             await pageRequest(running.page, 'mobile.access.disable');
         } catch {

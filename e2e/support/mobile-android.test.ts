@@ -1,7 +1,13 @@
+import process from 'node:process';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { androidScreenSize } from '../../scripts/mobile-android-display-state.ts';
-import { androidTapPoint, setMobileNetworkAvailable } from './mobile-android';
+import {
+    androidTapPoint,
+    runMobileDeviceCommand,
+    setMobileNetworkAvailable,
+} from './mobile-android';
 
 describe('Android Acceptance network isolation', () => {
     it('disables and restores both emulator network transports', async () => {
@@ -66,5 +72,31 @@ describe('Android Acceptance taps by bounds', () => {
             width: 2560,
         });
         expect(() => androidScreenSize('')).toThrow('display size is unavailable');
+    });
+});
+
+/**
+ * Runs a child that fails with the given stderr line, the way the device helper reports its errors.
+ */
+const failWith = (stderr: string): Promise<string> =>
+    runMobileDeviceCommand(process.execPath, [
+        '-e',
+        `process.stderr.write(${JSON.stringify(stderr)}); process.exit(1);`,
+    ]);
+
+describe('Android Acceptance device command failures', () => {
+    it('names a UIAutomator dump that wrote no file', async () => {
+        await expect(failWith('The Caxri screen never became idle\n')).rejects.toThrow(
+            'A mobile Acceptance device command failed (ui-not-idle)',
+        );
+        await expect(failWith('UIAutomator wrote no window dump\n')).rejects.toThrow(
+            'A mobile Acceptance device command failed (ui-dump-missing)',
+        );
+    });
+
+    it('keeps unrecognized device output out of the failure', async () => {
+        await expect(failWith('private Session name\n')).rejects.toThrow(
+            /^A mobile Acceptance device command failed \(driver-failed\)$/u,
+        );
     });
 });

@@ -1,11 +1,16 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { bindAndroidScenarioArtifacts } from '../mobile-android-scenario-artifacts';
+import {
+    ANDROID_FINAL_FRAME_ENVIRONMENT,
+    androidFinalFrameEnvironment,
+    bindAndroidFinalFrame,
+    bindAndroidScenarioArtifacts,
+} from '../mobile-android-scenario-artifacts';
 
 const VALID_PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -76,5 +81,41 @@ describe('bindAndroidScenarioArtifacts', () => {
         await expect(bindAndroidScenarioArtifacts(directory, CASE_ID)).rejects.toThrow(
             'Android scenario artifact manifest is invalid',
         );
+    });
+});
+
+describe('bindAndroidFinalFrame', () => {
+    it("binds the frame the scenario's fixture took before teardown without capturing again", async () => {
+        const directory = await reportDirectoryWith();
+        await writeFile(join(directory, 'assets', `${CASE_ID}-android.png`), VALID_PNG);
+        const captureNow = vi.fn(() => Buffer.alloc(0));
+
+        const artifact = await bindAndroidFinalFrame(directory, CASE_ID, captureNow);
+
+        expect(captureNow).not.toHaveBeenCalled();
+        expect(artifact).toMatchObject({
+            path: `assets/${CASE_ID}-android.png`,
+            source: 'android-framebuffer',
+            type: 'screenshot',
+        });
+    });
+
+    it('captures the frame itself when the scenario left none', async () => {
+        const directory = await reportDirectoryWith();
+        const captureNow = vi.fn(() => VALID_PNG);
+
+        await bindAndroidFinalFrame(directory, CASE_ID, captureNow);
+
+        expect(captureNow).toHaveBeenCalledOnce();
+        await expect(
+            readFile(join(directory, 'assets', `${CASE_ID}-android.png`)),
+        ).resolves.toEqual(VALID_PNG);
+    });
+
+    it('asks only a case with an adapter screenshot for the fixture frame', () => {
+        expect(androidFinalFrameEnvironment('/report', 'MOB-CHAT-CHOICE-01')).toEqual({
+            [ANDROID_FINAL_FRAME_ENVIRONMENT]: '/report/assets/MOB-CHAT-CHOICE-01-android.png',
+        });
+        expect(androidFinalFrameEnvironment('/report', 'MOB-MOTION-01')).toEqual({});
     });
 });

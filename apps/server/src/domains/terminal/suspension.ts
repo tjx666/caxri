@@ -499,7 +499,8 @@ export class TerminalSuspensionService {
 
     /**
      * Parks one Terminal because the user asked to stop it: the resource alert's `Stop`. It resumes through the same
-     * interrupted-restore path as an idle suspension, so the Agent conversation is not lost.
+     * interrupted-restore path as an idle suspension, so the Agent conversation is not lost. It returns false for an
+     * Agent Chat, which has no PTY `processId`, even while its provider runs.
      */
     async suspendOnRequest(terminalId: string): Promise<boolean> {
         if (this.options.terminals.processId(terminalId) === undefined) return false;

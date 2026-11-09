@@ -439,15 +439,19 @@ second after the live view settles.
 
 ## Reading the runner's final frame as the product state
 
-**Situation:** An Android case's scenario captures its own screenshots, and the runner then writes
-`assets/<case-id>-android.png` after the case returns.
+**Situation:** An Android case's scenario captures its own screenshots, and the runner also binds
+`assets/<case-id>-android.png`, the case's final frame.
 
-**Does not work:** Citing that final frame, or treating a "Reconnecting…" or disconnected banner in
-it as a product failure. The runner captures it after the scenario's cleanup has already stopped the
-desktop fixture, so the phone has legitimately lost its computer (`MOB-SETTINGS-ROUTE-01`).
+**Does not work:** Treating that final frame as a planned checkpoint. The desktop fixture takes it
+first thing in its `stop()` (`captureFinalFrame` in `e2e/support/mobile-scenario-capture.ts`), so it
+shows whatever screen the last step, or the failing step, left behind; that makes it the first place
+to look after a failure, not proof of a passing state. A scenario that never started
+`createMobileAcceptanceFixture`, or whose capture failed, gets a frame the runner takes after
+teardown instead, and there a "Reconnecting…" or disconnected banner only means the phone has
+legitimately lost its computer (`MOB-SETTINGS-ROUTE-01` before the fixture capture existed).
 
-**Works:** Judge the case from the screenshots the scenario captured while the fixture was running.
-Mention the final frame in the report only to explain a disconnected state it shows.
+**Works:** Judge the case from the screenshots the scenario captured at its checkpoints. Cite the
+final frame for the state a failing step left, and describe it as the case's last screen.
 
 ## Matching a sent message's text on Android when the fake Agent echoes it
 

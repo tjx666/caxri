@@ -80,6 +80,8 @@ export async function runMobileDeviceCommand(
         const reasons = new Map([
             ['The requested Caxri control is unavailable', 'control-unavailable'],
             ['Caxri must own the foreground Activity before semantic capture', 'foreground-lost'],
+            ['The Caxri screen never became idle', 'ui-not-idle'],
+            ['UIAutomator wrote no window dump', 'ui-dump-missing'],
             ['adb timed out', 'adb-timeout'],
             ['adb failed to start', 'adb-start-failed'],
         ]);
@@ -283,9 +285,14 @@ export async function copyMobileFramebufferRecording(
 }
 
 /**
- * Reads the sanitized semantic checks. Under heavy host load a single UIAutomator read once failed with no closed
- * reason in the middle of a case, so an unclassified driver failure is retried a few times; a closed reason such as a
- * lost foreground still fails at once, since a retry cannot fix it.
+ * A read that a later attempt can still win: an unclassified driver failure, or a UIAutomator dump the screen was not
+ * yet idle for. A closed reason such as a lost foreground cannot change between attempts.
+ */
+const RETRYABLE_SEMANTIC_READ = ['(driver-failed)', '(ui-not-idle)', '(ui-dump-missing)'];
+
+/**
+ * Reads the sanitized semantic checks. Under heavy host load a single UIAutomator read once failed in the middle of a
+ * case, so a retryable failure is retried a few times; any other closed reason still fails at once.
  */
 export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {
     for (let attempt = 1; ; attempt += 1) {
@@ -298,9 +305,10 @@ export async function mobileSemantics(serial: string): Promise<MobileSemanticNod
             );
             return (JSON.parse(source) as { checks: MobileSemanticNode[] }).checks;
         } catch (error) {
-            const isUnclassified =
-                error instanceof Error && error.message.endsWith('(driver-failed)');
-            if (!isUnclassified || attempt >= 3) throw error;
+            const isRetryable =
+                error instanceof Error &&
+                RETRYABLE_SEMANTIC_READ.some((reason) => error.message.endsWith(reason));
+            if (!isRetryable || attempt >= 3) throw error;
         }
         // eslint-disable-next-line no-await-in-loop -- see above.
         await new Promise((resolve) => setTimeout(resolve, 1000));

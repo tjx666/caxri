@@ -154,6 +154,28 @@ export const observeAndroidNodeFromUiAutomator = (
 export const resumedPackageFromWindowDump = (source: string): string | undefined =>
     /(?:mCurrentFocus|mFocusedApp)[^\n]*\s([a-zA-Z][\w.]*)\/[\w.$]+/u.exec(source)?.[1];
 
+/**
+ * Closed failure messages for a `uiautomator dump` that wrote no file. The command exits 0 either way, so without these
+ * the following `pull` failed as an unclassified ADB error.
+ */
+export const UI_AUTOMATOR_NOT_IDLE = 'The Caxri screen never became idle';
+export const UI_AUTOMATOR_DUMP_MISSING = 'UIAutomator wrote no window dump';
+
+/**
+ * Maps the combined output of `uiautomator dump` to a closed failure message, or `undefined` when it reports a written
+ * dump. Only these fixed messages leave this function; the device output itself stays private.
+ *
+ * The strings come from AOSP's `DumpCommand`, which prints `ERROR: could not get idle state.` when the screen never
+ * settles within its 10 s wait and `UI hierchary dumped to:` (sic) after writing the file:
+ * https://android.googlesource.com/platform/frameworks/testing/+/refs/heads/main/uiautomator/cmds/uiautomator/src/com/android/commands/uiautomator/DumpCommand.java
+ * Any other output, such as its null-root error, is reported as a missing dump rather than guessed to be non-idle.
+ */
+export const uiAutomatorDumpFailure = (output: string): string | undefined => {
+    if (/\bUI hier\w+ dumped to:/u.test(output)) return undefined;
+    if (output.includes('could not get idle state')) return UI_AUTOMATOR_NOT_IDLE;
+    return UI_AUTOMATOR_DUMP_MISSING;
+};
+
 export const centerOfAndroidBounds = (source: string): AndroidPoint => {
     const match = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/u.exec(source);
     if (!match) throw new Error('Android bounds are invalid');
