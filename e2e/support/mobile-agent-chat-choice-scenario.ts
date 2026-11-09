@@ -46,6 +46,28 @@ export async function executeMobileChatChoiceScenario(
                 ({ id }) => id === chat.terminalId,
             )?.lastProcessState;
         const steps: Array<{ step: string; model?: string; effort?: string; custom: boolean }> = [];
+        /**
+         * This Chat's `agent_chat.choice_applied` records for `trigger` that handed the provider the stored model (and
+         * the effort, unless the new process already ran on it).
+         */
+        const choiceApplied = async (
+            trigger: 'reset' | 'start',
+        ): Promise<Array<Record<string, unknown>>> =>
+            (
+                await pageRequest<{ records: Array<{ fields?: Record<string, unknown> }> }>(
+                    page,
+                    'logs.query',
+                    { event: 'agent_chat.choice_applied', limit: 100 },
+                )
+            ).records
+                .map(({ fields }) => fields ?? {})
+                .filter(
+                    (fields) =>
+                        fields.terminalId === chat.terminalId &&
+                        fields.trigger === trigger &&
+                        fields.outcome === 'applied' &&
+                        String(fields.keys).split(',').includes('model'),
+                );
         const record = (step: string, snapshot: AgentChatSnapshot): void => {
             steps.push({
                 step,
@@ -101,6 +123,8 @@ export async function executeMobileChatChoiceScenario(
         });
         if (!suspended) throw new Error('The Chat provider was not running');
         await waitForMobile(processState, (state) => state === 'suspended');
+        record('suspended', await chat.read());
+        const restoresBefore = (await choiceApplied('start')).length;
         await sendFromPhone(serial, 'hello');
         const resumed = await waitForMobile(
             () => chat.read(),
@@ -110,6 +134,14 @@ export async function executeMobileChatChoiceScenario(
             throw new Error('The restarted Chat lost its own model choice');
         if ((await processState()) !== 'running')
             throw new Error('The Chat provider did not restart');
+        /**
+         * The restarted provider starts on its own default model, so the snapshot alone could still be the one from
+         * before the suspension: the restore's log proves the new process was handed the stored model and effort.
+         */
+        await waitForMobile(
+            () => choiceApplied('start'),
+            (records) => records.length > restoresBefore,
+        );
         record('after-restart', resumed);
         await waitForNoCheck(serial, 'agent-chat-activity');
         await openModelSheet(serial);
@@ -132,14 +164,19 @@ export async function executeMobileChatChoiceScenario(
             ),
         );
         await openModelSheet(serial);
-        // The default model offers no effort control, so no effort is checked.
+        // The default model offers no effort control, so the sheet lists no effort at all.
         await waitForCheckedOptions(serial, ['agent-chat-model-fake-claude-haiku']);
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => nodes.every(({ checkId }) => !checkId.startsWith('agent-chat-effort-')),
+        );
         await capture(environment, 'desktop-reset-on-phone', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
 
         await finish(environment, artifacts, {
             choiceAfterRestart: 'kept',
+            restartRestore: 'applied',
             desktopReset: 'global-default',
             status: 'passed',
             steps,
