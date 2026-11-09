@@ -13,10 +13,11 @@ const NO_RECORDS: never[] = [];
  */
 export function useAgentAttentionCount(): number {
     return useWorkbenchStore((state) =>
-        agentAttentionCount(
-            topLevelProjects(state.bootstrap?.projects ?? NO_RECORDS),
-            state.bootstrap?.sessions ?? NO_RECORDS,
-            state.bootstrap?.terminals ?? NO_RECORDS,
-        ),
+        agentAttentionCount({
+            projects: topLevelProjects(state.bootstrap?.projects ?? NO_RECORDS),
+            selectedSessionId: state.bootstrap?.selectedSessionId,
+            sessions: state.bootstrap?.sessions ?? NO_RECORDS,
+            terminals: state.bootstrap?.terminals ?? NO_RECORDS,
+        }),
     );
 }

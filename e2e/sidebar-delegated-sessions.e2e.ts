@@ -84,6 +84,20 @@ test('delegated Sessions nest under their host with their own Project name, a co
         await expect(nestedRow(page, firstNested)).toBeFocused();
         await page.keyboard.press('ArrowLeft');
         await expect(sessionCard(page, fixture.host)).toBeFocused();
+
+        // Activity is a flat queue, but it hides the consult just as the Project tree does: its entry is the Chat that
+        // asked for it (issue caxri#3881). The delegated Sessions are the user's work and stay listed.
+        await page.locator('.primary-sidebar-activity-toggle').click();
+        const activity = page.getByRole('tree', { name: 'Activity' });
+        await expect(activity).toBeVisible();
+        // The fan-out Sessions fill the Idle group's window, so reveal the rest before looking for a row in it.
+        await activity.getByText(/^Show \d+ more$/).click();
+        for (const sessionId of nested) {
+            // eslint-disable-next-line no-await-in-loop -- one row at a time keeps the failing Session in the message.
+            await expect(activity.locator(`[data-session-id="${sessionId}"]`)).not.toHaveCount(0);
+        }
+        await expect(activity.locator(`[data-session-id="${fixture.consult}"]`)).toHaveCount(0);
+        await activity.screenshot({ path: testInfo.outputPath('activity-delegated-sessions.png') });
     } finally {
         await fixture.cleanup();
     }
