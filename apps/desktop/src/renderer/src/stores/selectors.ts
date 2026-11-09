@@ -165,6 +165,18 @@ export function useSessionById(sessionId: string | undefined): SessionRecord | u
     );
 }
 
+/**
+ * Whether `sessionId` owns at least one Terminal; a boolean, so a subscriber re-renders only when that flips.
+ */
+export function useHasSessionTerminal(sessionId: string | undefined): boolean {
+    return useWorkbenchStore(
+        (state) =>
+            sessionId !== undefined &&
+            (state.bootstrap?.terminals.some((terminal) => terminal.sessionId === sessionId) ??
+                false),
+    );
+}
+
 export function useProjectById(projectId: string | undefined): ProjectRecord | undefined {
     return useWorkbenchStore((state) =>
         projectId

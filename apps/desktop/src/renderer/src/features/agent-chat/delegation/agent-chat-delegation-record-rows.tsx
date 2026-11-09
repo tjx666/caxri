@@ -20,7 +20,7 @@ import { useClockTick } from '@/hooks/use-clock-tick';
 
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { useProjectById, useSessionById } from '../../../stores/selectors';
+import { useHasSessionTerminal, useProjectById, useSessionById } from '../../../stores/selectors';
 import {
     delegationCopy,
     delegationCopyInput,
@@ -31,7 +31,7 @@ import { sessionTitleForDisplay } from '../../session/session-title';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import { delegationRecordsOf } from './agent-chat-delegation-records';
 import { useIsDelegationLive } from './hooks/use-is-delegation-live';
-import { openDelegatedChild } from './side-view/delegated-child-opener';
+import { canOpenDelegatedChild, openDelegatedChild } from './side-view/delegated-child-opener';
 
 const NO_IDS: readonly string[] = [];
 
@@ -69,7 +69,8 @@ const ROW_CLASS_NAME =
 /**
  * One delegation in the timeline: "Delegated to <child title> · <child Project>" (for a typed task, what was asked of
  * which Agent: "Asked Codex for a review: <title>"), with the state of that task (not of the Session's newest one) as
- * the glyph. The row opens the child. A child the Workbench no longer lists reads as unavailable and does not open.
+ * the glyph. The row opens the child. A child the Workbench no longer lists reads as unavailable and does not open, and
+ * a failed one that never launched a Terminal does not open either.
  */
 function DelegationRecordRow({
     delegation,
@@ -86,6 +87,7 @@ function DelegationRecordRow({
     const now = useClockTick('minute', isLive && isDelegationCopyClockDependent(copyInput));
     const session = useSessionById(delegation.sessionId);
     const project = useProjectById(session?.projectId);
+    const hasTerminal = useHasSessionTerminal(delegation.sessionId);
     const copy = delegationCopy(copyInput, now, t);
     // A task whose state the Server no longer has shows no state rather than the "No task details" headline.
     const glyph = status ? copy.glyph : 'ordinary';
@@ -118,7 +120,10 @@ function DelegationRecordRow({
             <AgentChatDelegationGlyph glyph={glyph} label={copy.headline} />
         </>
     );
-    return title === undefined ? (
+    const isOpenable =
+        title !== undefined &&
+        canOpenDelegatedChild({ hasTerminal, isFailed: status?.status === 'failed' });
+    return !isOpenable ? (
         <div className={ROW_CLASS_NAME} data-agent-chat-delegation-record={delegation.delegationId}>
             {content}
         </div>
