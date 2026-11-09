@@ -178,7 +178,9 @@ export function createAgentChatHandlers(
             fast,
             permissionMode,
             planMode,
+            resetChoice,
         }) => {
+            if (resetChoice) await agentChat.configure(terminalId, 'reset');
             if (
                 model !== undefined ||
                 effort !== undefined ||

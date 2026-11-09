@@ -7,22 +7,25 @@ import type {
 } from '@caxri/protocol';
 import { agentChatSelectionView, isAgentChatSelectionSettled } from '@caxri/protocol';
 
-import { didConfigureAgentChat } from '../agent-chat-commands';
+import { didConfigureAgentChat, resetAgentChatChoice } from './agent-chat-model-commands';
 
 type ReportedSelection = Pick<
     AgentChatSnapshot,
-    'effort' | 'fast' | 'model' | 'models' | 'ultracode'
+    'customChoice' | 'effort' | 'fast' | 'model' | 'models' | 'ultracode'
 >;
 
 /**
  * The model picker's optimistic switch: `configure` shows the choice at once (`snapshot` is the reported one with the
  * pending choice applied), `pending` holds it until the reported snapshot confirms it, and a failed switch drops it.
+ * `reset` returns the Chat to the global default; Server Core picks the target, so the picker only shows the spinner
+ * until it answers.
  */
 export function useAgentChatModelSelection(
     reported: ReportedSelection | undefined,
     terminalId: string,
 ) {
     const [pending, setPending] = useState<AgentChatPendingSelection>();
+    const [isResetting, setResetting] = useState(false);
     /**
      * Settled during render rather than in an effect, so the confirmed snapshot and the cleared spinner land in one
      * commit: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
@@ -53,5 +56,10 @@ export function useAgentChatModelSelection(
             }),
         );
     };
-    return { configure, isPending: pending !== undefined, snapshot };
+    const reset = (): void => {
+        setPending(undefined);
+        setResetting(true);
+        void resetAgentChatChoice(terminalId).finally(() => setResetting(false));
+    };
+    return { configure, isPending: pending !== undefined || isResetting, reset, snapshot };
 }

@@ -1,4 +1,10 @@
-import type { AgentProvider, SettingCategoryId, SettingKey, SettingSpec } from '@caxri/protocol';
+import type {
+    AgentChatDefaultsProvider,
+    AgentProvider,
+    SettingCategoryId,
+    SettingKey,
+    SettingSpec,
+} from '@caxri/protocol';
 import { settingsSpecByKey } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
@@ -20,6 +26,7 @@ export type SettingRowBinding =
     | { type: 'provider-launch'; provider: AgentProvider; field: 'executable' | 'args' }
     | { type: 'provider-actions'; provider: AgentProvider }
     | { type: 'provider-skill-health'; provider: AgentProvider }
+    | { type: 'provider-chat-defaults'; provider: AgentChatDefaultsProvider }
     | { type: 'trusted-domains' }
     | { type: 'trusted-folders' }
     | { type: 'terminal-reference-links' }

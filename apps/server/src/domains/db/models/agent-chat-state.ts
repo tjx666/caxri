@@ -1,3 +1,5 @@
+import type { AgentChatModelRequest } from '@caxri/protocol';
+import { agentChatEffortSchema } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
@@ -51,6 +53,48 @@ export class AgentChatStateModel {
         this.database
             .update(terminals)
             .set({ chatResumeRecordId: resumeAt ?? null })
+            .where(eq(terminals.id, terminalId))
+            .run();
+    }
+
+    /**
+     * The Chat's own picker choice (see `terminals.chat_model`): only the keys the user chose, so an empty object means
+     * the Chat follows the global default. A stored effort this build cannot parse reads as unset.
+     */
+    choice(terminalId: string): AgentChatModelRequest {
+        const row = this.database
+            .select({
+                model: terminals.chatModel,
+                effort: terminals.chatEffort,
+                ultracode: terminals.chatUltracode,
+                fast: terminals.chatFast,
+            })
+            .from(terminals)
+            .where(eq(terminals.id, terminalId))
+            .get();
+        if (!row) return {};
+        const effort = agentChatEffortSchema.safeParse(row.effort);
+        return {
+            ...(row.model && { model: row.model }),
+            ...(effort.success && { effort: effort.data }),
+            ...(row.ultracode !== null && { ultracode: row.ultracode === 1 }),
+            ...(row.fast !== null && { fast: row.fast === 1 }),
+        };
+    }
+
+    /**
+     * Replaces the Chat's picker choice; a key absent from `choice` goes back to following the global default. Like the
+     * resume point, it does not touch `updatedAt`: the projection's `customChoice` is what Clients read.
+     */
+    setChoice(terminalId: string, choice: AgentChatModelRequest): void {
+        this.database
+            .update(terminals)
+            .set({
+                chatModel: choice.model ?? null,
+                chatEffort: choice.effort ?? null,
+                chatUltracode: choice.ultracode === undefined ? null : Number(choice.ultracode),
+                chatFast: choice.fast === undefined ? null : Number(choice.fast),
+            })
             .where(eq(terminals.id, terminalId))
             .run();
     }

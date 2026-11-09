@@ -92,6 +92,10 @@ export const REAL_E2E_CODEX_CHAT_SETTINGS: Readonly<CodexThreadSettings> = Objec
 export interface ClaudeChatSettings {
     permissionMode: 'acceptEdits' | 'auto' | 'bypassPermissions' | 'default' | 'dontAsk' | 'plan';
     model?: string;
+    /**
+     * `--effort`, which Claude Code applies above the settings file's `effortLevel` for the whole session.
+     */
+    effort?: 'high' | 'low' | 'max' | 'medium' | 'xhigh';
     additionalDirectories: string[];
     allowedTools: string[];
     disallowedTools: string[];
@@ -104,6 +108,8 @@ export interface ClaudeChatSettings {
      */
     pluginDirectories?: string[];
 }
+
+const CLAUDE_EFFORTS = new Set<string>(['low', 'medium', 'high', 'xhigh', 'max']);
 
 const CLAUDE_PERMISSION_MODES = new Set<string>([
     'acceptEdits',
@@ -130,6 +136,12 @@ const CLAUDE_VALUE_OPTIONS = new Map<
 >([
     ['--model', (settings, value) => (settings.model = value)],
     [
+        '--effort',
+        (settings, value) => {
+            if (CLAUDE_EFFORTS.has(value)) settings.effort = value as ClaudeChatSettings['effort'];
+        },
+    ],
+    [
         '--permission-mode',
         (settings, value) => {
             if (CLAUDE_PERMISSION_MODES.has(value))
@@ -150,8 +162,8 @@ const CLAUDE_VALUE_OPTIONS = new Map<
  * {@link codexChatSettings} does for Codex: only options with a structured equivalent carry over.
  *
  * - The autonomy flag keeps its meaning: every tool runs without asking.
- * - `--permission-mode`, `--model`, `--add-dir`, `--settings`, and the tool allow and deny lists map to the SDK option of
- *   the same meaning.
+ * - `--permission-mode`, `--model`, `--effort`, `--add-dir`, `--settings`, and the tool allow and deny lists map to the
+ *   SDK option of the same meaning.
  * - Without either, approvals stay manual (`default`) instead of whatever mode the SDK would pick on its own, so a Chat
  *   never runs tools more freely than the user chose.
  */
@@ -180,6 +192,7 @@ export function claudeChatSettings(launch: AgentLaunchSettings): ClaudeChatSetti
     return {
         permissionMode: isAutonomous ? 'bypassPermissions' : (parsed.permissionMode ?? 'default'),
         ...(parsed.model && { model: parsed.model }),
+        ...(parsed.effort && { effort: parsed.effort }),
         ...(parsed.settings && { settings: parsed.settings }),
         ...(parsed.pluginDirectories && { pluginDirectories: parsed.pluginDirectories }),
         additionalDirectories: parsed.additionalDirectories,

@@ -305,13 +305,13 @@ The launch settings configured for the TUI are translated, not appended
 
 Claude Code:
 
-| TUI argument                                              | Chat equivalent                              |
-| --------------------------------------------------------- | -------------------------------------------- |
-| `--dangerously-skip-permissions`                          | `permissionMode: bypassPermissions`          |
-| (absent)                                                  | `permissionMode: default` (manual approvals) |
-| `--permission-mode`, `--model`, `--add-dir`, `--settings` | The SDK option of the same meaning           |
-| `--allowedTools`, `--disallowedTools` (either spelling)   | `allowedTools`, `disallowedTools`            |
-| Anything else (UI flags)                                  | Dropped: it has no meaning outside the TUI   |
+| TUI argument                                                          | Chat equivalent                              |
+| --------------------------------------------------------------------- | -------------------------------------------- |
+| `--dangerously-skip-permissions`                                      | `permissionMode: bypassPermissions`          |
+| (absent)                                                              | `permissionMode: default` (manual approvals) |
+| `--permission-mode`, `--model`, `--effort`, `--add-dir`, `--settings` | The SDK option of the same meaning           |
+| `--allowedTools`, `--disallowedTools` (either spelling)               | `allowedTools`, `disallowedTools`            |
+| Anything else (UI flags)                                              | Dropped: it has no meaning outside the TUI   |
 
 Grok Build (root options go before `agent`, agent options after it):
 
@@ -1988,6 +1988,51 @@ or, for a model that names none, to the strongest effort it accepts that does no
 current one.
 A running turn keeps the model it started with.
 
+### Defaults and a Chat's own choice
+
+A Chat's model, effort, and ultracode come from three layers, highest first, resolved key by key.
+Fast mode has only the first: without a Chat choice it is off.
+
+| Layer                | Lives in                                                                                                                        | Changed by                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| The Chat's choice    | `terminals.chat_model`, `chat_effort`, `chat_ultracode`, `chat_fast` (null while unset)                                         | The composer's model picker                            |
+| Launch settings      | Settings > Agents > Initial arguments; for Claude Code also `ANTHROPIC_MODEL` and `CLAUDE_CODE_EFFORT_LEVEL` in its environment | Settings, the shell environment                        |
+| The Agent's own file | Claude Code's `settings.json` (under `CLAUDE_CONFIG_DIR` when set), Codex's `config.toml` (under `CODEX_HOME`)                  | Settings > Agents > Default model, the Agent's own TUI |
+
+- **The picker changes only its Chat.** `agentChat.configure` applies the switch to the running
+  provider and stores the keys the user picked; a key the switch moved on its own (a new model
+  that rejects the stored effort) stops being stored, so it follows the default again. The
+  snapshot's `customChoice` is true while anything is stored, which enables the picker's "Reset to
+  default". Neither provider's config file is written: a Codex picker switch used to save itself to
+  `config.toml`, which made one Chat's switch every other Chat's default.
+- **Restore.** Every provider start (Server Core restart, idle suspension, crash, resume) re-applies
+  the stored choice after the handshake and before the Chat reports ready, so its first turn
+  already runs on it (`restoreChatChoice` in
+  `apps/server/src/domains/agent-chat/model-choice/chat-choice.ts`). Each key is checked against
+  what the provider lists now: a retired model or an effort the new model rejects is skipped but
+  kept, and a provider that listed no models defers the whole choice to the next start. Keys the
+  provider already restored itself (Codex's `thread/resume` keeps the thread's model and effort)
+  send nothing. Claude Code's history replay runs before this, because its reset op would clear
+  what the restore reports. A Fork carries the source Chat's choice to the new Chat.
+- **Reset.** `agentChat.configure { resetChoice: true }` (the picker's ↺) resolves the global
+  default, applies it, and clears the stored choice only once the provider took it, so a failed
+  reset leaves the Chat as it was. A model without a configured default goes back to the
+  provider's `default` alias (Claude Code) or the account default `model/list` marks (Codex);
+  ultracode and Fast go back to off unless the default turns them on.
+- **Global default.** `agentChat.readDefaults { provider }` reads the file's model, effort, and
+  ultracode (Claude Code only) with the models to choose from, the provider's built-in model, and
+  every launch-setting override; Settings shows an override as a warning under its field.
+  `agentChat.writeDefaults` writes the keys back (`null` removes one): Claude Code's
+  `settings.json` through an atomic write that keeps every other key, Codex through app-server's
+  `config/batchWrite`. Claude Code persists no `max` effort, so Settings never offers it. Claude Code
+  lists models only inside a running Chat, so the models each Agent's Chats listed last are cached
+  in the `agentChatModels` `app_state` cell for Settings; Codex lists them through the one-shot
+  app-server that reads its config. A Project has no default of its own.
+- **Logs.** `agent_chat.choice_applied` records each restore and reset (`trigger` `start` or
+  `reset`; `outcome` `applied`, `unchanged`, `deferred`, or `failed`; the key names and the
+  dropped keys, never their values). `agent_chat.defaults_written` records a Settings write with
+  its key names.
+
 Fast mode is a separate toggle below the efforts, as in the Codex app and Claude Code's `/fast`. A
 model offers it when its `models` entry carries `fast` (with the provider's description, if any),
 and the snapshot's `fast` reports whether it is on; it is present only when the provider reports
@@ -1999,13 +2044,9 @@ while on, like the Plan chip, show the pressed `--selection` fill, never the acc
 - **Codex**: a model offers Fast when `model/list` lists a `priority` (or `fast`) service tier,
   falling back to the deprecated `additionalSpeedTiers`. The toggle rides on the next `turn/start`
   as `serviceTier: "priority"`, or `"default"` to turn it off (a null tier would keep the thread's
-  saved one), and `thread/start` and `thread/resume` report it back after a restart. A picker
-  switch (Fast, model, or effort) is also saved as the default for new Chats through
-  `config/batchWrite` (`service_tier = "fast"` or `"default"`, `model`, `model_reasoning_effort` in
-  the user's `config.toml`), as the Codex TUI saves its picker, because a new thread starts from that
-  config. Only the user-facing `agentChat.configure` saves; a benchmark's direct session switch does
-  not. `agent_chat.defaults_saved` logs the outcome; `overridden` means a higher-priority config
-  layer (a profile or a managed config) still wins.
+  saved one), and `thread/start` and `thread/resume` report it back after a restart. Unlike the
+  Codex TUI, a picker switch is not saved to `config.toml`; see
+  [Defaults and a Chat's own choice](#defaults-and-a-chats-own-choice).
 - **Claude Code**: a model offers Fast when its `supportsFastMode` is true. The SDK reports
   `fast_mode_state` on the `initialize` response, the init message, and every `result`; `cooldown`
   counts as on. When it reports a plan, policy, or provider block (any `fast_mode_disabled_reason`

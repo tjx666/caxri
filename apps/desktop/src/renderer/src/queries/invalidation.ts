@@ -60,6 +60,11 @@ const BADGE_OPERATIONS = new Set<ControlledViewQueryOperation>(['badge.snapshot'
 const CATALOG_QUERY_KEY: readonly [CaxriMethod] = ['viewContainers.catalog'];
 const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
 /**
+ * Settings › Agents › Default model. Its launch-argument overrides come from `settings.jsonc`, so a settings write can
+ * change them.
+ */
+const CHAT_DEFAULTS_QUERY_KEY: readonly [CaxriMethod] = ['agentChat.readDefaults'];
+/**
  * Caxri Bot's rows are excluded from Workbench records, so no record-scoped change names them; any state change may be
  * Caxri Bot's, and the read is one cheap row lookup.
  */
@@ -480,6 +485,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
                 invalidateFileTreeQueries(queryClient);
                 removeAgentActionQueries(queryClient);
                 invalidateDeliveryStatusQueries(queryClient);
+                void queryClient.invalidateQueries({ queryKey: CHAT_DEFAULTS_QUERY_KEY });
             }
             return;
         }

@@ -16,6 +16,7 @@ import type { ChatDelegationHooks } from './chat-delegation';
 import type { SpawnChatProcess } from './chat-provider';
 import type { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 import type { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
+import type { AgentChatDefaultsService } from './model-choice/chat-defaults';
 
 /**
  * Dependencies of `AgentChatService`, injected so tests can swap the provider process, environment, and executable.
@@ -110,6 +111,11 @@ export interface AgentChatServiceOptions {
      * service without it.
      */
     usageLimitWaits?: ChatUsageLimitWaits;
+    /**
+     * Each Agent's global model default, which the picker's reset goes back to, and the cache of the models a Chat
+     * listed for Settings. Optional so a test can omit it; a reset then goes back to the provider's own default.
+     */
+    defaults?: Pick<AgentChatDefaultsService, 'observeModels' | 'resolve'>;
 }
 
 export interface AgentChatEndpoint {

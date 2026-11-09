@@ -154,4 +154,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.row.providerArgs.description':
         '每次启动时传入。按命令行的方式书写参数；参数及其值可以写在同一行。',
     'settings.row.providerArgs.label': '{{provider}} 初始参数',
+    'settings.row.chatDefaults.title': '默认模型',
+    'settings.row.chatDefaults.description':
+        '新对话使用的模型和推理强度，也是对话里“恢复默认”回到的设置。在对话的选择器里切换只影响那个对话。',
 };

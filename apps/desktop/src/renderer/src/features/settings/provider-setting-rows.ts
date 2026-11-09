@@ -1,5 +1,5 @@
 import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentChatDefaultsProviders, agentProviderCatalog } from '@caxri/protocol';
 
 import type { SettingRowSource } from './setting-row-source';
 import { lower } from './setting-row-source';
@@ -15,7 +15,35 @@ export function providerSettingRows(provider: AgentProvider): SettingRowSource[]
         subcategory: { kind: 'provider', id: provider } as const,
     };
     const providerTerms = [provider, providerName, 'agent', 'provider'];
+    /**
+     * Only Agents whose own config file Caxri can read and write hold a global model default here.
+     */
+    const chatDefaultsProvider = agentChatDefaultsProviders.find(
+        (candidate) => candidate === provider,
+    );
     return [
+        ...(chatDefaultsProvider
+            ? [
+                  {
+                      ...shared,
+                      id: `agents.${provider}.chatDefaults`,
+                      titleKey: 'settings.row.chatDefaults.title',
+                      descriptionKey: 'settings.row.chatDefaults.description',
+                      binding: { type: 'provider-chat-defaults', provider: chatDefaultsProvider },
+                      searchTerms: lower([
+                          'default model',
+                          'model',
+                          'reasoning effort',
+                          'effort',
+                          'ultracode',
+                          'chat',
+                          'settings.json',
+                          'config.toml',
+                          ...providerTerms,
+                      ]),
+                  } satisfies SettingRowSource,
+              ]
+            : []),
         {
             ...shared,
             id: `agents.${provider}.actions`,

@@ -1,17 +1,17 @@
 import type {
     CanUseTool,
-    HookCallbackMatcher,
-    HookEvent,
     Options,
     SpawnedProcess,
     SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk';
 
 import { CAXRI_CLAUDE_ENTRYPOINT } from '../../../agents';
-import type { AgentChatSessionHost } from '../../chat-provider';
+import type { AgentChatSessionHost, AgentChatTranscript } from '../../chat-provider';
 import { AgentChatStartError } from '../../chat-provider';
 import type { ClaudeChatSettings } from '../../launch-settings';
 import { ProviderProcess } from '../../provider-process';
+import { claudeEffortHooks } from './models';
+import { withClaudeShellHooks } from './shell-hooks';
 
 /**
  * Opening a Claude Chat: the Agent SDK options Caxri launches Claude Code with, and the closed start failure a
@@ -33,7 +33,6 @@ export interface ClaudeQueryOptionsInput {
     sessionId: string;
     spawn: (spawnOptions: SpawnOptions) => SpawnedProcess;
     canUseTool: CanUseTool;
-    hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 }
 
 export function claudeQueryOptions({
@@ -44,7 +43,6 @@ export function claudeQueryOptions({
     sessionId,
     spawn,
     canUseTool,
-    hooks,
 }: ClaudeQueryOptionsInput): Options {
     return {
         cwd: host.cwd,
@@ -98,6 +96,7 @@ export function claudeQueryOptions({
          */
         allowDangerouslySkipPermissions: true,
         ...(settings.model && { model: settings.model }),
+        ...(settings.effort && { effort: settings.effort }),
         ...(settings.settings && { settings: settings.settings }),
         ...(settings.pluginDirectories?.length && {
             plugins: settings.pluginDirectories.map((path) => ({ type: 'local' as const, path })),
@@ -110,7 +109,14 @@ export function claudeQueryOptions({
             disallowedTools: settings.disallowedTools,
         }),
         canUseTool,
-        hooks,
+        /**
+         * The effort hooks report the effort each turn runs at; the shell and worktree hooks report the lifecycle a PTY
+         * Agent's hook bridge would.
+         */
+        hooks: withClaudeShellHooks(
+            claudeEffortHooks((operations) => host.apply(operations)),
+            (event) => host.observeLifecycle(event),
+        ),
     };
 }
 
@@ -155,4 +161,19 @@ export function claudeStartError(
             'Claude could not resume this conversation',
         );
     return new AgentChatStartError('handshake_failed', 'Claude did not complete its handshake');
+}
+
+/**
+ * The transcript a resumed Chat replays its history from, because Claude Code does not replay a resumed conversation
+ * over the protocol. A bound Agent Session without one cannot resume, so the start fails before Claude Code spawns.
+ */
+export async function readClaudeResumeTranscript(
+    host: Pick<AgentChatSessionHost, 'readTranscript'>,
+    resumeId: string | undefined,
+): Promise<AgentChatTranscript | undefined> {
+    if (!resumeId) return undefined;
+    const transcript = await host.readTranscript();
+    if (!transcript)
+        throw new AgentChatStartError('resume_failed', 'Claude could not find this conversation');
+    return transcript;
 }

@@ -127,7 +127,9 @@ const SESSION_METHODS = new Set<string>(['session.updateState']);
  * Terminal. `agentChat.askSideQuestion` feeds the Workbench's side chat tab, which this window has no pane for, so it
  * offers no `/btw` either. `agentChat.pendingRequests` lists every waiting Chat in every Session for the Workbench's
  * waiting popup, which this window does not mount, and it would reach past Caxri Bot's Terminal.
- * `project.setChatDefault` is not an `agentChat.*` method and stays refused with every other write.
+ * `agentChat.readDefaults` and `agentChat.writeDefaults` back each Agent's global model default in Settings, which this
+ * window does not open. `project.setChatDefault` is not an `agentChat.*` method and stays refused with every other
+ * write.
  */
 const REFUSED_AGENT_CHAT_METHODS = new Set<string>([
     'agentChat.askSideQuestion',
@@ -136,6 +138,8 @@ const REFUSED_AGENT_CHAT_METHODS = new Set<string>([
     'agentChat.fork',
     'agentChat.pendingRequests',
     'agentChat.readContext',
+    'agentChat.readDefaults',
+    'agentChat.writeDefaults',
 ]);
 
 /**

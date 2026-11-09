@@ -501,6 +501,12 @@ export const agentChatSnapshotSchema = z.strictObject({
      */
     fast: z.boolean().optional(),
     /**
+     * True while the Chat keeps its own model, effort, ultracode, or Fast mode choice instead of the global default
+     * (the Agent's launch settings, then its own config file). The choice is restored on every provider start;
+     * `agentChat.configure` with `resetChoice` drops it and applies the global default again.
+     */
+    customChoice: z.literal(true).optional(),
+    /**
      * The permission level the next turn runs with. Absent when the provider's launch settings describe something no
      * level matches (shown as "Custom"); `agentChat.configure` switches it.
      */

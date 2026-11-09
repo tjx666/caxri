@@ -7,7 +7,7 @@ import type {
     AgentChatTaskSnapshot,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentChatSnapshotSchema, CaxriError, resolveAgentChatModelChange } from '@caxri/protocol';
+import { agentChatSnapshotSchema, CaxriError } from '@caxri/protocol';
 import { assertE2EAgentChatInput, readE2EAgentPolicy, SingleFlight } from '@caxri/system';
 
 import { AgentRunAutonomy } from '../agents';
@@ -20,7 +20,6 @@ import { requireChatTerminal } from './chat-launch';
 import { ChatMobileWatchers } from './chat-mobile-watchers';
 import { ChatPermissionSwitches } from './chat-permission-switch';
 import type { AgentChatProviderSession, ChatSideExchange } from './chat-provider';
-import { saveChatDefaults } from './chat-session-logs';
 import type { ChatStartHost } from './chat-start';
 import { ensureChatStarted } from './chat-start';
 import type { ChatState, ChatStateDelivery, ChatStopper } from './chat-states';
@@ -28,6 +27,7 @@ import { ChatStates } from './chat-states';
 import { ChatIdleMaintenance, leaseReadStart } from './chat-suspension';
 import { ChatEndpointLease } from './endpoint/lease';
 import { readChatTerminalHistory } from './history/read';
+import { resetChatChoice, switchChatChoice } from './model-choice/chat-choice';
 import { ChatPlanImplementations } from './plan/chat-plan-implement';
 import * as queueActions from './queue/actions';
 import type { ChatRewindHost, ChatRewindRequest } from './rewind/chat-rewind';
@@ -289,13 +289,13 @@ export class AgentChatService {
         );
     }
 
-    async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
-        await this.enqueue(terminalId, async (session, state) => {
-            const config = resolveAgentChatModelChange(state.projection.snapshot, change);
-            if (Object.keys(config).length === 0) return;
-            await session.configure?.(config);
-            void saveChatDefaults(session, config, this.options, terminalId);
-        });
+    async configure(terminalId: string, change: AgentChatModelRequest | 'reset'): Promise<void> {
+        const host = { options: this.options, states: this.states };
+        await this.enqueue(terminalId, (session, state) =>
+            change === 'reset'
+                ? resetChatChoice(host, terminalId, session, state)
+                : switchChatChoice(host, terminalId, session, state, change),
+        );
     }
 
     /**

@@ -103,6 +103,7 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
         case 'agent-secrets':
         case 'delegation-presets':
         case 'provider-skill-health':
+        case 'provider-chat-defaults':
             return false;
     }
 }
@@ -120,6 +121,7 @@ export function isRowResettable(binding: SettingRowBinding): boolean {
         'agent-secrets',
         'delegation-presets',
         'provider-skill-health',
+        'provider-chat-defaults',
     ].includes(binding.type);
 }
 
@@ -251,6 +253,7 @@ export function rowResetAction(
         case 'agent-secrets':
         case 'delegation-presets':
         case 'provider-skill-health':
+        case 'provider-chat-defaults':
             return undefined;
     }
 }

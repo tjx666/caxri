@@ -10,7 +10,7 @@ import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
-import { agentChatEffortReset, agentChatEffortStop } from './agent-chat-model-selection';
+import { agentChatEffortStop } from './agent-chat-model-selection';
 
 /**
  * A mode toggle the panel's header offers: Fast mode or Claude Code's ultracode.
@@ -45,29 +45,35 @@ const SPARKLES = [
  * color over the model name (which opens the model list), Reset to default on the right, and a slider with one stop per
  * effort the model accepts. Dragging previews the effort in the title; releasing applies it and keeps the panel open. A
  * model without effort control keeps only the header, titled with the model name.
+ *
+ * A switch here applies to this Chat only and survives a restart (`customChoice`). Reset to default drops that choice
+ * and runs the global default again (Settings › Agents › Default model), so it is enabled only while the Chat has one.
  */
 export function AgentChatEffortPanel({
     configure,
     effort,
     fast,
+    isCustom,
     model,
     modelName,
     onChooseModel,
+    onReset,
     ultracode,
 }: {
     configure: (change: AgentChatModelRequest) => void;
     effort: string | undefined;
     fast: AgentChatModeToggle | undefined;
+    isCustom: boolean;
     model: AgentChatModel | undefined;
     modelName: string;
     onChooseModel: () => void;
+    onReset: () => void;
     ultracode: AgentChatModeToggle | undefined;
 }) {
     const { t } = useTranslation();
     const [dragged, setDragged] = useState<number>();
     const efforts = model?.efforts ?? [];
     const shownEffort = dragged === undefined ? effort : efforts[dragged];
-    const reset = model && agentChatEffortReset(model, effort);
     return (
         <div className="flex flex-col gap-3 p-3">
             <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
@@ -114,15 +120,25 @@ export function AgentChatEffortPanel({
                     </span>
                 </button>
                 <div className="flex justify-end">
-                    {efforts.length > 0 && (
-                        <Tooltip content={t('agentChat.model.resetEffort')} side="top">
+                    {(efforts.length > 0 || isCustom) && (
+                        <Tooltip
+                            side="top"
+                            content={
+                                <span className="flex flex-col">
+                                    <span>{t('agentChat.model.resetChoice')}</span>
+                                    <span className="text-[11px] leading-4 text-muted">
+                                        {t('agentChat.model.resetChoiceDescription')}
+                                    </span>
+                                </span>
+                            }
+                        >
                             <Button
-                                aria-label={t('agentChat.model.resetEffort')}
+                                aria-label={t('agentChat.model.resetChoice')}
                                 className="text-muted enabled:hover:text-foreground"
-                                disabled={!reset}
+                                disabled={!isCustom}
                                 size="icon"
                                 variant="ghost"
-                                onClick={() => reset && configure({ effort: reset })}
+                                onClick={onReset}
                             >
                                 <RotateCcw className="size-4" />
                             </Button>

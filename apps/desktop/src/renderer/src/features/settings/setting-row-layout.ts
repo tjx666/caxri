@@ -37,6 +37,7 @@ const FULL_WIDTH_BINDING_TYPES: ReadonlySet<SettingRowDescriptor['binding']['typ
     'mobile-access',
     'ssh-hosts',
     'provider-actions',
+    'provider-chat-defaults',
     'provider-launch',
     'provider-recovery',
     'provider-skill-health',

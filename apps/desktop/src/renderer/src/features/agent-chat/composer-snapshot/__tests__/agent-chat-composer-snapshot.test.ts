@@ -93,6 +93,14 @@ describe('Agent Chat composer snapshot selection', () => {
         expect(view.snapshot).toMatchObject({ fast: true, ultracode: false });
     });
 
+    it('keeps the Chat’s own model choice, which enables the picker’s Reset to default', () => {
+        const view = selectAgentChatComposerView(
+            { ...snapshot([prompt], 1), customChoice: true },
+            context,
+        );
+        expect(view.snapshot?.customChoice).toBe(true);
+    });
+
     it('keeps the goal and its spend for the goal row', () => {
         const goal = {
             objective: 'ship it',

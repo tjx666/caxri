@@ -1,7 +1,6 @@
 import type {
     AgentChatDefault,
     AgentChatMessageInput,
-    AgentChatModelRequest,
     AgentChatRequest,
     AgentChatResponse,
     AgentProvider,
@@ -36,7 +35,6 @@ import {
     writeAgentChatAttachments,
     writeAgentChatDraft,
 } from './composer-input/agent-chat-drafts';
-import { agentChatConfigureFailureMessage } from './model/agent-chat-model-selection';
 import {
     addAgentChatPendingAnswer,
     dropAgentChatPendingAnswer,
@@ -313,23 +311,6 @@ export async function answerAgentChatRequest(
         return true;
     });
     if (!isAnswered) dropAgentChatPendingAnswer(terminalId, request.id);
-}
-
-/**
- * Switches the model or effort for the next turn onward. Resolves `true` once Server Core accepted the switch; the
- * picker shows the choice as pending until the projection reports it, and drops it when the switch failed. The failure
- * toast names what was being switched.
- */
-export async function didConfigureAgentChat(
-    terminalId: string,
-    change: AgentChatModelRequest,
-): Promise<boolean> {
-    let isConfigured = false;
-    await tryCommand(agentChatConfigureFailureMessage(change), async () => {
-        await caxri.request('agentChat.configure', { terminalId, ...change });
-        isConfigured = true;
-    });
-    return isConfigured;
 }
 
 /**

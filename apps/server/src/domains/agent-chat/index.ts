@@ -13,6 +13,8 @@ export { ChatUsageContinuation } from './continuation/chat-usage-continuation';
 export { ChatUsageLimitWaits } from './continuation/chat-usage-limit-waits';
 export { agentChatEndpoint } from './endpoint/agent-endpoint';
 export { createAgentChatHandlers } from './handlers';
+export { AgentChatDefaultsService } from './model-choice/chat-defaults';
+export { createAgentChatDefaultsHandlers } from './model-choice/handlers';
 export { ProviderProcess } from './provider-process';
 export { reapStaleProviderGroups } from './provider-process-groups';
 export { claudePlanLimits } from './providers/claude/plan-limits';

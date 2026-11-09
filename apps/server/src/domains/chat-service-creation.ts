@@ -6,6 +6,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentChatServiceOptions } from './agent-chat';
 import {
+    AgentChatDefaultsService,
     agentChatEndpoint,
     AgentChatService,
     chatStateStore,
@@ -63,7 +64,7 @@ export function createAgentChatService({
      */
     onObservationLeaseReady: () => void;
     send: (event: ServerEvent) => void;
-}): AgentChatService {
+}): { agentChat: AgentChatService; chatDefaults: AgentChatDefaultsService } {
     const { agentEnvironment, agentLaunchSettings, coordinator } = agentRuntime;
     /**
      * A Chat of Caxri Bot needs the same Codex overrides as a PTY one, notably the raised `project_doc_max_bytes` that
@@ -76,6 +77,17 @@ export function createAgentChatService({
         const extra = botHooks.launchArguments(terminal);
         return extra.length === 0 ? settings : { ...settings, args: [...settings.args, ...extra] };
     };
+    /**
+     * Each Agent's global model default reads the launch settings a new Chat gets, without a Terminal's role arguments.
+     */
+    const defaults = new AgentChatDefaultsService({
+        database,
+        logger,
+        agentEnvironment,
+        launchSettings: (provider) =>
+            (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(provider),
+        resolveExecutable: dependencies.terminal?.resolveExecutable,
+    });
     const usage = new ChatUsageContinuation({
         database,
         logger,
@@ -120,6 +132,7 @@ export function createAgentChatService({
         },
         agentEnvironment,
         launchSettings,
+        defaults,
         usage,
         usageLimitWaits,
         isStartFenced: () => isAirplaneModeHolding(database.getAppState('airplaneMode')),
@@ -166,5 +179,5 @@ export function createAgentChatService({
         logger,
         reapGroup,
     });
-    return service;
+    return { agentChat: service, chatDefaults: defaults };
 }

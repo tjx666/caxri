@@ -1,7 +1,11 @@
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { chatStateStore, createAgentChatHandlers } from './agent-chat';
+import {
+    chatStateStore,
+    createAgentChatDefaultsHandlers,
+    createAgentChatHandlers,
+} from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import { createAgentLifecycleFanOut } from './agent-lifecycle-fan-out';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
@@ -155,7 +159,7 @@ export async function createDomainServices(
     const unsubscribeTerminalSettings = systemAppearance.onChange(() =>
         terminals.reconcileOutputRecoverySettings(),
     );
-    const agentChat = createAgentChatService({
+    const { agentChat, chatDefaults } = createAgentChatService({
         agentRuntime,
         botHooks,
         configuration,
@@ -404,6 +408,7 @@ export async function createDomainServices(
         ...sessionMaintenance.handlers,
         ...agentCommands.handlers,
         ...createAppHandlers({ countRunning, database, pid, presence, snapshots, startedAt }),
+        ...createAgentChatDefaultsHandlers(chatDefaults),
         ...createAgentChatHandlers(agentChat, {
             database,
             agentEnvironment,
