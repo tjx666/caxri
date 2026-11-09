@@ -21,9 +21,9 @@ const isOpus = (snapshot: AgentChatSnapshot): boolean =>
 
 /**
  * `MOB-CHAT-CHOICE-01` (#3880): a Chat's own model choice stays in sync on the phone and survives a provider restart.
- * Desktop's switch shows on the phone's sheet; the phone's own switch is stored as the Chat's choice; after idle
- * suspension stops the provider, the phone's next message starts it again on that choice; Desktop's Reset to default
- * moves the phone to the global default kept in Claude Code's `settings.json`. Each step is read on the phone's checked
+ * Desktop's switch shows on the phone's sheet; the phone's own switch is stored as the Chat's choice; after Desktop's
+ * Restart Agent replaces the provider, the phone's next message runs on that choice; Desktop's Reset to default moves
+ * the phone to the global default kept in Claude Code's `settings.json`. Each step is read on the phone's checked
  * options and against the Server's Chat projection, which Desktop's picker reads.
  */
 export async function executeMobileChatChoiceScenario(
@@ -117,31 +117,40 @@ export async function executeMobileChatChoiceScenario(
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
 
-        // 3. Idle suspension stops the provider; the phone's next message starts it again on the Chat's choice.
-        const { suspended } = await pageRequest<{ suspended: boolean }>(page, 'terminal.suspend', {
-            terminalId: chat.terminalId,
-        });
-        if (!suspended) throw new Error('The Chat provider was not running');
-        await waitForMobile(processState, (state) => state === 'suspended');
-        record('suspended', await chat.read());
-        const restoresBefore = (await choiceApplied('start')).length;
+        /**
+         * 3. Desktop's Restart Agent replaces the provider process and resumes the same conversation; the phone's next
+         *    message runs on the Chat's choice. A Chat is suspended only by the idle sweep (`terminal.suspend` parks
+         *    PTYs), and every provider start takes the same restore path.
+         */
         await sendFromPhone(serial, 'hello');
-        const resumed = await waitForMobile(
+        await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
-        if (!isOpus(resumed) || resumed.effort !== 'low' || !resumed.customChoice)
-            throw new Error('The restarted Chat lost its own model choice');
-        if ((await processState()) !== 'running')
-            throw new Error('The Chat provider did not restart');
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        const restoresBefore = (await choiceApplied('start')).length;
+        const processBefore = await processState();
+        await pageRequest(page, 'terminal.restart', {
+            terminalId: chat.terminalId,
+            mode: 'resume',
+        });
         /**
          * The restarted provider starts on its own default model, so the snapshot alone could still be the one from
-         * before the suspension: the restore's log proves the new process was handed the stored model and effort.
+         * before the restart: the restore's log proves the new process was handed the stored choice.
          */
         await waitForMobile(
             () => choiceApplied('start'),
             (records) => records.length > restoresBefore,
         );
+        await sendFromPhone(serial, 'again');
+        const resumed = await waitForMobile(
+            () => chat.read(),
+            (snapshot) => agentText(snapshot).includes('You said: again') && !snapshot.activeTurnId,
+        );
+        if (!isOpus(resumed) || resumed.effort !== 'low' || !resumed.customChoice)
+            throw new Error('The restarted Chat lost its own model choice');
+        const processAfter = await processState();
+        if (processAfter !== 'running') throw new Error('The restarted Chat is not running');
         record('after-restart', resumed);
         await waitForNoCheck(serial, 'agent-chat-activity');
         await openModelSheet(serial);
@@ -177,6 +186,7 @@ export async function executeMobileChatChoiceScenario(
         await finish(environment, artifacts, {
             choiceAfterRestart: 'kept',
             restartRestore: 'applied',
+            restartProcessState: { after: processAfter, before: processBefore ?? null },
             desktopReset: 'global-default',
             status: 'passed',
             steps,
