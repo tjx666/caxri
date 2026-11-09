@@ -99,19 +99,25 @@ const treeRowClassName =
 
 function InlineFileName({
     depth = 0,
+    expanded = false,
+    iconEntry,
     initialValue,
-    isFile = false,
     label,
     failureLabel,
     onCancel,
     onSubmit,
 }: {
     depth: number;
-    initialValue: string;
     /**
-     * Whether the field renames a file, whose extension then stays out of the initial selection.
+     * Whether a renamed directory is open, so its icon keeps the opened artwork while the field replaces the row.
      */
-    isFile?: boolean;
+    expanded?: boolean;
+    /**
+     * The kind of entry being named. It picks the leading file type icon, resolved from the typed name on every
+     * keystroke as VS Code does, and a file keeps its extension out of the initial selection.
+     */
+    iconEntry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget'>;
+    initialValue: string;
     label: string;
     failureLabel: string;
     onCancel: (options: InlineFileNameSettleOptions) => void;
@@ -131,6 +137,7 @@ function InlineFileName({
     const error = failure && describeFailure(failure.error, failureLabel, t);
     const [pending, setPending] = useState(false);
     const [value, setValue] = useState(initialValue);
+    const isFile = iconEntry.kind === 'file';
     useEffect(() => {
         inputReference.current?.focus();
         inputReference.current?.setSelectionRange(0, renameSelectionEnd(initialValue, isFile));
@@ -178,9 +185,10 @@ function InlineFileName({
             }}
         >
             <div
-                className="flex h-7 items-center pr-2"
+                className="flex h-7 items-center gap-2 pr-2"
                 style={{ paddingLeft: fileTreeLeafIndent(depth) }}
             >
+                <FileTypeIcon entry={{ ...iconEntry, name: value }} expanded={expanded} />
                 <Input
                     ref={inputReference}
                     aria-invalid={Boolean(error)}
@@ -237,6 +245,7 @@ export function FileTreeCreateRow({
     return (
         <InlineFileName
             depth={depth}
+            iconEntry={{ kind: editing.itemKind }}
             initialValue=""
             label={t(
                 editing.itemKind === 'directory'
@@ -443,8 +452,9 @@ export function FileTreeItem({
         return (
             <InlineFileName
                 depth={depth}
+                expanded={expanded}
+                iconEntry={entry}
                 initialValue={entry.name}
-                isFile={entry.kind === 'file'}
                 label={t('viewContainers.files.renameLabel', { name: entry.name })}
                 failureLabel={t('viewContainers.files.renameFailed')}
                 onCancel={({ restoreFocus }) => {
