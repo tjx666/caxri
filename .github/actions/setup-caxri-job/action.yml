@@ -231,10 +231,25 @@ runs:
       shell: bash
       run: bun run scripts/prepare-node-pty.ts
 
+    # `@electron/get` fetches the release ZIP once and throws on any HTTP error, and GitHub Releases intermittently
+    # answers 504: on 2026-11-09 four unit shards in a row failed setup that way while their sibling shards downloaded
+    # fine. Retry with backoff before failing the job. A failed attempt leaves no partial file behind, because
+    # `@electron/get` downloads into a temporary directory and caches the ZIP only after its checksum passes.
     - name: Install Electron binary
       if: inputs.install-electron == 'true'
       shell: bash
-      run: bun run scripts/ci-metrics.ts --label "Electron download" -- bun run electron:install
+      run: |
+        for attempt in 1 2 3; do
+          if bun run scripts/ci-metrics.ts --label "Electron download (attempt $attempt)" -- bun run electron:install; then
+            exit 0
+          fi
+          if [ "$attempt" -lt 3 ]; then
+            echo "Electron download attempt $attempt failed; retrying in $((attempt * 20)) s"
+            sleep $((attempt * 20))
+          fi
+        done
+        echo "::error::Electron download failed after 3 attempts"
+        exit 1
 
     - name: Install Playwright Chromium headless shell
       if: inputs.install-playwright-shell == 'true'
