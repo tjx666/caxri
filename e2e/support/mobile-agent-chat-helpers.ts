@@ -70,6 +70,17 @@ export const agentText = (snapshot: AgentChatSnapshot): string =>
         .join('\n');
 
 /**
+ * Focuses the Chat composer and waits for the expanded capsule's actions row (`+`, settings, send) before anything is
+ * typed. Typed at once, a word landed while the capsule was still expanding: in repeated `MOB-CHAT-CHOICE-01` runs the
+ * row never appeared, the send control was gone, and every later UIAutomator read failed. Every provider's Chat has
+ * this row, unlike a settings chip such as the model button.
+ */
+async function focusChatComposer(serial: string): Promise<void> {
+    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+    await waitForCheck(serial, 'agent-chat-composer-actions');
+}
+
+/**
  * Sends one keyword message from the phone. The fake app-server picks its behavior from the keyword, and a single ASCII
  * word survives `input text` without the fixture IME.
  */
@@ -77,7 +88,7 @@ export async function sendFromPhone(serial: string, word: string): Promise<void>
     // `input text` splits on whitespace, so a two-word keyword fails later as an unexplained draft mismatch.
     if (!/^\S+$/u.test(word))
         throw new Error(`sendFromPhone takes one word, got ${JSON.stringify(word)}`);
-    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+    await focusChatComposer(serial);
     await adbShell(serial, ['input', 'text', word]);
     const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
         kind: 'equals',
@@ -92,7 +103,7 @@ export async function sendFromPhone(serial: string, word: string): Promise<void>
  * spaces, commas, and periods, so the device shell passes it unchanged.
  */
 export async function typeChatDraft(serial: string, text: string): Promise<void> {
-    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+    await focusChatComposer(serial);
     await adbShell(serial, ['input', 'text', text.replaceAll(' ', '%s')]);
     const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
         kind: 'equals',
@@ -110,7 +121,7 @@ export async function expandChatComposer(
     check: string,
     timeoutMs?: number,
 ): Promise<void> {
-    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+    await focusChatComposer(serial);
     await waitForCheck(serial, check, timeoutMs);
 }
 

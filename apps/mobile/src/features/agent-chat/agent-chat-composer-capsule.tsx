@@ -76,6 +76,7 @@ export const AgentChatComposerCapsule = ({
                 entering={rowAppear}
                 layout={capsuleResize}
                 style={sessionDetailStyles.composerRow}
+                testID="agent-chat-composer-actions"
             >
                 {add}
                 <View style={styles.settings}>{settings}</View>
