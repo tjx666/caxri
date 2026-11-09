@@ -39,6 +39,57 @@ function DelegatedPullRequestPoll() {
 }
 
 /**
+ * The header text after the label: the count, then each attention part tinted by what it asks of the user, then the
+ * partial-feed marker and the delegated cost.
+ */
+function DelegatedHeaderMeta({
+    asking,
+    cost,
+    count,
+    failed,
+    headerCost,
+    isPartial,
+    needsInput,
+    sessionId,
+    waiting,
+}: {
+    asking?: string;
+    cost: ReturnType<typeof useDelegatedCost>;
+    count: string;
+    failed?: string;
+    headerCost: ReturnType<typeof delegatedCostLabel>;
+    isPartial: boolean;
+    needsInput?: string;
+    sessionId?: string;
+    waiting?: string;
+}) {
+    const { t } = useTranslation();
+    return (
+        <>
+            {count}
+            {needsInput && <span className="text-warning">{` · ${needsInput}`}</span>}
+            {failed && <span className="text-danger">{` · ${failed}`}</span>}
+            {waiting && <span>{` · ${waiting}`}</span>}
+            {asking && <span>{` · ${asking}`}</span>}
+            {isPartial && <span>{` · ${t('delegation.strip.more')}`}</span>}
+            {headerCost && cost && sessionId && (
+                <>
+                    {' · '}
+                    <AgentChatDelegatedCostBadge
+                        delegatedCostUsd={cost.delegatedCostUsd}
+                        delegatedIsActive={cost.isActive}
+                        delegatedIsPartial={cost.isPartial}
+                        delegatedSessions={cost.delegatedSessions}
+                        label={headerCost}
+                        sessionId={sessionId}
+                    />
+                </>
+            )}
+        </>
+    );
+}
+
+/**
  * The "Delegated Sessions" section of the composer strip: one row per child Session this Chat's Agent delegated to,
  * consulted, or handed off to, under a header that counts them and states how many need input or failed. A completed
  * task stays in the list for a while after it completes (`splitDelegatedSessions`), then waits behind the header's
@@ -106,27 +157,17 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                 glyph={<Forward aria-hidden="true" className="size-3.5 shrink-0" />}
                 label={t('delegation.strip.label')}
                 meta={
-                    <>
-                        {count}
-                        {needsInput && <span className="text-warning">{` · ${needsInput}`}</span>}
-                        {failed && <span className="text-danger">{` · ${failed}`}</span>}
-                        {waiting && <span>{` · ${waiting}`}</span>}
-                        {asking && <span>{` · ${asking}`}</span>}
-                        {isPartial && <span>{` · ${t('delegation.strip.more')}`}</span>}
-                        {headerCost && cost && sessionId && (
-                            <>
-                                {' · '}
-                                <AgentChatDelegatedCostBadge
-                                    delegatedCostUsd={cost.delegatedCostUsd}
-                                    delegatedIsActive={cost.isActive}
-                                    delegatedIsPartial={cost.isPartial}
-                                    delegatedSessions={cost.delegatedSessions}
-                                    label={headerCost}
-                                    sessionId={sessionId}
-                                />
-                            </>
-                        )}
-                    </>
+                    <DelegatedHeaderMeta
+                        asking={asking}
+                        cost={cost}
+                        count={count}
+                        failed={failed}
+                        headerCost={headerCost}
+                        isPartial={isPartial}
+                        needsInput={needsInput}
+                        sessionId={sessionId}
+                        waiting={waiting}
+                    />
                 }
                 actions={
                     folded.length > 0 && (

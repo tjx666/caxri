@@ -38,11 +38,10 @@ export async function grantAntigravityFolderTrust(
     folder: string,
 ): Promise<AntigravityFolderTrustOutcome> {
     const path = antigravitySettingsPath(environment);
-    const keys = await trustKeys(folder);
-    // Read only after the folder resolved, so the window in which an `agy` write could be overwritten is just the replace.
-    const current = await readSettings(path);
+    const [keys, current] = await Promise.all([trustKeys(folder), readSettings(path)]);
     if (!current) return 'skipped';
-    if (keys.some((key) => current.trustedWorkspaces.includes(key))) return 'already_trusted';
+    const trusted = new Set(current.trustedWorkspaces);
+    if (keys.some((key) => trusted.has(key))) return 'already_trusted';
     const next = {
         ...current.settings,
         trustedWorkspaces: [...current.trustedWorkspaces, ...keys],
