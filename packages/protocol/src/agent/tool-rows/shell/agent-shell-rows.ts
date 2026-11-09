@@ -93,8 +93,8 @@ function describeShellAction(command: string): AgentToolPresentation | null {
                 kind: 'search',
                 label: action.isFileNames ? 'Found files' : 'Searched',
                 subject: action.path
-                    ? `${action.pattern} in ${pathBasename(action.path)}`
-                    : action.pattern,
+                    ? `${action.terms.join(', ')} in ${pathBasename(action.path)}`
+                    : action.terms.join(', '),
                 isCodeSubject: true,
             };
         }

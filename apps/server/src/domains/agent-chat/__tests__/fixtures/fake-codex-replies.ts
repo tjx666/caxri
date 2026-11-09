@@ -2,12 +2,12 @@
  * Deterministic Codex replies for Chat rendering coverage: `table` streams the transcript's Markdown, `codeblocks`
  * streams fenced code in several languages, `testrun` finishes a multi-step turn whose command fails with a non-zero
  * exit code, `workrows` runs one command of each shell shape the work rows name (a skill read, chained reads, a file
- * search, a test run, a commit and push, and a pull request), `longstream` thinks quietly and then streams a long reply
- * at a reader's pace, `weblink` answers with a Markdown link to the web page the message names (`weblink inline` with
- * its bare URL after a label, `weblink bare` with that URL as plain text), `bigdiff` changes one file by 6,000 lines,
- * and `widediff` changes one file with lines wider than a phone, and `manysteps` runs {@link MANY_STEPS} quick commands
- * before a short reply. `bigstream` and `toolstorm` are the streaming benchmark's workloads
- * (`e2e/agent-chat-streaming.performance.e2e.ts`): a 50 KB Markdown reply in token-sized deltas, and
+ * search, a grep alternation, a test run, a commit and push, and a pull request), `longstream` thinks quietly and then
+ * streams a long reply at a reader's pace, `weblink` answers with a Markdown link to the web page the message names
+ * (`weblink inline` with its bare URL after a label, `weblink bare` with that URL as plain text), `bigdiff` changes one
+ * file by 6,000 lines, and `widediff` changes one file with lines wider than a phone, and `manysteps` runs
+ * {@link MANY_STEPS} quick commands before a short reply. `bigstream` and `toolstorm` are the streaming benchmark's
+ * workloads (`e2e/agent-chat-streaming.performance.e2e.ts`): a 50 KB Markdown reply in token-sized deltas, and
  * {@link TOOL_STORM_COMMANDS} commands that each start and then finish.
  */
 import crypto from 'node:crypto';
@@ -179,6 +179,7 @@ export async function runWorkRowCommands(io: FakeCodexIo, turn: FakeTurn) {
         'cat .agents/skills/review/SKILL.md',
         "sed -n '1,80p' src/total.ts && sed -n '1,40p' src/cart.ts",
         "rg --files src | rg 'total'",
+        String.raw`grep -n 'item totals\|TOTAL_ROUNDING' docs/totals.md`,
         'rtk vitest run src/total.test.ts',
         "rtk git commit -m 'fix: add the item totals' && rtk git push",
         "gh pr create --title 'Fix the item totals' --body-file /tmp/body.md",

@@ -65,6 +65,21 @@ describe('describeAgentTool', () => {
             kind: 'search',
             subject: 'foo bar',
         });
+        // An alternation reads as its terms, not as regular expression syntax.
+        expect(
+            describe(
+                String.raw`cd docs && grep -n "退回原批次\|APPROVAL_DEV" docs/gateway-schema.md`,
+            ),
+        ).toMatchObject({
+            kind: 'search',
+            subject: '退回原批次, APPROVAL_DEV in gateway-schema.md',
+        });
+        expect(describe("rg -n 'useState|useEffect' src")).toMatchObject({
+            subject: 'useState, useEffect in src',
+        });
+        expect(describe(String.raw`grep -F 'a\|b' x.ts`)).toMatchObject({
+            subject: String.raw`a\|b in x.ts`,
+        });
         expect(describe('rg --files src')).toMatchObject({ kind: 'list', subject: 'src' });
         expect(describe('ls')).toMatchObject({ kind: 'list', label: 'Listed files' });
         expect(describe('find . -name "*.ts"')).toMatchObject({
@@ -82,7 +97,7 @@ describe('describeAgentTool', () => {
         expect(describe(String.raw`rg --files scripts/rotation | rg '\.test\.ts'"$"''`)).toEqual({
             kind: 'search',
             label: 'Found files',
-            subject: String.raw`\.test\.ts$ in rotation`,
+            subject: '.test.ts$ in rotation',
             isCodeSubject: true,
         });
         expect(describe('rtk rg -n TODO src')).toMatchObject({

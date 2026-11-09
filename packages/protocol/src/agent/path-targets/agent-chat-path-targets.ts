@@ -22,9 +22,9 @@ export const agentChatPathTargetSchema = z.strictObject({
 export type AgentChatPathTarget = z.infer<typeof agentChatPathTargetSchema>;
 
 /**
- * The one file a command or tool call reads or searches, with the pattern when it searches it, as the Agent wrote the
- * path (possibly relative). Server Core recognizes this file to stamp the item's `pathTarget`. Absent for anything
- * else, including a read of several files.
+ * The one file a command or tool call reads or searches, with what it searches for when it does (the readable terms,
+ * `foo, bar` for `grep "foo\|bar"`), as the Agent wrote the path (possibly relative). Server Core recognizes this file
+ * to stamp the item's `pathTarget`. Absent for anything else, including a read of several files.
  */
 export function agentChatWorkTargetFile(
     item: AgentChatItem,
@@ -36,7 +36,7 @@ export function agentChatWorkTargetFile(
             return path ? { path } : undefined;
         }
         if (action?.kind === 'search' && action.path !== undefined)
-            return { path: action.path, pattern: action.pattern };
+            return { path: action.path, pattern: action.terms.join(', ') };
         return undefined;
     }
     if (item.type !== 'toolCall') return undefined;
