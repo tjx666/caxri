@@ -43,22 +43,30 @@ export const AgentChatWorkflowDetail = ({
     workflow: AgentChatWorkflow;
 }) => {
     const { t } = useTranslation();
-    const [openTaskId, setOpenTaskId] = useState<string | undefined>();
-    const openMember =
-        openTaskId === undefined
-            ? undefined
-            : workflow.members.find((member) => member.taskId === openTaskId);
-    if (openMember && openTaskId !== undefined)
+    // The opened member is kept as it was when tapped: a large running run's outline can drop to its compact form (no
+    // task ids) mid-read, and looking the member up only by task id would then jump back to the list unasked. Its live
+    // entry still wins while the outline names it.
+    const [opened, setOpened] = useState<
+        { taskId: string; member: AgentChatWorkflowMember } | undefined
+    >();
+    if (opened)
         return (
             <WorkflowMember
-                member={openMember}
-                onBack={() => setOpenTaskId(undefined)}
-                taskId={openTaskId}
+                member={
+                    workflow.members.find((member) => member.taskId === opened.taskId) ??
+                    opened.member
+                }
+                onBack={() => setOpened(undefined)}
+                taskId={opened.taskId}
                 terminalId={terminalId}
                 theme={theme}
                 title={title}
             />
         );
+    const open = (taskId: string): void => {
+        const member = workflow.members.find((candidate) => candidate.taskId === taskId);
+        if (member) setOpened({ taskId, member });
+    };
     const sections = agentChatWorkflowSections(workflow, t);
     return (
         <View style={styles.root} testID="agent-chat-workflow">
@@ -101,7 +109,7 @@ export const AgentChatWorkflowDetail = ({
                         </View>
                     )}
                     {section.members.map((row) => (
-                        <MemberRow key={row.key} onOpen={setOpenTaskId} row={row} theme={theme} />
+                        <MemberRow key={row.key} onOpen={open} row={row} theme={theme} />
                     ))}
                 </View>
             ))}

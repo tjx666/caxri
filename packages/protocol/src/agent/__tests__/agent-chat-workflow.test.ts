@@ -82,6 +82,41 @@ describe('agentChatTaskWorkflow', () => {
         expect(agentChatTaskWorkflow(undefined, { workflow: recorded })).toBe(recorded);
         expect(agentChatTaskWorkflow({}, undefined)).toBeUndefined();
     });
+
+    it("names a compact live run's members from the record, keeping their live status", () => {
+        const live: AgentChatWorkflow = {
+            runId: 'wf_1',
+            phases: [{ title: 'Review' }],
+            members: [
+                { index: 0, label: '', phase: 'Review', status: 'running' },
+                { index: 1, label: '', phase: 'Review', status: 'queued' },
+            ],
+        };
+        const recorded: AgentChatWorkflow = {
+            ...live,
+            members: [
+                {
+                    index: 0,
+                    label: 'review:a',
+                    phase: 'Review',
+                    status: 'completed',
+                    taskId: 'workflow:wf_1:a',
+                    agentType: 'Explore',
+                },
+            ],
+        };
+        expect(agentChatTaskWorkflow({ workflow: live }, { workflow: recorded })?.members).toEqual([
+            {
+                index: 0,
+                label: 'review:a',
+                phase: 'Review',
+                status: 'running',
+                taskId: 'workflow:wf_1:a',
+                agentType: 'Explore',
+            },
+            { index: 1, label: '', phase: 'Review', status: 'queued' },
+        ]);
+    });
 });
 
 const progressPhases = [{ title: 'Inspect' }, { title: 'Review' }];

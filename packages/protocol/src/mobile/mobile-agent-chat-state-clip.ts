@@ -139,7 +139,7 @@ const workflowByteLength = (value: unknown): number =>
  * timings, and usage stay on the computer; the script's result is kept only with `withResult`, for the run's own
  * detail. Deterministic, so the snapshot window and later `state` patches agree.
  */
-export function clipAgentChatWorkflowForMobile(
+function clipAgentChatWorkflowForMobile(
     workflow: AgentChatWorkflowOutline,
     { withResult = false }: { withResult?: boolean } = {},
 ): AgentChatWorkflowOutline {
@@ -168,14 +168,9 @@ export function clipAgentChatWorkflowForMobile(
 }
 
 /**
- * The outlines the phone's task list keeps, by task id: running runs newest first, then ended runs most recently ended
- * first, each in full or compact while the total stays within {@link MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES}. A run that
- * fits neither is skipped, never cut, so a kept outline always counts every member.
- */
-/**
  * A workflow outline without member labels, agent types, or task ids: still every member's status and phase, so the
- * phone's progress (`Review 2/5`) stays exact for a run with up to 200 members, but its rows read `#12` and cannot open
- * a member until the run's detail reads the full outline through `mobile.agentChat.readTask`.
+ * phone's progress (`Review 2/5`) stays exact for a run with up to 200 members, but its rows read `Subagent 12` and
+ * cannot open a member. A finished run's detail reads the full outline through `mobile.agentChat.readTask`.
  */
 function compactAgentChatWorkflowOutline(
     outline: AgentChatWorkflowOutline,
@@ -191,6 +186,58 @@ function compactAgentChatWorkflowOutline(
     };
 }
 
+/**
+ * Longest member label a run's detail keeps when its full outline would not fit
+ * {@link MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES}: still enough to tell members apart, and every member keeps its task
+ * id, so each one still opens.
+ */
+const MOBILE_AGENT_CHAT_WORKFLOW_SHORT_LABEL_MAX_LENGTH = 24;
+
+/**
+ * Most bytes a run's outline takes in its detail (`mobile.agentChat.readTask`), leaving the rest of the 48 KiB frame to
+ * the task's other fields (a run rebuilt from its record has no items). 200 members with 80-character labels, phases,
+ * and agent types take about 70 KiB in full and about 40 KiB with short labels, the 2,000-character result included.
+ */
+export const MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES = 40 * 1_024;
+
+/**
+ * A run's outline for its detail: in full when it fits {@link MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES}, else with
+ * short labels and phase titles and no agent types (members still open), else compact (exact counts only). The result
+ * rides on every tier.
+ */
+export function fitAgentChatWorkflowDetailForMobile(
+    workflow: AgentChatWorkflowOutline,
+): AgentChatWorkflowOutline {
+    const full = clipAgentChatWorkflowForMobile(workflow, { withResult: true });
+    /**
+     * Phase titles shorten the same way on the run and on its members, so members still group under their phase.
+     */
+    const shorten = (text: string): string =>
+        clipText(text, MOBILE_AGENT_CHAT_WORKFLOW_SHORT_LABEL_MAX_LENGTH);
+    const short: AgentChatWorkflowOutline = {
+        ...full,
+        phases: full.phases.map((phase) => ({ title: shorten(phase.title) })),
+        members: full.members.map((member) => ({
+            index: member.index,
+            ...(member.taskId !== undefined && { taskId: member.taskId }),
+            label: shorten(member.label),
+            ...(member.phase !== undefined && { phase: shorten(member.phase) }),
+            status: member.status,
+        })),
+    };
+    return (
+        [full, short].find(
+            (candidate) =>
+                workflowByteLength(candidate) <= MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES,
+        ) ?? compactAgentChatWorkflowOutline(full)
+    );
+}
+
+/**
+ * The outlines the phone's task list keeps, by task id: running runs newest first, then ended runs most recently ended
+ * first, each in full or compact while the total stays within {@link MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES}. A run that
+ * fits neither is skipped, never cut, so a kept outline always counts every member.
+ */
 function keptWorkflowOutlines(tasks: AgentChatTasks): Map<string, AgentChatWorkflowOutline> {
     const ordered = [
         ...tasks.filter((task) => task.status === 'running').sort(newestFirst('startedAt')),

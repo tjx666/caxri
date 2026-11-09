@@ -14,6 +14,7 @@ import {
     MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES,
     MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH,
     MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH,
+    MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES,
     MOBILE_AGENT_CHAT_TASKS_MAX_ITEMS,
     MOBILE_AGENT_CHAT_WORKFLOW_ERROR_MAX_LENGTH,
     MOBILE_AGENT_CHAT_WORKFLOW_LABEL_MAX_LENGTH,
@@ -278,6 +279,38 @@ describe('mobile task detail', () => {
         expect(clipped.workflow?.members).toHaveLength(200);
         expect(clipped.workflow?.members[0]?.resultPreview).toBeUndefined();
         expect(clipped.workflow?.result?.length).toBe(MOBILE_AGENT_CHAT_WORKFLOW_RESULT_MAX_LENGTH);
+        expect(agentChatTaskSnapshotSchema.safeParse(clipped).success).toBe(true);
+    });
+
+    it("keeps a huge recorded run's detail within one frame and its members openable", () => {
+        const long = (prefix: string, index: number) => `${prefix}${index}`.padEnd(120, 'x');
+        const members = Array.from({ length: 200 }, (_, index) => ({
+            index,
+            // Claude Code's run and agent ids are short hex strings.
+            taskId: `workflow:wf_8f3a2c1d:a${String(index).padStart(16, '0')}`,
+            label: long('review:', index),
+            phase: long('Phase ', index % 4),
+            agentType: long('type', index),
+            status: 'completed' as const,
+        }));
+        const clipped = clipAgentChatTaskSnapshotForMobile({
+            terminalId: 'terminal-1',
+            taskId: 'workflow-1',
+            revision: 1,
+            truncated: false,
+            items: [],
+            workflow: {
+                phases: Array.from({ length: 4 }, (_, index) => ({ title: long('Phase ', index) })),
+                members,
+                result: '结'.repeat(8_000),
+            },
+        });
+        expect(bytes(clipped)).toBeLessThanOrEqual(MOBILE_AGENT_CHAT_MAX_BYTES);
+        expect(clipped.workflow?.members).toHaveLength(200);
+        expect(clipped.workflow?.members.every((member) => member.taskId !== undefined)).toBe(true);
+        expect(bytes(clipped.workflow)).toBeLessThanOrEqual(
+            MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES,
+        );
         expect(agentChatTaskSnapshotSchema.safeParse(clipped).success).toBe(true);
     });
 

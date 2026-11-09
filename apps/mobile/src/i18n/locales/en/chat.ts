@@ -463,6 +463,7 @@ export const chat = {
     'chat.tasks.subagent': 'Subagent',
     'chat.tasks.workflow.backTo': 'Back to {{title}}',
     'chat.tasks.workflow.failed': '{{count}} failed',
+    'chat.tasks.workflow.heading': 'Workflow',
     'chat.tasks.workflow.interrupted': 'Claude Code closed, so the workflow stopped.',
     'chat.tasks.workflow.member': 'Subagent {{index}}',
     'chat.tasks.workflow.memberLabel': '{{title}}, {{status}}',

@@ -1511,10 +1511,11 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   result stay on the computer. All outlines in the task list share a 16 KiB budget, running runs
   first, then the most recently ended. A run too large for what is left keeps a compact outline
   without labels, agent types, or task ids, so its progress stays exact, and a run too large even
-  for that arrives as a plain subagent task. The phone shows the workflow glyph and Desktop's
-  progress label (`agentChatWorkflowProgressLabel`: `Review 2/5` while a phase runs, `10/11` once
-  it ended, then failed and interrupted counts) in the status row, the Background work list, and the
-  `Workflow` tool's timeline row, whose activity names the running phase. The run's detail shows
+  for that arrives as a plain subagent task. The phone shows Desktop's progress label
+  (`agentChatWorkflowProgressLabel`: `Review 2/5` while a phase runs, `10/11` once it ended, then
+  failed and interrupted counts) in the status row and the Background work list, both with the
+  workflow glyph, and on the `Workflow` tool's timeline row, which keeps the Agent glyph as on
+  Desktop and whose activity names the running phase. The run's detail shows
   done/total subagents, an interruption or script error, members under each phase (a queued member
   reads `Waiting`), and the result, which `mobile.agentChat.readTask` carries cut to 2,000
   characters for a recorded run. A member with a task id opens its own messages in place, read

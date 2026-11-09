@@ -439,6 +439,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.tasks.subagent': '子 Agent',
     'chat.tasks.workflow.backTo': '返回 {{title}}',
     'chat.tasks.workflow.failed': '{{count}} 个失败',
+    'chat.tasks.workflow.heading': 'Workflow',
     'chat.tasks.workflow.interrupted': 'Claude Code 已关闭，Workflow 已中断。',
     'chat.tasks.workflow.member': '子 Agent {{index}}',
     'chat.tasks.workflow.memberLabel': '{{title}}，{{status}}',
