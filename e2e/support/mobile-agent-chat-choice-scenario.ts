@@ -6,25 +6,30 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     agentText,
+    expandChatComposer,
     sendFromPhone,
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import { openModelSheet, waitForCheckedOptions } from './mobile-agent-chat-model-scenario';
-import {
-    adbShell,
-    mobileSemantics,
-    observeMobileNode,
-    tapMobileCheck,
-    tapMobileCheckByBounds,
-    waitForMobile,
-} from './mobile-android';
+import { mobileSemantics, tapMobileCheckByBounds, waitForMobile } from './mobile-android';
 
 /**
  * The fake Claude Code's `opus` alias reports the full model it resolves to once in use.
  */
 const isOpus = (snapshot: AgentChatSnapshot): boolean =>
     snapshot.model === 'opus' || snapshot.model === 'fake-claude-opus';
+
+/**
+ * Sends from the expanded composer. Typed at once into the collapsed composer the sheet left behind, the word landed
+ * while the capsule was still expanding; in repeated runs its second row (the send control) never appeared and every
+ * later UIAutomator read failed. Waiting for that row first, as `MOB-CHAT-04` does, keeps the send on a settled
+ * composer.
+ */
+async function sendFromPhoneExpanded(serial: string, word: string): Promise<void> {
+    await expandChatComposer(serial, 'agent-chat-model-button');
+    await sendFromPhone(serial, word);
+}
 
 /**
  * `MOB-CHAT-CHOICE-01` (#3880): a Chat's own model choice stays in sync on the phone and survives a provider restart.
@@ -129,47 +134,7 @@ export async function executeMobileChatChoiceScenario(
          *    message runs on the Chat's choice. A Chat is suspended only by the idle sweep (`terminal.suspend` parks
          *    PTYs), and every provider start takes the same restore path.
          */
-        /**
-         * DIAGNOSTIC (temporary): which device command fails after the sheet closes.
-         */
-        const diag = async (label: string): Promise<void> => {
-            try {
-                const nodes = await mobileSemantics(serial);
-                console.log(
-                    `[diag] ${label}: ${nodes
-                        .filter(({ checkId }) => checkId.startsWith('agent-chat-'))
-                        .map(
-                            (node) =>
-                                `${node.checkId}${node.enabled ? '' : '(disabled)'}${node.clickable ? '' : '(nc)'}@${node.bounds}`,
-                        )
-                        .join(' ')}`,
-                );
-            } catch (error) {
-                console.log(`[diag] ${label}: semantics failed ${String(error)}`);
-            }
-        };
-        await diag('after-sheet-closed');
-        await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-        await diag('after-input-tap');
-        await adbShell(serial, ['input', 'text', 'hello']);
-        await diag('after-typing');
-        try {
-            const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
-                kind: 'equals',
-                value: 'hello',
-            });
-            console.log(`[diag] observe ${JSON.stringify(draft)}`);
-        } catch (error) {
-            console.log(`[diag] observe failed ${String(error)}`);
-        }
-        try {
-            await tapMobileCheck(serial, 'agent-chat-composer-send');
-            console.log('[diag] send tapped');
-        } catch (error) {
-            console.log(`[diag] send tap failed ${String(error)}`);
-            await diag('after-send-failure');
-            throw error;
-        }
+        await sendFromPhoneExpanded(serial, 'hello');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
@@ -189,7 +154,7 @@ export async function executeMobileChatChoiceScenario(
             () => choiceApplied('start'),
             (records) => records.length > restoresBefore,
         );
-        await sendFromPhone(serial, 'again');
+        await sendFromPhoneExpanded(serial, 'again');
         const resumed = await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: again') && !snapshot.activeTurnId,
