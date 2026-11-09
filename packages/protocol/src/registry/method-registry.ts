@@ -426,7 +426,10 @@ export const methods = {
     /**
      * Parks one running Terminal the way idle suspension does: the process tree exits, while the record, scrollback,
      * and Agent session survive and the Terminal resumes when its Session is selected again. The resource alert's
-     * `Stop` uses it. `suspended` is false when the Terminal was not running.
+     * `Stop` uses it. `suspended` is false when the Terminal was not running, and also for an Agent Chat even while its
+     * provider runs: this parks only a PTY process, and a Chat has none. Only the idle sweep suspends a Chat; to
+     * replace a Chat's provider with a fresh one on the same conversation, use `terminal.restart` with `mode:
+     * 'resume'`.
      */
     'terminal.suspend': {
         ...serverControl,
