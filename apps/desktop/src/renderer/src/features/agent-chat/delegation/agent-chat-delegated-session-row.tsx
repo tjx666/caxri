@@ -62,7 +62,7 @@ function DelegatedPullRequestLink({
         <Tooltip content={label}>
             <button
                 aria-label={label}
-                className="absolute top-[22px] right-[30px] flex h-5 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[12px] leading-5 text-accent tabular-nums underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                className="absolute top-[22px] right-10 flex h-5 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[12px] leading-5 text-accent tabular-nums underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={() => {
                     // openExternalUrl reports its own rejection through the callback.
@@ -166,13 +166,19 @@ function DelegatedSessionRowContent({
                 )}
                 {elapsed && <span>{elapsed}</span>}
             </span>
-            <AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />
+            {/*
+             * The state glyph takes the header chevron's 28px column, and `ml-1` matches the header's gap before it,
+             * so the metrics end where the header's meta does.
+             */}
+            <span className="ml-1 flex w-7 flex-none justify-center">
+                <AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />
+            </span>
         </>
     );
 }
 
 const ROW_CLASS_NAME =
-    'flex w-full min-w-0 items-start gap-2 rounded px-2 py-0.5 text-[12px] leading-5 text-muted';
+    'flex w-full min-w-0 items-start gap-2 rounded py-0.5 pl-2 text-[12px] leading-5 text-muted';
 
 /**
  * One child Session in the Delegated Sessions strip: the Agent, the child's title and Project, what it is doing or what
