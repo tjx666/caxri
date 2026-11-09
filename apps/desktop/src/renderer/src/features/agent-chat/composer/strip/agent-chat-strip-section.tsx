@@ -69,7 +69,11 @@ export function AgentChatStripSection({
             data-agent-chat-composer-strip-row=""
             data-agent-chat-strip-section={section}
         >
-            <div className="flex h-8 items-center px-1 text-[12px] text-muted">
+            {/*
+             * Sticky inside the strip's shared scroll cap, so scrolling a long list never carries its header out of view
+             * and leaves rows with nothing naming them. Opaque so rows pass under it.
+             */}
+            <div className="sticky top-0 z-10 flex h-8 items-center bg-surface px-1 text-[12px] text-muted">
                 <div className="group flex h-7 min-w-0 flex-1 items-center gap-1 rounded hover:bg-list-hover-background">
                     <button
                         aria-controls={bodyId}

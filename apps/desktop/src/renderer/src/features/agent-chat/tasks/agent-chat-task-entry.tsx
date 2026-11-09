@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import type { AgentChatTask } from '@caxri/protocol';
 import {
     agentChatTaskGlyphStatus,
@@ -68,10 +70,16 @@ function AgentChatTaskStopButton({
  * it.
  */
 export function AgentChatTaskEntry({
+    actions,
     task,
     terminalId,
     onOpenTask,
 }: {
+    /**
+     * Controls after the task's own Stop, inside the row so its hover background reaches them (the lone task's `Ended
+     * N` toggle).
+     */
+    actions?: ReactNode;
     task: AgentChatTask;
     terminalId: string;
     /**
@@ -135,6 +143,7 @@ export function AgentChatTaskEntry({
             {canStopAgentChatTask(task) && (
                 <AgentChatTaskStopButton task={task} terminalId={terminalId} />
             )}
+            {actions}
         </li>
     );
 }

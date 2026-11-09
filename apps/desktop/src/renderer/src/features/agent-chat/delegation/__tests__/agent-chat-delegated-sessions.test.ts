@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../../i18n';
 import {
+    DELEGATED_COMPLETED_VISIBLE_MS,
     delegatedOwnPullRequest,
     delegatedSessionLine,
     delegatedSessionsHeaderParts,
@@ -10,6 +11,7 @@ import {
     delegationPrFilesLabel,
     mergeDeeperAttention,
     sortDelegatedSessions,
+    splitDelegatedSessions,
 } from '../agent-chat-delegated-sessions';
 
 const t = ((key: string, parameters?: Record<string, unknown>) =>
@@ -237,19 +239,72 @@ describe('delegatedSessionsHeaderParts', () => {
 });
 
 describe('sortDelegatedSessions', () => {
-    it('puts needs-input first, failures second, and keeps the Server order within a group', () => {
+    it('puts needs-input first, failures second, open work before completed, and keeps the Server order within a group', () => {
         const rows = [
             entry({ sessionId: 'a', status: 'completed' }),
             entry({ sessionId: 'b', status: 'failed' }),
             entry({ sessionId: 'c', status: 'running' }),
             entry({ failure: 'permission_required', sessionId: 'd', status: 'blocked' }),
+            entry({ sessionId: 'e', status: 'completed' }),
+            entry({ sessionId: 'f', status: 'interrupted' }),
         ];
         expect(sortDelegatedSessions(rows).map((row) => row.sessionId)).toEqual([
             'd',
             'b',
-            'a',
             'c',
+            'f',
+            'a',
+            'e',
         ]);
+    });
+});
+
+describe('splitDelegatedSessions', () => {
+    const now = 1_000_000_000;
+
+    it('folds completed rows past the visible window and keeps recent ones and open work in view', () => {
+        const rows = [
+            entry({ sessionId: 'running', status: 'running' }),
+            entry({ sessionId: 'recent', settledAt: now - 60_000, status: 'completed' }),
+            entry({
+                sessionId: 'old',
+                settledAt: now - DELEGATED_COMPLETED_VISIBLE_MS,
+                status: 'completed',
+            }),
+            entry({ sessionId: 'failed', settledAt: now - 3_600_000, status: 'failed' }),
+        ];
+        const split = splitDelegatedSessions(rows, now);
+        expect(split.shown.map((row) => row.sessionId)).toEqual(['running', 'recent', 'failed']);
+        expect(split.folded.map((row) => row.sessionId)).toEqual(['old']);
+        expect(split.hasRecentCompleted).toBe(true);
+    });
+
+    it("falls back to the result's completion time and folds a row with no time at all", () => {
+        const result = {
+            completedAt: now - 1000,
+            delegationId: 'task',
+            source: 'authored' as const,
+            summary: 'Done',
+        };
+        const split = splitDelegatedSessions(
+            [
+                entry({ result, sessionId: 'by-result', status: 'completed' }),
+                entry({ sessionId: 'untimed', status: 'completed' }),
+            ],
+            now,
+        );
+        expect(split.shown.map((row) => row.sessionId)).toEqual(['by-result']);
+        expect(split.folded.map((row) => row.sessionId)).toEqual(['untimed']);
+    });
+
+    it('never folds a completed row that waits on the user, and needs no clock without a recent row', () => {
+        const split = splitDelegatedSessions(
+            [entry({ sessionId: 'question', status: 'completed', waitingOn: 'user' })],
+            now,
+        );
+        expect(split.shown.map((row) => row.sessionId)).toEqual(['question']);
+        expect(split.folded).toEqual([]);
+        expect(split.hasRecentCompleted).toBe(false);
     });
 });
 

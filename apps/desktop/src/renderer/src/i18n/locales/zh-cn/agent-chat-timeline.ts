@@ -201,4 +201,6 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.workGroup.task': '任务',
     'agentChat.workGroup.openSubagent': '打开子 Agent',
     'agentChat.workGroup.openShell': '打开 Shell',
+    'agentChat.workGroup.hide': '收起',
+    'agentChat.workGroup.hideNamed': '收起 {{name}}',
 };

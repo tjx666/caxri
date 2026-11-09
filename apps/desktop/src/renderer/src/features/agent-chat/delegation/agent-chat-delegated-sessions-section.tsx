@@ -1,13 +1,24 @@
+import { useId, useState } from 'react';
+
 import { Forward } from 'lucide-react';
 
+import { DisclosureMotion } from '../../../components/disclosure-motion';
+import { useClockTick } from '../../../hooks/use-clock-tick';
 import { useTranslation } from '../../../i18n';
+import { cn } from '../../../lib/utilities';
 import { isPrimarySidebarShown, useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { useSessionPullRequestPoll } from '../../primary-sidebar/hooks/use-session-pull-request';
+import { AgentChatStripFoldedToggle } from '../composer/strip/agent-chat-strip-folded-toggle';
+import {
+    toggleAgentChatStripFold,
+    useIsAgentChatStripSectionCollapsed,
+} from '../composer/strip/agent-chat-strip-folds';
 import { AgentChatStripSection } from '../composer/strip/agent-chat-strip-section';
 import { AgentChatDelegatedSessionRow } from './agent-chat-delegated-session-row';
 import {
     delegatedSessionsHeaderParts,
     delegatedSessionsSummary,
+    splitDelegatedSessions,
 } from './agent-chat-delegated-sessions';
 import {
     delegatedCostLabel,
@@ -29,9 +40,12 @@ function DelegatedPullRequestPoll() {
 
 /**
  * The "Delegated Sessions" section of the composer strip: one row per child Session this Chat's Agent delegated to,
- * consulted, or handed off to, under a header that counts them and states how many need input or failed. Mounts only
- * when the feed has entries, and only for a Chat on screen: a kept-alive Chat in the background reads no feed, so the
- * progress events that patch it cost the visible Chat alone (the hidden-Chat render budget).
+ * consulted, or handed off to, under a header that counts them and states how many need input or failed. A completed
+ * task stays in the list for a while after it completes (`splitDelegatedSessions`), then waits behind the header's
+ * `Completed N` toggle, so the rows in view are the ones still worth looking at. The clock that folds a row only ticks
+ * while a recent completed row is in view. Mounts only when the feed has entries, and only for a Chat on screen: a
+ * kept-alive Chat in the background reads no feed, so the progress events that patch it cost the visible Chat alone
+ * (the hidden-Chat render budget).
  */
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
@@ -39,6 +53,16 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
         useChatDelegatedSessions(terminalId);
     const cost = useDelegatedCost(sessionId, total > 0);
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
+    const [isShowingCompleted, setShowingCompleted] = useState(false);
+    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, 'delegated');
+    const completedListId = useId();
+    const [needsClock, setNeedsClock] = useState(false);
+    const now = useClockTick('minute', needsClock);
+    const { folded, hasRecentCompleted, shown } = splitDelegatedSessions(entries, now);
+    // Adjusting state during render: the clock runs only while a shown row still has to fold on time.
+    if (needsClock !== hasRecentCompleted) setNeedsClock(hasRecentCompleted);
+    // A later fold starts hidden again once the last folded row left, rather than appearing already expanded.
+    if (isShowingCompleted && folded.length === 0) setShowingCompleted(false);
     if (entries.length === 0) return null;
     const summary = delegatedSessionsSummary(entries, total);
     const { asking, count, failed, needsInput, waiting } = delegatedSessionsHeaderParts(summary, t);
@@ -47,6 +71,25 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
     const announcement = [count, ...attention, ...(asking ? [asking] : [])].join(', ');
     const headerFigure = delegatedHeaderFigure(cost);
     const headerCost = delegatedCostLabel(headerFigure, t);
+    const renderRow = (entry: (typeof entries)[number]) => (
+        <AgentChatDelegatedSessionRow
+            attempt={
+                entry.delegationId === undefined ? undefined : attempts.get(entry.delegationId)
+            }
+            cost={delegatedCostLabel(
+                cost &&
+                    sumDelegatedCost(
+                        chainSessionIds.get(entry.sessionId) ?? [entry.sessionId],
+                        cost.children,
+                    ),
+                t,
+            )}
+            entry={entry}
+            key={entry.sessionId}
+            parentSessionId={sessionId}
+            viaSessionId={viaBySessionId.get(entry.sessionId)}
+        />
+    );
     return (
         <>
             <span aria-live="polite" className="sr-only" role="status">
@@ -85,31 +128,50 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                         )}
                     </>
                 }
+                actions={
+                    folded.length > 0 && (
+                        <AgentChatStripFoldedToggle
+                            hideLabel={t('delegation.strip.hideCompleted')}
+                            isShowing={isShowingCompleted && !isCollapsed}
+                            label={t('delegation.strip.completedCount', { count: folded.length })}
+                            listId={completedListId}
+                            showLabel={t('delegation.strip.showCompleted')}
+                            onToggle={() => {
+                                // A collapsed section unfolds with the completed rows in view, as `Ended N` does.
+                                if (isCollapsed) {
+                                    toggleAgentChatStripFold(terminalId, 'delegated');
+                                    setShowingCompleted(true);
+                                } else setShowingCompleted((value) => !value);
+                            }}
+                        />
+                    )
+                }
                 section="delegated"
                 terminalId={terminalId}
             >
-                <ul className="m-0 flex max-h-48 list-none flex-col overflow-y-auto p-0">
-                    {entries.map((entry) => (
-                        <AgentChatDelegatedSessionRow
-                            attempt={
-                                entry.delegationId === undefined
-                                    ? undefined
-                                    : attempts.get(entry.delegationId)
-                            }
-                            cost={delegatedCostLabel(
-                                cost &&
-                                    sumDelegatedCost(
-                                        chainSessionIds.get(entry.sessionId) ?? [entry.sessionId],
-                                        cost.children,
-                                    ),
-                                t,
-                            )}
-                            entry={entry}
-                            key={entry.sessionId}
-                            parentSessionId={sessionId}
-                            viaSessionId={viaBySessionId.get(entry.sessionId)}
-                        />
-                    ))}
+                <ul className="m-0 flex max-h-48 list-none flex-col overflow-y-auto overscroll-contain p-0">
+                    {shown.map(renderRow)}
+                    {folded.length > 0 && (
+                        <li className="list-none">
+                            <DisclosureMotion
+                                animate
+                                expanded={isShowingCompleted}
+                                id={completedListId}
+                                kind="agent-chat-delegated-completed"
+                            >
+                                <ul
+                                    aria-label={t('delegation.strip.completedList')}
+                                    className={cn(
+                                        'm-0 flex list-none flex-col p-0',
+                                        shown.length > 0 &&
+                                            'mt-1 border-0 border-t border-solid border-border pt-1',
+                                    )}
+                                >
+                                    {folded.map(renderRow)}
+                                </ul>
+                            </DisclosureMotion>
+                        </li>
+                    )}
                 </ul>
             </AgentChatStripSection>
         </>

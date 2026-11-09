@@ -9,7 +9,6 @@ import { Button } from '../../../../components/ui/button';
 import { Spinner } from '../../../../components/ui/spinner';
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { useTranslation } from '../../../../i18n';
-import { cn } from '../../../../lib/utilities';
 import {
     agentChatTaskKey,
     stopAgentChatTasks,
@@ -18,6 +17,7 @@ import {
 import { AgentChatTaskEntry } from '../../tasks/agent-chat-task-entry';
 import { agentChatTaskTitle } from '../../tasks/agent-chat-tasks';
 import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
+import { AgentChatStripFoldedToggle } from './agent-chat-strip-folded-toggle';
 import {
     toggleAgentChatStripFold,
     useIsAgentChatStripSectionCollapsed,
@@ -31,9 +31,7 @@ import {
 } from './agent-chat-strip-sections';
 
 /**
- * The `Ended N` disclosure among the section's actions: beside a lone task's Stop, or in a headed section's header
- * before Stop all, so ended work never costs a row of its own. Folding finished tasks behind one quiet control follows
- * Synara and Claude Code's `Completed` group.
+ * The `Ended N` toggle: the shared strip disclosure worded for ended background tasks.
  */
 function EndedTasksToggle({
     count,
@@ -48,21 +46,14 @@ function EndedTasksToggle({
 }) {
     const { t } = useTranslation();
     return (
-        <Tooltip content={t(isShowing ? 'agentChat.tasks.hideEnded' : 'agentChat.tasks.showEnded')}>
-            <Button
-                aria-controls={listId}
-                aria-expanded={isShowing}
-                className={cn(
-                    'h-6 shrink-0 px-1.5 text-[11px] text-muted tabular-nums hover:text-foreground',
-                    isShowing && 'text-foreground',
-                )}
-                size="sm"
-                variant="ghost"
-                onClick={onToggle}
-            >
-                {t('agentChat.tasks.endedCount', { count })}
-            </Button>
-        </Tooltip>
+        <AgentChatStripFoldedToggle
+            hideLabel={t('agentChat.tasks.hideEnded')}
+            isShowing={isShowing}
+            label={t('agentChat.tasks.endedCount', { count })}
+            listId={listId}
+            showLabel={t('agentChat.tasks.showEnded')}
+            onToggle={onToggle}
+        />
     );
 }
 
@@ -124,7 +115,7 @@ function EndedTasksList({
         <DisclosureMotion animate expanded={expanded} id={listId} kind="agent-chat-ended-tasks">
             <ul
                 aria-label={t('agentChat.tasks.endedList')}
-                className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto border-0 border-t border-solid border-border p-0 pt-1"
+                className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto overscroll-contain border-0 border-t border-solid border-border p-0 pt-1"
             >
                 {tasks.map((task) => (
                     <AgentChatTaskEntry
@@ -165,22 +156,24 @@ function SoleTaskSection({
             data-agent-chat-composer-strip-row=""
             data-agent-chat-strip-section="tasks"
         >
-            <div className="flex min-h-8 items-center gap-1 px-1">
+            <div className="flex min-h-8 items-center px-1">
                 <ul className="m-0 flex min-w-0 flex-1 list-none flex-col p-0">
                     <AgentChatTaskEntry
+                        actions={
+                            ended.length > 0 && (
+                                <EndedTasksToggle
+                                    count={ended.length}
+                                    isShowing={isShowingEnded}
+                                    listId={endedListId}
+                                    onToggle={() => setShowingEnded((value) => !value)}
+                                />
+                            )
+                        }
                         task={task}
                         terminalId={terminalId}
                         onOpenTask={onOpenTask}
                     />
                 </ul>
-                {ended.length > 0 && (
-                    <EndedTasksToggle
-                        count={ended.length}
-                        isShowing={isShowingEnded}
-                        listId={endedListId}
-                        onToggle={() => setShowingEnded((value) => !value)}
-                    />
-                )}
             </div>
             {ended.length > 0 && (
                 <div className="px-1 pb-1.5">
@@ -310,7 +303,7 @@ function FoldableSection({
             summary={foldedTask && `· ${agentChatTaskTitle(foldedTask, t)}`}
             terminalId={terminalId}
         >
-            <ul className="m-0 flex max-h-48 list-none flex-col overflow-y-auto p-0">
+            <ul className="m-0 flex max-h-48 list-none flex-col overflow-y-auto overscroll-contain p-0">
                 {[...failed, ...running].map((task) => (
                     <AgentChatTaskEntry
                         key={task.id}

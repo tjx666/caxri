@@ -208,4 +208,6 @@ export const agentChatTimeline = {
     'agentChat.workGroup.task': 'task',
     'agentChat.workGroup.openSubagent': 'Open subagent',
     'agentChat.workGroup.openShell': 'Open shell',
+    'agentChat.workGroup.hide': 'Hide',
+    'agentChat.workGroup.hideNamed': 'Hide {{name}}',
 } as const;
