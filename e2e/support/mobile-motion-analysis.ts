@@ -343,7 +343,7 @@ export async function readRecordingBand(
 export async function greenPixelPeak(
     path: string,
     band: RecordingBand,
-    margin = 48,
+    margin = 12,
 ): Promise<{ peak: number; peakTime: number; resting: number }> {
     const { frames } = await decodeRecordingBand(path, band, 2, 'rgb24');
     const counts = frames.map(({ data, time }) => {
