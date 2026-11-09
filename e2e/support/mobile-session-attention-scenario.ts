@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { BootstrapState, SessionActivityGroupId, SessionRecord } from '@caxri/protocol';
 
 import { pageRequest } from './helpers';
@@ -8,12 +12,15 @@ import { checkBounds, waitForCheck } from './mobile-agent-chat-helpers';
 import type { MobileSemanticNode } from './mobile-android';
 import {
     adbShell,
+    copyMobileFramebufferRecording,
     mobileSemantics,
+    startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
 import type { AttentionCommand } from './mobile-attention-fixture';
+import { bandDeparturePeak } from './mobile-motion-analysis';
 
 const GROUPS: readonly SessionActivityGroupId[] = ['attention', 'working', 'idle'];
 
@@ -416,6 +423,126 @@ export async function executeMobileSessionRowMarkDoneScenario(
             status: 'passed',
         });
     } finally {
+        await fixture.stop();
+    }
+}
+
+/**
+ * Width of one swipe action (`SWIPE_ACTION_WIDTH` in `session-row.tsx`), in dp.
+ */
+const SWIPE_ACTION_DP = 76;
+/**
+ * Changed pixels (at half resolution) the hidden actions' column may draw before an action counts as visible. A leaked
+ * action fills thousands; video compression noise stays well under it.
+ */
+const MAX_LEAKED_PIXELS = 20;
+
+/**
+ * The column a closed row's swipe actions sit in, from this row down through the two slots below it, where a row
+ * entering or moving up lands: Mark as Done's slot, one action width in from the trailing edge, and Archive's slot up
+ * to the trailing status glyph. A closed row draws nothing there (the fixture's titles are short), so any change in it
+ * while rows fade is a hidden action showing through.
+ */
+async function hiddenActionsColumn(
+    serial: string,
+    row: { bottom: number; top: number },
+): Promise<{ bottom: number; left: number; right: number; top: number }> {
+    const density =
+        Number(/(\d+)\s*$/.exec((await adbShell(serial, ['wm', 'density'])).trim())?.[1]) / 160;
+    const width = Number(
+        /(\d+)x\d+\s*$/.exec((await adbShell(serial, ['wm', 'size'])).trim())?.[1],
+    );
+    if (!density || !width)
+        throw new Error('The emulator did not report its screen density and size');
+    return {
+        bottom: row.bottom + 2 * (row.bottom - row.top),
+        left: Math.round(width - 2 * SWIPE_ACTION_DP * density),
+        right: Math.round(width - 0.6 * SWIPE_ACTION_DP * density),
+        top: row.top,
+    };
+}
+
+/**
+ * `MOB-SESSION-ROW-SWIPE-HIDDEN-01`: a closed row never shows its hidden swipe actions. A row keeps them behind it (the
+ * green Mark as Done while it needs attention, and Archive); when rows fade out of or into the list (here a Session
+ * archived and then one created on Desktop, as a refresh at launch does), the fade must not let them show through.
+ * Archiving resolves the row's attention, so whether the leaking action is still the green one depends on timing; the
+ * column is judged by any change, not by its color.
+ */
+export async function executeMobileSessionRowSwipeHiddenScenario(
+    environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
+    artifacts: string[],
+): Promise<void> {
+    const { remoteVideoPath, serial } = environment;
+    if (!remoteVideoPath)
+        throw new Error('MOB-SESSION-ROW-SWIPE-HIDDEN-01 judges the row from its recording');
+    const fixture = await createMobileAcceptanceFixture({ mode: 'attention', serial });
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    try {
+        const { page } = fixture.running;
+        if (!fixture.allowedSessionId) throw new Error('Attention fixture Session is unavailable');
+        await fixture.pair();
+        const finished = (
+            await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+                projectId: fixture.allowedProjectId,
+                defaultAgent: 'claude',
+            })
+        ).session.id;
+        const readState = () => pageRequest<BootstrapState>(page, 'app.bootstrap');
+        try {
+            await waitForMobile(
+                readState,
+                (state) =>
+                    state.sessions.find(({ id }) => id === finished)?.hasPendingAttention === true,
+                30_000,
+            );
+        } catch {
+            throw new Error('The finished Session never held Pending Attention');
+        }
+        await waitForRowGroup(serial, finished, 'attention');
+        const row = checkBounds(await mobileSemantics(serial), `session-row-${finished}`);
+        if (!row) throw new Error('The Needs attention row is not laid out');
+        const column = await hiddenActionsColumn(serial, row);
+        await capture(environment, 'attention-row-resting', artifacts);
+
+        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await pageRequest(page, 'session.archive', { sessionId: finished });
+        await new Promise((resolve) => setTimeout(resolve, 2_500));
+        // A Session entering fades its row in too, and its change keeps the recording (which only writes changed
+        // frames) long enough to watch.
+        await pageRequest(page, 'session.create', {
+            projectId: fixture.allowedProjectId,
+            defaultAgent: 'claude',
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+        await recording.stop();
+        recording = undefined;
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !checkBounds(nodes, `session-row-${finished}`),
+            30_000,
+        );
+        const analysis = await mkdtemp(join(tmpdir(), 'caxri-session-row-swipe-'));
+        let leaked: Awaited<ReturnType<typeof bandDeparturePeak>>;
+        try {
+            const video = join(analysis, 'segment.mp4');
+            await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
+            leaked = await bandDeparturePeak(video, column);
+        } finally {
+            await rm(analysis, { force: true, recursive: true });
+        }
+        await capture(environment, 'attention-row-left', artifacts);
+        if (leaked.pixels > MAX_LEAKED_PIXELS)
+            throw new Error(
+                `A fading row showed its hidden swipe actions: ${leaked.pixels} changed pixels at ${Math.round(leaked.time)}ms`,
+            );
+        await finish(environment, artifacts, {
+            leakedPixels: leaked.pixels,
+            status: 'passed',
+        });
+    } finally {
+        await recording?.stop();
         await fixture.stop();
     }
 }
