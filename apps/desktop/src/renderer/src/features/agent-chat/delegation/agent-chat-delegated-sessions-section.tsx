@@ -75,6 +75,7 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                                 {' · '}
                                 <AgentChatDelegatedCostBadge
                                     delegatedCostUsd={cost.delegatedCostUsd}
+                                    delegatedIsActive={cost.isActive}
                                     delegatedIsPartial={cost.isPartial}
                                     delegatedSessions={cost.delegatedSessions}
                                     label={headerCost}

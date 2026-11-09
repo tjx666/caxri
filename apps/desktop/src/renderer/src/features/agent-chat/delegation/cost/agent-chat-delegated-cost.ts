@@ -13,17 +13,19 @@ export interface DelegatedCostFigure {
      */
     isPartial: boolean;
     /**
-     * True while a task below the row still runs, so the figure may grow (`~$1.20`).
+     * True while a task below the row still runs, so the figure may grow. Stated in words (the accessible description
+     * and the header tooltip), not as a `~` prefix: every figure is already an estimate, so `~` would read as "about"
+     * rather than "still running".
      */
     isActive: boolean;
 }
 
 /**
- * The visible text and the sentence that explains it. `text` carries the marker: `~` while running, `+` as a floor.
+ * The visible text and the sentence that explains it. `text` carries only the floor marker (`$1.20+`).
  */
 export interface DelegatedCostLabel {
     /**
-     * The accessible sentence: the amount, and why it is a `~` or `+` figure.
+     * The accessible sentence: the amount, whether it may still grow, and why it is a `+` figure.
      */
     description: string;
     text: string;
@@ -49,7 +51,6 @@ export function delegatedCostLabel(
     if (figure === undefined) return undefined;
     const amount = formatCostAmount(figure.costUsd, figure.isPartial);
     if (amount === undefined) return undefined;
-    const text = `${figure.isActive ? '~' : ''}${amount}`;
     const description = [
         t('delegation.strip.cost.rowLabel', { amount }),
         figure.isActive && t('delegation.strip.cost.running'),
@@ -57,7 +58,7 @@ export function delegatedCostLabel(
     ]
         .filter(Boolean)
         .join(' ');
-    return { description, text };
+    return { description, text: amount };
 }
 
 type CostChild = DelegationCostSummary['children'][number];
@@ -96,8 +97,8 @@ export function retryChainSessionIds(
 
 /**
  * One figure for several direct children: the sum, a floor if any is a floor, running if any runs. A child that only
- * has a running task (no usage yet, `sessionCount` 0) still makes the figure running, so a fresh retry keeps the `~`
- * its earlier attempt's spend needs. `undefined` when none of the Sessions has usage yet.
+ * has a running task (no usage yet, `sessionCount` 0) still makes the figure running, so a fresh retry keeps stating
+ * that its earlier attempt's spend may still grow. `undefined` when none of the Sessions has usage yet.
  */
 export function sumDelegatedCost(
     sessionIds: readonly string[],

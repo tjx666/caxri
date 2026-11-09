@@ -33,15 +33,16 @@ describe('delegatedCostLabel', () => {
         });
     });
 
-    it('marks a running figure with ~ and a floor with +', () => {
-        expect(
-            delegatedCostLabel({ costUsd: 1.2, isPartial: false, isActive: true }, t)?.text,
-        ).toBe('~$1.20');
+    it('states a running figure in words only and marks a floor with +', () => {
+        expect(delegatedCostLabel({ costUsd: 1.2, isPartial: false, isActive: true }, t)).toEqual({
+            text: '$1.20',
+            description: 'delegation.strip.cost.rowLabel:$1.20 delegation.strip.cost.running:',
+        });
         expect(
             delegatedCostLabel({ costUsd: 1.2, isPartial: true, isActive: false }, t)?.text,
         ).toBe('$1.20+');
         expect(delegatedCostLabel({ costUsd: 1.2, isPartial: true, isActive: true }, t)).toEqual({
-            text: '~$1.20+',
+            text: '$1.20+',
             description:
                 'delegation.strip.cost.rowLabel:$1.20+ delegation.strip.cost.running: delegation.strip.cost.partial:',
         });

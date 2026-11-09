@@ -1672,8 +1672,10 @@ The Delegated Sessions strip uses the edges to state spend:
   The walk is bounded: at most 1000 descendants (the root does not count) and depth 8. A larger or
   deeper tree sets `isPartial`, so the figure reads as a floor.
 - A row shows its child's cost together with the cost of every attempt in its retry chain; the
-  header shows the total. `~` means a task below it still runs (the figure may grow), `+` means a
-  floor (a model without a list price, or a truncated walk). Unknown is never `$0`: a Session whose
+  header shows the total. `+` means a floor (a model without a list price, or a truncated walk).
+  A figure carries no marker while a task below it still runs: every figure is already an estimate,
+  so a `~` would read as "about". The accessible description, and the header's tooltip, say instead
+  that the figure may still grow. Unknown is never `$0`: a Session whose
   own usage is unknown has no `costUsd` in `usage.sessionCost`, which then carries only the
   `delegated*` fields.
 - Figures are estimates at API list prices, not a charge; a subscription plan bills differently.
