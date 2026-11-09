@@ -214,6 +214,12 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         const table = chat.getByRole('table');
         await expect(table.getByRole('columnheader', { name: 'Cost' })).toBeVisible();
         await expect(table.getByRole('cell', { name: 'Safe' })).toBeVisible();
+        // The message's `anywhere` wrapping must not reach table cells: it shrinks a narrow column such as a row
+        // number to one character, so `11` reads as `1` over `1`.
+        await expect(table.getByRole('cell', { name: 'Safe' })).toHaveCSS(
+            'overflow-wrap',
+            'break-word',
+        );
         await expect(chat.getByRole('heading', { name: 'Summary', level: 2 })).toBeVisible();
         await expect(
             chat.getByRole('listitem').filter({ hasText: 'Done: Write tests' }),
