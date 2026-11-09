@@ -11,7 +11,14 @@ import {
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import { openModelSheet, waitForCheckedOptions } from './mobile-agent-chat-model-scenario';
-import { mobileSemantics, tapMobileCheckByBounds, waitForMobile } from './mobile-android';
+import {
+    adbShell,
+    mobileSemantics,
+    observeMobileNode,
+    tapMobileCheck,
+    tapMobileCheckByBounds,
+    waitForMobile,
+} from './mobile-android';
 
 /**
  * The fake Claude Code's `opus` alias reports the full model it resolves to once in use.
@@ -122,7 +129,47 @@ export async function executeMobileChatChoiceScenario(
          *    message runs on the Chat's choice. A Chat is suspended only by the idle sweep (`terminal.suspend` parks
          *    PTYs), and every provider start takes the same restore path.
          */
-        await sendFromPhone(serial, 'hello');
+        /**
+         * DIAGNOSTIC (temporary): which device command fails after the sheet closes.
+         */
+        const diag = async (label: string): Promise<void> => {
+            try {
+                const nodes = await mobileSemantics(serial);
+                console.log(
+                    `[diag] ${label}: ${nodes
+                        .filter(({ checkId }) => checkId.startsWith('agent-chat-'))
+                        .map(
+                            (node) =>
+                                `${node.checkId}${node.enabled ? '' : '(disabled)'}${node.clickable ? '' : '(nc)'}@${node.bounds}`,
+                        )
+                        .join(' ')}`,
+                );
+            } catch (error) {
+                console.log(`[diag] ${label}: semantics failed ${String(error)}`);
+            }
+        };
+        await diag('after-sheet-closed');
+        await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
+        await diag('after-input-tap');
+        await adbShell(serial, ['input', 'text', 'hello']);
+        await diag('after-typing');
+        try {
+            const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
+                kind: 'equals',
+                value: 'hello',
+            });
+            console.log(`[diag] observe ${JSON.stringify(draft)}`);
+        } catch (error) {
+            console.log(`[diag] observe failed ${String(error)}`);
+        }
+        try {
+            await tapMobileCheck(serial, 'agent-chat-composer-send');
+            console.log('[diag] send tapped');
+        } catch (error) {
+            console.log(`[diag] send tap failed ${String(error)}`);
+            await diag('after-send-failure');
+            throw error;
+        }
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
