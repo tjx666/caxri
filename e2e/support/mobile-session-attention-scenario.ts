@@ -476,7 +476,14 @@ export async function executeMobileSessionRowSwipeHiddenScenario(
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await new Promise((resolve) => setTimeout(resolve, 500));
         await pageRequest(page, 'session.archive', { sessionId: finished });
-        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await new Promise((resolve) => setTimeout(resolve, 2_500));
+        // A Session entering fades its row in too, and its change keeps the recording (which only writes changed
+        // frames) long enough to watch.
+        await pageRequest(page, 'session.create', {
+            projectId: fixture.allowedProjectId,
+            defaultAgent: 'claude',
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
         await recording.stop();
         recording = undefined;
         await waitForMobile(
