@@ -16,8 +16,8 @@ import type { AgentDispatchServiceOptions } from '../agent-dispatch';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import {
     AgentDispatchService,
-    claudeTrustPreparer,
     createAgentCommandHandlers,
+    folderTrustPreparer,
 } from '../agent-dispatch';
 import type { AgentEnvironment, AgentLifecycleSignal } from '../agents';
 import {
@@ -89,7 +89,7 @@ export function createAgentCommandRuntime(
             options.usageGuards?.assertAdmitted(provider, 'dispatch');
             return options.launchSettings(provider);
         },
-        prepareLaunch: claudeTrustPreparer(options.agentEnvironment, options.logger),
+        prepareLaunch: folderTrustPreparer(options.agentEnvironment, options.logger),
     });
     const announce = (reason: FullStateChangeReason) =>
         options.emit({ event: 'state.changed', payload: { kind: 'full', reason } });

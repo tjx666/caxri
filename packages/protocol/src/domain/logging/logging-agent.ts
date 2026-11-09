@@ -310,11 +310,12 @@ export const agentDelegationLogEvents = {
 
 export const agentDispatchLogEvents = {
     /**
-     * Preparing a Claude Code launch marked its working directory trusted in Claude Code's config. `fields.outcome` is
-     * the closed `ClaudeFolderTrustOutcome`; anything but `granted` or `already_trusted` means the Agent opens on
-     * Claude Code's trust prompt and the task waits at startup.
+     * Preparing a Claude Code or Antigravity PTY launch marked its working directory trusted in that provider's config.
+     * `fields.provider` names the provider and `fields.outcome` is its closed outcome (`ClaudeFolderTrustOutcome` or
+     * `AntigravityFolderTrustOutcome`); anything but `granted` or `already_trusted` means the Agent opens on its trust
+     * prompt and the task waits at startup.
      */
-    claudeTrustPrepared: 'agent_dispatch.claude_trust_prepared',
+    folderTrustPrepared: 'agent_dispatch.folder_trust_prepared',
     transitioned: 'agent_dispatch.transitioned',
 } as const;
 

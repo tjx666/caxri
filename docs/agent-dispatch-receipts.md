@@ -43,8 +43,10 @@ Reasons distinguish launch readiness/failure, process failure/exit, Host or Term
 idle or untouched suspension, Session archive, and user detach. Logs exclude executable paths,
 arguments, prompts, Terminal contents, and Endpoint credentials.
 
-Before a Claude Code PTY launch, `agent_dispatch.claude_trust_prepared` records the closed outcome of marking the
-validated working directory trusted in Claude Code's config (warn unless `granted` or `already_trusted`).
+Before a Claude Code or Antigravity PTY launch, `agent_dispatch.folder_trust_prepared` records the `provider` and the
+closed outcome of marking the validated working directory trusted in that provider's config: Claude Code's
+`projects.<path>.hasTrustDialogAccepted`, or `trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json` for `agy`,
+which is never created when missing (warn unless `granted` or `already_trusted`).
 
 Idle suspension cannot use Server age as evidence against an Agent still starting without an
 activation timestamp. Such a launch is governed by its launch timeout. After activation, the

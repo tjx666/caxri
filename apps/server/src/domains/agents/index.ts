@@ -59,6 +59,7 @@ export {
     readAntigravityConversationSummary,
     readAntigravityConversationUsage,
 } from './providers/antigravity/conversation-database';
+export { grantAntigravityFolderTrust } from './providers/antigravity/folder-trust';
 export {
     antigravityConversationPath,
     antigravityStateDirectory,
