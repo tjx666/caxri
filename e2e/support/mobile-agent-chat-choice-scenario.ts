@@ -7,11 +7,17 @@ import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     agentText,
     sendFromPhone,
+    typeRightAfterFocus,
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
 import { openModelSheet, waitForCheckedOptions } from './mobile-agent-chat-model-scenario';
-import { mobileSemantics, tapMobileCheckByBounds, waitForMobile } from './mobile-android';
+import {
+    mobileSemantics,
+    tapMobileCheck,
+    tapMobileCheckByBounds,
+    waitForMobile,
+} from './mobile-android';
 
 /**
  * The fake Claude Code's `opus` alias reports the full model it resolves to once in use.
@@ -120,9 +126,12 @@ export async function executeMobileChatChoiceScenario(
         /**
          * 3. Desktop's Restart Agent replaces the provider process and resumes the same conversation; the phone's next
          *    message runs on the Chat's choice. A Chat is suspended only by the idle sweep (`terminal.suspend` parks
-         *    PTYs), and every provider start takes the same restore path.
+         *    PTYs), and every provider start takes the same restore path. The first word is typed the moment the
+         *    composer is tapped, right after the sheet closed, which once left the expanded composer without its `+`,
+         *    settings, and send controls.
          */
-        await sendFromPhone(serial, 'hello');
+        await typeRightAfterFocus(serial, 'hello');
+        await tapMobileCheck(serial, 'agent-chat-composer-send');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
