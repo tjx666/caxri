@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     browserArguments,
     browserEnvironment,
+    expandRunFile,
     packagedTarget,
     parseBrowserArguments,
     reportedWorktree,
@@ -53,5 +54,18 @@ describe('worktree-browser', () => {
             'snapshot',
         ]);
         expect(packagedTarget({ CAXRI_DEV_CDP_PORT: '9300' }).cdpPort).toBe(9300);
+    });
+
+    it('expands run-file into an expression read from the file and leaves other commands alone', async () => {
+        const read = (path: string) => Promise.resolve(`contents of ${path}`);
+        await expect(expandRunFile(['run-file', '/tmp/task/probe.js'], read)).resolves.toEqual([
+            'eval',
+            'contents of /tmp/task/probe.js',
+        ]);
+        await expect(expandRunFile(['snapshot'], read)).resolves.toEqual(['snapshot']);
+        await expect(expandRunFile(['run-file'], read)).rejects.toThrow(/Usage: run-file/u);
+        await expect(expandRunFile(['run-file', 'a', 'b'], read)).rejects.toThrow(
+            /Usage: run-file/u,
+        );
     });
 });
