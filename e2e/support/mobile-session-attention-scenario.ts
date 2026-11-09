@@ -20,7 +20,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import type { AttentionCommand } from './mobile-attention-fixture';
-import { greenPixelPeak } from './mobile-motion-analysis';
+import { bandDeparturePeak } from './mobile-motion-analysis';
 
 const GROUPS: readonly SessionActivityGroupId[] = ['attention', 'working', 'idle'];
 
@@ -428,15 +428,46 @@ export async function executeMobileSessionRowMarkDoneScenario(
 }
 
 /**
- * Green pixels (at half resolution) a frame of the leaving row may draw beyond the row at rest before the hidden action
- * counts as visible. The Mark as Done action alone covers thousands; anti-aliased glyph edges stay well under it.
+ * Width of one swipe action (`SWIPE_ACTION_WIDTH` in `session-row.tsx`), in dp.
  */
-const MAX_EXTRA_GREEN_PIXELS = 20;
+const SWIPE_ACTION_DP = 76;
+/**
+ * Changed pixels (at half resolution) the hidden actions' column may draw before an action counts as visible. A leaked
+ * action fills thousands; video compression noise stays well under it.
+ */
+const MAX_LEAKED_PIXELS = 20;
 
 /**
- * `MOB-SESSION-ROW-SWIPE-HIDDEN-01`: a closed row never shows its hidden swipe actions. A Needs attention row keeps a
- * green Mark as Done action behind it; when the row fades out of the list (here archived from Desktop, as a refresh at
- * launch does to any row that left), the fade must not let that green show through the row.
+ * The column a closed row's swipe actions sit in, from this row down through the two slots below it, where a row
+ * entering or moving up lands: Mark as Done's slot, one action width in from the trailing edge, and Archive's slot up
+ * to the trailing status glyph. A closed row draws nothing there (the fixture's titles are short), so any change in it
+ * while rows fade is a hidden action showing through.
+ */
+async function hiddenActionsColumn(
+    serial: string,
+    row: { bottom: number; top: number },
+): Promise<{ bottom: number; left: number; right: number; top: number }> {
+    const density =
+        Number(/(\d+)\s*$/.exec((await adbShell(serial, ['wm', 'density'])).trim())?.[1]) / 160;
+    const width = Number(
+        /(\d+)x\d+\s*$/.exec((await adbShell(serial, ['wm', 'size'])).trim())?.[1],
+    );
+    if (!density || !width)
+        throw new Error('The emulator did not report its screen density and size');
+    return {
+        bottom: row.bottom + 2 * (row.bottom - row.top),
+        left: Math.round(width - 2 * SWIPE_ACTION_DP * density),
+        right: Math.round(width - 0.6 * SWIPE_ACTION_DP * density),
+        top: row.top,
+    };
+}
+
+/**
+ * `MOB-SESSION-ROW-SWIPE-HIDDEN-01`: a closed row never shows its hidden swipe actions. A row keeps them behind it (the
+ * green Mark as Done while it needs attention, and Archive); when rows fade out of or into the list (here a Session
+ * archived and then one created on Desktop, as a refresh at launch does), the fade must not let them show through.
+ * Archiving resolves the row's attention, so whether the leaking action is still the green one depends on timing; the
+ * column is judged by any change, not by its color.
  */
 export async function executeMobileSessionRowSwipeHiddenScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -471,6 +502,7 @@ export async function executeMobileSessionRowSwipeHiddenScenario(
         await waitForRowGroup(serial, finished, 'attention');
         const row = checkBounds(await mobileSemantics(serial), `session-row-${finished}`);
         if (!row) throw new Error('The Needs attention row is not laid out');
+        const column = await hiddenActionsColumn(serial, row);
         await capture(environment, 'attention-row-resting', artifacts);
 
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
@@ -492,25 +524,21 @@ export async function executeMobileSessionRowSwipeHiddenScenario(
             30_000,
         );
         const analysis = await mkdtemp(join(tmpdir(), 'caxri-session-row-swipe-'));
-        let green: Awaited<ReturnType<typeof greenPixelPeak>>;
+        let leaked: Awaited<ReturnType<typeof bandDeparturePeak>>;
         try {
             const video = join(analysis, 'segment.mp4');
             await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-            // The whole row, so the band holds the hidden actions wherever the screen width puts them.
-            green = await greenPixelPeak(video, row);
+            leaked = await bandDeparturePeak(video, column);
         } finally {
             await rm(analysis, { force: true, recursive: true });
         }
         await capture(environment, 'attention-row-left', artifacts);
-        const extra = green.peak - green.resting;
-        if (extra > MAX_EXTRA_GREEN_PIXELS)
+        if (leaked.pixels > MAX_LEAKED_PIXELS)
             throw new Error(
-                `The leaving row showed its hidden Mark as Done action: ${extra} green pixels beyond the resting row at ${Math.round(green.peakTime)}ms`,
+                `A fading row showed its hidden swipe actions: ${leaked.pixels} changed pixels at ${Math.round(leaked.time)}ms`,
             );
         await finish(environment, artifacts, {
-            extraGreenPixels: extra,
-            peakGreenPixels: green.peak,
-            restingGreenPixels: green.resting,
+            leakedPixels: leaked.pixels,
             status: 'passed',
         });
     } finally {

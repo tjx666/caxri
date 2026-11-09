@@ -336,27 +336,33 @@ export async function readRecordingBand(
 }
 
 /**
- * Pixels each frame of a recorded band draws in a strongly green hue (green leading red and blue by more than
- * `margin`): the count in the first frame (the band at rest) and the most any frame draws, with that frame's time. A
- * peak well above the resting count means a green surface showed through while the band changed.
+ * The most pixels any frame of a recorded band draws differently from the band's first frame (any channel off by more
+ * than `threshold`), with that frame's time. For a band that should keep its resting picture throughout, such as a
+ * column only hidden content occupies, any count above a few pixels means that content showed.
  */
-export async function greenPixelPeak(
+export async function bandDeparturePeak(
     path: string,
     band: RecordingBand,
-    margin = 12,
-): Promise<{ peak: number; peakTime: number; resting: number }> {
+    threshold = 12,
+): Promise<{ pixels: number; time: number }> {
     const { frames } = await decodeRecordingBand(path, band, 2, 'rgb24');
-    const counts = frames.map(({ data, time }) => {
+    const first = frames.at(0);
+    if (!first) throw new Error('Recording has no frames');
+    const resting = first.data;
+    let peak = { pixels: 0, time: 0 };
+    for (const { data, time } of frames) {
         let pixels = 0;
         for (let index = 0; index < data.length; index += 3) {
-            if (data[index + 1] - Math.max(data[index], data[index + 2]) > margin) pixels += 1;
+            if (
+                Math.abs(data[index] - resting[index]) > threshold ||
+                Math.abs(data[index + 1] - resting[index + 1]) > threshold ||
+                Math.abs(data[index + 2] - resting[index + 2]) > threshold
+            )
+                pixels += 1;
         }
-        return { pixels, time };
-    });
-    const peak = counts.reduce((highest, count) =>
-        count.pixels > highest.pixels ? count : highest,
-    );
-    return { peak: peak.pixels, peakTime: peak.time, resting: counts[0]?.pixels ?? 0 };
+        if (pixels > peak.pixels) peak = { pixels, time };
+    }
+    return peak;
 }
 
 /**
