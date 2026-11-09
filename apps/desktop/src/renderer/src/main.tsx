@@ -18,6 +18,7 @@ import {
     recoveringSnapshotSource,
     workbenchCrashBoundary,
 } from './features/workbench/render-crash-commands';
+import { installPointerTrace } from './lib/pointer-trace';
 import { observePowerSource } from './lib/power-source';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
@@ -32,6 +33,7 @@ installRendererPerformanceMonitoring();
 installRendererJankMonitor();
 installPerformanceMonitorHostLink();
 installStoreInspector();
+installPointerTrace();
 observeWindowActive();
 observePowerSource();
 installDwellShimmerRest();
