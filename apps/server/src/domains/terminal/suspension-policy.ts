@@ -56,6 +56,11 @@ export interface TerminalSuspensionPolicyInput {
     terminals: readonly TerminalRecord[];
     deselectedAt(sessionId: string): number | undefined;
     /**
+     * Whether any window has shown this Session since this Server started. `false` makes a Session with no
+     * `deselectedAt` count as in the background since its creation; omitted, such a Session is left alone.
+     */
+    hasBeenVisible?(sessionId: string): boolean;
+    /**
      * Whether a phone is currently observing or driving this Terminal through the mobile gateway. That is a viewer just
      * like the selected Session on the desktop, so automatic suspension leaves it alone.
      */
@@ -110,11 +115,25 @@ export const MAX_CHAT_OBSERVATION_LEASES = 3;
 const MINUTE_MS = 60 * 1000;
 
 /**
+ * The idle window for a Session an Agent created to delegate work or ask for a consult. Nobody reads those Sessions
+ * live (a consult takes no PrimarySidebar row at all), and their creator gets the result through the delegation, so
+ * once their work is done they are parked well before the user's configured window. A later follow-up resumes them.
+ */
+export const DELEGATED_IDLE_SUSPENSION_MS = 5 * MINUTE_MS;
+
+/**
  * The configured idle window in milliseconds, or `undefined` while idle suspension is off.
  */
-export function idleSuspensionDelayMs(settings: IdleSuspensionSettings): number | undefined {
+export function idleSuspensionDelayMs(
+    settings: IdleSuspensionSettings,
+    session?: Pick<SessionRecord, 'createdByRelation'>,
+): number | undefined {
     if (!settings['terminal.idleSuspension.enabled']) return undefined;
-    return settings['terminal.idleSuspension.afterMinutes'] * MINUTE_MS;
+    const configured = settings['terminal.idleSuspension.afterMinutes'] * MINUTE_MS;
+    const relation = session?.createdByRelation;
+    return relation === 'delegated' || relation === 'consult'
+        ? Math.min(configured, DELEGATED_IDLE_SUSPENSION_MS)
+        : configured;
 }
 
 /**
@@ -188,7 +207,16 @@ function decideTerminal(
     const session = input.session(terminal.sessionId);
     if (!session || session.archivedAt !== undefined) return undefined;
     const readLeaseAt = isChat ? input.chatReadLeaseAt?.(terminal.id) : undefined;
-    const deselectedAt = input.deselectedAt(terminal.sessionId) ?? readLeaseAt;
+    /**
+     * A Session no window has shown since this Server started was never "left", so it counts as in the background since
+     * it was created; otherwise a Session an Agent delegated to, which the user never opens, would never be parked.
+     * Sessions that existed at startup are stamped then (`TerminalSuspensionService.start`), so this applies only to
+     * ones created later.
+     */
+    const deselectedAt =
+        input.deselectedAt(terminal.sessionId) ??
+        readLeaseAt ??
+        (input.hasBeenVisible?.(terminal.sessionId) === false ? session.createdAt : undefined);
     if (deselectedAt === undefined) return undefined;
     const sample = input.sample(terminal.id);
     /**
@@ -220,7 +248,7 @@ function decideTerminal(
         input.now - sample.launchedAt >= UNTOUCHED_SUSPENSION_DELAY_MS
     )
         return 'untouched';
-    const idleDelay = idleSuspensionDelayMs(input.settings);
+    const idleDelay = idleSuspensionDelayMs(input.settings, session);
     if (idleDelay === undefined || (isChat && input.isChatMaintenancePending?.(terminal.id)))
         return readLeaseAt;
     if (

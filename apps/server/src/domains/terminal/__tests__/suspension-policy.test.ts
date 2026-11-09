@@ -5,6 +5,7 @@ import type { TerminalActivitySample, TerminalSuspensionPolicyInput } from '../s
 import {
     CHAT_OBSERVATION_LEASE_MS,
     decideTerminalSuspensions,
+    DELEGATED_IDLE_SUSPENSION_MS,
     idleSuspensionDelayMs,
     MAX_CHAT_OBSERVATION_LEASES,
     UNTOUCHED_SUSPENSION_DELAY_MS,
@@ -48,6 +49,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 
 interface Scenario {
     deselectedAt?: number;
+    hasBeenVisible?: boolean;
     chatReadLeaseAt?: number;
     isChatSuspendable?: boolean;
     isChatMaintenancePending?: boolean;
@@ -66,6 +68,7 @@ function decide(scenario: Scenario = {}) {
     return decideTerminalSuspensions({
         chatReadLeaseAt: () => scenario.chatReadLeaseAt,
         deselectedAt: () => scenario.deselectedAt,
+        hasBeenVisible: () => scenario.hasBeenVisible ?? true,
         isChatSuspendable: () => scenario.isChatSuspendable ?? false,
         isChatMaintenancePending: () => scenario.isChatMaintenancePending ?? false,
         isSuspensionHeld: () => scenario.isSuspensionHeld ?? false,
@@ -309,7 +312,7 @@ describe('decideTerminalSuspensions: idle rule', () => {
         ).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
     });
 
-    it('is off by default and honors any configured window, down to one minute', () => {
+    it('stays off while disabled and honors any configured window, down to one minute', () => {
         expect(decide({ deselectedAt: NOW - 4 * halfHour, sample: idleSample })).toEqual([]);
         expect(
             idleSuspensionDelayMs({
@@ -500,5 +503,84 @@ describe('decideTerminalSuspensions: Chat observation lease', () => {
             { reason: 'observation', terminalId: `chat-${MAX_CHAT_OBSERVATION_LEASES}` },
             { reason: 'observation', terminalId: `chat-${MAX_CHAT_OBSERVATION_LEASES + 1}` },
         ]);
+    });
+});
+
+describe('decideTerminalSuspensions: Sessions nobody opened', () => {
+    const idleOn = { 'terminal.idleSuspension.enabled': true };
+    const chat = terminal({ surface: 'chat' });
+    const finishedLongAgo: TerminalActivitySample = {
+        launchedAt: NOW - 60 * 60_000,
+        lastTurnFinishedAt: NOW - 60 * 60_000,
+        turnInFlight: false,
+    };
+
+    /**
+     * A Session created after the Server started and never shown has no deselection stamp; it counts as in the
+     * background since its creation, or an Agent's delegated Session (which the user never opens) would run forever.
+     */
+    it('counts a never-shown Session as left since it was created', () => {
+        const created = session({ createdAt: NOW - 31 * 60_000 });
+        expect(
+            decide({
+                hasBeenVisible: false,
+                isChatSuspendable: true,
+                sample: finishedLongAgo,
+                session: created,
+                settings: idleOn,
+                terminal: chat,
+            }),
+        ).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
+        expect(
+            decide({
+                hasBeenVisible: true,
+                isChatSuspendable: true,
+                sample: finishedLongAgo,
+                session: created,
+                settings: idleOn,
+                terminal: chat,
+            }),
+        ).toEqual([]);
+    });
+
+    it('parks a finished delegated or consult Session after a short window instead of the configured one', () => {
+        for (const relation of ['delegated', 'consult'] as const) {
+            const delegated = session({
+                createdAt: NOW - DELEGATED_IDLE_SUSPENSION_MS,
+                createdByRelation: relation,
+            });
+            const scenario = {
+                hasBeenVisible: false,
+                isChatSuspendable: true,
+                sample: finishedLongAgo,
+                session: delegated,
+                settings: idleOn,
+                terminal: chat,
+            };
+            expect(decide(scenario)).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
+            // The short window is a cap, never longer than what the user configured, and off with the setting.
+            expect(
+                decide({ ...scenario, session: { ...delegated, createdAt: NOW - 60_000 } }),
+            ).toEqual([]);
+            expect(
+                decide({
+                    ...scenario,
+                    settings: { 'terminal.idleSuspension.enabled': false },
+                }),
+            ).toEqual([]);
+        }
+    });
+
+    it('keeps the configured window for a handoff Session, which the user continues in', () => {
+        expect(
+            idleSuspensionDelayMs(
+                {
+                    'terminal.idleSuspension.afterMinutes': 30,
+                    'terminal.idleSuspension.enabled': true,
+                    'terminal.suspendUntouchedAgents': true,
+                },
+                { createdByRelation: 'handoff' },
+            ),
+        ).toBe(30 * 60_000);
     });
 });

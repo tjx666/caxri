@@ -24,7 +24,7 @@ is suspended:
 | Setting                                                                     | Default    | Range     |
 | --------------------------------------------------------------------------- | ---------- | --------- |
 | `terminal.suspendUntouchedAgents`: Suspend Agents you opened but never used | on         | on / off  |
-| `terminal.idleSuspension.enabled`: Suspend idle Agents in the background    | off        | on / off  |
+| `terminal.idleSuspension.enabled`: Suspend idle Agents in the background    | on         | on / off  |
 | `terminal.idleSuspension.afterMinutes`: Suspend idle Agents after           | 30 minutes | 1 to 1440 |
 
 The idle window applies only while idle suspension is on. Both rules are evaluated by one Server
@@ -93,6 +93,12 @@ An Agent is parked once both of these are at least the configured window old:
 Returning to the Session resets the first clock; typing or any new turn resets the second.
 Terminal output alone does not count as activity: an Agent is idle by its lifecycle state, not by
 silence.
+
+A Session no window has shown since Server Core started (one an Agent created and the user never
+opened) counts as left since it was created. A Session an Agent created as `delegated` or `consult`
+uses a window of at most 5 minutes (`DELEGATED_IDLE_SUSPENSION_MS`) instead of the configured one:
+nobody reads it live, and its creator gets the result through the delegation. A `handoff` or
+`independent` Session keeps the configured window, because the user continues work there.
 
 ## Resume
 

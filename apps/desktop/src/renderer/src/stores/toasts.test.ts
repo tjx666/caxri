@@ -436,6 +436,27 @@ describe('Sonner notification adapter', () => {
             );
         });
 
+        it('names the full Terminal limit and how to free one instead of a bare "limit reached"', () => {
+            const global = new CaxriError(
+                'CAPACITY',
+                'Caxri supports at most 64 running Terminals',
+                {
+                    terminalLimit: 'global',
+                    limit: 64,
+                },
+            );
+            expect(describeFailureNotice(global, '创建会话失败', translate)).toEqual({
+                message: '创建会话失败：已有 64 个 Agent 和终端在运行，请先停止或归档一些再试。',
+            });
+            const session = new CaxriError('CAPACITY', 'A Session supports at most 16', {
+                terminalLimit: 'session',
+                limit: 16,
+            });
+            expect(describeFailureNotice(session, '无法新建终端', translate).message).toBe(
+                '无法新建终端：此会话已有 16 个 Agent 和终端在运行，请先关闭一些再试。',
+            );
+        });
+
         it('names a binary file instead of the misleading IO reason', () => {
             const error = new CaxriError('IO', 'Binary files cannot be opened in the editor');
             expect(describeFailureNotice(error, '无法打开文件', translate).message).toBe(

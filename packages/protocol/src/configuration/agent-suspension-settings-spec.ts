@@ -35,7 +35,7 @@ export const agentSuspensionSettingsSpec = [
             'hibernate',
             'sleep',
         ],
-        default: false,
+        default: true,
     },
     {
         kind: 'integer',

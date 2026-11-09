@@ -30,6 +30,26 @@ export const errorCodes = [
 
 export type CaxriErrorCode = (typeof errorCodes)[number];
 
+/**
+ * `details` of a `CAPACITY` error raised because too many Terminals (PTY or Agent Chat) are running, so a client can
+ * name the limit in its own locale instead of the generic capacity reason.
+ */
+export interface TerminalCapacityDetails {
+    terminalLimit: 'global' | 'session';
+    limit: number;
+}
+
+/**
+ * Reads {@link TerminalCapacityDetails} from a rejected request, or `undefined` for any other failure.
+ */
+export function terminalCapacityDetails(error: unknown): TerminalCapacityDetails | undefined {
+    if (!isCaxriError(error) || error.code !== 'CAPACITY') return undefined;
+    const { terminalLimit, limit } = error.details ?? {};
+    if (typeof limit !== 'number' || (terminalLimit !== 'global' && terminalLimit !== 'session'))
+        return undefined;
+    return { terminalLimit, limit };
+}
+
 export interface WireError {
     code: CaxriErrorCode;
     message: string;

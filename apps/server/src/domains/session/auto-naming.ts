@@ -101,8 +101,8 @@ export class SessionAutoNamingService {
      * for it would re-admit an attempt already known to fail: the user would be asked about the same unavailable
      * sandbox again on the very next completed turn. Re-inserting the current Session also moves it to the end of the
      * insertion order, so when every remaining record is in force the oldest one loses and the launch just recorded is
-     * never the one dropped. `MAX_TERMINALS_GLOBAL` keeps the in-force set well under the bound today, which leaves
-     * that last eviction as a backstop rather than the path a long session actually takes.
+     * never the one dropped. `terminalGlobalLimit` (at most 128 live Terminals) keeps the in-force set within the
+     * bound, which leaves that last eviction as a backstop rather than the path a long session actually takes.
      */
     private blockLaunch(sessionId: string, blocked: BlockedLaunch): void {
         for (const [blockedSessionId, record] of this.blockedLaunches) {

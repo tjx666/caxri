@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from '../../db/terminal-capacity';
+import { MAX_TERMINALS_PER_SESSION, terminalGlobalLimit } from '../../db/terminal-capacity';
 import { fixture } from './chat-service-fixture';
 
 type ChatFixture = Awaited<ReturnType<typeof fixture>>;
@@ -15,7 +15,7 @@ function fillCapacity({ database, service, terminal }: ChatFixture, scope: 'sess
     const project = database.getSession(terminal.sessionId)!.projectId;
     let sessionId = terminal.sessionId;
     let created = 0;
-    const limit = scope === 'session' ? MAX_TERMINALS_PER_SESSION : MAX_TERMINALS_GLOBAL;
+    const limit = scope === 'session' ? MAX_TERMINALS_PER_SESSION : terminalGlobalLimit();
     while (created < limit) {
         if (created > 0 && created % MAX_TERMINALS_PER_SESSION === 0)
             sessionId = database.createSession(project, null).session.id;
