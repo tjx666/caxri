@@ -25,6 +25,7 @@ import { sessionTitleForDisplay } from '../../session/session-title';
 import { delegatedSessionLine, delegationPrFilesLabel } from './agent-chat-delegated-sessions';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import type { DelegatedCostLabel } from './cost/agent-chat-delegated-cost';
+import { useCanOpenDelegatedChild } from './hooks/use-can-open-delegated-child';
 import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 /**
@@ -150,8 +151,8 @@ const ROW_CLASS_NAME =
  * it produced, how long it ran, and the state glyph. The whole row opens the child; a pull request link sits under it
  * and a failed task's Retry action sit under it as their own controls. The button has no `aria-label` of its own: its
  * content (title, Project, step or summary, elapsed time, and the glyph's label) names it, so assistive technology
- * hears what a sighted user reads. A child the Workbench no longer lists (deleted, or in a hidden Project) stays as a
- * plain row.
+ * hears what a sighted user reads. A child the Workbench no longer lists (deleted, or in a hidden Project), or a failed
+ * one that never launched a Terminal, stays as a plain row.
  */
 export function AgentChatDelegatedSessionRow({
     attempt,
@@ -177,6 +178,7 @@ export function AgentChatDelegatedSessionRow({
     const session = useSessionById(entry.sessionId);
     const viaSession = useSessionById(viaSessionId);
     const project = useProjectById(session?.projectId);
+    const isOpenable = useCanOpenDelegatedChild(entry.sessionId, entry.status === 'failed');
     const title = session
         ? sessionTitleForDisplay(session.title, t)
         : t('delegation.strip.unavailable');
@@ -200,7 +202,7 @@ export function AgentChatDelegatedSessionRow({
     );
     return (
         <li className="flex min-w-0 flex-col" data-agent-chat-delegated-session={entry.sessionId}>
-            {session ? (
+            {isOpenable ? (
                 <Tooltip content={presetSummary} disabled={presetSummary === undefined}>
                     <button
                         className={cn(

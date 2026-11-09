@@ -1,7 +1,7 @@
 import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { besideChatDelegationTerminalId } from '../delegated-child-opener';
+import { besideChatDelegationTerminalId, canOpenDelegatedChild } from '../delegated-child-opener';
 
 const child = (relation: SessionRecord['createdByRelation']) =>
     ({
@@ -36,5 +36,19 @@ describe('besideChatDelegationTerminalId', () => {
 
     it('opens nothing beside for a Session the Workbench no longer lists', () => {
         expect(besideChatDelegationTerminalId(undefined, [])).toBeUndefined();
+    });
+});
+
+describe('canOpenDelegatedChild', () => {
+    it('keeps a failed task that never launched a Terminal closed, since its Session has nothing to show', () => {
+        expect(canOpenDelegatedChild({ hasTerminal: false, isFailed: true })).toBe(false);
+    });
+
+    it('opens a failed task that did launch, to read what went wrong', () => {
+        expect(canOpenDelegatedChild({ hasTerminal: true, isFailed: true })).toBe(true);
+    });
+
+    it('opens a task still starting before its Terminal appears', () => {
+        expect(canOpenDelegatedChild({ hasTerminal: false, isFailed: false })).toBe(true);
     });
 });

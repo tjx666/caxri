@@ -30,6 +30,7 @@ import { useDelegationStatuses } from '../../delegation/hooks/use-delegation-sta
 import { sessionTitleForDisplay } from '../../session/session-title';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import { delegationRecordsOf } from './agent-chat-delegation-records';
+import { useCanOpenDelegatedChild } from './hooks/use-can-open-delegated-child';
 import { useIsDelegationLive } from './hooks/use-is-delegation-live';
 import { openDelegatedChild } from './side-view/delegated-child-opener';
 
@@ -63,13 +64,30 @@ function recordLabel(
         : t('delegation.record.label', { title });
 }
 
+/**
+ * The accessible name of a record that opens its child: the task's state (and that it was retried) with the title, or
+ * the title alone when the Server no longer has the task's state.
+ */
+function recordOpenAria(
+    state: { headline: string; isRetried: boolean } | undefined,
+    title: string,
+    t: ReturnType<typeof useTranslation>['t'],
+): string {
+    if (!state) return t('delegation.record.openAriaUnknown', { title });
+    const status = state.isRetried
+        ? `${state.headline}, ${t('delegation.retry.retried')}`
+        : state.headline;
+    return t('delegation.record.openAria', { status, title });
+}
+
 const ROW_CLASS_NAME =
     'flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-[12px] leading-5 text-muted';
 
 /**
  * One delegation in the timeline: "Delegated to <child title> · <child Project>" (for a typed task, what was asked of
  * which Agent: "Asked Codex for a review: <title>"), with the state of that task (not of the Session's newest one) as
- * the glyph. The row opens the child. A child the Workbench no longer lists reads as unavailable and does not open.
+ * the glyph. The row opens the child. A child the Workbench no longer lists reads as unavailable and does not open, and
+ * a failed one that never launched a Terminal does not open either.
  */
 function DelegationRecordRow({
     delegation,
@@ -86,6 +104,7 @@ function DelegationRecordRow({
     const now = useClockTick('minute', isLive && isDelegationCopyClockDependent(copyInput));
     const session = useSessionById(delegation.sessionId);
     const project = useProjectById(session?.projectId);
+    const isOpenable = useCanOpenDelegatedChild(delegation.sessionId, status?.status === 'failed');
     const copy = delegationCopy(copyInput, now, t);
     // A task whose state the Server no longer has shows no state rather than the "No task details" headline.
     const glyph = status ? copy.glyph : 'ordinary';
@@ -118,22 +137,13 @@ function DelegationRecordRow({
             <AgentChatDelegationGlyph glyph={glyph} label={copy.headline} />
         </>
     );
-    return title === undefined ? (
+    return !isOpenable || title === undefined ? (
         <div className={ROW_CLASS_NAME} data-agent-chat-delegation-record={delegation.delegationId}>
             {content}
         </div>
     ) : (
         <button
-            aria-label={
-                status
-                    ? t('delegation.record.openAria', {
-                          status: isRetried
-                              ? `${copy.headline}, ${t('delegation.retry.retried')}`
-                              : copy.headline,
-                          title,
-                      })
-                    : t('delegation.record.openAriaUnknown', { title })
-            }
+            aria-label={recordOpenAria(status && { headline: copy.headline, isRetried }, title, t)}
             className={cn(
                 ROW_CLASS_NAME,
                 'cursor-pointer border-0 bg-transparent text-left hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent',

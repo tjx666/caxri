@@ -16,6 +16,7 @@ import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
 import { useSessionById } from '../../../../stores/selectors';
 import { sessionTitleForDisplay } from '../../../session/session-title';
+import { useCanOpenDelegatedChild } from '../hooks/use-can-open-delegated-child';
 import { openDelegatedChild } from '../side-view/delegated-child-opener';
 import { noticeEventKey, noticeRowKey } from './agent-chat-delegation-notice';
 
@@ -43,11 +44,13 @@ const ROW_CLASS_NAME =
 /**
  * One item of a delivered notice: an icon, the child Session's title, and what happened to it. The title is read from
  * the Workbench's own Session data by ID, never from the message text. The row opens the Session; a Session the
- * Workbench no longer lists reads as unavailable and does not open.
+ * Workbench no longer lists reads as unavailable and does not open, and a failed one that never launched a Terminal
+ * does not open either.
  */
 function DelegationNoticeRow({ item }: { item: AgentChatDelegationNotice['items'][number] }) {
     const { t } = useTranslation();
     const session = useSessionById(item.sessionId);
+    const isOpenable = useCanOpenDelegatedChild(item.sessionId, item.event === 'failed');
     const Icon = ICONS[item.event];
     const status = t(noticeEventKey(item.event));
     const title = session ? sessionTitleForDisplay(session.title, t) : undefined;
@@ -68,7 +71,7 @@ function DelegationNoticeRow({ item }: { item: AgentChatDelegationNotice['items'
             <span className="shrink-0">{status}</span>
         </>
     );
-    return title === undefined ? (
+    return !isOpenable || title === undefined ? (
         <div className={ROW_CLASS_NAME} data-agent-chat-delegation-notice-item={item.delegationId}>
             {content}
         </div>

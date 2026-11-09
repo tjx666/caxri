@@ -21,6 +21,21 @@ export function besideChatDelegationTerminalId(
 }
 
 /**
+ * Whether a delegated child's row opens anything. A failed task whose Session holds no Terminal never launched (for
+ * example, its provider's lifecycle hooks are off): opening it would land on an empty Session page and reveal a consult
+ * the sidebar hides, while the row and the Delegated Sessions strip already carry the failure and its next steps.
+ */
+export function canOpenDelegatedChild({
+    hasTerminal,
+    isFailed,
+}: {
+    hasTerminal: boolean;
+    isFailed: boolean;
+}): boolean {
+    return hasTerminal || !isFailed;
+}
+
+/**
  * Opens a delegated child from the asking Chat: a consult's Chat in the Side View beside it, anything else as its own
  * Session.
  */
