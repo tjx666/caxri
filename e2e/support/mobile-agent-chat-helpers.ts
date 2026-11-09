@@ -70,10 +70,9 @@ export const agentText = (snapshot: AgentChatSnapshot): string =>
         .join('\n');
 
 /**
- * Focuses the Chat composer and waits for the expanded capsule's actions row (`+`, settings, send) before anything is
- * typed. Typed at once, a word landed while the capsule was still expanding: in repeated `MOB-CHAT-CHOICE-01` runs the
- * row never appeared, the send control was gone, and every later UIAutomator read failed. Every provider's Chat has
- * this row, unlike a settings chip such as the model button.
+ * Focuses the Chat composer and waits for the expanded capsule's actions row (`+`, settings, send), so the step that
+ * follows works on the settled two-row layout. Every provider's Chat has this row, unlike a settings chip such as the
+ * model button. `typeRightAfterFocus` covers typing before the row settles.
  */
 async function focusChatComposer(serial: string): Promise<void> {
     await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
@@ -96,6 +95,33 @@ export async function sendFromPhone(serial: string, word: string): Promise<void>
     });
     if (!draft.exists || !draft.textMatches) throw new Error('Chat draft did not match');
     await tapMobileCheck(serial, 'agent-chat-composer-send');
+}
+
+/**
+ * Taps the collapsed Chat composer and types `word` in the same device shell command, so the word lands while the
+ * capsule is still expanding, and then waits for the expanded actions row. Its `entering` fade once stayed at opacity 0
+ * in exactly this order: the capsule kept its two-row height, and `+`, settings, and send stayed invisible (#3894).
+ */
+export async function typeRightAfterFocus(serial: string, word: string): Promise<void> {
+    if (!/^[a-z]+$/u.test(word))
+        throw new Error(`typeRightAfterFocus takes one lowercase word, got ${word}`);
+    const input = checkBounds(await mobileSemantics(serial), 'agent-chat-composer-input');
+    if (!input) throw new Error('The Chat composer input is unavailable');
+    const x = Math.floor((input.left + input.right) / 2);
+    const y = Math.floor((input.top + input.bottom) / 2);
+    await adbShell(serial, ['sh', '-c', `'input tap ${x} ${y}; input text ${word}'`]);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            hasCheck(nodes, 'agent-chat-composer-actions') &&
+            hasCheck(nodes, 'agent-chat-composer-send'),
+        10_000,
+    );
+    const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
+        kind: 'equals',
+        value: word,
+    });
+    if (!draft.exists || !draft.textMatches) throw new Error('Chat draft did not match');
 }
 
 /**
