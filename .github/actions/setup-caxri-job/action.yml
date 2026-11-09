@@ -231,10 +231,28 @@ runs:
       shell: bash
       run: bun run scripts/prepare-node-pty.ts
 
-    # `@electron/get` fetches the release ZIP once and throws on any HTTP error, and GitHub Releases intermittently
-    # answers 504: on 2026-11-09 four unit shards in a row failed setup that way while their sibling shards downloaded
-    # fine. Retry with backoff before failing the job. A failed attempt leaves no partial file behind, because
-    # `@electron/get` downloads into a temporary directory and caches the ZIP only after its checksum passes.
+    # GitHub Releases intermittently answers 504 for the Electron ZIP, sometimes for longer than a minute: on 2026-11-09
+    # one unit shard got a 504 on all three retries below. A cache hit keeps the job off GitHub Releases entirely.
+    # `ELECTRON_CACHE` (set above) is where `@electron/get` keeps the ZIP, which it caches only after its checksum
+    # passes. The key is the installed Electron version; the entry is saved right after a download so a later failing
+    # step cannot drop it.
+    - name: Resolve the Electron version
+      id: electron_version
+      if: inputs.install-electron == 'true'
+      shell: bash
+      run: echo "version=$(node -p "require('./node_modules/electron/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Restore the Electron download
+      id: electron_cache
+      if: inputs.install-electron == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/caxri/electron
+        key: electron-${{ runner.os }}-${{ runner.arch }}-${{ steps.electron_version.outputs.version }}
+
+    # On a cache miss `@electron/get` fetches the release ZIP once and throws on any HTTP error, so retry with backoff
+    # before failing the job. A failed attempt leaves no partial file behind, because `@electron/get` downloads into a
+    # temporary directory.
     - name: Install Electron binary
       if: inputs.install-electron == 'true'
       shell: bash
@@ -250,6 +268,13 @@ runs:
         done
         echo "::error::Electron download failed after 3 attempts"
         exit 1
+
+    - name: Save the Electron download
+      if: inputs.install-electron == 'true' && steps.electron_cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/caxri/electron
+        key: electron-${{ runner.os }}-${{ runner.arch }}-${{ steps.electron_version.outputs.version }}
 
     - name: Install Playwright Chromium headless shell
       if: inputs.install-playwright-shell == 'true'

@@ -129,10 +129,68 @@ async function pathGitleaksBinary(
     return candidates[ready.indexOf(true)];
 }
 
+const DOWNLOAD_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 20_000;
+
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/prepare-gitleaks.test.ts
+export interface ReleaseDownloadOptions {
+    /**
+     * Defaults to the global `fetch`.
+     */
+    fetchResponse?: (url: string) => Promise<Response>;
+    /**
+     * Waits between attempts; defaults to a real timer.
+     */
+    wait?: (milliseconds: number) => Promise<void>;
+}
+
+const waitFor = (milliseconds: number): Promise<void> =>
+    new Promise((resolve) => {
+        setTimeout(resolve, milliseconds);
+    });
+
+/**
+ * Fetches a release archive, retrying a network error or a 429/5xx answer twice with 20 s and 40 s backoff. GitHub
+ * Releases intermittently answers 504: on 2026-11-09 main's `checks` job failed that way right after the CI Electron
+ * download had gained its own retry. A 4xx other than 429 fails at once, since retrying cannot fix a wrong URL.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/prepare-gitleaks.test.ts
+export async function fetchReleaseArchive(
+    url: string,
+    { fetchResponse = (target) => fetch(target), wait = waitFor }: ReleaseDownloadOptions = {},
+): Promise<ArrayBuffer> {
+    let lastFailure = '';
+    for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt += 1) {
+        let response: Response | undefined;
+        try {
+            // eslint-disable-next-line no-await-in-loop -- attempts are sequential by design
+            response = await fetchResponse(url);
+        } catch (error) {
+            lastFailure = error instanceof Error ? error.message : String(error);
+        }
+        if (response?.ok) return response.arrayBuffer();
+        if (response) {
+            if (response.status !== 429 && response.status < 500) {
+                throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
+            }
+            lastFailure = `HTTP ${response.status}`;
+        }
+        if (attempt < DOWNLOAD_ATTEMPTS) {
+            const delayMs = attempt * RETRY_DELAY_MS;
+            process.stderr.write(
+                `gitleaks download attempt ${attempt} failed (${lastFailure}); retrying in ${delayMs / 1000} s\n`,
+            );
+            // eslint-disable-next-line no-await-in-loop -- the backoff must finish before the next attempt
+            await wait(delayMs);
+        }
+    }
+    throw new Error(
+        `Failed to download ${url} after ${DOWNLOAD_ATTEMPTS} attempts: ${lastFailure}`,
+    );
+}
+
 async function defaultDownloadFile(url: string, destinationPath: string): Promise<void> {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
-    const body = await response.arrayBuffer();
+    const body = await fetchReleaseArchive(url);
     if (body.byteLength > MAX_ARCHIVE_BYTES) {
         throw new Error(`gitleaks download exceeded ${MAX_ARCHIVE_BYTES} bytes: ${url}`);
     }

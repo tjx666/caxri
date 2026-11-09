@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { execFileAsync } from '../exec';
 import {
+    fetchReleaseArchive,
     gitleaksReleaseAssetName,
     gitleaksReleaseKey,
     resolveGitleaksBinary,
@@ -199,5 +200,49 @@ describe('resolveGitleaksBinary', () => {
             }),
         ).rejects.toThrow(/No pinned gitleaks checksum/);
         expect(downloadFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('fetchReleaseArchive', () => {
+    const URL = 'https://example.test/gitleaks.tar.gz';
+
+    it('retries a gateway error and a network failure with growing backoff', async () => {
+        const fetchResponse = vi
+            .fn<(url: string) => Promise<Response>>()
+            .mockResolvedValueOnce(new Response('', { status: 504 }))
+            .mockRejectedValueOnce(new TypeError('fetch failed'))
+            .mockResolvedValueOnce(new Response('archive'));
+        const wait = vi.fn<(milliseconds: number) => Promise<void>>().mockResolvedValue();
+
+        const body = await fetchReleaseArchive(URL, { fetchResponse, wait });
+
+        expect(new TextDecoder().decode(body)).toBe('archive');
+        expect(fetchResponse).toHaveBeenCalledTimes(3);
+        expect(wait.mock.calls).toEqual([[20_000], [40_000]]);
+    });
+
+    it('names the last failure after the final attempt', async () => {
+        const fetchResponse = vi
+            .fn<(url: string) => Promise<Response>>()
+            .mockImplementation(() => Promise.resolve(new Response('', { status: 503 })));
+        const wait = vi.fn<(milliseconds: number) => Promise<void>>().mockResolvedValue();
+
+        await expect(fetchReleaseArchive(URL, { fetchResponse, wait })).rejects.toThrow(
+            `Failed to download ${URL} after 3 attempts: HTTP 503`,
+        );
+        expect(fetchResponse).toHaveBeenCalledTimes(3);
+    });
+
+    it('fails at once on a client error a retry cannot fix', async () => {
+        const fetchResponse = vi
+            .fn<(url: string) => Promise<Response>>()
+            .mockResolvedValue(new Response('', { status: 404 }));
+        const wait = vi.fn<(milliseconds: number) => Promise<void>>();
+
+        await expect(fetchReleaseArchive(URL, { fetchResponse, wait })).rejects.toThrow(
+            `Failed to download ${URL}: HTTP 404`,
+        );
+        expect(fetchResponse).toHaveBeenCalledOnce();
+        expect(wait).not.toHaveBeenCalled();
     });
 });

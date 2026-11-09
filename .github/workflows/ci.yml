@@ -195,6 +195,13 @@ jobs:
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
         run: bun run scripts/ci-checks-diff-base.ts
+      # The same entry `guards.yml` saves, so this job reads the pinned binary from the Actions cache instead of
+      # GitHub Releases, which answered a 504 for it on 2026-11-09.
+      - name: Cache the pinned gitleaks binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.tool_cache }}/caxri/gitleaks
+          key: gitleaks-${{ runner.os }}-${{ hashFiles('scripts/prepare-gitleaks.ts') }}
       - name: Run gitleaks
         # Scoped to the commits this push or pull request actually introduced. A manual dispatch has no base
         # revision here, so the wrapper scans the dispatched ref's commits beyond origin/main.
