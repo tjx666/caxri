@@ -85,15 +85,34 @@ describe('Delegation by folder (`projectPath`)', () => {
         expect(projectAddedFields(logger)).toMatchObject([{ outcome: 'unhidden' }]);
     });
 
-    it('promotes a registered worktree Project of another Project to top level', async () => {
+    it('runs in a registered worktree under its owner instead of promoting it to top level', async () => {
+        const { database, service, agentAuthority, path, pathRequest, project, logger, events } =
+            await pathFixture();
+        const worktree = database.createProject(await realPath(path), project.id);
+        const projectsBefore = database.listProjects().length;
+
+        const receipt = await service.create(randomUUID(), agentAuthority, pathRequest);
+
+        expect(database.getProject(worktree.id)?.ownerProjectId).toBe(project.id);
+        expect(database.listProjects()).toHaveLength(projectsBefore);
+        expect(receipt.projectId).toBe(project.id);
+        const session = database.getSession(receipt.sessionId)!;
+        expect(session.projectId).toBe(project.id);
+        expect(session.workbenchRootProjectId).toBe(worktree.id);
+        expect(events.filter((event) => event.event === 'state.changed')).toHaveLength(0);
+        expect(projectAddedFields(logger)).toMatchObject([{ outcome: 'worktree' }]);
+    });
+
+    it('adds a registered worktree of a hidden Project the way `project add` does', async () => {
         const { database, service, agentAuthority, path, pathRequest, project, logger } =
             await pathFixture();
         const worktree = database.createProject(await realPath(path), project.id);
-        expect(worktree.ownerProjectId).toBe(project.id);
+        database.hideProject(project.id);
 
         const receipt = await service.create(randomUUID(), agentAuthority, pathRequest);
 
         expect(receipt.projectId).toBe(worktree.id);
+        expect(database.getProject(worktree.id)).toMatchObject({ id: worktree.id });
         expect(database.getProject(worktree.id)?.ownerProjectId).toBeUndefined();
         expect(projectAddedFields(logger)).toMatchObject([{ outcome: 'adopted_worktree' }]);
     });

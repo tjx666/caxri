@@ -1,4 +1,4 @@
-export { addProjectFolder, addProjectFolderWithOutcome, type ProjectAddOutcome } from './add';
+export { addProjectFolder, type DelegationFolder, resolveDelegationFolder } from './add';
 export {
     createProjectFolderBrowser,
     hasVisibleChildDirectory,
