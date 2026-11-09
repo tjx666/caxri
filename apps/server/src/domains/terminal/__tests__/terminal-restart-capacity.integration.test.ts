@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LocalTerminalExecution } from '../../../__tests__/support/local-terminal-execution';
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db/repository';
-import { MAX_TERMINALS_GLOBAL, MAX_TERMINALS_PER_SESSION } from '../../db/terminal-capacity';
+import { MAX_TERMINALS_PER_SESSION, terminalGlobalLimit } from '../../db/terminal-capacity';
 
 describe('PTY relaunch capacity', () => {
     it('refuses to relaunch a suspended Terminal while the live Terminals fill the limit', async () => {
@@ -22,7 +22,7 @@ describe('PTY relaunch capacity', () => {
         database.updateTerminalState(parked.id, 'suspended');
         database.updateAgentProcessState(parked.id, 'suspended');
         let sessionId = created.session.id;
-        for (let index = 0; index < MAX_TERMINALS_GLOBAL; index += 1) {
+        for (let index = 0; index < terminalGlobalLimit(); index += 1) {
             if (index > 0 && index % MAX_TERMINALS_PER_SESSION === 0)
                 sessionId = database.createSession(project.id, null).session.id;
             database.createTerminal(sessionId, 'shell', directory);

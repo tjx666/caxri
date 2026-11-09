@@ -164,7 +164,7 @@ types listed here.
 | `primarySidebar.autoCollapseProjects`             | `"30m"`, `"off"`, `"2h"`                           | Collapse Projects with no activity for this long        |
 | `statusBar.usage.limitWindows`                    | `"auto"`, `"fiveHour"`, `"weekly"`, `"both"`       | Which Agent usage limits the status bar shows           |
 | `agentChat.autoContinueAtUsageLimit`              | `true`, `false`                                    | Continue a Chat automatically once a usage limit resets |
-| `terminal.idleSuspension.enabled`                 | `false`, `true`                                    | Suspend Agents idle in the background to save memory    |
+| `terminal.idleSuspension.enabled`                 | `true`, `false`                                    | Suspend Agents idle in the background to save memory    |
 
 Everything else, including the color theme, is easier to change in **Settings** after launch. The
 theme picker offers Dracula (the default), Solarized Light, and other built-in palettes.

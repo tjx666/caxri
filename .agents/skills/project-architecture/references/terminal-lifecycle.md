@@ -117,7 +117,9 @@ tabs are not eligible. A background Agent Chat whose provider only a read starte
 or hiding its Project suspends all of its live Terminals once restores already past their spawn fence settle; a PTY
 whose Terminal Host start answers after that is parked as soon as it lands (`TerminalSuspensionService.parkLaunch`), so
 no launch outlives its Session leaving the Workbench. Terminal capacity counts only `starting` and `running` records so dormant tabs do
-not consume the limit.
+not consume the limit. The limit covers PTY Terminals and Agent Chats alike: 16 per Session, and one per GiB of physical
+memory across the app, clamped to 32..128 (`terminalGlobalLimit`). A refusal is a `CAPACITY` error whose `details`
+(`TerminalCapacityDetails`) name the scope and limit so the client words it in its own locale.
 
 `detached` is the user-driven sibling of `suspended`: `session.detach` parks a Session's live Agent Terminals (never
 its Shell tabs) through the same barrier so another client can `codex resume` / `claude --resume` the bound

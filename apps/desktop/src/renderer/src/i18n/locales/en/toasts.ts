@@ -11,6 +11,10 @@ export const toasts = {
     'toasts.failure.code.NOT_FOUND': 'It no longer exists.',
     'toasts.failure.code.PATH_DENIED': 'Access to that location is not allowed.',
     'toasts.failure.code.CAPACITY': 'A limit was reached.',
+    'toasts.failure.terminalLimit.global':
+        '{{limit}} Agents and Terminals are already running. Stop or archive some, then try again.',
+    'toasts.failure.terminalLimit.session':
+        'This Session already runs {{limit}} Agents and Terminals. Close some, then try again.',
     'toasts.failure.code.CANCELLED': 'The operation was cancelled.',
     'toasts.failure.code.CONFLICT': 'It conflicts with a newer change. Refresh and try again.',
     'toasts.failure.code.FORBIDDEN': 'This action is not allowed.',

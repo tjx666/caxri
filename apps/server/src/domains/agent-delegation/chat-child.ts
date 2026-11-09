@@ -7,7 +7,12 @@ import type {
     AgentProvider,
     TerminalSurface,
 } from '@caxri/protocol';
-import { canUseAgentChat, CaxriError, isCaxriError } from '@caxri/protocol';
+import {
+    canUseAgentChat,
+    CaxriError,
+    isCaxriError,
+    terminalCapacityDetails,
+} from '@caxri/protocol';
 
 import type { AgentDispatchStartOptions } from '../agent-dispatch';
 import type { DelegationCompletion } from '../agents';
@@ -155,11 +160,7 @@ export function childLaunchFailure(error: unknown): AgentDelegationReceipt['fail
     if (error.details?.reason === 'lifecycle_hooks_required') return 'hooks_required';
     // Only the Terminal limits (`assertTerminalCapacity`); a full pane layout is also `CAPACITY` but closing a Terminal
     // elsewhere would not help it.
-    return isTerminalCapacityReason(error.details?.reason) ? 'capacity_exhausted' : 'launch_failed';
-}
-
-function isTerminalCapacityReason(reason: unknown): boolean {
-    return reason === 'terminal_capacity_global' || reason === 'terminal_capacity_session';
+    return terminalCapacityDetails(error) ? 'capacity_exhausted' : 'launch_failed';
 }
 
 /**

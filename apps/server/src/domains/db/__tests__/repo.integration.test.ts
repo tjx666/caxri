@@ -703,7 +703,7 @@ describe('CaxriDatabase', () => {
         }
 
         expect(() => database.createTerminal(created.session.id, 'shell')).toThrow(
-            'at most 16 Terminals',
+            'at most 16 running Terminals',
         );
         database.close();
     });

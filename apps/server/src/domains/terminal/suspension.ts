@@ -148,6 +148,9 @@ export class TerminalSuspensionService {
             if (!database.getTerminal(terminalId)) this.parked.delete(terminalId);
         const decisions = decideTerminalSuspensions({
             deselectedAt: (sessionId) => this.deselectedAt.get(sessionId),
+            // Leaving stamps `deselectedAt`, so a Session with no stamp that is not on screen was never shown.
+            hasBeenVisible: (sessionId) =>
+                this.deselectedAt.has(sessionId) || this.lastVisibleSessionIds.has(sessionId),
             chatReadLeaseAt: (terminalId) => this.options.chats?.readLeaseAt(terminalId),
             isChatSuspendable: (terminalId) =>
                 this.options.chats?.isSuspendable(terminalId) ?? false,

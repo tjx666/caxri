@@ -242,8 +242,9 @@ describe('AgentDelegationService with a forced surface', () => {
     it('fails a child refused at Terminal capacity as capacity_exhausted, not launch_failed', async () => {
         const refused = vi.fn<AgentDispatchService['start']>(() =>
             Promise.reject(
-                new CaxriError('CAPACITY', 'Caxri supports at most 32 Terminals', {
-                    reason: 'terminal_capacity_global',
+                new CaxriError('CAPACITY', 'Caxri supports at most 32 running Terminals', {
+                    terminalLimit: 'global',
+                    limit: 32,
                 }),
             ),
         );

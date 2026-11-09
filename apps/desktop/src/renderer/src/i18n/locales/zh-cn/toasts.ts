@@ -11,6 +11,10 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.code.NOT_FOUND': '目标已不存在。',
     'toasts.failure.code.PATH_DENIED': '不允许访问该位置。',
     'toasts.failure.code.CAPACITY': '已达到数量上限。',
+    'toasts.failure.terminalLimit.global':
+        '已有 {{limit}} 个 Agent 和终端在运行，请先停止或归档一些再试。',
+    'toasts.failure.terminalLimit.session':
+        '此会话已有 {{limit}} 个 Agent 和终端在运行，请先关闭一些再试。',
     'toasts.failure.code.CANCELLED': '操作已取消。',
     'toasts.failure.code.CONFLICT': '与较新的更改冲突，请刷新后重试。',
     'toasts.failure.code.FORBIDDEN': '不允许执行此操作。',

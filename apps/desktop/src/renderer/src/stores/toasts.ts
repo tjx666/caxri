@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
 import type { CaxriErrorCode } from '@caxri/protocol';
-import { errorMessage, isCaxriError } from '@caxri/protocol';
+import { errorMessage, isCaxriError, terminalCapacityDetails } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
@@ -348,10 +348,19 @@ export function describeFailureNotice(error: unknown, label: string, t: Translat
     const fallback = t(
         isCaxriError(error) ? caxriErrorReasons[error.code] : 'toasts.failure.couldNotComplete',
     );
+    // A full Terminal limit says how many are running and what frees one, in every locale, instead of a bare "limit".
+    const terminalCapacity = terminalCapacityDetails(error);
     const isServerTextShown = t.locale === 'en';
     let reason: string;
     let detail: string | undefined;
-    if (knownReason) reason = t(knownReason);
+    if (terminalCapacity)
+        reason = t(
+            terminalCapacity.terminalLimit === 'global'
+                ? 'toasts.failure.terminalLimit.global'
+                : 'toasts.failure.terminalLimit.session',
+            { limit: terminalCapacity.limit },
+        );
+    else if (knownReason) reason = t(knownReason);
     else if (isServerTextShown)
         reason =
             redactAbsolutePaths(rawMessage)

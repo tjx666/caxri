@@ -25,7 +25,7 @@ describe('TerminalSuspensionService', () => {
         const harness = createHarness();
         harness.service.start();
         expect(harness.poller()?.label).toBe('terminal-suspension');
-        // Without an observed launch the untouched rule cannot fire; the idle rule is off by default.
+        // Without an observed launch the untouched rule cannot fire, and the idle window has not elapsed.
         harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
         expect(await harness.service.sweep()).toEqual([]);
         harness.service.observeLaunch('terminal-a');
@@ -540,8 +540,8 @@ describe('TerminalSuspensionService: idle suspension', () => {
         expect(await harness.service.sweep()).toEqual(['terminal-a']);
     });
 
-    it('never parks while the setting is off, which is the default', async () => {
-        const harness = createHarness();
+    it('never parks while the setting is off', async () => {
+        const harness = createHarness({ settings: { 'terminal.idleSuspension.enabled': false } });
         finishedTurn(harness);
         harness.advance(24 * 60 * 60_000);
         expect(await harness.service.sweep()).toEqual([]);
