@@ -17,6 +17,7 @@ const RETRYABLE_FAILURES: ReadonlySet<NonNullable<AgentDelegationReceipt['failur
     'launch_failed',
     'hooks_required',
     'quota_exhausted',
+    'capacity_exhausted',
 ]);
 
 /**

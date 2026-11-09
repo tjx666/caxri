@@ -186,6 +186,7 @@ describe('isRetryableDelegationFailure', () => {
         'launch_failed',
         'hooks_required',
         'quota_exhausted',
+        'capacity_exhausted',
     ]);
 
     it.each(agentDelegationFailureSchema.options)('classifies the failure %s', (failure) => {

@@ -668,8 +668,8 @@ never creates the config: a Claude Code that never ran shows its onboarding anyw
 must not find a file Caxri invented. The outcome is a closed enum logged as
 `caxri_bot.claude_trust_prepared`; anything but `granted` or `already_trusted` leaves Claude
 Code's own trust question for the user. A task delegated to Claude Code gets the same
-grant for its launch directory (`claudeTrustPreparer` in the dispatch domain, after the directory is validated against
-the Session's authorized roots; Chat children skip it), logged as `agent_dispatch.claude_trust_prepared`. When that
+grant for its launch directory (`folderTrustPreparer` in the dispatch domain, after the directory is validated against
+the Session's authorized roots; Chat children skip it), logged as `agent_dispatch.folder_trust_prepared`. When that
 grant fails, the task still stops at Claude Code's question and its delegation reports `blocked` with
 `startup_waiting` for Caxri Bot to raise in the Inbox.
 

@@ -1,9 +1,15 @@
 import { createContext, useContext, useMemo } from 'react';
 
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
-import { agentChatTasksByItem } from '@caxri/protocol';
+import { agentChatTasksByItem, agentTaskTabPath } from '@caxri/protocol';
 
-import { openAgentChatTaskTab, openAgentChatTurnReview } from '../tasks/agent-chat-task-opener';
+import { useSelectedSessionId } from '../../../stores/selectors';
+import { usePortalStore } from '../portal/portal-store';
+import {
+    hideAgentChatTaskTab,
+    openAgentChatTaskTab,
+    openAgentChatTurnReview,
+} from '../tasks/agent-chat-task-opener';
 import type { AgentChatTaskLink } from '../tasks/agent-chat-tasks';
 import { agentChatTaskLinkForItem } from '../tasks/agent-chat-tasks';
 
@@ -19,7 +25,15 @@ import { agentChatTaskLinkForItem } from '../tasks/agent-chat-tasks';
  */
 export interface AgentChatTaskLinks {
     tasksByItem: ReadonlyMap<string, AgentChatTask>;
+    /**
+     * The Chat the tasks belong to, which names their beside-Chat views.
+     */
+    terminalId: string;
     openTask?: (taskId: string) => void;
+    /**
+     * Hides a task's view the Portal shows; present exactly when `openTask` is.
+     */
+    hideTask?: (taskId: string) => void;
     openTurnReview?: (turnId: string) => void;
 }
 
@@ -35,10 +49,12 @@ export function createAgentChatTaskLinks(
     canOpenBesideChat: boolean,
 ): AgentChatTaskLinks {
     const tasksByItem = agentChatTasksByItem(tasks);
-    if (!canOpenBesideChat) return { tasksByItem };
+    if (!canOpenBesideChat) return { tasksByItem, terminalId };
     return {
         tasksByItem,
+        terminalId,
         openTask: (taskId) => openAgentChatTaskTab(terminalId, taskId),
+        hideTask: (taskId) => hideAgentChatTaskTab(terminalId, taskId),
         openTurnReview: (turnId) => openAgentChatTurnReview(terminalId, turnId),
     };
 }
@@ -71,11 +87,33 @@ export function useAgentChatTurnReviewOpener(): ((turnId: string) => void) | und
  */
 export function useAgentChatTaskLink(
     item: AgentChatItem,
-): (AgentChatTaskLink & { open?: () => void }) | undefined {
+): (AgentChatTaskLink & { hide?: () => void; open?: () => void }) | undefined {
     const links = useContext(AgentChatTaskLinksContext);
     if (!links) return undefined;
     const link = agentChatTaskLinkForItem(item, links.tasksByItem);
     if (!link) return undefined;
-    const { openTask } = links;
-    return openTask ? { ...link, open: () => openTask(link.taskId) } : link;
+    const { hideTask, openTask } = links;
+    return openTask
+        ? {
+              ...link,
+              open: () => openTask(link.taskId),
+              hide: hideTask && (() => hideTask(link.taskId)),
+          }
+        : link;
+}
+
+/**
+ * Whether the selected Session's Portal shows this task's view right now, so its row's Open button hides it instead.
+ * Selects one boolean, so opening or switching another Portal item re-renders only the rows whose answer changed.
+ */
+export function useIsAgentChatTaskShown(taskId: string | undefined): boolean {
+    const terminalId = useContext(AgentChatTaskLinksContext)?.terminalId;
+    const sessionId = useSelectedSessionId();
+    return usePortalStore(
+        (state) =>
+            taskId !== undefined &&
+            terminalId !== undefined &&
+            sessionId !== undefined &&
+            state.bySession[sessionId]?.activePath === agentTaskTabPath(terminalId, taskId),
+    );
 }

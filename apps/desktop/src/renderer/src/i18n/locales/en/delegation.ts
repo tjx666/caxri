@@ -34,6 +34,9 @@ export const delegation = {
     'delegation.copy.hooksRequired': '{{provider}} needs lifecycle hooks turned on',
     'delegation.copy.hooksRequiredDetail':
         'Turn them on for {{provider}} in Settings, then delegate again',
+    'delegation.copy.capacityExhausted': 'Too many Terminals are running for {{provider}} to start',
+    'delegation.copy.capacityExhaustedDetail':
+        'Close a Session or Terminal you no longer need, then retry',
     'delegation.copy.providerFailed': '{{provider}} stopped unexpectedly',
     'delegation.copy.outputLimit': '{{provider}} ran out of room',
     'delegation.copy.submissionUnconfirmed': 'The task may not have reached {{provider}}',
@@ -58,6 +61,10 @@ export const delegation = {
     'delegation.strip.unavailable': 'Session unavailable',
     'delegation.strip.via': 'via {{title}}',
     'delegation.strip.more': 'and more',
+    'delegation.strip.completedCount': 'Completed {{count}}',
+    'delegation.strip.showCompleted': 'Show completed Sessions',
+    'delegation.strip.hideCompleted': 'Hide completed Sessions',
+    'delegation.strip.completedList': 'Completed delegated Sessions',
     'delegation.strip.excerpt': 'Excerpt',
     'delegation.strip.prFilesOne': '{{count}} PR file',
     'delegation.strip.prFilesOther': '{{count}} PR files',

@@ -35,7 +35,11 @@ import { AgentChatDelegationRecordRows } from '../delegation/agent-chat-delegati
 import { isDelegationRecordItem } from '../delegation/agent-chat-delegation-records';
 import { useCanShowDelegatedSessions } from '../delegation/hooks/use-can-show-delegated-sessions';
 import { useAgentChatExpansion } from '../hooks/use-agent-chat-expansion';
-import { AgentChatTaskLinksContext, useAgentChatTaskLink } from '../hooks/use-agent-chat-task-link';
+import {
+    AgentChatTaskLinksContext,
+    useAgentChatTaskLink,
+    useIsAgentChatTaskShown,
+} from '../hooks/use-agent-chat-task-link';
 import { AgentChatTaskElapsed } from '../tasks/agent-chat-task-glyph';
 import { AgentChatTaskOpenButton } from '../tasks/agent-chat-task-open-button';
 import { AgentChatWorkflowProgress } from '../tasks/workflow/agent-chat-workflow-progress';
@@ -302,6 +306,7 @@ const AgentChatWorkRow = memo(
         const presentation = describeAgentChatWorkRow(item, t);
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
+        const isTaskShown = useIsAgentChatTaskShown(link?.taskId);
         // A running workflow names its phase rather than its last tool, which is always the `Agent` it launched.
         const taskActivity =
             task?.workflow && task.status === 'running'
@@ -314,7 +319,16 @@ const AgentChatWorkRow = memo(
         const subject = agentChatWorkSubject(item, presentation, task);
         return (
             <DisclosureRow
-                action={link?.open && <AgentChatTaskOpenButton task={task} onOpen={link.open} />}
+                action={
+                    link?.open && (
+                        <AgentChatTaskOpenButton
+                            isShown={isTaskShown}
+                            task={task}
+                            onHide={link.hide}
+                            onOpen={link.open}
+                        />
+                    )
+                }
                 disclosureKind="agent-chat-item"
                 expansionKey={agentChatItemExpansionKey(item.id)}
                 glyph={

@@ -2,6 +2,7 @@ import type { AgentChatTask } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const openers = vi.hoisted(() => ({
+    hideAgentChatTaskTab: vi.fn(),
     openAgentChatTaskTab: vi.fn(),
     openAgentChatTurnReview: vi.fn(),
 }));
@@ -22,6 +23,7 @@ const runningShell: AgentChatTask = {
 
 describe('createAgentChatTaskLinks', () => {
     beforeEach(() => {
+        openers.hideAgentChatTaskTab.mockClear();
         openers.openAgentChatTaskTab.mockClear();
         openers.openAgentChatTurnReview.mockClear();
     });
@@ -30,8 +32,10 @@ describe('createAgentChatTaskLinks', () => {
         const links = createAgentChatTaskLinks([runningShell], 'terminal-1', true);
         expect(links.tasksByItem.get('item-1')).toBe(runningShell);
         links.openTask?.('task-1');
+        links.hideTask?.('task-1');
         links.openTurnReview?.('turn-1');
         expect(openers.openAgentChatTaskTab).toHaveBeenCalledWith('terminal-1', 'task-1');
+        expect(openers.hideAgentChatTaskTab).toHaveBeenCalledWith('terminal-1', 'task-1');
         expect(openers.openAgentChatTurnReview).toHaveBeenCalledWith('terminal-1', 'turn-1');
     });
 
@@ -41,6 +45,7 @@ describe('createAgentChatTaskLinks', () => {
         const links = createAgentChatTaskLinks([runningShell], 'terminal-1', false);
         expect(links.tasksByItem.get('item-1')?.status).toBe('running');
         expect(links.openTask).toBeUndefined();
+        expect(links.hideTask).toBeUndefined();
         expect(links.openTurnReview).toBeUndefined();
     });
 });

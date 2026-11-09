@@ -30,6 +30,16 @@ export function openAgentChatTaskTab(terminalId: string, taskId: string): void {
 }
 
 /**
+ * Hides a task's view from the selected Session's Portal, the second click of a row's Open button. A view the user
+ * moved into the Workbench with "Open in Split" is a pane tab the Portal does not hold, so this leaves it alone.
+ */
+export function hideAgentChatTaskTab(terminalId: string, taskId: string): void {
+    const sessionId = getSelectedSession()?.id;
+    if (!sessionId) return;
+    usePortalStore.getState().close(sessionId, agentTaskTabPath(terminalId, taskId));
+}
+
+/**
  * Opens the review of one turn's file changes beside its Chat, where task tabs open.
  */
 export function openAgentChatTurnReview(terminalId: string, turnId: string): void {

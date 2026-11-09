@@ -172,6 +172,7 @@ describe('delegationCopy', () => {
             caller_stopped: 'Stopped',
             target_not_ready: 'A follow-up was not started',
             target_busy: 'A follow-up was not started',
+            capacity_exhausted: 'Too many Terminals are running for Codex to start',
         });
     });
 

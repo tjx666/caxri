@@ -19,10 +19,12 @@ export function assertTerminalCapacity(terminals: TerminalCounts, sessionId?: st
         throw new CaxriError(
             'CAPACITY',
             `Caxri supports at most ${MAX_TERMINALS_GLOBAL} Terminals`,
+            { reason: 'terminal_capacity_global' },
         );
     if (sessionId && terminals.countForSession(sessionId) >= MAX_TERMINALS_PER_SESSION)
         throw new CaxriError(
             'CAPACITY',
             `A Session supports at most ${MAX_TERMINALS_PER_SESSION} Terminals`,
+            { reason: 'terminal_capacity_session' },
         );
 }

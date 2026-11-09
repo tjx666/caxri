@@ -125,6 +125,12 @@ function failureCopy(
         case 'launch_failed': {
             return failed('delegation.copy.couldNotStart');
         }
+        case 'capacity_exhausted': {
+            return failed(
+                'delegation.copy.capacityExhausted',
+                t('delegation.copy.capacityExhaustedDetail'),
+            );
+        }
         case 'hooks_required': {
             return failed(
                 'delegation.copy.hooksRequired',

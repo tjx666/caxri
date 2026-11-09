@@ -32,7 +32,7 @@ export function AgentChatPlanSection({
             summary={progress.current}
             terminalId={terminalId}
         >
-            <div className="max-h-48 overflow-y-auto px-2 text-[12px] leading-5">
+            <div className="max-h-48 overflow-y-auto overscroll-contain px-2 text-[12px] leading-5">
                 <AgentChatPlanSteps isTurnRunning={isTurnRunning} plan={plan} />
             </div>
         </AgentChatStripSection>

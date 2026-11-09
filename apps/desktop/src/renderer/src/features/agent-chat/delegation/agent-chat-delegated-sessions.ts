@@ -122,16 +122,60 @@ function needsInputKey(
 
 /**
  * The rows in the order a person should look at them: tasks that need input (an escalated question included), then
- * failures, then everything else (a task still asking the Agent that delegated it ranks with the waiting ones, because
- * the user has nothing to do yet), each group keeping the Server's order (newest Session first). The sort is stable, so
- * a row never jumps for a reason other than its own state.
+ * failures, then everything still open or stopped (a task still asking the Agent that delegated it ranks with the
+ * waiting ones, because the user has nothing to do yet), then completed tasks, each group keeping the Server's order
+ * (newest Session first). The sort is stable, so a row never jumps for a reason other than its own state.
  */
 export function sortDelegatedSessions(
     entries: readonly AgentDelegationSession[],
 ): AgentDelegationSession[] {
     const rank = (entry: AgentDelegationSession): number =>
-        isDelegationNeedsInput(entry) ? 0 : isDelegationFailed(entry) ? 1 : 2;
+        isDelegationNeedsInput(entry)
+            ? 0
+            : isDelegationFailed(entry)
+              ? 1
+              : entry.status === 'completed'
+                ? 3
+                : 2;
     return entries.toSorted((left, right) => rank(left) - rank(right));
+}
+
+/**
+ * How long a completed task's row stays in view after it completed, so its result can be read without unfolding
+ * anything, before it moves behind the strip header's `Completed N` toggle.
+ */
+export const DELEGATED_COMPLETED_VISIBLE_MS = 10 * 60_000;
+
+/**
+ * The strip's rows split for display: `shown` stays in the list, `folded` waits behind the `Completed N` toggle, and
+ * `hasRecentCompleted` says a shown row will fold once its window passes, so the caller keeps a clock running only
+ * then. Only a completed task folds, and never one that needs the user; one with no completion time (an older record)
+ * folds at once. Both lists keep the input order.
+ */
+export function splitDelegatedSessions<
+    Entry extends Pick<
+        AgentDelegationSession,
+        'failure' | 'result' | 'settledAt' | 'status' | 'waitingOn'
+    >,
+>(
+    entries: readonly Entry[],
+    now: number,
+): { folded: Entry[]; hasRecentCompleted: boolean; shown: Entry[] } {
+    const shown: Entry[] = [];
+    const folded: Entry[] = [];
+    let hasRecentCompleted = false;
+    for (const entry of entries) {
+        if (entry.status !== 'completed' || isDelegationNeedsInput(entry)) {
+            shown.push(entry);
+            continue;
+        }
+        const completedAt = entry.settledAt ?? entry.result?.completedAt;
+        if (completedAt !== undefined && now - completedAt < DELEGATED_COMPLETED_VISIBLE_MS) {
+            hasRecentCompleted = true;
+            shown.push(entry);
+        } else folded.push(entry);
+    }
+    return { folded, hasRecentCompleted, shown };
 }
 
 /**

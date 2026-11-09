@@ -1110,7 +1110,7 @@ and Benchmark are refused, and mobile role methods do not list either method. Co
 
 - **Eligible.** A task with `status: "failed"` whose failure is one of `rate_limited`,
   `authentication_failed`, `output_limit`, `startup_not_ready`, `provider_failed`, `launch_failed`,
-  `hooks_required`, or `quota_exhausted` (`isRetryableDelegationFailure`). Any other failure
+  `hooks_required`, `quota_exhausted`, or `capacity_exhausted` (`isRetryableDelegationFailure`). Any other failure
   (including `submission_unconfirmed`, whose prompt may have arrived) is `not_retryable`. A task the
   user took over, one already followed up, and one already retried are refused too.
 - **Fresh.** Starts the same task in a new Session in the failed Session's Project, reusing its

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type {
     AgentDelegationReceipt,
+    AgentDispatchFailure,
     AgentLaunchSettings,
     AgentProvider,
     TerminalSurface,
@@ -146,12 +147,29 @@ export function assertTerminalChildHooks(
 }
 
 /**
- * The receipt failure for a child launch that threw: `hooks_required` names the one cause the caller can fix.
+ * The receipt failure for a child launch that threw: `hooks_required` and `capacity_exhausted` name the causes the
+ * caller can fix (turning hooks on, closing an idle Session or Agent); anything else is `launch_failed`.
  */
 export function childLaunchFailure(error: unknown): AgentDelegationReceipt['failure'] {
-    return isCaxriError(error) && error.details?.reason === 'lifecycle_hooks_required'
-        ? 'hooks_required'
-        : 'launch_failed';
+    if (!isCaxriError(error)) return 'launch_failed';
+    if (error.details?.reason === 'lifecycle_hooks_required') return 'hooks_required';
+    // Only the Terminal limits (`assertTerminalCapacity`); a full pane layout is also `CAPACITY` but closing a Terminal
+    // elsewhere would not help it.
+    return isTerminalCapacityReason(error.details?.reason) ? 'capacity_exhausted' : 'launch_failed';
+}
+
+function isTerminalCapacityReason(reason: unknown): boolean {
+    return reason === 'terminal_capacity_global' || reason === 'terminal_capacity_session';
+}
+
+/**
+ * The receipt failure for a PTY child whose dispatch failed: the dispatch receipt keeps only the error's code, which
+ * still tells a Terminal refused at capacity apart from any other launch failure.
+ */
+export function dispatchLaunchFailure(
+    failure: AgentDispatchFailure | undefined,
+): AgentDelegationReceipt['failure'] {
+    return failure?.code === 'CAPACITY' ? 'capacity_exhausted' : 'launch_failed';
 }
 
 /**
