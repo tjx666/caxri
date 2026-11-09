@@ -13,6 +13,7 @@ import {
     observeAndroidNodeFromUiAutomator,
     resumedPackageFromWindowDump,
     semanticNodesFromUiAutomator,
+    uiAutomatorDumpFailure,
 } from './android-receipts';
 
 export const CAXRI_ANDROID_PACKAGE = 'com.caxri.mobile';
@@ -87,7 +88,14 @@ const withAndroidUiAutomatorDump = async <T>(
     const directory = await mkdtemp(join(tmpdir(), 'caxri-android-'));
     const localDumpPath = join(directory, 'window.xml');
     try {
-        runAndroidAdb(serial, ['shell', 'uiautomator', 'dump', DEVICE_DUMP_PATH]);
+        // A file left by an interrupted read must not stand in for a dump this call never wrote.
+        runAndroidAdb(serial, ['shell', 'rm', '-f', DEVICE_DUMP_PATH]);
+        // `adb shell` hands the joined arguments to the device shell, so `2>&1` brings the command's stderr, where it
+        // reports a failed dump, into the captured output.
+        const dumpFailure = uiAutomatorDumpFailure(
+            runAndroidAdb(serial, ['shell', 'uiautomator', 'dump', DEVICE_DUMP_PATH, '2>&1']),
+        );
+        if (dumpFailure) throw new Error(dumpFailure);
         runAndroidAdb(serial, ['pull', DEVICE_DUMP_PATH, localDumpPath]);
         return project(await readFile(localDumpPath, 'utf8'));
     } finally {

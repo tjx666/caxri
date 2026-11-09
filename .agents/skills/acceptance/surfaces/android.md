@@ -191,9 +191,11 @@ Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
 `uiautomator dump` waits for an idle screen and, when none comes, exits 0 without writing its file,
-so the helper fails as `driver-failed`. Running `e2e/mobile-acceptance-scenarios.e2e.ts` directly
+so the helper fails as `ui-not-idle` (`ui-dump-missing` when the dump wrote no file for another
+reason). `mobileSemantics` retries both; `observeMobileNode` and taps do not, because a screen that
+keeps changing stays non-idle. Running `e2e/mobile-acceptance-scenarios.e2e.ts` directly
 under Playwright to debug one case skips the runner's reduced motion, so a spinner can turn the real
-failure into `driver-failed`; set `settings put global transition_animation_scale 0` on the
+failure into `ui-not-idle`; set `settings put global transition_animation_scale 0` on the
 emulator first and restore `1.0` afterwards. A running Chat turn never idles even under reduced motion:
 the activity line's elapsed time and native spinner keep changing. Read semantics before the turn
 starts or after it ends (or while it waits on the user), and follow a running turn with
@@ -262,8 +264,9 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 The guarded release runner performs this capture itself and records the exact path and SHA-256 in
 the mobile device receipt. For a separately driven case, add the same device-bound artifact entry
 before finalization; a file extension alone is never accepted as Android evidence.
-The runner's own final frame is taken after the scenario stopped its fixture; judge a case from the
-scenario's in-flight captures ([common mistakes](../../../acceptance/common-mistakes.md#reading-the-runners-final-frame-as-the-product-state)).
+The runner's own final frame is taken by the desktop fixture just before it stops, so after a
+failure it shows the screen the failing step left; judge a passing case from the scenario's
+checkpoint captures ([common mistakes](../../../acceptance/common-mistakes.md#reading-the-runners-final-frame-as-the-product-state)).
 
 Read the full-resolution screenshot before citing it. Check safe areas, system bars, clipping,
 overlap, keyboard coverage, selection state, target identity, and phone/tablet layout. Pair a touch

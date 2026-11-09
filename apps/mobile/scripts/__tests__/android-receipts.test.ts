@@ -6,6 +6,9 @@ import {
     observeAndroidNodeFromUiAutomator,
     resumedPackageFromWindowDump,
     semanticNodesFromUiAutomator,
+    UI_AUTOMATOR_DUMP_MISSING,
+    UI_AUTOMATOR_NOT_IDLE,
+    uiAutomatorDumpFailure,
 } from '../android-receipts';
 
 describe('Android content-free receipts', () => {
@@ -157,6 +160,19 @@ describe('Android content-free receipts', () => {
                 'mCurrentFocus=Window{abc u0 com.caxri.mobile/com.caxri.mobile.MainActivity}',
             ),
         ).toBe('com.caxri.mobile');
+    });
+
+    it('classifies a UIAutomator dump that wrote no file without returning its output', () => {
+        expect(
+            uiAutomatorDumpFailure('UI hierchary dumped to: /data/local/tmp/caxri-ui.xml'),
+        ).toBeUndefined();
+        expect(uiAutomatorDumpFailure('ERROR: could not get idle state.')).toBe(
+            UI_AUTOMATOR_NOT_IDLE,
+        );
+        expect(
+            uiAutomatorDumpFailure('ERROR: null root node returned by UiTestAutomationBridge.'),
+        ).toBe(UI_AUTOMATOR_DUMP_MISSING);
+        expect(uiAutomatorDumpFailure('')).toBe(UI_AUTOMATOR_DUMP_MISSING);
     });
 
     it('derives a stable tap point from UIAutomator bounds', () => {

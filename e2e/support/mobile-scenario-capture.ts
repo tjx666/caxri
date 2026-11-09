@@ -1,7 +1,26 @@
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json';
+import { ANDROID_FINAL_FRAME_ENVIRONMENT } from '../../scripts/mobile-android-scenario-artifacts';
 import { captureMobileFramebuffer } from './mobile-android';
+
+/**
+ * Takes the Android Acceptance runner's final frame while Desktop still serves the phone; the Desktop fixture calls it
+ * first thing in `stop()`, which every scenario runs in its `finally`. The runner names the path only for a case whose
+ * final frame it may capture (`bindAndroidFinalFrame`). A failed capture leaves no file, so the runner captures its
+ * own, and the scenario's original failure stays the one reported.
+ */
+export async function captureFinalFrame(serial: string): Promise<void> {
+    const path = process.env[ANDROID_FINAL_FRAME_ENVIRONMENT];
+    if (!path) return;
+    try {
+        await captureMobileFramebuffer(serial, path);
+    } catch {
+        await rm(path, { force: true });
+    }
+}
 
 /**
  * The part of an Android scenario environment a framebuffer capture writes to.

@@ -34,7 +34,6 @@ import {
     recordAndroidSetupBlockedCase,
     runMobileAcceptanceCommand,
     startMobileAcceptanceRecording,
-    writeMobileAcceptanceArtifact,
     writeMobileAcceptanceReceipt,
 } from './mobile-acceptance-runtime';
 import { collapseAndroidStatusBar } from './mobile-acceptance-status-bar';
@@ -53,7 +52,11 @@ import {
     parseAndroidPackageUid,
 } from './mobile-android-native-init';
 import { buildAndroidAcceptanceRelease } from './mobile-android-release-build';
-import { bindAndroidScenarioArtifacts } from './mobile-android-scenario-artifacts';
+import {
+    androidFinalFrameEnvironment,
+    bindAndroidFinalFrame,
+    bindAndroidScenarioArtifacts,
+} from './mobile-android-scenario-artifacts';
 import {
     androidSerialLockWaitMs,
     withAndroidSerialLockWaitHint,
@@ -243,6 +246,7 @@ function executePlaywrightScenario(
         ...(mobileAndroidAcceptanceCase(caseId).recordingOwner === 'scenario' && {
             CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH: remoteVideoPath,
         }),
+        ...androidFinalFrameEnvironment(reportDirectory, caseId),
     };
     run(
         'bunx',
@@ -275,7 +279,6 @@ async function executeCase(
         profileIdentity,
         stateIsolation: planned.item.stateIsolation,
     });
-    const screenshotPath = join(reportDirectory, 'assets', `${caseId}-android.png`);
     const videoPath = join(reportDirectory, 'assets', `${caseId}-android.mp4`);
     const remoteVideoPath = `/data/local/tmp/caxri-acceptance-${process.pid}-${caseId}.mp4`;
     const artifacts: MobileAcceptanceArtifact[] = [];
@@ -364,21 +367,16 @@ async function executeCase(
                   }
                 : undefined,
             captureScreenshot: shouldCaptureAdapterScreenshot(caseId, isLifecycleReady)
-                ? async () => {
-                      const screenshot = captureMobileAcceptanceCommand({
-                          arguments: ['-s', serial, 'exec-out', 'screencap', '-p'],
-                          command: adb,
-                          cwd: root,
-                          deadlineMs: overallDeadlineMs,
-                          timeoutMs: DEVICE_TIMEOUT_MS,
-                      });
-                      await writeMobileAcceptanceArtifact(screenshotPath, screenshot);
-                      return createMobileAcceptanceArtifact(screenshotPath, {
-                          path: `assets/${caseId}-android.png`,
-                          source: 'android-framebuffer',
-                          type: 'screenshot',
-                      });
-                  }
+                ? () =>
+                      bindAndroidFinalFrame(reportDirectory, caseId, () =>
+                          captureMobileAcceptanceCommand({
+                              arguments: ['-s', serial, 'exec-out', 'screencap', '-p'],
+                              command: adb,
+                              cwd: root,
+                              deadlineMs: overallDeadlineMs,
+                              timeoutMs: DEVICE_TIMEOUT_MS,
+                          }),
+                      )
                 : undefined,
             failure,
         });
