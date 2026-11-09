@@ -8,6 +8,7 @@ import {
     agentChatReasoningTitle,
     agentChatTaskActivity,
     agentChatWorkDuration,
+    agentChatWorkflowCurrentPhase,
     agentChatWorkGroupFailure,
     agentChatWorkSummaryGlyph,
     isAgentChatWorkRunning,
@@ -29,12 +30,13 @@ import {
     agentChatMcpServerFor,
     AgentChatMcpServersContext,
 } from './agent-chat-mcp-icons';
-import { AgentChatTaskStatusGlyph } from './agent-chat-task-detail';
+import { AgentChatTaskStatusGlyph } from './agent-chat-task-content';
 import { useAgentChatSubagentTask } from './agent-chat-task-links';
 import { agentChatTaskRow } from './agent-chat-tasks';
 import { AgentChatWorkDetail } from './agent-chat-work-detail';
 import type { AgentChatWorkRowPresentation } from './agent-chat-work-row';
 import { agentChatWorkRowPresentation } from './agent-chat-work-row';
+import { agentChatWorkflowProgressText } from './agent-chat-workflow';
 
 /**
  * What a row says after its title, as Desktop's row does: a change's `+N -M`, a command's `Background` tag and non-zero
@@ -97,12 +99,26 @@ const TaskFacts = ({ task, theme }: { task: AgentChatTask; theme: MobileTheme })
     const { t } = useTranslation();
     const { elapsed, statusLabel } = agentChatTaskRow(task, task.endedAt ?? 0, t);
     const isRunning = task.status === 'running';
+    const progress = task.workflow && agentChatWorkflowProgressText(task.workflow, isRunning, t);
+    const label = elapsed && !isRunning ? `${statusLabel}, ${elapsed}` : statusLabel;
     return (
         <View
-            accessibilityLabel={elapsed && !isRunning ? `${statusLabel}, ${elapsed}` : statusLabel}
+            accessibilityLabel={progress ? `${progress}, ${label}` : label}
             accessible
             style={styles.taskFacts}
         >
+            {progress ? (
+                <Text
+                    numberOfLines={1}
+                    style={[
+                        conversationStyles.toolDuration,
+                        styles.workflowProgress,
+                        { color: theme.muted },
+                    ]}
+                >
+                    {progress}
+                </Text>
+            ) : null}
             <AgentChatTaskStatusGlyph status={task.status} theme={theme} />
             {elapsed && !isRunning ? (
                 <Text style={[conversationStyles.toolDuration, { color: theme.muted }]}>
@@ -147,7 +163,11 @@ const AgentChatWorkRow = memo(
         const task = useAgentChatSubagentTask(item.id);
         const mcpIconUrls = useMcpIconUrls(item.type === 'toolCall' ? item.name : undefined);
         const row = agentChatWorkRowPresentation(item, t, mcpIconUrls.length > 0, task);
-        const activity = task && agentChatTaskActivity(task, t);
+        // A running workflow names its phase rather than its last tool, which is always the `Agent` it launched.
+        const activity =
+            task?.workflow && task.status === 'running'
+                ? agentChatWorkflowCurrentPhase(task.workflow)?.title
+                : task && agentChatTaskActivity(task, t);
         return (
             <ConversationToolRowView
                 accessibilityLabel={
@@ -306,6 +326,7 @@ const styles = StyleSheet.create({
     fact: { fontSize: 12, fontVariant: ['tabular-nums'] },
     thought: { paddingBottom: mobileSpace.md, paddingHorizontal: mobileSpace.md },
     taskFacts: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+    workflowProgress: { flexShrink: 1, fontVariant: ['tabular-nums'] },
     tag: { borderRadius: 4, fontSize: 11, overflow: 'hidden', paddingHorizontal: 4 },
     exit: { fontFamily: MONOSPACE_FONT, fontSize: 11, fontVariant: ['tabular-nums'] },
 });

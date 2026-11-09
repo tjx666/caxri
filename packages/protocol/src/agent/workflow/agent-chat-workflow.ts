@@ -131,6 +131,39 @@ export function agentChatWorkflowCurrentPhase(
 }
 
 /**
+ * What a workflow's progress label shows wherever a run is listed (Desktop's strip and timeline row, the phone's
+ * Background work rows): the running phase with its own count (`Review 2/5`) while the run works, the whole run's count
+ * (`10/11`) otherwise, plus how many members failed or were interrupted, which never hide behind a finished count.
+ */
+export interface AgentChatWorkflowProgressLabel {
+    /**
+     * The phase title, or undefined for the whole run's count.
+     */
+    phase: string | undefined;
+    done: number;
+    total: number;
+    failed: number;
+    stopped: number;
+}
+
+export function agentChatWorkflowProgressLabel(
+    workflow: Pick<AgentChatWorkflow, 'members' | 'phases'>,
+    isRunning: boolean,
+): AgentChatWorkflowProgressLabel | undefined {
+    const counts = agentChatWorkflowCounts(workflow.members);
+    if (counts.total === 0) return undefined;
+    const phase = isRunning ? agentChatWorkflowCurrentPhase(workflow) : undefined;
+    const scope = phase && workflow.phases.length > 1 ? phase.counts : counts;
+    return {
+        phase: phase && workflow.phases.length > 1 ? phase.title : undefined,
+        done: scope.completed + scope.failed + scope.stopped,
+        total: scope.total,
+        failed: counts.failed,
+        stopped: counts.stopped,
+    };
+}
+
+/**
  * Agent types Claude Code ships, which a member row marks apart from a custom agent's name. `workflow-subagent` is the
  * type Claude Code records for an ordinary workflow member.
  */

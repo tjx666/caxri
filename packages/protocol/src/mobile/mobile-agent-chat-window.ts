@@ -8,6 +8,7 @@ import type { AgentChatTaskSnapshot } from '../agent/agent-chat-task-contract.js
 import { projectDisplayPath } from '../domain/project-path.js';
 import {
     clipAgentChatStateForMobile,
+    clipAgentChatWorkflowForMobile,
     MOBILE_AGENT_CHAT_CLIP_MARKER,
 } from './mobile-agent-chat-state-clip.js';
 
@@ -242,8 +243,10 @@ export const MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES = 24 * 1_024;
 
 /**
  * The newest part of one task's projection that fits one mobile frame: a shell's output keeps its tail within
- * {@link MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES}, and a subagent's conversation keeps its newest items, each shortened
- * like the Chat's own, with `truncated` set once older ones are dropped.
+ * {@link MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES}, a subagent's conversation keeps its newest items, each shortened like
+ * the Chat's own, with `truncated` set once older ones are dropped, and a workflow run rebuilt from its record keeps
+ * only its outline and a shortened result (`clipAgentChatWorkflowForMobile`): a run with 200 members and their previews
+ * would not fit the frame.
  */
 export function clipAgentChatTaskSnapshotForMobile(
     full: AgentChatTaskSnapshot,
@@ -262,6 +265,9 @@ export function clipAgentChatTaskSnapshotForMobile(
         ...full,
         items: [],
         ...(output !== undefined && { output }),
+        ...(full.workflow && {
+            workflow: clipAgentChatWorkflowForMobile(full.workflow, { withResult: true }),
+        }),
     };
     const items = full.items.map((item) => clipAgentChatItemForMobile(item, projectRoot));
     let budget = MOBILE_AGENT_CHAT_MAX_BYTES - byteLength(shell);

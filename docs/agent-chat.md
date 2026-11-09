@@ -1505,6 +1505,22 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   its tasks may have ended long ago. Code lives in
   `apps/mobile/src/features/agent-chat/agent-chat-status-row.tsx`, `agent-chat-task-sheet.tsx`,
   and `agent-chat-tasks.ts`.
+- Workflow runs. A Claude Code workflow task reaches the phone with an outline of its run
+  (`clipAgentChatWorkflowForMobile`): phase titles, and for every member its label, phase, status,
+  agent type, and member task id, each label cut to 80 characters; previews, timings, usage, and the
+  result stay on the computer. All outlines in the task list share a 16 KiB budget, running runs
+  first, then the most recently ended. A run too large for what is left keeps a compact outline
+  without labels, agent types, or task ids, so its progress stays exact, and a run too large even
+  for that arrives as a plain subagent task. The phone shows the workflow glyph and Desktop's
+  progress label (`agentChatWorkflowProgressLabel`: `Review 2/5` while a phase runs, `10/11` once
+  it ended, then failed and interrupted counts) in the status row, the Background work list, and the
+  `Workflow` tool's timeline row, whose activity names the running phase. The run's detail shows
+  done/total subagents, an interruption or script error, members under each phase (a queued member
+  reads `Waiting`), and the result, which `mobile.agentChat.readTask` carries cut to 2,000
+  characters for a recorded run. A member with a task id opens its own messages in place, read
+  under `workflow:<runId>:<agentId>` and polled while it runs, with Back to the run. Stop stays on
+  the run, not on each member. Code lives in `agent-chat-workflow.ts` and
+  `agent-chat-workflow-detail.tsx`.
 - Optimistic sends. Desktop and the phone share the placement and settlement rules in
   `packages/protocol/src/agent/agent-chat-pending.ts`: a sent message shows at once where it lands
   (the timeline when it starts or steers a turn, the queue otherwise) until the projection shows a

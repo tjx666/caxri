@@ -1,8 +1,8 @@
 import type { AgentChatWorkflow } from '@caxri/protocol';
+import { agentChatWorkflowProgressLabel } from '@caxri/protocol';
 
 import { useTranslation } from '../../../../i18n';
 import { cn } from '../../../../lib/utilities';
-import { agentChatWorkflowProgressLabel } from './agent-chat-workflow';
 
 /**
  * A workflow run's progress where it is listed (the strip entry, its timeline row): the running phase and its count

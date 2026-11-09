@@ -13,7 +13,6 @@ import {
     agentChatWorkflowPhaseState,
     agentChatWorkflowPhaseSummary,
     agentChatWorkflowPosition,
-    agentChatWorkflowProgressLabel,
     agentChatWorkflowResumeDraft,
     isAgentChatWorkflowMemberQuiet,
     WORKFLOW_MEMBER_QUIET_MS,
@@ -37,38 +36,6 @@ function readout(fields: Partial<AgentUsageReadout> = {}): AgentUsageReadout {
         ...fields,
     } as AgentUsageReadout;
 }
-
-const phases = [{ title: 'Inspect' }, { title: 'Review' }];
-
-describe('agentChatWorkflowProgressLabel', () => {
-    it('counts the running phase while the run works and the whole run after it ends', () => {
-        const workflow = {
-            phases,
-            members: [
-                member(0, 'completed', { phase: 'Inspect' }),
-                member(1, 'running', { phase: 'Review' }),
-                member(2, 'failed', { phase: 'Review' }),
-                member(3, 'queued', { phase: 'Review' }),
-            ],
-        };
-        expect(agentChatWorkflowProgressLabel(workflow, true)).toEqual({
-            phase: 'Review',
-            done: 1,
-            total: 3,
-            failed: 1,
-            stopped: 0,
-        });
-        expect(agentChatWorkflowProgressLabel(workflow, false)).toMatchObject({
-            phase: undefined,
-            done: 2,
-            total: 4,
-        });
-    });
-
-    it('shows nothing before the first member starts', () => {
-        expect(agentChatWorkflowProgressLabel({ phases, members: [] }, true)).toBeUndefined();
-    });
-});
 
 describe('isAgentChatWorkflowMemberQuiet', () => {
     it('flags only a running member whose last step is two minutes old', () => {

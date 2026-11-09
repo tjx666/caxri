@@ -6,6 +6,7 @@ import {
     agentChatWorkflowCurrentPhase,
     agentChatWorkflowMemberTaskId,
     agentChatWorkflowPhaseGroups,
+    agentChatWorkflowProgressLabel,
     agentChatWorkflowSibling,
     parseAgentChatWorkflowMemberTaskId,
 } from '../workflow/agent-chat-workflow.js';
@@ -80,5 +81,39 @@ describe('agentChatTaskWorkflow', () => {
         ).toBe('live');
         expect(agentChatTaskWorkflow(undefined, { workflow: recorded })).toBe(recorded);
         expect(agentChatTaskWorkflow({}, undefined)).toBeUndefined();
+    });
+});
+
+const progressPhases = [{ title: 'Inspect' }, { title: 'Review' }];
+
+describe('agentChatWorkflowProgressLabel', () => {
+    it('counts the running phase while the run works and the whole run after it ends', () => {
+        const workflow: AgentChatWorkflow = {
+            phases: progressPhases,
+            members: [
+                { index: 0, label: 'm0', status: 'completed', phase: 'Inspect' },
+                { index: 1, label: 'm1', status: 'running', phase: 'Review' },
+                { index: 2, label: 'm2', status: 'failed', phase: 'Review' },
+                { index: 3, label: 'm3', status: 'queued', phase: 'Review' },
+            ],
+        };
+        expect(agentChatWorkflowProgressLabel(workflow, true)).toEqual({
+            phase: 'Review',
+            done: 1,
+            total: 3,
+            failed: 1,
+            stopped: 0,
+        });
+        expect(agentChatWorkflowProgressLabel(workflow, false)).toMatchObject({
+            phase: undefined,
+            done: 2,
+            total: 4,
+        });
+    });
+
+    it('shows nothing before the first member starts', () => {
+        expect(
+            agentChatWorkflowProgressLabel({ phases: progressPhases, members: [] }, true),
+        ).toBeUndefined();
     });
 });

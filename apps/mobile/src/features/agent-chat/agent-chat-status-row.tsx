@@ -10,7 +10,7 @@ import { MONOSPACE_FONT } from '../../theme/monospace';
 import { chipHitSlop, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { AgentChatActivityLead } from './agent-chat-activity-lead';
-import { AgentChatTaskKindGlyph } from './agent-chat-task-detail';
+import { AgentChatTaskKindGlyph } from './agent-chat-task-content';
 import { AgentChatTaskSheet } from './agent-chat-task-sheet';
 import type { AgentChatRunningKind } from './agent-chat-tasks';
 import { agentChatStatusRow, agentChatTaskLead } from './agent-chat-tasks';
@@ -82,7 +82,8 @@ export const AgentChatStatusRow = ({
 
 /**
  * The running background work once the turn ended: its kind glyphs, the task's title or `Background work`, and a
- * chevron saying the row opens the sheet. Counts show only for several tasks; one glyph already says one.
+ * chevron saying the row opens the sheet. Counts show only for several tasks; one glyph already says one. A lone
+ * workflow run shows the workflow glyph and its progress (`Review 2/5`) before the chevron, as Desktop's strip does.
  */
 const TaskLead = ({
     kinds,
@@ -107,7 +108,11 @@ const TaskLead = ({
             style={styles.taskLead}
             testID="agent-chat-tasks"
         >
-            <RunningKinds kinds={kinds} showsCounts={isShowsCounts} theme={theme} />
+            {lead.isWorkflow ? (
+                <AgentChatTaskKindGlyph isWorkflow kind="agent" size={14} theme={theme} />
+            ) : (
+                <RunningKinds kinds={kinds} showsCounts={isShowsCounts} theme={theme} />
+            )}
             <Text
                 numberOfLines={1}
                 style={[
@@ -119,6 +124,15 @@ const TaskLead = ({
             >
                 {lead.text}
             </Text>
+            {lead.workflowProgress ? (
+                <Text
+                    numberOfLines={1}
+                    style={[styles.text, styles.progress, { color: theme.muted }]}
+                    testID="agent-chat-tasks-workflow-progress"
+                >
+                    {lead.workflowProgress}
+                </Text>
+            ) : null}
             <ChevronRight color={theme.muted} size={16} />
         </Pressable>
     );
@@ -170,6 +184,7 @@ const styles = StyleSheet.create({
         minWidth: 0,
     },
     taskTitle: { flex: 1, minWidth: 0 },
+    progress: { flexShrink: 0, fontVariant: ['tabular-nums'], maxWidth: '45%' },
     command: { fontFamily: MONOSPACE_FONT },
     kinds: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.md },
     text: mobileType.meta,

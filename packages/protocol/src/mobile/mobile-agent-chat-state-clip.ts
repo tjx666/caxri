@@ -88,22 +88,128 @@ export function clipAgentChatCommandsForMobile(commands: AgentChatCommands): Age
  * {@link MOBILE_AGENT_CHAT_ENDED_TASKS_MAX_ITEMS} that ended most recently, each with its title and command line cut to
  * one glance and its summary to a line or two. Desktop's list (up to `MAX_AGENT_CHAT_TASKS` tasks with 10,000-character
  * commands) could fill a frame on its own; these bounds keep it to a few KiB in practice and under half the window at
- * worst. The full command and the output tail come from `mobile.agentChat.readTask`. A workflow run's phases and
- * members (`workflow`) stay on the computer: the phone does not draw them, and a few completed runs with their member
- * previews (up to 200 members of 2,500 characters each) once filled the whole window, so the phone showed an empty
- * Chat.
+ * worst. The full command and the output tail come from `mobile.agentChat.readTask`. A workflow run keeps the outline
+ * {@link clipAgentChatWorkflowForMobile} cuts, within {@link MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES} for all runs.
  */
 export const MOBILE_AGENT_CHAT_TASKS_MAX_ITEMS = 24;
 export const MOBILE_AGENT_CHAT_ENDED_TASKS_MAX_ITEMS = 10;
 export const MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH = 300;
 export const MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH = 200;
 
+/**
+ * Every workflow outline the phone's task list carries together stays under this many bytes (JSON-encoded UTF-8),
+ * running runs first, then the most recently ended. Desktop's full runs once filled the 48 KiB window with member
+ * previews (up to 200 members of 2,500 characters each), so the phone showed an empty Chat. An outline costs about 100
+ * bytes per member, so a typical run of a few dozen members fits several times over; a run too large for what is left
+ * falls back to its compact outline (about 50 bytes per member, see {@link compactAgentChatWorkflowOutline}), and one
+ * too large even for that reaches the phone as a plain subagent task.
+ */
+export const MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES = 16 * 1_024;
+
+/**
+ * Longest member label, phase title, or agent type the phone's workflow outline keeps: one list row's worth.
+ */
+export const MOBILE_AGENT_CHAT_WORKFLOW_LABEL_MAX_LENGTH = 80;
+
+/**
+ * Longest script error the phone's workflow outline keeps; the detail shows it under the run's status.
+ */
+export const MOBILE_AGENT_CHAT_WORKFLOW_ERROR_MAX_LENGTH = 300;
+
+/**
+ * Longest script result a run's detail (`mobile.agentChat.readTask`) keeps. The task list never carries it.
+ */
+export const MOBILE_AGENT_CHAT_WORKFLOW_RESULT_MAX_LENGTH = 2_000;
+
 type AgentChatTasks = NonNullable<AgentChatSnapshot['tasks']>;
+
+type AgentChatWorkflowOutline = NonNullable<AgentChatTasks[number]['workflow']>;
 
 const newestFirst =
     (key: 'endedAt' | 'startedAt') =>
     (left: AgentChatTasks[number], right: AgentChatTasks[number]): number =>
         (right[key] ?? 0) - (left[key] ?? 0);
+
+const workflowByteLength = (value: unknown): number =>
+    new TextEncoder().encode(JSON.stringify(value)).length;
+
+/**
+ * The outline of a workflow run the phone draws: its phase titles and, for every member, its label, phase, status,
+ * agent type, and the task id its conversation opens under, so the phone's counts match Desktop's exactly. Previews,
+ * timings, and usage stay on the computer; the script's result is kept only with `withResult`, for the run's own
+ * detail. Deterministic, so the snapshot window and later `state` patches agree.
+ */
+export function clipAgentChatWorkflowForMobile(
+    workflow: AgentChatWorkflowOutline,
+    { withResult = false }: { withResult?: boolean } = {},
+): AgentChatWorkflowOutline {
+    const label = (text: string): string =>
+        clipText(text, MOBILE_AGENT_CHAT_WORKFLOW_LABEL_MAX_LENGTH);
+    return {
+        ...(workflow.runId !== undefined && { runId: workflow.runId }),
+        phases: workflow.phases.map((phase) => ({ title: label(phase.title) })),
+        members: workflow.members.map((member) => ({
+            index: member.index,
+            ...(member.taskId !== undefined && { taskId: member.taskId }),
+            label: label(member.label),
+            ...(member.phase !== undefined && { phase: label(member.phase) }),
+            status: member.status,
+            ...(member.agentType !== undefined && { agentType: label(member.agentType) }),
+        })),
+        ...(withResult &&
+            workflow.result !== undefined && {
+                result: clipText(workflow.result, MOBILE_AGENT_CHAT_WORKFLOW_RESULT_MAX_LENGTH),
+            }),
+        ...(workflow.error !== undefined && {
+            error: clipText(workflow.error, MOBILE_AGENT_CHAT_WORKFLOW_ERROR_MAX_LENGTH),
+        }),
+        ...(workflow.isInterrupted !== undefined && { isInterrupted: workflow.isInterrupted }),
+    };
+}
+
+/**
+ * The outlines the phone's task list keeps, by task id: running runs newest first, then ended runs most recently ended
+ * first, each in full or compact while the total stays within {@link MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES}. A run that
+ * fits neither is skipped, never cut, so a kept outline always counts every member.
+ */
+/**
+ * A workflow outline without member labels, agent types, or task ids: still every member's status and phase, so the
+ * phone's progress (`Review 2/5`) stays exact for a run with up to 200 members, but its rows read `#12` and cannot open
+ * a member until the run's detail reads the full outline through `mobile.agentChat.readTask`.
+ */
+function compactAgentChatWorkflowOutline(
+    outline: AgentChatWorkflowOutline,
+): AgentChatWorkflowOutline {
+    return {
+        ...outline,
+        members: outline.members.map((member) => ({
+            index: member.index,
+            label: '',
+            ...(member.phase !== undefined && { phase: member.phase }),
+            status: member.status,
+        })),
+    };
+}
+
+function keptWorkflowOutlines(tasks: AgentChatTasks): Map<string, AgentChatWorkflowOutline> {
+    const ordered = [
+        ...tasks.filter((task) => task.status === 'running').sort(newestFirst('startedAt')),
+        ...tasks.filter((task) => task.status !== 'running').sort(newestFirst('endedAt')),
+    ];
+    const kept = new Map<string, AgentChatWorkflowOutline>();
+    let remaining = MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES;
+    for (const task of ordered) {
+        if (!task.workflow) continue;
+        const full = clipAgentChatWorkflowForMobile(task.workflow);
+        const outline = [full, compactAgentChatWorkflowOutline(full)].find(
+            (candidate) => workflowByteLength(candidate) <= remaining,
+        );
+        if (!outline) continue;
+        remaining -= workflowByteLength(outline);
+        kept.set(task.id, outline);
+    }
+    return kept;
+}
 
 /**
  * The phone's copy of the Chat's background work, in Desktop's order. Deterministic, so the snapshot window and later
@@ -121,22 +227,23 @@ export function clipAgentChatTasksForMobile(tasks: AgentChatTasks): AgentChatTas
             .sort(newestFirst('endedAt'))
             .slice(0, MOBILE_AGENT_CHAT_ENDED_TASKS_MAX_ITEMS),
     ]);
-    return tasks
-        .filter((task) => kept.has(task))
-        .map((task) => {
-            const clipped = {
-                ...task,
-                title: clipText(task.title, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
-                ...(task.command !== undefined && {
-                    command: clipText(task.command, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
-                }),
-                ...(task.summary !== undefined && {
-                    summary: clipText(task.summary, MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH),
-                }),
-            };
-            delete clipped.workflow;
-            return clipped;
-        });
+    const listed = tasks.filter((task) => kept.has(task));
+    const outlines = keptWorkflowOutlines(listed);
+    return listed.map((task) => {
+        const clipped = {
+            ...task,
+            title: clipText(task.title, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
+            ...(task.command !== undefined && {
+                command: clipText(task.command, MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH),
+            }),
+            ...(task.summary !== undefined && {
+                summary: clipText(task.summary, MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH),
+            }),
+        };
+        delete clipped.workflow;
+        const outline = outlines.get(task.id);
+        return outline ? { ...clipped, workflow: outline } : clipped;
+    });
 }
 
 /**

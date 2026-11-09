@@ -11,11 +11,8 @@ import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
-import {
-    AgentChatTaskDetailBody,
-    AgentChatTaskKindGlyph,
-    AgentChatTaskStatusGlyph,
-} from './agent-chat-task-detail';
+import { AgentChatTaskKindGlyph, AgentChatTaskStatusGlyph } from './agent-chat-task-content';
+import { AgentChatTaskDetailBody } from './agent-chat-task-detail';
 import type { AgentChatTaskPill } from './agent-chat-tasks';
 import { agentChatTaskRow } from './agent-chat-tasks';
 import { useAgentChatTaskClock } from './use-agent-chat-task-detail';
@@ -51,7 +48,11 @@ const TaskRow = ({
                 ]}
                 testID="agent-chat-task-row"
             >
-                <AgentChatTaskKindGlyph kind={task.kind} theme={theme} />
+                <AgentChatTaskKindGlyph
+                    isWorkflow={row.isWorkflow}
+                    kind={task.kind}
+                    theme={theme}
+                />
                 <View style={styles.rowText}>
                     <Text
                         numberOfLines={1}

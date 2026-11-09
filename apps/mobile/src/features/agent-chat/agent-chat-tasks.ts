@@ -17,6 +17,7 @@ import {
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { agentChatWorkflowProgressText } from './agent-chat-workflow';
 
 /**
  * How often an open task detail re-reads its output through `mobile.agentChat.readTask` while the task runs. The phone
@@ -119,18 +120,36 @@ export function agentChatRunningKinds(running: readonly AgentChatTask[]): AgentC
 export function agentChatTaskLead(
     pill: AgentChatTaskPill,
     t: Translate = translate,
-): { text: string; isCommandTitle: boolean; accessibilityLabel: string } {
+): {
+    text: string;
+    isCommandTitle: boolean;
+    /**
+     * Set when the one running task is a workflow run, whose glyph and progress (`Review 2/5`) lead the row as on
+     * Desktop's strip.
+     */
+    workflowProgress?: string;
+    isWorkflow: boolean;
+    accessibilityLabel: string;
+} {
     if (pill.running.length === 1) {
-        const row = agentChatTaskRow(pill.running[0], 0, t);
+        const [only] = pill.running;
+        const row = agentChatTaskRow(only, 0, t);
+        const workflowProgress =
+            only.workflow && agentChatWorkflowProgressText(only.workflow, true, t);
         return {
             text: row.title,
             isCommandTitle: row.isCommandTitle,
-            accessibilityLabel: t('chat.tasks.leadOne', { title: row.title }),
+            isWorkflow: row.isWorkflow,
+            ...(workflowProgress && { workflowProgress }),
+            accessibilityLabel: t('chat.tasks.leadOne', {
+                title: workflowProgress ? `${row.title}, ${workflowProgress}` : row.title,
+            }),
         };
     }
     return {
         text: t('chat.tasks.backgroundWork'),
         isCommandTitle: false,
+        isWorkflow: false,
         accessibilityLabel: t('chat.tasks.leadMany', { count: pill.running.length }),
     };
 }
@@ -160,9 +179,14 @@ export interface AgentChatTaskRow {
      */
     elapsed: string | undefined;
     /**
-     * The provider's progress or final summary line.
+     * The provider's progress or final summary line; for a workflow run, its progress (`Review 2/5 · 1 failed`).
      */
     summary: string | undefined;
+    /**
+     * Whether the task is a workflow run (Claude Code's `Workflow` tool) whose outline the phone received, drawn with
+     * the workflow glyph and its phases and members in the detail.
+     */
+    isWorkflow: boolean;
     /**
      * Whether Stop applies: the task runs and the provider can stop it on its own. A device still needs control access.
      */
@@ -181,13 +205,16 @@ export function agentChatTaskRow(
     const title = task.title || kindLabel;
     const statusLabel = t(STATUS_LABELS[task.status]);
     const elapsed = formatNoticeableDuration(agentChatTaskElapsedMs(task, now), t) ?? undefined;
-    const summary = agentChatTaskSummary(task, statusLabel);
+    const workflowProgress =
+        task.workflow && agentChatWorkflowProgressText(task.workflow, task.status === 'running', t);
+    const summary = workflowProgress ?? agentChatTaskSummary(task, statusLabel);
     return {
         title,
         isCommandTitle: isAgentChatTaskTitleCommand(task),
         statusLabel,
         elapsed,
         summary,
+        isWorkflow: task.workflow !== undefined,
         canStop: canStopAgentChatTask(task),
         accessibilityLabel: [kindLabel, title, elapsed ? `${statusLabel}, ${elapsed}` : statusLabel]
             .map((part) => `${part}.`)
