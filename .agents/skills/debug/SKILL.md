@@ -15,6 +15,12 @@ the active repair scope when that input arrives.
    use `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev` so the checkout owns
    an isolated profile and Desktop lease. Bare `bun run dev` is only a first-clone convenience for a
    human working outside an agent session.
+   When the user reports a failure that is happening now in the installed app, capture it there
+   first (`worktree-browser.ts --packaged`, port 9224): read the failing element, its stores, and
+   the window state before any dev launch, because an intermittent failure (a tab that ignores
+   clicks until the next Session switch) is gone by the time a dev reproduction is ready. If it
+   recovered before capture, install a content-free recorder in that window so the next occurrence
+   leaves evidence instead of asking the user to describe it.
    For TUI interaction failures, compare the reported working app/CLI combinations, then trace one
    failed keyboard or mouse event through xterm `onData`/`onBinary`, IPC, and PTY before assigning
    the fault to Caxri or the CLI.
@@ -417,6 +423,16 @@ returns all of them. Actions are omitted because a function survives neither `JS
 `returnByValue`, and there is no `setState` on purpose. Create new Renderer stores with
 `createStore(name, initializer)` from `apps/desktop/src/renderer/src/lib/store.ts`; calling zustand's
 `create` directly leaves the store invisible here.
+
+### Lost presses: `globalThis.__caxriPointerTrace`
+
+Present in every build. `entries()` returns the last few minutes of pointer moves in the title-bar
+band, every `pointerdown`/`pointerup`/`click` with its target's first class token, window
+focus/blur, and which kept-alive surface (a Session, Settings) became visible; `appRegions()`
+returns the current drag and no-drag regions. When the user reports a tab or title-bar control that
+ignores clicks, read both from the installed app with `worktree-browser.ts --packaged`: moves over
+the target with no `pointerdown` mean the press stopped above the page (a drag region or the macOS
+full-screen title bar), while a recorded press means a page handler ignored it.
 
 ### Renderer query cache: dev-only snapshot injection
 
