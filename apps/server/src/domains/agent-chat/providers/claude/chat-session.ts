@@ -414,11 +414,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
     async start(): Promise<'resumed' | 'started'> {
         const resumeId = this.isSessionBound ? this.sessionId : undefined;
         const { resumeAt } = this.options;
-        const transcript = await readClaudeResumeTranscript(this.options, resumeId);
-        /**
-         * The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
-         */
-        const { query } = await import('@anthropic-ai/claude-agent-sdk');
+        // The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
+        const [transcript, { query }] = await Promise.all([
+            readClaudeResumeTranscript(this.options, resumeId),
+            import('@anthropic-ai/claude-agent-sdk'),
+        ]);
         const stream = query({
             prompt: this.prompts,
             options: claudeQueryOptions({
