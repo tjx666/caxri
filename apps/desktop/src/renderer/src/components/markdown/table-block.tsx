@@ -81,9 +81,15 @@ function Table({
         );
     return (
         <div className="overflow-x-auto">
+            {/*
+             * `wrap-break-word` overrides the `wrap-anywhere` a Chat message sets on its prose. `anywhere` lets the
+             * browser count every character as a break point when it sizes table columns, so a narrow column such as
+             * a row number shrinks to one character and `11` breaks into `1` over `1`. `break-word` still splits a
+             * token that cannot fit, but no longer squeezes columns; a table wider than the transcript scrolls.
+             */}
             <table
                 className={cn(
-                    'border-collapse leading-5',
+                    'border-collapse leading-5 wrap-break-word',
                     isFullscreen ? 'text-[13px]' : 'text-[12px]',
                     isTranscript && '[&_tbody_tr:last-child>td]:border-b-0',
                     isFullscreen && 'min-w-full',
