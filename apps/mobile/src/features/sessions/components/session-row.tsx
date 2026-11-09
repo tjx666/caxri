@@ -3,7 +3,8 @@ import { useCallback, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { useSharedValue } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
 import { Archive, Check, FolderTree } from 'lucide-react-native';
@@ -138,6 +139,22 @@ const SwipeAction = ({
 );
 
 /**
+ * The swipe actions, drawn only while the row is at least partly open. They sit behind the row, hidden by its opaque
+ * background, but a parent fading the row (the list's enter and exit motion) applies its opacity to each child on
+ * Android, so a closed row would let the green Mark as Done action show through (#3897).
+ */
+const SwipeActions = ({
+    children,
+    progress,
+}: {
+    children: ReactNode;
+    progress: SharedValue<number>;
+}) => {
+    const visibility = useAnimatedStyle(() => ({ opacity: progress.get() > 0 ? 1 : 0 }));
+    return <Animated.View style={[styles.swipeActions, visibility]}>{children}</Animated.View>;
+};
+
+/**
  * Wraps a row that has actions in the swipe that reveals them, keeping one action tap from also leaving the row open.
  */
 const SessionRowSwipe = ({
@@ -184,8 +201,8 @@ const SessionRowSwipe = ({
             }}
             overshootRight={false}
             ref={swipeable}
-            renderRightActions={() => (
-                <View style={styles.swipeActions}>
+            renderRightActions={(progress) => (
+                <SwipeActions progress={progress}>
                     {swipeActions.includes('markDone') ? (
                         <SwipeAction
                             accessibilityLabel={t('sessions.row.markDone', { title })}
@@ -210,7 +227,7 @@ const SessionRowSwipe = ({
                             testID={`session-row-archive-${session.id}`}
                         />
                     ) : null}
-                </View>
+                </SwipeActions>
             )}
             rightThreshold={SWIPE_ACTION_WIDTH / 2}
             testID={`session-row-swipe-${session.id}`}
