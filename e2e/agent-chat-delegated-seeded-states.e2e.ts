@@ -86,6 +86,21 @@ test('the strip words a usage limit, a task that needs input, an unreadable resu
             .locator('[data-agent-chat-delegated-session]')
             .evaluateAll((rows) => rows.map((row) => row.dataset.agentChatDelegatedSession));
         expect(order.slice(0, 2)).toEqual([seed.needsInput, seed.quota]);
+
+        // The failed child, opened from the sidebar, explains its failure and offers Retry instead of an empty page.
+        await selectSession(page, seed.quota);
+        const child = page.locator(VISIBLE_SESSION);
+        await expect(child.locator('[data-delegation-failed-pane]')).toContainText(
+            /usage limit used up/u,
+        );
+        await expect(
+            child.getByRole('button', {
+                name: 'Retry the failed task in Port the billing exports',
+                exact: true,
+            }),
+        ).toBeVisible();
+        await expect(child).not.toContainText('No Terminal in this Session.');
+        await page.screenshot({ path: testInfo.outputPath('delegated-failed-session.png') });
     } finally {
         await chat.cleanup();
     }

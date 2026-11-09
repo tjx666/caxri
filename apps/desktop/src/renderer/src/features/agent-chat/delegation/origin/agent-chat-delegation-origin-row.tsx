@@ -1,17 +1,17 @@
 import { Forward } from 'lucide-react';
 
-import { useTranslation } from '../../../i18n';
-import { useProjectById, useSessionById, useTerminal } from '../../../stores/selectors';
-import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
-import { DelegationQuestionCard } from '../../delegation/delegation-question-card';
-import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
-import { sessionTitleForDisplay } from '../../session/session-title';
-import type { DelegationOrigin } from './agent-chat-delegation-origin';
-import { originReturnNoteKey } from './agent-chat-delegation-origin';
+import { useTranslation } from '../../../../i18n';
+import { useProjectById, useSessionById, useTerminal } from '../../../../stores/selectors';
+import { DelegationPresetChip } from '../../../delegation/delegation-preset-chip';
+import { DelegationQuestionCard } from '../../../delegation/delegation-question-card';
+import { DelegationRetryControls } from '../../../delegation/delegation-retry-controls';
+import { sessionTitleForDisplay } from '../../../session/session-title';
+import type { DelegationOrigin } from '../agent-chat-delegation-origin';
+import { originReturnNoteKey } from '../agent-chat-delegation-origin';
+import { AgentChatHandBackButton } from '../hand-back/agent-chat-hand-back-button';
+import { AgentChatTakenOverDetail as TakenOverDetail } from '../hand-back/agent-chat-taken-over-detail';
+import { useDelegationOrigin } from '../hooks/use-delegation-origin';
 import { AgentChatOriginParentLink } from './agent-chat-origin-parent-link';
-import { AgentChatHandBackButton } from './hand-back/agent-chat-hand-back-button';
-import { AgentChatTakenOverDetail as TakenOverDetail } from './hand-back/agent-chat-taken-over-detail';
-import { useDelegationOrigin } from './hooks/use-delegation-origin';
 
 /**
  * What a not-yet-taken-over origin row says after the parent's name: that the result goes back on its own, that the
