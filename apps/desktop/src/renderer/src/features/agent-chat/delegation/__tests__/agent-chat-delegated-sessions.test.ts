@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../../i18n';
 import {
+    delegatedOwnPullRequest,
     delegatedSessionLine,
     delegatedSessionsHeaderParts,
     delegatedSessionsSummary,
@@ -309,5 +310,23 @@ describe('delegationPrFilesLabel', () => {
         expect(delegationPrFilesLabel(undefined, t)).toBeUndefined();
         expect(delegationPrFilesLabel(0, t)).toBeUndefined();
         expect(delegationPrFilesLabel(-3, t)).toBeUndefined();
+    });
+});
+
+describe('delegatedOwnPullRequest', () => {
+    const own = { url: 'https://github.com/owner/example/pull/2' };
+    const parent = { url: 'https://github.com/owner/example/pull/1' };
+
+    it("hides the delegating Session's pull request a task worked on", () => {
+        expect(delegatedOwnPullRequest({ ...parent }, parent)).toBeUndefined();
+    });
+
+    it("keeps the task's own pull request", () => {
+        expect(delegatedOwnPullRequest(own, parent)).toBe(own);
+        expect(delegatedOwnPullRequest(own, undefined)).toBe(own);
+    });
+
+    it('shows nothing without a pull request', () => {
+        expect(delegatedOwnPullRequest(undefined, parent)).toBeUndefined();
     });
 });

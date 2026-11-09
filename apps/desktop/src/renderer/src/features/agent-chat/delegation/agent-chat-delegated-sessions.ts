@@ -187,3 +187,16 @@ export function delegationPrFilesLabel(
         count: changedFiles,
     });
 }
+
+/**
+ * The pull request a finished task's row links to, or `undefined` when it has none of its own. A task that worked on
+ * the delegating Session's branch reports that Session's pull request; repeating it on every row says nothing the user
+ * does not already know from the Chat they are in, so the row shows a pull request only when it differs.
+ */
+export function delegatedOwnPullRequest<PullRequest extends { url: string }>(
+    child: PullRequest | undefined,
+    parent: PullRequest | undefined,
+): PullRequest | undefined {
+    if (!child || child.url === parent?.url) return undefined;
+    return child;
+}

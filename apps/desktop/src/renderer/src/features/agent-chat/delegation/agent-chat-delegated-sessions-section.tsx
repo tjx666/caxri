@@ -105,6 +105,7 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                             )}
                             entry={entry}
                             key={entry.sessionId}
+                            parentSessionId={sessionId}
                             viaSessionId={viaBySessionId.get(entry.sessionId)}
                         />
                     ))}
