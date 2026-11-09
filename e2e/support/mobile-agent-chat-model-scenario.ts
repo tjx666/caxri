@@ -25,7 +25,7 @@ import {
 /**
  * Opens the model sheet through the composer's add sheet and waits until it is on screen.
  */
-async function openModelSheet(serial: string, timeoutMs?: number): Promise<void> {
+export async function openModelSheet(serial: string, timeoutMs?: number): Promise<void> {
     await openChatSetting(serial, 'model', timeoutMs);
     await waitForCheck(serial, 'agent-chat-model-sheet');
 }
@@ -34,7 +34,7 @@ async function openModelSheet(serial: string, timeoutMs?: number): Promise<void>
  * Waits until the sheet marks exactly `checkIds` as the checked options, so the phone's own display is proven and not
  * only the Server's projection.
  */
-async function waitForCheckedOptions(serial: string, checkIds: string[]): Promise<void> {
+export async function waitForCheckedOptions(serial: string, checkIds: string[]): Promise<void> {
     const expected = checkIds.toSorted((left, right) => left.localeCompare(right)).join(',');
     await waitForMobile(
         () => mobileSemantics(serial),
