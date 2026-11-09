@@ -1,4 +1,4 @@
-import type { ServerEvent } from '@caxri/protocol';
+import type { ServerEvent, SessionRecord } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -26,8 +26,40 @@ interface DesktopAgentNotificationOptions {
 }
 
 /**
+ * The longest consult chain the redirect follows; real chains are one or two deep, the cap only stops a corrupt cycle.
+ */
+const MAX_CONSULT_CREATOR_WALK = 16;
+
+/**
+ * The Session a notification click selects: the Session itself, or for a `consult` its nearest active creator that is
+ * not itself a consult. A consult takes no Project tree row while its creator is active; the asking Chat's Delegated
+ * Sessions strip is its entry. Selecting the consult would make it appear in the sidebar only until the user moved on
+ * (`placeDelegatedSessions` nests the selected consult so the selection stays visible). A consult whose creator is
+ * archived or deleted keeps its own selection, as the command palette does.
+ */
+function notificationTargetSession(
+    sessions: readonly SessionRecord[],
+    session: SessionRecord,
+): SessionRecord {
+    const activeById = new Map(
+        sessions
+            .filter((candidate) => candidate.archivedAt === undefined)
+            .map((candidate) => [candidate.id, candidate]),
+    );
+    let target = session;
+    for (let depth = 0; depth < MAX_CONSULT_CREATOR_WALK; depth += 1) {
+        if (target.createdByRelation !== 'consult') return target;
+        const creator = activeById.get(target.createdBySessionId ?? '');
+        if (creator === undefined) return target;
+        target = creator;
+    }
+    return session;
+}
+
+/**
  * Focuses Caxri even when a delivered notification has gone stale, then changes selection only after the current Host
- * confirms that the exact Session still exists and remains active.
+ * confirms that the exact Session still exists and remains active. A consult's notification selects the Chat that asked
+ * for it instead (see `notificationTargetSession`).
  */
 export async function activateAgentNotificationSession(
     {
@@ -43,7 +75,7 @@ export async function activateAgentNotificationSession(
     );
     if (session) {
         const { ownerWindowKey } = await supervisor.request('session.select', {
-            sessionId,
+            sessionId: notificationTargetSession(bootstrap.sessions, session).id,
             windowKey: PRIMARY_WINDOW_KEY,
         });
         // A Session owned by a torn-off window is shown there; raise that window instead of the primary one.
