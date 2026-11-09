@@ -82,6 +82,7 @@ describe('agentChatTaskLead', () => {
         expect(one && agentChatTaskLead(one)).toEqual({
             text: 'bun run dev',
             isCommandTitle: true,
+            isWorkflow: false,
             accessibilityLabel: 'Still running in the background: bun run dev',
         });
         const several = agentChatTaskPill({
@@ -90,7 +91,32 @@ describe('agentChatTaskLead', () => {
         expect(several && agentChatTaskLead(several)).toEqual({
             text: 'Background work',
             isCommandTitle: false,
+            isWorkflow: false,
             accessibilityLabel: '2 background tasks running',
+        });
+    });
+
+    it('leads with a running workflow run and its phase progress', () => {
+        const run = task({
+            id: 'w',
+            kind: 'agent',
+            title: 'mobile-video-audit',
+            workflow: {
+                phases: [{ title: 'Trace' }, { title: 'Verify' }],
+                members: [
+                    { index: 0, label: 'trace:a', phase: 'Trace', status: 'completed' },
+                    { index: 1, label: 'trace:b', phase: 'Trace', status: 'running' },
+                    { index: 2, label: 'trace:c', phase: 'Trace', status: 'queued' },
+                ],
+            },
+        });
+        const pill = agentChatTaskPill({ tasks: [run] });
+        expect(pill && agentChatTaskLead(pill)).toEqual({
+            text: 'mobile-video-audit',
+            isCommandTitle: false,
+            isWorkflow: true,
+            workflowProgress: 'Trace 1/3',
+            accessibilityLabel: 'Still running in the background: mobile-video-audit, Trace 1/3',
         });
     });
 });
@@ -148,6 +174,7 @@ describe('agentChatTaskRow', () => {
             statusLabel: 'Running',
             elapsed: '12s',
             summary: undefined,
+            isWorkflow: false,
             canStop: true,
             accessibilityLabel: 'Background shell. bun run dev. Running, 12s.',
         });
@@ -166,6 +193,38 @@ describe('agentChatTaskRow', () => {
             summary: 'Done',
             canStop: false,
         });
+    });
+
+    it("shows a workflow run's progress instead of the provider's summary", () => {
+        const row = agentChatTaskRow(
+            task({
+                id: 'w',
+                kind: 'agent',
+                title: 'audit',
+                status: 'completed',
+                summary: 'Workflow finished',
+                workflow: {
+                    phases: [],
+                    members: [
+                        { index: 0, label: 'a', status: 'completed' },
+                        { index: 1, label: 'b', status: 'failed' },
+                    ],
+                },
+            }),
+            0,
+        );
+        expect(row).toMatchObject({ isWorkflow: true, summary: '2/2 · 1 failed' });
+        const starting = agentChatTaskRow(
+            task({
+                id: 'w',
+                kind: 'agent',
+                title: 'audit',
+                summary: 'Starting',
+                workflow: { phases: [], members: [] },
+            }),
+            0,
+        );
+        expect(starting).toMatchObject({ isWorkflow: true, summary: 'Starting' });
     });
 });
 

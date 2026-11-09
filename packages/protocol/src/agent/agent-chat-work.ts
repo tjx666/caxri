@@ -321,9 +321,14 @@ export function agentChatWorkVerb(
     linkedTask?: Pick<AgentChatTask, 'kind' | 'status'>,
 ): string {
     const described = presentation ?? describeAgentChatWork(item, t);
-    return isAgentChatWorkRowRunning(item, linkedTask)
-        ? agentToolActiveLabel(described, t)
-        : described.label;
+    if (!isAgentChatWorkRowRunning(item, linkedTask)) return described.label;
+    // The present tense is looked up by the tool table's English label (`Ran workflow`), which `described` has already
+    // translated, so a Chinese row read `正在运行 Agent` for a running workflow. An MCP row keeps its server's label.
+    const english = describeAgentChatWorkAction(item, t).label;
+    return agentToolActiveLabel(
+        described.kind === 'mcp' ? described : { kind: described.kind, label: english },
+        t,
+    );
 }
 
 /**

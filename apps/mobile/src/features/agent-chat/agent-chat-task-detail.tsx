@@ -1,11 +1,14 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { useRef, useState } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import { agentChatTaskIdentity, agentChatTaskUsageSummary } from '@caxri/protocol';
-import { Bot, Check, CircleSlash, Square, SquareTerminal, X } from 'lucide-react-native';
+import {
+    agentChatTaskIdentity,
+    agentChatTaskUsageSummary,
+    agentChatTaskWorkflow,
+} from '@caxri/protocol';
+import { Square } from 'lucide-react-native';
 
 import { ConfirmSheet } from '../../components/confirm-sheet';
 import { Spinner } from '../../components/spinner';
@@ -13,58 +16,13 @@ import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
 import { mobileControl, mobileRadius, mobileSpace, mobileType } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
-import { isScrolledToBottom } from './agent-chat-task-output';
-import { AgentChatTaskTranscript } from './agent-chat-task-transcript';
-import type { AgentChatTaskDetailContent } from './agent-chat-tasks';
-import {
-    agentChatTaskDetailContent,
-    agentChatTaskReadError,
-    agentChatTaskRow,
-} from './agent-chat-tasks';
+import { AgentChatTaskReadContent, AgentChatTaskStatusGlyph } from './agent-chat-task-content';
+import { agentChatTaskDetailContent, agentChatTaskRow } from './agent-chat-tasks';
+import { AgentChatWorkflowDetail } from './agent-chat-workflow-detail';
 import type { useAgentChatTaskStop } from './use-agent-chat-task-detail';
 import { useAgentChatTaskClock, useAgentChatTaskDetail } from './use-agent-chat-task-detail';
 
 export type AgentChatTaskStopper = ReturnType<typeof useAgentChatTaskStop>;
-
-export const AgentChatTaskKindGlyph = ({
-    kind,
-    size = 16,
-    theme,
-}: {
-    kind: AgentChatTask['kind'];
-    size?: number;
-    theme: MobileTheme;
-}) => {
-    const Icon = kind === 'shell' ? SquareTerminal : Bot;
-    return <Icon color={theme.muted} size={size} />;
-};
-
-/**
- * A task's status as a glyph beside its label, never color alone: a spinner while it runs, then a check, a cross, or
- * the stopped mark Desktop uses for interrupted work.
- */
-export const AgentChatTaskStatusGlyph = ({
-    status,
-    theme,
-}: {
-    status: AgentChatTask['status'];
-    theme: MobileTheme;
-}) => {
-    switch (status) {
-        case 'running': {
-            return <Spinner color={theme.muted} size={16} />;
-        }
-        case 'completed': {
-            return <Check color={theme.success} size={14} />;
-        }
-        case 'failed': {
-            return <X color={theme.danger} size={14} />;
-        }
-        case 'stopped': {
-            return <CircleSlash color={theme.warning} size={14} />;
-        }
-    }
-};
 
 /**
  * Stop for one task, shown only to a control device while the task runs and the provider can stop it on its own, and
@@ -103,89 +61,6 @@ const AgentChatTaskStopButton = ({
                 {t(isStopping ? 'chat.tasks.stopping' : 'chat.tasks.stop')}
             </Text>
         </Pressable>
-    );
-};
-
-/**
- * A shell's output tail in a monospace box capped at 320dp that scrolls, following the newest line while the reader
- * stays at the bottom. Only the reader's own scrolls decide whether they left the bottom: `onScroll` also fires while
- * new lines grow the content, measured against the old offset, so a burst taller than the slack (the last lines and the
- * exit line arriving as a task ends) used to read as the reader scrolling away and the box stopped short of them.
- */
-const TaskOutput = ({ text, theme }: { text: string; theme: MobileTheme }) => {
-    const scroll = useRef<ScrollViewInstance>(null);
-    const isAtBottom = useRef(true);
-    const onReaderScrolled = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-        isAtBottom.current = isScrolledToBottom(nativeEvent);
-    };
-    return (
-        <ScrollView
-            nestedScrollEnabled
-            onContentSizeChange={(_width, height) => {
-                if (!isAtBottom.current) return;
-                // `scrollToEnd` here still measured the previous content on Android and stopped short of the newest
-                // lines; scrolling to the reported height a frame later lands on the real end (the view clamps it).
-                requestAnimationFrame(() =>
-                    scroll.current?.scrollTo({ animated: false, y: height }),
-                );
-            }}
-            onMomentumScrollEnd={onReaderScrolled}
-            onScrollEndDrag={onReaderScrolled}
-            ref={scroll}
-            style={[styles.output, { backgroundColor: theme.elevated }]}
-            testID="agent-chat-task-output"
-        >
-            <Text
-                selectable
-                style={[styles.outputText, { color: theme.text }]}
-                testID="agent-chat-task-output-text"
-            >
-                {text}
-            </Text>
-        </ScrollView>
-    );
-};
-
-/**
- * The read part of a task's detail: a shell's output tail, a subagent's transcript, or a note, followed by the notes
- * the read carried; until the read answers, a spinner or the read error.
- */
-const TaskDetailContent = ({
-    content,
-    isError,
-    isLoading,
-    theme,
-}: {
-    content: AgentChatTaskDetailContent | undefined;
-    isError: boolean;
-    isLoading: boolean;
-    theme: MobileTheme;
-}) => {
-    const { t } = useTranslation();
-    if (!content) {
-        if (isError)
-            return (
-                <Text style={[styles.note, { color: theme.danger }]}>
-                    {agentChatTaskReadError(t)}
-                </Text>
-            );
-        return isLoading ? <Spinner color={theme.muted} style={styles.loading} /> : null;
-    }
-    return (
-        <>
-            {content.kind === 'output' ? (
-                <TaskOutput text={content.text} theme={theme} />
-            ) : content.kind === 'transcript' ? (
-                <AgentChatTaskTranscript entries={content.entries} theme={theme} />
-            ) : (
-                <Text style={[styles.note, { color: theme.muted }]}>{content.text}</Text>
-            )}
-            {content.notes.map((note) => (
-                <Text key={note} style={[styles.note, { color: theme.muted }]}>
-                    {note}
-                </Text>
-            ))}
-        </>
     );
 };
 
@@ -277,7 +152,8 @@ export const AgentChatTaskDetailBody = ({
     const now = useAgentChatTaskClock(task.status === 'running');
     const row = agentChatTaskRow(task, now, t);
     const { detail, isError, isLoading } = useAgentChatTaskDetail(terminalId, task);
-    const content = detail ? agentChatTaskDetailContent(task, detail, t) : undefined;
+    const workflow = agentChatTaskWorkflow(task, detail);
+    const content = detail && !workflow ? agentChatTaskDetailContent(task, detail, t) : undefined;
     const stopError = stopper.errorFor(task);
     const command = isCommandShown
         ? undefined
@@ -316,25 +192,32 @@ export const AgentChatTaskDetailBody = ({
                     {command}
                 </Text>
             ) : null}
-            {row.summary ? (
-                <Text selectable style={[styles.summary, { color: theme.text }]}>
-                    {row.summary}
-                </Text>
-            ) : null}
-            <TaskDetailContent
-                content={content}
-                isError={isError}
-                isLoading={isLoading}
-                theme={theme}
-            />
+            {workflow ? (
+                <AgentChatWorkflowDetail
+                    isRunning={task.status === 'running'}
+                    terminalId={terminalId}
+                    theme={theme}
+                    title={row.title}
+                    workflow={workflow}
+                />
+            ) : (
+                <>
+                    {row.summary ? (
+                        <Text selectable style={[styles.summary, { color: theme.text }]}>
+                            {row.summary}
+                        </Text>
+                    ) : null}
+                    <AgentChatTaskReadContent
+                        content={content}
+                        isError={isError}
+                        isLoading={isLoading}
+                        theme={theme}
+                    />
+                </>
+            )}
         </View>
     );
 };
-
-/**
- * The captured output scrolls inside this height so a long log never pushes the controls off screen.
- */
-const OUTPUT_MAX_HEIGHT = 320;
 
 const styles = StyleSheet.create({
     body: { gap: mobileSpace.md, paddingBottom: mobileSpace.lg },
@@ -364,14 +247,6 @@ const styles = StyleSheet.create({
     },
     summary: { ...mobileType.body },
     identity: { ...mobileType.caption, fontVariant: ['tabular-nums'], marginTop: -mobileSpace.sm },
-    output: { borderRadius: mobileRadius.sm, flexGrow: 0, maxHeight: OUTPUT_MAX_HEIGHT },
-    outputText: {
-        ...mobileType.meta,
-        fontFamily: MONOSPACE_FONT,
-        paddingHorizontal: mobileSpace.md,
-        paddingVertical: mobileSpace.sm,
-    },
     note: { ...mobileType.meta },
-    loading: { alignSelf: 'flex-start', paddingVertical: mobileSpace.sm },
 });
 /* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */

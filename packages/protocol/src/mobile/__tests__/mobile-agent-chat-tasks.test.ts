@@ -14,7 +14,12 @@ import {
     MOBILE_AGENT_CHAT_TASK_OUTPUT_MAX_BYTES,
     MOBILE_AGENT_CHAT_TASK_SUMMARY_MAX_LENGTH,
     MOBILE_AGENT_CHAT_TASK_TITLE_MAX_LENGTH,
+    MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES,
     MOBILE_AGENT_CHAT_TASKS_MAX_ITEMS,
+    MOBILE_AGENT_CHAT_WORKFLOW_ERROR_MAX_LENGTH,
+    MOBILE_AGENT_CHAT_WORKFLOW_LABEL_MAX_LENGTH,
+    MOBILE_AGENT_CHAT_WORKFLOW_RESULT_MAX_LENGTH,
+    MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES,
     mobileAgentChatMethods,
     windowAgentChatSnapshotForMobile,
 } from '../mobile-contract.js';
@@ -141,7 +146,72 @@ describe('mobile background tasks', () => {
         });
         expect(windowed.items).toEqual([message]);
         expect(windowed.tasks?.map(({ id }) => id)).toEqual(tasks.map(({ id }) => id));
-        expect(windowed.tasks?.some((value) => value.workflow !== undefined)).toBe(false);
+        // Each run keeps its outline: every member with its status, none of the previews or the result.
+        const listed = windowed.tasks ?? [];
+        for (const value of listed) {
+            expect(value.workflow?.members).toHaveLength(20);
+            expect(value.workflow?.members[0]).toEqual({
+                index: 0,
+                label: 'review:0',
+                status: 'completed',
+            });
+            expect(value.workflow?.result).toBeUndefined();
+        }
+    });
+
+    it('keeps running workflow outlines first and drops whole runs past the budget', () => {
+        const members = Array.from({ length: 200 }, (_, index) => ({
+            index,
+            taskId: `workflow:run-${index}:agent-${index}`,
+            label: `review:security-${index}`,
+            phase: 'Review',
+            status: 'completed' as const,
+            agentType: 'general-purpose',
+        }));
+        const big = (id: string, status: AgentChatTask['status'], at: number) =>
+            task({
+                id,
+                kind: 'agent',
+                status,
+                startedAt: at,
+                endedAt: status === 'running' ? undefined : at,
+                workflow: { phases: [{ title: 'Review' }], members },
+            });
+        const small = task({
+            id: 'small',
+            kind: 'agent',
+            status: 'completed',
+            endedAt: 1,
+            workflow: {
+                phases: [],
+                members: [{ index: 0, label: 'x'.repeat(200), status: 'failed' }],
+                error: 'e'.repeat(5_000),
+            },
+        });
+        const clipped = clipAgentChatTasksForMobile([
+            big('ended-big', 'completed', 9),
+            big('running-big', 'running', 2),
+            small,
+        ]);
+        const outline = (id: string) => clipped.find((value) => value.id === id)?.workflow;
+        // Too large in full, so the running run keeps the compact outline: exact counts, no labels.
+        expect(outline('running-big')?.members).toHaveLength(200);
+        expect(outline('running-big')?.members[0]).toEqual({
+            index: 0,
+            label: '',
+            phase: 'Review',
+            status: 'completed',
+        });
+        expect(outline('ended-big')).toBeUndefined();
+        expect(outline('small')?.error?.length).toBe(MOBILE_AGENT_CHAT_WORKFLOW_ERROR_MAX_LENGTH);
+        expect(outline('small')?.members[0]?.label.length).toBe(
+            MOBILE_AGENT_CHAT_WORKFLOW_LABEL_MAX_LENGTH,
+        );
+        const total = clipped.reduce(
+            (sum, value) => sum + (value.workflow ? bytes(value.workflow) : 0),
+            0,
+        );
+        expect(total).toBeLessThanOrEqual(MOBILE_AGENT_CHAT_WORKFLOWS_MAX_BYTES);
     });
 });
 
@@ -188,6 +258,60 @@ describe('mobile task detail', () => {
             output: 'ok',
         };
         expect(clipAgentChatTaskSnapshotForMobile(small)).toEqual(small);
+    });
+
+    it("keeps a recorded workflow run's outline and a shortened result in its detail", () => {
+        const members = Array.from({ length: 200 }, (_, index) => ({
+            index,
+            label: `review:${index}`,
+            status: 'completed' as const,
+            resultPreview: 'r'.repeat(2_000),
+        }));
+        const clipped = clipAgentChatTaskSnapshotForMobile({
+            terminalId: 'terminal-1',
+            taskId: 'workflow-1',
+            revision: 1,
+            truncated: false,
+            items: [],
+            workflow: { phases: [{ title: 'Review' }], members, result: 'w'.repeat(8_000) },
+        });
+        expect(bytes(clipped)).toBeLessThanOrEqual(MOBILE_AGENT_CHAT_MAX_BYTES);
+        expect(clipped.workflow?.members).toHaveLength(200);
+        expect(clipped.workflow?.members[0]?.resultPreview).toBeUndefined();
+        expect(clipped.workflow?.result?.length).toBe(MOBILE_AGENT_CHAT_WORKFLOW_RESULT_MAX_LENGTH);
+        expect(agentChatTaskSnapshotSchema.safeParse(clipped).success).toBe(true);
+    });
+
+    it("keeps a huge recorded run's detail within one frame and its members openable", () => {
+        const long = (prefix: string, index: number) => `${prefix}${index}`.padEnd(120, 'x');
+        const members = Array.from({ length: 200 }, (_, index) => ({
+            index,
+            // Claude Code's run and agent ids are short hex strings.
+            taskId: `workflow:wf_8f3a2c1d:a${String(index).padStart(16, '0')}`,
+            label: long('review:', index),
+            phase: long('Phase ', index % 4),
+            agentType: long('type', index),
+            status: 'completed' as const,
+        }));
+        const clipped = clipAgentChatTaskSnapshotForMobile({
+            terminalId: 'terminal-1',
+            taskId: 'workflow-1',
+            revision: 1,
+            truncated: false,
+            items: [],
+            workflow: {
+                phases: Array.from({ length: 4 }, (_, index) => ({ title: long('Phase ', index) })),
+                members,
+                result: '结'.repeat(8_000),
+            },
+        });
+        expect(bytes(clipped)).toBeLessThanOrEqual(MOBILE_AGENT_CHAT_MAX_BYTES);
+        expect(clipped.workflow?.members).toHaveLength(200);
+        expect(clipped.workflow?.members.every((member) => member.taskId !== undefined)).toBe(true);
+        expect(bytes(clipped.workflow)).toBeLessThanOrEqual(
+            MOBILE_AGENT_CHAT_TASK_WORKFLOW_MAX_BYTES,
+        );
+        expect(agentChatTaskSnapshotSchema.safeParse(clipped).success).toBe(true);
     });
 
     it('reads and stops a task by its id under the Chat Terminal', () => {

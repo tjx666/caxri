@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem } from '../agent-chat-contract';
+import type { AgentChatLabelTranslate } from '../agent-chat-labels';
+import { agentChatLabelsZhCN } from '../agent-chat-labels-zh-cn';
 import type { AgentChatWorkItem } from '../agent-chat-work';
 import {
     agentChatTurnActiveWork,
@@ -319,6 +321,25 @@ describe('agentChatWorkVerb', () => {
         expect(edit('failed')).toBe('Failed to edit');
         expect(agentChatWorkVerb({ id: 'r', type: 'reasoning', text: 'x', streaming: true })).toBe(
             'Thinking',
+        );
+    });
+
+    it('names a running workflow in any language, not the Agent it is drawn like', () => {
+        const zh: AgentChatLabelTranslate = (key, parameters) =>
+            Object.entries(parameters ?? {}).reduce(
+                (text, [name, value]) => text.replaceAll(`{{${name}}}`, () => String(value)),
+                agentChatLabelsZhCN[key],
+            );
+        const workflow: AgentChatWorkItem = {
+            id: 'w',
+            type: 'toolCall',
+            name: 'Workflow',
+            status: 'completed',
+        };
+        const running = { kind: 'agent', status: 'running' } as const;
+        expect(agentChatWorkVerb(workflow, undefined, undefined, running)).toBe('Running workflow');
+        expect(agentChatWorkVerb(workflow, describeAgentChatWork(workflow, zh), zh, running)).toBe(
+            '正在运行 Workflow',
         );
     });
 });

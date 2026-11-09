@@ -141,9 +141,11 @@ const LinkedTask = ({ itemId, theme }: { itemId: string; theme: MobileTheme }) =
         <View style={styles.backgroundTask}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 {t(
-                    link.task.kind === 'agent'
-                        ? 'chat.tasks.subagent'
-                        : 'chat.work.backgroundOutput',
+                    link.task.workflow
+                        ? 'chat.tasks.workflow.heading'
+                        : link.task.kind === 'agent'
+                          ? 'chat.tasks.subagent'
+                          : 'chat.work.backgroundOutput',
                 )}
             </Text>
             <AgentChatTaskDetailBody
@@ -224,7 +226,9 @@ const ToolCallDetail = ({
     theme: MobileTheme;
 }) => {
     const output = item.output ?? '';
-    const argumentsText = agentChatToolCallArguments(item);
+    const link = useAgentChatTaskLink(item.id);
+    // A workflow's arguments are its name (`{"name":"review"}`), which the sheet's title already says.
+    const argumentsText = link?.task.workflow ? undefined : agentChatToolCallArguments(item);
     return (
         <>
             {argumentsText ? (

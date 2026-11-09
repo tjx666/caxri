@@ -35,7 +35,8 @@ export function parseAgentChatWorkflowMemberTaskId(
 /**
  * The workflow a task tab shows: the live one the Chat lists, else the one rebuilt from the provider's run record. The
  * live run learns its result and script error only from that record, so those come from the record when the live one
- * lacks them.
+ * lacks them. The phone's compact outline of a large run carries no member labels or task ids, so a member the record
+ * describes takes its name and task id from there, keeping its live status and phase.
  */
 export function agentChatTaskWorkflow(
     task: Pick<AgentChatTask, 'workflow'> | undefined,
@@ -46,8 +47,18 @@ export function agentChatTaskWorkflow(
     if (!live) return recorded;
     const result = live.result ?? recorded?.result;
     const error = live.error ?? recorded?.error;
+    const named = new Map(recorded?.members.map((member) => [member.index, member]));
     return {
         ...live,
+        members: live.members.map((member) => {
+            const record = named.get(member.index);
+            if (!record || member.taskId !== undefined || member.label !== '') return member;
+            return {
+                ...record,
+                status: member.status,
+                ...(member.phase !== undefined && { phase: member.phase }),
+            };
+        }),
         ...(result !== undefined && { result }),
         ...(error !== undefined && { error }),
     };
@@ -128,6 +139,39 @@ export function agentChatWorkflowCurrentPhase(
         groups.find((group) => group.counts.running > 0) ??
         groups.find((group) => group.counts.queued > 0)
     );
+}
+
+/**
+ * What a workflow's progress label shows wherever a run is listed (Desktop's strip and timeline row, the phone's
+ * Background work rows): the running phase with its own count (`Review 2/5`) while the run works, the whole run's count
+ * (`10/11`) otherwise, plus how many members failed or were interrupted, which never hide behind a finished count.
+ */
+export interface AgentChatWorkflowProgressLabel {
+    /**
+     * The phase title, or undefined for the whole run's count.
+     */
+    phase: string | undefined;
+    done: number;
+    total: number;
+    failed: number;
+    stopped: number;
+}
+
+export function agentChatWorkflowProgressLabel(
+    workflow: Pick<AgentChatWorkflow, 'members' | 'phases'>,
+    isRunning: boolean,
+): AgentChatWorkflowProgressLabel | undefined {
+    const counts = agentChatWorkflowCounts(workflow.members);
+    if (counts.total === 0) return undefined;
+    const phase = isRunning ? agentChatWorkflowCurrentPhase(workflow) : undefined;
+    const scope = phase && workflow.phases.length > 1 ? phase.counts : counts;
+    return {
+        phase: phase && workflow.phases.length > 1 ? phase.title : undefined,
+        done: scope.completed + scope.failed + scope.stopped,
+        total: scope.total,
+        failed: counts.failed,
+        stopped: counts.stopped,
+    };
 }
 
 /**
