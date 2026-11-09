@@ -20,7 +20,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import type { AttentionCommand } from './mobile-attention-fixture';
-import { peakGreenPixels } from './mobile-motion-analysis';
+import { greenPixelPeak } from './mobile-motion-analysis';
 
 const GROUPS: readonly SessionActivityGroupId[] = ['attention', 'working', 'idle'];
 
@@ -428,15 +428,10 @@ export async function executeMobileSessionRowMarkDoneScenario(
 }
 
 /**
- * Share of a row's width the green check reads, from its leading edge: it covers the hidden Mark as Done action and
- * leaves out the trailing status glyph.
+ * Green pixels (at half resolution) a frame of the leaving row may draw beyond the row at rest before the hidden action
+ * counts as visible. The Mark as Done action alone covers thousands; anti-aliased glyph edges stay well under it.
  */
-const ROW_JUDGED_SHARE = 0.75;
-/**
- * Green pixels (at half resolution) a frame of the leaving row may draw before the hidden action counts as visible.
- * Anti-aliased edges of other glyphs stay well under it.
- */
-const MAX_GREEN_PIXELS = 20;
+const MAX_EXTRA_GREEN_PIXELS = 20;
 
 /**
  * `MOB-SESSION-ROW-SWIPE-HIDDEN-01`: a closed row never shows its hidden swipe actions. A Needs attention row keeps a
@@ -490,26 +485,25 @@ export async function executeMobileSessionRowSwipeHiddenScenario(
             30_000,
         );
         const analysis = await mkdtemp(join(tmpdir(), 'caxri-session-row-swipe-'));
-        let peak: Awaited<ReturnType<typeof peakGreenPixels>>;
+        let green: Awaited<ReturnType<typeof greenPixelPeak>>;
         try {
             const video = join(analysis, 'segment.mp4');
             await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-            peak = await peakGreenPixels(video, {
-                bottom: row.bottom,
-                left: row.left,
-                right: row.left + Math.round((row.right - row.left) * ROW_JUDGED_SHARE),
-                top: row.top,
-            });
+            // The whole row, so the band holds the hidden actions wherever the screen width puts them.
+            green = await greenPixelPeak(video, row);
         } finally {
             await rm(analysis, { force: true, recursive: true });
         }
         await capture(environment, 'attention-row-left', artifacts);
-        if (peak.pixels > MAX_GREEN_PIXELS)
+        const extra = green.peak - green.resting;
+        if (extra > MAX_EXTRA_GREEN_PIXELS)
             throw new Error(
-                `The leaving row showed its hidden Mark as Done action: ${peak.pixels} green pixels at ${Math.round(peak.time)}ms`,
+                `The leaving row showed its hidden Mark as Done action: ${extra} green pixels beyond the resting row at ${Math.round(green.peakTime)}ms`,
             );
         await finish(environment, artifacts, {
-            peakGreenPixels: peak.pixels,
+            extraGreenPixels: extra,
+            peakGreenPixels: green.peak,
+            restingGreenPixels: green.resting,
             status: 'passed',
         });
     } finally {

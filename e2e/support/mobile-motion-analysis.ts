@@ -336,25 +336,27 @@ export async function readRecordingBand(
 }
 
 /**
- * The most pixels any frame of a recorded band draws in a strongly green hue (green leading red and blue by more than
- * `margin`), with that frame's time. The dark themes draw nothing that green in a Session row's text or chrome, so a
- * count above a few pixels means a green surface showed through.
+ * Pixels each frame of a recorded band draws in a strongly green hue (green leading red and blue by more than
+ * `margin`): the count in the first frame (the band at rest) and the most any frame draws, with that frame's time. A
+ * peak well above the resting count means a green surface showed through while the band changed.
  */
-export async function peakGreenPixels(
+export async function greenPixelPeak(
     path: string,
     band: RecordingBand,
     margin = 48,
-): Promise<{ pixels: number; time: number }> {
+): Promise<{ peak: number; peakTime: number; resting: number }> {
     const { frames } = await decodeRecordingBand(path, band, 2, 'rgb24');
-    let peak = { pixels: 0, time: 0 };
-    for (const { data, time } of frames) {
+    const counts = frames.map(({ data, time }) => {
         let pixels = 0;
         for (let index = 0; index < data.length; index += 3) {
             if (data[index + 1] - Math.max(data[index], data[index + 2]) > margin) pixels += 1;
         }
-        if (pixels > peak.pixels) peak = { pixels, time };
-    }
-    return peak;
+        return { pixels, time };
+    });
+    const peak = counts.reduce((highest, count) =>
+        count.pixels > highest.pixels ? count : highest,
+    );
+    return { peak: peak.pixels, peakTime: peak.time, resting: counts[0]?.pixels ?? 0 };
 }
 
 /**
