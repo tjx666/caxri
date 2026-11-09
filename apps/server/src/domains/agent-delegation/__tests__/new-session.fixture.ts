@@ -9,7 +9,7 @@ import { onTestFinished, vi } from 'vitest';
 import type { AgentDispatchService } from '../../agent-dispatch';
 import { createBotSession, discardBotSession } from '../../bot';
 import { CaxriDatabase } from '../../db';
-import { addProjectFolderWithOutcome } from '../../project';
+import { resolveDelegationFolder } from '../../project';
 import { createBackgroundSession, discardEmptySession } from '../../session';
 import { AgentDelegationService } from '../service';
 
@@ -72,14 +72,8 @@ export async function newSessionFixture() {
                     );
                 return sessionId;
             },
-            addProject: async (absolutePath) => {
-                const { project, outcome } = await addProjectFolderWithOutcome(
-                    database,
-                    (event) => events.push(event),
-                    absolutePath,
-                );
-                return { id: project.id, outcome };
-            },
+            addProject: (absolutePath) =>
+                resolveDelegationFolder(database, (event) => events.push(event), absolutePath),
             prepareWorktree: (projectId, branch) => {
                 if (branch === 'refused') return Promise.reject(new Error('git refused'));
                 const worktree = database.createProject(join(directory, `wt-${branch}`), projectId);

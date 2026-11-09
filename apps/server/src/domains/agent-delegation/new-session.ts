@@ -68,7 +68,8 @@ const admissionQueues = new WeakMap<object, KeyedSerialQueue<string>>();
  * the empty Session again (metadata only; the Project folder is never touched). The Session carries the caller's title
  * from the start; see `agentDelegationCreateRequestSchema`.
  *
- * A `projectPath` adds that folder as a visible Project (the authority of `project.add`) and continues with the
+ * A `projectPath` adds that folder as a visible Project (the authority of `project.add`), or, when it is a visible
+ * Project's registered linked worktree, runs the Session in that worktree under its owner, and continues with the
  * resulting Project ID, so the stored task and the Session still reference a Project by ID. Everything that can be
  * refused without a side effect is checked before the folder is added. A refusal after the add keeps the Project: it
  * may have existed already, and removing a Project the user may have since opened would lose more than keeping it.
@@ -203,10 +204,12 @@ async function admitNewSession(
     if (kind === 'agent' && !isBot && callerSessionId && title)
         assertAgentTitleLanguage(title, database.getSession(callerSessionId)?.title);
     let projectId = ownProjectId;
+    let folderWorktree: DelegationWorktree | undefined;
     if (projectPath !== undefined) {
         const startedAt = Date.now();
         const added = await newSessions.addProject!(projectPath);
-        projectId = added.id;
+        projectId = added.projectId;
+        folderWorktree = added.worktree;
         logDelegationProjectAdded(options.logger, {
             outcome: added.outcome,
             principalKind: kind,
@@ -220,7 +223,8 @@ async function admitNewSession(
      */
     const worktree = worktreeBranch
         ? await newSessions.prepareWorktree!(projectId!, worktreeBranch)
-        : callerWorktree(database, isRunsInCallerProject ? callerSessionId : undefined);
+        : (folderWorktree ??
+          callerWorktree(database, isRunsInCallerProject ? callerSessionId : undefined));
     const creatorSessionId = isBot ? undefined : callerSessionId;
     const sessionId = newSessions.create(
         projectId!,

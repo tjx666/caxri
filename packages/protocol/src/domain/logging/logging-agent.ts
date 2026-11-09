@@ -241,8 +241,10 @@ export const agentDelegationLogEvents = {
     /**
      * A `newSession` delegation named a folder (`projectPath`) instead of a Project ID, and the Server resolved it to a
      * Project. Fields: `outcome`, a closed enum: `created` (a new visible Project), `existing` (the folder was already
-     * a visible top-level Project), `unhidden` (a hidden Project came back), or `adopted_worktree` (a registered
-     * worktree Project was promoted to top level), plus `principalKind` (closed) and `durationMs`. Never the path.
+     * a visible top-level Project), `unhidden` (a hidden Project came back), `worktree` (the folder is a visible
+     * Project's registered linked worktree: the Session runs there under that owner, nothing is added), or
+     * `adopted_worktree` (a worktree of a hidden Project was promoted to top level), plus `principalKind` (closed) and
+     * `durationMs`. Never the path.
      */
     projectAdded: 'agent_delegation.project_added',
     /**

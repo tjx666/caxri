@@ -10,7 +10,7 @@ import type {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { ProjectAddOutcome } from '../project';
+import type { DelegationFolder } from '../project';
 
 /**
  * Records one receipt transition. `isRecovery` marks a transition Server startup applied to a task the previous Server
@@ -50,7 +50,7 @@ function isUsageLimitFailure(failure: AgentDelegationReceipt['failure']): boolea
  */
 export function logDelegationProjectAdded(
     logger: StructuredLogger | undefined,
-    added: { outcome: ProjectAddOutcome; principalKind: string; durationMs: number },
+    added: { outcome: DelegationFolder['outcome']; principalKind: string; durationMs: number },
 ): void {
     logger?.write('info', logEventCatalog.agentDelegation.projectAdded, { fields: added });
 }
