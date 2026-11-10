@@ -151,6 +151,7 @@ export async function runKeywordScenario(
     } else if (text.includes('background')) {
         await runBackgroundCommand(io, turn, {
             isFlood: text.includes('flood'),
+            isPullRequestWatch: text.includes('prwatch'),
             tickMs: text.includes('quiet') ? 1_000 : 30,
         });
     } else if (text.includes('approve')) {

@@ -109,13 +109,16 @@ export async function exerciseChatBackgroundWork(
         top: Math.floor(screen.height * 0.2),
     };
 
-    await sendFromPhone(serial, 'backgroundquiet');
+    // `prwatch` runs a command without a description that the sheet names as an action (`Working on PR #31`).
+    await sendFromPhone(serial, 'backgroundquiet prwatch');
     const started = await waitForMobile(
         () => chat.read(),
         (snapshot) => !snapshot.activeTurnId && runningShell(snapshot) !== undefined,
     );
     const task = runningShell(started);
     if (!task) throw new Error('No background task is running');
+    if (!/gh pr checks 31/u.test(task.title))
+        throw new Error('The background task is not the pull request watch');
     await waitForNoCheck(serial, 'agent-chat-activity');
     await waitForCheck(serial, 'agent-chat-tasks');
     await capture(environment, 'tasks-pill', artifacts);
