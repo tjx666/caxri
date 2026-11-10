@@ -24,6 +24,8 @@ export const workbench = {
     'workbench.pane.dropZone.up': 'Split up',
     'workbench.pane.dropZone.down': 'Split down',
 
+    'workbench.titleBar.project': 'Project: {{title}}',
+
     'workbench.tab.closeEditor': 'Close Editor',
     'workbench.tab.closeTerminal': 'Close Terminal',
     'workbench.tab.compactingBadge': 'Compacting',

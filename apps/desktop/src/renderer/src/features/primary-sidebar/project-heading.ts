@@ -30,6 +30,21 @@ export function describeProjectSessionCount(
         : name;
 }
 
+/**
+ * Whether a Project heading should wear the selected Session's fill. A collapsed Project folds the selected row away,
+ * and with it the only selection fill that says which Project the open Session belongs to, so the heading takes it over
+ * until the Project expands. `statusSessions` holds the group's own and nested Sessions but never a pinned one: a
+ * pinned Session's row stays visible in the Pinned group, so its Project gets no fill.
+ */
+export function shouldHeadingHoldSelection(
+    isExpanded: boolean,
+    statusSessions: ReadonlyArray<{ id: string }>,
+    selectedSessionId: string | undefined,
+): boolean {
+    if (isExpanded || selectedSessionId === undefined) return false;
+    return statusSessions.some((session) => session.id === selectedSessionId);
+}
+
 function describeProjectAgentStatus(
     { attention, running }: SessionStatusSummary,
     t: Translate,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
-import { describeProjectSessionCount } from '../project-heading';
+import { describeProjectSessionCount, shouldHeadingHoldSelection } from '../project-heading';
 
 describe('describeProjectSessionCount', () => {
     it('names the count the heading renders as a bare digit', () => {
@@ -37,5 +37,22 @@ describe('describeProjectSessionCount with an Agent summary', () => {
         expect(
             describeProjectSessionCount('caxri', 2, { attention: 0, running: 0 }, translate),
         ).toBe('caxri (2 Sessions)');
+    });
+});
+
+describe('shouldHeadingHoldSelection', () => {
+    const sessions = [{ id: 'a' }, { id: 'b' }];
+
+    it('marks a collapsed Project that hides the selected Session', () => {
+        expect(shouldHeadingHoldSelection(false, sessions, 'b')).toBe(true);
+    });
+
+    it('leaves the fill to the Session row once the Project expands', () => {
+        expect(shouldHeadingHoldSelection(true, sessions, 'b')).toBe(false);
+    });
+
+    it('ignores a collapsed Project that does not hold the selection', () => {
+        expect(shouldHeadingHoldSelection(false, sessions, 'pinned')).toBe(false);
+        expect(shouldHeadingHoldSelection(false, sessions, undefined)).toBe(false);
     });
 });

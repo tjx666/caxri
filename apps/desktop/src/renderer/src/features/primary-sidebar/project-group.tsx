@@ -26,7 +26,7 @@ import {
 } from './primary-sidebar-tree';
 import { ProjectAgentSummary } from './project-agent-summary';
 import { ProjectDetailsCard } from './project-details-card';
-import { describeProjectSessionCount } from './project-heading';
+import { describeProjectSessionCount, shouldHeadingHoldSelection } from './project-heading';
 import { ProjectIcon } from './project-icon';
 import { sessionMemberLookup } from './project-merge';
 import type { ProjectDropTarget } from './project-order';
@@ -231,6 +231,11 @@ export function ProjectGroup({
     const agentSummary = expanded
         ? undefined
         : summarizeSessionStatuses(statusSessions, (s) => sessionAgentTerminal(s, terminals), t);
+    const holdsHiddenSelection = shouldHeadingHoldSelection(
+        expanded,
+        statusSessions,
+        selectedSessionId,
+    );
     return (
         <section
             data-project-id={project.id}
@@ -249,7 +254,11 @@ export function ProjectGroup({
                  */}
                 <div
                     ref={headingReference}
-                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-focus-visible:pr-[var(--project-hover-actions)] has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
+                    className={cn(
+                        'project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-focus-visible:pr-[var(--project-hover-actions)] has-[[data-popup-open]]:pr-[var(--project-hover-actions)]',
+                        holdsHiddenSelection && 'bg-elevated hover:bg-elevated',
+                    )}
+                    data-holds-selection={holdsHiddenSelection || undefined}
                     data-project-id={project.id}
                     draggable
                     onDragOver={(event) => {
