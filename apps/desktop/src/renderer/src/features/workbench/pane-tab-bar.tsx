@@ -462,7 +462,8 @@ export function PaneTabBar({
             onDragOver={onDragOver}
             onDrop={onDrop}
         >
-            {isRootBar && !isPrimarySidebarVisible && <TitleBarProjectLabel />}
+            <TitleBarProjectLabel isRootBar={isRootBar} />
+
             <PaneTabList
                 activeTabId={activeTabId}
                 anchoredTabs={anchoredTabs}

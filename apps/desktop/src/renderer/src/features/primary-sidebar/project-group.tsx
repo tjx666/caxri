@@ -26,7 +26,7 @@ import {
 } from './primary-sidebar-tree';
 import { ProjectAgentSummary } from './project-agent-summary';
 import { ProjectDetailsCard } from './project-details-card';
-import { describeProjectSessionCount, shouldHeadingHoldSelection } from './project-heading';
+import { describeProjectSessionCount } from './project-heading';
 import { ProjectIcon } from './project-icon';
 import { sessionMemberLookup } from './project-merge';
 import type { ProjectDropTarget } from './project-order';
@@ -43,6 +43,11 @@ interface ProjectGroupProperties {
     animateProject: boolean;
     dragged: boolean;
     expanded: boolean;
+    /**
+     * Whether the collapsed heading hides the selected Session's row and so wears its selection fill instead
+     * (`shouldHeadingHoldSelection`).
+     */
+    holdsSelection: boolean;
     focusRenameInput: (element: HTMLInputElement | null) => void;
     /**
      * Sessions the window currently hides; a positive count renders the reveal row.
@@ -172,6 +177,7 @@ export function ProjectGroup({
     animateProject,
     dragged,
     expanded,
+    holdsSelection,
     focusRenameInput,
     hiddenSessionCount,
     nextRevealCount,
@@ -231,11 +237,6 @@ export function ProjectGroup({
     const agentSummary = expanded
         ? undefined
         : summarizeSessionStatuses(statusSessions, (s) => sessionAgentTerminal(s, terminals), t);
-    const holdsHiddenSelection = shouldHeadingHoldSelection(
-        expanded,
-        statusSessions,
-        selectedSessionId,
-    );
     return (
         <section
             data-project-id={project.id}
@@ -256,9 +257,9 @@ export function ProjectGroup({
                     ref={headingReference}
                     className={cn(
                         'project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-focus-visible:pr-[var(--project-hover-actions)] has-[[data-popup-open]]:pr-[var(--project-hover-actions)]',
-                        holdsHiddenSelection && 'bg-elevated hover:bg-elevated',
+                        holdsSelection && 'bg-elevated hover:bg-elevated',
                     )}
-                    data-holds-selection={holdsHiddenSelection || undefined}
+                    data-holds-selection={holdsSelection || undefined}
                     data-project-id={project.id}
                     draggable
                     onDragOver={(event) => {

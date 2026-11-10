@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
+import { isPrimarySidebarShown, useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useProjectById } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
 import { usePaneViewSession } from './pane-view-session';
@@ -11,10 +12,18 @@ import { usePaneViewSession } from './pane-view-session';
  * Workbench showing a Session title with no Project at all. It stays inside the bar's drag region and takes no input:
  * it is a breadcrumb, not a Project switcher.
  */
-export function TitleBarProjectLabel() {
+export function TitleBarProjectLabel({
+    isRootBar,
+}: {
+    /**
+     * Only the bar that doubles as the window title bar carries the label; a split pane's own bar never does.
+     */
+    isRootBar: boolean;
+}) {
     const { t } = useTranslation();
+    const isPrimarySidebarVisible = useChromeLayoutStore(isPrimarySidebarShown);
     const project = useProjectById(usePaneViewSession()?.projectId);
-    if (!project) return null;
+    if (!isRootBar || isPrimarySidebarVisible || !project) return null;
     return (
         <div
             aria-label={t('workbench.titleBar.project', { title: project.title })}
