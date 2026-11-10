@@ -43,6 +43,11 @@ interface ProjectGroupProperties {
     animateProject: boolean;
     dragged: boolean;
     expanded: boolean;
+    /**
+     * Whether the collapsed heading hides the selected Session's row and so wears its selection fill instead
+     * (`shouldHeadingHoldSelection`).
+     */
+    holdsSelection: boolean;
     focusRenameInput: (element: HTMLInputElement | null) => void;
     /**
      * Sessions the window currently hides; a positive count renders the reveal row.
@@ -172,6 +177,7 @@ export function ProjectGroup({
     animateProject,
     dragged,
     expanded,
+    holdsSelection,
     focusRenameInput,
     hiddenSessionCount,
     nextRevealCount,
@@ -249,7 +255,11 @@ export function ProjectGroup({
                  */}
                 <div
                     ref={headingReference}
-                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-focus-visible:pr-[var(--project-hover-actions)] has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
+                    className={cn(
+                        'project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:2.875rem] hover:bg-state-hover hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-focus-visible:pr-[var(--project-hover-actions)] has-[[data-popup-open]]:pr-[var(--project-hover-actions)]',
+                        holdsSelection && 'bg-elevated hover:bg-elevated',
+                    )}
+                    data-holds-selection={holdsSelection || undefined}
                     data-project-id={project.id}
                     draggable
                     onDragOver={(event) => {

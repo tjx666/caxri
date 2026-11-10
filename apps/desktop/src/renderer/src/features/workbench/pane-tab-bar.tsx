@@ -22,6 +22,7 @@ import { useActiveTabReveal } from './pane-tab-reveal';
 import { usePaneViewSessionId } from './pane-view-session';
 import type { PaneTabProperties } from './terminal-pane-tab';
 import { TerminalPaneTab } from './terminal-pane-tab';
+import { TitleBarProjectLabel } from './title-bar-project-label';
 import { usePaneTabDrag } from './use-pane-tab-drag';
 
 function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: boolean }) {
@@ -461,6 +462,8 @@ export function PaneTabBar({
             onDragOver={onDragOver}
             onDrop={onDrop}
         >
+            <TitleBarProjectLabel isRootBar={isRootBar} />
+
             <PaneTabList
                 activeTabId={activeTabId}
                 anchoredTabs={anchoredTabs}

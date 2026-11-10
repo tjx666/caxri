@@ -526,7 +526,9 @@ The row deliberately shows no activity label, relative time, or line diff. In da
 not read, and a second line halved how many Sessions fit on screen. The hover card restates a
 non-default status in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
 the running count, and one warning dot when any Session is unread; it stays beside the name while the
-heading's hover actions show, and disappears when the Project expands. Thus a failed process is not a persistent
+heading's hover actions show, and disappears when the Project expands. A collapsed heading that hides the selected
+Session also takes that row's `--elevated` selection fill, so the open Session's Project stays findable; a pinned
+selection lends its Project no fill, because its row stays visible in the Pinned group. Thus a failed process is not a persistent
 list alert, while reliable unread attention remains visible
 regardless of its exact kind. Motion and shape carry the glance signal without changing title
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
@@ -768,7 +770,9 @@ row and nowhere else in the chrome. The sidebar marks a row another window shows
 Session's gets a trailing 11px `--muted` detail (Project, Agent, or `#n`). Holding the Switch to
 Pinned Session modifier alone for 400ms swaps each Pinned row's status glyph for a compact
 `ShortcutBadge` with its live chord (`⌘1`), hidden on row hover like the glyph it replaces; releasing
-the modifier or pressing any other key restores the glyph. "Open in New Window" in the sidebar row
+the modifier or pressing any other key restores the glyph. While the PrimarySidebar is hidden, the title bar opens
+with the pane Session's Project (13px icon, `--muted` 12px name, a trailing chevron) right after the traffic-light
+inset; it is a breadcrumb inside the drag region, not a control, and disappears when the sidebar returns. "Open in New Window" in the sidebar row
 menu is the way to see two Sessions at once.
 
 **Tab strip**: active tab: `--background` fill joining it visually to the pane below,

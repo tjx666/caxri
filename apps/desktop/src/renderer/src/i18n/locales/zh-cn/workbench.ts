@@ -28,6 +28,8 @@ export const workbench: TranslatedNamespace<typeof source> = {
     'workbench.pane.dropZone.up': '向上拆分',
     'workbench.pane.dropZone.down': '向下拆分',
 
+    'workbench.titleBar.project': '项目：{{title}}',
+
     'workbench.tab.closeEditor': '关闭编辑器',
     'workbench.tab.closeTerminal': '关闭终端',
     'workbench.tab.compactingBadge': '压缩中',

@@ -6,6 +6,7 @@ import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import type { SessionOrderController } from './hooks/use-session-order';
 import type { SessionRenameController } from './hooks/use-session-rename';
 import { ProjectGroup } from './project-group';
+import { shouldHeadingHoldSelection } from './project-heading';
 
 interface ProjectGroupListProperties {
     animatedProjectIds: ReadonlySet<string>;
@@ -75,6 +76,11 @@ export function ProjectGroupList({
                 animateProject={animatedProjectIds.has(project.id)}
                 dragged={projectOrder.draggedProjectId === project.id}
                 expanded={isProjectExpanded(project.id)}
+                holdsSelection={shouldHeadingHoldSelection(
+                    isProjectExpanded(project.id),
+                    statusSessions,
+                    selectedSessionId,
+                )}
                 focusRenameInput={sessionRename.focusRenameInput}
                 hiddenSessionCount={hiddenCount}
                 members={members}
