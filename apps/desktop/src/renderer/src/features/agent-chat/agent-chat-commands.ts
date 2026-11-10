@@ -446,11 +446,12 @@ export async function editAgentChatQueued(
 }
 
 /**
- * Opens a file or folder chip from a sent message: a folder in Finder, a file revealed in its folder.
+ * Opens a file or folder chip from a sent message: a folder in Finder, a file revealed in its folder. `shouldReveal`
+ * shows even a folder selected in its parent folder, for the chip's Reveal in Finder menu entry.
  */
-export function openAgentChatPathReference(path: string): void {
+export function openAgentChatPathReference(path: string, shouldReveal = false): void {
     void tryCommand(translate('agentChat.pathReference.openFailed'), () =>
-        caxri.request('agentChat.openPathReference', { path }),
+        caxri.request('agentChat.openPathReference', { path, shouldReveal }),
     );
 }
 

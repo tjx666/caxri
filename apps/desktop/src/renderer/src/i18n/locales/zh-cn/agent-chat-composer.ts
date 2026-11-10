@@ -44,6 +44,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.pathReference.openFolder': '在 Finder 中打开 {{name}}',
     'agentChat.pathReference.revealFile': '在 Finder 中显示 {{name}}',
     'agentChat.pathReference.openFailed': '无法在 Finder 中显示',
+    'agentChat.pathReference.menu.openInFinder': '在 Finder 中打开',
     'agentChat.sessionReference.label': '会话引用：{{title}}',
     'agentChat.sessionReference.inProject': '{{project}} 中的 {{title}}',
     'agentChat.longPaste.chipOne': '粘贴文本 · 1 行',

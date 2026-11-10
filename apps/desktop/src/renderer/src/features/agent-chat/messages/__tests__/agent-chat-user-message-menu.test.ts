@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentChatUserMessageMenuInput } from '../agent-chat-user-message-menu';
-import { agentChatReplyMenu, agentChatUserMessageMenu } from '../agent-chat-user-message-menu';
+import {
+    agentChatPathReferenceMenu,
+    agentChatReplyMenu,
+    agentChatUserMessageMenu,
+} from '../agent-chat-user-message-menu';
 
 function input(
     overrides: Partial<AgentChatUserMessageMenuInput> = {},
@@ -167,5 +171,36 @@ describe('agentChatReplyMenu', () => {
     it('leaves out Add to Message where there is no Chat to write to', () => {
         const entries = agentChatReplyMenu({ text: 'reply', selectedText: '', onCopy: vi.fn() });
         expect(visible(entries)).toEqual([{ label: 'Copy Message', disabledReason: undefined }]);
+    });
+});
+
+describe('agentChatPathReferenceMenu', () => {
+    it('offers Open in Finder, Reveal in Finder, and Copy Path for a folder, each running its own action', () => {
+        const actions = { onCopy: vi.fn(), onOpen: vi.fn(), onReveal: vi.fn() };
+        const entries = agentChatPathReferenceMenu({ isDirectory: true, ...actions });
+        expect(visible(entries)).toEqual([
+            { label: 'Open in Finder', disabledReason: undefined },
+            { label: 'Reveal in Finder', disabledReason: undefined },
+            { label: 'Copy Path', disabledReason: undefined },
+        ]);
+        for (const entry of entries) {
+            if (entry && entry.type !== 'separator' && entry.type !== 'submenu') entry.onSelect();
+        }
+        expect(actions.onOpen).toHaveBeenCalledTimes(1);
+        expect(actions.onReveal).toHaveBeenCalledTimes(1);
+        expect(actions.onCopy).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves Open out for a file, whose click only reveals it', () => {
+        const entries = agentChatPathReferenceMenu({
+            isDirectory: false,
+            onCopy: vi.fn(),
+            onOpen: vi.fn(),
+            onReveal: vi.fn(),
+        });
+        expect(visible(entries)).toEqual([
+            { label: 'Reveal in Finder', disabledReason: undefined },
+            { label: 'Copy Path', disabledReason: undefined },
+        ]);
     });
 });

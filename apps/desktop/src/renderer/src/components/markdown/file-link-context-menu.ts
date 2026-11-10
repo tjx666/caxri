@@ -30,9 +30,9 @@ export function fileLinkContextMenu({
 
 /**
  * Copies the path as the message cited it, with a toast confirming it, since a native menu entry has no check mark to
- * turn into.
+ * turn into. Shared with the file and folder tiles of a sent Chat message.
  */
-function copyFilePathFromMenu(file: string): void {
+export function copyFilePathFromMenu(file: string): void {
     void tryCommand(translate('core.files.copyPathFailed'), async () => {
         await writeClipboardText(file);
         pushToast('success', translate('core.files.pathCopied'));

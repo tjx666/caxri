@@ -168,6 +168,14 @@ describe('openAgentChatPathReference', () => {
         expect(electronMock.shell.openPath).toHaveBeenCalledTimes(1);
     });
 
+    it('reveals a folder selected in its parent when asked to reveal rather than open', async () => {
+        const folder = join(fixture.directory, 'contracts');
+        await mkdir(folder);
+        await openAgentChatPathReference(folder, true);
+        expect(electronMock.shell.showItemInFolder.mock.calls).toEqual([[folder]]);
+        expect(electronMock.shell.openPath).not.toHaveBeenCalled();
+    });
+
     it('reveals a bundle reached through a symlink or known only by its Info.plist', async () => {
         const app = join(fixture.directory, 'Tool.app');
         const link = join(fixture.directory, 'tools');

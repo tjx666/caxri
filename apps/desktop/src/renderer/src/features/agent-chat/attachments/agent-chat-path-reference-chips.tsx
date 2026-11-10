@@ -1,9 +1,12 @@
 import type { AgentChatPathReference } from '@caxri/protocol';
 import { agentChatPathReferenceName } from '@caxri/protocol';
 
+import { copyFilePathFromMenu } from '../../../components/markdown/file-link-context-menu';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { useContextMenu } from '../../../hooks/use-context-menu';
 import { useTranslation } from '../../../i18n';
 import { openAgentChatPathReference } from '../agent-chat-commands';
+import { agentChatPathReferenceMenu } from '../messages/agent-chat-user-message-menu';
 import { AgentChatFileThumbnail } from './file-thumbnail/agent-chat-file-thumbnail';
 import { agentChatFileTileName } from './file-thumbnail/agent-chat-file-tile-name';
 
@@ -26,35 +29,53 @@ export function AgentChatPathReferenceChips({
             aria-label={t('agentChat.pathReference.label')}
             className="m-0 flex max-w-[85%] list-none flex-wrap justify-end gap-1 p-0"
         >
-            {references.map((reference) => {
-                const name = agentChatPathReferenceName(reference);
-                const action = reference.isDirectory
-                    ? 'agentChat.pathReference.openFolder'
-                    : 'agentChat.pathReference.revealFile';
-                return (
-                    <li key={reference.path}>
-                        <Tooltip content={t(action, { name: reference.path })}>
-                            <button
-                                aria-label={t(action, { name })}
-                                className="flex w-26 cursor-pointer flex-col items-center gap-1.5 rounded-md border-0 bg-transparent px-0.5 pt-2 pb-1.5 text-foreground transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent"
-                                data-agent-chat-path-reference={reference.path}
-                                type="button"
-                                onClick={() => openAgentChatPathReference(reference.path)}
-                            >
-                                <AgentChatFileThumbnail
-                                    className="size-16"
-                                    iconClassName="size-8"
-                                    key={reference.path}
-                                    reference={reference}
-                                />
-                                <span className="line-clamp-2 w-full text-center text-[12px] leading-4 wrap-anywhere">
-                                    {agentChatFileTileName(name)}
-                                </span>
-                            </button>
-                        </Tooltip>
-                    </li>
-                );
-            })}
+            {references.map((reference) => (
+                <li key={reference.path}>
+                    <AgentChatPathReferenceTile reference={reference} />
+                </li>
+            ))}
         </ul>
+    );
+}
+
+/**
+ * One tile. A right-click opens its own menu (`agentChatPathReferenceMenu`) instead of the message's, so the user can
+ * reveal the item in Finder or copy its path.
+ */
+function AgentChatPathReferenceTile({ reference }: { reference: AgentChatPathReference }) {
+    const { t } = useTranslation();
+    const onContextMenu = useContextMenu(() =>
+        agentChatPathReferenceMenu({
+            isDirectory: reference.isDirectory,
+            onCopy: () => copyFilePathFromMenu(reference.path),
+            onOpen: () => openAgentChatPathReference(reference.path),
+            onReveal: () => openAgentChatPathReference(reference.path, true),
+        }),
+    );
+    const name = agentChatPathReferenceName(reference);
+    const action = reference.isDirectory
+        ? 'agentChat.pathReference.openFolder'
+        : 'agentChat.pathReference.revealFile';
+    return (
+        <Tooltip content={t(action, { name: reference.path })}>
+            <button
+                aria-label={t(action, { name })}
+                className="flex w-26 cursor-pointer flex-col items-center gap-1.5 rounded-md border-0 bg-transparent px-0.5 pt-2 pb-1.5 text-foreground transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent"
+                data-agent-chat-path-reference={reference.path}
+                type="button"
+                onClick={() => openAgentChatPathReference(reference.path)}
+                onContextMenu={onContextMenu}
+            >
+                <AgentChatFileThumbnail
+                    className="size-16"
+                    iconClassName="size-8"
+                    key={reference.path}
+                    reference={reference}
+                />
+                <span className="line-clamp-2 w-full text-center text-[12px] leading-4 wrap-anywhere">
+                    {agentChatFileTileName(name)}
+                </span>
+            </button>
+        </Tooltip>
     );
 }

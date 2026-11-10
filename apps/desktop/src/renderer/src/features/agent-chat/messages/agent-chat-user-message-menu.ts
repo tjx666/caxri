@@ -150,3 +150,29 @@ export function agentChatUserMessageMenu(input: AgentChatUserMessageMenuInput): 
         ),
     ];
 }
+
+/**
+ * The right-click menu of a file or folder tile above a sent message, which replaces the message's own menu there: Open
+ * in Finder for a folder (what a click does), Reveal in Finder to show the item selected in its parent folder, and Copy
+ * Path. A file offers no Open, because its click only reveals it, so nothing the user attached can run from the
+ * timeline.
+ */
+export function agentChatPathReferenceMenu({
+    isDirectory,
+    onCopy,
+    onOpen,
+    onReveal,
+}: {
+    isDirectory: boolean;
+    onCopy: () => void;
+    onOpen: () => void;
+    onReveal: () => void;
+}): ContextMenuEntries {
+    return [
+        isDirectory
+            ? { label: translate('agentChat.pathReference.menu.openInFinder'), onSelect: onOpen }
+            : undefined,
+        { label: translate('core.markdown.fileMenu.revealInFinder'), onSelect: onReveal },
+        { label: translate('core.markdown.fileMenu.copyPath'), onSelect: onCopy },
+    ];
+}
