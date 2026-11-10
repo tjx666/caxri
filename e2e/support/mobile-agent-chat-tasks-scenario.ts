@@ -110,7 +110,7 @@ export async function exerciseChatBackgroundWork(
     };
 
     // `prwatch` runs a command without a description that the sheet names as an action (`Working on PR #31`).
-    await sendFromPhone(serial, 'backgroundquiet prwatch');
+    await sendFromPhone(serial, 'backgroundquietprwatch');
     const started = await waitForMobile(
         () => chat.read(),
         (snapshot) => !snapshot.activeTurnId && runningShell(snapshot) !== undefined,
