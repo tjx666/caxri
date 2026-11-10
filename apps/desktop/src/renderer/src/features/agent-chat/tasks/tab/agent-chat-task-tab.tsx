@@ -8,7 +8,6 @@ import {
     agentChatTaskUsageSummary,
     agentChatTaskWorkflow,
     canStopAgentChatTask,
-    isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
 import { ArrowLeft } from 'lucide-react';
 
@@ -17,11 +16,10 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { LoadingSkeleton } from '../../../../components/loading-skeleton';
 import { Button } from '../../../../components/ui/button';
 import { useTranslation } from '../../../../i18n';
-import { cn } from '../../../../lib/utilities';
 import { useAgentChatTask } from '../../hooks/use-agent-chat-task';
 import { useLoadingStyle } from '../../loading';
 import { AgentChatStatusGlyph } from '../../tools/agent-chat-status-glyph';
-import { AgentChatTaskElapsed, AgentChatTaskGlyph } from '../agent-chat-task-glyph';
+import { AgentChatTaskElapsed } from '../agent-chat-task-glyph';
 import { revealAgentChat } from '../agent-chat-task-opener';
 import {
     agentChatTaskBilledUsage,
@@ -44,18 +42,18 @@ const STATE_CLASS_NAME =
     'flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted';
 
 /**
- * Title, identity, status, elapsed time, and Stop. Closing the tab never stops the task; only this button does.
+ * Identity, usage, activity, elapsed time, status, and Stop. Closing the tab never stops the task; only this button
+ * does. The title and kind icon are left to the surrounding chrome (the Side View header or the pane tab), which
+ * already shows both.
  */
 function TaskHeader({
     kind,
     task,
     terminalId,
-    title,
 }: {
     kind: AgentChatTask['kind'];
     task: AgentChatTask | undefined;
     terminalId: string;
-    title: string;
 }) {
     const { t } = useTranslation();
     const isRunning = task?.status === 'running';
@@ -77,24 +75,10 @@ function TaskHeader({
         task && agentChatTaskActivity(task, t),
     ].filter(Boolean);
     return (
-        <header className="flex shrink-0 items-start gap-2 border-b border-border px-4 py-2">
-            <AgentChatTaskGlyph className="mt-0.5 text-muted" kind={kind} />
-            <div className="min-w-0 flex-1">
-                <h2
-                    className={cn(
-                        'm-0 truncate text-[13px] leading-5 font-semibold text-foreground',
-                        isAgentChatTaskTitleCommand(task, kind) &&
-                            'font-mono text-[12px] font-normal',
-                    )}
-                >
-                    {title}
-                </h2>
-                {details.length > 0 && (
-                    <p className="m-0 truncate text-[11px] leading-4 text-muted">
-                        {details.join(' · ')}
-                    </p>
-                )}
-            </div>
+        <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
+            <p className="m-0 min-w-0 flex-1 truncate text-[12px] leading-5 text-muted tabular-nums">
+                {details.join(' · ')}
+            </p>
             {task && (
                 <div className="flex shrink-0 items-center gap-2 text-[12px] leading-5 text-muted">
                     <AgentChatTaskElapsed task={task} />
@@ -184,7 +168,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
                 />
             ) : (
                 <>
-                    <TaskHeader kind={kind} task={task} terminalId={tab.terminalId} title={title} />
+                    <TaskHeader kind={kind} task={task} terminalId={tab.terminalId} />
                     <div className="min-h-0 flex-1">{body}</div>
                 </>
             )}
