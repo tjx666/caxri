@@ -4,7 +4,11 @@ import type {
     AgentChatTaskSnapshot,
     AgentUsageReadout,
 } from '@caxri/protocol';
-import { agentUsageCostLabel, isAgentChatSubagentItem } from '@caxri/protocol';
+import {
+    agentChatShellTaskTitle,
+    agentUsageCostLabel,
+    isAgentChatSubagentItem,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 
@@ -107,14 +111,31 @@ export function agentChatTaskKind(
 }
 
 /**
- * A task's title, or its kind when the provider gave none.
+ * A task's title, or its kind when the provider gave none. An undescribed background shell reads like its work row
+ * (`agentChatShellTaskTitle`); `isCode` sets it in monospace when it is still a command line.
+ */
+export function agentChatTaskTitleParts(
+    task: Pick<AgentChatTask, 'kind' | 'title'> &
+        Partial<Pick<AgentChatTask, 'command' | 'status'>>,
+    t: Translate,
+): { text: string; isCode: boolean } {
+    const shell = agentChatShellTaskTitle({ status: 'completed', ...task }, t);
+    if (shell) return shell;
+    return {
+        text:
+            task.title ||
+            t(task.kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent'),
+        isCode: false,
+    };
+}
+
+/**
+ * A task's title as plain text; see {@link agentChatTaskTitleParts}.
  */
 export function agentChatTaskTitle(
-    task: Pick<AgentChatTask, 'kind' | 'title'>,
+    task: Pick<AgentChatTask, 'kind' | 'title'> &
+        Partial<Pick<AgentChatTask, 'command' | 'status'>>,
     t: Translate,
 ): string {
-    return (
-        task.title ||
-        t(task.kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent')
-    );
+    return agentChatTaskTitleParts(task, t).text;
 }

@@ -3,7 +3,10 @@ import type { AgentChatItemStatus, AgentChatTask } from './agent-chat-contract.j
 import type { AgentChatLabelKey, AgentChatLabelTranslate } from './agent-chat-labels.js';
 import { translateAgentChatLabel } from './agent-chat-labels.js';
 import type { AgentToolKind } from './agent-tool-presentation.js';
-import { describeAgentTool } from './agent-tool-presentation.js';
+import { agentToolActiveLabel, describeAgentTool } from './agent-tool-presentation.js';
+import { agentToolLabel } from './tool-rows/agent-tool-labels.js';
+import { describeShellRow } from './tool-rows/shell/agent-shell-rows.js';
+import { unwrapShellCommand } from './tool-rows/shell/agent-shell-title.js';
 
 /**
  * Presentation rules for a Chat's background work (`snapshot.tasks`) that Desktop's strip and task tab and the phone's
@@ -67,6 +70,31 @@ export function isAgentChatTaskTitleCommand(
     kind: AgentChatTask['kind'] = task?.kind ?? 'agent',
 ): boolean {
     return kind === 'shell' && !task?.command;
+}
+
+/**
+ * The title of a background shell the Agent started without a description, whose title is its command line. It reads
+ * the way the same command's work row does: an action it performs, in the present tense while it runs (`Working on PR
+ * #31`), else the command line without its setup (`cd`, output plumbing), set in monospace. Returns `undefined` for a
+ * task titled in words, which shows its title as is.
+ */
+export function agentChatShellTaskTitle(
+    task: Pick<AgentChatTask, 'command' | 'kind' | 'status' | 'title'>,
+    t: AgentChatLabelTranslate = translateAgentChatLabel,
+): { text: string; isCode: boolean } | undefined {
+    const command = task.title.trim();
+    if (!command || !isAgentChatTaskTitleCommand(task)) return undefined;
+    const presentation = describeShellRow(unwrapShellCommand(command));
+    if (presentation.kind === 'command' && presentation.label === 'Ran')
+        return { text: presentation.subject ?? command, isCode: true };
+    const verb =
+        task.status === 'running'
+            ? agentToolActiveLabel(presentation, t)
+            : agentToolLabel(presentation.label, t);
+    return {
+        text: presentation.subject ? `${verb} ${presentation.subject}` : verb,
+        isCode: false,
+    };
 }
 
 /**

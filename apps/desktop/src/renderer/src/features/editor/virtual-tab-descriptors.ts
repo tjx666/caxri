@@ -1,5 +1,6 @@
-import type { GitDiffTab, VirtualEditorTabScheme } from '@caxri/protocol';
+import type { AgentChatTask, GitDiffTab, VirtualEditorTabScheme } from '@caxri/protocol';
 import {
+    agentChatShellTaskTitle,
     gitDiffTabLabel,
     parseExternalEditorTab,
     parseFilePreviewTab,
@@ -35,7 +36,8 @@ export interface VirtualTabPresentationOptions {
     /**
      * The Agent Chat task an `agentTaskTabPath` tab shows, when the Chat still lists it.
      */
-    task?: { kind: 'agent' | 'shell'; title: string; isWorkflow?: boolean };
+    task?: Pick<AgentChatTask, 'kind' | 'title'> &
+        Partial<Pick<AgentChatTask, 'command' | 'status'>> & { isWorkflow?: boolean };
     /**
      * Name an untitled buffer takes from its first line, when that line has one.
      */
@@ -103,10 +105,9 @@ function transcriptTabLabel(terminalTitle: string | undefined, t: Translate): st
         : t('editor.tab.transcript');
 }
 
-function taskTabLabel(
-    task: { kind: 'agent' | 'shell'; title: string } | undefined,
-    t: Translate,
-): string {
+function taskTabLabel(task: VirtualTabPresentationOptions['task'], t: Translate): string {
+    const shell = task && agentChatShellTaskTitle({ status: 'completed', ...task }, t);
+    if (shell) return shell.text;
     const title = task?.title.trim();
     if (title) return title;
     return task?.kind === 'shell' ? 'Shell' : t('editor.tab.subagent');

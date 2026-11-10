@@ -1,11 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { AgentChatTask } from '@caxri/protocol';
-import {
-    agentChatTaskGlyphStatus,
-    canStopAgentChatTask,
-    isAgentChatTaskTitleCommand,
-} from '@caxri/protocol';
+import { agentChatTaskGlyphStatus, canStopAgentChatTask } from '@caxri/protocol';
 import { Square } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
@@ -20,7 +16,7 @@ import {
 } from '../agent-chat-commands';
 import { AgentChatStatusGlyph } from '../tools/agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
-import { agentChatTaskTitle } from './agent-chat-tasks';
+import { agentChatTaskTitle, agentChatTaskTitleParts } from './agent-chat-tasks';
 import { AgentChatWorkflowProgress } from './workflow/agent-chat-workflow-progress';
 
 const TASK_ENTRY_CLASS_NAME =
@@ -88,13 +84,13 @@ export function AgentChatTaskEntry({
     onOpenTask: ((taskId: string) => void) | undefined;
 }) {
     const { t } = useTranslation();
-    const title = agentChatTaskTitle(task, t);
+    const { text: title, isCode } = agentChatTaskTitleParts(task, t);
     const summary = (
         <>
             <AgentChatTaskGlyph isWorkflow={task.workflow !== undefined} kind={task.kind} />
             <span
                 className={
-                    isAgentChatTaskTitleCommand(task)
+                    isCode
                         ? 'min-w-0 truncate font-mono text-[11px] text-foreground'
                         : 'min-w-0 truncate text-foreground'
                 }

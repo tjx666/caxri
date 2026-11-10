@@ -274,13 +274,26 @@ const MAX_OUTPUT_DELTAS = 10_000;
 export async function runBackgroundCommand(
     io: FakeCodexIo,
     turn: FakeTurn,
-    { isFlood, tickMs }: { isFlood: boolean; tickMs: number },
+    {
+        isFlood,
+        isPullRequestWatch = false,
+        tickMs,
+    }: {
+        isFlood: boolean;
+        /**
+         * Runs a command the Chat names as an action (`Working on PR #31`) instead of the plain `bun run dev`.
+         */
+        isPullRequestWatch?: boolean;
+        tickMs: number;
+    },
 ) {
     const processId = String(tasks.nextProcessId++);
     const command = {
         type: 'commandExecution',
         id: crypto.randomUUID(),
-        command: '/bin/zsh -lc "bun run dev"',
+        command: isPullRequestWatch
+            ? '/bin/zsh -lc "gh pr checks 31 --watch > /tmp/ci.log 2>&1; tail -15 /tmp/ci.log"'
+            : '/bin/zsh -lc "bun run dev"',
         cwd: process.cwd(),
         processId,
         source: 'unifiedExecStartup',

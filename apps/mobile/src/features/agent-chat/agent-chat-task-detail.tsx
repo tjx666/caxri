@@ -7,6 +7,7 @@ import {
     agentChatTaskIdentity,
     agentChatTaskUsageSummary,
     agentChatTaskWorkflow,
+    isAgentChatTaskTitleCommand,
 } from '@caxri/protocol';
 import { Square } from 'lucide-react-native';
 
@@ -157,7 +158,7 @@ export const AgentChatTaskDetailBody = ({
     const stopError = stopper.errorFor(task);
     const command = isCommandShown
         ? undefined
-        : (task.command ?? (row.isCommandTitle ? task.title : undefined));
+        : (task.command ?? (isAgentChatTaskTitleCommand(task) ? task.title : undefined));
     const facts = [
         task.kind === 'agent' ? agentChatTaskIdentity(task) : undefined,
         agentChatTaskUsageSummary(task, t),

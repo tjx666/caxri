@@ -339,20 +339,33 @@ function startBackgroundShell(
     io: FakeClaudeIo,
     startedAt: number,
     finishAfterMs?: number,
-    tool: 'Bash' | 'Monitor' = 'Bash',
+    tool: 'Bash' | 'Monitor' | 'UndescribedBash' = 'Bash',
 ) {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     const taskId = `b${tasks.nextTaskId++}`;
-    const command = finishAfterMs ? 'sleep 0.3' : 'while true; do echo tick; sleep 0.1; done';
-    const description = tool === 'Monitor' ? 'Ticks from the watcher' : 'Print ticks';
+    const command =
+        tool === 'UndescribedBash'
+            ? 'cd /tmp && gh pr checks 31 --watch > /tmp/ci.log 2>&1; tail -15 /tmp/ci.log'
+            : finishAfterMs
+              ? 'sleep 0.3'
+              : 'while true; do echo tick; sleep 0.1; done';
+    // A Bash call without a description: the real CLI then names its task by the command line.
+    const description =
+        tool === 'Monitor'
+            ? 'Ticks from the watcher'
+            : tool === 'UndescribedBash'
+              ? command
+              : 'Print ticks';
     io.assistant(`msg_${crypto.randomUUID()}`, {
         type: 'tool_use',
         id: toolUseId,
-        name: tool,
+        name: tool === 'Monitor' ? 'Monitor' : 'Bash',
         input:
             tool === 'Monitor'
                 ? { description, command, timeout_ms: 60_000 }
-                : { command, description, run_in_background: true },
+                : tool === 'UndescribedBash'
+                  ? { command, run_in_background: true }
+                  : { command, description, run_in_background: true },
     });
     const task: BackgroundTask = { kind: 'shell', toolUseId, description };
     tasks.background.set(taskId, task);
@@ -370,7 +383,7 @@ function startBackgroundShell(
         childFrame(io, toolUseId, {
             type: 'tool_progress',
             tool_use_id: toolUseId,
-            tool_name: tool,
+            tool_name: tool === 'Monitor' ? 'Monitor' : 'Bash',
             elapsed_time_seconds: 1,
             task_id: taskId,
         }),
@@ -463,6 +476,8 @@ export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text
     else if (text.includes('quick background agent')) startBackgroundAgent(io, startedAt, 300);
     else if (text.includes('background agent')) startBackgroundAgent(io, startedAt);
     else if (text.includes('monitor')) startBackgroundShell(io, startedAt, undefined, 'Monitor');
+    else if (text.includes('undescribed background'))
+        startBackgroundShell(io, startedAt, undefined, 'UndescribedBash');
     else if (text.includes('quick background')) startBackgroundShell(io, startedAt, 300);
     else if (text.includes('background')) startBackgroundShell(io, startedAt);
     else return false;

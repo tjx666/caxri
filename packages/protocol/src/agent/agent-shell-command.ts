@@ -2,6 +2,7 @@ import type { AgentShellCliAction } from './tool-rows/shell/agent-shell-cli.js';
 import { describeCliStep, optionValue } from './tool-rows/shell/agent-shell-cli.js';
 import type { SearchPatternDialect } from './tool-rows/shell/agent-shell-search-pattern.js';
 import { searchPatternTerms } from './tool-rows/shell/agent-shell-search-pattern.js';
+import { withoutCapturedOutput } from './tool-rows/shell/output-capture.js';
 
 /**
  * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project,
@@ -539,8 +540,9 @@ function mergeSteps(steps: readonly StepAction[]): StepAction | null {
  */
 export function describeShellCommand(command: string): AgentShellCommandAction | null {
     const inlined = inlineHeredocInputs(inlineHeredocs(command.trim()));
-    const commands = splitList(inlined.replaceAll(OUTPUT_PLUMBING, ''));
-    if (!commands) return null;
+    const listed = splitList(inlined.replaceAll(OUTPUT_PLUMBING, ''));
+    if (!listed) return null;
+    const commands = withoutCapturedOutput(listed);
     const parsed: Array<{ stages: string[][]; text: string }> = [];
     for (const stages of commands) {
         const words = stages.map((stage) => splitWords(stage));

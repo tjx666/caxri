@@ -198,6 +198,18 @@ describe('describeAgentTool', () => {
         expect(
             describe('gh pr checks https://github.com/owner/project/pull/12 --watch'),
         ).toMatchObject({ label: 'Checked PR', subject: '#12' });
+        // A background command that writes its output to a file and prints the file's tail does what the command does.
+        for (const command of [
+            'cd /work/app && gh pr checks 31 --watch > /tmp/ci.log 2>&1; tail -15 /tmp/ci.log',
+            'gh pr checks 31 --watch --interval 20 &> ci.log && cat ci.log',
+        ])
+            expect(describe(command)).toMatchObject({ label: 'Checked PR', subject: '#31' });
+        // A redirection whose file is not read back, or a read of another file, is not that pair.
+        for (const command of [
+            'gh pr checks 31 --watch > /tmp/ci.log',
+            'gh pr checks 31 --watch > /tmp/ci.log; tail -15 /tmp/other.log',
+        ])
+            expect(describe(command)).toMatchObject({ kind: 'command', label: 'Ran' });
         expect(describe('gh pr list --search "tool rows"')).toMatchObject({
             kind: 'pullRequest',
             label: 'Listed PRs',
