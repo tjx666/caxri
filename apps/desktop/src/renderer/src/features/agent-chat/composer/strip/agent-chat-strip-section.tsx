@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { useId, useRef, useState } from 'react';
 
 import { ChevronRight } from 'lucide-react';
@@ -21,6 +21,10 @@ import {
  * a pointer-only target (`tabIndex={-1}`) that hands focus to the toggle, so keyboard users meet one fold control.
  * Collapsed, the header still says what matters (`summary`, `meta`), so folding never hides that work is running. Only
  * a fold the user makes animates: a section that appears with its work renders still, like every other strip row.
+ *
+ * A section with nothing in view (`isEmpty`) is its header alone: no fold toggle, no chevron, and no padded body, so an
+ * expanded chevron never points at blank space. Its body stays mounted, so a list that one of its `actions` reveals can
+ * still animate open.
  */
 export function AgentChatStripSection({
     actions,
@@ -28,6 +32,7 @@ export function AgentChatStripSection({
     children,
     count,
     glyph,
+    isEmpty = false,
     label,
     meta,
     section,
@@ -45,6 +50,10 @@ export function AgentChatStripSection({
      */
     count?: number;
     glyph: ReactNode;
+    /**
+     * Nothing in the body is in view (every row waits behind a toggle in `actions`), so there is nothing to fold.
+     */
+    isEmpty?: boolean;
     label: string;
     meta: ReactNode;
     section: AgentChatStripSectionName;
@@ -54,7 +63,7 @@ export function AgentChatStripSection({
     summary?: ReactNode;
     terminalId: string;
 }) {
-    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, section);
+    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, section) && !isEmpty;
     const [hasToggled, setToggled] = useState(false);
     const bodyId = useId();
     const toggleReference = useRef<HTMLButtonElement>(null);
@@ -74,16 +83,19 @@ export function AgentChatStripSection({
              * and leaves rows with nothing naming them. Opaque so rows pass under it.
              */}
             <div className="sticky top-0 z-10 flex h-8 items-center bg-surface px-1 text-[12px] text-muted">
-                <div className="group flex h-7 min-w-0 flex-1 items-center gap-1 rounded hover:bg-list-hover-background">
-                    <button
-                        aria-controls={bodyId}
-                        aria-expanded={!isCollapsed}
-                        aria-label={ariaLabel}
-                        data-agent-chat-strip-fold=""
-                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted group-hover:text-foreground focus-visible:outline focus-visible:outline-accent"
-                        ref={toggleReference}
-                        type="button"
-                        onClick={toggle}
+                <div
+                    className={cn(
+                        'group flex h-7 min-w-0 flex-1 items-center gap-1 rounded',
+                        !isEmpty && 'hover:bg-list-hover-background',
+                    )}
+                >
+                    <HeaderToggle
+                        ariaLabel={ariaLabel}
+                        bodyId={bodyId}
+                        isCollapsed={isCollapsed}
+                        isEmpty={isEmpty}
+                        toggleReference={toggleReference}
+                        onToggle={toggle}
                     >
                         {glyph}
                         <span className="shrink-0 text-foreground">{label}</span>
@@ -94,26 +106,28 @@ export function AgentChatStripSection({
                             <span className="min-w-0 truncate">{summary}</span>
                         )}
                         <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
-                    </button>
+                    </HeaderToggle>
                     {actions}
-                    <button
-                        aria-hidden="true"
-                        className="flex h-full w-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted group-hover:text-foreground"
-                        tabIndex={-1}
-                        type="button"
-                        onClick={() => {
-                            toggleReference.current?.focus();
-                            toggle();
-                        }}
-                    >
-                        <ChevronRight
-                            className={cn(
-                                'size-3.5',
-                                agentChatChevronMotion(!isCollapsed),
-                                !isCollapsed && 'rotate-90',
-                            )}
-                        />
-                    </button>
+                    {!isEmpty && (
+                        <button
+                            aria-hidden="true"
+                            className="flex h-full w-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted group-hover:text-foreground"
+                            tabIndex={-1}
+                            type="button"
+                            onClick={() => {
+                                toggleReference.current?.focus();
+                                toggle();
+                            }}
+                        >
+                            <ChevronRight
+                                className={cn(
+                                    'size-3.5',
+                                    agentChatChevronMotion(!isCollapsed),
+                                    !isCollapsed && 'rotate-90',
+                                )}
+                            />
+                        </button>
+                    )}
                 </div>
             </div>
             <DisclosureMotion
@@ -122,8 +136,61 @@ export function AgentChatStripSection({
                 id={bodyId}
                 kind={`agent-chat-strip-${section}`}
             >
-                <div className="px-1 pb-1.5">{children}</div>
+                <div className={cn('px-1', !isEmpty && 'pb-1.5')}>{children}</div>
             </DisclosureMotion>
         </section>
+    );
+}
+
+/**
+ * The header's label and meta: the fold toggle, or plain text when the section has nothing in view to fold.
+ */
+function HeaderToggle({
+    ariaLabel,
+    bodyId,
+    children,
+    isCollapsed,
+    isEmpty,
+    toggleReference,
+    onToggle,
+}: {
+    ariaLabel: string | undefined;
+    bodyId: string;
+    children: ReactNode;
+    isCollapsed: boolean;
+    isEmpty: boolean;
+    toggleReference: RefObject<HTMLButtonElement | null>;
+    onToggle: () => void;
+}) {
+    const className =
+        'flex h-full min-w-0 flex-1 items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted';
+    if (isEmpty) {
+        return (
+            <div
+                aria-label={ariaLabel}
+                className={className}
+                data-agent-chat-strip-fold=""
+                role={ariaLabel ? 'group' : undefined}
+            >
+                {children}
+            </div>
+        );
+    }
+    return (
+        <button
+            aria-controls={bodyId}
+            aria-expanded={!isCollapsed}
+            aria-label={ariaLabel}
+            data-agent-chat-strip-fold=""
+            className={cn(
+                className,
+                'cursor-pointer group-hover:text-foreground focus-visible:outline focus-visible:outline-accent',
+            )}
+            ref={toggleReference}
+            type="button"
+            onClick={onToggle}
+        >
+            {children}
+        </button>
     );
 }

@@ -93,10 +93,11 @@ function DelegatedHeaderMeta({
  * The "Delegated Sessions" section of the composer strip: one row per child Session this Chat's Agent delegated to,
  * consulted, or handed off to, under a header that counts them and states how many need input or failed. A completed
  * task stays in the list for a while after it completes (`splitDelegatedSessions`), then waits behind the header's
- * `Completed N` toggle, so the rows in view are the ones still worth looking at. The clock that folds a row only ticks
- * while a recent completed row is in view. Mounts only when the feed has entries, and only for a Chat on screen: a
- * kept-alive Chat in the background reads no feed, so the progress events that patch it cost the visible Chat alone
- * (the hidden-Chat render budget).
+ * `Completed N` toggle, so the rows in view are the ones still worth looking at. Once every row waits there, the
+ * section is its header alone (count, cost, and the toggle), with no fold chevron over an empty list. The clock that
+ * folds a row only ticks while a recent completed row is in view. Mounts only when the feed has entries, and only for a
+ * Chat on screen: a kept-alive Chat in the background reads no feed, so the progress events that patch it cost the
+ * visible Chat alone (the hidden-Chat render budget).
  */
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
@@ -155,6 +156,8 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                     .filter(Boolean)
                     .join(', ')}
                 glyph={<Forward aria-hidden="true" className="size-3.5 shrink-0" />}
+                // Every row folded behind `Completed N`: the header alone, rather than an expanded chevron over nothing.
+                isEmpty={shown.length === 0 && !isShowingCompleted}
                 label={t('delegation.strip.label')}
                 meta={
                     <DelegatedHeaderMeta
