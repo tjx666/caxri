@@ -57,7 +57,9 @@ export function useAgentChatTask(
  */
 export function useCachedAgentChatTask(
     tabPath: string,
-): (Pick<AgentChatTask, 'kind' | 'title'> & { isWorkflow: boolean }) | undefined {
+):
+    | (Pick<AgentChatTask, 'command' | 'kind' | 'status' | 'title'> & { isWorkflow: boolean })
+    | undefined {
     const tab = parseAgentTaskTab(tabPath);
     const query = useCaxriQuery(
         'agentChat.read',
@@ -70,6 +72,8 @@ export function useCachedAgentChatTask(
                     task && {
                         kind: task.kind,
                         title: task.title,
+                        command: task.command,
+                        status: task.status,
                         isWorkflow: task.workflow !== undefined,
                     }
                 );

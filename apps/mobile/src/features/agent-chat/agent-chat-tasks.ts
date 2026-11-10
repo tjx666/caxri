@@ -6,12 +6,12 @@ import type {
     AgentChatWorkItem,
 } from '@caxri/protocol';
 import {
+    agentChatShellTaskTitle,
     agentChatTaskElapsedMs,
     agentChatTaskStripView,
     agentChatTaskSummary,
     canStopAgentChatTask,
     formatNoticeableDuration,
-    isAgentChatTaskTitleCommand,
     isAgentChatWorkItem,
 } from '@caxri/protocol';
 
@@ -170,7 +170,8 @@ export interface AgentChatTaskRow {
      */
     title: string;
     /**
-     * Whether the title is the command line itself, set in monospace as on Desktop.
+     * Whether the title is a command line, set in monospace as on Desktop. An undescribed shell whose command reads as
+     * an action (`Working on PR #31`) is titled in words.
      */
     isCommandTitle: boolean;
     statusLabel: string;
@@ -202,7 +203,8 @@ export function agentChatTaskRow(
     const kindLabel = t(
         task.kind === 'shell' ? 'chat.tasks.backgroundShell' : 'chat.tasks.subagent',
     );
-    const title = task.title || kindLabel;
+    const shellTitle = agentChatShellTaskTitle(task, t);
+    const title = shellTitle?.text ?? (task.title || kindLabel);
     const statusLabel = t(STATUS_LABELS[task.status]);
     const elapsed = formatNoticeableDuration(agentChatTaskElapsedMs(task, now), t) ?? undefined;
     const workflowProgress =
@@ -210,7 +212,7 @@ export function agentChatTaskRow(
     const summary = workflowProgress ?? agentChatTaskSummary(task, statusLabel);
     return {
         title,
-        isCommandTitle: isAgentChatTaskTitleCommand(task),
+        isCommandTitle: shellTitle?.isCode ?? false,
         statusLabel,
         elapsed,
         summary,

@@ -104,7 +104,14 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
     const { projection, task, isUnavailable } = useAgentChatTask(tab.terminalId, tab.taskId);
     const snapshot = projection.data;
     const kind = agentChatTaskKind(task, snapshot);
-    const title = agentChatTaskTitle({ kind, title: task?.title.trim() ?? '' }, t);
+    const title = agentChatTaskTitle(
+        {
+            kind,
+            title: task?.title.trim() ?? '',
+            ...(task && { command: task.command, status: task.status }),
+        },
+        t,
+    );
     const isRunning = task?.status === 'running';
     const workflow = agentChatTaskWorkflow(task, snapshot);
     const hasWorkflowEnded = task?.workflow !== undefined && task.status !== 'running';

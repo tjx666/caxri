@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AgentChatItem, AgentChatTask } from '../agent-chat-contract.js';
 import {
+    agentChatShellTaskTitle,
     agentChatTaskActivity,
     agentChatTaskElapsedMs,
     agentChatTaskGlyphStatus,
@@ -87,6 +88,33 @@ describe('task presentation', () => {
         expect(isAgentChatTaskTitleCommand({ kind: 'shell', command: 'bun run dev' })).toBe(false);
         expect(isAgentChatTaskTitleCommand({ kind: 'agent' })).toBe(false);
         expect(isAgentChatTaskTitleCommand(undefined, 'shell')).toBe(true);
+    });
+
+    it('titles an undescribed background shell the way its work row reads', () => {
+        const checks = task({
+            id: 'b1',
+            kind: 'shell',
+            title: 'cd /work/app && gh pr checks 31 --watch > /tmp/ci.log 2>&1; tail -15 /tmp/ci.log',
+        });
+        expect(agentChatShellTaskTitle(checks)).toEqual({
+            text: 'Working on PR #31',
+            isCode: false,
+        });
+        expect(agentChatShellTaskTitle({ ...checks, status: 'completed' })).toEqual({
+            text: 'Checked PR #31',
+            isCode: false,
+        });
+        expect(
+            agentChatShellTaskTitle(
+                task({ id: 'b2', kind: 'shell', title: 'cd /work/app && bun run dev' }),
+            ),
+        ).toEqual({ text: 'bun run dev', isCode: true });
+        expect(
+            agentChatShellTaskTitle(
+                task({ id: 'b3', kind: 'shell', title: 'Watch CI', command: 'gh run watch 1' }),
+            ),
+        ).toBeUndefined();
+        expect(agentChatShellTaskTitle(task({ id: 'b4', title: 'Explore' }))).toBeUndefined();
     });
 });
 
