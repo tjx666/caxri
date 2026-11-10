@@ -15,7 +15,7 @@ import type { MobileNestedSessionsSeed } from './server-database/mobile-nested-s
 /**
  * `MOB-SESSION-LIST-NESTED-01`: a host Session that consulted a second opinion, delegated a task, and handed off to a
  * third Session. The phone's home list shows the host and the hand-off, and leaves out the consult and the delegated
- * task, which belong to the host.
+ * task, which belong to the host. An archived Session's second opinion has no row either (issue #3936).
  */
 export async function executeMobileNestedSessionsScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -45,7 +45,7 @@ export async function executeMobileNestedSessionsScenario(
     });
     try {
         if (!seed) throw new Error('Nested Sessions seed is unavailable');
-        const { consult, delegated, handoff, host, projectId } = seed;
+        const { consult, delegated, handoff, host, projectId, retiredConsult } = seed;
         // The absent rows prove nothing unless the Server holds those Sessions with their relations.
         const { sessions } = await pageRequest<BootstrapState>(
             mobile.running.page,
@@ -54,8 +54,15 @@ export async function executeMobileNestedSessionsScenario(
         const relationOf = (id: string) =>
             sessions.find((session) => session.id === id && session.archivedAt === undefined)
                 ?.createdByRelation;
-        if (relationOf(consult) !== 'consult' || relationOf(delegated) !== 'delegated')
+        if (
+            relationOf(consult) !== 'consult' ||
+            relationOf(delegated) !== 'delegated' ||
+            relationOf(retiredConsult) !== 'consult'
+        )
             throw new Error('The seeded consult and delegated Sessions are unavailable');
+        const retiredCreator = sessions.find((session) => session.id === seed?.archivedHost);
+        if (retiredCreator?.archivedAt === undefined)
+            throw new Error("The retired second opinion's creator is not archived");
         await mobile.pair({ projectIds: [projectId], readyCheckId: `session-row-${host}` });
         const nodes = await waitForMobile(
             () => mobileSemantics(serial),
@@ -67,7 +74,7 @@ export async function executeMobileNestedSessionsScenario(
         // The dashboard carries all four, so a later push cannot add the hidden rows back; read once more after it.
         await new Promise((resolve) => setTimeout(resolve, 3_000));
         const settled = await mobileSemantics(serial);
-        const hidden = [consult, delegated].filter(
+        const hidden = [consult, delegated, retiredConsult].filter(
             (id) => hasCheck(nodes, `session-row-${id}`) || hasCheck(settled, `session-row-${id}`),
         );
         if (hidden.length > 0)
@@ -76,6 +83,7 @@ export async function executeMobileNestedSessionsScenario(
         await finish(environment, artifacts, {
             consultRow: 'absent',
             delegatedRow: 'absent',
+            retiredConsultRow: 'absent',
             handoffRow: 'shown',
             hostRow: 'shown',
             status: 'passed',

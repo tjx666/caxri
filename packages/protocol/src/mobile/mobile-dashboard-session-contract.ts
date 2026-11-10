@@ -22,6 +22,12 @@ export const mobileDashboardSessionSchema = z.strictObject({
      * creator it lists, since that work belongs to the creator rather than to the user.
      */
     createdByRelation: sessionRecordSchema.shape.createdByRelation,
+    /**
+     * Set when the creating Session is archived. The home list then gives a `consult` Session no row, the way Desktop's
+     * Projects tree retires it (`retiredConsults`): an archived creator is absent from the list for the same reason as
+     * a deleted one, and only this flag tells them apart.
+     */
+    createdBySessionArchived: z.literal(true).optional(),
     lastVisitedAt: sessionRecordSchema.shape.lastVisitedAt,
     /**
      * The Session's work clock, which orders rows inside a group on both Desktop and the phone.

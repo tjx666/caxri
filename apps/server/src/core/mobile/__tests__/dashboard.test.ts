@@ -89,6 +89,20 @@ describe('buildMobileDashboard', () => {
         expect(
             result.sessions.find(({ id }) => id === 'source')?.createdBySessionId,
         ).toBeUndefined();
+        expect(
+            result.sessions.find(({ id }) => id === 'next')?.createdBySessionArchived,
+        ).toBeUndefined();
+
+        const afterArchive = buildMobileDashboard({
+            hostDisplayName: 'Caxri Host',
+            deviceRole: 'view',
+            projects: [{ id: 'project-1', title: 'App' }],
+            sessions: [{ ...session('source'), archivedAt: 900 }, session('next', 'source')],
+            terminals: [],
+        });
+        expect(afterArchive.sessions.find(({ id }) => id === 'next')).toMatchObject({
+            createdBySessionArchived: true,
+        });
     });
 
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
