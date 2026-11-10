@@ -14,6 +14,7 @@ import {
     pageRequest,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { chooseContextMenuItem, contextMenuLabels } from './support/native-context-menu.ts';
 
 /**
  * A Files entry dropped into the Chat composer is cited by its absolute path and drawn as a pill with its icon and name
@@ -129,6 +130,71 @@ test('a video cited on a reference line plays from a tile inside the bubble, not
         await expect(bubble.locator(`[data-agent-chat-video="${video}"]`)).toBeVisible();
         await expect(chat.locator(`[data-agent-chat-path-reference="${video}"]`)).toHaveCount(0);
         await bubble.screenshot({ path: testInfo.outputPath('chat-video-in-bubble.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A sent folder tile's right-click opens its own menu rather than the message's: Open in Finder (as a click does),
+ * Reveal in Finder, which shows the folder selected in its parent instead of opening it, and Copy Path.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test("a sent folder tile's right-click reveals the folder in Finder", async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-path-menu-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    const contracts = join(directory, 'contracts');
+    await mkdir(root, { recursive: true });
+    await mkdir(contracts, { recursive: true });
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        await expect(chat.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        const { terminals } = await pageRequest<{
+            terminals: Array<{ id: string; surface?: string }>;
+        }>(page, 'app.bootstrap');
+        const terminal = terminals.find(({ surface }) => surface === 'chat');
+        if (!terminal) throw new Error('The Chat Terminal is missing');
+        await pageRequest(page, 'agentChat.send', {
+            terminalId: terminal.id,
+            text: agentChatTextWithPathReferences(
+                'Compare these contracts',
+                [{ isDirectory: true, path: contracts }],
+                'Codex',
+            ),
+        });
+        await running.app.evaluate(({ shell }) => {
+            const revealed: string[] = [];
+            Object.assign(globalThis, { caxriE2ERevealedPaths: revealed });
+            shell.showItemInFolder = (path) => {
+                revealed.push(path);
+            };
+        });
+
+        const tile = chat.locator(`[data-agent-chat-path-reference="${contracts}"]`);
+        await expect(tile).toBeVisible();
+        await tile.click({ button: 'right' });
+        await expect
+            .poll(() => contextMenuLabels(running.app))
+            .toEqual(['Open in Finder', 'Reveal in Finder', 'Copy Path']);
+        await tile.screenshot({ path: testInfo.outputPath('chat-path-tile-menu.png') });
+        await chooseContextMenuItem(running.app, 'Reveal in Finder');
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () =>
+                        (globalThis as typeof globalThis & { caxriE2ERevealedPaths: string[] })
+                            .caxriE2ERevealedPaths,
+                ),
+            )
+            .toEqual([contracts]);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

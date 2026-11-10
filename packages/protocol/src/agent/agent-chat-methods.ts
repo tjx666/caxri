@@ -560,12 +560,17 @@ export const agentChatMethods = {
         result: z.object({ confirmed: z.boolean() }),
     },
     /**
-     * Opens a file or folder chip from a sent message: a folder in Finder, a file revealed in its folder. Main owns it
-     * because the path is the user's own drop, paste, or pick, which can sit outside every Project root.
+     * Opens a file or folder chip from a sent message: a folder in Finder, a file revealed in its folder. With
+     * `shouldReveal`, a folder is revealed selected in its parent folder too, for the chip's Reveal in Finder menu
+     * entry. Main owns it because the path is the user's own drop, paste, or pick, which can sit outside every Project
+     * root.
      */
     'agentChat.openPathReference': {
         ...commandPolicy('desktop', 'control'),
-        params: z.object({ path: z.string().min(1).max(4096).startsWith('/') }),
+        params: z.object({
+            path: z.string().min(1).max(4096).startsWith('/'),
+            shouldReveal: z.boolean().optional(),
+        }),
         result: z.null(),
     },
     /**

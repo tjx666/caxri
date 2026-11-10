@@ -488,7 +488,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return { confirmed: result.response === 0 };
             }
             case 'agentChat.openPathReference':
-                await openAgentChatPathReference(request.params.path);
+                await openAgentChatPathReference(request.params.path, request.params.shouldReveal);
                 return null;
             case 'editor.unsavedReply':
                 options.onUnsavedEditorsReply?.(request.params);

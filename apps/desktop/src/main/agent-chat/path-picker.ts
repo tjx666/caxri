@@ -119,9 +119,13 @@ async function isBundle(target: string): Promise<boolean> {
  * other executable bundle. The bundle check reads the resolved path, since a symlink named `tools` that points at an
  * `.app` would otherwise pass as a plain folder and launch. The path came from the user's own drop, paste, or pick, so
  * it is not held to a Project root. `shell.openPath` resolves with an error message rather than rejecting, which is
- * rethrown so the click reports it.
+ * rethrown so the click reports it. `shouldReveal` shows even a folder selected in its parent, for the chip's Reveal in
+ * Finder menu entry.
  */
-export async function openAgentChatPathReference(path: string): Promise<void> {
+export async function openAgentChatPathReference(
+    path: string,
+    shouldReveal = false,
+): Promise<void> {
     let target: string;
     let isFolder: boolean;
     try {
@@ -130,7 +134,7 @@ export async function openAgentChatPathReference(path: string): Promise<void> {
     } catch {
         throw new CaxriError('NOT_FOUND', `${path} no longer exists`);
     }
-    if (!isFolder || (await isBundle(target))) {
+    if (shouldReveal || !isFolder || (await isBundle(target))) {
         shell.showItemInFolder(path);
         return;
     }
