@@ -217,6 +217,50 @@ test('the Delegated Sessions section sits above Background work in the strip', a
 });
 
 /**
+ * Once its only task has been completed for more than ten minutes, the section keeps its header (count, cost, and the
+ * `Completed 1` toggle) but no empty body or fold chevron under it; the toggle is the way to the folded row.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a section whose every row folded behind Completed N shows its header alone', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-all-folded-');
+    try {
+        const { page } = chat.running;
+        const { projectId, sessionId: parentId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await openAgentChat(page, 'Codex Chat');
+        const session = page.locator(VISIBLE_SESSION);
+        const message = session.getByRole('textbox', { name: 'Message' });
+        await message.fill(DELEGATE_PROMPT);
+        await message.press('Enter');
+        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const row = strip.locator('[data-agent-chat-delegated-session]');
+        await expect(row).toContainText(CHILD_SUMMARY);
+        const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
+
+        // Eleven minutes later, the completed row folds; reselecting the Chat reads the clock again.
+        await page.clock.setFixedTime(Date.now() + 11 * 60_000);
+        await selectSession(page, childId);
+        await selectSession(page, parentId);
+        const completed = strip.getByRole('button', { name: 'Completed 1' });
+        await expect(completed).toBeVisible();
+        await expect(row).toBeHidden();
+        await expect(strip.locator('[data-agent-chat-strip-fold]')).not.toHaveAttribute(
+            'aria-expanded',
+        );
+        const header = await strip.locator(':scope > div').first().boundingBox();
+        const section = await strip.boundingBox();
+        expect(Math.round(section!.height)).toBe(Math.round(header!.height) + 1);
+        await page.screenshot({ path: testInfo.outputPath('delegated-all-folded.png') });
+
+        await completed.click();
+        await expect(row).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('delegated-all-folded-shown.png') });
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
  * A task admitted with a preset shows its name as a chip on the strip row and on the child's origin row. The provider,
  * model and effort come from the selection frozen on the receipt: the strip row reads them from its tooltip, which also
  * opens on keyboard focus, and the origin row prints them.
