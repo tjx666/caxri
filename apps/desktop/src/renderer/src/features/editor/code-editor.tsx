@@ -16,7 +16,11 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { publishSourceScroll } from '../preview/preview-scroll-sync';
 import { foldEditorOnOpen } from './editor-auto-fold';
 import { resolveEditorLanguage, resolveRegisteredEditorLanguage } from './editor-language';
-import { synchronizeControlledEditorModel } from './editor-model-sync';
+import {
+    retainEditorModel,
+    scheduleEditorModelRelease,
+    synchronizeControlledEditorModel,
+} from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
 import { EditorSelectionToolbar } from './editor-selection-toolbar';
@@ -169,6 +173,10 @@ export function CodeEditor({
         if (editor) restoreEditorViewState(editor, editorInstanceId);
     }, [editorInstanceId, path]);
     useEffect(() => {
+        retainEditorModel(path);
+        return scheduleEditorModelRelease;
+    }, [path]);
+    useEffect(() => {
         const editor = editorReference.current;
         if (editor)
             synchronizeControlledEditorModel(
@@ -236,6 +244,7 @@ export function CodeEditor({
             <Editor
                 path={path}
                 language={language}
+                keepCurrentModel
                 saveViewState={false}
                 value={value}
                 theme="caxri-active"
