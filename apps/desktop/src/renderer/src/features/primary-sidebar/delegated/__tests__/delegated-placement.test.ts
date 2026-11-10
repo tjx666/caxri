@@ -271,10 +271,7 @@ describe('placeDelegatedSessions', () => {
             ]);
             expect(placement.groupIdBySessionId.get('child')).toBe(PINNED_GROUP_ROW_ID);
             expect(placement.groupIdBySessionId.get('consult')).toBe(PINNED_GROUP_ROW_ID);
-            expect(sortedIds(placement.hostedByGroup.get(PINNED_GROUP_ROW_ID))).toEqual([
-                'child',
-                'consult',
-            ]);
+            expect(sortedIds(placement.hostedByGroup.get(PINNED_GROUP_ROW_ID))).toEqual(['child']);
             expect(placement.hostedByGroup.has('alpha')).toBe(false);
         });
 
@@ -320,7 +317,7 @@ describe('placeDelegatedSessions', () => {
     });
 
     describe('group attribution', () => {
-        it('attributes nested and hidden Sessions to their host Project, never rewriting projectId', () => {
+        it('attributes nested and hidden Sessions to their host Project, never rewriting projectId, and hosts only the nested ones', () => {
             const child = createdBy('child', 'beta', 'host', 'delegated');
             const placement = place([
                 session('host', 'alpha'),
@@ -331,7 +328,8 @@ describe('placeDelegatedSessions', () => {
             expect(placement.groupIdBySessionId.get('child')).toBe('alpha');
             expect(placement.groupIdBySessionId.get('consult')).toBe('alpha');
             expect(placement.groupIdBySessionId.has('plain')).toBe(false);
-            expect(sortedIds(placement.hostedByGroup.get('alpha'))).toEqual(['child', 'consult']);
+            // A hidden consult has no row anywhere, so a collapsed heading must not summarize it.
+            expect(sortedIds(placement.hostedByGroup.get('alpha'))).toEqual(['child']);
             expect(placement.hostedByGroup.has('beta')).toBe(false);
             expect(child.projectId).toBe('beta');
         });
