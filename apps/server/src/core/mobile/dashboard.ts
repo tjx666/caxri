@@ -129,6 +129,11 @@ export const buildMobileDashboard = (input: {
                           rowOrder(right),
                       )),
         );
+    const archivedSessionIds = new Set(
+        input.sessions
+            .filter((session) => session.archivedAt !== undefined)
+            .map((session) => session.id),
+    );
     const sessions: MobileDashboardResult['sessions'] = [];
     for (const session of active) {
         if (sessions.length >= MAXIMUM_DASHBOARD_SESSIONS) break;
@@ -170,6 +175,10 @@ export const buildMobileDashboard = (input: {
             ...(session.createdByRelation !== undefined && {
                 createdByRelation: session.createdByRelation,
             }),
+            ...(session.createdBySessionId !== undefined &&
+                archivedSessionIds.has(session.createdBySessionId) && {
+                    createdBySessionArchived: true,
+                }),
             lastVisitedAt: session.lastVisitedAt,
             sessionActivityAt: session.sessionActivityAt,
             ...(session.pinnedAt !== undefined && { pinnedAt: session.pinnedAt }),

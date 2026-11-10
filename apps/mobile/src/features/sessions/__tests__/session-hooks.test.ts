@@ -86,7 +86,7 @@ describe('mobile Session hooks', () => {
             hasPendingAttention: false,
         } as const;
         const nested = buildMobileSessionSections({
-            total: 7,
+            total: 10,
             truncated: false,
             sessions: [
                 session({ id: 'creator', ...settled }),
@@ -117,8 +117,31 @@ describe('mobile Session hooks', () => {
                 }),
                 session({
                     id: 'orphan-consult',
-                    createdBySessionId: 'archived-creator',
+                    createdBySessionId: 'deleted-creator',
                     createdByRelation: 'consult',
+                    ...settled,
+                }),
+                session({
+                    id: 'retired-consult',
+                    createdBySessionId: 'archived-creator',
+                    createdBySessionArchived: true,
+                    createdByRelation: 'consult',
+                    lastAttentionKind: 'completed',
+                    hasPendingAttention: true,
+                }),
+                session({
+                    id: 'pinned-retired-consult',
+                    createdBySessionId: 'archived-creator',
+                    createdBySessionArchived: true,
+                    createdByRelation: 'consult',
+                    pinnedAt: 2,
+                    ...settled,
+                }),
+                session({
+                    id: 'retired-delegated',
+                    createdBySessionId: 'archived-creator',
+                    createdBySessionArchived: true,
+                    createdByRelation: 'delegated',
                     ...settled,
                 }),
                 session({
@@ -137,10 +160,13 @@ describe('mobile Session hooks', () => {
             'handoff',
             'orphan-consult',
             'pinned-delegated',
+            'pinned-retired-consult',
+            'retired-delegated',
             'waiting-delegated',
         ]);
-        // Still openable from the creator's timeline links.
+        // Still openable from the creator's timeline links and from search.
         expect(nested.sessions.map(({ id }) => id)).toContain('consult');
+        expect(nested.sessions.map(({ id }) => id)).toContain('retired-consult');
     });
 
     it('holds the rendered order during touch and shows the latest snapshot on release', () => {
