@@ -20,16 +20,16 @@ export interface ProjectSessionWindow extends SessionListWindow<SessionRecord> {
      */
     projectSessions: SessionRecord[];
     /**
-     * `projectSessions` plus the nested and hidden Sessions its hosts hold, for the status counts a collapsed heading
-     * shows: a running or unread child must not fold out of sight with its host. The same array as `projectSessions`
-     * when no host holds any.
+     * `projectSessions` plus the nested Sessions its hosts hold, for the status counts a collapsed heading shows: a
+     * running or unread child must not fold out of sight with its host. The same array as `projectSessions` when no
+     * host holds any.
      */
     statusSessions: SessionRecord[];
 }
 
 interface UseProjectSessionWindowsInput {
     /**
-     * The nested and hidden Sessions each group holds through its hosts (`DelegatedPlacement.hostedByGroup`).
+     * The nested Sessions each group holds through its hosts (`DelegatedPlacement.hostedByGroup`).
      */
     hostedByGroup?: ReadonlyMap<string, readonly SessionRecord[]>;
     /**

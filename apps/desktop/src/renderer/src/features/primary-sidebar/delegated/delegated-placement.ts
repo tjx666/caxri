@@ -32,8 +32,9 @@ export interface DelegatedPlacement {
      */
     readonly groupIdBySessionId: ReadonlyMap<string, string>;
     /**
-     * The nested and hidden Sessions each group holds through its hosts, in no particular order. A collapsed group's
-     * heading folds these into its status counts.
+     * The nested Sessions each group holds through its hosts, in no particular order. A collapsed group's heading folds
+     * these into its status counts. Hidden consults are left out: they have no row in the expanded group either, so
+     * counting them showed an unread dot that no row could explain or clear.
      */
     readonly hostedByGroup: ReadonlyMap<string, readonly SessionRecord[]>;
     /**
@@ -230,7 +231,7 @@ export function placeDelegatedSessions({
             if (groupId !== undefined) {
                 for (const session of hosted) {
                     groupIdBySessionId.set(session.id, groupId);
-                    appendTo(hostedByGroup, groupId, session);
+                    if (bucket === nested) appendTo(hostedByGroup, groupId, session);
                 }
             }
         }
