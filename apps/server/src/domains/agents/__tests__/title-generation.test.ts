@@ -233,6 +233,24 @@ describe('Session title material', () => {
         expect(normalizeGeneratedAgentTitle('会话标题同步')).toBe('会话标题同步');
     });
 
+    it('rejects a title too wide for the sidebar or listing several changes', () => {
+        for (const title of [
+            '导出按钮改为下拉菜单，添加历史记录入口，空列表时隐藏工具栏',
+            '导出按钮下拉菜单与历史记录入口及空列表工具栏隐藏调整',
+            'Export menu redesign with history entry and empty-list toolbar',
+            'Export menu, history entry',
+            '导出菜单；历史入口',
+        ])
+            expect(normalizeGeneratedAgentTitle(title)).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('导出按钮改为下拉菜单')).toBe('导出按钮改为下拉菜单');
+        expect(normalizeGeneratedAgentTitle('二十个汉字可以放进侧边栏里的会话标题长度')).toBe(
+            '二十个汉字可以放进侧边栏里的会话标题长度',
+        );
+        expect(normalizeGeneratedAgentTitle('Export button becomes a dropdown menu')).toBe(
+            'Export button becomes a dropdown menu',
+        );
+    });
+
     it('rejects a colon, a labelled answer and kana mixed into a Chinese title', () => {
         const context = {
             opening: [
