@@ -25,6 +25,10 @@ export interface MobileNestedSessionsSeed {
     delegated: string;
     handoff: string;
     /**
+     * An archived Session, the creator of `retiredConsult`.
+     */
+    archivedHost: string;
+    /**
      * A second opinion whose creator is archived: the home list retires it like Desktop's Projects tree.
      */
     retiredConsult: string;
@@ -61,6 +65,7 @@ export function run(input: Input): MobileNestedSessionsSeed {
         return {
             projectId: project.id,
             host,
+            archivedHost,
             consult: started('Quick second opinion', 'consult'),
             delegated: started('Review the retry design', 'delegated'),
             handoff: started('Continue in the worker', 'handoff'),

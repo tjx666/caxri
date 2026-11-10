@@ -60,6 +60,9 @@ export async function executeMobileNestedSessionsScenario(
             relationOf(retiredConsult) !== 'consult'
         )
             throw new Error('The seeded consult and delegated Sessions are unavailable');
+        const retiredCreator = sessions.find((session) => session.id === seed?.archivedHost);
+        if (retiredCreator?.archivedAt === undefined)
+            throw new Error("The retired second opinion's creator is not archived");
         await mobile.pair({ projectIds: [projectId], readyCheckId: `session-row-${host}` });
         const nodes = await waitForMobile(
             () => mobileSemantics(serial),
