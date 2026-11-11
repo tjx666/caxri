@@ -33,7 +33,7 @@ import {
 } from '../image-attachment-store';
 import { didUploadImageChunks } from '../image-upload';
 import type { RecentMedia } from '../recent-media';
-import { attachesAsFile } from '../recent-media';
+import { attachesAsFile, recentMediaMimeType } from '../recent-media';
 import type { PickedFile } from './use-file-attachments';
 
 /**
@@ -397,7 +397,10 @@ export const useImageAttachments = (
         const asFile = attachesAsFile(media.kind, files);
         if (asFile === undefined) return;
         await (asFile
-            ? attachPicked([], [{ uri: media.uri, name: media.filename }])
+            ? attachPicked(
+                  [],
+                  [{ uri: media.uri, name: media.filename, mimeType: recentMediaMimeType(media) }],
+              )
             : attachPicked([{ uri: media.uri, width: media.width, height: media.height }], []));
     };
 

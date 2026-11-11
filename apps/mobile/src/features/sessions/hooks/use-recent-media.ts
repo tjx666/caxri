@@ -45,7 +45,7 @@ const resolveRecentMedia = async (item: {
         width: item.width ?? shape?.width ?? 0,
         height: item.height ?? shape?.height ?? 0,
         ...(item.filename && { filename: item.filename }),
-        ...(item.duration !== null && { durationSeconds: item.duration }),
+        ...(item.duration !== null && { durationMs: item.duration }),
     };
 };
 

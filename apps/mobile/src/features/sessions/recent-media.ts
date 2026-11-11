@@ -13,9 +13,9 @@ export interface RecentMedia {
     height: number;
     filename?: string;
     /**
-     * A video's length in seconds.
+     * A video's length in milliseconds, as `expo-media-library` reports it on both platforms.
      */
-    durationSeconds?: number;
+    durationMs?: number;
 }
 
 /**
@@ -37,10 +37,10 @@ export const recentMediaAccessStep = (permission: {
 };
 
 /**
- * A video's length as the system gallery labels it: `0:07`, `12:30`, or `1:02:03` past an hour.
+ * A video's length, given in milliseconds, as the system gallery labels it: `0:07`, `12:30`, or `1:02:03` past an hour.
  */
-export const formatMediaDuration = (seconds: number): string => {
-    const total = Math.max(0, Math.round(seconds));
+export const formatMediaDuration = (milliseconds: number): string => {
+    const total = Math.max(0, Math.round(milliseconds / 1000));
     const hours = Math.floor(total / 3600);
     const minutes = Math.floor((total % 3600) / 60);
     const rest = String(total % 60).padStart(2, '0');
@@ -59,4 +59,37 @@ export const attachesAsFile = (
 ): boolean | undefined => {
     if (files === undefined) return kind === 'video' ? undefined : false;
     return files.imagesAsFiles || kind === 'video';
+};
+
+/**
+ * Media types by extension for the photos and videos a phone camera or download leaves in the library.
+ */
+const MEDIA_TYPES: Record<string, string> = {
+    '3gp': 'video/3gpp',
+    'avi': 'video/x-msvideo',
+    'gif': 'image/gif',
+    'heic': 'image/heic',
+    'heif': 'image/heif',
+    'jpeg': 'image/jpeg',
+    'jpg': 'image/jpeg',
+    'm4v': 'video/x-m4v',
+    'mkv': 'video/x-matroska',
+    'mov': 'video/quicktime',
+    'mp4': 'video/mp4',
+    'png': 'image/png',
+    'webm': 'video/webm',
+    'webp': 'image/webp',
+};
+
+/**
+ * The media type a recent photo or video attaches with as a file. `expo-media-library` reports none, while the
+ * composer's file card decides from it whether a file plays, as the library picker's assets carry one. An unknown
+ * extension falls back to the generic `video/*` or `image/*`, which still names the right kind.
+ */
+export const recentMediaMimeType = (
+    media: Pick<RecentMedia, 'filename' | 'kind' | 'uri'>,
+): string => {
+    const name = media.filename ?? media.uri;
+    const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+    return MEDIA_TYPES[extension] ?? `${media.kind}/*`;
 };

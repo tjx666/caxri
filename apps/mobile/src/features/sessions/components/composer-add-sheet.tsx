@@ -224,8 +224,8 @@ const RecentThumbnail = ({
     const videoCover = useVideoCover(media.kind === 'video' ? media.uri : undefined);
     const cover = media.kind === 'image' ? media.uri : videoCover;
     const duration =
-        media.kind === 'video' && media.durationSeconds !== undefined
-            ? formatMediaDuration(media.durationSeconds)
+        media.kind === 'video' && media.durationMs !== undefined
+            ? formatMediaDuration(media.durationMs)
             : undefined;
     return (
         <Pressable

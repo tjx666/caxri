@@ -208,6 +208,8 @@ async function executeRecentMediaScenario(
         );
         await openAddSheet(serial);
         await waitForRecentRow(serial);
+        // The row appears while the sheet is still sliding up; bounds read mid-slide put the tap below the video.
+        await pause(1_000);
         await tapMobileCheck(serial, 'image-source-recent-video');
         await waitForMobile(
             () => mobileSemantics(serial),
