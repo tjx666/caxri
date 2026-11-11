@@ -54,6 +54,14 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'composer-recent-media-declined',
     },
+    'MOB-COMPOSER-RECENT-MEDIA-03': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        mediaLibrary: 'undetermined',
+        recordingOwner: 'scenario',
+        scenario: 'composer-recent-media-first-ask',
+    },
     'MOB-CHAT-VIDEO-02': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

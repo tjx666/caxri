@@ -9,10 +9,12 @@ import { capture, finish } from './mobile-agent-actions-scenarios';
 import { hasCheck, waitForCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
+    mobileNativeControlBounds,
     mobileSemantics,
     pushMobileFixture,
     tapMobileCheck,
     tapMobileCheckByBounds,
+    tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
 import type { MobileAndroidCaseEnvironment } from './mobile-android-case-registry';
@@ -26,6 +28,11 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 const VIDEO_NAME = 'caxri-recent-video.mp4';
 const REMOTE_VIDEO = `/sdcard/Download/${VIDEO_NAME}`;
+
+/**
+ * The permission prompt's full-access button on Android 14 and later ("Allow all").
+ */
+const ALLOW_ALL = 'com.android.permissioncontroller:id/permission_allow_all_button';
 
 const rescanVideo = (serial: string) =>
     adbShell(serial, [
@@ -56,15 +63,76 @@ const addVideo = async (serial: string, directory: string) => {
     await rescanVideo(serial);
 };
 
+type Access = 'declined' | 'granted' | 'undetermined';
+
 /**
- * `MOB-COMPOSER-RECENT-MEDIA-01` (library access granted): the Chat composer's add sheet shows the newest photo and
- * video above the sources, the video with its first frame and length; tapping the photo closes the sheet and attaches
- * it. `MOB-COMPOSER-RECENT-MEDIA-02` (access declined): the sheet shows only its sources, as before the row existed.
+ * The app's image and video permission as the package manager reports it, so a case proves its fixture took effect
+ * instead of inferring it from the row alone.
+ */
+const readMediaPermissions = async (serial: string) => {
+    const dump = await adbShell(serial, ['dumpsys', 'package', 'com.caxri.mobile']);
+    const runtime = dump.slice(dump.indexOf('runtime permissions:'));
+    const read = (name: string) => {
+        const line = new RegExp(
+            String.raw`${name}: granted=(true|false), flags=\[([^\]]*)\]`,
+            'u',
+        ).exec(runtime);
+        return {
+            granted: line?.[1] === 'true',
+            userFixed: line?.[2]?.includes('USER_FIXED') ?? false,
+        };
+    };
+    return {
+        images: read('android.permission.READ_MEDIA_IMAGES'),
+        video: read('android.permission.READ_MEDIA_VIDEO'),
+    };
+};
+
+const assertMediaPermissions = async (serial: string, access: Access) => {
+    const state = await readMediaPermissions(serial);
+    const expected = {
+        declined: { granted: false, userFixed: true },
+        granted: { granted: true, userFixed: false },
+        undetermined: { granted: false, userFixed: false },
+    }[access];
+    for (const permission of [state.images, state.video])
+        if (permission.granted !== expected.granted || permission.userFixed !== expected.userFixed)
+            throw new Error(`The ${access} photo library fixture did not take effect`);
+    return state;
+};
+
+/**
+ * The package owning the focused window, such as `com.android.permissioncontroller` while the system prompt shows.
+ */
+const focusedPackage = async (serial: string): Promise<string | undefined> => {
+    const windows = await adbShell(serial, ['dumpsys', 'window', 'displays']);
+    return /mCurrentFocus=Window\{\S+ \S+ ([\w.]+)/u.exec(windows)?.[1];
+};
+
+const waitForRecentRow = (serial: string) =>
+    waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            hasCheck(nodes, 'image-source-recent-image') &&
+            hasCheck(nodes, 'image-source-recent-video'),
+        30_000,
+    );
+
+const openAddSheet = async (serial: string) => {
+    await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
+    await waitForCheck(serial, 'image-source-library');
+};
+
+/**
+ * `MOB-COMPOSER-RECENT-MEDIA-01` (access granted): the Chat composer's add sheet shows the newest photo and video above
+ * the sources, the video with its first frame and length; tapping the photo attaches it as an image, and tapping the
+ * video attaches it as a file card. `-02` (declined): the sheet shows only its sources, with no system prompt. `-03`
+ * (never asked): the sheet's first opening shows the system prompt, and allowing it fills the row.
  */
 async function executeRecentMediaScenario(
     environment: MobileAndroidCaseEnvironment,
     artifacts: string[],
-    access: 'declined' | 'granted',
+    access: Access,
 ): Promise<void> {
     const { serial } = environment;
     const fixture = await createMobileAcceptanceFixture({
@@ -76,30 +144,56 @@ async function executeRecentMediaScenario(
     try {
         await addMobileGalleryImages(serial);
         await addVideo(serial, directory);
+        const before = await assertMediaPermissions(serial, access);
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-status-empty');
-        await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
-        await waitForCheck(serial, 'image-source-library');
 
         if (access === 'declined') {
-            // The library read settles well within this; a row appearing later would still fail the check below.
+            await openAddSheet(serial);
+            // The library read settles well within this; a row or prompt appearing later still fails the checks below.
             await pause(2_000);
+            const focus = await focusedPackage(serial);
+            if (focus !== 'com.caxri.mobile')
+                throw new Error('Another window took focus over the add sheet');
             if (hasCheck(await mobileSemantics(serial), 'image-source-recent'))
                 throw new Error('The recent row showed without library access');
             await capture(environment, 'sheet-without-recent', artifacts);
-            await finish(environment, artifacts, { recentRow: 'hidden', status: 'passed' });
+            await finish(environment, artifacts, {
+                focusedWindow: 'caxri',
+                permissions: before,
+                recentRow: 'hidden',
+                status: 'passed',
+            });
             return;
         }
 
-        await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) =>
-                hasCheck(nodes, 'image-source-recent-image') &&
-                hasCheck(nodes, 'image-source-recent-video'),
-            30_000,
-        );
+        if (access === 'undetermined') {
+            await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
+            await waitForMobile(
+                () => mobileNativeControlBounds(serial, { resourceId: ALLOW_ALL }),
+                (bounds) => bounds !== null,
+                30_000,
+            );
+            const focus = await focusedPackage(serial);
+            await capture(environment, 'permission-prompt', artifacts);
+            await tapMobileNativeControl(serial, { resourceId: ALLOW_ALL });
+            await waitForRecentRow(serial);
+            await pause(1_500);
+            await capture(environment, 'sheet-after-allow', artifacts);
+            await finish(environment, artifacts, {
+                after: await assertMediaPermissions(serial, 'granted'),
+                before,
+                promptWindow: focus,
+                recentRow: 'shown',
+                status: 'passed',
+            });
+            return;
+        }
+
+        await openAddSheet(serial);
+        await waitForRecentRow(serial);
         // Lets the video's first frame decode before the row is judged.
         await pause(1_500);
         await capture(environment, 'sheet-with-recent', artifacts);
@@ -112,9 +206,21 @@ async function executeRecentMediaScenario(
                 !hasCheck(nodes, 'image-source-sheet'),
             120_000,
         );
-        await capture(environment, 'recent-photo-attached', artifacts);
+        await openAddSheet(serial);
+        await waitForRecentRow(serial);
+        await tapMobileCheck(serial, 'image-source-recent-video');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(({ checkId }) => checkId.startsWith('session-file-play-')) &&
+                !hasCheck(nodes, 'image-source-sheet'),
+            120_000,
+        );
+        await pause(1_000);
+        await capture(environment, 'recent-media-attached', artifacts);
         await finish(environment, artifacts, {
-            attached: 'recent-photo',
+            attached: ['recent-photo-as-image', 'recent-video-as-file'],
+            permissions: before,
             recentRow: 'shown',
             status: 'passed',
         });
@@ -139,3 +245,8 @@ export const executeMobileComposerRecentMediaDeclinedScenario = (
     environment: MobileAndroidCaseEnvironment,
     artifacts: string[],
 ) => executeRecentMediaScenario(environment, artifacts, 'declined');
+
+export const executeMobileComposerRecentMediaFirstAskScenario = (
+    environment: MobileAndroidCaseEnvironment,
+    artifacts: string[],
+) => executeRecentMediaScenario(environment, artifacts, 'undetermined');

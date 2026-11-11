@@ -48,6 +48,15 @@ describe('mobile acceptance photo library access', () => {
         ]);
     });
 
+    it('leaves the app never asked, as a fresh install', () => {
+        const { actions, commands } = device();
+        prepareMobileMediaLibraryAccess('emulator-5554', commands, 'undetermined');
+
+        expect(actions).toHaveLength(6);
+        expect(actions.some((action) => action.includes('set-permission-flags'))).toBe(false);
+        expect(actions.some((action) => action.includes(' grant '))).toBe(false);
+    });
+
     it('resets and fails when the emulator refuses a change', () => {
         const { actions, commands } = device('grant');
 
