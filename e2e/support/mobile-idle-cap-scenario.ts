@@ -18,6 +18,12 @@ import type { MobileIdleCapSeed } from './server-database/mobile-idle-cap-seed';
 const IDLE_WAIT_MS = 20_000;
 
 /**
+ * A Session row's own check id, `session-row-<uuid>`; the row's swipe, mark-done, and archive controls share the
+ * prefix.
+ */
+const SESSION_ROW_CHECK = /^session-row-[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/u;
+
+/**
  * `MOB-SESSION-LIST-IDLE-CAP-01`: a Project holds more unresolved second opinions of an archived Session than the phone
  * dashboard's cap, one Session waiting on the user, and three Idle Sessions. The home list hides the second opinions,
  * so the Project page shows the waiting Session under Needs attention and the three Sessions under Idle (issue #3946).
@@ -102,7 +108,7 @@ export async function executeMobileIdleCapScenario(
          */
         const unexpectedRows = (nodes: Nodes) =>
             nodes.filter(
-                ({ checkId }) => checkId.startsWith('session-row-') && !expectedRows.has(checkId),
+                ({ checkId }) => SESSION_ROW_CHECK.test(checkId) && !expectedRows.has(checkId),
             ).length;
         const leakedConsults = (nodes: Nodes) =>
             hiddenConsults.filter((id) => hasCheck(nodes, `session-row-${id}`)).length;
