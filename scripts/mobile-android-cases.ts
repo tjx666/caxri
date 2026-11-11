@@ -15,6 +15,11 @@ export interface MobileAndroidCaseDefinition {
     desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
     media: readonly MobileAndroidMediaType[];
     /**
+     * `granted` gives the app photo library access for this case, so the add sheet shows recent photos. Every other
+     * case declines it, so the sheet's first-open permission prompt never covers the scenario.
+     */
+    mediaLibrary?: 'granted';
+    /**
      * `live` turns the batch's reduced motion off for this case alone, so a recording shows real animation. UIAutomator
      * cannot read a screen that keeps animating, so such a case avoids semantics while it moves.
      */
@@ -36,6 +41,7 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
     appLocale?: MobileAndroidAppLocale;
     desktopProfile: 'managed-by-isolated-e2e' | 'not-required';
     media: MobileAndroidMediaType[];
+    mediaLibrary?: 'granted';
     motion?: 'live';
     recordingOwner: 'adapter' | 'scenario';
     scenario: MobileAndroidAcceptanceScenario;
@@ -48,6 +54,7 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
         ...('appLocale' in definition && { appLocale: definition.appLocale }),
         desktopProfile: definition.desktopProfile,
         media: [...definition.media],
+        ...('mediaLibrary' in definition && { mediaLibrary: definition.mediaLibrary }),
         ...('motion' in definition && { motion: definition.motion }),
         recordingOwner: definition.recordingOwner,
         scenario: definition.scenario,

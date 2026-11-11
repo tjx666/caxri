@@ -5,15 +5,10 @@ import { fileAttachmentKind } from '../file-attachment-store';
 import { videoCovers } from '../video-cover';
 
 /**
- * What a pending file's card shows in place of its glyph: an image file itself, or a video's first frame once it is
- * grabbed from the phone's copy. `undefined` keeps the glyph: other kinds, a video still being read, or one whose frame
- * could not be read.
+ * A local video's first frame as an image file URI, once it is grabbed. `undefined` while it is still being read, when
+ * its frame could not be read, or when `videoUri` is `undefined`.
  */
-export const useAttachmentCover = (
-    file: Pick<FileAttachment, 'mimeType' | 'name' | 'uri'>,
-): string | undefined => {
-    const kind = fileAttachmentKind(file);
-    const videoUri = kind === 'video' ? file.uri : undefined;
+export const useVideoCover = (videoUri: string | undefined): string | undefined => {
     const [loaded, setLoaded] = useState<{ uri: string; cover: string | null }>();
     useEffect(() => {
         if (videoUri === undefined || videoCovers.peek(videoUri) !== undefined) return;
@@ -25,8 +20,20 @@ export const useAttachmentCover = (
             isCurrent = false;
         };
     }, [videoUri]);
-    if (kind === 'image') return file.uri;
     if (videoUri === undefined) return undefined;
     const cover = videoCovers.peek(videoUri) ?? (loaded?.uri === videoUri ? loaded.cover : null);
     return cover ?? undefined;
+};
+
+/**
+ * What a pending file's card shows in place of its glyph: an image file itself, or a video's first frame once it is
+ * grabbed from the phone's copy. `undefined` keeps the glyph: other kinds, a video still being read, or one whose frame
+ * could not be read.
+ */
+export const useAttachmentCover = (
+    file: Pick<FileAttachment, 'mimeType' | 'name' | 'uri'>,
+): string | undefined => {
+    const kind = fileAttachmentKind(file);
+    const videoCover = useVideoCover(kind === 'video' ? file.uri : undefined);
+    return kind === 'image' ? file.uri : videoCover;
 };

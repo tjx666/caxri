@@ -32,6 +32,8 @@ import {
     imageAttachmentWaitReason,
 } from '../image-attachment-store';
 import { didUploadImageChunks } from '../image-upload';
+import type { RecentMedia } from '../recent-media';
+import { attachesAsFile } from '../recent-media';
 import type { PickedFile } from './use-file-attachments';
 
 /**
@@ -218,7 +220,13 @@ export const useImageAttachments = (
         if (base64 === undefined) {
             const context = ImageManipulator.ImageManipulator.manipulate(source.uri);
             if (source.width > 1_600) context.resize({ width: 1_600 });
-            const rendered = await context.renderAsync();
+            let rendered = await context.renderAsync();
+            // A library photo whose metadata had no width (`0`) is measured once rendered, so it still gets resized.
+            if (source.width === 0 && rendered.width > 1_600) {
+                const sized = ImageManipulator.ImageManipulator.manipulate(source.uri);
+                sized.resize({ width: 1_600 });
+                rendered = await sized.renderAsync();
+            }
             const image = await rendered.saveAsync({
                 format: ImageManipulator.SaveFormat.JPEG,
                 compress: 0.75,
@@ -281,21 +289,61 @@ export const useImageAttachments = (
         }
     };
 
-    const add = async (source: ImageSource) => {
-        const remaining = () =>
-            files?.imagesAsFiles ? 0 : maxAttachments - imageAttachmentStore.get(key).length;
-        const filesRemaining = () => files?.remaining() ?? 0;
+    const remaining = () =>
+        files?.imagesAsFiles ? 0 : maxAttachments - imageAttachmentStore.get(key).length;
+    const filesRemaining = () => files?.remaining() ?? 0;
+    /**
+     * Names the limit on the status line when neither an image nor a file fits; otherwise clears the last error.
+     */
+    const isFull = (): boolean => {
         if (remaining() <= 0 && filesRemaining() <= 0) {
             setAttachError(
                 files
                     ? t('sessions.file.limit', { count: MAX_MOBILE_FILE_ATTACHMENTS })
                     : t('sessions.image.limit', { count: maxAttachments }),
             );
-            return;
+            return true;
         }
+        setAttachError(null);
+        return false;
+    };
+
+    /**
+     * Attaches what a source returned: files go to the file route, and every image shows at once as `Preparing…`, then
+     * is prepared and uploaded in turn, so the combined-size limit sees the images before it.
+     */
+    const attachPicked = async (
+        picked: readonly PickedImage[],
+        pickedFiles: readonly PickedFile[],
+    ) => {
+        if (pickedFiles.length > 0) void files?.add(pickedFiles);
+        // Another pick may have filled the strip while the picker was open.
+        const pending = picked
+            .slice(0, Math.max(0, remaining()))
+            .map((image) => ({ id: newAttachmentId(), image }));
+        update((current) => [
+            ...current,
+            ...pending.map(({ id, image }) => ({
+                id,
+                uri: image.uri,
+                progress: 0,
+                state: 'preparing' as const,
+            })),
+        ]);
+        let failure: unknown;
+        for (const { id, image } of pending) {
+            // Each image is checked against the ones prepared before it, so the uploads are sequential by design.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
+            const error = await attach(id, image); // eslint-disable-line no-await-in-loop -- see above
+            failure ??= error;
+        }
+        if (failure !== undefined) setAttachError(attachFailureMessage(failure));
+    };
+
+    const add = async (source: ImageSource) => {
+        if (isFull()) return;
         let picked: PickedImage[];
         let pickedFiles: PickedFile[] = [];
-        setAttachError(null);
         try {
             if (source === 'clipboard') {
                 const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
@@ -323,7 +371,7 @@ export const useImageAttachments = (
                           });
                 if (result.canceled) return;
                 const isFile = (asset: ImagePicker.ImagePickerAsset) =>
-                    files !== undefined && (files.imagesAsFiles || asset.type === 'video');
+                    attachesAsFile(asset.type === 'video' ? 'video' : 'image', files) === true;
                 picked = result.assets
                     .filter((asset) => !isFile(asset))
                     .map(({ height, uri, width }) => ({ height, uri, width }));
@@ -338,30 +386,19 @@ export const useImageAttachments = (
             setAttachError(attachFailureMessage(error));
             return;
         }
-        if (pickedFiles.length > 0) void files?.add(pickedFiles);
-        // Another pick may have filled the strip while the picker was open.
-        const pending = picked
-            .slice(0, Math.max(0, remaining()))
-            .map((image) => ({ id: newAttachmentId(), image }));
-        // Every picked image shows at once as `Preparing…`, then each is prepared and uploaded in turn, so the
-        // combined-size limit sees the images before it.
-        update((current) => [
-            ...current,
-            ...pending.map(({ id, image }) => ({
-                id,
-                uri: image.uri,
-                progress: 0,
-                state: 'preparing' as const,
-            })),
-        ]);
-        let failure: unknown;
-        for (const { id, image } of pending) {
-            // Each image is checked against the ones prepared before it, so the uploads are sequential by design.
-            // react-doctor-disable-next-line react-doctor/async-await-in-loop -- see above
-            const error = await attach(id, image); // eslint-disable-line no-await-in-loop -- see above
-            failure ??= error;
-        }
-        if (failure !== undefined) setAttachError(attachFailureMessage(failure));
+        await attachPicked(picked, pickedFiles);
+    };
+
+    /**
+     * Attaches one photo or video tapped in the add sheet's recent row, exactly as if the library picker returned it.
+     */
+    const addRecent = async (media: RecentMedia) => {
+        if (isFull()) return;
+        const asFile = attachesAsFile(media.kind, files);
+        if (asFile === undefined) return;
+        await (asFile
+            ? attachPicked([], [{ uri: media.uri, name: media.filename }])
+            : attachPicked([{ uri: media.uri, width: media.width, height: media.height }], []));
     };
 
     const remove = (id: string) => {
@@ -391,6 +428,7 @@ export const useImageAttachments = (
 
     return {
         add,
+        addRecent,
         attachError,
         attachments,
         canAdd: attachments.length < maxAttachments,

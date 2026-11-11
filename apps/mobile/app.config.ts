@@ -67,6 +67,18 @@ export default function createExpoConfig({ config }: ConfigContext): ExpoConfig 
                     cameraPermission: 'Allow Caxri to scan a pairing code shown on your computer.',
                 },
             ],
+            [
+                'expo-media-library',
+                {
+                    // The composer's add sheet only reads recent photos and videos; it never saves to the library or
+                    // reads photo locations.
+                    granularPermissions: ['photo', 'video'],
+                    isAccessMediaLocationEnabled: false,
+                    photosPermission:
+                        'Allow Caxri to show your recent photos and videos when you add them to a message.',
+                    savePhotosPermission: false,
+                },
+            ],
             'expo-secure-store',
             [
                 'expo-splash-screen',

@@ -214,6 +214,8 @@ export const sessions = {
     'sessions.image.prepareFailed': 'Unable to prepare this image.',
     'sessions.image.preparing': 'Preparing…',
     'sessions.image.previewFailed': 'Unable to prepare a preview of this image.',
+    'sessions.image.recentPhoto': 'Recent photo',
+    'sessions.image.recentVideo': 'Recent video',
     'sessions.image.remove': 'Remove',
     'sessions.image.removeLabel': 'Remove image {{index}}',
     'sessions.image.sourceCamera': 'Take photo',

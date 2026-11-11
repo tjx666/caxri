@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { LucideIcon } from 'lucide-react-native';
 import { Camera, ChevronRight, ClipboardPaste, FolderOpen, Images } from 'lucide-react-native';
@@ -10,6 +10,10 @@ import type { TranslationKey } from '../../../i18n';
 import { useTranslation } from '../../../i18n';
 import { mobileRadius, mobileSpace, mobileType, PRESSED_OPACITY } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
+import { useVideoCover } from '../hooks/use-attachment-cover';
+import { useRecentMedia } from '../hooks/use-recent-media';
+import type { RecentMedia } from '../recent-media';
+import { formatMediaDuration } from '../recent-media';
 
 /**
  * Where the next composer attachment comes from. The library offers photos and videos; `files` is the system document
@@ -70,20 +74,26 @@ export interface ComposerAddSetting {
 }
 
 type Picked =
-    { kind: 'setting'; setting: ComposerAddSetting } | { kind: 'source'; source: AttachmentSource };
+    | { kind: 'recent'; media: RecentMedia }
+    | { kind: 'setting'; setting: ComposerAddSetting }
+    | { kind: 'source'; source: AttachmentSource };
 
 /**
  * The composer's `+` sheet, as LobeHub's mobile "Add to conversation" sheet: attachment sources as tiles across the
  * top, then the composer's settings as rows with their current value. A choice slides the sheet away like every other
  * exit, and only then opens the picker, camera, or the setting's own sheet, so two sheets or a system UI never stack.
  * `hidden` leaves out a source the composer cannot take, such as a pasted image for a provider without image input;
- * `canAttach` false (a device without reply access, or the attachment limit) leaves out every tile.
+ * `canAttach` false (a device without reply access, or the attachment limit) leaves out every tile. With
+ * `onPickRecent`, the newest photos and videos sit above the tiles, as the ChatGPT and Claude apps' add sheets show
+ * them; reading them asks for library access the first time the sheet opens, and declined access leaves only the
+ * tiles.
  */
 export const ComposerAddSheet = ({
     canAttach = true,
     hidden = [],
     onClose,
     onPick,
+    onPickRecent,
     settings = [],
     theme,
     title,
@@ -92,6 +102,10 @@ export const ComposerAddSheet = ({
     hidden?: readonly AttachmentSource[];
     onClose: () => void;
     onPick: (source: AttachmentSource) => void;
+    /**
+     * Attaches a photo or video tapped in the recent row; without it the sheet shows no recent row.
+     */
+    onPickRecent?: (media: RecentMedia) => void;
     settings?: readonly ComposerAddSetting[];
     theme: MobileTheme;
     title: string;
@@ -100,6 +114,9 @@ export const ComposerAddSheet = ({
     const picked = useRef<Picked | null>(null);
     const hiddenSources = new Set(hidden);
     const tiles = canAttach ? sources.filter(({ source }) => !hiddenSources.has(source)) : [];
+    const recent = useRecentMedia(
+        onPickRecent !== undefined && tiles.some(({ source }) => source === 'library'),
+    );
     return (
         <BottomSheet
             closeLabel={t('sessions.image.closeSources')}
@@ -108,6 +125,7 @@ export const ComposerAddSheet = ({
                 const choice = picked.current;
                 if (choice?.kind === 'source') onPick(choice.source);
                 if (choice?.kind === 'setting') choice.setting.onPress();
+                if (choice?.kind === 'recent') onPickRecent?.(choice.media);
             }}
             testID="image-source-sheet"
             theme={theme}
@@ -115,6 +133,27 @@ export const ComposerAddSheet = ({
             {(dismiss) => (
                 <>
                     <SheetTitle theme={theme} title={title} />
+                    {recent.length > 0 ? (
+                        <ScrollView
+                            contentContainerStyle={styles.recentRow}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.recent}
+                            testID="image-source-recent"
+                        >
+                            {recent.map((media) => (
+                                <RecentThumbnail
+                                    key={media.id}
+                                    media={media}
+                                    onPress={() => {
+                                        picked.current = { kind: 'recent', media };
+                                        dismiss();
+                                    }}
+                                    theme={theme}
+                                />
+                            ))}
+                        </ScrollView>
+                    ) : null}
                     {tiles.length > 0 ? (
                         <View style={styles.tiles}>
                             {tiles.map(({ captionKey, icon: Icon, labelKey, source }) => (
@@ -169,6 +208,55 @@ export const ComposerAddSheet = ({
     );
 };
 
+/**
+ * One recent photo or video: the photo itself, or a video's first frame with its length in the corner.
+ */
+const RecentThumbnail = ({
+    media,
+    onPress,
+    theme,
+}: {
+    media: RecentMedia;
+    onPress: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    const videoCover = useVideoCover(media.kind === 'video' ? media.uri : undefined);
+    const cover = media.kind === 'image' ? media.uri : videoCover;
+    const duration =
+        media.kind === 'video' && media.durationSeconds !== undefined
+            ? formatMediaDuration(media.durationSeconds)
+            : undefined;
+    return (
+        <Pressable
+            accessibilityLabel={t(
+                media.kind === 'video'
+                    ? 'sessions.image.recentVideo'
+                    : 'sessions.image.recentPhoto',
+            )}
+            accessibilityRole="button"
+            onPress={onPress}
+            style={({ pressed }) => [
+                styles.thumbnail,
+                { backgroundColor: theme.elevated, opacity: pressed ? PRESSED_OPACITY : 1 },
+            ]}
+            testID={`image-source-recent-${media.kind}`}
+        >
+            {cover ? <Image source={{ uri: cover }} style={styles.thumbnailImage} /> : null}
+            {duration ? (
+                <Text
+                    style={[
+                        styles.thumbnailDuration,
+                        { backgroundColor: theme.overlay, color: theme.onScrim },
+                    ]}
+                >
+                    {duration}
+                </Text>
+            ) : null}
+        </Pressable>
+    );
+};
+
 const SettingRow = ({
     hasDivider,
     onPress,
@@ -219,7 +307,31 @@ const SettingRow = ({
     );
 };
 
+/**
+ * A recent thumbnail's side: square and a little shorter than a source tile, so about four and a half fit across a
+ * phone and the row reads as scrollable.
+ */
+const THUMBNAIL_SIZE = 72;
+
 const styles = StyleSheet.create({
+    recent: { flexGrow: 0, marginBottom: mobileSpace.sm },
+    recentRow: { gap: mobileSpace.sm },
+    thumbnail: {
+        borderRadius: mobileRadius.sm,
+        height: THUMBNAIL_SIZE,
+        overflow: 'hidden',
+        width: THUMBNAIL_SIZE,
+    },
+    thumbnailImage: { height: '100%', width: '100%' },
+    thumbnailDuration: {
+        ...mobileType.caption,
+        borderRadius: mobileRadius.sm,
+        bottom: mobileSpace.xs,
+        overflow: 'hidden',
+        paddingHorizontal: mobileSpace.xs,
+        position: 'absolute',
+        right: mobileSpace.xs,
+    },
     tiles: { flexDirection: 'row', gap: mobileSpace.sm, marginBottom: mobileSpace.md },
     tile: {
         alignItems: 'center',
