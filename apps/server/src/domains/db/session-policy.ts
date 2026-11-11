@@ -489,14 +489,28 @@ export interface FallbackSelection {
 }
 
 /**
- * Picks the newest visible Session using the same deterministic comparison policy as the Renderer.
+ * Whether a fallback selection may land on `session`. A `consult` Session (a second opinion, a review) whose creator
+ * still exists has no Projects tree row of its own: it is hidden under an active creator and retired under an archived
+ * one. The Renderer keeps a row for whatever is selected, so landing on it after archiving its creator made the retired
+ * consult reappear (issue #3942). The read model clears `createdBySessionId` when the creator is deleted, and such a
+ * consult is an ordinary row again.
+ */
+function isFallbackCandidate(session: SessionRecord): boolean {
+    return (
+        session.archivedAt === undefined &&
+        (session.createdByRelation !== 'consult' || session.createdBySessionId === undefined)
+    );
+}
+
+/**
+ * Picks the newest Session with a Projects tree row using the same deterministic comparison policy as the Renderer.
  */
 export function firstActiveSession(
     records: SessionRecord[],
     excludedSessionId?: string,
 ): SessionRecord | undefined {
     return records
-        .filter((session) => session.archivedAt === undefined && session.id !== excludedSessionId)
+        .filter((session) => isFallbackCandidate(session) && session.id !== excludedSessionId)
         .toSorted(compareSessionSidebarOrder)
         .at(0);
 }
@@ -505,7 +519,8 @@ export function firstActiveSession(
  * Picks the Session a window lands on after `removed` leaves its Project's sidebar list: the row right below it, else
  * the row right above it, else the first remaining Session. Only rows in the same sidebar group count as neighbors,
  * because a pinned Session renders in the Pinned group rather than under its Project, so the next row the user sees
- * after an unpinned Session is never a pinned one.
+ * after an unpinned Session is never a pinned one. A consult with no row of its own is skipped (see
+ * {@link isFallbackCandidate}).
  */
 export function adjacentActiveSession(
     records: SessionRecord[],
@@ -516,7 +531,7 @@ export function adjacentActiveSession(
         .filter(
             (session) =>
                 session.id === removed.id ||
-                (session.archivedAt === undefined && isPinnedSession(session) === pinned),
+                (isFallbackCandidate(session) && isPinnedSession(session) === pinned),
         )
         .toSorted(pinned ? compareSessionPinnedOrder : compareSessionSidebarOrder);
     const index = group.findIndex((session) => session.id === removed.id);
