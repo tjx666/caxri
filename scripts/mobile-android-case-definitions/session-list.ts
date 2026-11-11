@@ -12,6 +12,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-list-nested-sessions',
     },
+    'MOB-SESSION-LIST-IDLE-CAP-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'session-list-idle-cap',
+    },
     'MOB-SESSION-LIST-MOTION-01': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

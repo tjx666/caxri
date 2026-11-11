@@ -95,6 +95,7 @@ export * from './mobile-panels-contract.js';
 export * from './mobile-preview-contract.js';
 export * from './mobile-pull-request-contract.js';
 export * from './mobile-session-agent-contract.js';
+export * from './mobile-session-home-listing.js';
 export * from './mobile-session-management-contract.js';
 export * from './mobile-session-search-contract.js';
 export * from './mobile-terminal-contract.js';

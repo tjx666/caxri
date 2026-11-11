@@ -209,6 +209,51 @@ describe('buildMobileDashboard', () => {
         expect(result.sessions[0]).toMatchObject({ pinnedAt: 5, sessionActivityAt: 1 });
     });
 
+    it('keeps second opinions the home list hides from crowding its Idle Sessions out of the cap', () => {
+        const base = {
+            projectId: 'project-1',
+            workbenchRootProjectId: 'project-1',
+            title: 'Session',
+            createdAt: 1,
+            lastVisitedAt: 1,
+            sessionActivityAt: 1,
+            attentionGeneration: 1,
+            hasUnread: false,
+        };
+        const consults = Array.from({ length: 80 }, (_, index) => ({
+            ...base,
+            id: `consult-${index}`,
+            sessionActivityAt: 100 + index,
+            agentActivityState: 'completed' as const,
+            hasPendingAttention: true,
+            lastAttentionKind: 'completed' as const,
+            createdByRelation: 'consult' as const,
+            createdBySessionId: index % 2 === 0 ? 'archived-creator' : 'creator',
+        }));
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'control',
+            projects: [{ id: 'project-1', title: 'Project' }],
+            sessions: [
+                {
+                    ...base,
+                    id: 'archived-creator',
+                    agentActivityState: 'idle',
+                    archivedAt: 5,
+                    hasPendingAttention: false,
+                },
+                { ...base, id: 'creator', agentActivityState: 'idle', hasPendingAttention: false },
+                { ...base, id: 'idle', agentActivityState: 'idle', hasPendingAttention: false },
+                ...consults,
+            ],
+            terminals: [],
+        });
+        const ids = result.sessions.map(({ id }) => id);
+        expect(ids.slice(0, 2)).toEqual(['creator', 'idle']);
+        expect(ids.slice(2).every((id) => id.startsWith('consult-'))).toBe(true);
+        expect(result.truncated).toBe(true);
+    });
+
     it('includes empty granted Projects in order and excludes Sessions without a visible Project', () => {
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
