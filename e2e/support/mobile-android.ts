@@ -17,6 +17,10 @@ import {
 } from '../../scripts/mobile-android-display-state.ts';
 
 const execFileAsync = promisify(execFile);
+import { waitForMobile } from './mobile-wait';
+
+export { MobileWaitTimeoutError, waitForMobile } from './mobile-wait';
+
 const projectRoot = resolve(import.meta.dirname, '../..');
 const androidDeviceScript = join(projectRoot, 'apps/mobile/scripts/android-device.ts');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
@@ -438,22 +442,6 @@ export async function releaseMobileTerminalLease(serial: string): Promise<void> 
         (nodes) =>
             nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
     );
-}
-
-export async function waitForMobile<T>(
-    read: () => T | Promise<T>,
-    isAccepted: (value: T) => boolean,
-    timeoutMs = 30_000,
-): Promise<T> {
-    const deadline = Date.now() + timeoutMs;
-    do {
-        // eslint-disable-next-line no-await-in-loop -- each observation depends on the previous state transition.
-        const value = await read();
-        if (isAccepted(value)) return value;
-        // eslint-disable-next-line no-await-in-loop -- bounded device polling avoids duplicate automation actions.
-        await new Promise((resolve) => setTimeout(resolve, 250));
-    } while (Date.now() < deadline);
-    throw new Error('Mobile Acceptance timed out');
 }
 
 export async function openMobilePairingLink(serial: string, pairingLink: string): Promise<void> {

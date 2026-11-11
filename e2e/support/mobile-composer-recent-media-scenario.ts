@@ -116,6 +116,7 @@ const waitForRecentRow = (serial: string) =>
             hasCheck(nodes, 'image-source-recent-image') &&
             hasCheck(nodes, 'image-source-recent-video'),
         30_000,
+        'recent photo and video thumbnails',
     );
 
 const openAddSheet = async (serial: string) => {
@@ -175,6 +176,7 @@ async function executeRecentMediaScenario(
                 () => mobileNativeControlBounds(serial, { resourceId: ALLOW_ALL }),
                 (bounds) => bounds !== null,
                 30_000,
+                'photo library permission prompt',
             );
             const focus = await focusedPackage(serial);
             await capture(environment, 'permission-prompt', artifacts);
@@ -205,6 +207,7 @@ async function executeRecentMediaScenario(
                 !hasCheck(nodes, 'session-image-status-0') &&
                 !hasCheck(nodes, 'image-source-sheet'),
             120_000,
+            'recent photo attached as a ready image',
         );
         await openAddSheet(serial);
         await waitForRecentRow(serial);
@@ -217,6 +220,7 @@ async function executeRecentMediaScenario(
                 nodes.some(({ checkId }) => checkId.startsWith('session-file-play-')) &&
                 !hasCheck(nodes, 'image-source-sheet'),
             120_000,
+            'recent video attached as a playable file card',
         );
         await pause(1_000);
         await capture(environment, 'recent-media-attached', artifacts);

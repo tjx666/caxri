@@ -33,6 +33,7 @@ export const waitForCheck = (serial: string, id: string, timeoutMs = 30_000) => 
         () => mobileSemantics(serial),
         (nodes) => hasCheck(nodes, id),
         timeoutMs,
+        `check ${id}`,
     );
 };
 
@@ -42,6 +43,7 @@ export const waitForNoCheck = (serial: string, id: string, timeoutMs = 30_000) =
         () => mobileSemantics(serial),
         (nodes) => !hasCheck(nodes, id),
         timeoutMs,
+        `check ${id} to disappear`,
     );
 };
 
