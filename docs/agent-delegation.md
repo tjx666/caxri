@@ -654,7 +654,9 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
   repository and may wait for the user to sign in, but that needs the child's Chat in view, not a
   sidebar row. Clicking a consult's system notification therefore selects the asking Chat (its
   nearest active non-consult creator), not the consult, so the consult never flashes into the
-  sidebar as the selected row (`agent-notification-runtime.ts`).
+  sidebar as the selected row (`agent-notification-runtime.ts`). For the same reason the selection
+  that follows archiving, deleting, or hiding never lands on a consult whose creator still exists
+  (`isFallbackCandidate` in `session-policy.ts`).
 - **Side View.** Clicking a consult's timeline record, its Delegated Sessions row, or its notice
   opens the child's live Chat in the asking Chat's Side View (the Portal), as a
   `caxri-agent-delegation://<child Chat Terminal>` tab (`delegated-child-opener.ts`). The user reads

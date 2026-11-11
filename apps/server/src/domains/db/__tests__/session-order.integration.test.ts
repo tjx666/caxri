@@ -155,6 +155,40 @@ describe('Session sidebar order', () => {
         expect(database.windowOpenSessions.get('main').activeSessionId).toBe(a.id);
     });
 
+    /**
+     * A consult has no Projects tree row, and the Renderer gives one to whatever is selected, so landing on the
+     * archived Session's own review made it reappear in the sidebar (issue #3942).
+     */
+    it('skips a consult Session with no row of its own when the archived Session created it', async () => {
+        const { database, project, a, b, c } = await fixture();
+        const consult = database.createSession(project.id, null, undefined, {
+            createdBySessionId: c.id,
+            createdByRelation: 'consult',
+        }).session;
+        database.reorderSession(consult.id, b.id, 'before');
+        database.selectSession(c.id, 'main');
+        database.archiveSession(c.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(b.id);
+
+        database.archiveSession(b.id);
+        database.archiveSession(a.id);
+        // Only the consult is left, and its creator is archived: nothing is selected rather than a retired consult.
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBeNull();
+    });
+
+    it('may land on a consult Session whose creator was deleted, since it is an ordinary row again', async () => {
+        const { database, project, a, b, c } = await fixture();
+        const consult = database.createSession(project.id, null, undefined, {
+            createdBySessionId: a.id,
+            createdByRelation: 'consult',
+        }).session;
+        database.deleteSession(a.id);
+        database.reorderSession(consult.id, b.id, 'before');
+        database.selectSession(c.id, 'main');
+        database.archiveSession(c.id);
+        expect(database.windowOpenSessions.get('main').activeSessionId).toBe(consult.id);
+    });
+
     it('selects the row above in manual sidebar order when the archived Session was last', async () => {
         const { database, a, b, c, order } = await fixture();
         database.reorderSession(a.id, c.id, 'before');
