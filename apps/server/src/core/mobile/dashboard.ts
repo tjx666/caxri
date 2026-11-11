@@ -15,6 +15,7 @@ import {
     compareSessionPinnedOrder,
     isPinnedSession,
     isSessionAgentRunning,
+    isSessionListedOnMobileHome,
     MOBILE_ARCHIVED_SESSIONS_MAX,
     SESSION_ACTIVITY_GROUP_ORDER,
     sessionActivityGroup,
@@ -36,9 +37,9 @@ type DashboardSession = SessionQueryResult['sessions'][number];
 type DashboardTerminal = TerminalQueryResult['terminals'][number];
 
 /**
- * The phone's list order, decided here because the dashboard is capped: pinned Sessions first, then the status groups
- * Desktop's Activity view uses, then the shared in-group order. Whatever the cap drops is the least urgent, least
- * recent work, never a pinned or attention Session.
+ * The phone's list order, decided here because the dashboard is capped: first the rows the home list shows, then the
+ * Sessions it hides, each part ordered as pinned Sessions, then the status groups Desktop's Activity view uses, then
+ * the shared in-group order. Whatever the cap drops is hidden or the least urgent, least recent work.
  */
 const sessionGroup = (
     session: DashboardSession,
@@ -109,30 +110,53 @@ export const buildMobileDashboard = (input: {
             sessionGroup(session, primaryTerminalOf(session)),
         ]),
     );
-    const rank = (session: DashboardSession): number =>
-        isPinnedSession(session)
-            ? -1
-            : SESSION_ACTIVITY_GROUP_ORDER.indexOf(groups.get(session.id)!);
-    const rowOrder = (session: DashboardSession) => ({
-        ...session,
-    });
-    const active = input.sessions
-        .filter((session) => session.archivedAt === undefined && projects.has(session.projectId))
-        .toSorted(
-            (left, right) =>
-                rank(left) - rank(right) ||
-                (isPinnedSession(left)
-                    ? compareSessionPinnedOrder(left, right)
-                    : compareSessionActivityGroupRows(
-                          groups.get(left.id)!,
-                          rowOrder(left),
-                          rowOrder(right),
-                      )),
-        );
     const archivedSessionIds = new Set(
         input.sessions
             .filter((session) => session.archivedAt !== undefined)
             .map((session) => session.id),
+    );
+    const isCreatorArchived = (session: DashboardSession): boolean =>
+        session.createdBySessionId !== undefined &&
+        archivedSessionIds.has(session.createdBySessionId);
+    const visibleActive = input.sessions.filter(
+        (session) => session.archivedAt === undefined && projects.has(session.projectId),
+    );
+    const visibleActiveIds = new Set(visibleActive.map(({ id }) => id));
+    /**
+     * Sessions the phone's home list hides (a second opinion, or delegated work listed under its creator) rank after
+     * every row it shows. Ranked by status alone, a pile of unresolved second opinions filled the whole cap, and a
+     * Project's Idle Sessions never reached the phone even though the list had room for them. They stay in the frame
+     * after the shown rows, since a creator past the cap gives its work a row back.
+     */
+    const ranks = new Map(
+        visibleActive.map((session) => {
+            const isHomeRow = isSessionListedOnMobileHome(
+                { ...session, createdBySessionArchived: isCreatorArchived(session) },
+                visibleActiveIds,
+            );
+            const groupRank = isPinnedSession(session)
+                ? 0
+                : 1 + SESSION_ACTIVITY_GROUP_ORDER.indexOf(groups.get(session.id)!);
+            return [
+                session.id,
+                (isHomeRow ? 0 : SESSION_ACTIVITY_GROUP_ORDER.length + 1) + groupRank,
+            ];
+        }),
+    );
+    const rank = (session: DashboardSession): number => ranks.get(session.id)!;
+    const rowOrder = (session: DashboardSession) => ({
+        ...session,
+    });
+    const active = visibleActive.toSorted(
+        (left, right) =>
+            rank(left) - rank(right) ||
+            (isPinnedSession(left)
+                ? compareSessionPinnedOrder(left, right)
+                : compareSessionActivityGroupRows(
+                      groups.get(left.id)!,
+                      rowOrder(left),
+                      rowOrder(right),
+                  )),
     );
     const sessions: MobileDashboardResult['sessions'] = [];
     for (const session of active) {
@@ -175,10 +199,7 @@ export const buildMobileDashboard = (input: {
             ...(session.createdByRelation !== undefined && {
                 createdByRelation: session.createdByRelation,
             }),
-            ...(session.createdBySessionId !== undefined &&
-                archivedSessionIds.has(session.createdBySessionId) && {
-                    createdBySessionArchived: true,
-                }),
+            ...(isCreatorArchived(session) && { createdBySessionArchived: true }),
             lastVisitedAt: session.lastVisitedAt,
             sessionActivityAt: session.sessionActivityAt,
             ...(session.pinnedAt !== undefined && { pinnedAt: session.pinnedAt }),
