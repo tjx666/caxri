@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
 
 import { prepareAcceptanceAgentFixture } from '../../.agents/skills/acceptance/scripts/agent-fixtures';
 import { pageRequest } from './helpers';
-import { waitForMobile } from './mobile-android';
+import { MobileWaitTimeoutError, waitForMobile } from './mobile-android';
 
 export type AttentionCommand =
     | 'fixture:background'
@@ -94,7 +94,7 @@ async function sendFixtureCommandWhenReady(
         }, Boolean);
     } catch (error) {
         // Only the bounded wait's timeout gets the readable cause; Host and filesystem errors propagate unchanged.
-        if (error instanceof Error && error.message === 'Mobile Acceptance timed out')
+        if (error instanceof MobileWaitTimeoutError)
             throw new Error(`The fixture Agent never became ready for ${command}`, {
                 cause: error,
             });
