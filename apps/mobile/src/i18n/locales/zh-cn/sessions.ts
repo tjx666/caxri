@@ -204,6 +204,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.image.prepareFailed': '无法处理此图片。',
     'sessions.image.preparing': '正在准备…',
     'sessions.image.previewFailed': '无法生成此图片的预览。',
+    'sessions.image.recentPhoto': '最近的照片',
+    'sessions.image.recentVideo': '最近的视频',
     'sessions.image.remove': '移除',
     'sessions.image.removeLabel': '移除第 {{index}} 张图片',
     'sessions.image.sourceCamera': '拍照',

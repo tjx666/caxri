@@ -237,6 +237,9 @@ export const SessionDetailComposer = ({
                     onPick={(source) => {
                         void (source === 'files' ? files.pick() : images.add(source));
                     }}
+                    onPickRecent={(media) => {
+                        void images.addRecent(media);
+                    }}
                     theme={theme}
                     title={t('sessions.composer.attach')}
                 />

@@ -14,14 +14,14 @@ import {
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report-case-plan';
 import { repoContext, withRepoLock } from '../.agents/skills/switch-worktree/scripts/repo';
 import { assertAndroidResponsive } from './mobile-acceptance-anr';
+import { prepareMobileCaseSettings } from './mobile-acceptance-case-settings';
 import { mobileAcceptanceFaultEnvironment } from './mobile-acceptance-fault';
 import {
     cleanupFixtureImeWithRetry,
     markMobileFixtureImeRestored,
     prepareMobileFixtureIme,
 } from './mobile-acceptance-ime';
-import { prepareMobileAppLocale } from './mobile-acceptance-locale';
-import { prepareMobileLiveMotion, withMobileReducedMotion } from './mobile-acceptance-motion';
+import { withMobileReducedMotion } from './mobile-acceptance-motion';
 import { enableAndroidNetwork } from './mobile-acceptance-network';
 import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
@@ -302,13 +302,9 @@ async function executeCase(
             readDevice: adbRead,
             runDevice: (arguments_: string[]) => adbRun(arguments_, overallDeadlineMs),
         };
-        // Both settings are read when the app starts, so they land after the clear and before the scenario launches it.
-        if (definition.motion === 'live')
-            caseSettingRestores.unshift(prepareMobileLiveMotion(serial, deviceCommands));
-        if (definition.appLocale)
-            caseSettingRestores.unshift(
-                prepareMobileAppLocale(serial, deviceCommands, definition.appLocale),
-            );
+        caseSettingRestores.unshift(
+            ...prepareMobileCaseSettings(serial, deviceCommands, definition),
+        );
         await markCaseLifecycleReady(reportDirectory, { caseId, launchId });
         isLifecycleReady = true;
         if (definition.media.includes('video') && definition.recordingOwner === 'adapter') {

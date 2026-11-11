@@ -45,6 +45,7 @@
         "expo-image-picker": "catalog:",
         "expo-intent-launcher": "catalog:",
         "expo-linking": "~58.0.13",
+        "expo-media-library": "~58.0.13",
         "expo-network": "~58.0.3",
         "expo-router": "~58.0.24",
         "expo-secure-store": "~58.0.2",

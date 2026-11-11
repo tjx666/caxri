@@ -552,6 +552,9 @@ export const AgentChatComposer = ({
                     onPick={(source) => {
                         void (source === 'files' ? files.pick() : images.add(source));
                     }}
+                    onPickRecent={(media) => {
+                        void images.addRecent(media);
+                    }}
                     settings={addSettings}
                     theme={theme}
                     title={t('chat.composer.add')}
