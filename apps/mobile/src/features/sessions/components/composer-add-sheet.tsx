@@ -141,6 +141,7 @@ export const ComposerAddSheet = ({
                             style={styles.recent}
                             testID="image-source-recent"
                         >
+                            {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- At most RECENT_MEDIA_LIMIT (16) thumbnails; older media stays behind the full library picker. */}
                             {recent.map((media) => (
                                 <RecentThumbnail
                                     key={media.id}
