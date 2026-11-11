@@ -90,30 +90,54 @@ export async function executeMobileIdleCapScenario(
                 idle.every((id) => (top(nodes, `session-row-${id}`) ?? -1) > idleHeader)
             );
         };
+        const isProjectSelected = (nodes: Nodes) =>
+            nodes.some(
+                ({ checkId, selected }) => checkId === `project-filter-${projectId}` && selected,
+            );
+        const expectedRows = new Set([waiting, ...idle].map((id) => `session-row-${id}`));
+        /**
+         * Every Session row the list mounted, which must be exactly the waiting row and the three Idle rows: a leaked
+         * second opinion, or another Project's row on an unfiltered page, adds a row the virtualized list mounts next
+         * to them.
+         */
+        const unexpectedRows = (nodes: Nodes) =>
+            nodes.filter(
+                ({ checkId }) => checkId.startsWith('session-row-') && !expectedRows.has(checkId),
+            ).length;
         const leakedConsults = (nodes: Nodes) =>
             hiddenConsults.filter((id) => hasCheck(nodes, `session-row-${id}`)).length;
         let nodes: Nodes;
         try {
-            nodes = await waitForMobile(() => mobileSemantics(serial), isGrouped, IDLE_WAIT_MS);
+            nodes = await waitForMobile(
+                () => mobileSemantics(serial),
+                (current) => isProjectSelected(current) && isGrouped(current),
+                IDLE_WAIT_MS,
+            );
         } catch {
             // The baseline build never shows the Idle group; read what it does show and fail with that capture.
             nodes = await mobileSemantics(serial);
         }
-        // The list is short enough that FlashList renders every row, so a leaked second opinion would be in the tree.
+        // Read again after any late push could add rows back.
         await new Promise((resolve) => setTimeout(resolve, 3_000));
         const settled = await mobileSemantics(serial);
         await capture(environment, 'project-page', artifacts);
         const shownIdle = idle.filter((id) => hasCheck(settled, `session-row-${id}`)).length;
         const receipt = {
             archivedCreator: 'archived',
-            filteredProject: hasCheck(settled, `project-filter-${projectId}`) ? 'shown' : 'absent',
+            projectFilterSelected: isProjectSelected(settled),
+            unexpectedRowsShown: Math.max(unexpectedRows(nodes), unexpectedRows(settled)),
             hiddenConsultsLoaded: loadedHidden,
             hiddenConsultRowsShown: Math.max(leakedConsults(nodes), leakedConsults(settled)),
             idleGroup: hasCheck(settled, 'session-group-idle') ? 'shown' : 'absent',
             idleRowsShown: `${shownIdle}/${idle.length}`,
             waitingUnderAttention: isGrouped(settled),
         };
-        if (!isGrouped(settled) || receipt.hiddenConsultRowsShown > 0) {
+        if (
+            !receipt.projectFilterSelected ||
+            !isGrouped(settled) ||
+            receipt.hiddenConsultRowsShown > 0 ||
+            receipt.unexpectedRowsShown > 0
+        ) {
             // Keep the capture citable in a failed round before failing it.
             await finish(environment, artifacts, { ...receipt, status: 'failed' });
             throw new Error(
