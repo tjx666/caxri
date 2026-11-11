@@ -27,9 +27,13 @@ export interface MobileIdleCapSeed {
      */
     idle: string[];
     /**
-     * How many unresolved second opinions of an archived Session the Project holds.
+     * The archived Session that started every second opinion.
      */
-    hiddenConsultCount: number;
+    archivedHost: string;
+    /**
+     * The archived Session's unresolved second opinions, which the home list hides.
+     */
+    hiddenConsults: string[];
 }
 
 /**
@@ -60,8 +64,10 @@ export function run(input: Input): MobileIdleCapSeed {
                 ...(creator && { createdBySessionId: creator, createdByRelation: 'consult' }),
             }).session.id;
         const archivedHost = create('Finished investigation');
+        const hiddenConsults: string[] = [];
         for (let index = 0; index < HIDDEN_CONSULT_COUNT; index += 1) {
             const id = create(`Second opinion ${index + 1}`, archivedHost);
+            hiddenConsults.push(id);
             attention.push({ id, kind: 'completed', at: now - 60_000 - index * 1_000 });
         }
         database.archiveSession(archivedHost);
@@ -76,7 +82,7 @@ export function run(input: Input): MobileIdleCapSeed {
             recency.push({ id, at: now - 3_600_000 - index * 60_000 });
             return id;
         });
-        seed = { projectId: project.id, waiting, idle, hiddenConsultCount: HIDDEN_CONSULT_COUNT };
+        seed = { projectId: project.id, waiting, idle, archivedHost, hiddenConsults };
     } finally {
         database.close();
     }

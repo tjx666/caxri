@@ -1,10 +1,13 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import type { BootstrapState } from '@caxri/protocol';
+
+import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck } from './mobile-agent-chat-helpers';
+import { checkBounds, hasCheck } from './mobile-agent-chat-helpers';
 import { mobileSemantics, tapMobileCheckByBounds, waitForMobile } from './mobile-android';
 import { runServerDatabase } from './run-server-database';
 import type { MobileIdleCapSeed } from './server-database/mobile-idle-cap-seed';
@@ -48,35 +51,74 @@ export async function executeMobileIdleCapScenario(
     });
     try {
         if (!seed) throw new Error('Idle cap seed is unavailable');
-        const { idle, projectId, waiting } = seed;
+        const { archivedHost, hiddenConsults, idle, projectId, waiting } = seed;
+        // The absent rows prove nothing unless the Server holds every second opinion unresolved under an archived creator.
+        const { sessions } = await pageRequest<BootstrapState>(
+            mobile.running.page,
+            'app.bootstrap',
+        );
+        const loadedHidden = sessions.filter(
+            (session) =>
+                hiddenConsults.includes(session.id) &&
+                session.archivedAt === undefined &&
+                session.createdByRelation === 'consult' &&
+                session.createdBySessionId === archivedHost &&
+                session.hasPendingAttention,
+        ).length;
+        const isCreatorArchived =
+            sessions.find((session) => session.id === archivedHost)?.archivedAt !== undefined;
+        if (!isCreatorArchived || loadedHidden !== hiddenConsults.length)
+            throw new Error(
+                'The seeded second opinions are not unresolved under an archived creator',
+            );
         await mobile.pair({ projectIds: [projectId], readyCheckId: `session-row-${waiting}` });
         await tapMobileCheckByBounds(serial, `project-filter-${projectId}`);
-        const isIdleShown = (nodes: Awaited<ReturnType<typeof mobileSemantics>>) =>
-            hasCheck(nodes, 'session-group-idle') &&
-            idle.every((id) => hasCheck(nodes, `session-row-${id}`));
-        let nodes: Awaited<ReturnType<typeof mobileSemantics>>;
-        try {
-            nodes = await waitForMobile(
-                () => mobileSemantics(serial),
-                (current) => hasCheck(current, `session-row-${waiting}`) && isIdleShown(current),
-                IDLE_WAIT_MS,
+        type Nodes = Awaited<ReturnType<typeof mobileSemantics>>;
+        const top = (nodes: Nodes, id: string) => checkBounds(nodes, id)?.top;
+        /**
+         * The waiting row sits between the Needs attention heading and the Idle heading, and every Idle row below it.
+         */
+        const isGrouped = (nodes: Nodes): boolean => {
+            const attention = top(nodes, 'session-group-attention');
+            const idleHeader = top(nodes, 'session-group-idle');
+            const waitingTop = top(nodes, `session-row-${waiting}`);
+            if (attention === undefined || idleHeader === undefined || waitingTop === undefined)
+                return false;
+            return (
+                attention < waitingTop &&
+                waitingTop < idleHeader &&
+                idle.every((id) => (top(nodes, `session-row-${id}`) ?? -1) > idleHeader)
             );
+        };
+        const leakedConsults = (nodes: Nodes) =>
+            hiddenConsults.filter((id) => hasCheck(nodes, `session-row-${id}`)).length;
+        let nodes: Nodes;
+        try {
+            nodes = await waitForMobile(() => mobileSemantics(serial), isGrouped, IDLE_WAIT_MS);
         } catch {
             // The baseline build never shows the Idle group; read what it does show and fail with that capture.
             nodes = await mobileSemantics(serial);
         }
+        // The list is short enough that FlashList renders every row, so a leaked second opinion would be in the tree.
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        const settled = await mobileSemantics(serial);
         await capture(environment, 'project-page', artifacts);
-        const shownIdle = idle.filter((id) => hasCheck(nodes, `session-row-${id}`)).length;
+        const shownIdle = idle.filter((id) => hasCheck(settled, `session-row-${id}`)).length;
         const receipt = {
-            hiddenConsultCount: seed.hiddenConsultCount,
-            idleGroup: hasCheck(nodes, 'session-group-idle') ? 'shown' : 'absent',
+            archivedCreator: 'archived',
+            filteredProject: hasCheck(settled, `project-filter-${projectId}`) ? 'shown' : 'absent',
+            hiddenConsultsLoaded: loadedHidden,
+            hiddenConsultRowsShown: Math.max(leakedConsults(nodes), leakedConsults(settled)),
+            idleGroup: hasCheck(settled, 'session-group-idle') ? 'shown' : 'absent',
             idleRowsShown: `${shownIdle}/${idle.length}`,
-            waitingRow: hasCheck(nodes, `session-row-${waiting}`) ? 'shown' : 'absent',
+            waitingUnderAttention: isGrouped(settled),
         };
-        if (!isIdleShown(nodes) || !hasCheck(nodes, `session-row-${waiting}`)) {
-            // Keep the capture citable in the failed (baseline) round before failing it.
+        if (!isGrouped(settled) || receipt.hiddenConsultRowsShown > 0) {
+            // Keep the capture citable in a failed round before failing it.
             await finish(environment, artifacts, { ...receipt, status: 'failed' });
-            throw new Error('The Project page does not show its Idle Sessions');
+            throw new Error(
+                'The Project page does not show its Idle Sessions with the second opinions hidden',
+            );
         }
         await finish(environment, artifacts, { ...receipt, status: 'passed' });
     } finally {
