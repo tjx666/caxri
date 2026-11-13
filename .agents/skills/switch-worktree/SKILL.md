@@ -121,7 +121,7 @@ bun run <absolute script path> create feat/example              # the second pri
    `caxri` call it cannot read statically: a wrapper (`rtk git diff`), `$(...)`, a heredoc, a
    `;`/`&&` chain, a quoted command path (`"$CAXRI_CLI"`), or script text naming `git`. Run each as
    its own plain command (`git diff`, `caxri ...`), compare outputs yourself, and edit files with
-   the Edit or Write tool; a `--body-file` goes to the path a separate `mktemp` call printed.
+   the Edit or Write tool; a `--body-file` goes to the path a separate `mktemp -t <name>` call printed.
 
 Use `--base <ref>` on `plan` only when the task explicitly requires another baseline. Allowed
 new-branch prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new
