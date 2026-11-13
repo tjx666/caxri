@@ -39,6 +39,10 @@ export interface ProjectStatusCheck {
     url?: string;
     durationMs?: number;
     /**
+     * When the check started running, in epoch milliseconds; absent while it is queued.
+     */
+    startedAt?: number;
+    /**
      * When the check settled, in epoch milliseconds.
      */
     completedAt?: number;

@@ -22,6 +22,11 @@ const projectStatusCheckSchema = z.object({
     url: z.url().optional(),
     durationMs: z.number().nonnegative().optional(),
     /**
+     * When the check started running, in epoch milliseconds; absent while it is queued. Lets the Status panel show how
+     * long a running check has been going, which `durationMs` cannot say until the check settles.
+     */
+    startedAt: z.number().optional(),
+    /**
      * When the check settled, in epoch milliseconds. Lets the delivery-failure alert tell a failure that happened while
      * Caxri was watching from one that predates it.
      */

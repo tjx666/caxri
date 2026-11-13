@@ -205,6 +205,16 @@ export function durationLabel(durationMs: number | undefined): string | undefine
     return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
 }
 
+/**
+ * A running check's elapsed time in whole minutes (`<1m`, `12m`). The panel re-renders once a minute rather than once a
+ * second, so seconds would sit stale between renders and read as a frozen clock.
+ */
+export function elapsedLabel(elapsedMs: number | undefined): string | undefined {
+    if (elapsedMs === undefined) return undefined;
+    const minutes = Math.floor(elapsedMs / 60_000);
+    return minutes < 1 ? '<1m' : `${minutes}m`;
+}
+
 export function ignoredChecksLabel(count: number): string {
     return count === 1
         ? l10n.t('{count} ignored check', { count })
