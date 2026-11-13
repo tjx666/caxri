@@ -47,11 +47,7 @@ import { clipboardMethods } from '../desktop/clipboard-contract.js';
 import { codexGlobalResetDesktopMethods } from '../desktop/codex-global-reset-contract.js';
 import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
 import { delegationImportDesktopMethods } from '../desktop/delegation-import-contract.js';
-import {
-    desktopHostMethods,
-    desktopRootIdentitySchema,
-    desktopStatusResultSchema,
-} from '../desktop/desktop-contract.js';
+import { desktopHostMethods, desktopRootIdentitySchema } from '../desktop/desktop-contract.js';
 import { editorPromptDesktopMethods } from '../desktop/editor-prompt-contract.js';
 import { environmentMonitorDesktopMethods } from '../desktop/environment-monitor-contract.js';
 import {
@@ -121,6 +117,7 @@ import { eventRecoveryRequestSchema, eventRecoverySchema } from '../transport/ev
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { lastDatabaseRebuildSchema } from './database-rebuild.js';
+import { hostStatusResultSchema } from './host-status-result.js';
 import { extensionViewMethods } from './view-methods.js';
 
 const serverRead = commandPolicy('server', 'read');
@@ -225,28 +222,7 @@ export const methods = {
     'host.status': {
         ...serverStatusRead,
         params: noParameters,
-        result: z.object({
-            profileId: identifierSchema,
-            version: z.string().min(1).max(100),
-            /**
-             * Build commit for stale-Host detection; package version alone misses dev rebuilds.
-             */
-            commit: z.string().min(1).max(100).optional(),
-            /**
-             * Unique per build invocation. Commit alone cannot distinguish two dev builds of the same (possibly dirty)
-             * checkout, so this is what the Desktop compares to decide a detached Host runs stale code and must be
-             * replaced.
-             */
-            buildId: z.string().min(1).max(100).optional(),
-            pid: z.number().int().positive(),
-            startedAt: z.number().int().positive(),
-            clientCount: z.number().int().nonnegative(),
-            activePtyCount: z.number().int().nonnegative(),
-            protocolVersion: z.number().int().positive(),
-            protocolCompatible: z.boolean(),
-            desktop: desktopStatusResultSchema,
-            lastDatabaseRebuild: lastDatabaseRebuildSchema.optional(),
-        }),
+        result: hostStatusResultSchema,
     },
     'host.stop': {
         ...serverStopControl,

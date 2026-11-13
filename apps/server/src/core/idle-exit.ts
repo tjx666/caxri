@@ -31,7 +31,7 @@ export interface IdleExitMonitorOptions {
     /**
      * Test seam; production uses `DEFAULT_IDLE_EXIT_MS`.
      */
-    thresholdMs?: number;
+    thresholdMs?: number | undefined;
 }
 
 export interface IdleExitMonitor {

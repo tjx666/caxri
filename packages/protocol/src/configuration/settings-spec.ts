@@ -14,6 +14,7 @@ import { environmentMonitorSettingsSpec } from './environment-monitor-settings.j
 import { languageSettingsSpec } from './language-settings-spec.js';
 import { primarySidebarSettingsSpec } from './primary-sidebar-settings-spec.js';
 import { themeSettingsSpec } from './theme-settings-spec.js';
+import { unattendedSettingsSpec } from './unattended-settings-spec.js';
 import { zenSettingsSpec } from './zen-settings-spec.js';
 
 export const settingCategories = [
@@ -181,6 +182,7 @@ export const settingsSpec = [
         keywords: ['git', 'worktree', 'archive', 'cleanup', 'delete', 'remove', 'node_modules'],
         default: false,
     },
+    ...unattendedSettingsSpec,
     ...themeSettingsSpec,
     ...primarySidebarSettingsSpec,
     ...zenSettingsSpec,

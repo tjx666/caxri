@@ -80,6 +80,13 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.workbench.removeWorktreeOnArchive.description':
         '归档时先把改动提交到保留的分支，再删除会话的 Worktree；未合并的会先询问。',
 
+    'settings.power.keepAwakeWhileAgentsWork.title': 'Agent 工作时保持 Mac 唤醒',
+    'settings.power.keepAwakeWhileAgentsWork.description':
+        'Agent 工作或等待额度重置时阻止系统空闲睡眠；显示器仍可关闭，用电池时合上盖子仍会睡眠。',
+    'settings.window.menuBarWhenClosed.title': '在菜单栏中继续运行',
+    'settings.window.menuBarWhenClosed.description':
+        '有任务运行时关闭窗口，会隐藏 Dock 图标，Caxri 留在菜单栏中继续运行。',
+
     'settings.workbench.theme.followSystem.title': '跟随系统外观',
     'settings.workbench.theme.followSystem.description': '随 macOS 在浅色和深色主题间切换。',
     'settings.workbench.theme.light.title': '浅色主题',

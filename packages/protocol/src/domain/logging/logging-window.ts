@@ -9,6 +9,16 @@ export const windowLogEvents = {
     closed: 'window.closed',
     created: 'window.created',
     /**
+     * The last Workbench window closed with work running, so Caxri left the Dock and stayed in the menu bar
+     * (`window.menuBarWhenClosed`): `runningChats` and `runningTerminals` are what kept it there.
+     */
+    menuBarEntered: 'window.menu_bar_entered',
+    /**
+     * Caxri left the menu bar: `durationMs` it stayed there and the closed `reason` (`open-window`, `open-session`,
+     * `setting-off`, `quit`). `sessionOpens` counts the Sessions opened from its menu.
+     */
+    menuBarLeft: 'window.menu_bar_left',
+    /**
      * A select, resume, or notification click for a Session another window owns was redirected to that window.
      */
     ownerRedirected: 'window.owner_redirected',

@@ -11,6 +11,7 @@ export interface HostStatusDependencies {
     clientCount: () => number;
     desktopRouter: () => ServerDesktopRouter | undefined;
     domainService: ServerDomainService;
+    keepAwake: () => MethodResult<'host.status'>['keepAwake'];
     profileId: string;
     startedAt: number;
     version: string;
@@ -37,5 +38,6 @@ export async function readHostStatus(
         protocolCompatible: true,
         desktop: (await dependencies.desktopRouter()?.status()) ?? { state: 'offline' },
         ...(health.lastDatabaseRebuild && { lastDatabaseRebuild: health.lastDatabaseRebuild }),
+        keepAwake: dependencies.keepAwake(),
     };
 }

@@ -269,6 +269,8 @@ export const appSettingsSchema = z.object({
         spec['workbench.confirmWorktreeAuthorization'],
     ),
     'workbench.removeWorktreeOnArchive': booleanField(spec['workbench.removeWorktreeOnArchive']),
+    'power.keepAwakeWhileAgentsWork': booleanField(spec['power.keepAwakeWhileAgentsWork']),
+    'window.menuBarWhenClosed': booleanField(spec['window.menuBarWhenClosed']),
     'workbench.theme.followSystem': booleanField(spec['workbench.theme.followSystem']),
     /**
      * A built-in preset id or an imported theme's id, so the spec's options list only the presets. Whether an imported

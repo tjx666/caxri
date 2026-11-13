@@ -22,3 +22,4 @@ export { createSessionRuntimeForgetter } from './runtime-teardown';
 export { SessionSearchService } from './search';
 export { createSessionSelectionHandlers } from './selection-handlers';
 export { SessionTurnWindows } from './turn-windows';
+export { summarizeSessionWork } from './work-summary';

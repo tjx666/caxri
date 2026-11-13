@@ -214,6 +214,26 @@ export const desktop = {
     'desktop.windowClose.keepRunning': 'Keep Running',
     'desktop.windowClose.terminate': 'Terminate and Close',
 
+    'desktop.menuBar.tooltip': 'Caxri',
+    'desktop.menuBar.workingNone': 'No Agents working',
+    'desktop.menuBar.workingOne': '1 Agent working',
+    'desktop.menuBar.workingOther': '{{count}} Agents working',
+    'desktop.menuBar.usageWaitingOne': '1 Chat waiting for a plan limit to reset',
+    'desktop.menuBar.usageWaitingOther': '{{count}} Chats waiting for a plan limit to reset',
+    'desktop.menuBar.keepingAwake': 'Keeping this Mac awake',
+    'desktop.menuBar.needsYou': 'Needs You',
+    'desktop.menuBar.attentionWaiting': 'Waiting for you',
+    'desktop.menuBar.attentionFailed': 'Failed',
+    'desktop.menuBar.attentionResult': 'Finished',
+    'desktop.menuBar.moreOne': '1 More in Caxri',
+    'desktop.menuBar.moreOther': '{{count}} More in Caxri',
+    'desktop.menuBar.keepAwake': 'Keep Mac Awake While Agents Work',
+    'desktop.menuBar.open': 'Open Caxri',
+    'desktop.menuBar.quit': 'Quit Caxri',
+    'desktop.menuBar.introTitle': 'Caxri is still running in the menu bar',
+    'desktop.menuBar.introBody':
+        'Your Agents keep working. Click the menu bar icon to come back, or turn this off in Settings.',
+
     'desktop.crash.title': 'Caxri Keeps Crashing',
     'desktop.crash.message':
         'The Caxri window has crashed repeatedly and automatic reload stopped.',

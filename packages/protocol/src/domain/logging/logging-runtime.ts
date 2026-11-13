@@ -227,6 +227,21 @@ export const serverCoreLogEvents = {
      */
     idleExitTriggered: 'server_core.idle_exit_triggered',
     /**
+     * Server Core started holding the Mac awake (`caffeinate -i`) because Agents work: `working` and `usageWaiting` are
+     * the counts that asked for it. See docs/unattended-mode.md.
+     */
+    keepAwakeStarted: 'server_core.keep_awake_started',
+    /**
+     * The hold ended: `durationMs` it lasted, `peakWorking` the most Agents working at once, and the closed
+     * `KeepAwakeStopReason` (`work-finished`, `disabled`, `server-stopping`, `assertion-exited`).
+     */
+    keepAwakeStopped: 'server_core.keep_awake_stopped',
+    /**
+     * The sleep assertion could not start or exited on its own; `errorCode` names why and `consecutiveFailures` how
+     * many attempts in a row failed. The next attempt waits out a doubling backoff.
+     */
+    keepAwakeFailed: 'server_core.keep_awake_failed',
+    /**
      * One record per machine-load transition: entering `loaded` carries the load per core that crossed the threshold;
      * leaving it carries the duration, peak, and per-`BackgroundWorkSource` deferred rounds.
      */

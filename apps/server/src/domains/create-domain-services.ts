@@ -489,6 +489,7 @@ export async function createDomainServices(
         }),
         'session.queryForPrincipal': ({ principal, query }) =>
             introspection.records.session(query, principal),
+        'session.workSummary': () => introspection.records.workSummary(),
         ...terminalInputs,
         ...createTerminalLifecycleHandlers({
             agentChat,

@@ -89,7 +89,7 @@ describe('settings subcategories', () => {
             categories
                 .find((category) => category.id === 'general')
                 ?.subcategories.map((subcategory) => subcategory.title),
-        ).toEqual(['Workspace', 'Sessions', 'Appearance', 'Sidebar']);
+        ).toEqual(['Workspace', 'Sessions', 'Background', 'Appearance', 'Sidebar']);
     });
 
     it('lists exactly the Agent provider sections in the navigation', () => {
