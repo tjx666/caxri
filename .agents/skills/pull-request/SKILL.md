@@ -39,8 +39,9 @@ or cancels the delivery, or a concrete blocker requires their input.
    Before pushing any TypeScript change, run `bun run knip` against the intended diff and resolve
    every finding. CI runs knip in the `full` checks scope (a main push, an explicit dispatch, or a
    ready PR that touches a full-validation path) and in the `affected` scope of an ordinary ready
-   source PR; the `focused-*` and draft scopes skip it, and the changed-file checker runs knip only
-   when `--knip` is passed. An unused export in a draft or focused-scope PR can therefore still
+   source PR; the `focused-*` and draft scopes skip it, and the changed-file checker runs it by
+   default for TypeScript and manifest changes but not under an explicit selector without
+   `--knip`. An unused export in a draft or focused-scope PR can therefore still
    surface only on the hosted main-push checks.
    Before pushing a rebased branch or a diff that changes `@types/*` or another type-declaration
    dependency, run `bun run lint:type-aware` and resolve every finding. The changed-file checker

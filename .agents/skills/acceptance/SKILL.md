@@ -176,6 +176,10 @@ not establish publication or complete coverage; inspect structured errors and in
    authoring a new probe or mock. Fix adapter drift when observed. Before asking the user about an
    environment or fixture failure, search `.agents/acceptance/` for the exact error; ask for the
    missing prerequisite only when it records no fix.
+   Before running a round on the delivery's code (not a baseline round on the pre-change code),
+   pass the static gates `pull-request` step 2 requires before pushing, such as
+   `bun run doctor:changed` for a React change. A repair they force after Acceptance changes the
+   tested code and costs another round: a React Doctor `rn-no-scroll-state` fix did.
 2. Run `lh acceptance preflight --json` before writing plan or report text. Its `mode` says
    whether rounds publish (`publish`, signed in) or render locally (`local`, never signed in; see
    [local reports](references/report.md#render-locally-when-not-signed-in)). On a signed-in machine
