@@ -50,12 +50,14 @@ const AttentionCard = ({
     onOpenTerminal,
     request: item,
     role,
+    source,
     submit,
     theme,
 }: {
     onOpenTerminal?: () => void;
     request: Attention;
     role: 'view' | 'reply' | 'control' | null;
+    source?: ReactNode;
     submit: (
         requestId: string,
         answer: {
@@ -125,6 +127,7 @@ const AttentionCard = ({
     return (
         <View accessibilityLiveRegion={item.kind === 'permission' ? 'assertive' : 'polite'}>
             <Card testID={`attention-${item.id}`} theme={theme} tone="attention">
+                {source}
                 <AttentionCardChrome
                     item={item}
                     questionIndex={questionIndex}
@@ -239,17 +242,17 @@ const AttentionAutoAllowBanner = ({
 
 export const AttentionCards = ({
     fallbackToTerminal,
-    header,
     onOpenTerminal,
     sessionId,
     role,
+    source,
     theme,
 }: {
     fallbackToTerminal?: boolean;
     /**
-     * Shown above the cards, only while a request is pending; the Sessions list names the card's Session with it.
+     * Shown first inside each card; the Sessions list names the card's Project and Session with it.
      */
-    header?: ReactNode;
+    source?: ReactNode;
     /**
      * Switches the parent Session view to its Terminal segment. Undefined where the caller has no Terminal segment to
      * switch to, so "Open Terminal" copy stays informational text instead of a dead-end control.
@@ -333,6 +336,7 @@ export const AttentionCards = ({
             onOpenTerminal={onOpenTerminal}
             request={item}
             role={role}
+            source={source}
             submit={submit}
             theme={theme}
         />
@@ -342,7 +346,6 @@ export const AttentionCards = ({
             style={{ maxHeight: windowHeight * ATTENTION_MAX_HEIGHT_RATIO }}
             testID="attention-cards"
         >
-            {header ? <View style={styles.header}>{header}</View> : null}
             {banner}
             <FlatList
                 contentContainerStyle={styles.list}
@@ -388,7 +391,6 @@ const styles = StyleSheet.create({
     bannerCard: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     bannerText: { ...mobileType.meta, flex: 1 },
     errorBox: { gap: mobileSpace.xs },
-    header: { paddingHorizontal: mobileSpace.lg },
     link: { justifyContent: 'center', minHeight: mobileControl.row },
     meta: mobileType.meta,
     strong: { fontWeight: '600' },

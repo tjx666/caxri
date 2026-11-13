@@ -173,6 +173,7 @@ export const AgentChatRequestCard = ({
     projectRoot,
     provider,
     request,
+    source,
     theme,
 }: {
     blockedReason: ReturnType<typeof agentChatRequestBlockedReason>;
@@ -189,6 +190,10 @@ export const AgentChatRequestCard = ({
     projectRoot?: string;
     provider: string;
     request: AgentChatRequest;
+    /**
+     * Names where the request came from, first inside the card; the Sessions list passes the Project and Session.
+     */
+    source?: ReactNode;
     theme: MobileTheme;
 }) => {
     /**
@@ -222,6 +227,7 @@ export const AgentChatRequestCard = ({
     ) : null;
     return (
         <Card style={styles.card} testID="agent-chat-request" theme={theme} tone="attention">
+            {source}
             <View style={styles.titleRow}>
                 <Glyph color={theme.warning} size={18} />
                 <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>

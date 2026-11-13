@@ -169,9 +169,18 @@ async function executeMobileChatListLongQuestionScenario(
             textAfter.top === text.top &&
             optionAfter?.top === option.top &&
             (await mobileRegionFingerprint(serial, textAfter)) !== textFingerprint;
-        // Two more drags reach the end of the text, so the frame shows its closing END-OF-QUESTION marker.
-        await dragText();
-        await dragText();
+        // Keep dragging until the text stops moving, so the frame shows its closing END-OF-QUESTION marker.
+        if (isTextScrolled) {
+            let fingerprint = await mobileRegionFingerprint(serial, textAfter);
+            for (let drag = 0; drag < 8; drag += 1) {
+                // eslint-disable-next-line no-await-in-loop -- each drag depends on where the previous one stopped.
+                await dragText();
+                // eslint-disable-next-line no-await-in-loop -- see above.
+                const next = await mobileRegionFingerprint(serial, textAfter);
+                if (next === fingerprint) break;
+                fingerprint = next;
+            }
+        }
         await capture(environment, 'list-long-question-end', artifacts);
 
         let isSessionOpened = false;

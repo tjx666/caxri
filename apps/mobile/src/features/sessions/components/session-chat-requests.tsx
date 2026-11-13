@@ -23,15 +23,15 @@ import type { MobileTerminal } from '../session-model';
  * which never starts a provider. Only the first request shows, with the count of the rest; the Chat lists them all.
  */
 export const SessionChatRequests = ({
-    header,
     role,
     terminal,
+    source,
     theme,
 }: {
     /**
-     * Shown above the card, only while there is a request to show.
+     * Shown first inside the card, naming the Project and Session the request belongs to.
      */
-    header?: ReactNode;
+    source?: ReactNode;
     role: 'view' | 'reply' | 'control' | null;
     terminal: MobileTerminal;
     theme: MobileTheme;
@@ -52,7 +52,6 @@ export const SessionChatRequests = ({
     return (
         <View testID="session-chat-requests">
             <View style={styles.card}>
-                {header}
                 <AgentChatRequestCard
                     blockedReason={agentChatRequestBlockedReason({
                         deviceRole: role,
@@ -74,6 +73,7 @@ export const SessionChatRequests = ({
                     }
                     provider={agentChatProviderName(terminal)}
                     request={current}
+                    source={source}
                     theme={theme}
                 />
             </View>

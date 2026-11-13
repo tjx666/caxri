@@ -282,7 +282,7 @@ export const SessionHome = ({
                         sessionListAttentionSource(item.session) === 'chat' &&
                         item.session.primaryTerminal ? (
                             <SessionChatRequests
-                                header={
+                                source={
                                     <SessionAttentionSource
                                         onOpen={() => onOpenSession(item.session.id)}
                                         session={item.session}
@@ -296,7 +296,7 @@ export const SessionHome = ({
                         ) : (
                             <AttentionCards
                                 fallbackToTerminal={shouldListFallbackToTerminal(item.session)}
-                                header={
+                                source={
                                     <SessionAttentionSource
                                         onOpen={() => onOpenSession(item.session.id)}
                                         session={item.session}

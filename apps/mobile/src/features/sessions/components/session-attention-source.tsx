@@ -4,15 +4,21 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 
 import { useTranslation } from '../../../i18n';
-import { mobileControl, mobileSpace, mobileType, PRESSED_OPACITY } from '../../../theme/scale';
+import {
+    chipHitSlop,
+    mobileControl,
+    mobileSpace,
+    mobileType,
+    PRESSED_OPACITY,
+} from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
 import { sessionTitleForDisplay } from '../session-row-model';
 
 /**
- * The line above a request card in the Sessions list naming the Project and Session it came from. A tall card pushes
- * its own row out of view, and a Project filter hides the Project name on the row, so the card names its source itself
- * and opens that Session when tapped.
+ * The first line of a request card in the Sessions list, naming the Project and Session it came from. A tall card
+ * pushes its own row out of view, and a Project filter hides the Project name on the row, so the card names its source
+ * itself and opens that Session when tapped.
  */
 export const SessionAttentionSource = ({
     onOpen,
@@ -33,6 +39,7 @@ export const SessionAttentionSource = ({
                 title,
             })}
             accessibilityRole="button"
+            hitSlop={chipHitSlop}
             onPress={onOpen}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
             testID="session-attention-source"
@@ -54,7 +61,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         gap: mobileSpace.xs,
-        minHeight: mobileControl.row,
+        minHeight: mobileControl.chip,
     },
     title: { fontWeight: '600' },
 });
