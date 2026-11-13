@@ -1,8 +1,9 @@
+import { hasCheck } from './mobile-agent-chat-helpers';
 import { adbShell, androidBounds, mobileSemantics, tapMobileCheck } from './mobile-android';
 import { captureScenarioFrame } from './mobile-scenario-capture';
 import { closeSessionSidePanel } from './mobile-session-panel';
 import type { UiAuditScenarioEnvironment } from './mobile-ui-audit-support';
-import { capture, finish, hasCheck, waitFor } from './mobile-ui-audit-support';
+import { capture, finish, waitFor } from './mobile-ui-audit-support';
 
 /**
  * The target center distance between neighboring header actions is 40dp (two 40dp toolbar buttons with no gap); 1dp

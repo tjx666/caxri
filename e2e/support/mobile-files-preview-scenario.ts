@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { hasCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -11,7 +12,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import type { Environment } from './mobile-project-panels-scenarios';
-import { capture, finish, hasCheck } from './mobile-project-panels-scenarios';
+import { capture, finish } from './mobile-project-panels-scenarios';
 import { openSessionSidePanel } from './mobile-session-panel';
 
 /**

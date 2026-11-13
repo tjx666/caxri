@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json';
+import { hasCheck } from './mobile-agent-chat-helpers';
 import { mobileSemantics, waitForMobile } from './mobile-android';
 import { captureScenarioFrame } from './mobile-scenario-capture';
 
@@ -13,9 +14,6 @@ export interface UiAuditScenarioEnvironment {
 }
 
 export type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
-
-export const hasCheck = (nodes: SemanticNodes, id: string): boolean =>
-    nodes.some(({ checkId }) => checkId === id);
 
 export const waitFor = (serial: string, isReady: (nodes: SemanticNodes) => boolean) =>
     waitForMobile(() => mobileSemantics(serial), isReady);

@@ -1,6 +1,7 @@
 import { pageRequest } from './helpers';
 import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { hasCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -17,7 +18,7 @@ import {
 } from './mobile-session-panel';
 import { headerActions } from './mobile-ui-audit-header-actions';
 import type { UiAuditScenarioEnvironment } from './mobile-ui-audit-support';
-import { assertStaysAbsent, capture, finish, hasCheck, waitFor } from './mobile-ui-audit-support';
+import { assertStaysAbsent, capture, finish, waitFor } from './mobile-ui-audit-support';
 
 async function openSession(serial: string, sessionId: string): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);

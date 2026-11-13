@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture.ts';
+import { hasCheck } from './mobile-agent-chat-helpers.ts';
 import {
     adbShell,
     androidBounds,
@@ -31,9 +32,6 @@ import { panelTransitions, readRecordingBand } from './mobile-motion-analysis.ts
 import { sessionSideTabCheckId } from './mobile-session-panel.ts';
 
 type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
-
-const hasCheck = (nodes: SemanticNodes, id: string): boolean =>
-    nodes.some(({ checkId }) => checkId === id);
 
 const boundsOf = (nodes: SemanticNodes, id: string) => {
     const node = nodes.find(({ checkId }) => checkId === id);

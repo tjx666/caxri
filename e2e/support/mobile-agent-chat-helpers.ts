@@ -15,17 +15,24 @@ import {
 
 type ScreenBounds = NonNullable<ReturnType<typeof androidBounds>>;
 
-export const hasCheck = (nodes: ReadonlyArray<{ checkId: string }>, id: string): boolean =>
-    nodes.some(({ checkId }) => checkId === id);
-
 /**
  * Android semantics drop a `testID` that `isAndroidCheckId` rejects (an uppercase letter, for one), so waiting for it
- * would time out with no hint and waiting for its absence would pass at once. Both waits refuse such an id up front.
+ * would time out with no hint and waiting for its absence would pass at once. Every check lookup refuses such an id up
+ * front.
  */
 function requireCheckId(id: string): void {
     if (!isAndroidCheckId(id))
         throw new Error(`Android semantics never expose check id ${id}; use lowercase kebab-case`);
 }
+
+/**
+ * Whether the semantics include `id`. The one lookup every Android scenario shares, so an id the device can never
+ * expose fails at once instead of making a wait time out.
+ */
+export const hasCheck = (nodes: ReadonlyArray<{ checkId: string }>, id: string): boolean => {
+    requireCheckId(id);
+    return nodes.some(({ checkId }) => checkId === id);
+};
 
 export const waitForCheck = (serial: string, id: string, timeoutMs = 30_000) => {
     requireCheckId(id);
