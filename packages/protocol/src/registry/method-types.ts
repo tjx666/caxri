@@ -114,6 +114,7 @@ export const effectfulCommandRecovery = {
     'agent.session.rename': 'durable',
     'agent.session.archive': 'durable',
     'agent.session.unarchive': 'durable',
+    'agent.session.send': 'memory',
     'secrets.set': 'memory',
     'secrets.delete': 'memory',
     'secrets.requests.answer': 'memory',

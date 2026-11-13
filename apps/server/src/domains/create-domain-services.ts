@@ -10,6 +10,7 @@ import type { AgentDelegationService } from './agent-delegation';
 import { createAgentLifecycleFanOut } from './agent-lifecycle-fan-out';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentSecretService, createAgentSecretHandlers } from './agent-secrets';
+import { createAgentSessionSendHandler } from './agent-session-send';
 import { AgentAttentionRequests, CompactionReadiness, createLongPasteService } from './agents';
 import { createAppHandlers } from './app-handlers';
 import { createBenchmarkService } from './benchmark-service-creation';
@@ -432,6 +433,7 @@ export async function createDomainServices(
         }),
         'bugReport.context': () => diagnostics.reportContext(),
         ...createBugReportDeliveryHandler({ agentChat, database, terminals }),
+        ...createAgentSessionSendHandler({ agentChat, database, terminals }),
         'project.list': () => ({ view: 'desktop', projects: database.listVisibleProjects() }),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),

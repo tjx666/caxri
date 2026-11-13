@@ -11,30 +11,32 @@ import type { MobileAccessController } from './mobile/access-controller-contract
 import { assertProjectScope, projectScope } from './principal-project-scope';
 import { dispatchIdFor } from './request-cancellation';
 
-type AgentCommandRequest = Extract<
-    ServerRequest,
-    {
-        method:
-            | 'agent.delegation.presets'
-            | 'agent.delegation.create'
-            | 'agent.delegation.stop'
-            | 'agent.delegation.redirect'
-            | 'agent.delegation.status'
-            | 'agent.delegation.result'
-            | 'agent.delegation.transcript'
-            | 'agent.delegation.ask'
-            | 'agent.delegation.askWait'
-            | 'agent.delegation.askCancel'
-            | 'agent.delegation.questions'
-            | 'agent.delegation.answer'
-            | 'agent.delegation.approve'
-            | 'agent.delegation.list'
-            | 'agent.delegation.history'
-            | 'agent.delegation.wait'
-            | 'agent.dispatch.start'
-            | 'agent.dispatch.resume';
-    }
->;
+type AgentCommandRequest =
+    | Extract<
+          ServerRequest,
+          {
+              method:
+                  | 'agent.delegation.presets'
+                  | 'agent.delegation.create'
+                  | 'agent.delegation.stop'
+                  | 'agent.delegation.redirect'
+                  | 'agent.delegation.status'
+                  | 'agent.delegation.result'
+                  | 'agent.delegation.transcript'
+                  | 'agent.delegation.ask'
+                  | 'agent.delegation.askWait'
+                  | 'agent.delegation.askCancel'
+                  | 'agent.delegation.questions'
+                  | 'agent.delegation.answer'
+                  | 'agent.delegation.approve'
+                  | 'agent.delegation.list'
+                  | 'agent.delegation.history'
+                  | 'agent.delegation.wait'
+                  | 'agent.dispatch.start'
+                  | 'agent.dispatch.resume';
+          }
+      >
+    | AgentSessionRequest;
 
 /**
  * An Agent delegates into Sessions it creates in any Project the user added, so its own Project scope cannot decide the
@@ -88,6 +90,7 @@ export function agentCommandRequest(
     requestId: string,
     endpoints: AgentEndpointRegistry,
 ): ServerOperationRequest {
+    if (isAgentSessionRequest(request)) return agentSessionRequest(request, context, endpoints);
     if (request.method === 'agent.dispatch.start' || request.method === 'agent.dispatch.resume') {
         assertProjectScope(context, request.params.projectId);
         const parameters = {
@@ -235,34 +238,46 @@ export function agentControlRequest(
 
 type AgentSessionRequest = Extract<
     ServerRequest,
-    { method: 'agent.session.rename' | 'agent.session.archive' | 'agent.session.unarchive' }
+    {
+        method:
+            | 'agent.session.rename'
+            | 'agent.session.archive'
+            | 'agent.session.unarchive'
+            | 'agent.session.send';
+    }
 >;
 
+function isAgentSessionRequest(request: AgentCommandRequest): request is AgentSessionRequest {
+    return request.method.startsWith('agent.session.');
+}
+
 /**
- * Binds a Session management request to the caller's authenticated Terminal. Admission (which Sessions this caller
- * created) belongs to the session domain, so no Project scope is checked here: the target may sit in any Project the
- * user added, like the delegation that created it.
+ * Binds a Session request to the caller's authenticated Terminal, so the domain knows which Session asked (and a
+ * relayed message can name it). Admission belongs to the session domain, so no Project scope is checked here: the
+ * target may sit in any Project the user added, like the delegation that created it.
  */
-export function agentSessionRequest(
+function agentSessionRequest(
     request: AgentSessionRequest,
     context: CommandExecutionContext,
     endpoints: AgentEndpointRegistry,
 ): ServerOperationRequest {
     if (context.principal.kind !== 'agent')
-        throw new CaxriError('FORBIDDEN', 'Only an Agent manages the Sessions its Session created');
+        throw new CaxriError('FORBIDDEN', 'Only an Agent uses agent session commands');
+    const authority = {
+        principal: context.principal,
+        callerTerminalId: endpoints.context(context).endpoint.terminalId,
+        sessionId: request.params.sessionId,
+    };
+    if (request.method === 'agent.session.send')
+        return {
+            method: 'agent.session.sendInternal',
+            params: { ...authority, text: request.params.text },
+        };
     const operation: AgentSessionOperation =
         request.method === 'agent.session.rename'
             ? { action: 'rename', title: request.params.title }
             : { action: request.method === 'agent.session.archive' ? 'archive' : 'unarchive' };
-    return {
-        method: 'agent.session.manageInternal',
-        params: {
-            principal: context.principal,
-            callerTerminalId: endpoints.context(context).endpoint.terminalId,
-            sessionId: request.params.sessionId,
-            operation,
-        },
-    };
+    return { method: 'agent.session.manageInternal', params: { ...authority, operation } };
 }
 
 type SessionImportRequest = Extract<ServerRequest, { method: 'session.importConversation' }>;

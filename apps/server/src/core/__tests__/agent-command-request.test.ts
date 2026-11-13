@@ -123,6 +123,35 @@ describe('agentCommandRequest for the questions of a delegated Agent', () => {
         ).toEqual({ method: internal, params: { ...authority, ...parameters } });
     });
 
+    it('routes a relay into another Session with the caller Terminal, and Session management beside it', () => {
+        const route = (method: string, parameters: Record<string, string>) =>
+            agentCommandRequest(
+                { method, params: parameters } as never,
+                context,
+                'request-1',
+                endpoints,
+            );
+        expect(route('agent.session.send', { sessionId: 'session-2', text: 'Synthetic' })).toEqual({
+            method: 'agent.session.sendInternal',
+            params: { ...authority, sessionId: 'session-2', text: 'Synthetic' },
+        });
+        expect(route('agent.session.archive', { sessionId: 'session-2' })).toEqual({
+            method: 'agent.session.manageInternal',
+            params: { ...authority, sessionId: 'session-2', operation: { action: 'archive' } },
+        });
+    });
+
+    it('refuses an agent session command from anyone but an Agent', () => {
+        expect(() =>
+            agentCommandRequest(
+                { method: 'agent.session.send', params: { sessionId: 's', text: 'x' } } as never,
+                contextFor('human-cli'),
+                'request-1',
+                endpoints,
+            ),
+        ).toThrow(expect.objectContaining({ code: 'FORBIDDEN' }));
+    });
+
     it('refuses a history read from an Agent whose Endpoint expired before any handler runs', () => {
         const expired = {
             context: () => {

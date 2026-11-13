@@ -290,6 +290,29 @@ Then write the task to a file and run
   `agent session archive <session-id>` once its work is done and reported (`unarchive` restores it).
   These accept only Sessions created from your own Session; never archive the user's Sessions.
 
+## Relay a message into another Session
+
+When the user asks you to tell, pass on, or forward something to another of their Sessions (for
+example "tell the Session working on that PR to drop the version pin"), deliver it yourself; never
+hand the user text to paste there:
+
+```bash
+caxri session list --json
+caxri agent session send <session-id> --text <message> --json
+```
+
+- Pick the Session ID from `session list`, matching its title and Project; ask the user only when
+  several Sessions fit. `--prompt-file <path>` carries a longer message.
+- It lands in that Session's Agent exactly as if the user typed it and pressed Enter: an idle Agent
+  starts a turn, and a running Chat takes it in after its current tool call. The Agent reads a first
+  line naming your Session as the source, so write the message to stand alone: what to change, why,
+  and any PR or issue links.
+- Any visible Session qualifies, not only ones you created. Your own Session, an archived Session,
+  and a Session without an Agent are refused; `UNAVAILABLE` means its Terminal Agent is not running,
+  so tell the user to start it.
+- Use it only for a relay the user asked for. Peer Messages (`agent message send`) wait in an Inbox
+  that an idle Agent never reads, so they do not serve this.
+
 ## Ask another Agent: second opinion, review, computer use, X search
 
 Four asks need no preset and no Session flags. Write the task to a file, then run
