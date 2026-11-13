@@ -410,9 +410,9 @@ describe('configuration contracts', () => {
             methods['keybindings.get'].result.shape.value.safeParse(oversizedKeybindings).success,
         ).toBe(false);
         expect(
-            methods['app.bootstrap'].result.shape.keybindings.safeParse(oversizedKeybindings)
-                .success,
-        ).toBe(false);
+            methods['app.bootstrap'].result.safeParse({ keybindings: oversizedKeybindings }).error
+                ?.issues,
+        ).toContainEqual(expect.objectContaining({ code: 'too_big', path: ['keybindings'] }));
     });
 });
 

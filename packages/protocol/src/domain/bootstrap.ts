@@ -52,7 +52,7 @@ const archivedTerminalSchema = terminalRecordSchema.pick({
 });
 export type ArchivedTerminal = z.infer<typeof archivedTerminalSchema>;
 
-export const bootstrapStateSchema = z.object({
+const bootstrapStateObjectSchema = z.object({
     /**
      * Suppressed automatic-naming launches that are still in force, newest last. Absent when nothing is blocked, the
      * same way `configurationErrors` is.
@@ -96,4 +96,16 @@ export const bootstrapStateSchema = z.object({
         restartCount: z.number(),
     }),
 });
-export type BootstrapState = z.infer<typeof bootstrapStateSchema>;
+/**
+ * An interface rather than an alias, so declarations reference it by name instead of expanding the whole shape.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- the name is the point.
+export interface BootstrapState extends z.infer<typeof bootstrapStateObjectSchema> {}
+
+/**
+ * Annotated with the named `BootstrapState` interface instead of inferred: seven method results and the Caxri Bot
+ * contract inline this schema, and its expanded shape (every Project, Session, Terminal, and settings field) took a
+ * sixth of the method registry's declaration, which had reached TypeScript's serialization limit (TS7056). Any new
+ * method then failed the build.
+ */
+export const bootstrapStateSchema: z.ZodType<BootstrapState> = bootstrapStateObjectSchema;
