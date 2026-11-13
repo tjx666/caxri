@@ -66,6 +66,8 @@ const expectedLanes: Record<string, ControlLane> = {
     'agent.session.archive': 'ordered',
     'agent.session.manageInternal': 'ordered',
     'agent.session.rename': 'ordered',
+    'agent.session.send': 'ordered',
+    'agent.session.sendInternal': 'ordered',
     'agent.session.unarchive': 'ordered',
     'agentActions.recordRecent': 'ordered',
     'agentChat.askSideQuestion': 'ordered',

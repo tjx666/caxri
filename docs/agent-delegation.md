@@ -139,6 +139,15 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   because the Session, not one Terminal, created it. Every other Session, including the caller's own
   and the user's, returns `NOT_FOUND`. Caxri Bot manages only Sessions it still owns, so
   Take Back revokes this as well (`apps/server/src/domains/parking-handlers.ts`).
+- `caxri agent session send <session-id> --text <message>` is the one Session command that reaches
+  any visible Session, not only those the caller created: it relays a message the user asked an
+  Agent to pass on, so the user never copies text between Sessions. A Chat receives it through the
+  composer's `steer` delivery, the same as the user pressing Enter there (an idle Chat starts a turn,
+  a running one takes it in after its current tool call); a Terminal Agent receives a submit pinned
+  to its current launch. The text arrives after a `[Caxri] Relayed from Session "<title>"` line and
+  counts as `delegation` input, so relaying into a delegated child does not take its task over.
+  The caller's own Session, archived Sessions, hidden Projects, and Sessions without an Agent are
+  refused (`apps/server/src/domains/agent-session-send.ts`).
 - Delegation admission also accepts an earlier task's Session created by any Agent in the caller's
   Session, so a sibling Terminal can send it the next task.
 - `--worktree <new-branch>` (only with `--new-session`, not for Caxri Bot) creates a linked Git worktree

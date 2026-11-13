@@ -22,7 +22,6 @@ import {
     agentControlRequest,
     agentCurrentQuery,
     agentSecretRequest,
-    agentSessionRequest,
     sessionImportRequest,
 } from './agent-command-request';
 import { agentEndpointRequest } from './agent-endpoint-request';
@@ -266,6 +265,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 case 'agent.delegation.questions':
                 case 'agent.delegation.answer':
                 case 'agent.delegation.approve':
+                case 'agent.session.rename':
+                case 'agent.session.archive':
+                case 'agent.session.unarchive':
+                case 'agent.session.send':
                     return forwardDomainOperation(
                         agentCommandRequest(request, context, invocation.requestId, agentEndpoints),
                     );
@@ -295,12 +298,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     );
                 case 'session.importConversation':
                     return forwardDomainOperation(sessionImportRequest(request, context));
-                case 'agent.session.rename':
-                case 'agent.session.archive':
-                case 'agent.session.unarchive':
-                    return forwardDomainOperation(
-                        agentSessionRequest(request, context, agentEndpoints),
-                    );
                 case 'agent.secret.list':
                 case 'agent.secret.request':
                 case 'agent.secret.resolve':

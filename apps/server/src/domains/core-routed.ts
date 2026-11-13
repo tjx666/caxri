@@ -38,6 +38,7 @@ const CORE_ROUTED_METHODS = [
     'agent.session.rename',
     'agent.session.archive',
     'agent.session.unarchive',
+    'agent.session.send',
     'session.importConversation',
     'agent.secret.list',
     'agent.secret.request',
