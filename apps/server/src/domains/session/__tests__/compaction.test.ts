@@ -80,7 +80,9 @@ async function fixture(authMode?: string) {
     };
     const agentChat = {
         compactIdle: vi.fn(() => Promise.resolve<'submitted' | 'usageLimited'>('submitted')),
-        idleLaunchId: vi.fn<(terminalId: string) => string | undefined>(() => 'chat-launch'),
+        idleLaunchId: vi.fn<(terminalId: string, isCompaction?: boolean) => string | undefined>(
+            () => 'chat-launch',
+        ),
         isLive: vi.fn(() => true),
     };
     const service = new SessionCompaction({
@@ -153,6 +155,26 @@ describe('batch compaction', () => {
         );
         f.agentChat.compactIdle.mockRejectedValueOnce(new Error('crashed'));
         expect((await f.service.run()).items[0]?.outcome).toBe('failed');
+    });
+    it('compacts an idle Chat whose background task keeps its Session running', async () => {
+        const f = await fixture();
+        f.database.terminalSurfaces.switch(f.terminal.id, 'chat');
+        f.database.updateTerminalState(f.terminal.id, 'running');
+        // A turn that ended with background work still running reports the Session as running until it drains.
+        f.database.updateAgentMetadata(f.terminal.id, {
+            sessionId: `native-${f.terminal.id}`,
+            status: 'running',
+            provider: 'codex',
+            observedAt: now,
+            available: true,
+        });
+        expect(f.database.getSession(f.session.id)?.agentActivityState).toBe('running');
+        // The Chat is idle only when running background tasks are ignored.
+        f.agentChat.idleLaunchId.mockImplementation((_terminalId, isCompaction) =>
+            isCompaction ? 'chat-launch' : undefined,
+        );
+        expect((await f.service.run()).items[0]?.outcome).toBe('submitted');
+        expect(f.agentChat.compactIdle).toHaveBeenCalledWith(f.terminal.id, 'chat-launch');
     });
     it('keeps an old Codex Session eligible when the ChatGPT sign-in never expires its cache', async () => {
         const f = await fixture('chatgpt');
