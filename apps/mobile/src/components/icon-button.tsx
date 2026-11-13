@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { useRef } from 'react';
 import { Pressable } from 'react-native';
 
 import type { LucideProps } from 'lucide-react-native';
@@ -18,6 +19,7 @@ export const IconButton = ({
     expanded,
     icon: Icon,
     onDisabledPress,
+    onLongPress,
     onPress,
     size = 22,
     testID,
@@ -35,6 +37,13 @@ export const IconButton = ({
      * instead of doing nothing, so the reason is visible and not only a screen reader hint.
      */
     onDisabledPress?: () => void;
+    /**
+     * A shortcut beside the tap, such as Back opening the previous Session; describe it in `accessibilityHint`. It runs
+     * when the finger lifts after a long press, not when the hold first qualifies: a handler that replaces the screen
+     * while the finger is still down leaves Android's touch responder on the removed button, and the next tap on the
+     * new screen is swallowed (Android Acceptance `MOB-SESSION-PREVIOUS-01`).
+     */
+    onLongPress?: () => void;
     onPress: () => void;
     size?: number;
     testID?: string;
@@ -46,6 +55,7 @@ export const IconButton = ({
     variant?: 'default' | 'toolbar';
 }) => {
     const feedback = iconPressFeedback(theme);
+    const isLongPressHeld = useRef(false);
     return (
         <Pressable
             accessibilityHint={accessibilityHint}
@@ -55,7 +65,19 @@ export const IconButton = ({
             android_ripple={disabled ? undefined : feedback.android_ripple}
             disabled={disabled && !onDisabledPress}
             hitSlop={4}
+            onLongPress={
+                disabled || !onLongPress
+                    ? undefined
+                    : () => {
+                          isLongPressHeld.current = true;
+                      }
+            }
             onPress={disabled ? onDisabledPress : onPress}
+            onPressOut={() => {
+                if (!isLongPressHeld.current) return;
+                isLongPressHeld.current = false;
+                onLongPress?.();
+            }}
             style={({ pressed }) => ({
                 alignItems: 'center',
                 borderRadius: 24,

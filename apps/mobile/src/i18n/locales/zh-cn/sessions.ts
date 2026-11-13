@@ -117,6 +117,8 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.composer.tooLong': '消息最多 {{size}}。',
     'sessions.composer.viewOnly': '此设备只能查看会话。',
     'sessions.detail.backHint': '返回会话列表。',
+    'sessions.detail.backHintWithPrevious': '返回会话列表。长按打开上一个会话。',
+    'sessions.detail.previousSession': '上一个会话',
     'sessions.detail.closeMenu': '关闭会话菜单',
     'sessions.detail.collapseTitleHint': '收起标题。',
     'sessions.detail.conversationFallback': '此 Agent 不支持对话记录视图。正在显示终端。',

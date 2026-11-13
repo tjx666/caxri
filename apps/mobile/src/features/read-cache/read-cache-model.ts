@@ -36,6 +36,7 @@ export type ReadCacheKey =
     | { kind: 'dashboard' }
     | { kind: 'drafts' }
     | { kind: 'panels' }
+    | { kind: 'recentSessions' }
     | { kind: 'timeline'; sessionId: string }
     | { kind: 'chat'; terminalId: string };
 
@@ -54,6 +55,9 @@ export const readCacheFileName = (key: ReadCacheKey): string => {
         }
         case 'panels': {
             return 'panels.json';
+        }
+        case 'recentSessions': {
+            return 'recent-sessions.json';
         }
         case 'timeline': {
             return `timeline-${encodeURIComponent(key.sessionId)}.json`;

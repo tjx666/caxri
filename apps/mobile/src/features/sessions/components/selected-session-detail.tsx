@@ -11,6 +11,8 @@ import { isSessionSidePanelDocked } from '../../layout/layout-mode';
 import { useOpenSession } from '../hooks/use-open-session';
 import type { useSessionConversation } from '../hooks/use-session-conversation';
 import { useSessionManagement } from '../hooks/use-session-management';
+import { allMobileSessions } from '../hooks/use-session-polling';
+import { previousRecentSession } from '../recent-sessions';
 import type { SessionActionsMode, SessionMenuActions } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
 import type { ContentSessionSegment } from '../session-ui-state';
@@ -44,6 +46,7 @@ export const SelectedSessionDetail = ({
         consumeComposerFocus,
         focusComposerSessionId,
         hostId,
+        recentSessionIds,
         requestComposerFocus,
         sessions,
         setDraft,
@@ -75,6 +78,18 @@ export const SelectedSessionDetail = ({
     const { archive, clearError, fork, handOverToBot, resume, setPinned, takeBackFromBot } =
         management;
     const openSession = useOpenSession(layout);
+    const previousSession = useMemo(
+        () =>
+            previousRecentSession(
+                recentSessionIds,
+                selected.id,
+                allMobileSessions(sessions.sections),
+            ),
+        [recentSessionIds, selected.id, sessions.sections],
+    );
+    const openPreviousSession = useCallback((): void => {
+        if (previousSession) openSession(previousSession.id, { switch: true });
+    }, [openSession, previousSession]);
     const [sheetMode, setSheetMode] = useState<SessionActionsMode | null>(null);
     const terminalId = selected.primaryTerminal?.id;
     const selectedId = selected.id;
@@ -181,10 +196,12 @@ export const SelectedSessionDetail = ({
                 }}
                 onMarkDone={markDone}
                 onMarkRead={markRead}
+                onOpenPreviousSession={openPreviousSession}
                 onRequestComposerFocus={() => requestComposerFocus(selected.id)}
                 onRefresh={refresh}
                 onSegmentChange={(next) => setSegment(selected.id, next, conversation.segment)}
                 onSessionCommand={sessions.deviceRole === 'control' ? runSessionCommand : undefined}
+                previousSession={previousSession}
                 savedAt={sessions.savedAt}
                 segment={conversation.segment}
                 session={selected}
