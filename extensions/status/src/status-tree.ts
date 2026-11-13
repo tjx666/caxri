@@ -69,7 +69,8 @@ const missingGitRepoErrors = new Set<string>([
  */
 function buildRepoChildren(
     repo: ProjectStatusRepository,
-    shouldHideSharedErrors = false,
+    shouldHideSharedErrors: boolean,
+    now: number,
 ): StatusNode[] {
     const prefix = `status:repo:${repo.id}`;
     const isDefaultBranch = repo.defaultBranch === repo.branch;
@@ -377,7 +378,7 @@ function buildRepoChildren(
          * time made the badge unreadable.
          */
         const lifecycleLabel = lifecycle?.label ?? l10n.t('Not reported');
-        const children = pullRequestCheckNodes(prefix, pullRequest);
+        const children = pullRequestCheckNodes(prefix, pullRequest, now);
         /**
          * The row sits under the checked-out branch, so a pull request the Session's Agent opened from another worktree
          * would read as that branch's. Naming its own branch only when they differ keeps the ordinary row unchanged.
@@ -488,12 +489,13 @@ function buildRepoChildren(
 export function buildRepoNode(
     repo: ProjectStatusRepository,
     shouldHideSharedErrors = false,
+    now: number = Date.now(),
 ): StatusNode {
     const presentation = repoPresentation[repo.kind];
     return item(`status:repo:${repo.id}`, repo.name, {
         description: presentation.description,
         icon: presentation.icon,
-        children: buildRepoChildren(repo, shouldHideSharedErrors),
+        children: buildRepoChildren(repo, shouldHideSharedErrors, now),
         collapsibleState: TreeItemCollapsibleState.Expanded,
         variant: 'header',
         tooltip: {
@@ -521,7 +523,8 @@ export function buildRepoNode(
 export function buildStatusRootNodes(
     summary: ProjectStatusSummary,
     /**
-     * Decides whether a recorded pause is still running. Injected so a test can place a deadline on either side of it.
+     * Decides whether a recorded pause is still running and how long each running check has been going. Injected so a
+     * test can place a deadline on either side of it.
      */
     now: number = Date.now(),
 ): StatusNode[] {
@@ -568,6 +571,6 @@ export function buildStatusRootNodes(
             sharedErrors.filter((error) => error.reason === 'rate-limited'),
             now,
         ),
-        ...summary.repositories.map((repo) => buildRepoNode(repo, true)),
+        ...summary.repositories.map((repo) => buildRepoNode(repo, true, now)),
     ];
 }

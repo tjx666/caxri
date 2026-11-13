@@ -75,6 +75,60 @@ describe('ProjectStatusProvider', () => {
         cancellation.dispose();
         provider.dispose();
     });
+
+    it('re-renders when a running check reaches its next elapsed minute', async () => {
+        vi.useFakeTimers();
+        const startedAt = 1_000_000;
+        const summary: ProjectStatusSummary = {
+            refreshedAt: 1,
+            repositories: [
+                {
+                    id: 'fixture',
+                    kind: 'primary',
+                    name: 'project',
+                    branch: 'feat/x',
+                    acceptances: [],
+                    linearIssues: [],
+                    errors: [],
+                    pullRequest: {
+                        number: 7,
+                        title: 'Checks',
+                        url: 'https://github.com/acme/widget/pull/7',
+                        state: 'pending',
+                        checks: [{ name: 'Build', state: 'pending', startedAt }],
+                        hiddenCheckCount: 0,
+                    },
+                },
+            ],
+        };
+        const provider = new ProjectStatusProvider(
+            {
+                getCurrentContext: () => ({ scopeId: 'session-a:project-1' }),
+                getProjectStatus: () => Promise.resolve(summary),
+            },
+            () => startedAt + 20_000,
+        );
+        const changed = vi.fn();
+        const subscription = provider.onDidChangeTreeData(changed);
+        const cancellation = new CancellationTokenSource();
+
+        await provider.getChildren(undefined, cancellation.token);
+        vi.advanceTimersByTime(39_999);
+        expect(changed).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(changed).toHaveBeenCalledTimes(1);
+
+        // Once nothing runs, no further re-render is armed.
+        summary.repositories[0].pullRequest!.checks = [{ name: 'Build', state: 'success' }];
+        await provider.getChildren(undefined, cancellation.token);
+        vi.advanceTimersByTime(120_000);
+        expect(changed).toHaveBeenCalledTimes(1);
+
+        subscription.dispose();
+        cancellation.dispose();
+        provider.dispose();
+        vi.useRealTimers();
+    });
 });
 
 describe('mergePullRequest', () => {

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CHECKS_COLLAPSE_THRESHOLD,
     isPullRequestRowExpanded,
+    nextElapsedTickMs,
     partitionPullRequestChecks,
     pullRequestCheckNodes,
     pullRequestCheckSummary,
@@ -140,5 +141,49 @@ describe('isPullRequestRowExpanded', () => {
         expect(isPullRequestRowExpanded(failed as PullRequest)).toBe(true);
         const settled = pullRequest([passed('Build')]);
         expect(isPullRequestRowExpanded({ ...settled, state: 'success' })).toBe(false);
+    });
+});
+
+describe('running check elapsed time', () => {
+    const startedAt = 1_000_000;
+
+    it('shows how long a running check has been going and leaves a queued one blank', () => {
+        const running: Check = { name: 'Build', state: 'pending', startedAt };
+        const queued: Check = { name: 'Deploy', state: 'queued' };
+        const nodes = pullRequestCheckNodes(
+            'status:repo',
+            pullRequest([running, queued]),
+            startedAt + 3 * 60_000 + 59_000,
+        );
+
+        expect(nodes.map(({ item }) => item.description)).toEqual(['3m', undefined]);
+        expect(nodes[0].item.tooltip).toMatchObject({
+            rows: [{ label: 'running for', value: '3m' }],
+        });
+        expect(
+            pullRequestCheckNodes('status:repo', pullRequest([running]), startedAt + 10_000)[0].item
+                .description,
+        ).toBe('<1m');
+    });
+
+    it('keeps a settled check on its own duration', () => {
+        const settled: Check = { name: 'Lint', state: 'success', startedAt, durationMs: 90_000 };
+
+        expect(
+            pullRequestCheckNodes('status:repo', pullRequest([settled]), startedAt + 3_600_000)[0]
+                .item.description,
+        ).toBe('1m 30s');
+    });
+
+    it('waits for the next running check to reach another minute, coalescing close ones', () => {
+        const at = (offset: number): Check => ({
+            name: `Run ${offset}`,
+            state: 'pending',
+            startedAt: startedAt - offset,
+        });
+
+        expect(nextElapsedTickMs([at(20_000), at(50_000)], startedAt)).toBe(15_000);
+        expect(nextElapsedTickMs([at(20_000)], startedAt)).toBe(40_000);
+        expect(nextElapsedTickMs([{ name: 'Queued', state: 'queued' }], startedAt)).toBeUndefined();
     });
 });

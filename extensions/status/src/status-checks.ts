@@ -3,7 +3,12 @@ import { l10n, TreeItemCollapsibleState } from 'caxri';
 
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
-import { durationLabel, ignoredChecksHiddenLabel, projectStatusStateLabel } from './status-labels';
+import {
+    durationLabel,
+    elapsedLabel,
+    ignoredChecksHiddenLabel,
+    projectStatusStateLabel,
+} from './status-labels';
 import { linkText, stateIcons, stateTones } from './status-presentation';
 import { previousChecksNode } from './status-previous-checks';
 
@@ -75,10 +80,45 @@ export function partitionPullRequestChecks(checks: readonly PullRequestCheck[]):
     return { listed: checks.filter((check) => !isFolded(check)), folded };
 }
 
-function checkRow(id: string, check: PullRequestCheck): StatusNode {
+/**
+ * Shortest gap between two elapsed-time re-renders of the panel.
+ */
+const ELAPSED_TICK_FLOOR_MS = 15_000;
+
+/**
+ * How long a running check has been going, or undefined for a queued or settled one. A settled check reports its own
+ * `durationMs` instead, and a queued one has not started.
+ */
+function runningCheckElapsedMs(check: PullRequestCheck, now: number): number | undefined {
+    if (check.state !== 'pending' || check.startedAt === undefined) return undefined;
+    return Math.max(0, now - check.startedAt);
+}
+
+/**
+ * Delay until the next running check's elapsed time reaches another whole minute, so the panel re-renders exactly when
+ * a row's text would change; undefined when no check is running. Never shorter than {@link ELAPSED_TICK_FLOOR_MS}, so
+ * several checks that started seconds apart share one re-render instead of each costing its own.
+ */
+export function nextElapsedTickMs(
+    checks: readonly PullRequestCheck[],
+    now: number,
+): number | undefined {
+    const delays = checks.flatMap((check) => {
+        const elapsed = runningCheckElapsedMs(check, now);
+        return elapsed === undefined ? [] : [60_000 - (elapsed % 60_000)];
+    });
+    return delays.length > 0 ? Math.max(ELAPSED_TICK_FLOOR_MS, Math.min(...delays)) : undefined;
+}
+
+function checkRow(id: string, check: PullRequestCheck, now: number): StatusNode {
+    const elapsed = elapsedLabel(runningCheckElapsedMs(check, now));
     const duration = durationLabel(check.durationMs);
     return item(id, check.name, {
-        description: duration,
+        /**
+         * A running check shows how long it has been going, so a job that is stuck reads differently from one that just
+         * started; a settled check shows how long it took.
+         */
+        description: elapsed ?? duration,
         icon: stateIcons[check.state],
         url: check.url,
         tooltip: {
@@ -87,6 +127,7 @@ function checkRow(id: string, check: PullRequestCheck): StatusNode {
                 tone: stateTones[check.state],
             },
             rows: [
+                ...(elapsed ? [{ label: l10n.t('running for'), value: elapsed }] : []),
                 ...(duration ? [{ label: l10n.t('duration'), value: duration }] : []),
                 ...(check.url
                     ? [{ label: l10n.t('logs'), value: linkText(check.url), url: check.url }]
@@ -103,10 +144,17 @@ function checkRow(id: string, check: PullRequestCheck): StatusNode {
  * ids keep each check's index in the provider's list, so a check folding or unfolding as others finish does not change
  * its identity.
  */
-export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest): StatusNode[] {
+export function pullRequestCheckNodes(
+    prefix: string,
+    pullRequest: PullRequest,
+    /**
+     * Measures how long each running check has been going.
+     */
+    now: number = Date.now(),
+): StatusNode[] {
     const { listed, folded } = partitionPullRequestChecks(pullRequest.checks);
     const rowFor = (check: PullRequestCheck) =>
-        checkRow(`${prefix}:check:${pullRequest.checks.indexOf(check)}`, check);
+        checkRow(`${prefix}:check:${pullRequest.checks.indexOf(check)}`, check, now);
     const nodes = [
         ...(pullRequest.previousChecks
             ? [previousChecksNode(prefix, pullRequest.previousChecks)]

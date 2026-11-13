@@ -3,12 +3,14 @@ import type {
     CaxriApi,
     CommandResult,
     ExtensionContext,
+    ProjectStatusSummary,
     TreeDataProvider,
     TreeItem,
 } from 'caxri';
 import caxri, { EventEmitter, l10n } from 'caxri';
 
 import { statusBadge } from './status-badge';
+import { nextElapsedTickMs } from './status-checks';
 import type { StatusNode } from './status-item';
 import type { MergePullRequestArguments } from './status-merge';
 import {
@@ -31,6 +33,11 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
      */
     private readonly forcedRequests = new Map<string, string>();
     private readonly refreshTokens = new Map<string, string>();
+    /**
+     * Re-renders the tree when a running check's elapsed minute changes. Project Status only announces a change when
+     * the data moves, so without it a check's `3m` would sit unchanged while the job kept running.
+     */
+    private elapsedTimer?: ReturnType<typeof setTimeout>;
     readonly onDidChangeTreeData = this.changed.event;
     readonly onDidChangeBadge = this.badgeChanged.event;
 
@@ -39,7 +46,26 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
             CaxriApi['workspace'],
             'getCurrentContext' | 'getProjectStatus'
         > = caxri.workspace,
+        private readonly now: () => number = Date.now,
     ) {}
+
+    /**
+     * Arms one re-render for the next elapsed-minute change among the summary's running checks, replacing any earlier
+     * one, so only the latest root read decides when the tree next moves.
+     */
+    private scheduleElapsedTick(summary: ProjectStatusSummary, now: number): void {
+        clearTimeout(this.elapsedTimer);
+        this.elapsedTimer = undefined;
+        const delay = nextElapsedTickMs(
+            summary.repositories.flatMap((repo) => repo.pullRequest?.checks ?? []),
+            now,
+        );
+        if (delay === undefined) return;
+        this.elapsedTimer = setTimeout(() => {
+            this.elapsedTimer = undefined;
+            this.changed.fire(undefined);
+        }, delay);
+    }
 
     private currentScopeId(): string {
         return this.workspace.getCurrentContext()?.scopeId ?? 'no-session';
@@ -58,7 +84,9 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
                 refreshToken ? { refreshToken } : undefined,
             );
             if (token.isCancellationRequested) return [];
-            return buildStatusRootNodes(summary);
+            const now = this.now();
+            this.scheduleElapsedTick(summary, now);
+            return buildStatusRootNodes(summary, now);
         } finally {
             if (refreshToken) {
                 this.forcedRequests.delete(refreshToken);
@@ -93,6 +121,7 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
     }
 
     dispose(): void {
+        clearTimeout(this.elapsedTimer);
         this.badgeChanged.dispose();
         this.changed.dispose();
     }

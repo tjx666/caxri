@@ -293,6 +293,38 @@ describe('parseGitHubPullRequest', () => {
         expect(started?.state).toBe('pending');
     });
 
+    it('keeps a running check start time so the panel can show how long it has been going', () => {
+        const result = parseGitHubPullRequest(
+            JSON.stringify({
+                number: 7,
+                title: 'PR',
+                url: 'https://github.com/a/b/pull/7',
+                statusCheckRollup: [
+                    {
+                        name: 'running',
+                        status: 'IN_PROGRESS',
+                        conclusion: null,
+                        startedAt: '2026-01-01T00:00:00Z',
+                        completedAt: '0001-01-01T00:00:00Z',
+                    },
+                    {
+                        name: 'waiting',
+                        status: 'QUEUED',
+                        conclusion: null,
+                        startedAt: '0001-01-01T00:00:00Z',
+                    },
+                ],
+            }),
+        ).pullRequest;
+
+        expect(result?.checks.find((check) => check.name === 'running')).toMatchObject({
+            startedAt: Date.parse('2026-01-01T00:00:00Z'),
+            completedAt: undefined,
+            durationMs: undefined,
+        });
+        expect(result?.checks.find((check) => check.name === 'waiting')?.startedAt).toBeUndefined();
+    });
+
     /**
      * The reading order is what went wrong, then what is still moving, then what is settled. A state the order forgot
      * sorts to `-1` and lands above the failures, so the panel's first row would be the one nothing has happened to.
