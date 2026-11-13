@@ -234,6 +234,7 @@ export const sessions = {
     'sessions.image.waitFailed': "An image didn't upload. Tap Retry to try again or remove it.",
     'sessions.image.waitUploading': 'Waiting for images to upload…',
     'sessions.list.attention': 'Needs attention',
+    'sessions.list.attentionSource': 'Open {{title}} in {{project}}',
     'sessions.list.collapseHint': 'Hides the Sessions in this group.',
     'sessions.list.expandHint': 'Shows the Sessions in this group.',
     'sessions.list.groupLabel': '{{label}}, {{count}}',

@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
     AccessibilityInfo,
@@ -238,12 +239,17 @@ const AttentionAutoAllowBanner = ({
 
 export const AttentionCards = ({
     fallbackToTerminal,
+    header,
     onOpenTerminal,
     sessionId,
     role,
     theme,
 }: {
     fallbackToTerminal?: boolean;
+    /**
+     * Shown above the cards, only while a request is pending; the Sessions list names the card's Session with it.
+     */
+    header?: ReactNode;
     /**
      * Switches the parent Session view to its Terminal segment. Undefined where the caller has no Terminal segment to
      * switch to, so "Open Terminal" copy stays informational text instead of a dead-end control.
@@ -336,6 +342,7 @@ export const AttentionCards = ({
             style={{ maxHeight: windowHeight * ATTENTION_MAX_HEIGHT_RATIO }}
             testID="attention-cards"
         >
+            {header ? <View style={styles.header}>{header}</View> : null}
             {banner}
             <FlatList
                 contentContainerStyle={styles.list}
@@ -381,6 +388,7 @@ const styles = StyleSheet.create({
     bannerCard: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     bannerText: { ...mobileType.meta, flex: 1 },
     errorBox: { gap: mobileSpace.xs },
+    header: { paddingHorizontal: mobileSpace.lg },
     link: { justifyContent: 'center', minHeight: mobileControl.row },
     meta: mobileType.meta,
     strong: { fontWeight: '600' },

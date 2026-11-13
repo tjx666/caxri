@@ -32,6 +32,7 @@ import { sessionRowSwipeActions } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { NewSessionFloatingButton } from './new-session-floating-button';
 import { SessionActionsSheet } from './session-actions-sheet';
+import { SessionAttentionSource } from './session-attention-source';
 import { SessionChatRequests } from './session-chat-requests';
 import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
 import { SessionHomeEmpty } from './session-home-empty';
@@ -281,6 +282,13 @@ export const SessionHome = ({
                         sessionListAttentionSource(item.session) === 'chat' &&
                         item.session.primaryTerminal ? (
                             <SessionChatRequests
+                                header={
+                                    <SessionAttentionSource
+                                        onOpen={() => onOpenSession(item.session.id)}
+                                        session={item.session}
+                                        theme={theme}
+                                    />
+                                }
                                 role={deviceRole}
                                 terminal={item.session.primaryTerminal}
                                 theme={theme}
@@ -288,6 +296,13 @@ export const SessionHome = ({
                         ) : (
                             <AttentionCards
                                 fallbackToTerminal={shouldListFallbackToTerminal(item.session)}
+                                header={
+                                    <SessionAttentionSource
+                                        onOpen={() => onOpenSession(item.session.id)}
+                                        session={item.session}
+                                        theme={theme}
+                                    />
+                                }
                                 onOpenTerminal={() => openTerminal(item.session.id)}
                                 role={deviceRole}
                                 sessionId={item.session.id}

@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useQuery } from '@tanstack/react-query';
@@ -22,10 +23,15 @@ import type { MobileTerminal } from '../session-model';
  * which never starts a provider. Only the first request shows, with the count of the rest; the Chat lists them all.
  */
 export const SessionChatRequests = ({
+    header,
     role,
     terminal,
     theme,
 }: {
+    /**
+     * Shown above the card, only while there is a request to show.
+     */
+    header?: ReactNode;
     role: 'view' | 'reply' | 'control' | null;
     terminal: MobileTerminal;
     theme: MobileTheme;
@@ -46,6 +52,7 @@ export const SessionChatRequests = ({
     return (
         <View testID="session-chat-requests">
             <View style={styles.card}>
+                {header}
                 <AgentChatRequestCard
                     blockedReason={agentChatRequestBlockedReason({
                         deviceRole: role,
