@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
 import type { AgentDelegationReceipt, SessionRelation } from '@caxri/protocol';
+import Database from 'better-sqlite3';
 
 import { CaxriDatabase } from '../../../apps/server/src/domains/db';
 
@@ -10,9 +11,11 @@ interface Input {
      * blocked record to `blockedSessionId`: the Server turns every task still active at startup into an interrupted
      * one, so a task that needs input can only be recorded after the Server has started. `deep` (app closed) creates
      * one direct child with a grandchild whose settled task failed, the case the parent strip rolls up "via" its
-     * branch.
+     * branch. `attention` (app closed) creates two settled children whose sidebar status raises unread attention: one
+     * finished, one waiting on the user. The other phases leave every Session's attention at zero, so a nested row's
+     * amber cue can only be inspected through this one.
      */
-    phase: 'blocked' | 'children' | 'deep';
+    phase: 'attention' | 'blocked' | 'children' | 'deep';
     blockedSessionId?: string;
     /**
      * The profile directory that holds `caxri.db`. The app must not be running on it.
@@ -58,6 +61,14 @@ export interface DeepDelegatedChatSeed {
     leaf: string;
 }
 
+/**
+ * The `attention` phase's Sessions: a nested child with an unread finished result and one with an unread question.
+ */
+export interface AttentionDelegatedChatSeed {
+    finished: string;
+    waiting: string;
+}
+
 const HOUR = 3_600_000;
 
 /**
@@ -65,13 +76,17 @@ const HOUR = 3_600_000;
  * create a delegated Session, so a profile is seeded while the app is closed; the children have no Terminal, so nothing
  * starts an Agent.
  */
-export function run(input: Input): DeepDelegatedChatSeed | DelegatedChatSeed | null {
-    const database = new CaxriDatabase(join(input.userData, 'caxri.db'));
+export function run(
+    input: Input,
+): AttentionDelegatedChatSeed | DeepDelegatedChatSeed | DelegatedChatSeed | null {
+    const path = join(input.userData, 'caxri.db');
+    const database = new CaxriDatabase(path);
+    let attentionSeed: AttentionDelegatedChatSeed | undefined;
     try {
         const now = Date.now();
         // The blocked and deep phases can run on a database the children phase already filled (the debug skill's
         // `seed-delegated-chat.ts` runs children then deep), so each phase's IDs start in their own range.
-        let sequence = { blocked: 100, children: 0, deep: 200 }[input.phase];
+        let sequence = { attention: 300, blocked: 100, children: 0, deep: 200 }[input.phase];
         const create = (
             title: string,
             relation: SessionRelation,
@@ -141,6 +156,14 @@ export function run(input: Input): DeepDelegatedChatSeed | DelegatedChatSeed | n
             });
             return { branch, leaf };
         }
+        if (input.phase === 'attention') {
+            const finished = create('Draft the release notes', 'delegated');
+            const waiting = create('Choose the rollout window', 'delegated');
+            record(finished, { status: 'completed', provider: 'codex', isSettled: true });
+            record(waiting, { status: 'completed', provider: 'claude', isSettled: true });
+            attentionSeed = { finished, waiting };
+            return attentionSeed;
+        }
         const quota = create('Port the billing exports', 'delegated');
         record(quota, {
             status: 'failed',
@@ -160,5 +183,27 @@ export function run(input: Input): DeepDelegatedChatSeed | DelegatedChatSeed | n
         return { quota, needsInput, answerUnavailable, consult };
     } finally {
         database.close();
+        if (attentionSeed) raiseAttention(path, attentionSeed);
+    }
+}
+
+/**
+ * Marks the `attention` phase's children unread, the way a finished turn and a question would. The repository exposes
+ * no write that raises attention without a Terminal's turn, so the rows are set directly, as `mobile-idle-cap-seed.ts`
+ * does.
+ */
+function raiseAttention(path: string, { finished, waiting }: AttentionDelegatedChatSeed): void {
+    const raw = new Database(path);
+    try {
+        const raise = raw.prepare(
+            `UPDATE sessions SET attention_generation = 1, last_attention_kind = ?, agent_activity_state = ?
+                WHERE id = ?`,
+        );
+        raw.transaction(() => {
+            raise.run('completed', 'completed', finished);
+            raise.run('waiting', 'waiting', waiting);
+        })();
+    } finally {
+        raw.close();
     }
 }
