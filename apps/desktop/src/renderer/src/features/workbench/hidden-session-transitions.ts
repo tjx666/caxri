@@ -13,8 +13,9 @@ const pausedBySession = new WeakMap<Element, Set<Animation>>();
  * - Running CSS animations (the buddy's bob and blink) are paused and later played again from where they stopped. This
  *   used to be a `.workbench-session[hidden] *` rule with `animation-play-state: paused`, but a descendant rule keyed
  *   on `[hidden]` forces Chromium to restyle the whole subtree when the Session shows again, which was most of the long
- *   frame on every Session switch. Animations created inside a hidden Session do not start while its style stays
- *   skipped; one that a layout or style read inside it happens to force starts anyway, and the next switch pauses it.
+ *   frame on every Session switch. An animation created inside a hidden Session starts once a style read forces it and
+ *   fires no `animationstart` there, so the Agent Chat figures that mount while hidden pause through a rule scoped to
+ *   their root class (`features/agent-chat/loading/loading.css`) instead of waiting for the next switch.
  *
  * Idempotent, and meant to run after the switch has painted so the `getAnimations` flush stays off the click path.
  */

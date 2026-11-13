@@ -157,6 +157,10 @@ description: Measure and protect Caxri startup, Server Core responsiveness, Rend
      as `.workbench-session[hidden] *`: either invalidates the whole subtree on each Session
      switch. Use JS (`getAnimations`) for pausing and rely on `content-visibility` for focus and
      accessibility. Measure with a visible window and GPU on (the E2E default hides this cost).
+     An animation that mounts after the switch fires no `animationstart` inside the hidden subtree,
+     so JS never sees it; pause a looping figure through a rule whose rightmost compound is its root
+     class (`.workbench-session[hidden] .agent-chat-glyph` in `agent-chat/loading/loading.css`,
+     about 1 ms per toggle on an 8,000-row Session against 26 ms for the `*` form).
    - Gate event-driven refetches and polling on `document.visibilityState`, then catch up once on
      reveal keyed by what changed, not by React Query's `isInvalidated`, which an in-flight fetch
      clears. Route every new Server-backed invalidation through
