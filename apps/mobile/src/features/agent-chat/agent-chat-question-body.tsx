@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useId, useMemo, useState } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -49,7 +50,14 @@ export const AgentChatQuestionBody = ({
     const maxHeight = margin + (isKeyboardVisible ? 2 : 3) * size.body.lineHeight;
     const isFolded = isKeyboardVisible || !isExpanded;
     const isCut = contentHeight > maxHeight + margin + 1;
-    const [isScrolledToEnd, setScrolledToEnd] = useState(false);
+    /**
+     * Where the reader has scrolled to. Whether that is the end is derived against the current fold, so a keyboard that
+     * shrinks the fold, or a dropped final scroll event, never leaves the fade on or off at the wrong place.
+     */
+    const [scrollOffset, setScrollOffset] = useState(0);
+    const isScrolledToEnd = scrollOffset + maxHeight >= contentHeight - 1;
+    const trackScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) =>
+        setScrollOffset(nativeEvent.contentOffset.y);
     const markdown = (
         <ConversationMarkdown isCompact={isRecord} text={text} theme={markdownTheme} />
     );
@@ -63,12 +71,9 @@ export const AgentChatQuestionBody = ({
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled
             onContentSizeChange={(_width, height) => setContentHeight(height)}
-            onScroll={({ nativeEvent }) =>
-                setScrolledToEnd(
-                    nativeEvent.contentOffset.y + nativeEvent.layoutMeasurement.height >=
-                        nativeEvent.contentSize.height - 1,
-                )
-            }
+            onMomentumScrollEnd={trackScroll}
+            onScroll={trackScroll}
+            onScrollEndDrag={trackScroll}
             persistentScrollbar
             scrollEnabled={isFolded}
             scrollEventThrottle={64}
@@ -116,7 +121,11 @@ export const AgentChatQuestionBody = ({
                     accessibilityRole="button"
                     accessibilityState={{ expanded: isExpanded }}
                     hitSlop={4}
-                    onPress={() => setExpanded((current) => !current)}
+                    onPress={() => {
+                        // Opening lays every line out, so the fold starts at the top again when closed.
+                        setScrollOffset(0);
+                        setExpanded((current) => !current);
+                    }}
                     style={styles.toggle}
                     testID={testID ? `${testID}-toggle` : undefined}
                 >
