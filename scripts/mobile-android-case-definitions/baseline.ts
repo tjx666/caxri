@@ -282,6 +282,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-list-question',
     },
+    'MOB-CHAT-LIST-QUESTION-02': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-list-question',
+    },
     'MOB-CHAT-GOAL-01': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

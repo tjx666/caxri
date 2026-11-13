@@ -549,6 +549,8 @@ export const handlers = {
         executeMobileChatListApprovalScenario(environment, artifacts, 'claude'),
     'MOB-CHAT-LIST-QUESTION-01': (environment, artifacts) =>
         executeMobileChatListApprovalScenario(environment, artifacts, 'claude'),
+    'MOB-CHAT-LIST-QUESTION-02': (environment, artifacts) =>
+        executeMobileChatListApprovalScenario(environment, artifacts, 'claude'),
     'MOB-CHAT-GOAL-01': executeMobileChatGoalScenario,
     'MOB-CHAT-GOAL-OUTCOME-01': executeMobileChatGoalOutcomeScenario,
     'MOB-CHAT-RUNNING-OPEN-01': executeMobileChatRunningTurnScenario,
