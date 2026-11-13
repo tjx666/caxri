@@ -46,6 +46,14 @@ interface TerminalResourceMonitorOptions {
     now?: () => number;
     sampleProcessTable?: () => Promise<ProcessTable>;
     send: (event: ServerEvent) => void;
+    /**
+     * Receives each sample's summed CPU per Session (PTY Terminals and Chat providers alike) for the sidebar's heat
+     * marker. Keeps the sampler running while it still tracks a Session, so a hot one cools or stops visibly.
+     */
+    sessionHeat?: {
+        isTrackingHeat(): boolean;
+        updateHeat(readings: ReadonlyMap<string, number>, now: number): void;
+    };
     terminals: Pick<TerminalManager, 'processId'>;
     /**
      * E2E-only injected readings and sample cadence; see `e2e-resource-override.ts`. Defaults to the seam resolved from
@@ -64,6 +72,34 @@ interface AlertState {
      * Highest reading during the alerted episode, reported when it clears so the log measures how bad it got.
      */
     peak?: ProcessTreeUsage;
+}
+
+/**
+ * Summed CPU per Session across every owned root. Roots are deduplicated, so a Chat process group that also sits under
+ * a PTY is not counted twice.
+ */
+function sessionCpu(
+    entries: readonly TerminalProcessEntry[],
+    table: ProcessTable,
+): Map<string, number> {
+    const rootsBySession = new Map<string, Set<number>>();
+    for (const entry of entries) {
+        const roots = rootsBySession.get(entry.sessionId) ?? new Set<number>();
+        roots.add(entry.processId);
+        rootsBySession.set(entry.sessionId, roots);
+    }
+    const readings = new Map<string, number>();
+    for (const [sessionId, roots] of rootsBySession) {
+        const members = new Map<number, number>();
+        for (const root of roots)
+            for (const member of table.tree(root)) members.set(member.pid, member.cpuPercent);
+        if (members.size === 0) continue;
+        readings.set(
+            sessionId,
+            members.values().reduce((total, cpuPercent) => total + cpuPercent, 0),
+        );
+    }
+    return readings;
 }
 
 /**
@@ -221,8 +257,18 @@ export class TerminalResourceMonitor {
     }
 
     async sample(): Promise<void> {
-        const running = this.ptyProcesses();
-        if (running.length === 0 && this.states.size === 0) return;
+        const { sessionHeat, terminals } = this.options;
+        const owned = sessionHeat ? this.processes() : this.ptyProcesses();
+        // The alert watches PTY roots only; filtering the one listing avoids a second pass of Session reads.
+        const running = sessionHeat
+            ? owned.filter((entry) => terminals.processId(entry.terminalId) === entry.processId)
+            : owned;
+        if (
+            owned.length === 0 &&
+            this.states.size === 0 &&
+            !(sessionHeat?.isTrackingHeat() ?? false)
+        )
+            return;
         let table: ProcessTable;
         try {
             table = await (this.options.sampleProcessTable ?? sampleProcessTable)();
@@ -268,6 +314,7 @@ export class TerminalResourceMonitor {
             if (state.alertedAt !== undefined) this.clear(state, undefined, 'stopped');
             this.states.delete(terminalId);
         }
+        sessionHeat?.updateHeat(sessionCpu(owned, table), this.now());
     }
 
     async close(): Promise<void> {

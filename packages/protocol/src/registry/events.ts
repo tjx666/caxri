@@ -30,6 +30,7 @@ import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { fileWatchLimitAlertSchema } from '../domain/file-watch.js';
 import { identifierSchema, pathSchema } from '../domain/identifiers.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
+import { sessionSignalsSchema } from '../domain/session/live-signals.js';
 import { airplaneModeStateSchema } from '../domain/session/session-airplane-mode.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
 import {
@@ -188,6 +189,11 @@ export const serverEventPayloads = {
      * The machine's PTY use reached, or fell back below, the share of the limit Caxri warns at.
      */
     'terminal.ptyAlert': terminalPtyAlertSchema,
+    /**
+     * The whole set of live Session signals after any change. Transient: a client that reconnects reads
+     * `terminal.sessionSignals`.
+     */
+    'terminal.sessionSignalsChanged': sessionSignalsSchema,
     'terminal.exit': z.object({
         terminalId: identifierSchema,
         exitCode: z.number(),

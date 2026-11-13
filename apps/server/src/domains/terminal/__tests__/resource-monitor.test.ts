@@ -185,6 +185,36 @@ describe('TerminalResourceMonitor.sessionResources', () => {
         const { monitor } = createSessionMonitor([{ pgid: 999, terminalId: 'chat-1' }], {});
         await expect(monitor.sessionResources('session-1')).resolves.toBeNull();
     });
+
+    it('feeds the per-Session CPU of each sample, Chats included, to the heat tracker', async () => {
+        const updateHeat = vi.fn();
+        const terminals = [terminal, chat, other];
+        const monitor = new TerminalResourceMonitor({
+            chatProcessGroups: () => [{ pgid: 200, terminalId: 'chat-1' }],
+            database: {
+                getSession: () => {},
+                listTerminals: (sessionId) =>
+                    terminals.filter((entry) => !sessionId || entry.sessionId === sessionId),
+            },
+            logger: { write: vi.fn() } as never,
+            now: () => 5_000,
+            sampleProcessTable: () => Promise.resolve(new ProcessTable(parseProcessTable(TABLE))),
+            send: vi.fn(),
+            sessionHeat: { isTrackingHeat: () => false, updateHeat },
+            terminals: { processId: (id) => PTY_ROOTS[id] },
+            watchHub: { registerPoller: vi.fn() },
+        });
+
+        await monitor.sample();
+
+        expect(updateHeat).toHaveBeenCalledWith(
+            new Map([
+                ['session-1', 25],
+                ['session-2', 90],
+            ]),
+            5_000,
+        );
+    });
 });
 
 describe('TerminalResourceMonitor.processes with Chats', () => {

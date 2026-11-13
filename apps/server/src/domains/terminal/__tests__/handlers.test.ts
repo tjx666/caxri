@@ -16,6 +16,7 @@ function handlers(
             readingOverride: vi.fn(),
             sessionResources: vi.fn(),
         },
+        sessionSignals: { snapshot: vi.fn() },
         terminals: { runningCount: runningTerminals } as unknown as TerminalManager,
         terminalSuspension: { suspendOnRequest: vi.fn() },
     });

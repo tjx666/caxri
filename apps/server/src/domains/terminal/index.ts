@@ -10,6 +10,7 @@ export type {
 export { resolveTerminalFileLink } from './file-links';
 export { createTerminalHandlers } from './handlers';
 export { createTerminalInputHandlers } from './input';
+export { KeychainPromptWatcher } from './keychain-prompt-watcher';
 export {
     assertTerminalWorkingDirectory,
     resolveTerminalExecutable,
@@ -34,6 +35,7 @@ export {
     type TerminalRestoreOptions,
 } from './restore';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
+export { SessionSignalsService } from './session-signals';
 export { createShellIntegration } from './shell-integration';
 export { TerminalSuspensionService } from './suspension';
 export { terminalEnvironment } from './terminal-environment';

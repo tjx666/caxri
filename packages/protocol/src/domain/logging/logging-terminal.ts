@@ -39,6 +39,30 @@ export const terminalLogEvents = {
     resourceAlertCleared: 'terminal.resource_alert_cleared',
     resourceAlertRaised: 'terminal.resource_alert_raised',
     resourceSampleFailed: 'terminal.resource_sample_failed',
+    /**
+     * A Session cooled after running hot: `durationMs` of the episode, `peakCpuPercent`, and the closed `reason`
+     * (`recovered`, or `stopped` when nothing of the Session runs any more).
+     */
+    sessionHeatCleared: 'terminal.session_heat_cleared',
+    /**
+     * A Session's process trees stayed above the heat line long enough to mark its sidebar row: `cpuPercent`.
+     */
+    sessionHeatRaised: 'terminal.session_heat_raised',
+    /**
+     * Securityd displayed a Keychain access dialog: whether a Caxri Session owns the requesting process (`attributed`)
+     * and, when it does, the provider. Never the command or executable path.
+     */
+    keychainPromptShown: 'terminal.keychain_prompt_shown',
+    /**
+     * A Keychain dialog closed: the closed `outcome` (`allowed`, `alwaysAllowed`, `denied`, `exited` when the requester
+     * died first, `expired`), `attributed`, and `durationMs`.
+     */
+    keychainPromptResolved: 'terminal.keychain_prompt_resolved',
+    /**
+     * The `log stream` that watches securityd ended or failed to start: the closed `reason`, the exit `code`, and the
+     * `retryInMs` before the next start.
+     */
+    keychainWatchStopped: 'terminal.keychain_watch_stopped',
     restoreCwdRejected: 'terminal.restore_cwd_rejected',
     restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
     resumeSkipped: 'terminal.resume_skipped',

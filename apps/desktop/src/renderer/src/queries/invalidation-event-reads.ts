@@ -1,7 +1,7 @@
-import type { CaxriMethod } from '@caxri/protocol';
+import type { CaxriMethod, ServerEvent } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
-import { isQueryMethod } from './client';
+import { caxriQueryKey, isQueryMethod } from './client';
 
 /**
  * Invalidations for Server events that each name exactly one read, split out of `invalidation.ts`, which keeps the
@@ -97,4 +97,32 @@ export function invalidateSessionExcerptQueries(queryClient: QueryClient, sessio
             );
         },
     });
+}
+
+const AIRPLANE_MODE_QUERY_KEY = caxriQueryKey('session.airplaneModeStatus', {});
+const SESSION_SIGNALS_QUERY_KEY = caxriQueryKey('terminal.sessionSignals', {});
+
+/**
+ * Writes a transient event that carries its read's whole current state straight into that read: Airplane Mode's phase
+ * and the sidebar's live Session signals. Returns whether the event was one of them.
+ */
+export function didWriteSnapshotEventRead(queryClient: QueryClient, event: ServerEvent): boolean {
+    if (event.event === 'session.airplaneModeChanged') {
+        queryClient.setQueryData(AIRPLANE_MODE_QUERY_KEY, event.payload);
+        return true;
+    }
+    if (event.event === 'terminal.sessionSignalsChanged') {
+        queryClient.setQueryData(SESSION_SIGNALS_QUERY_KEY, event.payload);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Re-reads those snapshot reads after a reconnect: their events are transient, so any change pushed while the
+ * connection was down is lost and only the read restores it.
+ */
+export function invalidateSnapshotEventReads(queryClient: QueryClient): void {
+    void queryClient.invalidateQueries({ queryKey: AIRPLANE_MODE_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: SESSION_SIGNALS_QUERY_KEY });
 }

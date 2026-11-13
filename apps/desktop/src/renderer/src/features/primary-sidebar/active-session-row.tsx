@@ -22,6 +22,7 @@ import { sessionRowDetail } from './session-row-detail';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowStatus } from './session-row-status';
 import { SessionRowTrigger } from './session-row-trigger';
+import { SessionSignalMarkers } from './session-signal-markers';
 import { SessionSubagentRows } from './session-subagent-rows';
 
 interface ActiveSessionRowProperties {
@@ -294,6 +295,9 @@ export function ActiveSessionRow({
              * Outside the title's span, whose overflow fade would hide a glyph after a long title. Absent for the
              * ordinary Session Caxri Bot does not manage, so it costs no width there.
              */}
+            {!renaming && (
+                <SessionSignalMarkers className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+            )}
             {!renaming && (
                 <BotSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
             )}

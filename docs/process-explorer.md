@@ -15,6 +15,9 @@ share one definition of "too much":
 - The **Process Explorer** window lists every process by Session and Agent, and flags the same
   Terminals.
 
+Below those thresholds, the sidebar's [Session signals](#session-signals) quietly mark a Session
+that keeps a core busy, or that raised a macOS Keychain dialog, without notifying.
+
 ## Thresholds
 
 `TERMINAL_RESOURCE_ALERT_THRESHOLDS` in `packages/protocol/src/domain/terminal-resources.ts` sets
@@ -60,6 +63,46 @@ file mapping Terminal IDs to an injected `cpuPercent` or `memoryMb`. Server Core
 every sample and applies it to both `terminal.resources` (the status bar chip) and the monitor, which
 then samples every second instead of every 10 seconds. Production launches ignore the variable
 (`apps/server/src/domains/terminal/e2e-resource-override.ts`).
+
+## Session signals
+
+Two glyphs on a sidebar Session row answer "which Session is it?" when the fans spin up or a
+Keychain dialog appears. Neither sends a toast or a notification: the resource alert above stays
+the only interrupting surface. Both glyphs sit beside the status slot, hide on row hover, and the
+row's hover card restates them as sentences.
+
+- **Heat** (muted flame): the Session's summed CPU, across its PTY Terminals and Chat provider
+  trees, held at or above 100% (one core) for 60 seconds. It clears once the Session stays below
+  70% for 20 seconds, or when nothing of it runs. The gap between the two lines keeps a Session
+  hovering near one core from flickering. Grading each Session's CPU on its own, rather than only
+  alerting on a machine-wide figure, follows Superset's per-workspace resource severity; Caxri keeps
+  one quiet tier and leaves the louder one to the resource alert. `SESSION_HEAT_THRESHOLDS` in
+  `packages/protocol/src/domain/session/live-signals.ts` owns the values; the readings come from
+  the resource monitor's existing 10-second sample, which keeps sampling while a Session is warming
+  or hot.
+- **Keychain** (key in the row's foreground color): a process the Session started is waiting on a
+  macOS Keychain access dialog. The hover card shows the requester's command line with the home
+  directory folded to `~`, so the user knows who is asking before answering.
+
+`KeychainPromptWatcher` (`apps/server/src/domains/terminal/keychain-prompt-watcher.ts`) runs
+`/usr/bin/log stream` filtered to securityd's `kcacl` category, which needs no privileges and idles
+at no measurable CPU. Securityd logs `displaying keychain prompt for <path>(<pid>)` when the dialog
+opens and `user approved ...` or `user did not approve ...` when it closes. The requester stays
+blocked while the dialog is up, so the watcher walks its parent chain to the PTY root or Chat
+process group leader that owns it. A dialog closes as `exited` when its requester dies without an
+answer in the log, and as `expired` after 10 minutes. The watcher restarts a stopped stream with
+backoff, and does not run outside macOS or under `CAXRI_E2E=1`.
+
+`SessionSignalsService` publishes both as one snapshot: the `terminal.sessionSignals` read and the
+transient `terminal.sessionSignalsChanged` event, sent only when the snapshot changes. Log events:
+
+- `terminal.session_heat_raised` and `terminal.session_heat_cleared` (episode `durationMs`, peak
+  CPU, and a closed `reason`: `recovered` or `stopped`).
+- `terminal.keychain_prompt_shown` (whether it was attributed, and the provider) and
+  `terminal.keychain_prompt_resolved` (`durationMs` and a closed `outcome`: `allowed`,
+  `alwaysAllowed`, `denied`, `exited`, `expired`, or `streamLost` when the log stream dropped). Neither carries the command line or a path.
+- `terminal.keychain_watch_stopped` when the log stream exits or fails to start, with the retry
+  delay.
 
 ## Process Explorer
 

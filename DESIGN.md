@@ -522,6 +522,14 @@ collapses the empty slot to zero so its title gains one more character while ret
 separation from the right edge. The MRU switcher shows the same lifecycle glyph after its relative
 time, reserving the slot so the time column does not shift.
 
+Two live signals sit just before that slot and hide with it on row hover; neither notifies, because
+they only answer "which Session is it?" when the user goes looking (see
+[Session signals](docs/process-explorer.md#session-signals)). A `KeyRound` in the row's own
+`--foreground` marks a Session whose process waits on a macOS Keychain dialog: a decision for the
+user, not a degradation, so it is neither muted nor warning-colored. A `Flame` in `--muted` marks a
+Session that has held a core for a minute; the louder warning stays with the resource alert. The
+hover card restates each as a sentence: the requesting command line, or how long it has run hot.
+
 The row deliberately shows no activity label, relative time, or line diff. In daily use those were
 not read, and a second line halved how many Sessions fit on screen. The hover card restates a
 non-default status in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
