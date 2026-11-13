@@ -123,6 +123,9 @@ export const sessions = {
     'sessions.composer.tooLong': 'Messages can be at most {{size}}.',
     'sessions.composer.viewOnly': 'This device can only view Sessions.',
     'sessions.detail.backHint': 'Returns to the Session list.',
+    'sessions.detail.backHintWithPrevious':
+        'Returns to the Session list. Long press to open the previous Session.',
+    'sessions.detail.previousSession': 'Previous Session',
     'sessions.detail.closeMenu': 'Close Session menu',
     'sessions.detail.collapseTitleHint': 'Shortens the title.',
     'sessions.detail.conversationFallback':

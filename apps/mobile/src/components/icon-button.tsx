@@ -18,6 +18,7 @@ export const IconButton = ({
     expanded,
     icon: Icon,
     onDisabledPress,
+    onLongPress,
     onPress,
     size = 22,
     testID,
@@ -35,6 +36,10 @@ export const IconButton = ({
      * instead of doing nothing, so the reason is visible and not only a screen reader hint.
      */
     onDisabledPress?: () => void;
+    /**
+     * A shortcut beside the tap, such as Back opening the previous Session; describe it in `accessibilityHint`.
+     */
+    onLongPress?: () => void;
     onPress: () => void;
     size?: number;
     testID?: string;
@@ -55,6 +60,7 @@ export const IconButton = ({
             android_ripple={disabled ? undefined : feedback.android_ripple}
             disabled={disabled && !onDisabledPress}
             hitSlop={4}
+            onLongPress={disabled ? undefined : onLongPress}
             onPress={disabled ? onDisabledPress : onPress}
             style={({ pressed }) => ({
                 alignItems: 'center',

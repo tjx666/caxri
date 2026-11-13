@@ -7,6 +7,11 @@ describe('sessionScreenAnimation', () => {
         expect(sessionScreenAnimation({ entry: 'new' }, 'ios_from_right')).toBe('fade');
     });
 
+    it('fades a Session in when Previous Session replaces the open one on a phone', () => {
+        expect(sessionScreenAnimation({ entry: 'switch' }, 'ios_from_right')).toBe('fade');
+        expect(sessionScreenAnimation({ entry: 'switch' }, 'none')).toBe('none');
+    });
+
     it('keeps the sideways push for a Session opened from the list', () => {
         expect(sessionScreenAnimation({ 'session-id': 's1' }, 'ios_from_right')).toBe(
             'ios_from_right',

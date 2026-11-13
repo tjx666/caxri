@@ -7,12 +7,14 @@ import { usePathname } from 'expo-router';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useSavedPanels } from '../../panels/use-panels';
 import { isDashboardRouteVisible } from '../dashboard-query';
+import { useRecentSessions } from '../hooks/use-recent-sessions';
 import type { SavedAgentAvailability } from '../hooks/use-saved-agent-availability';
 import { useSavedAgentAvailability } from '../hooks/use-saved-agent-availability';
 import { useSavedDrafts } from '../hooks/use-saved-drafts';
 import { useSessionPolling } from '../hooks/use-session-polling';
 import type { NewSessionCreateState, NewSessionSelection } from '../new-session-model';
 import { emptyNewSessionSelection, forgetNewSessionProject } from '../new-session-model';
+import type { RecentSessions } from '../recent-sessions';
 import type { SessionListGroupStates } from '../session-list-groups';
 import { revealSessionListGroup, toggleSessionListGroup } from '../session-list-groups';
 import type { MobileSessionListGroup } from '../session-model';
@@ -32,6 +34,11 @@ interface HostSessionsContextValue {
      */
     listGroups: SessionListGroupStates;
     listScrollOffsetRef: RefObject<number>;
+    /**
+     * Sessions this phone opened for the pairing, newest first; the open Session's menu offers the next one back.
+     */
+    recentSessionIds: RecentSessions;
+    rememberSessionVisit: (sessionId: string) => void;
     revealListGroup: (group: MobileSessionListGroup, windowCount: number) => void;
     sessions: ReturnType<typeof useSessionPolling>;
     ui: HostSessionUiState;
@@ -82,6 +89,7 @@ export const HostSessionsProvider = ({
         [],
     );
     useSavedDrafts(ui.draftBySession, setUi);
+    const { recentSessionIds, rememberSessionVisit } = useRecentSessions();
     useSavedPanels();
     const { connectionScopeKey } = useMobileClient();
     const { save: saveAgentAvailability, saved: savedAgentAvailability } =
@@ -136,6 +144,8 @@ export const HostSessionsProvider = ({
             hostId,
             listGroups,
             listScrollOffsetRef: listScrollOffsetReference,
+            recentSessionIds,
+            rememberSessionVisit,
             revealListGroup,
             sessions,
             ui,
@@ -158,6 +168,8 @@ export const HostSessionsProvider = ({
         [
             hostId,
             listGroups,
+            recentSessionIds,
+            rememberSessionVisit,
             revealListGroup,
             sessions,
             ui,

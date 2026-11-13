@@ -178,10 +178,12 @@ export const SessionDetail = ({
     onEditQueued,
     onMarkDone,
     onMarkRead,
+    onOpenPreviousSession,
     onRequestComposerFocus,
     onRefresh,
     onSegmentChange,
     onSessionCommand,
+    previousSession,
     savedAt,
     segment,
     session,
@@ -218,6 +220,7 @@ export const SessionDetail = ({
     onEditQueued: (text: string) => void;
     onMarkDone: () => Promise<void>;
     onMarkRead: () => Promise<void>;
+    onOpenPreviousSession: () => void;
     /**
      * Focuses the composer once, as a notification reply does.
      */
@@ -228,6 +231,10 @@ export const SessionDetail = ({
      * Runs the Chat's `/rename`, `/archive`, or `/pin`; absent while the device may not manage Sessions.
      */
     onSessionCommand?: (command: MobileAgentChatSessionCommand) => void;
+    /**
+     * The Session this phone opened before this one, offered as "Previous Session".
+     */
+    previousSession: MobileSessionItem | null;
     /**
      * When `session` comes from the Session list saved on this phone rather than a live read.
      */
@@ -359,8 +366,10 @@ export const SessionDetail = ({
                     onBack={onBack}
                     onMarkDone={onMarkDone}
                     onMarkRead={onMarkRead}
+                    onOpenPreviousSession={onOpenPreviousSession}
                     onSegmentChange={onSegmentChange}
                     onToggleSidePanel={toggleSidePanel}
+                    previousSession={previousSession}
                     savedAt={savedAt}
                     session={session}
                     sessionActions={sessionActions}

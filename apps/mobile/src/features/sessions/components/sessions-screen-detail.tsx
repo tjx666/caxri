@@ -37,12 +37,14 @@ export const SessionsScreenDetail = memo(
         theme: ReturnType<typeof useMobileTheme>;
     }) => {
         const { t } = useTranslation();
-        const { hostId, sessions, ui } = useHostSessions();
+        const { hostId, rememberSessionVisit, sessions, ui } = useHostSessions();
         const { selectSession } = sessions;
 
         useEffect(() => {
-            if (routeSessionId) selectSession(routeSessionId);
-        }, [routeSessionId, selectSession]);
+            if (!routeSessionId) return;
+            selectSession(routeSessionId);
+            rememberSessionVisit(routeSessionId);
+        }, [rememberSessionVisit, routeSessionId, selectSession]);
 
         const dashboardSelected = useMemo(() => {
             if (routeSessionId)

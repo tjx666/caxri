@@ -4,6 +4,7 @@ import type { HostInstance } from 'react-native';
 import { Text, View } from 'react-native';
 
 import {
+    ArrowLeftRight,
     ChevronLeft,
     CircleCheck,
     EllipsisVertical,
@@ -165,6 +166,35 @@ function AttentionMenuActions({
     );
 }
 
+/**
+ * The menu's first item when the phone remembers another open-able Session: it names that Session, so the item reads as
+ * a destination, and choosing it there offers this one back.
+ */
+const PreviousSessionMenuAction = ({
+    onPress,
+    session,
+    theme,
+}: {
+    onPress: () => void;
+    session: MobileSessionItem;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <>
+            <PopoverAction
+                detail={sessionTitleForDisplay(session.title, t)}
+                icon={ArrowLeftRight}
+                label={t('sessions.detail.previousSession')}
+                onPress={onPress}
+                testID="session-previous"
+                theme={theme}
+            />
+            <PopoverDivider theme={theme} />
+        </>
+    );
+};
+
 export const SessionDetailHeader = ({
     changesCount,
     contentSwitchTarget,
@@ -175,8 +205,10 @@ export const SessionDetailHeader = ({
     onBack,
     onMarkDone,
     onMarkRead,
+    onOpenPreviousSession,
     onSegmentChange,
     onToggleSidePanel,
+    previousSession,
     savedAt,
     session,
     sessionActions,
@@ -198,8 +230,13 @@ export const SessionDetailHeader = ({
     onBack?: () => void;
     onMarkDone: () => Promise<void>;
     onMarkRead: () => Promise<void>;
+    onOpenPreviousSession: () => void;
     onSegmentChange: (segment: SessionSegment) => void;
     onToggleSidePanel: () => void;
+    /**
+     * The Session this phone opened before this one and can still open, or `null` when there is none.
+     */
+    previousSession: MobileSessionItem | null;
     /**
      * When `session` comes from the Session list saved on this phone rather than a live read.
      */
@@ -269,9 +306,14 @@ export const SessionDetailHeader = ({
                 <View style={styles.headerLine}>
                     {onBack ? (
                         <IconButton
-                            accessibilityHint={t('sessions.detail.backHint')}
+                            accessibilityHint={t(
+                                previousSession
+                                    ? 'sessions.detail.backHintWithPrevious'
+                                    : 'sessions.detail.backHint',
+                            )}
                             accessibilityLabel={t('sessions.backToSessions')}
                             icon={ChevronLeft}
+                            onLongPress={previousSession ? onOpenPreviousSession : undefined}
                             onPress={onBack}
                             size={26}
                             testID="session-detail-back"
@@ -345,6 +387,16 @@ export const SessionDetailHeader = ({
                     placement={menu.placement}
                     theme={theme}
                 >
+                    {previousSession ? (
+                        <PreviousSessionMenuAction
+                            onPress={() => {
+                                closeMenu();
+                                onOpenPreviousSession();
+                            }}
+                            session={previousSession}
+                            theme={theme}
+                        />
+                    ) : null}
                     {contentSwitchTarget ? (
                         <ContentSwitchMenuAction
                             onPress={() => {
