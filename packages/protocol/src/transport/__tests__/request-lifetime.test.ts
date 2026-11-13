@@ -134,6 +134,7 @@ const shortLivedDurableMethods = new Set<string>([
     'mobile.project.reorder',
     'mobile.computer.rename',
     'mobile.pullRequest.merge',
+    'mobile.workbenchRoot.select',
     'mobile.tree.executeCommand',
     'mobile.session.archive',
     'mobile.session.create',

@@ -34,6 +34,18 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'open-session-with-saved-view-tabs',
     },
+    'MOB-FILES-PREVIEW-DENSE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'preview-deep-dense-file',
+    },
+    'MOB-FILES-WORKTREE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'switch-files-worktree',
+    },
     'MOB-PANELS-TREE-REFRESH-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

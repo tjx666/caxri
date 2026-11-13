@@ -25,6 +25,7 @@ import { createAllProjectsGrantFollower } from './all-projects-grant';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { createMobileAuthorityQueue } from './authority-queue';
 import { invokeMobileBotInboxRequest } from './bot-inbox-requests';
+import { invokeMobileChangesRequest } from './changes-requests';
 import { createMobileComputerName } from './computer-name';
 import { invokeMobileDashboardRequest } from './dashboard-requests';
 import { invokeMobileDesktopUpdateRequest } from './desktop-update-requests';
@@ -52,6 +53,7 @@ import { invokeMobileTimelineRequest } from './timeline-requests';
 import { createMobileUpdateRequests } from './update-bundle';
 import { invokeMobileUploadRequest } from './upload-requests';
 import { createMobileVideoRequests } from './video';
+import { listMobileWorkbenchRoots, selectMobileWorkbenchRoot } from './workbench-root-requests';
 
 const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
     if (!gateway) throw new CaxriError('UNAVAILABLE', 'Mobile access is unavailable');
@@ -296,27 +298,9 @@ export const openMobileAccessController = (options: {
                     );
                 case 'mobile.changes.list':
                 case 'mobile.changes.diff':
-                    return readAsPaired(context.principal, request.method, async (principal) => {
-                        await sessionForPrincipal(
-                            domainService,
-                            principal,
-                            request.params.sessionId,
-                        );
-                        return request.method === 'mobile.changes.list'
-                            ? domainService.request('mobile.changes.listInternal', {
-                                  sessionId: request.params.sessionId,
-                                  refresh: request.params.refresh,
-                                  mode: request.params.mode,
-                                  principal,
-                              })
-                            : domainService.request('mobile.changes.diffInternal', {
-                                  sessionId: request.params.sessionId,
-                                  repositoryId: request.params.repositoryId,
-                                  path: request.params.path,
-                                  mode: request.params.mode,
-                                  principal,
-                              });
-                    });
+                    return readAsPaired(context.principal, request.method, (principal) =>
+                        invokeMobileChangesRequest(request, principal, domainService),
+                    );
                 case 'mobile.agent.availability':
                     return readAsPaired(context.principal, request.method, (principal) =>
                         domainService.request('mobile.agent.availabilityInternal', {
@@ -394,6 +378,16 @@ export const openMobileAccessController = (options: {
                     return readAsPaired(context.principal, request.method, (principal) =>
                         readMobilePullRequest(domainService, principal, request),
                     );
+                case 'mobile.workbenchRoot.list':
+                    return readAsPaired(context.principal, request.method, (principal) =>
+                        listMobileWorkbenchRoots(domainService, principal, request),
+                    );
+                case 'mobile.workbenchRoot.select':
+                    return withAuthority(async () => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return selectMobileWorkbenchRoot(domainService, principal, request);
+                    });
                 case 'mobile.pullRequest.merge': {
                     return runRevocableOperation(
                         () => {

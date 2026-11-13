@@ -20,12 +20,14 @@ import {
     closePreview,
     discardDraft,
     editDraft,
+    EMPTY_FILES_NAVIGATION,
     filesNavigationStore,
     isDraftDirty,
     keepFolders,
     startDraft,
     stepBack,
 } from './files-navigation';
+import { FilesWorktreePicker } from './files-worktree-picker';
 import { panelsStyles as styles } from './panels-styles';
 import { PendingPanelState } from './pending-panel-state';
 import { useFilesList } from './use-panels';
@@ -210,7 +212,14 @@ export const FilesPanel = ({
                         theme={theme}
                     />
                 </View>
-            ) : null}
+            ) : (
+                <FilesWorktreePicker
+                    deviceRole={deviceRole}
+                    onSwitched={() => update(() => EMPTY_FILES_NAVIGATION)}
+                    sessionId={sessionId}
+                    theme={theme}
+                />
+            )}
             <FlatList
                 data={listing.data?.entries ?? []}
                 keyExtractor={(entry) => entry.path}

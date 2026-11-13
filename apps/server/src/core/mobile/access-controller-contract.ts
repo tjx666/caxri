@@ -117,6 +117,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.agentUsage.read'
             | 'mobile.pullRequest.read'
             | 'mobile.pullRequest.merge'
+            | 'mobile.workbenchRoot.list'
+            | 'mobile.workbenchRoot.select'
             | 'mobile.tree.children'
             | 'mobile.tree.executeCommand'
             | 'mobile.files.list'

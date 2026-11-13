@@ -5,7 +5,6 @@ import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent
 import {
     canceledResultSchema,
     permissionAutoAllowStatusSchema,
-    scopedProjectSchema,
     sessionRecordSchema,
 } from '../domain/domain.js';
 import { identifierSchema } from '../domain/identifiers.js';
@@ -53,6 +52,14 @@ import {
 } from './mobile-image-contract.js';
 import { mobilePanelsMethods } from './mobile-panels-contract.js';
 import { mobilePreviewInternalMethods, mobilePreviewMethods } from './mobile-preview-contract.js';
+import {
+    mobileProjectAddParametersSchema,
+    mobileProjectAddResultSchema,
+    mobileProjectBrowseParametersSchema,
+    mobileProjectBrowseResultSchema,
+    mobileProjectReorderParametersSchema,
+    mobileProjectSummarySchema,
+} from './mobile-project-contract.js';
 import { mobilePullRequestMethods } from './mobile-pull-request-contract.js';
 import { mobileSessionAgentMethods } from './mobile-session-agent-contract.js';
 import { mobileSessionManagementMethods } from './mobile-session-management-contract.js';
@@ -68,6 +75,7 @@ import {
 } from './mobile-timeline-message-contract.js';
 import { mobileUpdateMethods } from './mobile-update-contract.js';
 import { mobileVideoMethods } from './mobile-video-contract.js';
+import { mobileWorkbenchRootMethods } from './mobile-workbench-root-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceIdSchema, mobileDeviceRoleSchema } from './device-role.js';
@@ -93,6 +101,7 @@ export * from './mobile-image-contract.js';
 export * from './mobile-message-read-contract.js';
 export * from './mobile-panels-contract.js';
 export * from './mobile-preview-contract.js';
+export * from './mobile-project-contract.js';
 export * from './mobile-pull-request-contract.js';
 export * from './mobile-session-agent-contract.js';
 export * from './mobile-session-home-listing.js';
@@ -102,6 +111,7 @@ export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
 export * from './mobile-timeline-message-contract.js';
 export * from './mobile-update-contract.js';
+export * from './mobile-workbench-root-contract.js';
 
 const noParameters = z.strictObject({}).default({});
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
@@ -111,7 +121,6 @@ export const MOBILE_MAX_PROJECT_GRANTS = 128;
  */
 export const MOBILE_PAIRING_TTL_MS = 2 * 60_000;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
-const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
 export const mobileProjectIdsSchema = z
     .array(z.string().min(1).max(200))
     .min(1)
@@ -135,10 +144,6 @@ const mobileDeviceSummarySchema = z.strictObject({
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
     revokedAt: z.number().int().positive().optional(),
-});
-
-const mobileProjectSummarySchema = scopedProjectSchema.extend({
-    lastActivityAt: z.number().int().nonnegative().optional(),
 });
 
 export const mobileDashboardResultSchema = z.strictObject({
@@ -208,44 +213,6 @@ export const mobileAgentAvailabilityResultSchema = z.strictObject({
      * The Mac's `session.openAgentsInChat` setting, so a new mobile Session defaults to the same surface as Desktop.
      */
     openAgentsInChat: z.boolean(),
-});
-
-/**
- * Accepts either a path relative to the Mac user's home directory or an opaque absolute path; the Server validates that
- * the resolved, symlink-followed target stays inside the home directory before it touches the filesystem.
- */
-const mobileHomePathSchema = z.string().min(1).max(4_096);
-
-const mobileProjectBrowseParametersSchema = z.strictObject({
-    path: mobileHomePathSchema.optional(),
-});
-
-const mobileProjectBrowseEntrySchema = z.strictObject({
-    name: z.string().min(1).max(255),
-    relativePath: z.string().min(1).max(4_096),
-    isGitRepository: z.boolean(),
-    hasChildren: z.boolean(),
-});
-
-const mobileProjectBrowseResultSchema = z.strictObject({
-    entries: z.array(mobileProjectBrowseEntrySchema).max(MOBILE_PROJECT_BROWSE_MAX_ENTRIES),
-    truncated: z.boolean(),
-});
-
-const mobileProjectAddParametersSchema = z.strictObject({ path: mobileHomePathSchema });
-
-const mobileProjectAddResultSchema = z.strictObject({
-    project: mobileProjectSummarySchema,
-});
-
-/**
- * A phone sees only its granted Projects, so it names a neighbor rather than a global index; the Server maps the move
- * onto the full Project order Desktop's sidebar shows.
- */
-const mobileProjectReorderParametersSchema = z.strictObject({
-    projectId: identifierSchema,
-    anchorProjectId: identifierSchema,
-    placement: z.enum(['before', 'after']),
 });
 
 /**
@@ -435,6 +402,7 @@ export const mobileMethods = {
     ...mobileComputerMethods,
     ...mobilePanelsMethods,
     ...mobilePullRequestMethods,
+    ...mobileWorkbenchRootMethods,
     ...mobileAgentUsageMethods,
     ...mobileFilesMethods,
     ...mobileTimelineMessageMethods,
