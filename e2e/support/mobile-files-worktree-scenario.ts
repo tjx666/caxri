@@ -18,12 +18,16 @@ const WORKTREE_BRANCH = 'feature/phone-worktree';
  */
 const MAIN_ONLY_FILE = 'main-only.txt';
 
+/**
+ * Seeds lowercase file names only: the Android helper exposes a `files-entry-*` check id only when it passes
+ * `isAndroidCheckId`, so `README.md` would render but stay invisible to the scenario.
+ */
 async function seedRepoWithWorktree(root: string): Promise<void> {
     await git(root, 'init', '-b', 'main');
     await git(root, 'config', 'user.email', 'fixture@caxri.test');
     await git(root, 'config', 'user.name', 'Caxri Fixture');
-    await writeFile(join(root, 'README.md'), 'Worktree fixture\n');
-    await git(root, 'add', 'README.md');
+    await writeFile(join(root, 'notes.md'), 'Worktree fixture\n');
+    await git(root, 'add', 'notes.md');
     await git(root, 'commit', '-m', 'Add the worktree fixture');
     await git(
         root,
@@ -68,8 +72,7 @@ export async function executeMobileFilesWorktreeScenario(
         await openSessionSidePanel(serial, 'caxri.files');
         const linked = await waitForMobile(
             () => mobileSemantics(serial),
-            (nodes) =>
-                hasCheck(nodes, 'files-worktree') && hasCheck(nodes, 'files-entry-README.md'),
+            (nodes) => hasCheck(nodes, 'files-worktree') && hasCheck(nodes, 'files-entry-notes.md'),
         );
         if (hasCheck(linked, `files-entry-${MAIN_ONLY_FILE}`))
             throw new Error(
