@@ -270,6 +270,12 @@ no background of its own keeps its default dark text readable.
   closes the keyboard, since the drawer covers the composer.
 - Mark read happens automatically when the Session screen is visible and fresh; the menu keeps a
   manual action for accessibility.
+- The phone remembers the Sessions it opened for each pairing, across a cold start. When another
+  of them is still listed, the ⋮ menu leads with **Previous Session** naming it, and long-pressing
+  Back opens it too, the phone's counterpart of Desktop's most-recently-used switch. Choosing it
+  replaces the detail with a fade instead of pushing one, so the two Sessions toggle and Back still
+  lands on the list in one step. The list stays on the phone and never moves Desktop's history.
+  Android Acceptance `MOB-SESSION-PREVIOUS-01` covers it.
 - When the Session's work has a pull request, the header shows a chip with its glyph and number,
   tinted by readiness: green when ready, red for failed checks, conflicts, or a closed pull request,
   amber when branch protection or a stale base may make GitHub refuse, gray while checks run or for
