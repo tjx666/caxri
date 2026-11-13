@@ -176,10 +176,11 @@ const PreviousSessionMenuAction = ({
     theme,
 }: {
     onPress: () => void;
-    session: MobileSessionItem;
+    session: MobileSessionItem | null;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    if (!session) return null;
     return (
         <>
             <PopoverAction
@@ -192,6 +193,39 @@ const PreviousSessionMenuAction = ({
             />
             <PopoverDivider theme={theme} />
         </>
+    );
+};
+
+/**
+ * Back to the Session list; when the phone remembers a previous Session, a long press opens that one instead.
+ */
+const SessionBackButton = ({
+    hasPreviousSession,
+    onBack,
+    onOpenPreviousSession,
+    theme,
+}: {
+    hasPreviousSession: boolean;
+    onBack: () => void;
+    onOpenPreviousSession: () => void;
+    theme: MobileTheme;
+}) => {
+    const { t } = useTranslation();
+    return (
+        <IconButton
+            accessibilityHint={t(
+                hasPreviousSession
+                    ? 'sessions.detail.backHintWithPrevious'
+                    : 'sessions.detail.backHint',
+            )}
+            accessibilityLabel={t('sessions.backToSessions')}
+            icon={ChevronLeft}
+            onLongPress={hasPreviousSession ? onOpenPreviousSession : undefined}
+            onPress={onBack}
+            size={26}
+            testID="session-detail-back"
+            theme={theme}
+        />
     );
 };
 
@@ -305,18 +339,10 @@ export const SessionDetailHeader = ({
             <View style={[styles.header, { borderColor: theme.border }]}>
                 <View style={styles.headerLine}>
                     {onBack ? (
-                        <IconButton
-                            accessibilityHint={t(
-                                previousSession
-                                    ? 'sessions.detail.backHintWithPrevious'
-                                    : 'sessions.detail.backHint',
-                            )}
-                            accessibilityLabel={t('sessions.backToSessions')}
-                            icon={ChevronLeft}
-                            onLongPress={previousSession ? onOpenPreviousSession : undefined}
-                            onPress={onBack}
-                            size={26}
-                            testID="session-detail-back"
+                        <SessionBackButton
+                            hasPreviousSession={previousSession !== null}
+                            onBack={onBack}
+                            onOpenPreviousSession={onOpenPreviousSession}
                             theme={theme}
                         />
                     ) : null}
@@ -387,16 +413,14 @@ export const SessionDetailHeader = ({
                     placement={menu.placement}
                     theme={theme}
                 >
-                    {previousSession ? (
-                        <PreviousSessionMenuAction
-                            onPress={() => {
-                                closeMenu();
-                                onOpenPreviousSession();
-                            }}
-                            session={previousSession}
-                            theme={theme}
-                        />
-                    ) : null}
+                    <PreviousSessionMenuAction
+                        onPress={() => {
+                            closeMenu();
+                            onOpenPreviousSession();
+                        }}
+                        session={previousSession}
+                        theme={theme}
+                    />
                     {contentSwitchTarget ? (
                         <ContentSwitchMenuAction
                             onPress={() => {
