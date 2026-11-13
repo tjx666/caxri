@@ -149,21 +149,30 @@ async function executeMobileChatListLongQuestionScenario(
         const option = checkBounds(before, 'agent-chat-question-0-option-0');
         if (!text || !option) throw new Error('The question card is not laid out');
         const textFingerprint = await mobileRegionFingerprint(serial, text);
+        // A second read proves the text is at rest, so a later change can only come from the drag.
+        const isTextStill = (await mobileRegionFingerprint(serial, text)) === textFingerprint;
         // Drag the question text upward from inside it, as a reader does to see the rest.
         const x = Math.round((text.left + text.right) / 2);
         const fromY = Math.round(text.bottom - (text.bottom - text.top) / 5);
         const toY = Math.round(text.top + (text.bottom - text.top) / 5);
-        await adbShell(serial, ['input', 'swipe', `${x}`, `${fromY}`, `${x}`, `${toY}`, '600']);
+        const dragText = () =>
+            adbShell(serial, ['input', 'swipe', `${x}`, `${fromY}`, `${x}`, `${toY}`, '600']);
+        await dragText();
         await capture(environment, 'list-long-question-scrolled', artifacts);
         const after = await mobileSemantics(serial);
         const textAfter = checkBounds(after, 'agent-chat-question-0-text');
         const optionAfter = checkBounds(after, 'agent-chat-question-0-option-0');
         // The card holding still while its text changes is what tells a scroll inside it from a scroll of the list.
         const isTextScrolled =
+            isTextStill &&
             textAfter !== undefined &&
             textAfter.top === text.top &&
             optionAfter?.top === option.top &&
             (await mobileRegionFingerprint(serial, textAfter)) !== textFingerprint;
+        // Two more drags reach the end of the text, so the frame shows its closing END-OF-QUESTION marker.
+        await dragText();
+        await dragText();
+        await capture(environment, 'list-long-question-end', artifacts);
 
         let isSessionOpened = false;
         if (isSourceShown) {
